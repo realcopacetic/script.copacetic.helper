@@ -1,8 +1,6 @@
 import sys
 from resources.lib.helper import *
 
-########################
-
 class Main:
     def __init__(self, *args):
         self.params = {}

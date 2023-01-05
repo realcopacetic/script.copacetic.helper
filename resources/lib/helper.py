@@ -7,8 +7,6 @@ ADDON_ID = ADDON.getAddonInfo('id')
 DEBUG = xbmc.LOGDEBUG
 DIALOG = xbmcgui.Dialog()
 
-########################
-
 def log_and_execute(action):
     xbmc.log('{}: EXECUTE: {}'.format(ADDON_ID,action), DEBUG)
     xbmc.executebuiltin(action)
