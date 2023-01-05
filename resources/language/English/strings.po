@@ -1,7 +1,7 @@
 # XBMC Media Center language file
-# Addon Name: OSD Suppressor
-# Addon id: script.osdsuppressor
-# Addon Provider: KODeKarnage
+# Addon Name: Copacetic Helper
+# Addon id: script.copacetic.helper
+# Addon Provider: realcopacetic
 msgid ""
 msgstr ""
 "Project-Id-Version: XBMC Addons\n"
@@ -16,6 +16,6 @@ msgstr ""
 "Language: en\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgctxt "#32001"
-msgid "skeleton"
+msgctxt "#32000"
+msgid "Copacetic"
 msgstr ""
