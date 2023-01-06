@@ -1,7 +1,4 @@
-Copacetic Helper
-
-
-v2:
+#v2:
 class Main:
     def __init__(self, *args):
         self.params = {}
@@ -14,8 +11,8 @@ class Main:
         function = eval(self.params['action'])
         function(**self.params)
 
-v3:
 
+#v3:
 class Main:
     def __init__(self, *args):
         try:
