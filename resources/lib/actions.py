@@ -3,7 +3,7 @@
 
 
 import xbmc
-from resources.lib.helpers import *
+from resources.lib.helper import *
 
 
 def dialog_yesno(heading, message, **kwargs):

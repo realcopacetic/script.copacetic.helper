@@ -4,7 +4,7 @@
 
 import sys
 from resources.lib.actions import *
-from resources.lib.helpers import *
+from resources.lib.helper import *
 
 
 class Main:

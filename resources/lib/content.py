@@ -2,7 +2,7 @@
 # coding: utf-8
 
 
-from resources.lib.helpers import *
+from resources.lib.helper import *
 from resources.lib.json_map import *
 from resources.lib.library import *
 
