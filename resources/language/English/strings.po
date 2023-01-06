@@ -19,3 +19,13 @@ msgstr ""
 msgctxt "#32000"
 msgid "Copacetic"
 msgstr ""
+
+#: /resources/lib/plugin_listing.py
+msgctxt "#32008"
+msgid "Next up"
+msgstr ""
+
+#: /resources/lib/plugin_listing.py
+msgctxt "#32013"
+msgid "Continue watching"
+msgstr ""
