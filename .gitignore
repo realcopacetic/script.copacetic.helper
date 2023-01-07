@@ -1,7 +1,7 @@
 # Addon
+to_do.txt
 __pycache__/
 *.pyc
-learning_code.py
 
 # Windows image file caches
 Thumbs.db
