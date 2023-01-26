@@ -11,18 +11,25 @@ import sys
 
 ADDON = xbmcaddon.Addon()
 ADDON_ID = ADDON.getAddonInfo('id')
+
 DEBUG = xbmc.LOGDEBUG
+INFO = xbmc.LOGINFO
+WARNING = xbmc.LOGWARNING
+ERROR = xbmc.LOGERROR
+
 DIALOG = xbmcgui.Dialog()
 VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 
-def log(message):
-    xbmc.log(f'{ADDON_ID} --> {message}', DEBUG)
+def log(message, loglevel=DEBUG, force=False):
+    if force and loglevel not in [WARNING, ERROR]:
+        loglevel = INFO
+    xbmc.log(f'{ADDON_ID} --> {message}', loglevel)
 
 
 def log_and_execute(action):
-    log(f'EXECUTE {action}')
+    log(f'EXECUTE {action}', DEBUG)
     xbmc.executebuiltin(action)
 
 
@@ -99,7 +106,7 @@ def window_property(key, set_property=False, clear_property=False, window_id=100
 
     if clear_property:
         window.clearProperty(key)
-        log(f'CLEARPROPERTY {window_id}, {key}')
+        log(f'CLEARPROPERTY {window_id}, {key}', force=True)
     if set_property:
         window.setProperty(key, f'{set_property}')
-        log(f'SETPROPERTY {window_id}, {key}, {set_property}')
+        log(f'SETPROPERTY {window_id}, {key}, {set_property}', force=True)
