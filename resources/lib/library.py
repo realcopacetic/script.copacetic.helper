@@ -24,6 +24,7 @@ def handle_movies(li, item):
     videoInfoTag = li_item.getVideoInfoTag()
 
     videoInfoTag.setMediaType('movie')
+    videoInfoTag.setDbId(item['movieid'])
     videoInfoTag.setTitle(item['title'])
     #videoInfoTag.setOriginalTitle(item['originaltitle'])
     videoInfoTag.setYear(item['year'])
@@ -57,6 +58,7 @@ def handle_episodes(li, item):
     videoInfoTag = li_item.getVideoInfoTag()
 
     videoInfoTag.setMediaType('episode')
+    videoInfoTag.setDbId(item['episodeid'])
     videoInfoTag.setTitle(item['title'])
     videoInfoTag.setEpisode(item['episode'])
     videoInfoTag.setSeason(item['season'])
@@ -95,6 +97,7 @@ def handle_musicvideos(li, item):
     videoInfoTag = li_item.getVideoInfoTag()
 
     videoInfoTag.setMediaType('musicvideo')
+    videoInfoTag.setDbId(item['musicvideoid'])
     videoInfoTag.setTitle(item['title'])
     videoInfoTag.setArtists(item['artist'])
     videoInfoTag.setYear(item['year'])

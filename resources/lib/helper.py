@@ -52,7 +52,7 @@ def get_joined_items(item):
     return item
 
 
-def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=True):
+def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=False):
     json_string = {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': {}}
 
     if properties is not None:

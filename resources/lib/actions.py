@@ -18,11 +18,12 @@ def dialog_yesno(heading, message, **kwargs):
             log_and_execute(action)
 
 
-def play_music(id, **kwargs):
+def play_items(id, **kwargs):
     clear_playlists()
 
     method = kwargs.get('method', '')
     shuffled = True if method == 'shuffle' else False
+    playlistid = 0 if kwargs.get('type', '') == 'music' else 1
 
     if method == 'from_here':
         method = f'Container({id}).ListItemNoWrap'
@@ -31,18 +32,37 @@ def play_music(id, **kwargs):
 
     for count in range(int(xbmc.getInfoLabel(f'Container({id}).NumItems'))):
 
-        dbid = int(xbmc.getInfoLabel(f'{method}({count}).DBID'))
+        if xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,movie)'):
+            media_type = 'movie'
+        elif xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,episode)'):
+            media_type = 'episode'
+        elif xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,song)'):
+            media_type = 'song'
+        elif xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,musicvideo)'):
+            media_type = 'musicvideo'
+
+        dbid = xbmc.getInfoLabel(f'{method}({count}).DBID')
         url = xbmc.getInfoLabel(f'{method}({count}).Filenameandpath')
 
-        if dbid:
-            json_call('Playlist.Add', item={
-                      'songid': dbid}, params={'playlistid': 0})
+        if media_type and dbid:
+            json_call('Playlist.Add',
+                      item={f'{media_type}id': int(dbid)},
+                      params={'playlistid': playlistid}
+                      )
         elif url:
-            json_call('Playlist.Add', item={
-                      'file': url}, params={'playlistid': 0})
+            json_call('Playlist.Add',
+                      item={'file': url},
+                      params={'playlistid': playlistid}
+                      )
 
-    json_call('Player.Open', item={'playlistid': 0, 'position': 0}, options={
-              'shuffled': shuffled})
+    json_call('Player.Open',
+              item={'playlistid': playlistid, 'position': 0},
+              options={'shuffled': shuffled}
+              )
+    
+    json_call('Playlist.GetItems',
+              params={'playlistid': playlistid}
+              )
 
 
 def shuffle_artist(**kwargs):
@@ -61,7 +81,7 @@ def play_album(**kwargs):
               'albumid': dbid}, options={'shuffled': False})
 
 
-def play_album_from_song(**kwargs):
+def play_album_from_track_x(**kwargs):
     clear_playlists()
 
     dbid = int(kwargs.get('id', False))
@@ -77,7 +97,6 @@ def play_album_from_song(**kwargs):
               'albumid': albumid}, options={'shuffled': False})
     if track > 0:
         json_call('Player.GoTo', params={'playerid': 0, 'to': track})
-
 
 
 def split(string, **kwargs):
