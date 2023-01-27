@@ -36,20 +36,29 @@ def play_music(id, **kwargs):
 
         if dbid:
             json_call('Playlist.Add', item={
-                      'songid':dbid}, params={'playlistid':0})
+                      'songid': dbid}, params={'playlistid': 0})
         elif url:
             json_call('Playlist.Add', item={
-                      'file':url}, params={'playlistid':0})
+                      'file': url}, params={'playlistid': 0})
 
-    json_call('Player.Open', item={'playlistid':0, 'position':0}, options={
-              'shuffled':shuffled})
+    json_call('Player.Open', item={'playlistid': 0, 'position': 0}, options={
+              'shuffled': shuffled})
+
+
+def shuffle_artist(**kwargs):
+    clear_playlists()
+
+    dbid = int(kwargs.get('id', False))
+    json_call('Player.Open', item={
+              'artistid': dbid}, options={'shuffled': True})
 
 
 def play_album(**kwargs):
     clear_playlists()
-    
+
     dbid = int(kwargs.get('id', False))
-    json_call('Player.Open', item={f'albumid':dbid})
+    json_call('Player.Open', item={
+              'albumid': dbid}, options={'shuffled': False})
 
 
 def play_album_from_song(**kwargs):
@@ -58,21 +67,17 @@ def play_album_from_song(**kwargs):
     dbid = int(kwargs.get('id', False))
     track = int(kwargs.get('track', False)) - 1
 
-    json_response = json_call('AudioLibrary.GetSongDetails', params={'properties':['albumid'], 'songid':dbid})    
+    json_response = json_call('AudioLibrary.GetSongDetails', params={
+                              'properties': ['albumid'], 'songid': dbid})
 
     if json_response['result'].get('songdetails', None):
         albumid = json_response['result']['songdetails']['albumid']
 
-    json_call('Player.Open', item={f'albumid':albumid})
+    json_call('Player.Open', item={
+              'albumid': albumid}, options={'shuffled': False})
     if track > 0:
-        json_call('Player.GoTo', params={'playerid':0, 'to':track})
+        json_call('Player.GoTo', params={'playerid': 0, 'to': track})
 
-
-'''
-log(f'FUCK --> {track} --> {json_response}',force=True)
-FUCK --> 3 --> {'id': 1, 'jsonrpc': '2.0', 'result': {'songdetails': {'albumid': 20, 'label': 'A Million Random Digits', 'songid': 248}}}
-'''
-        
 
 
 def split(string, **kwargs):

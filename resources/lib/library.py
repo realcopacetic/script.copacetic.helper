@@ -14,6 +14,8 @@ def add_items(li, json_query, type):
             handle_movies(li, item)
         elif type == 'episode':
             handle_episodes(li, item)
+        elif type == 'musicvideo':
+            handle_musicvideos(li, item)
 
 
 def handle_movies(li, item):
@@ -23,7 +25,7 @@ def handle_movies(li, item):
 
     videoInfoTag.setMediaType('movie')
     videoInfoTag.setTitle(item['title'])
-    videoInfoTag.setOriginalTitle(item['originaltitle'])
+    #videoInfoTag.setOriginalTitle(item['originaltitle'])
     videoInfoTag.setYear(item['year'])
     videoInfoTag.setDuration(item['runtime'])
     videoInfoTag.setTrailer(item['trailer'])
@@ -83,6 +85,34 @@ def handle_episodes(li, item):
                     'clearart': item['art'].get('tvshow.clearart', '')
                     })
     li_item.setArt(item['art'])
+
+    li.append((item['file'], li_item, False))
+
+
+def handle_musicvideos(li, item):
+
+    li_item = xbmcgui.ListItem(item['title'], offscreen=True)
+    videoInfoTag = li_item.getVideoInfoTag()
+
+    videoInfoTag.setMediaType('musicvideo')
+    videoInfoTag.setTitle(item['title'])
+    videoInfoTag.setArtists(item['artist'])
+    videoInfoTag.setYear(item['year'])
+    videoInfoTag.setDuration(item['runtime'])
+    videoInfoTag.setResumePoint(item['resume']['position'], item['resume']['total'])
+
+    for key, value in iter(list(item['streamdetails'].items())):
+        for stream in value:
+            if 'video' in key:
+                videostream = xbmc.VideoStreamDetail(**stream)
+                videoInfoTag.addVideoStream(videostream)
+            elif 'audio' in key:
+                audiostreamlist = list(stream.values())
+                audiostream = xbmc.AudioStreamDetail(*audiostreamlist)
+                videoInfoTag.addAudioStream(audiostream)
+
+    li_item.setArt(item['art'])
+    li_item.setArt({'icon': 'DefaultVideo.png'})
 
     li.append((item['file'], li_item, False))
     

@@ -22,7 +22,7 @@ VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 
-def log(message, loglevel=DEBUG, force=False):
+def log(message, loglevel=DEBUG, force=True):
     if force and loglevel not in [WARNING, ERROR]:
         loglevel = INFO
     xbmc.log(f'{ADDON_ID} --> {message}', loglevel)
@@ -52,7 +52,7 @@ def get_joined_items(item):
     return item
 
 
-def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=False):
+def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=True):
     json_string = {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': {}}
 
     if properties is not None:

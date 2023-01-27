@@ -46,7 +46,6 @@ class Main:
         self._execute(plugin,self.info)
         self._additems(li)
 
-
     def _execute(self,plugin,action):
         getattr(plugin,action.lower())()
 
