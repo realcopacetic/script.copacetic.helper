@@ -7,14 +7,6 @@ import random
 from resources.lib.helper import *
 
 
-NOTIFICATION_METHOD = ['VideoLibrary.OnUpdate',
-                       'VideoLibrary.OnScanFinished',
-                       'VideoLibrary.OnCleanFinished',
-                       'AudioLibrary.OnUpdate',
-                       'AudioLibrary.OnScanFinished'
-                       ]
-
-
 class Monitor(xbmc.Monitor):
     def __init__(self):
         self.restart = False
@@ -62,18 +54,16 @@ class Monitor(xbmc.Monitor):
     def start(self):
         log('Monitor: Started', force=True)
 
-        service_interval = 0.5
+        service_interval = 1
         background_interval = 7
         get_backgrounds = 300
 
         while not self.abortRequested() and not self.restart:
 
-            ''' Only run timed tasks if screensaver is inactive to avoid keeping NAS/servers awake
-            '''
+            # Only run timed tasks if screensaver is inactive to avoid keeping NAS/servers awake
             if not self.screensaver:
 
-                ''' Get fanarts
-                '''
+                # Get fanarts
                 if get_backgrounds >= 300:
                     log('Monitor: Get fanart', force=True)
                     arts = self.grabfanart()
@@ -82,32 +72,35 @@ class Monitor(xbmc.Monitor):
                 else:
                     get_backgrounds += service_interval
 
-                ''' Set background properties
-                '''
+                # Set background properties
                 if background_interval >= 7:
                     if arts.get('all'):
                         self.setfanart('Fanart_Slideshow_Global', arts['all'])
                     if arts.get('movies'):
-                        self.setfanart('Fanart_Slideshow_Movies', arts['movies'])
+                        self.setfanart(
+                            'Fanart_Slideshow_Movies', arts['movies'])
                     if arts.get('tvshows'):
-                        self.setfanart('Fanart_Slideshow_TVShows', arts['tvshows'])
+                        self.setfanart(
+                            'Fanart_Slideshow_TVShows', arts['tvshows'])
                     if arts.get('videos'):
-                        self.setfanart('Fanart_Slideshow_Videos', arts['videos'])
+                        self.setfanart(
+                            'Fanart_Slideshow_Videos', arts['videos'])
                     if arts.get('artists'):
-                        self.setfanart('Fanart_Slideshow_Artists', arts['artists'])
+                        self.setfanart(
+                            'Fanart_Slideshow_Artists', arts['artists'])
                     if arts.get('musicvideos'):
-                        self.setfanart('Fanart_Slideshow_MusicVideos', arts['musicvideos'])
+                        self.setfanart(
+                            'Fanart_Slideshow_MusicVideos', arts['musicvideos'])
 
                     background_interval = 0
 
                 else:
-                    
                     background_interval += service_interval
 
+            # Wait for time equal to service_interval in seconds before next loop
             self.waitForAbort(service_interval)
 
         self.stop()
-
 
     def grabfanart(self):
         arts = {}
@@ -120,7 +113,7 @@ class Monitor(xbmc.Monitor):
 
         for item in ['movies', 'tvshows', 'artists', 'musicvideos']:
             dbtype = 'Video' if item != 'artists' else 'Audio'
-            query = json_call('%sLibrary.Get%s' % (dbtype, item),
+            query = json_call(f'{dbtype}Library.Get{item}',
                               properties=['art'],
                               sort={'method': 'random'}, limit=40
                               )
@@ -142,7 +135,6 @@ class Monitor(xbmc.Monitor):
                 arts['all'] = arts['all'] + arts[cat]
 
         return arts
-
 
     def setfanart(self, key, items):
         arts = random.choice(items)

@@ -59,7 +59,7 @@ def play_items(id, **kwargs):
               item={'playlistid': playlistid, 'position': 0},
               options={'shuffled': shuffled}
               )
-    
+
     json_call('Playlist.GetItems',
               params={'playlistid': playlistid}
               )
@@ -87,8 +87,7 @@ def play_album_from_track_x(**kwargs):
     dbid = int(kwargs.get('id', False))
     track = int(kwargs.get('track', False)) - 1
 
-    json_response = json_call('AudioLibrary.GetSongDetails', params={
-                              'properties': ['albumid'], 'songid': dbid})
+    json_response = json_call('AudioLibrary.GetSongDetails', params={'properties': ['albumid'], 'songid': dbid})
 
     if json_response['result'].get('songdetails', None):
         albumid = json_response['result']['songdetails']['albumid']
@@ -99,6 +98,16 @@ def play_album_from_track_x(**kwargs):
         json_call('Player.GoTo', params={'playerid': 0, 'to': track})
 
 
+def rate_song(**kwargs):
+    dbid = int(kwargs.get('id', False))
+    rating_threshold = int(kwargs.get('rating', False))
+
+    if rating_threshold is False:
+        rating_threshold = 7
+        
+    json_call('AudioLibrary.SetSongDetails', params={'songid': dbid, 'userrating': rating_threshold})
+
+        
 def split(string, **kwargs):
     separator = kwargs.get('separator', ' / ')
     name = kwargs.get('name', 'Split')
