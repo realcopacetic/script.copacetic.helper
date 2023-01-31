@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding: utf-8
 
-
+import urllib.parse
 import xbmc
 from resources.lib.helper import *
 
@@ -107,6 +107,22 @@ def rate_song(**kwargs):
         
     json_call('AudioLibrary.SetSongDetails', params={'songid': dbid, 'userrating': rating_threshold})
 
+
+def return_label(**kwargs):
+    label = kwargs.get('label', False)
+    find = urllib.parse.unquote(kwargs.get('find', False))
+    replace = urllib.parse.unquote(kwargs.get('replace', False))
+    new_label = ''
+
+    if find and replace:
+        for count in label:
+            if count == find:
+                new_label += replace
+            else:
+                new_label += count
+
+    window_property('Return_Label', set_property=new_label)
+
         
 def split(string, **kwargs):
     separator = kwargs.get('separator', ' / ')
@@ -123,4 +139,4 @@ def split_random_return(string, **kwargs):
     name = kwargs.get('name', 'SplitRandomReturn')
     random = random.choice(string.split(separator))
 
-    window_property(f'{name}', set_property=random.strip())
+    window_property(name, set_property=random.strip())
