@@ -5,9 +5,11 @@
 import xbmc
 import random
 from resources.lib.helper import *
+from resources.lib.actions import return_label
 
 
 class Monitor(xbmc.Monitor):
+    
     def __init__(self):
         self.restart = False
         self.screensaver = False
@@ -18,19 +20,24 @@ class Monitor(xbmc.Monitor):
         else:
             self.keep_alive()
 
+
     def onNotification(self, sender, method, data):
         if ADDON_ID in sender and 'restart' in method:
             self.restart = True
+
 
     def onSettingsChanged(self):
         log('Monitor: Addon setting changed', force=True)
         self.restart = True
 
+
     def onScreensaverActivated(self):
         self.screensaver = True
 
+
     def onScreensaverDeactivated(self):
         self.screensaver = False
+
 
     def stop(self):
         if self.service_enabled:
@@ -43,6 +50,7 @@ class Monitor(xbmc.Monitor):
             DIALOG.notification(ADDON_ID, ADDON.getLocalizedString(32006))
             self.__init__()
 
+
     def keep_alive(self):
         log('Monitor: Disabled', force=True)
 
@@ -51,8 +59,11 @@ class Monitor(xbmc.Monitor):
 
         self.stop()
 
+
     def start(self):
         log('Monitor: Started', force=True)
+
+        self.Player = Player()
 
         service_interval = 1
         background_interval = 7
@@ -63,8 +74,8 @@ class Monitor(xbmc.Monitor):
             # Only run timed tasks if screensaver is inactive to avoid keeping NAS/servers awake
             if not self.screensaver:
 
-                # Get fanarts
-                if get_backgrounds >= 300:
+                # Get fanarts every 210 seconds (30 fanarts shown each for 7 seconds before refresh) if service interval
+                if get_backgrounds >= 209:
                     log('Monitor: Get fanart', force=True)
                     arts = self.grabfanart()
                     get_backgrounds = 0
@@ -72,8 +83,8 @@ class Monitor(xbmc.Monitor):
                 else:
                     get_backgrounds += service_interval
 
-                # Set background properties
-                if background_interval >= 7:
+                # Set background properties every 7 seconds if service_interval is 1
+                if background_interval >= 6:
                     if arts.get('all'):
                         self.setfanart('Fanart_Slideshow_Global', arts['all'])
                     if arts.get('movies'):
@@ -101,6 +112,7 @@ class Monitor(xbmc.Monitor):
             self.waitForAbort(service_interval)
 
         self.stop()
+
 
     def grabfanart(self):
         arts = {}
@@ -139,3 +151,16 @@ class Monitor(xbmc.Monitor):
     def setfanart(self, key, items):
         arts = random.choice(items)
         window_property(key, arts.get('fanart', ''))
+
+
+class Player(xbmc.Player):
+
+    def __init__(self):
+        xbmc.Player.__init__(self)
+
+    def onAVStarted(self):
+        if self.isPlayingVideo():
+            li  = self.getPlayingItem()
+            label = li.getLabel()
+            return_label(label=label)
+            

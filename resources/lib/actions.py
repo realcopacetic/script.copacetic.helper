@@ -65,14 +65,6 @@ def play_items(id, **kwargs):
               )
 
 
-def shuffle_artist(**kwargs):
-    clear_playlists()
-
-    dbid = int(kwargs.get('id', False))
-    json_call('Player.Open', item={
-              'artistid': dbid}, options={'shuffled': True})
-
-
 def play_album(**kwargs):
     clear_playlists()
 
@@ -110,20 +102,29 @@ def rate_song(**kwargs):
 
 def return_label(**kwargs):
     label = kwargs.get('label', False)
-    find = urllib.parse.unquote(kwargs.get('find', False))
-    replace = urllib.parse.unquote(kwargs.get('replace', False))
-    new_label = ''
+    find = kwargs.get('find', False)
+    replace = kwargs.get('replace', False)
 
     if find and replace:
-        for count in label:
-            if count == find:
-                new_label += replace
-            else:
-                new_label += count
+        count = label.count(find) - 1 
+        label = label.replace(urllib.parse.unquote(find),
+                              urllib.parse.unquote(replace),
+                              count)
+    else:
+        count = label.count('.')
+        label = label.replace('.',' ',count - 1).replace('_',' ')
 
-    window_property('Return_Label', set_property=new_label)
+    window_property('Return_Label', set_property=label)
 
-        
+
+def shuffle_artist(**kwargs):
+    clear_playlists()
+
+    dbid = int(kwargs.get('id', False))
+    json_call('Player.Open', item={
+              'artistid': dbid}, options={'shuffled': True})
+
+
 def split(string, **kwargs):
     separator = kwargs.get('separator', ' / ')
     name = kwargs.get('name', 'Split')

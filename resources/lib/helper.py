@@ -22,7 +22,7 @@ VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 
-def log(message, loglevel=DEBUG, force=True):
+def log(message, loglevel=DEBUG, force=False):
     if force and loglevel not in [WARNING, ERROR]:
         loglevel = INFO
     xbmc.log(f'{ADDON_ID} --> {message}', loglevel)
@@ -84,8 +84,8 @@ def json_call(method, properties=None, sort=None, query_filter=None, limit=None,
     result = json.loads(result)
 
     if debug:
-        log('--> JSON CALL: ' + json_prettyprint(json_string))
-        log('--> JSON RESULT: ' + json_prettyprint(result))
+        log('--> JSON CALL: ' + json_prettyprint(json_string), force=debug)
+        log('--> JSON RESULT: ' + json_prettyprint(result), force=debug)
 
     return result
 
@@ -101,12 +101,12 @@ def set_plugincontent(content=None, category=None):
         xbmcplugin.setContent(int(sys.argv[1]), content)
 
 
-def window_property(key, set_property=False, clear_property=False, window_id=10000):
+def window_property(key, set_property=False, clear_property=False, window_id=10000, force=False):
     window = xbmcgui.Window(window_id)
 
     if clear_property:
         window.clearProperty(key)
-        log(f'CLEARPROPERTY {window_id}, {key}', force=True)
+        log(f'CLEARPROPERTY {window_id}, {key}', force)
     if set_property:
         window.setProperty(key, f'{set_property}')
-        log(f'SETPROPERTY {window_id}, {key}, {set_property}', force=True)
+        log(f'SETPROPERTY {window_id}, {key}, {set_property}', force)
