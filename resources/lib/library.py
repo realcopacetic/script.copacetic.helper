@@ -19,14 +19,12 @@ def add_items(li, json_query, type):
 
 
 def handle_movies(li, item):
-
     li_item = xbmcgui.ListItem(item['title'], offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
-
     videoInfoTag.setMediaType('movie')
     videoInfoTag.setDbId(item['movieid'])
     videoInfoTag.setTitle(item['title'])
-    #videoInfoTag.setOriginalTitle(item['originaltitle'])
+    videoInfoTag.setOriginalTitle(item['originaltitle'])
     videoInfoTag.setYear(item['year'])
     videoInfoTag.setDuration(item['runtime'])
     videoInfoTag.setTrailer(item['trailer'])

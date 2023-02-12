@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # coding: utf-8
 
-import urllib.parse
 import xbmc
+import xbmcgui
 from resources.lib.helper import *
 
 
@@ -16,6 +16,37 @@ def dialog_yesno(heading, message, **kwargs):
     else:
         for action in no_actions:
             log_and_execute(action)
+
+
+def play_album(**kwargs):
+    clear_playlists()
+
+    dbid = int(kwargs.get('id', False))
+    if dbid:
+        json_call('Player.Open', 
+                  item={'albumid': dbid}, 
+                  options={'shuffled': False}
+                  )
+
+
+def play_album_from_track_x(**kwargs):
+    clear_playlists()
+
+    dbid = int(kwargs.get('id', False))
+    track = int(kwargs.get('track', False)) - 1
+
+    if dbid:
+        json_response = json_call('AudioLibrary.GetSongDetails',
+                                  params={'properties': ['albumid'],'songid': dbid}
+                                  )
+
+    if json_response['result'].get('songdetails', None):
+        albumid = json_response['result']['songdetails']['albumid']
+
+    json_call('Player.Open', item={
+              'albumid': albumid}, options={'shuffled': False})
+    if track > 0:
+        json_call('Player.GoTo', params={'playerid': 0, 'to': track})
 
 
 def play_items(id, **kwargs):
@@ -55,52 +86,86 @@ def play_items(id, **kwargs):
                       params={'playlistid': playlistid}
                       )
 
+    json_call('Playlist.GetItems',
+              params={'playlistid': playlistid}
+              )
+    
     json_call('Player.Open',
               item={'playlistid': playlistid, 'position': 0},
               options={'shuffled': shuffled}
               )
+    
 
-    json_call('Playlist.GetItems',
-              params={'playlistid': playlistid}
+def play_radio(**kwargs):
+    import random
+    clear_playlists()
+
+    dbid = int(kwargs.get('id', xbmc.getInfoLabel('ListItem.DBID')))
+   
+    json_response = json_call('AudioLibrary.GetSongDetails',
+                              params={'properties': ['genre'],'songid': dbid})
+
+    if json_response['result']['songdetails'].get('genre', None):
+        genre = json_response['result']['songdetails']['genre']
+        genre = random.choice(genre)
+
+    if dbid:
+        json_call('Playlist.Add',
+              item={'songid': dbid},
+              params={'playlistid': 0}
               )
 
+    if genre:
+        json_response = json_call('AudioLibrary.GetSongs',
+                                params={'properties': ['genre']},
+                                sort={'method': 'random'},
+                                limit=24,
+                                query_filter={'genre': genre}
+                                )
+        
+        for count in json_response['result']['songs']:
+            if count.get('songid', None):
+                songid = count['songid']
+                json_call('Playlist.Add',
+                        item={'songid': int(songid)},
+                        params={'playlistid': 0}
+                        )
+    
+    json_call('Playlist.GetItems',
+              params={'playlistid': 0}
+              )
 
-def play_album(**kwargs):
-    clear_playlists()
-
-    dbid = int(kwargs.get('id', False))
-    json_call('Player.Open', item={
-              'albumid': dbid}, options={'shuffled': False})
-
-
-def play_album_from_track_x(**kwargs):
-    clear_playlists()
-
-    dbid = int(kwargs.get('id', False))
-    track = int(kwargs.get('track', False)) - 1
-
-    json_response = json_call('AudioLibrary.GetSongDetails', params={'properties': ['albumid'], 'songid': dbid})
-
-    if json_response['result'].get('songdetails', None):
-        albumid = json_response['result']['songdetails']['albumid']
-
-    json_call('Player.Open', item={
-              'albumid': albumid}, options={'shuffled': False})
-    if track > 0:
-        json_call('Player.GoTo', params={'playerid': 0, 'to': track})
+    json_call('Player.Open',
+              item={'playlistid': 0, 'position': 0}
+              )
 
 
 def rate_song(**kwargs):
     dbid = int(kwargs.get('id', False))
-    rating_threshold = int(kwargs.get('rating', False))
-
-    if rating_threshold is False:
-        rating_threshold = 7
+    rating_threshold = int(kwargs.get('rating', 7))
+    
         
     json_call('AudioLibrary.SetSongDetails', params={'songid': dbid, 'userrating': rating_threshold})
+            
+    player = xbmc.Player()
+    player_dbid = int(xbmc.getInfoLabel('MusicPlayer.DBID')) if player.isPlayingAudio() else None
 
+    if dbid == player_dbid:
+        if rating_threshold is not 0:
+            window_property('MusicPlayer_UserRating',set_property=rating_threshold)
+        else:
+            window_property('MusicPlayer_UserRating', clear_property=True)
+        '''
+        player_path = player.getPlayingFile()
+        item = xbmcgui.ListItem(path=player_path)
+        musicInfoTag = item.getMusicInfoTag()
+        musicInfoTag.setUserRating(rating_threshold)
+        player.updateInfoTag(item)
+        '''
 
 def return_label(**kwargs):
+    import urllib.parse
+
     label = kwargs.get('label', False)
     find = kwargs.get('find', False)
     replace = kwargs.get('replace', False)
@@ -141,3 +206,4 @@ def split_random_return(string, **kwargs):
     random = random.choice(string.split(separator))
 
     window_property(name, set_property=random.strip())
+    return random

@@ -158,9 +158,25 @@ class Player(xbmc.Player):
     def __init__(self):
         xbmc.Player.__init__(self)
 
+
     def onAVStarted(self):
         if self.isPlayingVideo():
-            li  = self.getPlayingItem()
-            label = li.getLabel()
-            return_label(label=label)
-            
+            item  = self.getPlayingItem()
+            label = item.getLabel()
+            if label:
+                return_label(label=label)
+            else:
+                window_property('MusicPlayer_UserRating', clear_property=True)
+        
+        if self.isPlayingAudio():
+            tag = self.getMusicInfoTag()
+            user_rating = tag.getUserRating()
+            album_artist = tag.getAlbumArtist()
+            window_property('MusicPlayer_UserRating', set_property=user_rating)
+            window_property('MusicPlayer_AlbumArtist', set_property=album_artist)
+
+
+    def onPlayBackStopped(self):
+        window_property('MusicPlayer_UserRating', clear_property=True)
+        window_property('MusicPlayer_AlbumArtist', clear_property=True)
+        window_property('Return_Label', clear_property=True)

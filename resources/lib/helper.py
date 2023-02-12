@@ -52,7 +52,7 @@ def get_joined_items(item):
     return item
 
 
-def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=False):
+def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=True):
     json_string = {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': {}}
 
     if properties is not None:
@@ -101,7 +101,7 @@ def set_plugincontent(content=None, category=None):
         xbmcplugin.setContent(int(sys.argv[1]), content)
 
 
-def window_property(key, set_property=False, clear_property=False, window_id=10000, force=False):
+def window_property(key, set_property=False, clear_property=False, window_id=10000, force=True):
     window = xbmcgui.Window(window_id)
 
     if clear_property:
