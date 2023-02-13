@@ -41,6 +41,7 @@ def clear_playlists():
     log('CLEAR PLAYLISTS')
     VIDEOPLAYLIST.clear()
     MUSICPLAYLIST.clear()
+    MUSICPLAYLIST.unshuffle()
 
 
 def get_joined_items(item):

@@ -29,7 +29,7 @@ def play_album(**kwargs):
                   )
 
 
-def play_album_from_track_x(**kwargs):
+def play_album_from_track(**kwargs):
     clear_playlists()
 
     dbid = int(kwargs.get('id', False))
@@ -72,12 +72,12 @@ def play_items(id, **kwargs):
         elif xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,musicvideo)'):
             media_type = 'musicvideo'
 
-        dbid = xbmc.getInfoLabel(f'{method}({count}).DBID')
+        dbid = int(xbmc.getInfoLabel(f'{method}({count}).DBID'))
         url = xbmc.getInfoLabel(f'{method}({count}).Filenameandpath')
 
         if media_type and dbid:
             json_call('Playlist.Add',
-                      item={f'{media_type}id': int(dbid)},
+                      item={f'{media_type}id': dbid},
                       params={'playlistid': playlistid}
                       )
         elif url:
@@ -101,7 +101,7 @@ def play_radio(**kwargs):
     clear_playlists()
 
     dbid = int(kwargs.get('id', xbmc.getInfoLabel('ListItem.DBID')))
-   
+
     json_response = json_call('AudioLibrary.GetSongDetails',
                               params={'properties': ['genre'],'songid': dbid})
 
@@ -109,13 +109,12 @@ def play_radio(**kwargs):
         genre = json_response['result']['songdetails']['genre']
         genre = random.choice(genre)
 
-    if dbid:
-        json_call('Playlist.Add',
-              item={'songid': dbid},
-              params={'playlistid': 0}
-              )
-
     if genre:
+        json_call('Playlist.Add',
+                  item={'songid': dbid},
+                  params={'playlistid': 0}
+                  )
+        
         json_response = json_call('AudioLibrary.GetSongs',
                                 params={'properties': ['genre']},
                                 sort={'method': 'random'},
@@ -125,25 +124,25 @@ def play_radio(**kwargs):
         
         for count in json_response['result']['songs']:
             if count.get('songid', None):
-                songid = count['songid']
+                songid = int(count['songid'])
+
                 json_call('Playlist.Add',
-                        item={'songid': int(songid)},
+                        item={'songid': songid},
                         params={'playlistid': 0}
                         )
-    
-    json_call('Playlist.GetItems',
-              params={'playlistid': 0}
-              )
 
-    json_call('Player.Open',
-              item={'playlistid': 0, 'position': 0}
-              )
+        json_call('Playlist.GetItems',
+                params={'playlistid': 0}
+                )
+
+        json_call('Player.Open',
+                item={'playlistid': 0, 'position': 0}
+                )
 
 
 def rate_song(**kwargs):
-    dbid = int(kwargs.get('id', False))
-    rating_threshold = int(kwargs.get('rating', 7))
-    
+    dbid = int(kwargs.get('id', xbmc.getInfoLabel('ListItem.DBID')))
+    rating_threshold = int(kwargs.get('rating',xbmc.getInfoLabel('Skin.String(Music_Rating_Like_Threshold)')))
         
     json_call('AudioLibrary.SetSongDetails', params={'songid': dbid, 'userrating': rating_threshold})
             
@@ -151,7 +150,7 @@ def rate_song(**kwargs):
     player_dbid = int(xbmc.getInfoLabel('MusicPlayer.DBID')) if player.isPlayingAudio() else None
 
     if dbid == player_dbid:
-        if rating_threshold is not 0:
+        if rating_threshold != 0:
             window_property('MusicPlayer_UserRating',set_property=rating_threshold)
         else:
             window_property('MusicPlayer_UserRating', clear_property=True)
