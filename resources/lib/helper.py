@@ -9,6 +9,7 @@ import xbmcplugin
 import json
 import sys
 
+
 ADDON = xbmcaddon.Addon()
 ADDON_ID = ADDON.getAddonInfo('id')
 
@@ -23,14 +24,18 @@ MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 
 def log(message, loglevel=DEBUG, force=False):
-    if force and loglevel not in [WARNING, ERROR]:
+
+    if (ADDON.getSettingBool('debug_logging') or force) and loglevel not in [WARNING, ERROR]:
         loglevel = INFO
     xbmc.log(f'{ADDON_ID} --> {message}', loglevel)
 
 
 def log_and_execute(action):
-    log(f'EXECUTE {action}', DEBUG)
+    log(f'Execute: {action}', DEBUG)
     xbmc.executebuiltin(action)
+
+def infolabel(infolabel):
+    return xbmc.getInfoLabel(infolabel)
 
 
 def condition(condition):
@@ -38,7 +43,7 @@ def condition(condition):
 
 
 def clear_playlists():
-    log('CLEAR PLAYLISTS')
+    log('Clear playlists')
     VIDEOPLAYLIST.clear()
     MUSICPLAYLIST.clear()
     MUSICPLAYLIST.unshuffle()
@@ -53,7 +58,7 @@ def get_joined_items(item):
     return item
 
 
-def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=True):
+def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=False):
     json_string = {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': {}}
 
     if properties is not None:
@@ -83,15 +88,16 @@ def json_call(method, properties=None, sort=None, query_filter=None, limit=None,
     jsonrpc_call = json.dumps(json_string)
     result = xbmc.executeJSONRPC(jsonrpc_call)
     result = json.loads(result)
-
-    if debug:
-        log('--> JSON CALL: ' + json_prettyprint(json_string), force=debug)
-        log('--> JSON RESULT: ' + json_prettyprint(result), force=debug)
+    
+    if (ADDON.getSettingBool('json_logging') or debug):
+        log('JSON call: ' + json_print(json_string), force=debug)
+        log('JSON result: ' + json_print(result), force=debug)
 
     return result
+    
 
 
-def json_prettyprint(string):
+def json_print(string):
     return json.dumps(string, sort_keys=True, indent=4, separators=(',', ': '))
 
 
@@ -102,12 +108,12 @@ def set_plugincontent(content=None, category=None):
         xbmcplugin.setContent(int(sys.argv[1]), content)
 
 
-def window_property(key, set_property=False, clear_property=False, window_id=10000, force=True):
+def window_property(key, set_property=False, clear_property=False, window_id=10000, debug=False):
     window = xbmcgui.Window(window_id)
 
     if clear_property:
         window.clearProperty(key)
-        log(f'CLEARPROPERTY {window_id}, {key}', force)
+        log(f'Window property: Clear, {window_id}, {key}', force=debug)
     if set_property:
         window.setProperty(key, f'{set_property}')
-        log(f'SETPROPERTY {window_id}, {key}, {set_property}', force)
+        log(f'Window property: Set, {window_id}, {key}, {set_property}', force=debug)

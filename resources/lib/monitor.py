@@ -5,7 +5,7 @@
 import xbmc
 import random
 from resources.lib.helper import *
-from resources.lib.actions import return_label
+from resources.lib.actions import clean_filename
 
 
 class Monitor(xbmc.Monitor):
@@ -28,6 +28,9 @@ class Monitor(xbmc.Monitor):
 
     def onSettingsChanged(self):
         log('Monitor: Addon setting changed', force=True)
+        window_property('Background_Interval',
+                        set_property=ADDON.getSetting('background_interval')
+                        )
         self.restart = True
 
 
@@ -47,7 +50,7 @@ class Monitor(xbmc.Monitor):
             log('Monitor: Applying changes', force=True)
             # Give Kodi time to set possible changed skin settings. Just to be sure to bypass race conditions on slower systems.
             xbmc.sleep(500)
-            DIALOG.notification(ADDON_ID, ADDON.getLocalizedString(32006))
+            DIALOG.notification(ADDON_ID, ADDON.getLocalizedString(32200))
             self.__init__()
 
 
@@ -66,47 +69,45 @@ class Monitor(xbmc.Monitor):
         self.Player = Player()
 
         service_interval = 1
-        background_interval = 7
-        get_backgrounds = 300
+        background_interval = int(ADDON.getSetting('background_interval')) or 10
+        window_property('Background_Interval',
+                        set_property=background_interval
+                        )
+        background_get_count = background_interval * 30
+        background_refresh_count = background_interval
 
         while not self.abortRequested() and not self.restart:
 
             # Only run timed tasks if screensaver is inactive to avoid keeping NAS/servers awake
             if not self.screensaver:
 
-                # Get fanarts every 210 seconds (30 fanarts shown each for 7 seconds before refresh) if service interval
-                if get_backgrounds >= 209:
-                    log('Monitor: Get fanart', force=True)
+                # Get fanarts every (background_interval * 30) seconds
+                if background_get_count >= (background_interval * 30):
+                    log('Monitor: Get fanart')
                     arts = self.grabfanart()
-                    get_backgrounds = 0
-
+                    background_get_count = 0
                 else:
-                    get_backgrounds += service_interval
+                    background_get_count += service_interval
 
-                # Set background properties every 7 seconds if service_interval is 1
-                if background_interval >= 6:
+                # Set background properties every (background_interval) seconds
+                if background_refresh_count >= background_interval:
                     if arts.get('all'):
-                        self.setfanart('Fanart_Slideshow_Global', arts['all'])
+                        self.setfanart('Background_Global', arts['all'])
                     if arts.get('movies'):
-                        self.setfanart(
-                            'Fanart_Slideshow_Movies', arts['movies'])
+                        self.setfanart('Background_Movies', arts['movies'])
                     if arts.get('tvshows'):
-                        self.setfanart(
-                            'Fanart_Slideshow_TVShows', arts['tvshows'])
+                        self.setfanart('Background_TVShows', arts['tvshows'])
                     if arts.get('videos'):
-                        self.setfanart(
-                            'Fanart_Slideshow_Videos', arts['videos'])
+                        self.setfanart('Background_Videos', arts['videos'])
                     if arts.get('artists'):
-                        self.setfanart(
-                            'Fanart_Slideshow_Artists', arts['artists'])
+                        self.setfanart('Background_Artists', arts['artists'])
+                    '''
                     if arts.get('musicvideos'):
-                        self.setfanart(
-                            'Fanart_Slideshow_MusicVideos', arts['musicvideos'])
-
-                    background_interval = 0
-
+                        self.setfanart('Background_MusicVideos', arts['musicvideos'])
+                    '''
+                    background_refresh_count = 0
                 else:
-                    background_interval += service_interval
+                    background_refresh_count += service_interval
 
             # Wait for time equal to service_interval in seconds before next loop
             self.waitForAbort(service_interval)
@@ -164,9 +165,9 @@ class Player(xbmc.Player):
             item  = self.getPlayingItem()
             label = item.getLabel()
             if label:
-                return_label(label=label)
+                clean_filename(label=label)
             else:
-                window_property('MusicPlayer_UserRating', clear_property=True)
+                window_property('Return_Label', clear_property=True)
         
         if self.isPlayingAudio():
             tag = self.getMusicInfoTag()

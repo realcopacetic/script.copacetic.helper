@@ -21,7 +21,6 @@ class Main:
             self.listing()
 
     def _parse_argv(self):
-        base_url = sys.argv[0]
         path = sys.argv[2]
 
         try:

@@ -1,36 +1,105 @@
-# XBMC Media Center language file
+# Kodi Media Center language file
 # Addon Name: Copacetic Helper
 # Addon id: script.copacetic.helper
 # Addon Provider: realcopacetic
 msgid ""
 msgstr ""
-"Project-Id-Version: XBMC Addons\n"
-"Report-Msgid-Bugs-To: alanwww1@xbmc.org\n"
-"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: XBMC Translation Team\n"
-"Language-Team: English (http://www.transifex.com/projects/p/xbmc-addons/language/en/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Language: en\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+
+
+
+#########################################################################################################
+#: Contents
+
+#: SETTINGS           320XX
+#: SERVICE            322XX
+#: SCRIPT             324XX
+#: PLUGIN             326XX
+
+#########################################################################################################
+
+#: SETTINGS           320XX
+
+#########################################################################################################
+
+#: /resources/settings.xml
 msgctxt "#32000"
 msgid "Copacetic"
 msgstr ""
 
-#: /resources/lib/plugin_listing.py
-msgctxt "#32008"
+#: /resources/settings.xml
+msgctxt "#32001"
+msgid "General"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32002"
+msgid "Debug"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32003"
+msgid "Enable logging"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32004"
+msgid "- Include json call/response logging"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32005"
+msgid "Service"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32006"
+msgid "Background refresh interval"
+msgstr ""
+
+
+
+#########################################################################################################
+
+#: SERVICE           322XX
+
+#########################################################################################################
+
+#: /resources/lib/monitor.py
+msgctxt "#32200"
+msgid "Applying changes"
+msgstr ""
+
+
+
+
+#########################################################################################################
+
+#: PLUGIN           326XX
+
+#########################################################################################################
+
+#: /resources/lib/content.py
+msgctxt "#32600"
 msgid "Next up"
 msgstr ""
 
-#: /resources/lib/plugin_listing.py
-msgctxt "#32013"
+#: /resources/lib/content.py
+msgctxt "#32601"
 msgid "Continue watching"
 msgstr ""
 
-#: /resources/lib/plugin_listing.py
-msgctxt "#32014"
-msgid "Director"
+#: /resources/lib/content.py
+msgctxt "#32602"
+msgid "Director credits"
+msgstr ""
+
+#: /resources/lib/content.py
+msgctxt "#32603"
+msgid "Actor credits"
 msgstr ""

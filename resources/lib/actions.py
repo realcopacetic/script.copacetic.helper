@@ -2,7 +2,6 @@
 # coding: utf-8
 
 import xbmc
-import xbmcgui
 from resources.lib.helper import *
 
 
@@ -162,23 +161,34 @@ def rate_song(**kwargs):
         player.updateInfoTag(item)
         '''
 
-def return_label(**kwargs):
-    import urllib.parse
 
-    label = kwargs.get('label', False)
-    find = kwargs.get('find', False)
-    replace = kwargs.get('replace', False)
-
-    if find and replace:
-        count = label.count(find) - 1 
-        label = label.replace(urllib.parse.unquote(find),
-                              urllib.parse.unquote(replace),
-                              count)
-    else:
-        count = label.count('.')
-        label = label.replace('.',' ',count - 1).replace('_',' ')
+def clean_filename(label,**kwargs):
+    json_response = json_call('Settings.GetSettingValue',
+                              params={'setting': 'filelists.showextensions'}
+                              )
+    
+    subtraction = 1 if json_response['result']['value'] is True else 0 
+    count = label.count('.') - subtraction
+    label = label.replace('.', ' ', count).replace('_', ' ').strip()
 
     window_property('Return_Label', set_property=label)
+
+
+def return_label(property=True, **kwargs):
+    import urllib.parse
+
+    label = kwargs.get('label', xbmc.getInfoLabel('ListItem.Label'))
+    find = kwargs.get('find', '.')
+    replace = kwargs.get('replace', ' ')
+    
+    count = label.count(find)
+    label = label.replace(urllib.parse.unquote(find),
+                          urllib.parse.unquote(replace),
+                          count)        
+    if property:
+        window_property('Return_Label', set_property=label)
+    else:
+        return label
 
 
 def shuffle_artist(**kwargs):
@@ -201,8 +211,11 @@ def split_random_return(string, **kwargs):
     import random
 
     separator = kwargs.get('separator', ' / ')
-    name = kwargs.get('name', 'SplitRandomReturn')
-    random = random.choice(string.split(separator))
-
-    window_property(name, set_property=random.strip())
+    name = kwargs.get('name', 'SplitRandomReturn') 
+    string = random.choice(string.split(separator))
+    random = random.choice(string.split(' & '))
+    random = return_label(label=random, find='-',replace=' ', property=False) if random != 'Sci-Fi' else random
+    random = random.strip()
+    
+    window_property(name, set_property=random)
     return random

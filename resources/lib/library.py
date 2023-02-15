@@ -12,6 +12,8 @@ def add_items(li, json_query, type):
     for item in json_query:
         if type == 'movie':
             handle_movies(li, item)
+        elif type == 'tvshow':
+            handle_tvshows(li, item)
         elif type == 'episode':
             handle_episodes(li, item)
         elif type == 'musicvideo':
@@ -42,9 +44,37 @@ def handle_movies(li, item):
                 videoInfoTag.addAudioStream(audiostream)
 
     li_item.setArt(item['art'])
-    li_item.setArt({'icon': 'DefaultVideo.png'})
+    li_item.setArt({'icon': 'DefaultMovies.png'})
 
     li.append((item['file'], li_item, False))
+
+
+def handle_tvshows(li, item):
+    dbid = item['tvshowid']
+    watchedepisodes = item['watchedepisodes']
+    season = item['season']
+    episode = item['episode']
+    folder = True
+    item['file'] = f'videodb://tvshows/titles/{dbid}/'
+
+    li_item = xbmcgui.ListItem(item['title'], offscreen=True)
+    videoInfoTag = li_item.getVideoInfoTag()
+    videoInfoTag.setMediaType('tvshow')
+    videoInfoTag.setDbId(item['tvshowid'])
+    videoInfoTag.setTitle(item['title'])
+    videoInfoTag.setOriginalTitle(item['originaltitle'])
+    videoInfoTag.setYear(item['year'])
+    videoInfoTag.setLastPlayed(item['lastplayed'])
+    videoInfoTag.setPlaycount: item['playcount']
+
+    li_item.setArt(item['art'])
+    li_item.setArt({'icon': 'DefaultTVShows.png'})
+
+    li_item.setProperty('totalseasons', str(season))
+    li_item.setProperty('totalepisodes', str(episode))
+    li_item.setProperty('watchedepisodes', str(watchedepisodes))
+
+    li.append((item['file'], li_item, folder))
 
 
 def handle_episodes(li, item):

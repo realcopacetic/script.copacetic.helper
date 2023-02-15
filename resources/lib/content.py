@@ -50,10 +50,12 @@ class PluginContent(object):
         self.filter_not_inprogress = {'field': 'inprogress', 'operator': 'false', 'value': ''}
         self.filter_title = {'field': 'title', 'operator': 'is', 'value': self.dbtitle}
         self.filter_director = {'field': 'director', 'operator': 'is', 'value': self.label}
+        self.filter_actor = {'field': 'actor','operator': 'is', 'value': self.label}
         if self.exclude_value:
             self.filter_exclude = {'field': self.exclude_key,'operator': 'isnot', 'value': self.exclude_value}
         
-    def getinprogress(self):
+
+    def in_progress(self):
         filters = [self.filter_inprogress]
 
         if self.dbtype != 'tvshow':
@@ -65,7 +67,7 @@ class PluginContent(object):
             try:
                 json_query = json_query['result']['movies']
             except Exception:
-                log('WIDGET getinprogress: No movies found.')
+                log('Widget in_progress: No movies found.')
             else:
                 add_items(self.li, json_query, type='movie')
 
@@ -78,14 +80,14 @@ class PluginContent(object):
             try:
                 json_query = json_query['result']['episodes']
             except Exception:
-                log('WIDGET getinprogress: No episodes found.')
+                log('Widget in_progress: No episodes found.')
             else:
                 add_items(self.li, json_query, type='episode')
 
-        set_plugincontent(content='videos',
-                          category=ADDON.getLocalizedString(32013))
+        set_plugincontent(content='videos', category=ADDON.getLocalizedString(32601))
 
-    def getnextup(self):
+
+    def next_up(self):
         filters = [self.filter_inprogress]
 
         json_query = json_call('VideoLibrary.GetTVShows',
@@ -97,7 +99,7 @@ class PluginContent(object):
         try:
             json_query = json_query['result']['tvshows']
         except Exception:
-            log('WIDGET getnextup: No TV shows found')
+            log('Widget next_up: No TV shows found')
             return
 
         for episode in json_query:
@@ -146,42 +148,82 @@ class PluginContent(object):
                     episode_details = episode_query['result']['episodes']
                 except Exception:
                     log(
-                        f"WIDGET getnextup: No next episodes found for {episode['title']}")
+                        f"Widget next_up: No next episodes found for {episode['title']}")
                 else:
                     add_items(self.li, episode_details, type='episode')
                     set_plugincontent(content='episodes',
-                                      category=ADDON.getLocalizedString(32008))
+                                      category=ADDON.getLocalizedString(32600))
 
-    def getdirector(self):
+
+    def director_credits(self):
         filters = [self.filter_director]
         if self.filter_exclude:
             filters.append(self.filter_exclude)
 
-        if self.dbtype != 'musicvideo':
-            json_query = json_call('VideoLibrary.GetMovies',
-                                   properties=JSON_MAP['movie_properties'],
-                                   sort=self.sort_year,
-                                   query_filter={'and': filters}
-                                   )
-            try:
-                json_query = json_query['result']['movies']
-            except Exception:
-                log('WIDGET getdirector: No movies found.')
-            else:
-                add_items(self.li, json_query, type='movie')
+        json_query = json_call('VideoLibrary.GetMovies',
+                               properties=JSON_MAP['movie_properties'],
+                               sort=self.sort_year,
+                               query_filter={'and': filters}
+                               )
+           
+        try:
+            json_query = json_query['result']['movies']
+        except Exception:
+            log('Widget director_credits: No movies found.')
+        else:
+            add_items(self.li, json_query, type='movie')
 
-        if self.dbtype != 'movie':
-            json_query = json_call('VideoLibrary.GetMusicVideos',
-                                   properties=JSON_MAP['musicvideo_properties'],
-                                   sort=self.sort_year,
-                                   query_filter={'and': filters}
-                                   )
-            try:
-                json_query = json_query['result']['musicvideos']
-            except Exception:
-                log('WIDGET getdirector: No music videos found.')
-            else:
-                add_items(self.li, json_query, type='musicvideo')
+        json_query = json_call('VideoLibrary.GetMusicVideos',
+                               properties=JSON_MAP['musicvideo_properties'],
+                               sort=self.sort_year,
+                               query_filter={'and': filters}
+                               )
 
-        set_plugincontent(content='videos',
-                          category=ADDON.getLocalizedString(32014))
+        try:
+            json_query = json_query['result']['musicvideos']
+        except Exception:
+            log('Widget director_credits: No music videos found.')
+        else:
+            add_items(self.li, json_query, type='musicvideo')
+
+        set_plugincontent(content='videos',category=ADDON.getLocalizedString(32602))
+        
+
+    def actor_credits(self):
+        filters = [self.filter_actor]
+        current_item = infolabel('ListItem.Label')
+
+        movies_json_query = json_call('VideoLibrary.GetMovies',
+                                     properties=JSON_MAP['movie_properties'],
+                                     sort=self.sort_year,
+                                     query_filter={'and': filters}
+                                     )
+        
+        tvshows_json_query = json_call('VideoLibrary.GetTVShows',
+                                      properties=JSON_MAP['tvshow_properties'],
+                                      sort=self.sort_year,
+                                      query_filter={'and': filters}
+                                      )
+        
+        total_items = int(movies_json_query['result']['limits']['total']) + int(tvshows_json_query['result']['limits']['total'])
+        
+        try:
+            movies_json_query = movies_json_query['result']['movies']
+        except Exception:
+            log(f'Widget actor_credits: No movies found for {self.label}.')
+        else:
+            dict_to_remove = next((item for item in movies_json_query if item['label'] == current_item), None)
+            movies_json_query.remove(dict_to_remove) if dict_to_remove is not None and total_items > 1 else None
+            add_items(self.li, movies_json_query, type='movie')
+
+        try:
+            tvshows_json_query = tvshows_json_query['result']['tvshows']
+        except Exception:
+            log(f'Widget actor_credits: No tv shows found for {self.label}.')
+        else:
+            dict_to_remove = next((item for item in tvshows_json_query if item['label'] == current_item), None)
+            tvshows_json_query.remove(dict_to_remove) if dict_to_remove is not None and total_items > 1 else None
+            add_items(self.li, tvshows_json_query, type='tvshow')
+        
+        set_plugincontent(content='videos', category=ADDON.getLocalizedString(32603))
+
