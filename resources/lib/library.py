@@ -23,15 +23,19 @@ def add_items(li, json_query, type):
 def handle_movies(li, item):
     li_item = xbmcgui.ListItem(item['title'], offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
-    videoInfoTag.setMediaType('movie')
+
     videoInfoTag.setDbId(item['movieid'])
-    videoInfoTag.setTitle(item['title'])
-    videoInfoTag.setOriginalTitle(item['originaltitle'])
-    videoInfoTag.setYear(item['year'])
     videoInfoTag.setDuration(item['runtime'])
-    videoInfoTag.setTrailer(item['trailer'])
     videoInfoTag.setLastPlayed(item['lastplayed'])
+    videoInfoTag.setMediaType('movie')
+    videoInfoTag.setOriginalTitle(item['originaltitle'])
+    videoInfoTag.setPlaycount(item['playcount'])
     videoInfoTag.setResumePoint(item['resume']['position'], item['resume']['total'])
+    videoInfoTag.setTitle(item['title'])
+    videoInfoTag.setTrailer(item['trailer'])
+    videoInfoTag.setYear(item['year'])
+    li_item.setArt(item['art'])
+    li_item.setArt({'icon': 'DefaultMovies.png'})
 
     for key, value in iter(list(item['streamdetails'].items())):
         for stream in value:
@@ -43,38 +47,39 @@ def handle_movies(li, item):
                 audiostream = xbmc.AudioStreamDetail(*audiostreamlist)
                 videoInfoTag.addAudioStream(audiostream)
 
-    li_item.setArt(item['art'])
-    li_item.setArt({'icon': 'DefaultMovies.png'})
-
     li.append((item['file'], li_item, False))
 
 
 def handle_tvshows(li, item):
     dbid = item['tvshowid']
-    watchedepisodes = item['watchedepisodes']
     season = item['season']
-    episode = item['episode']
-    folder = True
+    episode = int(item['episode'])
+    watchedepisodes = int(item['watchedepisodes'])
     item['file'] = f'videodb://tvshows/titles/{dbid}/'
 
     li_item = xbmcgui.ListItem(item['title'], offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
-    videoInfoTag.setMediaType('tvshow')
+
     videoInfoTag.setDbId(item['tvshowid'])
-    videoInfoTag.setTitle(item['title'])
-    videoInfoTag.setOriginalTitle(item['originaltitle'])
-    videoInfoTag.setYear(item['year'])
     videoInfoTag.setLastPlayed(item['lastplayed'])
-    videoInfoTag.setPlaycount: item['playcount']
+    videoInfoTag.setMediaType('tvshow')
+    videoInfoTag.setOriginalTitle(item['originaltitle'])
+    videoInfoTag.setTitle(item['title'])
+    videoInfoTag.setYear(item['year'])
 
     li_item.setArt(item['art'])
     li_item.setArt({'icon': 'DefaultTVShows.png'})
 
+    watchedepisodepercent = int(((watchedepisodes / episode) * 100)) if episode > 0 and watchedepisodes > 0 else 0
+    unwatchedepisodes = int(episode - watchedepisodes) if episode > watchedepisodes else 0
+
     li_item.setProperty('totalseasons', str(season))
     li_item.setProperty('totalepisodes', str(episode))
     li_item.setProperty('watchedepisodes', str(watchedepisodes))
+    li_item.setProperty('unwatchedepisodes', str(unwatchedepisodes))
+    li_item.setProperty('watchedepisodepercent', str(watchedepisodepercent))
 
-    li.append((item['file'], li_item, folder))
+    li.append((item['file'], li_item, True))
 
 
 def handle_episodes(li, item):
@@ -95,6 +100,7 @@ def handle_episodes(li, item):
     videoInfoTag.setDuration(item['runtime'])
     videoInfoTag.setLastPlayed(item['lastplayed'])
     videoInfoTag.setResumePoint(item['resume']['position'], item['resume']['total'])
+    videoInfoTag.setPlaycount(item['playcount'])
 
     for key, value in iter(list(item['streamdetails'].items())):
         for stream in value:

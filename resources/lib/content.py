@@ -62,7 +62,8 @@ class PluginContent(object):
             json_query = json_call('VideoLibrary.GetMovies',
                                    properties=JSON_MAP['movie_properties'],
                                    sort=self.sort_lastplayed,
-                                   query_filter={'and': filters}
+                                   query_filter={'and': filters},
+                                   parent='in_progress'
                                    )
             try:
                 json_query = json_query['result']['movies']
@@ -75,7 +76,8 @@ class PluginContent(object):
             json_query = json_call('VideoLibrary.GetEpisodes',
                                    properties=JSON_MAP['episode_properties'],
                                    sort=self.sort_lastplayed,
-                                   query_filter={'and': filters}
+                                   query_filter={'and': filters},
+                                   parent='in_progress'
                                    )
             try:
                 json_query = json_query['result']['episodes']
@@ -93,7 +95,8 @@ class PluginContent(object):
         json_query = json_call('VideoLibrary.GetTVShows',
                                properties=['title', 'lastplayed'],
                                sort=self.sort_lastplayed, limit=25,
-                               query_filter={'and': filters}
+                               query_filter={'and': filters},
+                               parent='next_up'
                                )
 
         try:
@@ -105,13 +108,11 @@ class PluginContent(object):
         for episode in json_query:
                 use_last_played_season = True
                 last_played_query = json_call('VideoLibrary.GetEpisodes',
-                                              properties=[
-                                                  'seasonid', 'season'],
+                                              properties=['seasonid', 'season'],
                                               sort={'order': 'descending', 'method': 'lastplayed'}, limit=1,
-                                              query_filter={'and': [
-                                                  {'or': [self.filter_inprogress, self.filter_watched]}, self.filter_no_specials]},
-                                              params={'tvshowid': int(
-                                                  episode['tvshowid'])}
+                                              query_filter={'and': [{'or': [self.filter_inprogress, self.filter_watched]}, self.filter_no_specials]},
+                                              params={'tvshowid': int(episode['tvshowid'])},
+                                              parent='next_up'
                                               )
 
                 if last_played_query['result']['limits']['total'] < 1:
@@ -123,10 +124,11 @@ class PluginContent(object):
                     episode_query = json_call('VideoLibrary.GetEpisodes',
                                               properties=JSON_MAP['episode_properties'],
                                               sort={'order': 'ascending', 'method': 'episode'}, limit=1,
-                                              query_filter={'and': [self.filter_unwatched, {'field': 'season', 'operator': 'is', 'value': str(
-                                                  last_played_query['result']['episodes'][0].get('season'))}]},
-                                              params={'tvshowid': int(
-                                                  episode['tvshowid'])}
+                                              query_filter={'and': [self.filter_unwatched, {'field': 'season',
+                                                                                            'operator': 'is',
+                                                                                            'value': str(last_played_query['result']['episodes'][0].get('season'))}]},
+                                              params={'tvshowid': int(episode['tvshowid'])},
+                                              parent='next_up'
                                               )
 
                     if episode_query['result']['limits']['total'] < 1:
@@ -138,10 +140,9 @@ class PluginContent(object):
                     episode_query = json_call('VideoLibrary.GetEpisodes',
                                               properties=JSON_MAP['episode_properties'],
                                               sort={'order': 'ascending', 'method': 'episode'}, limit=1,
-                                              query_filter={
-                                                  'and': [self.filter_unwatched, self.filter_no_specials]},
-                                              params={'tvshowid': int(
-                                                  episode['tvshowid'])}
+                                              query_filter={'and': [self.filter_unwatched, self.filter_no_specials]},
+                                              params={'tvshowid': int(episode['tvshowid'])},
+                                              parent='next_up'
                                               )
 
                 try:
@@ -163,7 +164,8 @@ class PluginContent(object):
         json_query = json_call('VideoLibrary.GetMovies',
                                properties=JSON_MAP['movie_properties'],
                                sort=self.sort_year,
-                               query_filter={'and': filters}
+                               query_filter={'and': filters},
+                               parent = 'director_credits'
                                )
            
         try:
@@ -176,7 +178,8 @@ class PluginContent(object):
         json_query = json_call('VideoLibrary.GetMusicVideos',
                                properties=JSON_MAP['musicvideo_properties'],
                                sort=self.sort_year,
-                               query_filter={'and': filters}
+                               query_filter={'and': filters},
+                               parent = 'director_credits'
                                )
 
         try:
@@ -194,16 +197,18 @@ class PluginContent(object):
         current_item = infolabel('ListItem.Label')
 
         movies_json_query = json_call('VideoLibrary.GetMovies',
-                                     properties=JSON_MAP['movie_properties'],
-                                     sort=self.sort_year,
-                                     query_filter={'and': filters}
-                                     )
+                                      properties=JSON_MAP['movie_properties'],
+                                      sort=self.sort_year,
+                                      query_filter={'and': filters},
+                                      parent='actor_credits'
+                                      )
         
         tvshows_json_query = json_call('VideoLibrary.GetTVShows',
-                                      properties=JSON_MAP['tvshow_properties'],
-                                      sort=self.sort_year,
-                                      query_filter={'and': filters}
-                                      )
+                                       properties=JSON_MAP['tvshow_properties'],
+                                       sort=self.sort_year,
+                                       query_filter={'and': filters},
+                                       parent='actor_credits'
+                                       )
         
         total_items = int(movies_json_query['result']['limits']['total']) + int(tvshows_json_query['result']['limits']['total'])
         

@@ -58,7 +58,7 @@ def get_joined_items(item):
     return item
 
 
-def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, debug=False):
+def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, parent=None, debug=False):
     json_string = {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': {}}
 
     if properties is not None:
@@ -90,8 +90,8 @@ def json_call(method, properties=None, sort=None, query_filter=None, limit=None,
     result = json.loads(result)
     
     if (ADDON.getSettingBool('json_logging') or debug):
-        log('JSON call: ' + json_print(json_string), force=debug)
-        log('JSON result: ' + json_print(result), force=debug)
+        log(f'JSON call for function {parent} ' + json_print(json_string), force=debug)
+        log(f'JSON result for function {parent} ' + json_print(result), force=debug)
 
     return result
     
