@@ -84,7 +84,7 @@ class Monitor(xbmc.Monitor):
                 # Get fanarts every (background_interval * 30) seconds
                 if background_get_count >= (background_interval * 30):
                     log('Monitor: Get fanart')
-                    arts = self.grabfanart()
+                    arts = self.get_fanart()
                     background_get_count = 0
                 else:
                     background_get_count += service_interval
@@ -115,7 +115,7 @@ class Monitor(xbmc.Monitor):
         self.stop()
 
 
-    def grabfanart(self):
+    def get_fanart(self):
         arts = {}
         arts['movies'] = []
         arts['tvshows'] = []
@@ -128,7 +128,8 @@ class Monitor(xbmc.Monitor):
             dbtype = 'Video' if item != 'artists' else 'Audio'
             query = json_call(f'{dbtype}Library.Get{item}',
                               properties=['art'],
-                              sort={'method': 'random'}, limit=40
+                              sort={'method': 'random'}, limit=40,
+                              parent='grab_fanart'
                               )
 
             try:

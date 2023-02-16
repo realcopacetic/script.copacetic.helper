@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # coding: utf-8
 
+
 import xbmc
 from resources.lib.helper import *
 
@@ -24,7 +25,8 @@ def play_album(**kwargs):
     if dbid:
         json_call('Player.Open', 
                   item={'albumid': dbid}, 
-                  options={'shuffled': False}
+                  options={'shuffled': False},
+                  parent='play_album'
                   )
 
 
@@ -36,14 +38,19 @@ def play_album_from_track(**kwargs):
 
     if dbid:
         json_response = json_call('AudioLibrary.GetSongDetails',
-                                  params={'properties': ['albumid'],'songid': dbid}
+                                  params={'properties': ['albumid'],'songid': dbid},
+                                  parent='play_album_from_track'
                                   )
 
     if json_response['result'].get('songdetails', None):
         albumid = json_response['result']['songdetails']['albumid']
 
-    json_call('Player.Open', item={
-              'albumid': albumid}, options={'shuffled': False})
+    json_call('Player.Open',
+              item={'albumid': albumid},
+              options={'shuffled': False},
+              parent='play_album_from_track'
+              )
+    
     if track > 0:
         json_call('Player.GoTo', params={'playerid': 0, 'to': track})
 
@@ -77,21 +84,25 @@ def play_items(id, **kwargs):
         if media_type and dbid:
             json_call('Playlist.Add',
                       item={f'{media_type}id': dbid},
-                      params={'playlistid': playlistid}
+                      params={'playlistid': playlistid},
+                      parent='play_items'
                       )
         elif url:
             json_call('Playlist.Add',
                       item={'file': url},
-                      params={'playlistid': playlistid}
+                      params={'playlistid': playlistid},
+                      parent='play_items'
                       )
 
     json_call('Playlist.GetItems',
-              params={'playlistid': playlistid}
+              params={'playlistid': playlistid},
+              parent='play_items'
               )
     
     json_call('Player.Open',
               item={'playlistid': playlistid, 'position': 0},
-              options={'shuffled': shuffled}
+              options={'shuffled': shuffled},
+              parent='play_items'
               )
     
 
@@ -102,7 +113,9 @@ def play_radio(**kwargs):
     dbid = int(kwargs.get('id', xbmc.getInfoLabel('ListItem.DBID')))
 
     json_response = json_call('AudioLibrary.GetSongDetails',
-                              params={'properties': ['genre'],'songid': dbid})
+                              params={'properties': ['genre'],'songid': dbid},
+                              parent='play_radio'
+                              )
 
     if json_response['result']['songdetails'].get('genre', None):
         genre = json_response['result']['songdetails']['genre']
@@ -111,14 +124,16 @@ def play_radio(**kwargs):
     if genre:
         json_call('Playlist.Add',
                   item={'songid': dbid},
-                  params={'playlistid': 0}
+                  params={'playlistid': 0},
+                  parent='play_radio'
                   )
         
         json_response = json_call('AudioLibrary.GetSongs',
                                 params={'properties': ['genre']},
                                 sort={'method': 'random'},
                                 limit=24,
-                                query_filter={'genre': genre}
+                                query_filter={'genre': genre},
+                                parent='play_radio'
                                 )
         
         for count in json_response['result']['songs']:
@@ -127,15 +142,18 @@ def play_radio(**kwargs):
 
                 json_call('Playlist.Add',
                         item={'songid': songid},
-                        params={'playlistid': 0}
+                        params={'playlistid': 0},
+                        parent='play_radio'
                         )
 
         json_call('Playlist.GetItems',
-                params={'playlistid': 0}
+                params={'playlistid': 0},
+                parent='play_radio'
                 )
 
         json_call('Player.Open',
-                item={'playlistid': 0, 'position': 0}
+                item={'playlistid': 0, 'position': 0},
+                parent='play_radio'
                 )
 
 
@@ -143,7 +161,10 @@ def rate_song(**kwargs):
     dbid = int(kwargs.get('id', xbmc.getInfoLabel('ListItem.DBID')))
     rating_threshold = int(kwargs.get('rating',xbmc.getInfoLabel('Skin.String(Music_Rating_Like_Threshold)')))
         
-    json_call('AudioLibrary.SetSongDetails', params={'songid': dbid, 'userrating': rating_threshold})
+    json_call('AudioLibrary.SetSongDetails',
+              params={'songid': dbid, 'userrating': rating_threshold},
+              parent='rate_song'
+              )
             
     player = xbmc.Player()
     player_dbid = int(xbmc.getInfoLabel('MusicPlayer.DBID')) if player.isPlayingAudio() else None
@@ -164,7 +185,8 @@ def rate_song(**kwargs):
 
 def clean_filename(label,**kwargs):
     json_response = json_call('Settings.GetSettingValue',
-                              params={'setting': 'filelists.showextensions'}
+                              params={'setting': 'filelists.showextensions'},
+                              parent='clean_filename'
                               )
     
     subtraction = 1 if json_response['result']['value'] is True else 0 
@@ -195,8 +217,10 @@ def shuffle_artist(**kwargs):
     clear_playlists()
 
     dbid = int(kwargs.get('id', False))
-    json_call('Player.Open', item={
-              'artistid': dbid}, options={'shuffled': True})
+    json_call('Player.Open',
+              item={'artistid': dbid},
+              options={'shuffled': True},
+              parent='shuffle_artist')
 
 
 def split(string, **kwargs):

@@ -165,7 +165,7 @@ class PluginContent(object):
                                properties=JSON_MAP['movie_properties'],
                                sort=self.sort_year,
                                query_filter={'and': filters},
-                               parent = 'director_credits'
+                               parent='director_credits'
                                )
            
         try:
@@ -179,7 +179,7 @@ class PluginContent(object):
                                properties=JSON_MAP['musicvideo_properties'],
                                sort=self.sort_year,
                                query_filter={'and': filters},
-                               parent = 'director_credits'
+                               parent='director_credits'
                                )
 
         try:
