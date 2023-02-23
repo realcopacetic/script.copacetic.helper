@@ -1,17 +1,21 @@
 #!/usr/bin/python
 # coding: utf-8
 
-
 import xbmc
 import xbmcaddon
 import xbmcgui
 import xbmcplugin
+import xbmcvfs
+import hashlib
 import json
+import os
 import sys
-
+import urllib.parse as urllib
 
 ADDON = xbmcaddon.Addon()
 ADDON_ID = ADDON.getAddonInfo('id')
+ADDONDATA = 'special://profile/addon_data/script.copacetic.helper/'
+CROPPED_FOLDERPATH = os.path.join(ADDONDATA, 'crop/')
 
 DEBUG = xbmc.LOGDEBUG
 INFO = xbmc.LOGINFO
@@ -23,30 +27,55 @@ VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 
-def log(message, loglevel=DEBUG, force=False):
-
-    if (ADDON.getSettingBool('debug_logging') or force) and loglevel not in [WARNING, ERROR]:
-        loglevel = INFO
-    xbmc.log(f'{ADDON_ID} --> {message}', loglevel)
-
-
-def log_and_execute(action):
-    log(f'Execute: {action}', DEBUG)
-    xbmc.executebuiltin(action)
-
-def infolabel(infolabel):
-    return xbmc.getInfoLabel(infolabel)
+def clear_playlists():
+    log('Clear playlists')
+    VIDEOPLAYLIST.clear()
+    MUSICPLAYLIST.clear()
+    MUSICPLAYLIST.unshuffle()
 
 
 def condition(condition):
     return xbmc.getCondVisibility(condition)
 
 
-def clear_playlists():
-    log('Clear playlists')
-    VIDEOPLAYLIST.clear()
-    MUSICPLAYLIST.clear()
-    MUSICPLAYLIST.unshuffle()
+def crop_image(source):
+    source = urllib.unquote(source)
+    thumb = xbmc.getCacheThumbName(source).replace('.tbn', '')
+    cropped_filename = f'{hashlib.md5(thumb.encode()).hexdigest()}.png'
+
+    # Check if crop folder exists, otherwise create it
+    directory = xbmcvfs.validatePath(xbmcvfs.translatePath(CROPPED_FOLDERPATH))
+    if not xbmcvfs.exists(directory):
+        try:  # Try makedir to avoid race conditions
+            xbmcvfs.mkdirs(directory)
+        except FileExistsError:
+            pass
+
+    # Check if cropped image exists for listitem, otherwise create it
+    cropped_url = os.path.join(CROPPED_FOLDERPATH, cropped_filename)
+    if not xbmcvfs.exists(cropped_url):
+        json_response = json_call('Textures.GetTextures',
+                                  properties=["cachedurl"],
+                                  query_filter={
+                                      "field": "cachedurl", "operator": "contains", "value": thumb},
+                                  parent='crop_image'
+                                  )
+        # if cached thumbnail exists, open and crop in PIL
+        try:
+            filename = json_response['result']['textures'][0].get('cachedurl')
+        except IndexError:
+            return
+        else:
+            cached_url = os.path.join('special://profile/Thumbnails/', filename)
+            from PIL import Image
+            image = Image.open(xbmcvfs.translatePath(cached_url))
+            image = image.crop(image.convert('RGBa').getbbox())
+
+            with xbmcvfs.File(cropped_url, 'wb') as f:
+                image.save(f, 'PNG')
+            image.close()
+
+    return cropped_url
 
 
 def get_joined_items(item):
@@ -56,6 +85,10 @@ def get_joined_items(item):
         item = ''
 
     return item
+
+
+def infolabel(infolabel):
+    return xbmc.getInfoLabel(infolabel)
 
 
 def json_call(method, properties=None, sort=None, query_filter=None, limit=None, params=None, item=None, options=None, limits=None, parent=None, debug=False):
@@ -94,13 +127,24 @@ def json_call(method, properties=None, sort=None, query_filter=None, limit=None,
         log(f'JSON result for function {parent} ' + json_print(result), force=debug)
 
     return result
-    
 
 
 def json_print(string):
     return json.dumps(string, sort_keys=True, indent=4, separators=(',', ': '))
 
 
+def log(message, loglevel=DEBUG, force=False):
+
+    if (ADDON.getSettingBool('debug_logging') or force) and loglevel not in [WARNING, ERROR]:
+        loglevel = INFO
+    xbmc.log(f'{ADDON_ID} --> {message}', loglevel)
+
+
+def log_and_execute(action):
+    log(f'Execute: {action}', DEBUG)
+    xbmc.executebuiltin(action)
+
+    
 def set_plugincontent(content=None, category=None):
     if category:
         xbmcplugin.setPluginCategory(int(sys.argv[1]), category)

@@ -4,7 +4,7 @@
 
 import xbmc
 import random
-from resources.lib.helper import *
+from resources.lib.utilities import *
 from resources.lib.actions import clean_filename
 
 
@@ -14,6 +14,8 @@ class Monitor(xbmc.Monitor):
         self.restart = False
         self.screensaver = False
         self.service_enabled = True
+
+        
 
         if self.service_enabled:
             self.start()
@@ -28,9 +30,6 @@ class Monitor(xbmc.Monitor):
 
     def onSettingsChanged(self):
         log('Monitor: Addon setting changed', force=True)
-        window_property('Background_Interval',
-                        set_property=ADDON.getSetting('background_interval')
-                        )
         self.restart = True
 
 
@@ -40,7 +39,7 @@ class Monitor(xbmc.Monitor):
 
     def onScreensaverDeactivated(self):
         self.screensaver = False
-
+        
 
     def stop(self):
         if self.service_enabled:
@@ -58,6 +57,7 @@ class Monitor(xbmc.Monitor):
         log('Monitor: Disabled', force=True)
 
         while not self.abortRequested() and not self.restart:
+
             self.waitForAbort(5)
 
         self.stop()
@@ -66,48 +66,55 @@ class Monitor(xbmc.Monitor):
     def start(self):
         log('Monitor: Started', force=True)
 
-        self.Player = Player()
-
         service_interval = 1
-        background_interval = int(ADDON.getSetting('background_interval')) or 10
-        window_property('Background_Interval',
-                        set_property=background_interval
-                        )
+        try:
+            background_interval = int(infolabel('Skin.String(Background_Interval)'))
+        except ValueError:
+            background_interval = 10
+        
         background_get_count = background_interval * 30
         background_refresh_count = background_interval
 
         while not self.abortRequested() and not self.restart:
 
-            # Only run timed tasks if screensaver is inactive to avoid keeping NAS/servers awake
+            # Only run timed tasks screensaver is inactive (to avoid keeping NAS/servers awake)
             if not self.screensaver:
 
-                # Get fanarts every (background_interval * 30) seconds
-                if background_get_count >= (background_interval * 30):
-                    log('Monitor: Get fanart')
-                    arts = self.get_fanart()
-                    background_get_count = 0
-                else:
-                    background_get_count += service_interval
+                # Check if skin.copacetic is selected
+                skindir = xbmc.getSkinDir()
+                if skindir == 'skin.copacetic':
 
-                # Set background properties every (background_interval) seconds
-                if background_refresh_count >= background_interval:
-                    if arts.get('all'):
-                        self.setfanart('Background_Global', arts['all'])
-                    if arts.get('movies'):
-                        self.setfanart('Background_Movies', arts['movies'])
-                    if arts.get('tvshows'):
-                        self.setfanart('Background_TVShows', arts['tvshows'])
-                    if arts.get('videos'):
-                        self.setfanart('Background_Videos', arts['videos'])
-                    if arts.get('artists'):
-                        self.setfanart('Background_Artists', arts['artists'])
-                    '''
-                    if arts.get('musicvideos'):
-                        self.setfanart('Background_MusicVideos', arts['musicvideos'])
-                    '''
-                    background_refresh_count = 0
-                else:
-                    background_refresh_count += service_interval
+                    #Check if skin string has changed
+                    try:
+                        if background_interval != int(infolabel('Skin.String(Background_Interval)')):
+                            log('Monitor: Restarting due to change in background refresh interval', force=True)
+                            self.__init__()
+                    except ValueError:
+                        pass
+
+                    # Get fanarts every (background_interval * 30) seconds
+                    if background_get_count >= (background_interval * 30):
+                        log('Monitor: Get fanart', force=True)
+                        arts = self.get_fanart()
+                        background_get_count = 0
+                    else:
+                        background_get_count += service_interval
+
+                    # Set background properties every (background_interval) seconds
+                    if background_refresh_count >= background_interval:
+                        if arts.get('all'):
+                            self.setfanart('Background_Global', arts['all'])
+                        if arts.get('movies'):
+                            self.setfanart('Background_Movies', arts['movies'])
+                        if arts.get('tvshows'):
+                            self.setfanart('Background_TVShows', arts['tvshows'])
+                        if arts.get('videos'):
+                            self.setfanart('Background_Videos', arts['videos'])
+                        if arts.get('artists'):
+                            self.setfanart('Background_Artists', arts['artists'])
+                        background_refresh_count = 0
+                    else:
+                        background_refresh_count += service_interval
 
             # Wait for time equal to service_interval in seconds before next loop
             self.waitForAbort(service_interval)
@@ -152,7 +159,11 @@ class Monitor(xbmc.Monitor):
 
     def setfanart(self, key, items):
         arts = random.choice(items)
-        window_property(key, arts.get('fanart', ''))
+        window_property(key + '_Fanart', set_property = arts.get('fanart', ''))
+        if arts.get('clearlogo', False):
+            window_property(key + '_Clearlogo', set_property= arts.get('clearlogo', ''))
+        else:
+            window_property(key + '_Clearlogo', clear_property = True)
 
 
 class Player(xbmc.Player):

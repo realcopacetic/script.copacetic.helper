@@ -4,7 +4,7 @@
 
 import xbmc
 import xbmcgui
-from resources.lib.helper import *
+from resources.lib.utilities import *
 from resources.lib.json_map import *
 
 

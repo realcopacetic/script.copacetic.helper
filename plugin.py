@@ -4,7 +4,7 @@
 
 import xbmcplugin
 import urllib.parse as urlparse
-from resources.lib.helper import *
+from resources.lib.utilities import *
 from resources.lib.content import *
 
 
