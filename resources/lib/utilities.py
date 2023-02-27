@@ -1,18 +1,19 @@
 #!/usr/bin/python
 # coding: utf-8
 
-import xbmc
-import xbmcaddon
-import xbmcgui
-import xbmcplugin
-import xbmcvfs
 import hashlib
 import json
 import os
 import sys
 import urllib.parse as urllib
 
-ADDON = xbmcaddon.Addon()
+import xbmc
+import xbmcvfs
+from xbmcaddon import Addon
+from xbmcgui import Dialog, Window
+from xbmcplugin import setContent, setPluginCategory
+
+ADDON = Addon()
 ADDON_ID = ADDON.getAddonInfo('id')
 ADDONDATA = 'special://profile/addon_data/script.copacetic.helper/'
 CROPPED_FOLDERPATH = os.path.join(ADDONDATA, 'crop/')
@@ -22,7 +23,7 @@ INFO = xbmc.LOGINFO
 WARNING = xbmc.LOGWARNING
 ERROR = xbmc.LOGERROR
 
-DIALOG = xbmcgui.Dialog()
+DIALOG = Dialog()
 VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
@@ -39,7 +40,10 @@ def condition(condition):
 
 
 def crop_image(source):
-    source = urllib.unquote(source)
+    # Create cropped url
+    source = urllib.unquote(source.replace('image://', ''))
+    if source.endswith('/'):
+        source = source[:-1]
     thumb = xbmc.getCacheThumbName(source).replace('.tbn', '')
     cropped_filename = f'{hashlib.md5(thumb.encode()).hexdigest()}.png'
 
@@ -52,29 +56,30 @@ def crop_image(source):
             pass
 
     # Check if cropped image exists for listitem, otherwise create it
-    cropped_url = os.path.join(CROPPED_FOLDERPATH, cropped_filename)
+    cropped_url = os.path.join(directory, cropped_filename)
     if not xbmcvfs.exists(cropped_url):
-        json_response = json_call('Textures.GetTextures',
-                                  properties=["cachedurl"],
-                                  query_filter={
-                                      "field": "cachedurl", "operator": "contains", "value": thumb},
-                                  parent='crop_image'
-                                  )
-        # if cached thumbnail exists, open and crop in PIL
+        json_response = json_call(
+            'Textures.GetTextures',
+            properties=["cachedurl"],
+            query_filter={"field": "cachedurl",
+                          "operator": "contains", "value": thumb},
+            parent='crop_image'
+        )
         try:
             filename = json_response['result']['textures'][0].get('cachedurl')
         except IndexError:
             return
         else:
-            cached_url = os.path.join('special://profile/Thumbnails/', filename)
+            cached_url = os.path.join(
+                'special://profile/Thumbnails/', filename)
             from PIL import Image
             image = Image.open(xbmcvfs.translatePath(cached_url))
             image = image.crop(image.convert('RGBa').getbbox())
 
             with xbmcvfs.File(cropped_url, 'wb') as f:
                 image.save(f, 'PNG')
+                log(f'Image cropped and saved: {source} --> {cropped_url}')
             image.close()
-
     return cropped_url
 
 
@@ -83,7 +88,6 @@ def get_joined_items(item):
         item = ' / '.join(item)
     else:
         item = ''
-
     return item
 
 
@@ -96,36 +100,30 @@ def json_call(method, properties=None, sort=None, query_filter=None, limit=None,
 
     if properties is not None:
         json_string['params']['properties'] = properties
-
     if limit is not None:
         json_string['params']['limits'] = {'start': 0, 'end': int(limit)}
-
     if sort is not None:
         json_string['params']['sort'] = sort
-
     if query_filter is not None:
         json_string['params']['filter'] = query_filter
-
     if options is not None:
         json_string['params']['options'] = options
-
     if limits is not None:
         json_string['params']['limits'] = limits
-
     if item is not None:
         json_string['params']['item'] = item
-
     if params is not None:
         json_string['params'].update(params)
 
     jsonrpc_call = json.dumps(json_string)
     result = xbmc.executeJSONRPC(jsonrpc_call)
     result = json.loads(result)
-    
-    if (ADDON.getSettingBool('json_logging') or debug):
-        log(f'JSON call for function {parent} ' + json_print(json_string), force=debug)
-        log(f'JSON result for function {parent} ' + json_print(result), force=debug)
 
+    if (ADDON.getSettingBool('json_logging') or debug):
+        log(f'JSON call for function {parent} ' +
+            json_print(json_string), force=debug)
+        log(f'JSON result for function {parent} ' +
+            json_print(result), force=debug)
     return result
 
 
@@ -134,7 +132,6 @@ def json_print(string):
 
 
 def log(message, loglevel=DEBUG, force=False):
-
     if (ADDON.getSettingBool('debug_logging') or force) and loglevel not in [WARNING, ERROR]:
         loglevel = INFO
     xbmc.log(f'{ADDON_ID} --> {message}', loglevel)
@@ -144,17 +141,16 @@ def log_and_execute(action):
     log(f'Execute: {action}', DEBUG)
     xbmc.executebuiltin(action)
 
-    
+
 def set_plugincontent(content=None, category=None):
     if category:
-        xbmcplugin.setPluginCategory(int(sys.argv[1]), category)
+        setPluginCategory(int(sys.argv[1]), category)
     if content:
-        xbmcplugin.setContent(int(sys.argv[1]), content)
+        setContent(int(sys.argv[1]), content)
 
 
 def window_property(key, set_property=False, clear_property=False, window_id=10000, debug=False):
-    window = xbmcgui.Window(window_id)
-
+    window = Window(window_id)
     if clear_property:
         window.clearProperty(key)
         log(f'Window property: Clear, {window_id}, {key}', force=debug)

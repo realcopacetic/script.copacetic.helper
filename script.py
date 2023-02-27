@@ -3,7 +3,7 @@
 
 
 import sys
-from resources.lib.actions import *
+from resources.lib.script.actions import *
 from resources.lib.utilities import *
 
 

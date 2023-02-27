@@ -1,5 +1,5 @@
 #!/usr/bin/python
-
+# coding: utf-8
 JSON_MAP = {
     'movie_properties': [
         "title",

@@ -1,10 +1,8 @@
 #!/usr/bin/python
 # coding: utf-8
-
-
+from resources.lib.plugin.json_map import *
+from resources.lib.plugin.library import *
 from resources.lib.utilities import *
-from resources.lib.json_map import *
-from resources.lib.library import *
 
 
 class PluginContent(object):

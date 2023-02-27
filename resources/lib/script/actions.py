@@ -1,28 +1,25 @@
 #!/usr/bin/python
 # coding: utf-8
-
-
 from resources.lib.utilities import *
 
 
-def get_cropped_clearlogo(type='ListItem', **kwargs):
-    if type == '3100':
-        type = 'Container(3100).ListItem'
-
-    clearlogos = {'clearlogo': False,
-                  'clearlogo-alt': False,
-                  'clearlogo-billboard': False
-                  }
-    
-    for key in clearlogos:
-        window_property(f'{key}_cropped', clear_property=True)
-        source = xbmc.getInfoLabel(f'{type}.Art({key})')
+def get_cropped_clearlogo(key='ListItem', **kwargs):
+    if key == 'ListItem' or key == 'VideoPlayer':
+        path = key
+    else:
+        path = f'Container({key}).ListItem'
+    clearlogos = [
+        'clearlogo',
+        'clearlogo-alt',
+        'clearlogo-billboard'
+    ]
+    for item in clearlogos:
+        window_property(f'{item}_cropped', clear_property=True)
+        source = xbmc.getInfoLabel(f'{path}.Art({item})')
         cropped_image = crop_image(source) if source else None
         if cropped_image:
-            window_property(f'{key}_cropped', set_property=cropped_image)
+            window_property(f'{item}_cropped', set_property=cropped_image)
             
-
-
 
 def get_default_settings(**kwargs):
     settings = {
@@ -41,12 +38,9 @@ def get_default_settings(**kwargs):
         'pictures.generatethumbs': True,
         'musicplayer.visualisation': 'visualisation.waveform'
     }
-
     settings_to_change = {}
-    
     for item in settings.items():
         window_property(key=item[0], clear_property=True)
-
         if 'artwhitelist' not in item[0] or settings_to_change.get('videolibrary.artworklevel') is None:
             json_response = json_call('Settings.GetSettingValue',
                                       params={'setting': item[0]},
@@ -62,7 +56,6 @@ def get_default_settings(**kwargs):
                 window_property(key=item[0], set_property=', '.join(json_response))
             else:
                 window_property(key=item[0], set_property=f'{json_response}')
- 
     log(f"HOLA {settings_to_change}")
 
 
