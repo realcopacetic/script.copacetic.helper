@@ -3,24 +3,6 @@
 from resources.lib.utilities import *
 
 
-def get_cropped_clearlogo(key='ListItem', **kwargs):
-    if key == 'ListItem' or key == 'VideoPlayer':
-        path = key
-    else:
-        path = f'Container({key}).ListItem'
-    clearlogos = [
-        'clearlogo',
-        'clearlogo-alt',
-        'clearlogo-billboard'
-    ]
-    for item in clearlogos:
-        window_property(f'{item}_cropped', clear_property=True)
-        source = xbmc.getInfoLabel(f'{path}.Art({item})')
-        cropped_image = crop_image(source) if source else None
-        if cropped_image:
-            window_property(f'{item}_cropped', set_property=cropped_image)
-            
-
 def get_default_settings(**kwargs):
     settings = {
         'filelists.showparentdiritems': False,

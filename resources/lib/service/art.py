@@ -58,7 +58,7 @@ class SlideshowMonitor:
         if clearlogo:
             clearlogo_cropped = crop_image(clearlogo)
             if clearlogo_cropped:
-                clearlogo = clearlogo_cropped
+                clearlogo = clearlogo_cropped[0]
             window_property(f'{key}_Clearlogo', set_property=clearlogo)
         else:
             window_property(f'{key}_Clearlogo', clear_property=True)

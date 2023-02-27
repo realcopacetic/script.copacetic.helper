@@ -40,15 +40,18 @@ def condition(condition):
 
 
 def crop_image(source):
+    from PIL import Image
+
     # Create cropped url
     source = urllib.unquote(source.replace('image://', ''))
     if source.endswith('/'):
         source = source[:-1]
     thumb = xbmc.getCacheThumbName(source).replace('.tbn', '')
     cropped_filename = f'{hashlib.md5(thumb.encode()).hexdigest()}.png'
+    directory = xbmcvfs.validatePath(xbmcvfs.translatePath(CROPPED_FOLDERPATH))
+    cropped_url = os.path.join(directory, cropped_filename)
 
     # Check if crop folder exists, otherwise create it
-    directory = xbmcvfs.validatePath(xbmcvfs.translatePath(CROPPED_FOLDERPATH))
     if not xbmcvfs.exists(directory):
         try:  # Try makedir to avoid race conditions
             xbmcvfs.mkdirs(directory)
@@ -56,7 +59,6 @@ def crop_image(source):
             pass
 
     # Check if cropped image exists for listitem, otherwise create it
-    cropped_url = os.path.join(directory, cropped_filename)
     if not xbmcvfs.exists(cropped_url):
         json_response = json_call(
             'Textures.GetTextures',
@@ -72,15 +74,41 @@ def crop_image(source):
         else:
             cached_url = os.path.join(
                 'special://profile/Thumbnails/', filename)
-            from PIL import Image
             image = Image.open(xbmcvfs.translatePath(cached_url))
             image = image.crop(image.convert('RGBa').getbbox())
-
             with xbmcvfs.File(cropped_url, 'wb') as f:
                 image.save(f, 'PNG')
                 log(f'Image cropped and saved: {source} --> {cropped_url}')
             image.close()
-    return cropped_url
+    # Open new image and resize to get scaled height value
+    image = Image.open(xbmcvfs.translatePath(cropped_url))
+    image.thumbnail((600,240))
+    cropped_size = image.size
+    image.close
+
+    return cropped_url, cropped_size
+
+
+def get_cropped_clearlogo(key='ListItem', **kwargs):
+    if key == 'ListItem' or key == 'VideoPlayer':
+        path = key
+    else:
+        path = f'Container({key}).ListItem'
+    clearlogos = [
+        'clearlogo',
+        'clearlogo-alt',
+        'clearlogo-billboard'
+    ]
+    for item in clearlogos:
+        source = xbmc.getInfoLabel(f'{path}.Art({item})')
+        cropped_image = crop_image(source) if source else None
+        if cropped_image:
+            #set url to cropped clearlogo and its size after being rescaled
+            window_property(f'{item}_cropped', set_property=cropped_image[0])
+            window_property(f'{item}_cropped-height', set_property=cropped_image[1][1])
+        else:
+            window_property(f'{item}_cropped', clear_property=True)
+            window_property(f'{item}_cropped-height', clear_property=True)
 
 
 def get_joined_items(item):

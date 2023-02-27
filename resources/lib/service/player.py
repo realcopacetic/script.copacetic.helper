@@ -3,7 +3,7 @@
 from xbmc import Player
 
 from resources.lib.script.actions import clean_filename
-from resources.lib.utilities import window_property
+from resources.lib.utilities import window_property, get_cropped_clearlogo
 
 
 class PlayerMonitor(Player):
@@ -11,8 +11,11 @@ class PlayerMonitor(Player):
         Player.__init__(self)
 
     def onAVStarted(self):
-        # clean filename on video playback
         if self.isPlayingVideo():
+            #get cropped clearlogo
+            get_cropped_clearlogo(key='VideoPlayer')
+
+        # clean filename on video playbakc
             item = self.getPlayingItem()
             label = item.getLabel()
             if label:
@@ -30,6 +33,10 @@ class PlayerMonitor(Player):
                             set_property=album_artist)
 
     def onPlayBackStopped(self):
+        #Clean properties
+        window_property('clearlogo_cropped', clear_property=True)
+        window_property('clearlogo-alt_cropped', clear_property=True)
+        window_property('clearlogo_cropped', clear_property=True)
         window_property('MusicPlayer_UserRating', clear_property=True)
         window_property('MusicPlayer_AlbumArtist', clear_property=True)
         window_property('Return_Label', clear_property=True)

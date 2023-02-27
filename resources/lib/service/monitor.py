@@ -4,7 +4,7 @@ import xbmc
 
 from resources.lib.service.art import SlideshowMonitor
 from resources.lib.service.player import PlayerMonitor
-from resources.lib.utilities import condition, log
+from resources.lib.utilities import condition, log, get_cropped_clearlogo
 
 
 class Monitor(xbmc.Monitor):
@@ -59,12 +59,36 @@ class Monitor(xbmc.Monitor):
             del self.art_monitor
             log(f'Monitor stopped', force=True)
 
-    def poller(self, wait_on_clear=1):
+    def poller(self):
 
-        # if media is focused run MediaMonitor()
-
-        # elif slideshow window is visible run SlideshowMonitor()
+        #video playing fullscreen
         if condition(
+            'VideoPlayer.IsFullscreen'
+        ):
+            self.waitForAbort(1)
+
+        # secondary list has focus and clearlogo view visible
+        elif condition(
+            'Skin.HasSetting(Crop_Clearlogos) + ['
+            'Control.HasFocus(3100) + ['
+            'Control.IsVisible(501) | Control.IsVisible(502) | Control.IsVisible(504)]]'
+        ):
+            get_cropped_clearlogo(key='3100')
+            self.waitForAbort(0.2)
+
+        # clearlogo view visible
+        elif condition(
+            'Skin.HasSetting(Crop_Clearlogos) + ['
+            'Control.IsVisible(501) | '
+            'Control.IsVisible(502) | '
+            'Control.IsVisible(504)]'
+        ):
+            get_cropped_clearlogo()
+            self.waitForAbort(0.2)
+
+        # slideshow window is visible run SlideshowMonitor()
+        elif condition(
+            '!Skin.HasSetting(Background_Disabled) + ['
             'Window.IsVisible(home) | '
             'Window.IsVisible(settings) | '
             'Window.IsVisible(skinsettings) | '
@@ -93,9 +117,11 @@ class Monitor(xbmc.Monitor):
             'Container.Content(tags) | '
             'Container.Content(countries) | '
             'Container.Content(roles) | '
-            'Container.Content() + [Window.Is(videos) | Window.Is(music)]'
+            'Container.Content() + [Window.Is(videos) | Window.Is(music)]]'
         ):
             self.art_monitor.background_slideshow()
+            self.waitForAbort(1)
 
-        # else clear all properties and wait for next poll
-        self.waitForAbort(wait_on_clear)
+        # else wait for next poll
+        else:
+            self.waitForAbort(1)
