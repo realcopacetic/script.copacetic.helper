@@ -80,7 +80,8 @@ def handle_episodes(li, item):
     if item['episode'] < 10:
         episode_number = f"0{item['episode']}"
     else:
-        item['episode']
+        episode_number = item['episode']
+
     label = f"{item['season']}x{episode_number}"
     li_item = xbmcgui.ListItem(label, offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
