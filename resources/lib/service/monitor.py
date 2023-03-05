@@ -2,9 +2,10 @@
 # coding: utf-8
 import xbmc
 
-from resources.lib.service.art import SlideshowMonitor
+from resources.lib.service.art import ImageEditor, SlideshowMonitor
 from resources.lib.service.player import PlayerMonitor
-from resources.lib.utilities import condition, log, get_cropped_clearlogo
+from resources.lib.utilities import (condition, get_folder_size, infolabel,
+                                     log, window_property)
 
 
 class Monitor(xbmc.Monitor):
@@ -14,27 +15,9 @@ class Monitor(xbmc.Monitor):
         self.player_monitor = None
         self.media_monitor = None
         self.art_monitor = SlideshowMonitor()
+        self.position = False
+        self.theme = False
         self._on_start()
-
-    def onScreensaverActivated(self):
-        self.idle = True
-
-    def onScreensaverDeactivated(self):
-        self.idle = False
-
-    def _get_skindir(self):
-        skindir = xbmc.getSkinDir()
-        if skindir == 'skin.copacetic':
-            return True
-
-    def _conditions_met(self):
-        return (
-            self._get_skindir() and not self.idle and
-            (
-                condition('!Skin.HasSetting(Background_Disabled)') or
-                condition('Skin.HasSetting(Crop_Clearlogos)')
-            )
-        )
 
     def _on_start(self):
         if self.start:
@@ -47,21 +30,25 @@ class Monitor(xbmc.Monitor):
             self.poller()
         self._on_stop()
 
-    def _on_stop(self):
-        log(f'Monitor idle', force=True)
-        while not self.abortRequested() and not self._conditions_met():
-            self.waitForAbort(2)
-        if not self.abortRequested():
-            self._on_start()
-        else:
-            del self.player_monitor
-            del self.media_monitor
-            del self.art_monitor
-            log(f'Monitor stopped', force=True)
+    def _conditions_met(self):
+        return (
+            self._get_skindir() and not self.idle and
+            (
+                condition('!Skin.HasSetting(Background_Disabled)') or
+                condition('Skin.HasSetting(Crop_Clearlogos)')
+            )
+        )
+
+    def _get_skindir(self):
+        skindir = xbmc.getSkinDir()
+        if skindir == 'skin.copacetic':
+            return True
 
     def poller(self):
+        # Tasks to perform each cycle
+        get_folder_size()
 
-        #video playing fullscreen
+        # video playing fullscreen
         if condition(
             'VideoPlayer.IsFullscreen'
         ):
@@ -73,8 +60,7 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3100) + ['
             'Control.IsVisible(501) | Control.IsVisible(502) | Control.IsVisible(504)]]'
         ):
-            get_cropped_clearlogo(key='3100')
-            self.waitForAbort(0.2)
+            self._on_scroll(key='3100', return_color=False)
 
         # clearlogo view visible
         elif condition(
@@ -83,8 +69,7 @@ class Monitor(xbmc.Monitor):
             'Control.IsVisible(502) | '
             'Control.IsVisible(504)]'
         ):
-            get_cropped_clearlogo()
-            self.waitForAbort(0.2)
+            self._on_scroll()
 
         # slideshow window is visible run SlideshowMonitor()
         elif condition(
@@ -125,3 +110,40 @@ class Monitor(xbmc.Monitor):
         # else wait for next poll
         else:
             self.waitForAbort(1)
+
+    def _on_scroll(self, key='ListItem', return_color=True):
+        current_item = self._current_item(key)
+        current_theme = infolabel('Skin.String(Theme)')
+        if current_item != self.position or current_theme != self.theme:
+            self._clearlogo_cropper = ImageEditor().clearlogo_cropper
+            self._clearlogo_cropper(
+                source=key, return_height=True, return_color=return_color, reporting=window_property)
+        self.waitForAbort(0.2)
+        self.position = current_item
+        self.theme = current_theme
+
+    def _on_stop(self):
+        log(f'Monitor idle', force=True)
+        while not self.abortRequested() and not self._conditions_met():
+            self.waitForAbort(2)
+        if not self.abortRequested():
+            self._on_start()
+        else:
+            del self.player_monitor
+            del self.media_monitor
+            del self.art_monitor
+            log(f'Monitor stopped', force=True)
+
+    def _current_item(self, key='ListItem'):
+        if key == 'ListItem':
+            container = 'Container.CurrentItem'
+        else:
+            container = f'Container({key}).CurrentItem'
+        current_item = infolabel(container)
+        return current_item
+
+    def onScreensaverActivated(self):
+        self.idle = True
+
+    def onScreensaverDeactivated(self):
+        self.idle = False

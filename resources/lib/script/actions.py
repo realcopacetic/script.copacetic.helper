@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # coding: utf-8
+
 from resources.lib.utilities import *
+from resources.lib.service.art import ImageEditor
 
 
 def get_default_settings(**kwargs):
@@ -22,7 +24,7 @@ def get_default_settings(**kwargs):
     }
     settings_to_change = {}
     for item in settings.items():
-        window_property(key=item[0], clear_property=True)
+        window_property(key=item[0], clear=True)
         if 'artwhitelist' not in item[0] or settings_to_change.get('videolibrary.artworklevel') is None:
             json_response = json_call('Settings.GetSettingValue',
                                       params={'setting': item[0]},
@@ -35,9 +37,9 @@ def get_default_settings(**kwargs):
         if json_response != item[1] or ('artwhitelist' in item[0] and settings_to_change.get('videolibrary.artworklevel') != 2):
             settings_to_change.update({item[0]: json_response})
             if isinstance(item[1], list):
-                window_property(key=item[0], set_property=', '.join(json_response))
+                window_property(key=item[0], set=', '.join(json_response))
             else:
-                window_property(key=item[0], set_property=f'{json_response}')
+                window_property(key=item[0], set=f'{json_response}')
     log(f"HOLA {settings_to_change}")
 
 
@@ -51,7 +53,7 @@ def clean_filename(label, **kwargs):
     count = label.count('.') - subtraction
     label = label.replace('.', ' ', count).replace('_', ' ').strip()
 
-    window_property('Return_Label', set_property=label)
+    window_property('Return_Label', set=label)
 
 
 def dialog_yesno(heading, message, **kwargs):
@@ -67,37 +69,19 @@ def dialog_yesno(heading, message, **kwargs):
 
 
 def hex_contrast_check(**kwargs):
-    hex = kwargs.get('hex',False)
-    
+    image = ImageEditor()
+    hex = kwargs.get('hex','')
+
     if hex:
         r = int(hex[2:-4], 16)
         g = int(hex[4:-2], 16)
         b = int(hex[6:], 16)
-        
-        #Credit to Mark Ransom: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
-        #Simple formula...
-        #best_contrast = 'dark' if (r * 0.299 + g * 0.587 + b * 0.114) > 186 else 'light'
-        #Complex formula...
-
-        rgb = [r, g, b]
-        new_rgb = []
-
-        for c in rgb:
-            c = c / 255.0
-            if c <= 0.04045:
-                c = c / 12.92
-            else:
-                pow(((c + 0.055) / 1.055), 2.4)
-            new_rgb.append(c)
-        
-        r = new_rgb[0]
-        g = new_rgb[1]
-        b = new_rgb[2]
-        
-        luminosity = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        rgba = (r, g, b, 255)
+        luminosity = image.get_image_luminosity(rgba)
         best_contrast = 'dark' if luminosity > 0.179 else 'light'
 
-        xbmc.executebuiltin(f'Skin.SetString(Accent_Color_Contrast,{best_contrast})')
+        xbmc.executebuiltin(
+            f'Skin.SetString(Accent_Color_Contrast,{best_contrast})')
 
             
 def play_album(**kwargs):
@@ -253,9 +237,9 @@ def rate_song(**kwargs):
 
     if dbid == player_dbid:
         if rating_threshold != 0:
-            window_property('MusicPlayer_UserRating',set_property=rating_threshold)
+            window_property('MusicPlayer_UserRating',set=rating_threshold)
         else:
-            window_property('MusicPlayer_UserRating', clear_property=True)
+            window_property('MusicPlayer_UserRating', clear=True)
         '''
         player_path = player.getPlayingFile()
         item = xbmcgui.ListItem(path=player_path)
@@ -275,7 +259,7 @@ def return_label(property=True, **kwargs):
                           urllib.unquote(replace),
                           count)        
     if property:
-        window_property('Return_Label', set_property=label)
+        window_property('Return_Label', set=label)
     else:
         return label
 
@@ -295,7 +279,7 @@ def split(string, **kwargs):
     name = kwargs.get('name', 'Split')
 
     for count, value in enumerate(string.split(separator)):
-        window_property(f'{name}.{count}', set_property=value)
+        window_property(f'{name}.{count}', set=value)
 
 
 def split_random_return(string, **kwargs):
@@ -308,5 +292,5 @@ def split_random_return(string, **kwargs):
     random = return_label(label=random, find='-',replace=' ', property=False) if random != 'Sci-Fi' else random
     random = random.strip()
     
-    window_property(name, set_property=random)
+    window_property(name, set=random)
     return random

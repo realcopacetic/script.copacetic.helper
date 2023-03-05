@@ -59,7 +59,12 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32006"
-msgid "Background refresh interval"
+msgid "Clearlogo cache cleared"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32007"
+msgid "saved"
 msgstr ""
 
 

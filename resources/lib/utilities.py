@@ -17,6 +17,11 @@ ADDON = Addon()
 ADDON_ID = ADDON.getAddonInfo('id')
 ADDONDATA = 'special://profile/addon_data/script.copacetic.helper/'
 CROPPED_FOLDERPATH = os.path.join(ADDONDATA, 'crop/')
+CROPPED_FOLDERPATH = xbmcvfs.validatePath(
+    xbmcvfs.translatePath(CROPPED_FOLDERPATH))
+TEMP_FOLDERPATH = os.path.join(ADDONDATA, 'temp/')
+TEMP_FOLDERPATH = xbmcvfs.validatePath(
+    xbmcvfs.translatePath(TEMP_FOLDERPATH))
 
 DEBUG = xbmc.LOGDEBUG
 INFO = xbmc.LOGINFO
@@ -39,76 +44,44 @@ def condition(condition):
     return xbmc.getCondVisibility(condition)
 
 
-def crop_image(source):
-    from PIL import Image
-
-    # Create cropped url
-    source = urllib.unquote(source.replace('image://', ''))
-    if source.endswith('/'):
-        source = source[:-1]
-    thumb = xbmc.getCacheThumbName(source).replace('.tbn', '')
-    cropped_filename = f'{hashlib.md5(thumb.encode()).hexdigest()}.png'
-    directory = xbmcvfs.validatePath(xbmcvfs.translatePath(CROPPED_FOLDERPATH))
-    cropped_url = os.path.join(directory, cropped_filename)
-
-    # Check if crop folder exists, otherwise create it
-    if not xbmcvfs.exists(directory):
-        try:  # Try makedir to avoid race conditions
-            xbmcvfs.mkdirs(directory)
-        except FileExistsError:
-            pass
-
-    # Check if cropped image exists for listitem, otherwise create it
-    if not xbmcvfs.exists(cropped_url):
-        json_response = json_call(
-            'Textures.GetTextures',
-            properties=["cachedurl"],
-            query_filter={"field": "cachedurl",
-                          "operator": "contains", "value": thumb},
-            parent='crop_image'
+def get_folder_size(precision=1):
+    if xbmcvfs.exists(CROPPED_FOLDERPATH):
+        dirs, files = xbmcvfs.listdir(CROPPED_FOLDERPATH)
+        bytes = 0
+        for filename in files:
+            path = os.path.join(CROPPED_FOLDERPATH, filename)
+            item = xbmcvfs.File(path)
+            size = item.size()
+            bytes += size
+            item.close()
+        '''
+        Credit Doug Latornell for bitshift method
+        https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
+        '''
+        abbrevs = (
+            (1 << 30, 'GB'),
+            (1 << 20, 'MB'),
+            (1 << 10, 'KB'),
+            (1, 'bytes')
         )
-        try:
-            filename = json_response['result']['textures'][0].get('cachedurl')
-        except IndexError:
-            return
-        else:
-            cached_url = os.path.join(
-                'special://profile/Thumbnails/', filename)
-            image = Image.open(xbmcvfs.translatePath(cached_url))
-            image = image.crop(image.convert('RGBa').getbbox())
-            with xbmcvfs.File(cropped_url, 'wb') as f:
-                image.save(f, 'PNG')
-                log(f'Image cropped and saved: {source} --> {cropped_url}')
-            image.close()
-    # Open new image and resize to get scaled height value
-    image = Image.open(xbmcvfs.translatePath(cropped_url))
-    image.thumbnail((600,240))
-    cropped_size = image.size
-    image.close
-
-    return cropped_url, cropped_size
+        if bytes == 1:
+            return '1 byte'
+        for factor, suffix in abbrevs:
+            if bytes >= factor:
+                break
+        readable = '%.*f %s' % (precision, bytes / factor, suffix)
+        window_property('Addon_Data_Folder_Size', set=readable)
+        return readable
 
 
-def get_cropped_clearlogo(key='ListItem', **kwargs):
-    if key == 'ListItem' or key == 'VideoPlayer':
-        path = key
-    else:
-        path = f'Container({key}).ListItem'
-    clearlogos = [
-        'clearlogo',
-        'clearlogo-alt',
-        'clearlogo-billboard'
-    ]
-    for item in clearlogos:
-        source = xbmc.getInfoLabel(f'{path}.Art({item})')
-        cropped_image = crop_image(source) if source else None
-        if cropped_image:
-            #set url to cropped clearlogo and its size after being rescaled
-            window_property(f'{item}_cropped', set_property=cropped_image[0])
-            window_property(f'{item}_cropped-height', set_property=cropped_image[1][1])
-        else:
-            window_property(f'{item}_cropped', clear_property=True)
-            window_property(f'{item}_cropped-height', clear_property=True)
+def clear_cache(**kwargs):
+    if xbmcvfs.exists(CROPPED_FOLDERPATH):
+        size = get_folder_size()
+        xbmcvfs.rmdir(CROPPED_FOLDERPATH, force=True)
+        log(f'Clearlogo cache cleared by user. {size} saved.')
+        string = ADDON.getLocalizedString(
+            32006) + f', {size} ' + ADDON.getLocalizedString(32007) + '.'
+        DIALOG.notification(ADDON_ID, string)
 
 
 def get_joined_items(item):
@@ -177,11 +150,20 @@ def set_plugincontent(content=None, category=None):
         setContent(int(sys.argv[1]), content)
 
 
-def window_property(key, set_property=False, clear_property=False, window_id=10000, debug=False):
+def skin_string(key, set=False, clear=False):
+    clear = True if not set else False
+    if clear:
+        xbmc.executebuiltin(f"Skin.SetString({key},)")
+    if set:
+        xbmc.executebuiltin(f'Skin.SetString({key}, {set})')
+
+
+def window_property(key, set=False, clear=False, window_id=10000, debug=False):
+    clear = True if not set else False
     window = Window(window_id)
-    if clear_property:
+    if clear:
         window.clearProperty(key)
         log(f'Window property: Clear, {window_id}, {key}', force=debug)
-    if set_property:
-        window.setProperty(key, f'{set_property}')
-        log(f'Window property: Set, {window_id}, {key}, {set_property}', force=debug)
+    if set:
+        window.setProperty(key, f'{set}')
+        log(f'Window property: Set, {window_id}, {key}, {set}', force=debug)
