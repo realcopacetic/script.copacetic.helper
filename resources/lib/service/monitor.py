@@ -16,7 +16,6 @@ class Monitor(xbmc.Monitor):
         self.media_monitor = None
         self.art_monitor = SlideshowMonitor()
         self.position = False
-        self.theme = False
         self._on_start()
 
     def _on_start(self):
@@ -46,7 +45,6 @@ class Monitor(xbmc.Monitor):
 
     def poller(self):
         # Tasks to perform each cycle
-        get_folder_size()
 
         # video playing fullscreen
         if condition(
@@ -104,6 +102,7 @@ class Monitor(xbmc.Monitor):
             'Container.Content(roles) | '
             'Container.Content() + [Window.Is(videos) | Window.Is(music)]]'
         ):
+            size = get_folder_size()
             self.art_monitor.background_slideshow()
             self.waitForAbort(1)
 
@@ -113,14 +112,12 @@ class Monitor(xbmc.Monitor):
 
     def _on_scroll(self, key='ListItem', return_color=True):
         current_item = self._current_item(key)
-        current_theme = infolabel('Skin.String(Theme)')
-        if current_item != self.position or current_theme != self.theme:
+        if current_item != self.position:
             self._clearlogo_cropper = ImageEditor().clearlogo_cropper
             self._clearlogo_cropper(
                 source=key, return_height=True, return_color=return_color, reporting=window_property)
         self.waitForAbort(0.2)
         self.position = current_item
-        self.theme = current_theme
 
     def _on_stop(self):
         log(f'Monitor idle', force=True)

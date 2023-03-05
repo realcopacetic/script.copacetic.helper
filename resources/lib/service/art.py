@@ -12,7 +12,6 @@ class ImageEditor:
         self.temp_folder = TEMP_FOLDERPATH
         self.cropped_folder = CROPPED_FOLDERPATH
         self.clearlogo_bbox = (600, 240)
-        # Make crop directory if it doesn't exist
         if not self._validate_path(self.cropped_folder):
             self._create_dir(self.cropped_folder)
 
@@ -37,20 +36,22 @@ class ImageEditor:
         for key, value in clearlogos.items():
             name = reporting_key or key
             if value:
-                destination, height, color = self._crop_image(
+                destination, height, color, luminosity = self._crop_image(
                     value, key, return_height=return_height, return_color=return_color)
                 reporting(key=f'{name}_cropped', set=destination)
                 if return_height:
                     reporting(key=f'{name}_cropped-height', set=height)
                 if return_color:
                     skin_string(key=f'{name}_cropped-color', set=color)
-                crops.append((key, destination, height, color))
+                    skin_string(key=f'{name}_cropped-luminosity', set=luminosity)
+                crops.append((key, destination, height, color, luminosity))
             else:
                 reporting(key=f'{name}_cropped', clear=True)
                 if return_height:
                     reporting(key=f'{name}_cropped-height', clear=True)
                 if return_color:
                     skin_string(key=f'{name}_cropped-color', clear=True)
+                    skin_string(key=f'{name}_cropped-luminosity', clear=True)
         return crops
 
     def _crop_image(self, url, key, return_height=True, return_color=True):
@@ -73,7 +74,7 @@ class ImageEditor:
                 image = image.crop(image.convert('RGBa').getbbox())
                 with xbmcvfs.File(destination, 'wb') as f:
                     image.save(f, 'PNG')
-                height, color = self._image_functions(
+                height, color, luminosity = self._image_functions(
                     image, key, return_height=return_height, return_color=return_color)
                 image.close()
                 log(
@@ -83,8 +84,8 @@ class ImageEditor:
                     log(f'ImageEditor: Temporary file deleted --> {url}')
         else:
             image = self._open_image(destination)
-            height, color = self._image_functions(image, key)
-        return (destination, height, color)
+            height, color, luminosity = self._image_functions(image, key)
+        return (destination, height, color, luminosity)
 
     def _validate_path(self, path):
         return xbmcvfs.exists(path)
@@ -125,12 +126,12 @@ class ImageEditor:
         return image
 
     def _image_functions(self, image, key, return_height=True, return_color=True):
-        height, color = False, False
+        height, color, luminosity = False, False, False
         if return_height:
             height = self._return_scaled_height(image)
         if return_color:
-            color = self._return_dominant_color(image, key)
-        return (height, color)
+            color, luminosity = self._return_dominant_color(image, key)
+        return (height, color, luminosity)
 
     def _return_scaled_height(self, image):
         image.thumbnail(self.clearlogo_bbox)
@@ -147,22 +148,10 @@ class ImageEditor:
             if pixel[-1][-1] >= 128:
                 dominant = pixel[-1]
                 break
-
         luminosity = self._return_luminosity(dominant)
-        if (
-            (
-                key == 'clearlogo-alt' and luminosity < 0.66
-            ) or
-            (
-                key == 'clearlogo' and luminosity > 0.066
-            )
-        ):
-
-            dominant = self._rgb_to_hex(dominant)
-            return dominant
-        else:
-            return False
-
+        luminosity = int(luminosity * 1000)
+        dominant = self._rgb_to_hex(dominant)
+        return (dominant, luminosity)
     '''
         palette_size = 16
         solid_pixels = []

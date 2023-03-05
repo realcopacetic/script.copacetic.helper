@@ -45,33 +45,31 @@ def condition(condition):
 
 
 def get_folder_size(precision=1):
+    bytes = 0
     if xbmcvfs.exists(CROPPED_FOLDERPATH):
         dirs, files = xbmcvfs.listdir(CROPPED_FOLDERPATH)
-        bytes = 0
         for filename in files:
             path = os.path.join(CROPPED_FOLDERPATH, filename)
             item = xbmcvfs.File(path)
             size = item.size()
             bytes += size
             item.close()
-        '''
-        Credit Doug Latornell for bitshift method
-        https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
-        '''
-        abbrevs = (
-            (1 << 30, 'GB'),
-            (1 << 20, 'MB'),
-            (1 << 10, 'KB'),
-            (1, 'bytes')
-        )
-        if bytes == 1:
-            return '1 byte'
-        for factor, suffix in abbrevs:
-            if bytes >= factor:
-                break
-        readable = '%.*f %s' % (precision, bytes / factor, suffix)
-        window_property('Addon_Data_Folder_Size', set=readable)
-        return readable
+    '''
+    Credit Doug Latornell for bitshift method
+    https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
+    '''
+    abbrevs = (
+        (1 << 30, 'GB'),
+        (1 << 20, 'MB'),
+        (1 << 10, 'KB'),
+        (1, 'bytes')
+    )
+    for factor, suffix in abbrevs:
+        if bytes >= factor:
+            break
+    readable = '%.*f %s' % (precision, bytes / factor, suffix) if bytes > 0 else '0.0 bytes'
+    window_property('Addon_Data_Folder_Size', set=readable)
+    return readable
 
 
 def clear_cache(**kwargs):
