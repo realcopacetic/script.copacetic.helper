@@ -2,7 +2,7 @@
 # coding: utf-8
 import random
 
-from PIL import Image, ImagePalette
+from PIL import Image
 
 from resources.lib.utilities import *
 
@@ -43,7 +43,8 @@ class ImageEditor:
                     reporting(key=f'{name}_cropped-height', set=height)
                 if return_color:
                     skin_string(key=f'{name}_cropped-color', set=color)
-                    skin_string(key=f'{name}_cropped-luminosity', set=luminosity)
+                    skin_string(
+                        key=f'{name}_cropped-luminosity', set=luminosity)
                 crops.append((key, destination, height, color, luminosity))
             else:
                 reporting(key=f'{name}_cropped', clear=True)
@@ -54,7 +55,17 @@ class ImageEditor:
                     skin_string(key=f'{name}_cropped-luminosity', clear=True)
         return crops
 
+    def _validate_path(self, path):
+        return xbmcvfs.exists(path)
+
+    def _create_dir(self, path):
+        try:  # Try makedir to avoid race conditions
+            xbmcvfs.mkdirs(path)
+        except FileExistsError:
+            return False
+
     def _crop_image(self, url, key, return_height=True, return_color=True):
+        destination, height, color, luminosity = False, False, False, False
         # Generate destination filename for crop
         filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
         destination = os.path.join(self.cropped_folder, filename)
@@ -64,7 +75,8 @@ class ImageEditor:
             try:
                 image = self._open_image(url)
             except Exception as error:
-                log(f'ImageEditor: Error - could not open cached image --> {error}', force=True)
+                log(
+                    f'ImageEditor: Error - could not open cached image --> {error}', force=True)
             else:
                 if image.mode == 'LA':  # Manually convert if mode == 'LA'
                     converted_image = Image.new("RGBA", image.size)
@@ -86,15 +98,6 @@ class ImageEditor:
             image = self._open_image(destination)
             height, color, luminosity = self._image_functions(image, key)
         return (destination, height, color, luminosity)
-
-    def _validate_path(self, path):
-        return xbmcvfs.exists(path)
-
-    def _create_dir(self, path):
-        try:  # Try makedir to avoid race conditions
-            xbmcvfs.mkdirs(path)
-        except FileExistsError:
-            return False
 
     def _return_image_path(self, source):
         # Use source URL to generate cached url. If cached url doesn't exist, return source url
@@ -130,7 +133,7 @@ class ImageEditor:
         if return_height:
             height = self._return_scaled_height(image)
         if return_color:
-            color, luminosity = self._return_dominant_color(image, key)
+            color, luminosity = self._return_dominant_color(image)
         return (height, color, luminosity)
 
     def _return_scaled_height(self, image):
@@ -139,43 +142,38 @@ class ImageEditor:
         height = size[1]
         return height
 
-    def _return_dominant_color(self, image, key):
-        width, height = 150, 60
+    def _return_dominant_color(self, image):
+        # Resize image to speed up processing
+        width, height = 75, 30
         image.thumbnail((width, height))
-        pixels = image.getcolors(width * height)
-        sorted_pixels = sorted(pixels, key=lambda t: t[0], reverse=True)
-        for position, pixel in enumerate(sorted_pixels):
-            if pixel[-1][-1] >= 128:
-                dominant = pixel[-1]
-                break
+        # Remove transparent pixels
+        pixeldata = image.getcolors(width * height)
+        sorted_pixeldata = sorted(pixeldata, key=lambda t: t[0], reverse=True)
+        opaque_pixeldata = [
+            pixeldata for pixeldata in sorted_pixeldata if pixeldata[-1][-1] > 128]
+        opaque_pixels = []
+        for position, pixeldata in enumerate(opaque_pixeldata):
+            for count in range(pixeldata[0]):
+                opaque_pixels.append(pixeldata[1])
+        # Reduce colors to palette
+        paletted = Image.new('RGBA', (len(opaque_pixels), 1))
+        paletted.putdata(opaque_pixels)
+        paletted = paletted.convert(
+            'P', palette=Image.ADAPTIVE, colors=16)
+        # Find color that occurs most often
+        palette = paletted.getpalette()
+        color_counts = sorted(paletted.getcolors(), reverse=True)
+        palette_index = color_counts[0][1]
+        # Convert to rgb and calculate luminosity
+        dominant = palette[palette_index*3:palette_index*3+3]
         luminosity = self._return_luminosity(dominant)
         luminosity = int(luminosity * 1000)
         dominant = self._rgb_to_hex(dominant)
         return (dominant, luminosity)
-    '''
-        palette_size = 16
-        solid_pixels = []
-        # Resize image to speed up processing
-        width, height = 150, 60
-        image.thumbnail((width, height))
 
-        # Reduce colors (uses k-means internally)
-        paletted = image.convert(
-            'P', palette=Image.ADAPTIVE, colors=palette_size)
-        
-        # Find the color that occurs most often
-        palette = paletted.getpalette()
-        color_counts = sorted(paletted.getcolors(), reverse=True)
-        palette_index = color_counts[0][1]
-        dominant = palette[palette_index*3:palette_index*3+3]
-        dominant = self._rgb_to_hex(dominant)
-        return dominant
-        '''
-
-    def _return_luminosity(self, rgba):
+    def _return_luminosity(self, rgb):
         # Credit to Mark Ransom for luminosity calculation
         # https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
-        rgb = rgba[:-1]
         new_rgb = ()
         for channel in rgb:
             c = channel / 255.0
@@ -188,10 +186,26 @@ class ImageEditor:
         luminosity = 0.2126 * r + 0.7152 * g + 0.0722 * b
         return luminosity
 
-    def _rgb_to_hex(self, rgba):
-        red, green, blue, alpha = rgba
+    def _rgb_to_hex(self, rgb):
+        red, green, blue = rgb
         hex = 'ff%02x%02x%02x' % (red, green, blue)
         return hex
+    
+    def _return_average_color(self, image):
+        h = image.histogram()
+
+        # split into red, green, blue
+        r = h[0:256]
+        g = h[256:256*2]
+        b = h[256*2: 256*3]
+
+        # perform the weighted average of each channel:
+        # the *index* is the channel value, and the *value* is its weight
+        return (
+            sum(i*w for i, w in enumerate(r)) / sum(r),
+            sum(i*w for i, w in enumerate(g)) / sum(g),
+            sum(i*w for i, w in enumerate(b)) / sum(b)
+        )
 
 
 class SlideshowMonitor:
@@ -266,5 +280,8 @@ class SlideshowMonitor:
     def _set_art(self, key, items):
         art = random.choice(items)
         skin_string(f'{key}_Fanart', art.get('fanart', ''))
-        skin_string(f'{key}_Clearlogo', art.get('clearlogo', ''))
-        
+        clearlogo = art.get('clearlogo', '')
+        if clearlogo:
+            skin_string(f'{key}_Clearlogo', art.get('clearlogo', ''))
+        else:
+            skin_string(f'{key}_Clearlogo')
