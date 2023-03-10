@@ -1,10 +1,16 @@
 #!/usr/bin/python
 # coding: utf-8
+
+import hashlib
 import random
+import urllib.parse as urllib
 
 from PIL import Image
 
-from resources.lib.utilities import *
+from resources.lib.utilities import (CROPPED_FOLDERPATH, TEMP_FOLDERPATH,
+                                     infolabel, json_call, log, os,
+                                     skin_string, window_property, xbmc,
+                                     xbmcvfs)
 
 
 class ImageEditor:
@@ -47,13 +53,28 @@ class ImageEditor:
                         key=f'{name}_cropped-luminosity', set=luminosity)
                 crops.append((key, destination, height, color, luminosity))
             else:
-                reporting(key=f'{name}_cropped', clear=True)
+                reporting(key=f'{name}_cropped')
                 if return_height:
-                    reporting(key=f'{name}_cropped-height', clear=True)
+                    reporting(key=f'{name}_cropped-height')
                 if return_color:
-                    skin_string(key=f'{name}_cropped-color', clear=True)
-                    skin_string(key=f'{name}_cropped-luminosity', clear=True)
+                    skin_string(key=f'{name}_cropped-color')
+                    skin_string(key=f'{name}_cropped-luminosity')
         return crops
+    
+    def return_luminosity(self, rgb):
+        # Credit to Mark Ransom for luminosity calculation
+        # https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
+        new_rgb = ()
+        for channel in rgb:
+            c = channel / 255.0
+            if c <= 0.04045:
+                output = c / 12.92
+            else:
+                output = pow(((c + 0.055) / 1.055), 2.4)
+            new_rgb += (output,)
+        r, g, b = new_rgb
+        luminosity = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return luminosity
 
     def _validate_path(self, path):
         return xbmcvfs.exists(path)
@@ -100,12 +121,12 @@ class ImageEditor:
         return (destination, height, color, luminosity)
 
     def _return_image_path(self, source):
-        # Use source URL to generate cached url. If cached url doesn't exist, return source url
+        # Use source URL to generate cached url. 
+        # If cached url doesn't exist, return source url
         source = self._url_decode_path(source)
         cached_thumb = xbmc.getCacheThumbName(source).replace('.tbn', '')
         cached_url = os.path.join(
-            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + '.png'
-        )
+            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + '.png')
         if self._validate_path(cached_url):
             return cached_url
         elif self._validate_path(source):
@@ -166,31 +187,16 @@ class ImageEditor:
         palette_index = color_counts[0][1]
         # Convert to rgb and calculate luminosity
         dominant = palette[palette_index*3:palette_index*3+3]
-        luminosity = self._return_luminosity(dominant)
+        luminosity = self.return_luminosity(dominant)
         luminosity = int(luminosity * 1000)
         dominant = self._rgb_to_hex(dominant)
         return (dominant, luminosity)
-
-    def _return_luminosity(self, rgb):
-        # Credit to Mark Ransom for luminosity calculation
-        # https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
-        new_rgb = ()
-        for channel in rgb:
-            c = channel / 255.0
-            if c <= 0.04045:
-                output = c / 12.92
-            else:
-                output = pow(((c + 0.055) / 1.055), 2.4)
-            new_rgb += (output,)
-        r, g, b = new_rgb
-        luminosity = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        return luminosity
 
     def _rgb_to_hex(self, rgb):
         red, green, blue = rgb
         hex = 'ff%02x%02x%02x' % (red, green, blue)
         return hex
-    
+
     def _return_average_color(self, image):
         h = image.histogram()
 

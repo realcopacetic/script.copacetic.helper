@@ -1,8 +1,10 @@
 #!/usr/bin/python
 # coding: utf-8
-from resources.lib.plugin.json_map import *
+
+from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
-from resources.lib.utilities import *
+from resources.lib.utilities import (ADDON, infolabel, json_call, log,
+                                     set_plugincontent)
 
 
 class PluginContent(object):
@@ -39,19 +41,29 @@ class PluginContent(object):
         self.sort_year = {'order': 'descending', 'method': 'year'}
         self.sort_random = {'method': 'random'}
 
-        self.filter_unwatched = {'field': 'playcount', 'operator': 'lessthan', 'value': '1'}
-        self.filter_watched = {'field': 'playcount', 'operator': 'greaterthan', 'value': '0'}
-        self.filter_unwatched_episodes = {'field': 'numwatched', 'operator': 'lessthan', 'value': ['1']}
-        self.filter_watched_episodes = {'field': 'numwatched', 'operator': 'greaterthan', 'value': ['0']}
-        self.filter_no_specials = {'field': 'season', 'operator': 'greaterthan', 'value': '0'}
-        self.filter_inprogress = {'field': 'inprogress', 'operator': 'true', 'value': ''}
-        self.filter_not_inprogress = {'field': 'inprogress', 'operator': 'false', 'value': ''}
-        self.filter_title = {'field': 'title', 'operator': 'is', 'value': self.dbtitle}
-        self.filter_director = {'field': 'director', 'operator': 'is', 'value': self.label}
-        self.filter_actor = {'field': 'actor','operator': 'is', 'value': self.label}
+        self.filter_unwatched = {'field': 'playcount',
+                                 'operator': 'lessthan', 'value': '1'}
+        self.filter_watched = {'field': 'playcount',
+                               'operator': 'greaterthan', 'value': '0'}
+        self.filter_unwatched_episodes = {
+            'field': 'numwatched', 'operator': 'lessthan', 'value': ['1']}
+        self.filter_watched_episodes = {
+            'field': 'numwatched', 'operator': 'greaterthan', 'value': ['0']}
+        self.filter_no_specials = {'field': 'season',
+                                   'operator': 'greaterthan', 'value': '0'}
+        self.filter_inprogress = {
+            'field': 'inprogress', 'operator': 'true', 'value': ''}
+        self.filter_not_inprogress = {
+            'field': 'inprogress', 'operator': 'false', 'value': ''}
+        self.filter_title = {'field': 'title',
+                             'operator': 'is', 'value': self.dbtitle}
+        self.filter_director = {'field': 'director',
+                                'operator': 'is', 'value': self.label}
+        self.filter_actor = {'field': 'actor',
+                             'operator': 'is', 'value': self.label}
         if self.exclude_value:
-            self.filter_exclude = {'field': self.exclude_key,'operator': 'isnot', 'value': self.exclude_value}
-        
+            self.filter_exclude = {'field': self.exclude_key,
+                                   'operator': 'isnot', 'value': self.exclude_value}
 
     def in_progress(self):
         filters = [self.filter_inprogress]
@@ -84,8 +96,8 @@ class PluginContent(object):
             else:
                 add_items(self.li, json_query, type='episode')
 
-        set_plugincontent(content='videos', category=ADDON.getLocalizedString(32601))
-
+        set_plugincontent(content='videos',
+                          category=ADDON.getLocalizedString(32601))
 
     def next_up(self):
         filters = [self.filter_inprogress]
@@ -104,55 +116,58 @@ class PluginContent(object):
             return
 
         for episode in json_query:
-                use_last_played_season = True
-                last_played_query = json_call('VideoLibrary.GetEpisodes',
-                                              properties=['seasonid', 'season'],
-                                              sort={'order': 'descending', 'method': 'lastplayed'}, limit=1,
-                                              query_filter={'and': [{'or': [self.filter_inprogress, self.filter_watched]}, self.filter_no_specials]},
-                                              params={'tvshowid': int(episode['tvshowid'])},
-                                              parent='next_up'
-                                              )
+            use_last_played_season = True
+            last_played_query = json_call('VideoLibrary.GetEpisodes',
+                                          properties=['seasonid', 'season'],
+                                          sort={'order': 'descending', 'method': 'lastplayed'}, limit=1,
+                                          query_filter={'and': [
+                                              {'or': [self.filter_inprogress, self.filter_watched]}, self.filter_no_specials]},
+                                          params={'tvshowid': int(
+                                              episode['tvshowid'])},
+                                          parent='next_up'
+                                          )
 
-                if last_played_query['result']['limits']['total'] < 1:
-                     use_last_played_season = False
+            if last_played_query['result']['limits']['total'] < 1:
+                use_last_played_season = False
 
-                ''' Return the next episode of last played season
+            ''' Return the next episode of last played season
                 '''
-                if use_last_played_season:
-                    episode_query = json_call('VideoLibrary.GetEpisodes',
-                                              properties=JSON_MAP['episode_properties'],
-                                              sort={'order': 'ascending', 'method': 'episode'}, limit=1,
-                                              query_filter={'and': [self.filter_unwatched, {'field': 'season',
-                                                                                            'operator': 'is',
-                                                                                            'value': str(last_played_query['result']['episodes'][0].get('season'))}]},
-                                              params={'tvshowid': int(episode['tvshowid'])},
-                                              parent='next_up'
-                                              )
+            if use_last_played_season:
+                episode_query = json_call('VideoLibrary.GetEpisodes',
+                                          properties=JSON_MAP['episode_properties'],
+                                          sort={'order': 'ascending', 'method': 'episode'}, limit=1,
+                                          query_filter={'and': [self.filter_unwatched, {'field': 'season', 'operator': 'is', 'value': str(
+                                              last_played_query['result']['episodes'][0].get('season'))}]},
+                                          params={'tvshowid': int(
+                                              episode['tvshowid'])},
+                                          parent='next_up'
+                                          )
 
-                    if episode_query['result']['limits']['total'] < 1:
-                        use_last_played_season = False
+                if episode_query['result']['limits']['total'] < 1:
+                    use_last_played_season = False
 
-                ''' If no episode is left of the last played season, fall back to the very first unwatched episode
+            ''' If no episode is left of the last played season, fall back to the very first unwatched episode
                 '''
-                if not use_last_played_season:
-                    episode_query = json_call('VideoLibrary.GetEpisodes',
-                                              properties=JSON_MAP['episode_properties'],
-                                              sort={'order': 'ascending', 'method': 'episode'}, limit=1,
-                                              query_filter={'and': [self.filter_unwatched, self.filter_no_specials]},
-                                              params={'tvshowid': int(episode['tvshowid'])},
-                                              parent='next_up'
-                                              )
+            if not use_last_played_season:
+                episode_query = json_call('VideoLibrary.GetEpisodes',
+                                          properties=JSON_MAP['episode_properties'],
+                                          sort={'order': 'ascending', 'method': 'episode'}, limit=1,
+                                          query_filter={
+                                              'and': [self.filter_unwatched, self.filter_no_specials]},
+                                          params={'tvshowid': int(
+                                              episode['tvshowid'])},
+                                          parent='next_up'
+                                          )
 
-                try:
-                    episode_details = episode_query['result']['episodes']
-                except Exception:
-                    log(
-                        f"Widget next_up: No next episodes found for {episode['title']}")
-                else:
-                    add_items(self.li, episode_details, type='episode')
-                    set_plugincontent(content='episodes',
-                                      category=ADDON.getLocalizedString(32600))
-
+            try:
+                episode_details = episode_query['result']['episodes']
+            except Exception:
+                log(
+                    f"Widget next_up: No next episodes found for {episode['title']}")
+            else:
+                add_items(self.li, episode_details, type='episode')
+                set_plugincontent(content='episodes',
+                                  category=ADDON.getLocalizedString(32600))
 
     def director_credits(self):
         filters = [self.filter_director]
@@ -165,7 +180,7 @@ class PluginContent(object):
                                query_filter={'and': filters},
                                parent='director_credits'
                                )
-           
+
         try:
             json_query = json_query['result']['movies']
         except Exception:
@@ -187,8 +202,8 @@ class PluginContent(object):
         else:
             add_items(self.li, json_query, type='musicvideo')
 
-        set_plugincontent(content='videos',category=ADDON.getLocalizedString(32602))
-        
+        set_plugincontent(content='videos',
+                          category=ADDON.getLocalizedString(32602))
 
     def actor_credits(self):
         filters = [self.filter_actor]
@@ -200,23 +215,26 @@ class PluginContent(object):
                                       query_filter={'and': filters},
                                       parent='actor_credits'
                                       )
-        
+
         tvshows_json_query = json_call('VideoLibrary.GetTVShows',
                                        properties=JSON_MAP['tvshow_properties'],
                                        sort=self.sort_year,
                                        query_filter={'and': filters},
                                        parent='actor_credits'
                                        )
-        
-        total_items = int(movies_json_query['result']['limits']['total']) + int(tvshows_json_query['result']['limits']['total'])
-        
+
+        total_items = int(movies_json_query['result']['limits']['total']) + int(
+            tvshows_json_query['result']['limits']['total'])
+
         try:
             movies_json_query = movies_json_query['result']['movies']
         except Exception:
             log(f'Widget actor_credits: No movies found for {self.label}.')
         else:
-            dict_to_remove = next((item for item in movies_json_query if item['label'] == current_item), None)
-            movies_json_query.remove(dict_to_remove) if dict_to_remove is not None and total_items > 1 else None
+            dict_to_remove = next(
+                (item for item in movies_json_query if item['label'] == current_item), None)
+            movies_json_query.remove(
+                dict_to_remove) if dict_to_remove is not None and total_items > 1 else None
             add_items(self.li, movies_json_query, type='movie')
 
         try:
@@ -224,9 +242,11 @@ class PluginContent(object):
         except Exception:
             log(f'Widget actor_credits: No tv shows found for {self.label}.')
         else:
-            dict_to_remove = next((item for item in tvshows_json_query if item['label'] == current_item), None)
-            tvshows_json_query.remove(dict_to_remove) if dict_to_remove is not None and total_items > 1 else None
+            dict_to_remove = next(
+                (item for item in tvshows_json_query if item['label'] == current_item), None)
+            tvshows_json_query.remove(
+                dict_to_remove) if dict_to_remove is not None and total_items > 1 else None
             add_items(self.li, tvshows_json_query, type='tvshow')
-        
-        set_plugincontent(content='videos', category=ADDON.getLocalizedString(32603))
 
+        set_plugincontent(content='videos',
+                          category=ADDON.getLocalizedString(32603))

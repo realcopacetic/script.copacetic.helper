@@ -1,11 +1,12 @@
 #!/usr/bin/python
 # coding: utf-8
 
+import urllib.parse as urllib
 
 import xbmcplugin
-import urllib.parse as urlparse
-from resources.lib.utilities import *
+
 from resources.lib.plugin.content import *
+from resources.lib.utilities import sys
 
 
 class Main:
@@ -25,31 +26,29 @@ class Main:
 
         try:
             args = path[1:]
-            self.params = dict(urlparse.parse_qsl(args))
+            self.params = dict(urllib.parse_qsl(args))
 
-            ''' workaround to get the correct values for titles with special characters
+            ''' Workaround to get the correct values for titles with special characters
             '''
             if ('title=\'\"' and '\"\'') in args:
-                start_pos=args.find('title=\'\"')
-                end_pos=args.find('\"\'')
+                start_pos = args.find('title=\'\"')
+                end_pos = args.find('\"\'')
                 clean_title = args[start_pos+8:end_pos]
                 self.params['title'] = clean_title
 
         except Exception:
             self.params = {}
 
-
     def getinfos(self):
         li = list()
-        plugin = PluginContent(self.params,li)
-        self._execute(plugin,self.info)
+        plugin = PluginContent(self.params, li)
+        self._execute(plugin, self.info)
         self._additems(li)
 
-    def _execute(self,plugin,action):
-        getattr(plugin,action.lower())()
+    def _execute(self, plugin, action):
+        getattr(plugin, action.lower())()
 
-
-    def _additems(self,li):
+    def _additems(self, li):
         xbmcplugin.addDirectoryItems(int(sys.argv[1]), li)
         xbmcplugin.endOfDirectory(handle=int(sys.argv[1]))
 

@@ -1,10 +1,8 @@
 #!/usr/bin/python
 # coding: utf-8
-import xbmc
-import xbmcgui
 
-from resources.lib.plugin.json_map import *
-from resources.lib.utilities import *
+import xbmc
+from xbmcgui import ListItem
 
 
 def add_items(li, json_query, type):
@@ -20,7 +18,7 @@ def add_items(li, json_query, type):
 
 
 def handle_movies(li, item):
-    li_item = xbmcgui.ListItem(item['title'], offscreen=True)
+    li_item = ListItem(item['title'], offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
     videoInfoTag.setDbId(item['movieid'])
     videoInfoTag.setDuration(item['runtime'])
@@ -51,7 +49,7 @@ def handle_tvshows(li, item):
     season = item['season']
     episode = int(item['episode'])
     watchedepisodes = int(item['watchedepisodes'])
-    li_item = xbmcgui.ListItem(item['title'], offscreen=True)
+    li_item = ListItem(item['title'], offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
     videoInfoTag.setDbId(item['tvshowid'])
     videoInfoTag.setLastPlayed(item['lastplayed'])
@@ -83,7 +81,7 @@ def handle_episodes(li, item):
         episode_number = item['episode']
 
     label = f"{item['season']}x{episode_number}"
-    li_item = xbmcgui.ListItem(label, offscreen=True)
+    li_item = ListItem(label, offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
     videoInfoTag.setDbId(item['episodeid'])
     videoInfoTag.setDuration(item['runtime'])
@@ -113,7 +111,7 @@ def handle_episodes(li, item):
 
 
 def handle_musicvideos(li, item):
-    li_item = xbmcgui.ListItem(item['title'], offscreen=True)
+    li_item = ListItem(item['title'], offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
     videoInfoTag.setArtists(item['artist'])
     videoInfoTag.setDbId(item['musicvideoid'])
@@ -121,7 +119,7 @@ def handle_musicvideos(li, item):
     videoInfoTag.setLastPlayed(item['lastplayed'])
     videoInfoTag.setMediaType('musicvideo')
     videoInfoTag.setResumePoint(
-        item['resume']['position'],item['resume']['total']
+        item['resume']['position'], item['resume']['total']
     )
     videoInfoTag.setPlaycount(item['playcount'])
     videoInfoTag.setTitle(item['title'])

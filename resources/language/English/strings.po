@@ -57,17 +57,6 @@ msgctxt "#32005"
 msgid "Service"
 msgstr ""
 
-#: /resources/settings.xml
-msgctxt "#32006"
-msgid "Clearlogo cache cleared"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32007"
-msgid "saved"
-msgstr ""
-
-
 
 #########################################################################################################
 
@@ -78,6 +67,26 @@ msgstr ""
 #: /resources/lib/monitor.py
 msgctxt "#32200"
 msgid "Applying changes"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32201"
+msgid "Cropped cache cleared"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32202"
+msgid "saved"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32203"
+msgid "setting changed"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32204"
+msgid "settings changed"
 msgstr ""
 
 

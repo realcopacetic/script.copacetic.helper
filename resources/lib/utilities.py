@@ -1,11 +1,8 @@
 #!/usr/bin/python
 # coding: utf-8
-
-import hashlib
 import json
 import os
 import sys
-import urllib.parse as urllib
 
 import xbmc
 import xbmcvfs
@@ -44,18 +41,27 @@ def condition(condition):
     return xbmc.getCondVisibility(condition)
 
 
-def get_folder_size(precision=1):
+def get_folder_size(source=CROPPED_FOLDERPATH):
     bytes = 0
-    if xbmcvfs.exists(CROPPED_FOLDERPATH):
-        dirs, files = xbmcvfs.listdir(CROPPED_FOLDERPATH)
+    if xbmcvfs.exists(source):
+        dirs, files = xbmcvfs.listdir(source)
         for filename in files:
-            path = os.path.join(CROPPED_FOLDERPATH, filename)
+            path = os.path.join(source, filename)
             item = xbmcvfs.File(path)
             size = item.size()
             bytes += size
             item.close()
-    '''
-    Credit Doug Latornell for bitshift method
+    return bytes
+
+
+def get_cache_size(precision=1):
+    temp_size, crop_size = 0, 0
+    if xbmcvfs.exists(TEMP_FOLDERPATH):
+        temp_size = get_folder_size(source=TEMP_FOLDERPATH)
+    if xbmcvfs.exists(CROPPED_FOLDERPATH):
+        crop_size = get_folder_size(source=CROPPED_FOLDERPATH)
+    size = temp_size + crop_size
+    ''' Credit Doug Latornell for bitshift method
     https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
     '''
     abbrevs = (
@@ -65,21 +71,25 @@ def get_folder_size(precision=1):
         (1, 'bytes')
     )
     for factor, suffix in abbrevs:
-        if bytes >= factor:
+        if size >= factor:
             break
-    readable = '%.*f %s' % (precision, bytes / factor, suffix) if bytes > 0 else '0.0 bytes'
+    readable = '%.*f %s' % (precision, size / factor,
+                            suffix) if size > 0 else '0.0 bytes'
     window_property('Addon_Data_Folder_Size', set=readable)
     return readable
 
 
 def clear_cache(**kwargs):
+    readable_size = get_cache_size()
+    if xbmcvfs.exists(TEMP_FOLDERPATH):
+        xbmcvfs.rmdir(TEMP_FOLDERPATH, force=True)
     if xbmcvfs.exists(CROPPED_FOLDERPATH):
-        size = get_folder_size()
         xbmcvfs.rmdir(CROPPED_FOLDERPATH, force=True)
-        log(f'Clearlogo cache cleared by user. {size} saved.')
+        log(f'Clearlogo cache cleared by user. {readable_size} saved.')
         string = ADDON.getLocalizedString(
-            32006) + f', {size} ' + ADDON.getLocalizedString(32007) + '.'
+            32201) + f', {readable_size} ' + ADDON.getLocalizedString(32202) + '.'
         DIALOG.notification(ADDON_ID, string)
+    get_cache_size()
 
 
 def get_joined_items(item):

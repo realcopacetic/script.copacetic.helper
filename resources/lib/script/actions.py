@@ -1,46 +1,11 @@
 #!/usr/bin/python
 # coding: utf-8
 
-from resources.lib.utilities import *
+import urllib.parse as urllib
+
 from resources.lib.service.art import ImageEditor
-
-
-def get_default_settings(**kwargs):
-    settings = {
-        'filelists.showparentdiritems': False,
-        'videolibrary.showallitems': False,
-        'videolibrary.groupmoviesets': True,
-        'videolibrary.flattentvshows': 1,
-        'videolibrary.showemptytvshows': False,
-        'videolibrary.tvshowsselectfirstunwatcheditem': 2,
-        'videolibrary.tvshowsincludeallseasonsandspecials': 3,
-        'videolibrary.artworklevel': 2,
-        'videolibrary.movieartwhitelist': ['clearlogo', 'clearlogo-alt', 'clearlogo-aligned', 'clearlogo-alt-aligned', 'clearlogo-billboard', 'keyart', 'square'],
-        'videolibrary.tvshowartwhitelist': ['clearlogo', 'clearlogo-alt', 'clearlogo-aligned', 'clearlogo-alt-aligned', 'clearlogo-billboard', 'keyart', 'square'],
-        'musiclibrary.showallitems': False,
-        'musiclibrary.showcompilationartists': False,
-        'pictures.generatethumbs': True,
-        'musicplayer.visualisation': 'visualisation.waveform'
-    }
-    settings_to_change = {}
-    for item in settings.items():
-        window_property(key=item[0], clear=True)
-        if 'artwhitelist' not in item[0] or settings_to_change.get('videolibrary.artworklevel') is None:
-            json_response = json_call('Settings.GetSettingValue',
-                                      params={'setting': item[0]},
-                                      parent='copacetic_settings'
-                                      )    
-            json_response = json_response['result']['value']
-        else:
-            json_response = item[1]
-
-        if json_response != item[1] or ('artwhitelist' in item[0] and settings_to_change.get('videolibrary.artworklevel') != 2):
-            settings_to_change.update({item[0]: json_response})
-            if isinstance(item[1], list):
-                window_property(key=item[0], set=', '.join(json_response))
-            else:
-                window_property(key=item[0], set=f'{json_response}')
-    log(f"HOLA {settings_to_change}")
+from resources.lib.utilities import (DIALOG, clear_playlists, json_call,
+                                     log_and_execute, window_property, xbmc)
 
 
 def clean_filename(label, **kwargs):
@@ -70,27 +35,27 @@ def dialog_yesno(heading, message, **kwargs):
 
 def hex_contrast_check(**kwargs):
     image = ImageEditor()
-    hex = kwargs.get('hex','')
+    hex = kwargs.get('hex', '')
 
     if hex:
         r = int(hex[2:-4], 16)
         g = int(hex[4:-2], 16)
         b = int(hex[6:], 16)
-        rgba = (r, g, b, 255)
-        luminosity = image.get_image_luminosity(rgba)
+        rgb = (r, g, b)
+        luminosity = image.return_luminosity(rgb)
         best_contrast = 'dark' if luminosity > 0.179 else 'light'
 
         xbmc.executebuiltin(
             f'Skin.SetString(Accent_Color_Contrast,{best_contrast})')
 
-            
+
 def play_album(**kwargs):
     clear_playlists()
 
     dbid = int(kwargs.get('id', False))
     if dbid:
-        json_call('Player.Open', 
-                  item={'albumid': dbid}, 
+        json_call('Player.Open',
+                  item={'albumid': dbid},
                   options={'shuffled': False},
                   parent='play_album'
                   )
@@ -104,7 +69,8 @@ def play_album_from_track(**kwargs):
 
     if dbid:
         json_response = json_call('AudioLibrary.GetSongDetails',
-                                  params={'properties': ['albumid'],'songid': dbid},
+                                  params={'properties': [
+                                      'albumid'], 'songid': dbid},
                                   parent='play_album_from_track'
                                   )
 
@@ -116,7 +82,7 @@ def play_album_from_track(**kwargs):
               options={'shuffled': False},
               parent='play_album_from_track'
               )
-    
+
     if track > 0:
         json_call('Player.GoTo', params={'playerid': 0, 'to': track})
 
@@ -164,13 +130,13 @@ def play_items(id, **kwargs):
               params={'playlistid': playlistid},
               parent='play_items'
               )
-    
+
     json_call('Player.Open',
               item={'playlistid': playlistid, 'position': 0},
               options={'shuffled': shuffled},
               parent='play_items'
               )
-    
+
 
 def play_radio(**kwargs):
     import random
@@ -179,7 +145,7 @@ def play_radio(**kwargs):
     dbid = int(kwargs.get('id', xbmc.getInfoLabel('ListItem.DBID')))
 
     json_response = json_call('AudioLibrary.GetSongDetails',
-                              params={'properties': ['genre'],'songid': dbid},
+                              params={'properties': ['genre'], 'songid': dbid},
                               parent='play_radio'
                               )
 
@@ -193,51 +159,53 @@ def play_radio(**kwargs):
                   params={'playlistid': 0},
                   parent='play_radio'
                   )
-        
+
         json_response = json_call('AudioLibrary.GetSongs',
-                                params={'properties': ['genre']},
-                                sort={'method': 'random'},
-                                limit=24,
-                                query_filter={'genre': genre},
-                                parent='play_radio'
-                                )
-        
+                                  params={'properties': ['genre']},
+                                  sort={'method': 'random'},
+                                  limit=24,
+                                  query_filter={'genre': genre},
+                                  parent='play_radio'
+                                  )
+
         for count in json_response['result']['songs']:
             if count.get('songid', None):
                 songid = int(count['songid'])
 
                 json_call('Playlist.Add',
-                        item={'songid': songid},
-                        params={'playlistid': 0},
-                        parent='play_radio'
-                        )
+                          item={'songid': songid},
+                          params={'playlistid': 0},
+                          parent='play_radio'
+                          )
 
         json_call('Playlist.GetItems',
-                params={'playlistid': 0},
-                parent='play_radio'
-                )
+                  params={'playlistid': 0},
+                  parent='play_radio'
+                  )
 
         json_call('Player.Open',
-                item={'playlistid': 0, 'position': 0},
-                parent='play_radio'
-                )
+                  item={'playlistid': 0, 'position': 0},
+                  parent='play_radio'
+                  )
 
 
 def rate_song(**kwargs):
     dbid = int(kwargs.get('id', xbmc.getInfoLabel('ListItem.DBID')))
-    rating_threshold = int(kwargs.get('rating',xbmc.getInfoLabel('Skin.String(Music_Rating_Like_Threshold)')))
-        
+    rating_threshold = int(kwargs.get('rating', xbmc.getInfoLabel(
+        'Skin.String(Music_Rating_Like_Threshold)')))
+
     json_call('AudioLibrary.SetSongDetails',
               params={'songid': dbid, 'userrating': rating_threshold},
               parent='rate_song'
               )
-            
+
     player = xbmc.Player()
-    player_dbid = int(xbmc.getInfoLabel('MusicPlayer.DBID')) if player.isPlayingAudio() else None
+    player_dbid = int(xbmc.getInfoLabel('MusicPlayer.DBID')
+                      ) if player.isPlayingAudio() else None
 
     if dbid == player_dbid:
         if rating_threshold != 0:
-            window_property('MusicPlayer_UserRating',set=rating_threshold)
+            window_property('MusicPlayer_UserRating', set=rating_threshold)
         else:
             window_property('MusicPlayer_UserRating', clear=True)
         '''
@@ -248,16 +216,17 @@ def rate_song(**kwargs):
         player.updateInfoTag(item)
         '''
 
+
 def return_label(property=True, **kwargs):
 
     label = kwargs.get('label', xbmc.getInfoLabel('ListItem.Label'))
     find = kwargs.get('find', '.')
     replace = kwargs.get('replace', ' ')
-    
+
     count = label.count(find)
     label = label.replace(urllib.unquote(find),
                           urllib.unquote(replace),
-                          count)        
+                          count)
     if property:
         window_property('Return_Label', set=label)
     else:
@@ -286,11 +255,12 @@ def split_random_return(string, **kwargs):
     import random
 
     separator = kwargs.get('separator', ' / ')
-    name = kwargs.get('name', 'SplitRandomReturn') 
+    name = kwargs.get('name', 'SplitRandomReturn')
     string = random.choice(string.split(separator))
     random = random.choice(string.split(' & '))
-    random = return_label(label=random, find='-',replace=' ', property=False) if random != 'Sci-Fi' else random
+    random = return_label(label=random, find='-', replace=' ',
+                          property=False) if random != 'Sci-Fi' else random
     random = random.strip()
-    
+
     window_property(name, set=random)
     return random

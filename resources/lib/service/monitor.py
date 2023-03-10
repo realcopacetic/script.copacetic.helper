@@ -1,11 +1,13 @@
 #!/usr/bin/python
 # coding: utf-8
+
 import xbmc
 
 from resources.lib.service.art import ImageEditor, SlideshowMonitor
 from resources.lib.service.player import PlayerMonitor
-from resources.lib.utilities import (condition, get_folder_size, infolabel,
-                                     log, window_property)
+from resources.lib.service.settings import SettingsMonitor
+from resources.lib.utilities import (condition, get_cache_size, infolabel,
+                                     log, log_and_execute, skin_string, window_property)
 
 
 class Monitor(xbmc.Monitor):
@@ -13,9 +15,11 @@ class Monitor(xbmc.Monitor):
         self.start = True
         self.idle = False
         self.player_monitor = None
-        self.media_monitor = None
+        self.settings_monitor = SettingsMonitor()
         self.art_monitor = SlideshowMonitor()
-        self.position = False
+        self.check_settings = True
+        self.check_cache = True
+        self.position, self.dbid, self.dbtype = False, False, False
         self._on_start()
 
     def _on_start(self):
@@ -44,8 +48,6 @@ class Monitor(xbmc.Monitor):
             return True
 
     def poller(self):
-        # Tasks to perform each cycle
-
         # video playing fullscreen
         if condition(
             'VideoPlayer.IsFullscreen'
@@ -102,22 +104,62 @@ class Monitor(xbmc.Monitor):
             'Container.Content(roles) | '
             'Container.Content() + [Window.Is(videos) | Window.Is(music)]]'
         ):
-            size = get_folder_size()
+            self._on_home()
+            self._on_skinsettings()
+            self._on_recommendedsettings()
             self.art_monitor.background_slideshow()
             self.waitForAbort(1)
 
         # else wait for next poll
         else:
+            self.check_cache = True
+            self.check_settings = True
             self.waitForAbort(1)
 
     def _on_scroll(self, key='ListItem', return_color=True):
-        current_item = self._current_item(key)
-        if current_item != self.position:
+        current_item, current_dbid, current_dbtype = self._current_item(key)
+        if (
+            current_item != self.position or
+            current_dbid != self.dbid or
+            current_dbtype != self.dbtype
+        ):
             self._clearlogo_cropper = ImageEditor().clearlogo_cropper
             self._clearlogo_cropper(
                 source=key, return_height=True, return_color=return_color, reporting=window_property)
         self.waitForAbort(0.2)
         self.position = current_item
+        self.dbid = current_dbid
+        self.dbtype = current_dbtype
+
+    def _on_home(self):
+        if condition('Window.Is(home)'):
+            self._cleanup()
+
+    def _on_skinsettings(self):
+        if condition('Window.Is(skinsettings)') and self.check_cache:
+            get_cache_size()
+            self.check_cache = False
+        elif condition('!Window.Is(skinsettings)'):
+            self.check_cach = True
+    
+    def _on_recommendedsettings(self):
+        if condition('Window.Is(skinsettings)') and self.check_settings:
+            self.settings_monitor.get_default()
+            self.check_settings = False
+        elif not condition('Window.Is(skinsettings)'):
+            self.check_settings = True
+        if condition('Skin.HasSetting(run_set_default)'):
+            self.settings_monitor.set_default()
+            self.check_settings = True
+            log_and_execute('Skin.ToggleSetting(run_set_default)')
+
+    def _cleanup(self):
+        clearlogos = ['clearlogo', 'clearlogo-alt', 'clearlogo-billboard']
+        for clearlogo in clearlogos:
+            window_property(f'{clearlogo}_cropped')
+            window_property(f'{clearlogo}_height')
+            skin_string(f'{clearlogo}_color')
+            skin_string(f'{clearlogo}_luminosity')
 
     def _on_stop(self):
         log(f'Monitor idle', force=True)
@@ -127,17 +169,16 @@ class Monitor(xbmc.Monitor):
             self._on_start()
         else:
             del self.player_monitor
-            del self.media_monitor
+            del self.settings_monitor
             del self.art_monitor
             log(f'Monitor stopped', force=True)
 
     def _current_item(self, key='ListItem'):
-        if key == 'ListItem':
-            container = 'Container.CurrentItem'
-        else:
-            container = f'Container({key}).CurrentItem'
-        current_item = infolabel(container)
-        return current_item
+        container = 'Container' if key == 'ListItem' else f'Container({key})'
+        item = infolabel(f'{container}.CurrentItem')
+        dbid = infolabel(f'{container}.ListItem.DBID')
+        dbtype = infolabel(f'{container}.ListItem.DBType')
+        return (item, dbid, dbtype)
 
     def onScreensaverActivated(self):
         self.idle = True

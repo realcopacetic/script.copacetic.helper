@@ -1,10 +1,8 @@
 #!/usr/bin/python
 # coding: utf-8
 
-
-import sys
 from resources.lib.script.actions import *
-from resources.lib.utilities import *
+from resources.lib.utilities import clear_cache, sys
 
 
 class Main:
