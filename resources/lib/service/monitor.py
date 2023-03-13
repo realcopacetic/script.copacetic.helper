@@ -54,13 +54,10 @@ class Monitor(xbmc.Monitor):
         ):
             self.waitForAbort(1)
 
-        # pause while scrolling
-        elif condition("Container.Scrolling"):
-            self.waitForAbort(0.2)
-
         # secondary list has focus and clearlogo view visible
         elif condition(
             'Skin.HasSetting(Crop_Clearlogos) + ['
+            '!Container(3100).Scrolling + '
             'Control.HasFocus(3100) + ['
             'Control.IsVisible(501) | Control.IsVisible(502) | Control.IsVisible(504)]]'
         ):
@@ -69,6 +66,7 @@ class Monitor(xbmc.Monitor):
         # clearlogo view visible
         elif condition(
             'Skin.HasSetting(Crop_Clearlogos) + ['
+            '!Container.Scrolling + '
             'Control.IsVisible(501) | '
             'Control.IsVisible(502) | '
             'Control.IsVisible(504)]'
