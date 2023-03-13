@@ -6,8 +6,8 @@ import xbmc
 from resources.lib.service.art import ImageEditor, SlideshowMonitor
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
-from resources.lib.utilities import (condition, get_cache_size, infolabel,
-                                     log, log_and_execute, skin_string, window_property)
+from resources.lib.utilities import (condition, get_cache_size, infolabel, log,
+                                     log_and_execute, window_property)
 
 
 class Monitor(xbmc.Monitor):
@@ -104,10 +104,9 @@ class Monitor(xbmc.Monitor):
             'Container.Content(roles) | '
             'Container.Content() + [Window.Is(videos) | Window.Is(music)]]'
         ):
-            self._on_home()
+            self.art_monitor.background_slideshow()
             self._on_skinsettings()
             self._on_recommendedsettings()
-            self.art_monitor.background_slideshow()
             self.waitForAbort(1)
 
         # else wait for next poll
@@ -126,14 +125,9 @@ class Monitor(xbmc.Monitor):
             self._clearlogo_cropper = ImageEditor().clearlogo_cropper
             self._clearlogo_cropper(
                 source=key, return_height=True, return_color=return_color, reporting=window_property)
-        self.waitForAbort(0.2)
         self.position = current_item
         self.dbid = current_dbid
         self.dbtype = current_dbtype
-
-    def _on_home(self):
-        if condition('Window.Is(home)'):
-            self._cleanup()
 
     def _on_skinsettings(self):
         if condition('Window.Is(skinsettings)') and self.check_cache:
@@ -152,14 +146,6 @@ class Monitor(xbmc.Monitor):
             self.settings_monitor.set_default()
             self.check_settings = True
             log_and_execute('Skin.ToggleSetting(run_set_default)')
-
-    def _cleanup(self):
-        clearlogos = ['clearlogo', 'clearlogo-alt', 'clearlogo-billboard']
-        for clearlogo in clearlogos:
-            window_property(f'{clearlogo}_cropped')
-            window_property(f'{clearlogo}_height')
-            skin_string(f'{clearlogo}_color')
-            skin_string(f'{clearlogo}_luminosity')
 
     def _on_stop(self):
         log(f'Monitor idle', force=True)

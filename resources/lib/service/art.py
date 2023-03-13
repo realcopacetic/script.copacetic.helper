@@ -15,9 +15,9 @@ from resources.lib.utilities import (CROPPED_FOLDERPATH, TEMP_FOLDERPATH,
 
 class ImageEditor:
     def __init__(self):
+        self.clearlogo_bbox = (600, 240)
         self.temp_folder = TEMP_FOLDERPATH
         self.cropped_folder = CROPPED_FOLDERPATH
-        self.clearlogo_bbox = (600, 240)
         if not self._validate_path(self.cropped_folder):
             self._create_dir(self.cropped_folder)
 
@@ -60,7 +60,7 @@ class ImageEditor:
                     skin_string(key=f'{name}_cropped-color')
                     skin_string(key=f'{name}_cropped-luminosity')
         return crops
-    
+
     def return_luminosity(self, rgb):
         # Credit to Mark Ransom for luminosity calculation
         # https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
@@ -92,7 +92,7 @@ class ImageEditor:
         destination = os.path.join(self.cropped_folder, filename)
         # If file doesn't already exist, get image url, open and crop
         if not self._validate_path(destination):
-            url = self._return_image_path(url)
+            url = self._return_image_path(url, '.png')
             try:
                 image = self._open_image(url)
             except Exception as error:
@@ -120,13 +120,13 @@ class ImageEditor:
             height, color, luminosity = self._image_functions(image, key)
         return (destination, height, color, luminosity)
 
-    def _return_image_path(self, source):
-        # Use source URL to generate cached url. 
+    def _return_image_path(self, source, suffix):
+        # Use source URL to generate cached url.
         # If cached url doesn't exist, return source url
-        source = self._url_decode_path(source)
+        source = self.url_decode_path(source)
         cached_thumb = xbmc.getCacheThumbName(source).replace('.tbn', '')
         cached_url = os.path.join(
-            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + '.png')
+            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + suffix)
         if self._validate_path(cached_url):
             return cached_url
         elif self._validate_path(source):
@@ -140,7 +140,7 @@ class ImageEditor:
                 log(f'ImageEditor: Temporary file created --> {destination}')
                 return destination
 
-    def _url_decode_path(self, path):
+    def url_decode_path(self, path):
         path = urllib.unquote(path.replace('image://', ''))
         path = path[:-1] if path.endswith('/') else path
         return path
@@ -218,7 +218,7 @@ class SlideshowMonitor:
     def __init__(self):
         self.refresh_count = self.refresh_interval = self._get_refresh_interval()
         self.fetch_count = self.fetch_interval = self.refresh_interval * 30
-        self.clearlogo_cropper = ImageEditor().clearlogo_cropper
+        self.decode_path = ImageEditor().url_decode_path
 
     def background_slideshow(self):
         # Check if refresh interval has been adjusted in skin settings
@@ -285,9 +285,13 @@ class SlideshowMonitor:
 
     def _set_art(self, key, items):
         art = random.choice(items)
-        skin_string(f'{key}_Fanart', art.get('fanart', ''))
+        # use cached path version if available, otherwise clean filename
+        fanart = self.decode_path(art.get('fanart', ''))
+        skin_string(f'{key}_Fanart', fanart)
+        # clearlogo if present otherwise clear
         clearlogo = art.get('clearlogo', '')
         if clearlogo:
-            skin_string(f'{key}_Clearlogo', art.get('clearlogo', ''))
+            clearlogo = self.decode_path(clearlogo)
+            skin_string(f'{key}_Clearlogo', clearlogo)
         else:
             skin_string(f'{key}_Clearlogo')

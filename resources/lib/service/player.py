@@ -15,10 +15,11 @@ class PlayerMonitor(Player):
 
     def onAVStarted(self):
         if self.isPlayingVideo() and condition('String.IsEmpty(Window(home).Property(Trailer_Autoplay))'):
+            # Crop clearlogo for use on fullscreen info or pause
             self.clearlogo_cropper(source='VideoPlayer',
                                    reporting=window_property)
 
-        # Clean filename on video playback
+            # Clean filename
             item = self.getPlayingItem()
             label = item.getLabel()
             if label:

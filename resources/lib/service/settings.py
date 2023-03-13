@@ -53,7 +53,10 @@ class SettingsMonitor:
                     (isinstance(value, bool) and value == False)
                 ):
                     value = '0'
-                elif (isinstance(value, list) and value == []):
+                elif (
+                    (isinstance(value, list) and value == []) or
+                    (isinstance(value, str) and value == '')
+                ):
                     value = 'None'
                 cats.update({category: True})
                 self.settings_to_change.update({item[0]: item[1]})
