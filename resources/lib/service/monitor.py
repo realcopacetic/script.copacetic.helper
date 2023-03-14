@@ -17,8 +17,8 @@ class Monitor(xbmc.Monitor):
         self.player_monitor = None
         self.settings_monitor = SettingsMonitor()
         self.art_monitor = SlideshowMonitor()
-        self.check_settings = True
-        self.check_cache = True
+        self._clearlogo_cropper = ImageEditor().clearlogo_cropper
+        self.check_settings, self.check_cache = True, True
         self.position, self.dbid, self.dbtype = False, False, False
         self._on_start()
 
@@ -56,22 +56,22 @@ class Monitor(xbmc.Monitor):
 
         # secondary list has focus and clearlogo view visible
         elif condition(
-            'Skin.HasSetting(Crop_Clearlogos) + ['
-            '!Container(3100).Scrolling + '
+            'Skin.HasSetting(Crop_Clearlogos) + '
             'Control.HasFocus(3100) + ['
-            'Control.IsVisible(501) | Control.IsVisible(502) | Control.IsVisible(504)]]'
+            'Control.IsVisible(501) | Control.IsVisible(502) | Control.IsVisible(504)]'
         ):
             self._on_scroll(key='3100', return_color=False)
+            self.waitForAbort(0.2)
 
         # clearlogo view visible
         elif condition(
             'Skin.HasSetting(Crop_Clearlogos) + ['
-            '!Container.Scrolling + '
             'Control.IsVisible(501) | '
             'Control.IsVisible(502) | '
             'Control.IsVisible(504)]'
         ):
             self._on_scroll()
+            self.waitForAbort(0.2)
 
         # slideshow window is visible run SlideshowMonitor()
         elif condition(
@@ -123,13 +123,12 @@ class Monitor(xbmc.Monitor):
             current_item != self.position or
             current_dbid != self.dbid or
             current_dbtype != self.dbtype
-        ):
-            self._clearlogo_cropper = ImageEditor().clearlogo_cropper
+        ) and not self._container_scrolling(key):
             self._clearlogo_cropper(
-                source=key, return_height=True, return_color=return_color, reporting=window_property)
-        self.position = current_item
-        self.dbid = current_dbid
-        self.dbtype = current_dbtype
+                source=key, return_color=return_color, reporting=window_property)
+            self.position = current_item
+            self.dbid = current_dbid
+            self.dbtype = current_dbtype
 
     def _on_skinsettings(self):
         if condition('Window.Is(skinsettings)') and self.check_cache:
@@ -137,7 +136,7 @@ class Monitor(xbmc.Monitor):
             self.check_cache = False
         elif condition('!Window.Is(skinsettings)'):
             self.check_cach = True
-    
+
     def _on_recommendedsettings(self):
         if condition('Window.Is(skinsettings)') and self.check_settings:
             self.settings_monitor.get_default()
@@ -167,6 +166,10 @@ class Monitor(xbmc.Monitor):
         dbid = infolabel(f'{container}.ListItem.DBID')
         dbtype = infolabel(f'{container}.ListItem.DBType')
         return (item, dbid, dbtype)
+
+    def _container_scrolling(self, key='ListItem'):
+        container = 'Container' if key == 'ListItem' else f'Container({key})'
+        return condition(f'{container}.Scrolling')
 
     def onScreensaverActivated(self):
         self.idle = True

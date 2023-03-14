@@ -4,24 +4,42 @@
 import hashlib
 import random
 import urllib.parse as urllib
+import xml.etree.ElementTree as ET
+import xml.dom.minidom
 
 from PIL import Image
 
 from resources.lib.utilities import (CROPPED_FOLDERPATH, TEMP_FOLDERPATH,
-                                     infolabel, json_call, log, os,
+                                     condition, infolabel, json_call, log, os,
                                      skin_string, window_property, xbmc,
                                      xbmcvfs)
 
+XMLSTR = '''<?xml version="1.0" encoding="utf-8"?>
+<data>
+    <clearlogos />
+    <messages />
+</data>
+'''
 
 class ImageEditor:
     def __init__(self):
         self.clearlogo_bbox = (600, 240)
-        self.temp_folder = TEMP_FOLDERPATH
         self.cropped_folder = CROPPED_FOLDERPATH
+        self.temp_folder = TEMP_FOLDERPATH
+        self.lookup = os.path.join(CROPPED_FOLDERPATH, '_lookup.xml')
+        self._create_dirs()
+
+    def _create_dirs(self):
         if not self._validate_path(self.cropped_folder):
             self._create_dir(self.cropped_folder)
+        if not self._validate_path(self.temp_folder):
+            self._create_dir(self.temp_folder)
+        if not self._validate_path(self.lookup):
+            root = ET.fromstring(XMLSTR)
+            ET.ElementTree(root).write(self.lookup, xml_declaration=True, encoding="utf-8")
 
-    def clearlogo_cropper(self, url=False, type='clearlogo', source='ListItem', return_height=False, return_color=False, reporting=window_property, reporting_key=None):
+    def clearlogo_cropper(self, url=False, type='clearlogo', source='ListItem', return_color=False, reporting=window_property, reporting_key=None):
+        # establish clearlogo urls
         if url:
             clearlogos = {type: url}
         else:
@@ -38,28 +56,40 @@ class ImageEditor:
                 url = xbmc.getInfoLabel(f'{path}.Art({key})')
                 if url:
                     clearlogos[key] = url
-        crops = []
+        # lookup urls in table or run _crop_image() and write values to table
+        lookup_tree = ET.parse(self.lookup)
+        root = lookup_tree.getroot()
         for key, value in clearlogos.items():
+            self.destination, self.height, self.color, self.luminosity = False, False, False, False
             name = reporting_key or key
             if value:
-                destination, height, color, luminosity = self._crop_image(
-                    value, key, return_height=return_height, return_color=return_color)
-                reporting(key=f'{name}_cropped', set=destination)
-                if return_height:
-                    reporting(key=f'{name}_cropped-height', set=height)
-                if return_color:
-                    skin_string(key=f'{name}_cropped-color', set=color)
-                    skin_string(
-                        key=f'{name}_cropped-luminosity', set=luminosity)
-                crops.append((key, destination, height, color, luminosity))
-            else:
-                reporting(key=f'{name}_cropped')
-                if return_height:
-                    reporting(key=f'{name}_cropped-height')
-                if return_color:
-                    skin_string(key=f'{name}_cropped-color')
-                    skin_string(key=f'{name}_cropped-luminosity')
-        return crops
+                for node in root[0]:
+                    if value in node.attrib['name'] and self._validate_path(node.find('path').text):
+                        self.destination = node.find('path').text
+                        self.height = node.find('height').text
+                        self.color = node.find('color').text
+                        self.luminosity = node.find('luminosity').text
+                        break
+                else:
+                    self._crop_image(value)
+                    clearlogo = ET.SubElement(root[0], 'clearlogo')
+                    clearlogo.attrib['name'] = value
+                    path = ET.SubElement(clearlogo, 'path')
+                    path.text = self.destination
+                    height = ET.SubElement(clearlogo, 'height')
+                    height.text = str(self.height)
+                    color = ET.SubElement(clearlogo, 'color')
+                    color.text = self.color
+                    luminosity = ET.SubElement(clearlogo, 'luminosity')
+                    luminosity.text = str(self.luminosity)
+                    lookup_tree.write(self.lookup, encoding="utf-8")
+
+            reporting(key=f'{name}_cropped', set=self.destination)
+            reporting(key=f'{name}_cropped-height', set=self.height)
+            if return_color and condition('Skin.HasSetting(Colorise_Flags)'):
+                skin_string(key=f'{name}_cropped-color', set=self.color)
+                skin_string(key=f'{name}_cropped-luminosity',
+                            set=self.luminosity)
 
     def return_luminosity(self, rgb):
         # Credit to Mark Ransom for luminosity calculation
@@ -83,15 +113,17 @@ class ImageEditor:
         try:  # Try makedir to avoid race conditions
             xbmcvfs.mkdirs(path)
         except FileExistsError:
-            return False
+            return
 
-    def _crop_image(self, url, key, return_height=True, return_color=True):
-        destination, height, color, luminosity = False, False, False, False
-        # Generate destination filename for crop
+    def _crop_image(self, url):
         filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
-        destination = os.path.join(self.cropped_folder, filename)
-        # If file doesn't already exist, get image url, open and crop
-        if not self._validate_path(destination):
+        self.destination = os.path.join(self.cropped_folder, filename)
+        # If crop exists, open to get height and color
+        if self._validate_path(self.destination):
+            image = self._open_image(self.destination)
+            self._image_functions(image)
+        # else get image url, open and crop, then get height and color
+        else:
             url = self._return_image_path(url, '.png')
             try:
                 image = self._open_image(url)
@@ -99,46 +131,37 @@ class ImageEditor:
                 log(
                     f'ImageEditor: Error - could not open cached image --> {error}', force=True)
             else:
-                if image.mode == 'LA':  # Manually convert if mode == 'LA'
+                if image.mode == 'LA':  # Convert if mode == 'LA'
                     converted_image = Image.new("RGBA", image.size)
                     converted_image.paste(image)
-                    image.close()
                     image = converted_image
                 image = image.crop(image.convert('RGBa').getbbox())
-                with xbmcvfs.File(destination, 'wb') as f:
+                with xbmcvfs.File(self.destination, 'wb') as f:
                     image.save(f, 'PNG')
-                height, color, luminosity = self._image_functions(
-                    image, key, return_height=return_height, return_color=return_color)
-                image.close()
+                self._image_functions(image)
                 log(
-                    f'ImageEditor: Image cropped and saved: {url} --> {destination}')
+                    f'ImageEditor: Image cropped and saved: {url} --> {self.destination}')
                 if self.temp_folder in url:  # If temp file  created, delete it now
                     xbmcvfs.delete(url)
                     log(f'ImageEditor: Temporary file deleted --> {url}')
-        else:
-            image = self._open_image(destination)
-            height, color, luminosity = self._image_functions(image, key)
-        return (destination, height, color, luminosity)
 
     def _return_image_path(self, source, suffix):
-        # Use source URL to generate cached url.
-        # If cached url doesn't exist, return source url
-        source = self.url_decode_path(source)
-        cached_thumb = xbmc.getCacheThumbName(source).replace('.tbn', '')
+        # Use source URL to generate cached url. If cached url doesn't exist, return source url
+        cleaned_source = self.url_decode_path(source)
+        cached_thumb = xbmc.getCacheThumbName(
+            cleaned_source).replace('.tbn', '')
         cached_url = os.path.join(
             'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + suffix)
         if self._validate_path(cached_url):
             return cached_url
-        elif self._validate_path(source):
+        else:
             # Create temp file to avoid access issues to direct source
-            if not self._validate_path(self.temp_folder):
-                self._create_dir(self.temp_folder)
-            filename = f'{hashlib.md5(source.encode()).hexdigest()}.png'
+            filename = f'{hashlib.md5(cleaned_source.encode()).hexdigest()}.png'
             destination = os.path.join(self.temp_folder, filename)
             if not self._validate_path(destination):
-                xbmcvfs.copy(source, destination)
+                xbmcvfs.copy(cleaned_source, destination)
                 log(f'ImageEditor: Temporary file created --> {destination}')
-                return destination
+            return destination
 
     def url_decode_path(self, path):
         path = urllib.unquote(path.replace('image://', ''))
@@ -149,13 +172,10 @@ class ImageEditor:
         image = Image.open(xbmcvfs.translatePath(url))
         return image
 
-    def _image_functions(self, image, key, return_height=True, return_color=True):
-        height, color, luminosity = False, False, False
-        if return_height:
-            height = self._return_scaled_height(image)
-        if return_color:
-            color, luminosity = self._return_dominant_color(image)
-        return (height, color, luminosity)
+    def _image_functions(self, image):
+        self.height = self._return_scaled_height(image)
+        self.color, self.luminosity = self._return_dominant_color(image)
+        image.close()
 
     def _return_scaled_height(self, image):
         image.thumbnail(self.clearlogo_bbox)
@@ -164,7 +184,6 @@ class ImageEditor:
         return height
 
     def _return_dominant_color(self, image):
-        # Resize image to speed up processing
         width, height = 75, 30
         image.thumbnail((width, height))
         # Remove transparent pixels
@@ -199,12 +218,10 @@ class ImageEditor:
 
     def _return_average_color(self, image):
         h = image.histogram()
-
         # split into red, green, blue
         r = h[0:256]
         g = h[256:256*2]
         b = h[256*2: 256*3]
-
         # perform the weighted average of each channel:
         # the *index* is the channel value, and the *value* is its weight
         return (
@@ -285,13 +302,11 @@ class SlideshowMonitor:
 
     def _set_art(self, key, items):
         art = random.choice(items)
-        # use cached path version if available, otherwise clean filename
-        fanart = self.decode_path(art.get('fanart', ''))
-        skin_string(f'{key}_Fanart', fanart)
+        #fanart = self.decode_path(art.get('fanart', ''))
+        fanart = art.get('fanart', False)
+        skin_string(key=f'{key}_Fanart', set=fanart)
         # clearlogo if present otherwise clear
-        clearlogo = art.get('clearlogo', '')
-        if clearlogo:
-            clearlogo = self.decode_path(clearlogo)
-            skin_string(f'{key}_Clearlogo', clearlogo)
-        else:
-            skin_string(f'{key}_Clearlogo')
+        clearlogo = art.get('clearlogo', False)
+        # if clearlogo:
+        #clearlogo = self.decode_path(clearlogo)
+        skin_string(key=f'{key}_Clearlogo', set=clearlogo)

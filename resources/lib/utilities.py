@@ -130,13 +130,13 @@ def json_call(method, properties=None, sort=None, query_filter=None, limit=None,
 
     if (ADDON.getSettingBool('json_logging') or debug):
         log(f'JSON call for function {parent} ' +
-            json_print(json_string), force=debug)
+            pretty_print(json_string), force=debug)
         log(f'JSON result for function {parent} ' +
-            json_print(result), force=debug)
+            pretty_print(result), force=debug)
     return result
 
 
-def json_print(string):
+def pretty_print(string):
     return json.dumps(string, sort_keys=True, indent=4, separators=(',', ': '))
 
 
