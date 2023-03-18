@@ -13,12 +13,11 @@ from xbmcplugin import setContent, setPluginCategory
 ADDON = Addon()
 ADDON_ID = ADDON.getAddonInfo('id')
 ADDONDATA = 'special://profile/addon_data/script.copacetic.helper/'
+ADDONDATA = xbmcvfs.validatePath(
+    xbmcvfs.translatePath(ADDONDATA))
 CROPPED_FOLDERPATH = os.path.join(ADDONDATA, 'crop/')
-CROPPED_FOLDERPATH = xbmcvfs.validatePath(
-    xbmcvfs.translatePath(CROPPED_FOLDERPATH))
 TEMP_FOLDERPATH = os.path.join(ADDONDATA, 'temp/')
-TEMP_FOLDERPATH = xbmcvfs.validatePath(
-    xbmcvfs.translatePath(TEMP_FOLDERPATH))
+LOOKUP_XML = os.path.join(ADDONDATA, '_lookup.xml')
 
 DEBUG = xbmc.LOGDEBUG
 INFO = xbmc.LOGINFO
@@ -79,7 +78,20 @@ def get_cache_size(precision=1):
     return readable
 
 
+def validate_path(path):
+    return xbmcvfs.exists(path)
+
+
+def create_dir(path):
+    try:  # Try makedir to avoid race conditions
+        xbmcvfs.mkdirs(path)
+    except FileExistsError:
+        return
+
+
 def clear_cache(**kwargs):
+    import xml.etree.ElementTree as ET
+
     readable_size = get_cache_size()
     if xbmcvfs.exists(TEMP_FOLDERPATH):
         xbmcvfs.rmdir(TEMP_FOLDERPATH, force=True)
@@ -90,7 +102,12 @@ def clear_cache(**kwargs):
             32201) + f', {readable_size} ' + ADDON.getLocalizedString(32202) + '.'
         DIALOG.notification(ADDON_ID, string)
     get_cache_size()
-
+    # Remove clearlogos from lookup table
+    lookup_tree = ET.parse(LOOKUP_XML)
+    root = lookup_tree.getroot()
+    del root[0]
+    ET.SubElement(root, 'clearlogos')
+    lookup_tree.write(LOOKUP_XML, encoding="utf-8")
 
 def get_joined_items(item):
     if len(item) > 0 and item is not None:

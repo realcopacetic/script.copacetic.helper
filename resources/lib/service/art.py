@@ -5,38 +5,21 @@ import hashlib
 import random
 import urllib.parse as urllib
 import xml.etree.ElementTree as ET
-import xml.dom.minidom
 
 from PIL import Image
 
-from resources.lib.utilities import (CROPPED_FOLDERPATH, TEMP_FOLDERPATH,
-                                     condition, infolabel, json_call, log, os,
-                                     skin_string, window_property, xbmc,
-                                     xbmcvfs)
+from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
+                                     TEMP_FOLDERPATH, infolabel, json_call,
+                                     log, os, skin_string, validate_path,
+                                     window_property, xbmc, xbmcvfs)
 
-XMLSTR = '''<?xml version="1.0" encoding="utf-8"?>
-<data>
-    <clearlogos />
-    <messages />
-</data>
-'''
 
-class ImageEditor:
+class ImageEditor():
     def __init__(self):
         self.clearlogo_bbox = (600, 240)
         self.cropped_folder = CROPPED_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
-        self.lookup = os.path.join(CROPPED_FOLDERPATH, '_lookup.xml')
-        self._create_dirs()
-
-    def _create_dirs(self):
-        if not self._validate_path(self.cropped_folder):
-            self._create_dir(self.cropped_folder)
-        if not self._validate_path(self.temp_folder):
-            self._create_dir(self.temp_folder)
-        if not self._validate_path(self.lookup):
-            root = ET.fromstring(XMLSTR)
-            ET.ElementTree(root).write(self.lookup, xml_declaration=True, encoding="utf-8")
+        self.lookup = LOOKUP_XML
 
     def clearlogo_cropper(self, url=False, type='clearlogo', source='ListItem', return_color=False, reporting=window_property, reporting_key=None):
         # establish clearlogo urls
@@ -63,8 +46,8 @@ class ImageEditor:
             self.destination, self.height, self.color, self.luminosity = False, False, False, False
             name = reporting_key or key
             if value:
-                for node in root[0]:
-                    if value in node.attrib['name'] and self._validate_path(node.find('path').text):
+                for node in root.find('clearlogos'):
+                    if value in node.attrib['name'] and validate_path(node.find('path').text):
                         self.destination = node.find('path').text
                         self.height = node.find('height').text
                         self.color = node.find('color').text
@@ -72,7 +55,8 @@ class ImageEditor:
                         break
                 else:
                     self._crop_image(value)
-                    clearlogo = ET.SubElement(root[0], 'clearlogo')
+                    clearlogo = ET.SubElement(
+                        root.find('clearlogos'), 'clearlogo')
                     clearlogo.attrib['name'] = value
                     path = ET.SubElement(clearlogo, 'path')
                     path.text = self.destination
@@ -83,10 +67,9 @@ class ImageEditor:
                     luminosity = ET.SubElement(clearlogo, 'luminosity')
                     luminosity.text = str(self.luminosity)
                     lookup_tree.write(self.lookup, encoding="utf-8")
-
             reporting(key=f'{name}_cropped', set=self.destination)
             reporting(key=f'{name}_cropped-height', set=self.height)
-            if return_color and condition('Skin.HasSetting(Colorise_Flags)'):
+            if return_color:
                 skin_string(key=f'{name}_cropped-color', set=self.color)
                 skin_string(key=f'{name}_cropped-luminosity',
                             set=self.luminosity)
@@ -106,20 +89,11 @@ class ImageEditor:
         luminosity = 0.2126 * r + 0.7152 * g + 0.0722 * b
         return luminosity
 
-    def _validate_path(self, path):
-        return xbmcvfs.exists(path)
-
-    def _create_dir(self, path):
-        try:  # Try makedir to avoid race conditions
-            xbmcvfs.mkdirs(path)
-        except FileExistsError:
-            return
-
     def _crop_image(self, url):
         filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
         self.destination = os.path.join(self.cropped_folder, filename)
         # If crop exists, open to get height and color
-        if self._validate_path(self.destination):
+        if validate_path(self.destination):
             image = self._open_image(self.destination)
             self._image_functions(image)
         # else get image url, open and crop, then get height and color
@@ -152,13 +126,13 @@ class ImageEditor:
             cleaned_source).replace('.tbn', '')
         cached_url = os.path.join(
             'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + suffix)
-        if self._validate_path(cached_url):
+        if validate_path(cached_url):
             return cached_url
         else:
             # Create temp file to avoid access issues to direct source
             filename = f'{hashlib.md5(cleaned_source.encode()).hexdigest()}.png'
             destination = os.path.join(self.temp_folder, filename)
-            if not self._validate_path(destination):
+            if not validate_path(destination):
                 xbmcvfs.copy(cleaned_source, destination)
                 log(f'ImageEditor: Temporary file created --> {destination}')
             return destination
@@ -235,7 +209,6 @@ class SlideshowMonitor:
     def __init__(self):
         self.refresh_count = self.refresh_interval = self._get_refresh_interval()
         self.fetch_count = self.fetch_interval = self.refresh_interval * 30
-        self.decode_path = ImageEditor().url_decode_path
 
     def background_slideshow(self):
         # Check if refresh interval has been adjusted in skin settings
@@ -246,6 +219,7 @@ class SlideshowMonitor:
         if self.fetch_count >= self.fetch_interval:
             log('Monitor fetching background art')
             self.art = self._get_art()
+            self.fetch_interval = len(self.art) if (len(self.art) < 30) else self.fetch_interval
             self.fetch_count = 0
         else:
             self.fetch_count += 1
@@ -302,11 +276,15 @@ class SlideshowMonitor:
 
     def _set_art(self, key, items):
         art = random.choice(items)
-        #fanart = self.decode_path(art.get('fanart', ''))
-        fanart = art.get('fanart', False)
+        fanart = self._url_decode_path(art.get('fanart', ''))
         skin_string(key=f'{key}_Fanart', set=fanart)
         # clearlogo if present otherwise clear
         clearlogo = art.get('clearlogo', False)
-        # if clearlogo:
-        #clearlogo = self.decode_path(clearlogo)
+        if clearlogo:
+            clearlogo = self._url_decode_path(clearlogo)
         skin_string(key=f'{key}_Clearlogo', set=clearlogo)
+
+    def _url_decode_path(self, path):
+        #path = urllib.unquote(path.replace('image://', ''))
+        path = path[:-1] if path.endswith('/') else path
+        return path

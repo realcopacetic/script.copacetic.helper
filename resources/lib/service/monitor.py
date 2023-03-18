@@ -1,26 +1,56 @@
 #!/usr/bin/python
 # coding: utf-8
 
+import xml.etree.ElementTree as ET
+
 import xbmc
 
 from resources.lib.service.art import ImageEditor, SlideshowMonitor
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
-from resources.lib.utilities import (condition, get_cache_size, infolabel, log,
-                                     log_and_execute, window_property)
+from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
+                                     TEMP_FOLDERPATH, condition, create_dir,
+                                     get_cache_size, infolabel, log,
+                                     log_and_execute, validate_path,
+                                     window_property)
+
+
+XMLSTR = '''<?xml version="1.0" encoding="utf-8"?>
+<data>
+    <clearlogos />
+</data>
+'''
 
 
 class Monitor(xbmc.Monitor):
     def __init__(self):
+        # Poller
         self.start = True
         self.idle = False
+        self.check_settings, self.check_cache = True, True
+        self.position, self.dbid, self.dbtype = False, False, False
+        # Setup
+        self.cropped_folder = CROPPED_FOLDERPATH
+        self.temp_folder = TEMP_FOLDERPATH
+        self.lookup = LOOKUP_XML
+        # Monitors
         self.player_monitor = None
         self.settings_monitor = SettingsMonitor()
         self.art_monitor = SlideshowMonitor()
         self._clearlogo_cropper = ImageEditor().clearlogo_cropper
-        self.check_settings, self.check_cache = True, True
-        self.position, self.dbid, self.dbtype = False, False, False
+        # Run
+        self._create_dirs()
         self._on_start()
+
+    def _create_dirs(self):
+        if not validate_path(self.cropped_folder):
+            create_dir(self.cropped_folder)
+        if not validate_path(self.temp_folder):
+            create_dir(self.temp_folder)
+        if not validate_path(self.lookup):
+            root = ET.fromstring(XMLSTR)
+            ET.ElementTree(root).write(
+                self.lookup, xml_declaration=True, encoding="utf-8")
 
     def _on_start(self):
         if self.start:
