@@ -91,18 +91,22 @@ def create_dir(path):
 
 def clear_cache(**kwargs):
     import xml.etree.ElementTree as ET
-
+    
+    # remove temp and crop folders
     readable_size = get_cache_size()
     if xbmcvfs.exists(TEMP_FOLDERPATH):
         xbmcvfs.rmdir(TEMP_FOLDERPATH, force=True)
+        create_dir(TEMP_FOLDERPATH)
     if xbmcvfs.exists(CROPPED_FOLDERPATH):
         xbmcvfs.rmdir(CROPPED_FOLDERPATH, force=True)
+        create_dir(CROPPED_FOLDERPATH)
         log(f'Clearlogo cache cleared by user. {readable_size} saved.')
         string = ADDON.getLocalizedString(
             32201) + f', {readable_size} ' + ADDON.getLocalizedString(32202) + '.'
         DIALOG.notification(ADDON_ID, string)
-    get_cache_size()
-    # Remove clearlogos from lookup table
+    # Update cache label
+    get_cache_size()    
+    # Remove old clearlogos from lookup table
     lookup_tree = ET.parse(LOOKUP_XML)
     root = lookup_tree.getroot()
     del root[0]
@@ -176,19 +180,17 @@ def set_plugincontent(content=None, category=None):
 
 
 def skin_string(key, set=False, clear=False):
-    clear = True if not set else False
-    if clear:
-        xbmc.executebuiltin(f"Skin.SetString({key},)")
     if set:
         xbmc.executebuiltin(f'Skin.SetString({key}, {set})')
+    else:
+        xbmc.executebuiltin(f"Skin.SetString({key},)")
 
 
 def window_property(key, set=False, clear=False, window_id=10000, debug=False):
-    clear = True if not set else False
     window = Window(window_id)
-    if clear:
-        window.clearProperty(key)
-        log(f'Window property: Clear, {window_id}, {key}', force=debug)
     if set:
         window.setProperty(key, f'{set}')
         log(f'Window property: Set, {window_id}, {key}, {set}', force=debug)
+    else:
+        window.clearProperty(key)
+        log(f'Window property: Clear, {window_id}, {key}', force=debug)

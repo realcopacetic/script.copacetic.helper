@@ -70,8 +70,8 @@ class ImageEditor():
             reporting(key=f'{name}_cropped', set=self.destination)
             reporting(key=f'{name}_cropped-height', set=self.height)
             if return_color:
-                skin_string(key=f'{name}_cropped-color', set=self.color)
-                skin_string(key=f'{name}_cropped-luminosity',
+                reporting(key=f'{name}_cropped-color', set=self.color)
+                reporting(key=f'{name}_cropped-luminosity',
                             set=self.luminosity)
 
     def return_luminosity(self, rgb):
