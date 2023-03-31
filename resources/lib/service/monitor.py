@@ -103,6 +103,24 @@ class Monitor(xbmc.Monitor):
             self._on_scroll()
             self.waitForAbort(0.2)
 
+        # home widgets has clearlogo visible
+        elif condition(
+            'Window.Is(home) + '
+            'Skin.HasSetting(Crop_Clearlogos) + ['
+            'Control.HasFocus(3201) | '
+            'Control.HasFocus(3202) | '
+            'Control.HasFocus(3203) | '
+            'Control.HasFocus(3204) | '
+            'Control.HasFocus(3205) | '
+            'Control.HasFocus(3206) | '
+            'Control.HasFocus(3207) | '
+            'Control.HasFocus(3208) | '
+            'Control.HasFocus(3209)]'
+        ):
+            widget = infolabel('System.CurrentControlID')
+            self._on_scroll(key=widget, return_color=False)
+            self.waitForAbort(0.2)
+
         # slideshow window is visible run SlideshowMonitor()
         elif condition(
             '!Skin.HasSetting(Background_Disabled) + ['
