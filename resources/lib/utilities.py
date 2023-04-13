@@ -8,7 +8,8 @@ import xbmc
 import xbmcvfs
 from xbmcaddon import Addon
 from xbmcgui import Dialog, Window
-from xbmcplugin import setContent, setPluginCategory
+from xbmcplugin import (SORT_METHOD_LASTPLAYED, addSortMethod, setContent,
+                        setPluginCategory)
 
 ADDON = Addon()
 ADDON_ID = ADDON.getAddonInfo('id')
@@ -91,7 +92,7 @@ def create_dir(path):
 
 def clear_cache(**kwargs):
     import xml.etree.ElementTree as ET
-    
+
     # remove temp and crop folders
     readable_size = get_cache_size()
     if xbmcvfs.exists(TEMP_FOLDERPATH):
@@ -177,13 +178,17 @@ def set_plugincontent(content=None, category=None):
         setPluginCategory(int(sys.argv[1]), category)
     if content:
         setContent(int(sys.argv[1]), content)
+    if category == ADDON.getLocalizedString(32601):
+        addSortMethod(int(sys.argv[1]), SORT_METHOD_LASTPLAYED)
 
 
-def skin_string(key, set=False, clear=False):
+def skin_string(key, set=False, clear=False, debug=False):
     if set:
         xbmc.executebuiltin(f'Skin.SetString({key}, {set})')
+        log(f'Skin string: Set, {key}, {set}', force=debug)
     else:
         xbmc.executebuiltin(f"Skin.SetString({key},)")
+        log(f'Skin string: Clear, {key}', force=debug)
 
 
 def window_property(key, set=False, clear=False, window_id=10000, debug=False):

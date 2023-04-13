@@ -10,7 +10,7 @@ from PIL import Image
 
 from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
                                      TEMP_FOLDERPATH, infolabel, json_call,
-                                     log, os, skin_string, validate_path,
+                                     log, os, validate_path,
                                      window_property, xbmc, xbmcvfs)
 
 
@@ -138,8 +138,8 @@ class ImageEditor():
             return destination
 
     def url_decode_path(self, path):
-        path = urllib.unquote(path.replace('image://', ''))
         path = path[:-1] if path.endswith('/') else path
+        path = urllib.unquote(path.replace('image://', ''))
         return path
 
     def _open_image(self, url):
@@ -164,7 +164,7 @@ class ImageEditor():
         pixeldata = image.getcolors(width * height)
         sorted_pixeldata = sorted(pixeldata, key=lambda t: t[0], reverse=True)
         opaque_pixeldata = [
-            pixeldata for pixeldata in sorted_pixeldata if pixeldata[-1][-1] > 128]
+            pixeldata for pixeldata in sorted_pixeldata if pixeldata[-1][-1] > 64]
         opaque_pixels = []
         for position, pixeldata in enumerate(opaque_pixeldata):
             for count in range(pixeldata[0]):
@@ -177,13 +177,18 @@ class ImageEditor():
         # Find color that occurs most often
         palette = paletted.getpalette()
         color_counts = sorted(paletted.getcolors(), reverse=True)
-        palette_index = color_counts[0][1]
-        # Convert to rgb and calculate luminosity
-        dominant = palette[palette_index*3:palette_index*3+3]
-        luminosity = self.return_luminosity(dominant)
-        luminosity = int(luminosity * 1000)
-        dominant = self._rgb_to_hex(dominant)
-        return (dominant, luminosity)
+        try:
+            palette_index = color_counts[0][1]
+        except IndexError as error:
+             log(f'ImageEditor: Error - could not calculate dominant colour for {infolabel("ListItem.Label")} --> {error}', force=True)
+             return (False, False)
+        else:
+            # Convert to rgb and calculate luminosity
+            dominant = palette[palette_index*3:palette_index*3+3]
+            luminosity = self.return_luminosity(dominant)
+            luminosity = int(luminosity * 1000)
+            dominant = self._rgb_to_hex(dominant)
+            return (dominant, luminosity)
 
     def _rgb_to_hex(self, rgb):
         red, green, blue = rgb
@@ -277,14 +282,15 @@ class SlideshowMonitor:
     def _set_art(self, key, items):
         art = random.choice(items)
         fanart = self._url_decode_path(art.get('fanart', ''))
-        skin_string(key=f'{key}_Fanart', set=fanart)
+        window_property(f'{key}_Fanart', set=fanart)
         # clearlogo if present otherwise clear
         clearlogo = art.get('clearlogo', False)
         if clearlogo:
             clearlogo = self._url_decode_path(clearlogo)
-        skin_string(key=f'{key}_Clearlogo', set=clearlogo)
+        window_property(f'{key}_Clearlogo', set=clearlogo)
 
     def _url_decode_path(self, path):
-        #path = urllib.unquote(path.replace('image://', ''))
         path = path[:-1] if path.endswith('/') else path
+        path = path.replace('image://', '')
+        path = urllib.unquote(path.replace('image://', ''))
         return path

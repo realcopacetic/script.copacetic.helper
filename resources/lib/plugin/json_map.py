@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# coding: utf-8
+#coding: utf-8
 
 JSON_MAP = {
     'movie_properties': [
@@ -16,8 +16,8 @@ JSON_MAP = {
         "lastplayed",
         "playcount",
         #"writer",
-        #"studio",
-        #"mpaa",
+        "studio",
+        "mpaa",
         #"cast",
         #"country",
         #"imdbnumber",
@@ -64,7 +64,7 @@ JSON_MAP = {
         #"thumbnail",
         "file",
         "resume",
-        #"tvshowid",
+        "tvshowid",
         #"dateadded",
         #"uniqueid",
         "art"
@@ -81,8 +81,8 @@ JSON_MAP = {
         "year",
         #"rating",
         #"plot",
-        #"studio",
-        #"mpaa",
+        "studio",
+        "mpaa",
         #"cast",
         #"playcount",
         "episode",
@@ -111,26 +111,26 @@ JSON_MAP = {
         "title",
         "playcount",
         "runtime",
-        # "director",
-        # "studio",
+        #"director",
+        "studio",
         "year",
-        # "plot",
-        # "album",
+        #"plot",
+        #"album",
         "artist",
-        # "genre",
-        # "track",
+        #"genre",
+        #"track",
         "streamdetails",
         "lastplayed",
-        # "fanart",
-        # "thumbnail",
+        #"fanart",
+        #"thumbnail",
         "file",
         "resume",
-        # "dateadded",
-        # "tag",
+        #"dateadded",
+        #"tag",
         "art"
-        # "rating",
-        # "userrating",
-        # "premiered"
+        #"rating",
+        #"userrating",
+        #"premiered"
     ],
 
     'season_properties': [

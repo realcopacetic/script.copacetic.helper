@@ -21,6 +21,9 @@ msgstr ""
 #: SCRIPT             324XX
 #: PLUGIN             326XX
 
+
+
+
 #########################################################################################################
 
 #: SETTINGS           320XX
@@ -52,10 +55,7 @@ msgctxt "#32004"
 msgid "- Include json call/response logging"
 msgstr ""
 
-#: /resources/settings.xml
-msgctxt "#32005"
-msgid "Service"
-msgstr ""
+
 
 
 #########################################################################################################
@@ -63,11 +63,6 @@ msgstr ""
 #: SERVICE           322XX
 
 #########################################################################################################
-
-#: /resources/lib/monitor.py
-msgctxt "#32200"
-msgid "Applying changes"
-msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32201"

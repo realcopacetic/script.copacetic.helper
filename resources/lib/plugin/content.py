@@ -94,16 +94,31 @@ class PluginContent(object):
             except Exception:
                 log('Widget in_progress: No episodes found.')
             else:
+                for episode in json_query:
+                    tvshowid = episode.get('tvshowid')
+                    tvshow_json_query = json_call(
+                        'VideoLibrary.GetTVShowDetails',
+                        params={'tvshowid': tvshowid},
+                        properties=['studio', 'mpaa'],
+                        parent='in_progress'
+                    )
+                    try:
+                        tvshow_json_query = tvshow_json_query['result']['tvshowdetails']
+                    except Exception:
+                        log(f'Widget in_progress: Parent tv show not found --> {tvshowid}')
+                    else:
+                        episode['studio'] = tvshow_json_query.get('studio')
+                        episode['mpaa'] = tvshow_json_query.get('mpaa')
                 add_items(self.li, json_query, type='episode')
-
-        set_plugincontent(content='videos',
+        set_plugincontent(content='movies',
                           category=ADDON.getLocalizedString(32601))
 
     def next_up(self):
         filters = [self.filter_inprogress]
 
         json_query = json_call('VideoLibrary.GetTVShows',
-                               properties=['title', 'lastplayed'],
+                               properties=['title', 'lastplayed',
+                                           'studio', 'mpaa'],
                                sort=self.sort_lastplayed, limit=25,
                                query_filter={'and': filters},
                                parent='next_up'
@@ -117,6 +132,8 @@ class PluginContent(object):
 
         for episode in json_query:
             use_last_played_season = True
+            studio = episode.get('studio', '')
+            mpaa = episode.get('mpaa', '')
             last_played_query = json_call('VideoLibrary.GetEpisodes',
                                           properties=['seasonid', 'season'],
                                           sort={'order': 'descending', 'method': 'lastplayed'}, limit=1,
@@ -130,8 +147,7 @@ class PluginContent(object):
             if last_played_query['result']['limits']['total'] < 1:
                 use_last_played_season = False
 
-            ''' Return the next episode of last played season
-                '''
+            ''' Return the next episode of last played season'''
             if use_last_played_season:
                 episode_query = json_call('VideoLibrary.GetEpisodes',
                                           properties=JSON_MAP['episode_properties'],
@@ -146,8 +162,7 @@ class PluginContent(object):
                 if episode_query['result']['limits']['total'] < 1:
                     use_last_played_season = False
 
-            ''' If no episode is left of the last played season, fall back to the very first unwatched episode
-                '''
+            ''' If no episode is left of the last played season, fall back to the very first unwatched episode'''
             if not use_last_played_season:
                 episode_query = json_call('VideoLibrary.GetEpisodes',
                                           properties=JSON_MAP['episode_properties'],
@@ -165,6 +180,9 @@ class PluginContent(object):
                 log(
                     f"Widget next_up: No next episodes found for {episode['title']}")
             else:
+                ''' Add tv show studio and mpaa to episode dictionary '''
+                episode_details[0]['studio'] = studio
+                episode_details[0]['mpaa'] = mpaa
                 add_items(self.li, episode_details, type='episode')
                 set_plugincontent(content='episodes',
                                   category=ADDON.getLocalizedString(32600))

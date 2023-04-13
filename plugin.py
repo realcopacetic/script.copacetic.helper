@@ -7,6 +7,7 @@ import xbmcplugin
 
 from resources.lib.plugin.content import *
 from resources.lib.utilities import sys
+from resources.lib.plugin.listing import PluginListing
 
 
 class Main:
@@ -43,6 +44,11 @@ class Main:
         li = list()
         plugin = PluginContent(self.params, li)
         self._execute(plugin, self.info)
+        self._additems(li)
+    
+    def listing(self):
+        li = list()
+        PluginListing(self.params,li)
         self._additems(li)
 
     def _execute(self, plugin, action):

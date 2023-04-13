@@ -31,6 +31,8 @@ def handle_movies(li, item):
     videoInfoTag.setTitle(item['title'])
     videoInfoTag.setTrailer(item['trailer'])
     videoInfoTag.setYear(item['year'])
+    videoInfoTag.setStudios(item['studio'])
+    videoInfoTag.setMpaa(item['mpaa'])
     for key, value in iter(list(item['streamdetails'].items())):
         for stream in value:
             if 'video' in key:
@@ -56,6 +58,8 @@ def handle_tvshows(li, item):
     videoInfoTag.setMediaType('tvshow')
     videoInfoTag.setTitle(item['title'])
     videoInfoTag.setYear(item['year'])
+    videoInfoTag.setStudios(item['studio'])
+    videoInfoTag.setMpaa(item['mpaa'])
     if episode > 0 and watchedepisodes > 0:
         watchedepisodepercent = int(((watchedepisodes / episode) * 100))
     else:
@@ -96,6 +100,8 @@ def handle_episodes(li, item):
     videoInfoTag.setSeason(item['season'])
     videoInfoTag.setTitle(item['title'])
     videoInfoTag.setTvShowTitle(item['showtitle'])
+    videoInfoTag.setStudios(item['studio'])
+    videoInfoTag.setMpaa(item['mpaa'])
     for key, value in iter(list(item['streamdetails'].items())):
         for stream in value:
             if 'video' in key:
