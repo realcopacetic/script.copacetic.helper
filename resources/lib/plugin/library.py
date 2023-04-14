@@ -8,16 +8,16 @@ from xbmcgui import ListItem
 def add_items(li, json_query, type):
     for item in json_query:
         if type == 'movie':
-            handle_movies(li, item)
+            set_movie(li, item)
         elif type == 'tvshow':
-            handle_tvshows(li, item)
+            set_tvshow(li, item)
         elif type == 'episode':
-            handle_episodes(li, item)
+            set_episode(li, item)
         elif type == 'musicvideo':
-            handle_musicvideos(li, item)
+            set_musicvideo(li, item)
 
 
-def handle_movies(li, item):
+def set_movie(li, item):
     li_item = ListItem(item['title'], offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
     videoInfoTag.setDbId(item['movieid'])
@@ -42,12 +42,13 @@ def handle_movies(li, item):
                 audiostreamlist = list(stream.values())
                 audiostream = xbmc.AudioStreamDetail(*audiostreamlist)
                 videoInfoTag.addAudioStream(audiostream)
+                
     li_item.setArt(item['art'])
     li_item.setArt({'icon': 'DefaultMovies.png'})
     li.append((item['file'], li_item, False))
 
 
-def handle_tvshows(li, item):
+def set_tvshow(li, item):
     season = item['season']
     episode = int(item['episode'])
     watchedepisodes = int(item['watchedepisodes'])
@@ -64,10 +65,12 @@ def handle_tvshows(li, item):
         watchedepisodepercent = int(((watchedepisodes / episode) * 100))
     else:
         watchedepisodepercent = 0
+
     if episode > watchedepisodes:
         unwatchedepisodes = int(episode - watchedepisodes)
     else:
         unwatchedepisodes = 0
+
     li_item.setProperty('totalseasons', str(season))
     li_item.setProperty('totalepisodes', str(episode))
     li_item.setProperty('watchedepisodes', str(watchedepisodes))
@@ -78,12 +81,11 @@ def handle_tvshows(li, item):
     li.append((item['file'], li_item, True))
 
 
-def handle_episodes(li, item):
+def set_episode(li, item):
     if item['episode'] < 10:
         episode_number = f"0{item['episode']}"
     else:
         episode_number = item['episode']
-
     label = f"{item['season']}x{episode_number}"
     li_item = ListItem(label, offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
@@ -111,12 +113,13 @@ def handle_episodes(li, item):
                 audiostreamlist = list(stream.values())
                 audiostream = xbmc.AudioStreamDetail(*audiostreamlist)
                 videoInfoTag.addAudioStream(audiostream)
+
     li_item.setArt(item['art'])
     li_item.setArt({'icon': 'DefaultTVShows.png'})
     li.append((item['file'], li_item, False))
 
 
-def handle_musicvideos(li, item):
+def set_musicvideo(li, item):
     li_item = ListItem(item['title'], offscreen=True)
     videoInfoTag = li_item.getVideoInfoTag()
     videoInfoTag.setArtists(item['artist'])
@@ -139,6 +142,7 @@ def handle_musicvideos(li, item):
                 audiostreamlist = list(stream.values())
                 audiostream = xbmc.AudioStreamDetail(*audiostreamlist)
                 videoInfoTag.addAudioStream(audiostream)
+
     li_item.setArt(item['art'])
     li_item.setArt({'icon': 'DefaultVideo.png'})
     li.append((item['file'], li_item, False))
