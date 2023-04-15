@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # coding: utf-8
+# author: realcopacetic
+
 import json
 import os
 import sys
@@ -106,7 +108,7 @@ def clear_cache(**kwargs):
             32201) + f', {readable_size} ' + ADDON.getLocalizedString(32202) + '.'
         DIALOG.notification(ADDON_ID, string)
     # Update cache label
-    get_cache_size()    
+    get_cache_size()
     # Remove old clearlogos from lookup table
     lookup_tree = ET.parse(LOOKUP_XML)
     root = lookup_tree.getroot()

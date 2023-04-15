@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # coding: utf-8
+# author: realcopacetic
 
 from resources.lib.script.actions import *
 from resources.lib.utilities import clear_cache, sys

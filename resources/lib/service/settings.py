@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # coding: utf-8
+# author: realcopacetic
 
 from resources.lib.utilities import (ADDON, ADDON_ID, DIALOG, condition,
                                      json_call, log, window_property)
@@ -83,4 +84,3 @@ class SettingsMonitor:
             string = ADDON.getLocalizedString(32204)
         string = f'{count} ' + string + '.'
         DIALOG.notification(ADDON_ID, string)
-        

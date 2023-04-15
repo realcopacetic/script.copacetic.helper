@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # coding: utf-8
+# author: realcopacetic, sualfred
 
 import xbmc
 from xbmcgui import ListItem
@@ -42,7 +43,7 @@ def set_movie(li, item):
                 audiostreamlist = list(stream.values())
                 audiostream = xbmc.AudioStreamDetail(*audiostreamlist)
                 videoInfoTag.addAudioStream(audiostream)
-                
+
     li_item.setArt(item['art'])
     li_item.setArt({'icon': 'DefaultMovies.png'})
     li.append((item['file'], li_item, False))

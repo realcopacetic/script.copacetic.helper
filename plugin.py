@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # coding: utf-8
+# author: realcopacetic, sualfred
 
 import urllib.parse as urllib
 
@@ -45,7 +46,7 @@ class Main:
         plugin = PluginContent(self.params, li)
         self._execute(plugin, self.info)
         self._additems(li)
-    
+
     def listing(self):
         li = list()
         PluginListing(self.params,li)

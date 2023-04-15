@@ -1,5 +1,6 @@
 #!/usr/bin/python
 #coding: utf-8
+# author: realcopacetic, sualfred
 
 JSON_MAP = {
     'movie_properties': [
