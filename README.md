@@ -11,3 +11,9 @@ or send a letter to Creative Commons, 171 Second Street, Suite 300, San Francisc
 ### Special thanks
 ---
 * __jurialmunkey__ for all the best-practice code examples from [plugin.video.themoviedb.helper](https://github.com/jurialmunkey/plugin.video.themoviedb.helper) and forum support.
+
+### Changelog
+- **1.0.1**
+ - Fix for an error when the label passed to the function clean_filename() was not escaped properly. Now to avoid the issue, by default, if no label is provided, the function will pull the listitem label directly using xbmc.getInfoLabel('ListItem.Label')
+- **1.0.0** 
+ - Initial release.
