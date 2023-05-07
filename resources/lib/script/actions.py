@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# coding: utf-8
 # author: realcopacetic
 
 import urllib.parse as urllib

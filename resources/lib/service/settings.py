@@ -1,5 +1,3 @@
-#!/usr/bin/python
-# coding: utf-8
 # author: realcopacetic
 
 from resources.lib.utilities import (ADDON, ADDON_ID, DIALOG, condition,
