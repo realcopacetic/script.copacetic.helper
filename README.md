@@ -1,12 +1,12 @@
 # Copacetic Helper [![License](https://img.shields.io/badge/License-GPLv3-blue)](https://github.com/realcopacetic/script.copacetic.helper/blob/main/LICENSE.txt)
 
-This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 Unported License.
-To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-sa/4.0/
-or send a letter to Creative Commons, 171 Second Street, Suite 300, San Francisco, California, 94105, USA.
+All code contained in this project is licensed under GPL 3.0.
 
 ### Credit
 ---
-* __sualfred__ for [script.embuary.helper](https://github.com/sualfred/script.embuary.helper), which served as the basis for this addon. The script and service sections are completely rewritten/modified, but some of the code and structure of the plugin section remains a very simplified version of Sualfred's work.
+* __sualfred__ for [script.embuary.helper](https://github.com/sualfred/script.embuary.helper), which served as the basis for several parts of this addon. The script and service sections are completely rewritten/modified, but some of the code and structure of the plugin section remains a very simplified version of Sualfred's work. Credit included in each file where code remains.
+
+* __Dodi Achmad on Unsplash__ for image used in addon [fanart.jpg](https://unsplash.com/photos/3qaojaP-6cE). Free for use under Unsplash licence.
 
 ### Special thanks
 ---

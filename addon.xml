@@ -13,7 +13,7 @@
   <extension point="xbmc.service" library="service.py" />
   <extension point="xbmc.addon.metadata">
     <platform>all</platform>
-    <license>Creative Commons Attribution Non-Commercial Share-Alike 4.0</license>
+    <license>GPL-3.0-or-later</license>
     <assets>
       <icon>resources/icon.png</icon>
       <fanart>resources/fanart.jpg</fanart>
