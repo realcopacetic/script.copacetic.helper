@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 
+**1.0.8**
+- Push dbid of corresponding cropped clearlogo to window prop for comparison so cropped clearlogos only show on correct listitems.
+
 **1.0.7**
 - Add tvguide to SlideShowMonitor() whitelist
 
