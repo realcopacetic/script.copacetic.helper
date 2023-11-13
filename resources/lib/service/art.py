@@ -73,7 +73,7 @@ class ImageEditor():
             if return_color:
                 reporting(key=f'{name}_cropped-color', set=self.color)
                 reporting(key=f'{name}_cropped-luminosity',
-                            set=self.luminosity)
+                          set=self.luminosity)
 
     def return_luminosity(self, rgb):
         # Credit to Mark Ransom for luminosity calculation
@@ -181,8 +181,9 @@ class ImageEditor():
         try:
             palette_index = color_counts[0][1]
         except IndexError as error:
-             log(f'ImageEditor: Error - could not calculate dominant colour for {infolabel("ListItem.Label")} --> {error}', force=True)
-             return (False, False)
+            log(
+                f'ImageEditor: Error - could not calculate dominant colour for {infolabel("ListItem.Label")} --> {error}', force=True)
+            return (False, False)
         else:
             # Convert to rgb and calculate luminosity
             dominant = palette[palette_index*3:palette_index*3+3]
@@ -225,7 +226,8 @@ class SlideshowMonitor:
         if self.fetch_count >= self.fetch_interval:
             log('Monitor fetching background art')
             self.art = self._get_art()
-            self.fetch_interval = len(self.art) if (len(self.art) < 30) else self.fetch_interval
+            self.fetch_interval = len(self.art) if (
+                len(self.art) < 30) else self.fetch_interval
             self.fetch_count = 0
         else:
             self.fetch_count += 1
@@ -241,6 +243,8 @@ class SlideshowMonitor:
                 self._set_art('Background_Videos', self.art['videos'])
             if self.art.get('artists'):
                 self._set_art('Background_Artists', self.art['artists'])
+            if self.art.get('custom'):
+                self._set_art('Background_Custom', self.art['custom'])
             self.refresh_count = 0
         else:
             self.refresh_count += 1
@@ -262,6 +266,34 @@ class SlideshowMonitor:
         self.art['musicvideos'] = []
         self.art['videos'] = []
         self.art['all'] = []
+        self.art['custom'] = []
+
+        custom_path = xbmc.getInfoLabel(
+            'Skin.String(Background_Slideshow_Custom_Path)')
+
+        if custom_path:
+            query = json_call('Files.GetDirectory',
+                              params={'directory': custom_path},
+                              sort={'method': 'random'},
+                              limit=40, parent='get_directory')
+
+            try:
+                for result in query['result']['files']:
+                    type = result['type']
+                    id = result['id']
+                    dbtype = 'Video' if type != 'artist' else 'Audio'
+                    query = json_call(f'{dbtype}Library.Get{type}Details',
+                                      params={'properties': [
+                                          'art'], f'{type}id': id},
+                                      parent='get_item_details')
+                    result = query['result'][f'{type}details']
+                    if result['art'].get('fanart'):
+                        data = {'title': result.get('label', '')}
+                        data.update(result['art'])
+                        self.art['custom'].append(data)
+            except KeyError:
+                pass
+
         for item in ['movies', 'tvshows', 'artists', 'musicvideos']:
             dbtype = 'Video' if item != 'artists' else 'Audio'
             query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={
@@ -274,6 +306,7 @@ class SlideshowMonitor:
                         self.art[item].append(data)
             except KeyError:
                 pass
+
         self.art['videos'] = self.art['movies'] + self.art['tvshows']
         for list in self.art:
             if self.art[list]:
@@ -282,8 +315,10 @@ class SlideshowMonitor:
 
     def _set_art(self, key, items):
         art = random.choice(items)
+        art.pop('set.fanart', None)
         # fanart = self._url_decode_path(art.get('fanart'))
-        fanarts = {key: value for (key, value) in art.items() if 'fanart' in key}
+        fanarts = {key: value for (
+            key, value) in art.items() if 'fanart' in key}
         fanart = random.choice(list(fanarts.values()))
         fanart = self._url_decode_path(fanart)
         window_property(f'{key}_Fanart', set=fanart)
