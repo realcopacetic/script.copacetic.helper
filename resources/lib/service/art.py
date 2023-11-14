@@ -8,8 +8,8 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 
 from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
-                                     TEMP_FOLDERPATH, infolabel, json_call,
-                                     log, os, validate_path,
+                                     TEMP_FOLDERPATH, condition, infolabel, 
+                                     json_call, log, os, validate_path,
                                      window_property, xbmc, xbmcvfs)
 
 
@@ -35,14 +35,14 @@ class ImageEditor():
             else:
                 path = f'Container({source}).ListItem'
             for key in clearlogos:
-                url = xbmc.getInfoLabel(f'{path}.Art({key})')
+                url = infolabel(f'{path}.Art({key})')
                 if url:
                     clearlogos[key] = url
         # lookup urls in table or run _crop_image() and write values to table
         lookup_tree = ET.parse(self.lookup)
         root = lookup_tree.getroot()
         for key, value in list(clearlogos.items()):
-            self.id = xbmc.getInfoLabel(f'{path}.dbid')
+            self.id = infolabel(f'{path}.dbid')
             self.destination, self.height, self.color, self.luminosity = False, False, False, False
             name = reporting_key or key
             if value:
@@ -268,10 +268,9 @@ class SlideshowMonitor:
         self.art['all'] = []
         self.art['custom'] = []
 
-        custom_path = xbmc.getInfoLabel(
+        custom_path = infolabel(
             'Skin.String(Background_Slideshow_Custom_Path)')
-
-        if custom_path:
+        if custom_path and condition('Skin.String(Background_Slideshow,Custom)'):
             query = json_call('Files.GetDirectory',
                               params={'directory': custom_path},
                               sort={'method': 'random'},
@@ -293,7 +292,6 @@ class SlideshowMonitor:
                         self.art['custom'].append(data)
             except KeyError:
                 pass
-
         for item in ['movies', 'tvshows', 'artists', 'musicvideos']:
             dbtype = 'Video' if item != 'artists' else 'Audio'
             query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={

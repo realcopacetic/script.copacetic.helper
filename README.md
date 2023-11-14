@@ -13,6 +13,8 @@ All code contained in this project is licensed under GPL 3.0.
 * __jurialmunkey__ for all the best-practice code examples from [plugin.video.themoviedb.helper](https://github.com/jurialmunkey/plugin.video.themoviedb.helper) and forum support.
 
 ### Changelog
+**1.0.9**
+- Background slideshows from custom paths/playlists are now generated via the background fanart fetching service and available globally throughout the skin, via a window property. Previously this was done in-skin using a container so would not be available persistently across windows.
 
 **1.0.8**
 - Push dbid of corresponding cropped clearlogo to window prop for comparison so cropped clearlogos only show on correct listitems.
