@@ -265,7 +265,8 @@ class SlideshowMonitor:
         self.art['videos'] = []
         self.art['all'] = []
         self.art['custom'] = []
-
+        
+        # Populate custom path/playlist slideshow if selected in skin settings
         custom_path = infolabel(
             'Skin.String(Background_Slideshow_Custom_Path)')
         if custom_path and condition('Skin.String(Background_Slideshow,Custom)'):
@@ -291,6 +292,7 @@ class SlideshowMonitor:
             except KeyError:
                 pass
 
+        # Populate global slidshows
         for item in ['movies', 'tvshows', 'artists']:
             dbtype = 'Video' if item != 'artists' else 'Audio'
             query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={
@@ -324,11 +326,6 @@ class SlideshowMonitor:
         if clearlogo:
             clearlogo = self._url_decode_path(clearlogo)
         window_property(f'{key}_Clearlogo', set=clearlogo)
-
-    def _fallback_on_exit(self):
-        for item in ['Global', 'Videos', 'Movies', 'TVShows', 'Artists', 'Custom']:
-            skin_string(f'Background_{item}_Fanart', set=infolabel(
-                f'Window(home).Property(Background_{item}_Fanart)'))
 
     def _url_decode_path(self, path):
         path = path[:-1] if path.endswith('/') else path
