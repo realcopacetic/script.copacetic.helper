@@ -8,9 +8,10 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 
 from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
-                                     TEMP_FOLDERPATH, condition, infolabel, 
-                                     json_call, log, os, validate_path,
-                                     window_property, xbmc, xbmcvfs)
+                                     TEMP_FOLDERPATH, condition, infolabel,
+                                     json_call, log, os, skin_string, 
+                                     validate_path, window_property, xbmc, 
+                                     xbmcvfs)
 
 
 class ImageEditor():
@@ -215,20 +216,18 @@ class ImageEditor():
 class SlideshowMonitor:
     def __init__(self):
         self.refresh_count = self.refresh_interval = self._get_refresh_interval()
-        self.fetch_count = self.fetch_interval = self.refresh_interval * 30
-
+        self.fetch_count = self.fetch_interval = self.refresh_interval * 40
+       
     def background_slideshow(self):
         # Check if refresh interval has been adjusted in skin settings
         if self.refresh_interval != self._get_refresh_interval():
-            self.refresh_count = self.refresh_interval = self._get_refresh_interval()
-            self.fetch_count = self.fetch_interval = self.refresh_interval * 30
-        # Fech art every 30 x refresh interval
+            self.refresh_interval = self._get_refresh_interval()
+            self.fetch_interval = self.refresh_interval * 40
+        # Fech art every 40 x refresh interval
         if self.fetch_count >= self.fetch_interval:
             log('Monitor fetching background art')
             self.art = self._get_art()
-            self.fetch_interval = len(self.art) if (
-                len(self.art) < 30) else self.fetch_interval
-            self.fetch_count = 0
+            self.fetch_count = 1
         else:
             self.fetch_count += 1
         # Set art every refresh interval
@@ -245,25 +244,24 @@ class SlideshowMonitor:
                 self._set_art('Background_Artists', self.art['artists'])
             if self.art.get('custom'):
                 self._set_art('Background_Custom', self.art['custom'])
-            self.refresh_count = 0
+            self.refresh_count = 1
         else:
             self.refresh_count += 1
 
     def _get_refresh_interval(self):
         try:
-            self.refresh_interval = int(
+            self.refresh_interval_check = int(
                 infolabel('Skin.String(Background_Interval)')
             )
         except ValueError:
-            self.refresh_interval = 10
-        return self.refresh_interval
+            self.refresh_interval_check = 10
+        return self.refresh_interval_check
 
     def _get_art(self):
         self.art = {}
         self.art['movies'] = []
         self.art['tvshows'] = []
         self.art['artists'] = []
-        self.art['musicvideos'] = []
         self.art['videos'] = []
         self.art['all'] = []
         self.art['custom'] = []
@@ -292,7 +290,8 @@ class SlideshowMonitor:
                         self.art['custom'].append(data)
             except KeyError:
                 pass
-        for item in ['movies', 'tvshows', 'artists', 'musicvideos']:
+
+        for item in ['movies', 'tvshows', 'artists']:
             dbtype = 'Video' if item != 'artists' else 'Audio'
             query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={
                               'method': 'random'}, limit=40, parent='get_art')
@@ -325,6 +324,11 @@ class SlideshowMonitor:
         if clearlogo:
             clearlogo = self._url_decode_path(clearlogo)
         window_property(f'{key}_Clearlogo', set=clearlogo)
+
+    def _fallback_on_exit(self):
+        for item in ['Global', 'Videos', 'Movies', 'TVShows', 'Artists', 'Custom']:
+            skin_string(f'Background_{item}_Fanart', set=infolabel(
+                f'Window(home).Property(Background_{item}_Fanart)'))
 
     def _url_decode_path(self, path):
         path = path[:-1] if path.endswith('/') else path
