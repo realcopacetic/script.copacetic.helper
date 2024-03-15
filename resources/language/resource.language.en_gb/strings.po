@@ -96,12 +96,12 @@ msgstr ""
 
 #: /resources/lib/script/acions.py
 msgctxt "#32205"
-msgid "Enabled"
+msgid "Disabled"
 msgstr ""
 
 #: /resources/lib/script/acions.py
 msgctxt "#32206"
-msgid "Disabled"
+msgid "Enabled"
 msgstr ""
 
 

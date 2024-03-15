@@ -18,6 +18,8 @@ All code contained in this project is licensed under GPL 3.0.
 - Removed glitch in background slideshows causing them to fetch new fanarts too often
 - Removed unnecessary conditions from background monitor
 - Added toggle_addon action to script.
+- Switched incorrect labels Enabled/Disabled for script enabler toggle function
+- Reordered addon.xml extension points to update how addon is categorised in Kodi repository
 
 TO DO
 - Add check of json repsonse before notifying of addon status toggle success
