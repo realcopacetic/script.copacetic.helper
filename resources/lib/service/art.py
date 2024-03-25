@@ -9,9 +9,8 @@ from PIL import Image
 
 from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
                                      TEMP_FOLDERPATH, condition, infolabel,
-                                     json_call, log, os, skin_string, 
-                                     validate_path, window_property, xbmc, 
-                                     xbmcvfs)
+                                     json_call, log, os, validate_path,
+                                     window_property, xbmc, xbmcvfs)
 
 
 class ImageEditor():
@@ -217,8 +216,12 @@ class SlideshowMonitor:
     def __init__(self):
         self.refresh_count = self.refresh_interval = self._get_refresh_interval()
         self.fetch_count = self.fetch_interval = self.refresh_interval * 40
-        self.custom_path = infolabel('Skin.String(Background_Slideshow_Custom_Path)')
-       
+        self.custom_path = infolabel(
+            'Skin.String(Background_Slideshow_Custom_Path)')
+        self.lookup = LOOKUP_XML
+        # run
+        self.read_fanart()
+
     def background_slideshow(self):
         # Check if refresh interval or custom path has been adjusted in skin settings
         if self.refresh_interval != self._get_refresh_interval():
@@ -234,7 +237,7 @@ class SlideshowMonitor:
             self.fetch_count = 1
         else:
             self.fetch_count += 1
-        
+
         # Set art every refresh interval
         if self.refresh_count >= self.refresh_interval:
             if self.art.get('all'):
@@ -270,7 +273,7 @@ class SlideshowMonitor:
         self.art['videos'] = []
         self.art['all'] = []
         self.art['custom'] = []
-        
+
         # Populate custom path/playlist slideshow if selected in skin settings
         if self.custom_path and condition('Skin.String(Background_Slideshow,Custom)'):
             query = json_call('Files.GetDirectory',
@@ -335,3 +338,23 @@ class SlideshowMonitor:
         path = path.replace('image://', '')
         path = urllib.unquote(path.replace('image://', ''))
         return path
+
+    def read_fanart(self):
+        lookup_tree = ET.parse(self.lookup)
+        root = lookup_tree.getroot()
+        for node in root.find('backgrounds'):
+            if 'global' in node.attrib['type'] and validate_path(node.find('path').text):
+                self.path = node.find('path').text
+                window_property('Background_Global_Fanart', set=self.path)
+
+    def write_art(self):
+        lookup_tree = ET.parse(self.lookup)
+        root = lookup_tree.getroot()
+
+        background_global = infolabel(
+            'Window(home).Property(Background_Global_Fanart)')
+        background = ET.SubElement(root.find('backgrounds'), 'background')
+        background.attrib['type'] = 'global'
+        path = ET.SubElement(background, 'path')
+        path.text = background_global
+        lookup_tree.write(self.lookup, encoding="utf-8")

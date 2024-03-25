@@ -16,6 +16,7 @@ from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
 
 XMLSTR = '''<?xml version="1.0" encoding="utf-8"?>
 <data>
+    <backgrounds />
     <clearlogos />
 </data>
 '''
@@ -231,6 +232,7 @@ class Monitor(xbmc.Monitor):
         if not self.abortRequested():
             self._on_start()
         else:
+            self.art_monitor.write_art()
             del self.player_monitor
             del self.settings_monitor
             del self.art_monitor
