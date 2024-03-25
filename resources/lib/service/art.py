@@ -217,19 +217,24 @@ class SlideshowMonitor:
     def __init__(self):
         self.refresh_count = self.refresh_interval = self._get_refresh_interval()
         self.fetch_count = self.fetch_interval = self.refresh_interval * 40
+        self.custom_path = infolabel('Skin.String(Background_Slideshow_Custom_Path)')
        
     def background_slideshow(self):
-        # Check if refresh interval has been adjusted in skin settings
+        # Check if refresh interval or custom path has been adjusted in skin settings
         if self.refresh_interval != self._get_refresh_interval():
             self.refresh_interval = self._get_refresh_interval()
             self.fetch_interval = self.refresh_interval * 40
+
         # Fech art every 40 x refresh interval
-        if self.fetch_count >= self.fetch_interval:
+        if self.fetch_count >= self.fetch_interval or self.custom_path != infolabel('Skin.String(Background_Slideshow_Custom_Path)'):
+            self.custom_path = infolabel(
+                'Skin.String(Background_Slideshow_Custom_Path)')
             log('Monitor fetching background art')
             self.art = self._get_art()
             self.fetch_count = 1
         else:
             self.fetch_count += 1
+        
         # Set art every refresh interval
         if self.refresh_count >= self.refresh_interval:
             if self.art.get('all'):
@@ -267,11 +272,9 @@ class SlideshowMonitor:
         self.art['custom'] = []
         
         # Populate custom path/playlist slideshow if selected in skin settings
-        custom_path = infolabel(
-            'Skin.String(Background_Slideshow_Custom_Path)')
-        if custom_path and condition('Skin.String(Background_Slideshow,Custom)'):
+        if self.custom_path and condition('Skin.String(Background_Slideshow,Custom)'):
             query = json_call('Files.GetDirectory',
-                              params={'directory': custom_path},
+                              params={'directory': self.custom_path},
                               sort={'method': 'random'},
                               limit=40, parent='get_directory')
 
