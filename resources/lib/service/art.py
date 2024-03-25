@@ -216,6 +216,8 @@ class SlideshowMonitor:
     def __init__(self):
         self.refresh_count = self.refresh_interval = self._get_refresh_interval()
         self.fetch_count = self.fetch_interval = self.refresh_interval * 40
+        self.art_types = ['global', 'movies',
+                          'tvshows', 'videos', 'artists', 'custom']
         self.custom_path = infolabel(
             'Skin.String(Background_Slideshow_Custom_Path)')
         self.lookup = LOOKUP_XML
@@ -240,18 +242,9 @@ class SlideshowMonitor:
 
         # Set art every refresh interval
         if self.refresh_count >= self.refresh_interval:
-            if self.art.get('all'):
-                self._set_art('Background_Global', self.art['all'])
-            if self.art.get('movies'):
-                self._set_art('Background_Movies', self.art['movies'])
-            if self.art.get('tvshows'):
-                self._set_art('Background_TVShows', self.art['tvshows'])
-            if self.art.get('videos'):
-                self._set_art('Background_Videos', self.art['videos'])
-            if self.art.get('artists'):
-                self._set_art('Background_Artists', self.art['artists'])
-            if self.art.get('custom'):
-                self._set_art('Background_Custom', self.art['custom'])
+            for type in self.art_types:
+                if self.art.get(type):
+                    self._set_art(f'background_{type}', self.art[type])
             self.refresh_count = 1
         else:
             self.refresh_count += 1
@@ -267,12 +260,8 @@ class SlideshowMonitor:
 
     def _get_art(self):
         self.art = {}
-        self.art['movies'] = []
-        self.art['tvshows'] = []
-        self.art['artists'] = []
-        self.art['videos'] = []
-        self.art['all'] = []
-        self.art['custom'] = []
+        for type in self.art_types:
+            self.art[type] = []
 
         # Populate custom path/playlist slideshow if selected in skin settings
         if self.custom_path and condition('Skin.String(Background_Slideshow,Custom)'):
@@ -315,7 +304,7 @@ class SlideshowMonitor:
         self.art['videos'] = self.art['movies'] + self.art['tvshows']
         for list in self.art:
             if self.art[list]:
-                self.art['all'] = self.art['all'] + self.art[list]
+                self.art['global'] = self.art['global'] + self.art[list]
         return self.art
 
     def _set_art(self, key, items):
@@ -326,12 +315,12 @@ class SlideshowMonitor:
             key, value) in art.items() if 'fanart' in key}
         fanart = random.choice(list(fanarts.values()))
         fanart = self._url_decode_path(fanart)
-        window_property(f'{key}_Fanart', set=fanart)
+        window_property(f'{key}_fanart', set=fanart)
         # clearlogo if present otherwise clear
         clearlogo = art.get('clearlogo', False)
         if clearlogo:
             clearlogo = self._url_decode_path(clearlogo)
-        window_property(f'{key}_Clearlogo', set=clearlogo)
+        window_property(f'{key}_clearlogo', set=clearlogo)
 
     def _url_decode_path(self, path):
         path = path[:-1] if path.endswith('/') else path
@@ -342,19 +331,23 @@ class SlideshowMonitor:
     def read_fanart(self):
         lookup_tree = ET.parse(self.lookup)
         root = lookup_tree.getroot()
-        for node in root.find('backgrounds'):
-            if 'global' in node.attrib['type'] and validate_path(node.find('path').text):
-                self.path = node.find('path').text
-                window_property('Background_Global_Fanart', set=self.path)
+        for type in self.art_types:
+            for node in root.find('backgrounds'):
+                if type in node.attrib['type'] and validate_path(node.find('path').text):
+                    path = node.find('path').text
+                    window_property(f'background_{type}_fanart', set=path)
 
     def write_art(self):
         lookup_tree = ET.parse(self.lookup)
         root = lookup_tree.getroot()
-
-        background_global = infolabel(
-            'Window(home).Property(Background_Global_Fanart)')
-        background = ET.SubElement(root.find('backgrounds'), 'background')
-        background.attrib['type'] = 'global'
-        path = ET.SubElement(background, 'path')
-        path.text = background_global
+        for type in self.art_types:
+            current_fanart = infolabel(f'Window(home).Property(background_{type}_fanart)')
+            for node in root.find('backgrounds'):
+                if type in node.attrib['type']:
+                    log('FUCK', force=True)
+            else:
+                background = ET.SubElement(root.find('backgrounds'), 'background')
+                background.attrib['type'] = type
+                path = ET.SubElement(background, 'path')
+                path.text = current_fanart
         lookup_tree.write(self.lookup, encoding="utf-8")
