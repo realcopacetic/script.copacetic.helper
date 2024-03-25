@@ -321,6 +321,8 @@ class SlideshowMonitor:
         if clearlogo:
             clearlogo = self._url_decode_path(clearlogo)
         window_property(f'{key}_clearlogo', set=clearlogo)
+        # title
+        window_property(f'{key}_title', set=art.get('title', False))
 
     def _url_decode_path(self, path):
         path = path[:-1] if path.endswith('/') else path
