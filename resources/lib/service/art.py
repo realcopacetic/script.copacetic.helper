@@ -221,8 +221,6 @@ class SlideshowMonitor:
         self.custom_path = infolabel(
             'Skin.String(Background_Slideshow_Custom_Path)')
         self.lookup = LOOKUP_XML
-        # run
-        self.read_fanart()
 
     def background_slideshow(self):
         # Check if refresh interval or custom path has been adjusted in skin settings

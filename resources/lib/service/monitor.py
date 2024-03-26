@@ -57,6 +57,7 @@ class Monitor(xbmc.Monitor):
             log('Monitor started', force=True)
             self.start = False
             self.player_monitor = PlayerMonitor()
+            self.art_monitor.read_fanart()
         else:
             log('Monitor resumed', force=True) if self._conditions_met() else None
         while not self.abortRequested() and self._conditions_met():
