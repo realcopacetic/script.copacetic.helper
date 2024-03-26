@@ -15,6 +15,7 @@ All code contained in this project is licensed under GPL 3.0.
 ### Changelog
 **1.0.10**
 - Custom path for Global slideshows can now be refreshed on first entry or on change of path without needing Kodi to restart https://github.com/realcopacetic/script.copacetic.helper/issues/6
+- Added new methods to SlideShow monitor class enabling the service monitor to save current global slideshow fanarts to XML on exit, then make these available during initialisation. The aim of this is to serve the last fanart URL from the previous session while new fanarts are being fetched by the slideshow monitor, which should minimise the black-screen delay on starting up Kodi on slower hardware while fanarts are fetched for the first time https://github.com/realcopacetic/script.copacetic.helper/issues/4
 
 **1.0.9**
 - Background slideshows from custom paths/playlists are now generated via the background fanart fetching service and available globally throughout the skin, via a window property. Previously this was done in-skin using a container so would not be available persistently across windows.

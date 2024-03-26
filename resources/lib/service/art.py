@@ -334,10 +334,15 @@ class SlideshowMonitor:
         lookup_tree = ET.parse(self.lookup)
         root = lookup_tree.getroot()
         for type in self.art_types:
-            for node in root.find('backgrounds'):
-                if type in node.attrib['type'] and validate_path(node.find('path').text):
-                    path = node.find('path').text
-                    window_property(f'background_{type}_fanart', set=path)
+            # try search on background tag, if it doesn't exist then create it at root level
+            try:
+                for node in root.find('backgrounds'):
+                    if type in node.attrib['type'] and validate_path(node.find('path').text):
+                        path = node.find('path').text
+                        window_property(f'background_{type}_fanart', set=path)
+            except TypeError:
+                ET.SubElement(root, 'backgrounds')
+                lookup_tree.write(self.lookup, encoding="utf-8")
 
     def write_art(self):
         lookup_tree = ET.parse(self.lookup)
@@ -346,8 +351,10 @@ class SlideshowMonitor:
             current_fanart = infolabel(f'Window(home).Property(background_{type}_fanart)')
             for node in root.find('backgrounds'):
                 if type in node.attrib['type']:
-                    log('FUCK', force=True)
-            else:
+                    background = node.find('path')
+                    background.text = current_fanart
+                    break
+            else:   
                 background = ET.SubElement(root.find('backgrounds'), 'background')
                 background.attrib['type'] = type
                 path = ET.SubElement(background, 'path')
