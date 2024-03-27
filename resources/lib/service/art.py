@@ -215,6 +215,7 @@ class ImageEditor():
 class SlideshowMonitor:
     def __init__(self):
         self.lookup = LOOKUP_XML
+        self.art = {}
         self.art_types = ['global', 'movies',
                           'tvshows', 'videos', 'artists', 'custom']
         self.on_next_run_flag = True
@@ -289,6 +290,7 @@ class SlideshowMonitor:
 
     def _get_plugin_arts(self):
         if self.on_next_run_flag:
+            self.art['custom'] = []
             num_items = int(infolabel('Container(3300).NumItems'))
             for i in range(num_items):
                 item = {
@@ -301,7 +303,6 @@ class SlideshowMonitor:
                 }
                 if item['fanart']:
                    self.art['custom'].append(item)
-            log('FUCK',force=True)
             self.on_next_run_flag = False
 
     def _get_art(self):
