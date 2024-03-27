@@ -13,6 +13,10 @@ All code contained in this project is licensed under GPL 3.0.
 * __jurialmunkey__ for all the best-practice code examples from [plugin.video.themoviedb.helper](https://github.com/jurialmunkey/plugin.video.themoviedb.helper) and forum support.
 
 ### Changelog
+**1.0.11**
+- Reordered addon.xml back to how it was before 1.0.9 due to removal of script.copacetic.helper as a plugin source selectable for widgets.
+- Enhanced Slideshow_Monitor class so that it can now fetch fanarts from containers with plugin sources when they are available then use these fanarts in the custom background slideshow. In this way, you can use a custom path to populate a global custom fanart slideshow even without any content in your local library
+
 **1.0.10**
 - read_fanart() method added in 1.0.10 now triggers on services monitor initialise rather than the first time that the SlideShow monitor is run so it should display backgrounds slightly quicker
 

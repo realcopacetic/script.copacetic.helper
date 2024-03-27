@@ -214,24 +214,33 @@ class ImageEditor():
 
 class SlideshowMonitor:
     def __init__(self):
-        self.refresh_count = self.refresh_interval = self._get_refresh_interval()
-        self.fetch_count = self.fetch_interval = self.refresh_interval * 40
+        self.lookup = LOOKUP_XML
         self.art_types = ['global', 'movies',
                           'tvshows', 'videos', 'artists', 'custom']
+        self.on_next_run_flag = True
         self.custom_path = infolabel(
             'Skin.String(Background_Slideshow_Custom_Path)')
-        self.lookup = LOOKUP_XML
+        self.refresh_count = self.refresh_interval = self._get_refresh_interval()
+        self.fetch_count = self.fetch_interval = self.refresh_interval * 40
 
     def background_slideshow(self):
-        # Check if refresh interval or custom path has been adjusted in skin settings
+        # If refresh interval has been adjusted in skin settings
         if self.refresh_interval != self._get_refresh_interval():
             self.refresh_interval = self._get_refresh_interval()
             self.fetch_interval = self.refresh_interval * 40
 
-        # Fech art every 40 x refresh interval
+        # Capture plugin art if it's available and on_next_run flag is true
+        if condition(
+            'Integer.IsGreater(Container(3300).NumItems,0)'
+        ) and 'plugin://' in self.custom_path and self.on_next_run_flag:
+            self._get_plugin_arts()
+
+        # Fech art every 40 x refresh interval, reset if custom path changes
         if self.fetch_count >= self.fetch_interval or self.custom_path != infolabel('Skin.String(Background_Slideshow_Custom_Path)'):
             self.custom_path = infolabel(
                 'Skin.String(Background_Slideshow_Custom_Path)')
+            if 'plugin://' in self.custom_path and not self.on_next_run_flag:
+                self.on_next_run_flag = True
             log('Monitor fetching background art')
             self.art = self._get_art()
             self.fetch_count = 1
@@ -246,87 +255,6 @@ class SlideshowMonitor:
             self.refresh_count = 1
         else:
             self.refresh_count += 1
-
-    def _get_refresh_interval(self):
-        try:
-            self.refresh_interval_check = int(
-                infolabel('Skin.String(Background_Interval)')
-            )
-        except ValueError:
-            self.refresh_interval_check = 10
-        return self.refresh_interval_check
-
-    def _get_art(self):
-        self.art = {}
-        for type in self.art_types:
-            self.art[type] = []
-
-        # Populate custom path/playlist slideshow if selected in skin settings
-        if self.custom_path and condition('Skin.String(Background_Slideshow,Custom)'):
-            query = json_call('Files.GetDirectory',
-                              params={'directory': self.custom_path},
-                              sort={'method': 'random'},
-                              limit=40, parent='get_directory')
-
-            try:
-                for result in query['result']['files']:
-                    type = result['type']
-                    id = result['id']
-                    dbtype = 'Video' if type != 'artist' else 'Audio'
-                    query = json_call(f'{dbtype}Library.Get{type}Details',
-                                      params={'properties': [
-                                          'art'], f'{type}id': id},
-                                      parent='get_item_details')
-                    result = query['result'][f'{type}details']
-                    if result['art'].get('fanart'):
-                        data = {'title': result.get('label', '')}
-                        data.update(result['art'])
-                        self.art['custom'].append(data)
-            except KeyError:
-                pass
-
-        # Populate global slidshows
-        for item in ['movies', 'tvshows', 'artists']:
-            dbtype = 'Video' if item != 'artists' else 'Audio'
-            query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={
-                              'method': 'random'}, limit=40, parent='get_art')
-            try:
-                for result in query['result'][item]:
-                    if result['art'].get('fanart'):
-                        data = {'title': result.get('label', '')}
-                        data.update(result['art'])
-                        self.art[item].append(data)
-            except KeyError:
-                pass
-
-        self.art['videos'] = self.art['movies'] + self.art['tvshows']
-        for list in self.art:
-            if self.art[list]:
-                self.art['global'] = self.art['global'] + self.art[list]
-        return self.art
-
-    def _set_art(self, key, items):
-        art = random.choice(items)
-        art.pop('set.fanart', None)
-        # fanart = self._url_decode_path(art.get('fanart'))
-        fanarts = {key: value for (
-            key, value) in art.items() if 'fanart' in key}
-        fanart = random.choice(list(fanarts.values()))
-        fanart = self._url_decode_path(fanart)
-        window_property(f'{key}_fanart', set=fanart)
-        # clearlogo if present otherwise clear
-        clearlogo = art.get('clearlogo', False)
-        if clearlogo:
-            clearlogo = self._url_decode_path(clearlogo)
-        window_property(f'{key}_clearlogo', set=clearlogo)
-        # title
-        window_property(f'{key}_title', set=art.get('title', False))
-
-    def _url_decode_path(self, path):
-        path = path[:-1] if path.endswith('/') else path
-        path = path.replace('image://', '')
-        path = urllib.unquote(path.replace('image://', ''))
-        return path
 
     def read_fanart(self):
         lookup_tree = ET.parse(self.lookup)
@@ -358,3 +286,101 @@ class SlideshowMonitor:
                 path = ET.SubElement(background, 'path')
                 path.text = current_fanart
         lookup_tree.write(self.lookup, encoding="utf-8")
+
+    def _get_plugin_arts(self):
+        if self.on_next_run_flag:
+            num_items = int(infolabel('Container(3300).NumItems'))
+            for i in range(num_items):
+                item = {
+                    'title': infolabel(
+                        f'Container(3300).ListItem({i}).Label'),
+                    'fanart': infolabel(
+                        f'Container(3300).ListItem({i}).Art(fanart)'),
+                    'clearlogo': infolabel(
+                        f'Container(3300).ListItem({i}).Art(clearlogo)')
+                }
+                if item['fanart']:
+                   self.art['custom'].append(item)
+            log('FUCK',force=True)
+            self.on_next_run_flag = False
+
+    def _get_art(self):
+        self.art = {}
+        for type in self.art_types:
+            self.art[type] = []
+
+        # Populate custom path/playlist slideshow if selected in skin settings
+        if self.custom_path and 'plugin://' not in self.custom_path and condition('Skin.String(Background_Slideshow,Custom)'):
+            query = json_call('Files.GetDirectory',
+                              params={'directory': self.custom_path},
+                              sort={'method': 'random'},
+                              limit=40, parent='get_directory')
+            try:
+                for result in query['result']['files']:
+                    type = result['type']
+                    id = result['id']
+                    dbtype = 'Video' if type != 'artist' else 'Audio'
+                    query = json_call(f'{dbtype}Library.Get{type}Details',
+                                      params={'properties': [
+                                          'art'], f'{type}id': id},
+                                      parent='get_item_details')
+                    result = query['result'][f'{type}details']
+                    if result['art'].get('fanart'):
+                        data = {'title': result.get('label', '')}
+                        data.update(result['art'])
+                        self.art['custom'].append(data)
+            except KeyError:
+                pass
+
+        # Populate video and music slidshows from library
+        for item in ['movies', 'tvshows', 'artists']:
+            dbtype = 'Video' if item != 'artists' else 'Audio'
+            query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={
+                              'method': 'random'}, limit=40, parent='get_art')
+            try:
+                for result in query['result'][item]:
+                    if result['art'].get('fanart'):
+                        data = {'title': result.get('label', '')}
+                        data.update(result['art'])
+                        self.art[item].append(data)
+            except KeyError:
+                pass
+        self.art['videos'] = self.art['movies'] + self.art['tvshows']
+
+        # Populate global slideshow
+        for list in self.art:
+            if self.art[list]:
+                self.art['global'] = self.art['global'] + self.art[list]
+        return self.art
+
+    def _get_refresh_interval(self):
+        try:
+            self.refresh_interval_check = int(
+                infolabel('Skin.String(Background_Interval)')
+            )
+        except ValueError:
+            self.refresh_interval_check = 10
+        return self.refresh_interval_check
+
+    def _set_art(self, key, items):
+        art = random.choice(items)
+        art.pop('set.fanart', None)
+        # fanart = self._url_decode_path(art.get('fanart'))
+        fanarts = {key: value for (
+            key, value) in art.items() if 'fanart' in key}
+        fanart = random.choice(list(fanarts.values()))
+        fanart = self._url_decode_path(fanart)
+        window_property(f'{key}_fanart', set=fanart)
+        # clearlogo if present otherwise clear
+        clearlogo = art.get('clearlogo', False)
+        if clearlogo:
+            clearlogo = self._url_decode_path(clearlogo)
+        window_property(f'{key}_clearlogo', set=clearlogo)
+        # title
+        window_property(f'{key}_title', set=art.get('title', False))
+
+    def _url_decode_path(self, path):
+        path = path[:-1] if path.endswith('/') else path
+        path = path.replace('image://', '')
+        path = urllib.unquote(path.replace('image://', ''))
+        return path

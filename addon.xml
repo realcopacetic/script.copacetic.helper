@@ -4,10 +4,10 @@
     <import addon="xbmc.python" version="3.0.1" />
     <import addon="script.module.pil" version="5.1.0" />
   </requires>
-  <extension point="xbmc.service" library="service.py" />
   <extension point="xbmc.python.pluginsource" library="plugin.py">
     <provides>video</provides>
   </extension>
+  <extension point="xbmc.service" library="service.py" />
   <extension point="xbmc.python.script" library="script.py">
     <provides>executable</provides>
   </extension>
