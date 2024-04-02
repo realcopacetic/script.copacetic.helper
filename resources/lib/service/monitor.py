@@ -66,11 +66,7 @@ class Monitor(xbmc.Monitor):
 
     def _conditions_met(self):
         return (
-            self._get_skindir() and not self.idle and
-            (
-                condition('!Skin.HasSetting(Background_Disabled)') or
-                condition('Skin.HasSetting(Crop_Clearlogos)')
-            )
+            self._get_skindir() and not self.idle
         )
 
     def _get_skindir(self):
@@ -150,8 +146,7 @@ class Monitor(xbmc.Monitor):
 
         # slideshow window is visible run SlideshowMonitor()
         elif condition(
-            '!Skin.HasSetting(Background_Disabled) + ['
-            'Window.IsVisible(home) | '
+            '[Window.IsVisible(home) | '
             'Window.IsVisible(skinsettings) | '
             'Window.IsVisible(appearancesettings) | '
             'Window.IsVisible(mediasettings) | '

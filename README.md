@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 **1.0.11**
+- Removed visualisation waveform setting from list of settings changed by SettingsMonitor
+
+**1.0.11**
 - Reordered addon.xml back to how it was before 1.0.9 due to removal of script.copacetic.helper as a plugin source selectable for widgets.
 - Enhanced Slideshow_Monitor class so that it can now fetch fanarts from containers with plugin sources when they are available then use these fanarts in the custom background slideshow. In this way, you can use a custom path to populate a global custom fanart slideshow even without any content in your local library
 

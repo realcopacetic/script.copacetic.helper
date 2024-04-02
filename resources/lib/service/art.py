@@ -256,7 +256,7 @@ class SlideshowMonitor:
             self.refresh_count = 1
         else:
             self.refresh_count += 1
-
+    
     def read_fanart(self):
         lookup_tree = ET.parse(self.lookup)
         root = lookup_tree.getroot()
