@@ -2,7 +2,7 @@
 
 from resources.lib.service.art import ImageEditor
 from resources.lib.utilities import (ADDON, DIALOG, clear_playlists, condition,
-                                     infolabel, json_call, log_and_execute,
+                                     infolabel, json_call, log, log_and_execute,
                                      skin_string, window_property, xbmc)
 
 
@@ -31,6 +31,15 @@ def dialog_yesno(heading, message, **kwargs):
     else:
         for action in no_actions:
             log_and_execute(action)
+
+
+def globalsearch_input(**kwargs):
+    kb = xbmc.Keyboard(infolabel('$INFO[Skin.String(globalsearch)]'), infolabel('$LOCALIZE[137]'))
+    kb.doModal()
+    if (kb.isConfirmed()):
+        text = kb.getText()
+        skin_string('globalsearch', set=text)
+        xbmc.executebuiltin('ActivateWindow(1180)')
 
 
 def hex_contrast_check(**kwargs):
@@ -99,32 +108,34 @@ def play_items(id, **kwargs):
     else:
         method = f'Container({id}).ListItemAbsolute'
 
-    for count in range(int(xbmc.getInfoLabel(f'Container({id}).NumItems'))):
+    for count in range(int(infolabel(f'Container({id}).NumItems'))):
+        try:
+            dbid = int(xbmc.getInfoLabel(f'{method}({count}).DBID'))
+            url = xbmc.getInfoLabel(f'{method}({count}).Filenameandpath')
+        except ValueError:
+            break
+        else:
+            if condition(f'String.IsEqual({method}({count}).DBType,movie)'):
+                media_type = 'movie'
+            elif condition(f'String.IsEqual({method}({count}).DBType,episode)'):
+                media_type = 'episode'
+            elif condition(f'String.IsEqual({method}({count}).DBType,song)'):
+                media_type = 'song'
+            elif condition(f'String.IsEqual({method}({count}).DBType,musicvideo)'):
+                media_type = 'musicvideo'   
 
-        if xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,movie)'):
-            media_type = 'movie'
-        elif xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,episode)'):
-            media_type = 'episode'
-        elif xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,song)'):
-            media_type = 'song'
-        elif xbmc.getCondVisibility(f'String.IsEqual({method}({count}).DBType,musicvideo)'):
-            media_type = 'musicvideo'
-
-        dbid = int(xbmc.getInfoLabel(f'{method}({count}).DBID'))
-        url = xbmc.getInfoLabel(f'{method}({count}).Filenameandpath')
-
-        if media_type and dbid:
-            json_call('Playlist.Add',
-                      item={f'{media_type}id': dbid},
-                      params={'playlistid': playlistid},
-                      parent='play_items'
-                      )
-        elif url:
-            json_call('Playlist.Add',
-                      item={'file': url},
-                      params={'playlistid': playlistid},
-                      parent='play_items'
-                      )
+            if media_type and dbid:
+                json_call('Playlist.Add',
+                        item={f'{media_type}id': dbid},
+                        params={'playlistid': playlistid},
+                        parent='play_items'
+                        )
+            elif url:
+                json_call('Playlist.Add',
+                        item={'file': url},
+                        params={'playlistid': playlistid},
+                        parent='play_items'
+                        )
 
     json_call('Playlist.GetItems',
               params={'playlistid': playlistid},
