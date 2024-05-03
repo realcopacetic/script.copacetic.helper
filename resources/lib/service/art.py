@@ -110,15 +110,20 @@ class ImageEditor():
                     converted_image = Image.new("RGBA", image.size)
                     converted_image.paste(image)
                     image = converted_image
-                image = image.crop(image.convert('RGBa').getbbox())
-                with xbmcvfs.File(self.destination, 'wb') as f:
-                    image.save(f, 'PNG')
-                self._image_functions(image)
-                log(
-                    f'ImageEditor: Image cropped and saved: {url} --> {self.destination}')
-                if self.temp_folder in url:  # If temp file  created, delete it now
-                    xbmcvfs.delete(url)
-                    log(f'ImageEditor: Temporary file deleted --> {url}')
+                try:
+                    image = image.crop(image.convert('RGBa').getbbox())
+                except ValueError as error:
+                    log(
+                        f'ImageEditor: Error - could not convert image due to unsupport mode {image.mode} --> {error}', force=True)
+                else:
+                    with xbmcvfs.File(self.destination, 'wb') as f:
+                        image.save(f, 'PNG')
+                    self._image_functions(image)
+                    log(
+                        f'ImageEditor: Image cropped and saved: {url} --> {self.destination}')
+                    if self.temp_folder in url:  # If temp file  created, delete it now
+                        xbmcvfs.delete(url)
+                        log(f'ImageEditor: Temporary file deleted --> {url}')
 
     def _return_image_path(self, source, suffix):
         # Use source URL to generate cached url. If cached url doesn't exist, return source url
