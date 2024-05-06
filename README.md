@@ -15,7 +15,8 @@ All code contained in this project is licensed under GPL 3.0.
 ### Changelog
 **1.0.16**
 - Added tvchannels/radiochannels to background_slideshow()
-- Error handling for clearlogos that aren't in a supported PIL mode
+- Error handling for clearlogos that aren't in a supported PIL mode https://github.com/realcopacetic/script.copacetic.helper/issues/3
+- Added landscape to movieartwhitelist/tvshowartwhitelist recommended settings
 
 **1.0.14**
 - Global search action to open keyboard and return value to relevant skin string.
