@@ -17,6 +17,7 @@ All code contained in this project is licensed under GPL 3.0.
 - Added tvchannels/radiochannels to background_slideshow()
 - Error handling for clearlogos that aren't in a supported PIL mode https://github.com/realcopacetic/script.copacetic.helper/issues/3
 - Added landscape to movieartwhitelist/tvshowartwhitelist recommended settings
+- SlideshowMonitor class extended to accept custom paths to folders of images e.g. special://profile/backgrounds/ - it can now populate background slideshows sourced from library paths, playlists, plugin sources (e.g. themoviedbhelper) and folders
 
 **1.0.14**
 - Global search action to open keyboard and return value to relevant skin string.
