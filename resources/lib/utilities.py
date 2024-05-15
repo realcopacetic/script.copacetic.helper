@@ -220,12 +220,13 @@ def split(string, **kwargs):
 
 def split_random_return(string, **kwargs):
     import random
-
-    separator = kwargs.get('separator', ' / ')
+    separator = kwargs.get('separator', '/')
     name = kwargs.get('name', 'SplitRandomReturn')
     string = random.choice(string.split(separator))
+    string.replace(' ','')
+    string = 'Hip Hop' if 'Hip-Hop' in string else string
     random = random.choice(string.split(' & '))
-    random = return_label(label=random, find='-', replace=' ',
+    random = return_label(label=random,
                           property=False) if random != 'Sci-Fi' else random
     random = random.strip()
 
