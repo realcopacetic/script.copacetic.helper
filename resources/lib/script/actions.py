@@ -3,7 +3,7 @@
 from resources.lib.service.art import ImageEditor
 from resources.lib.utilities import (ADDON, DIALOG, clear_playlists, condition,
                                      infolabel, json_call, log, log_and_execute,
-                                     skin_string, window_property, xbmc)
+                                     skin_string, window_property, xbmc, urllib)
 
 
 def clean_filename(label=False, **kwargs):
@@ -250,6 +250,11 @@ def toggle_addon(id, **kwargs):
                   params={'addonid': id, 'enabled': True},
                   parent='toggle_addon')
         DIALOG.notification(id, ADDON.getLocalizedString(32206))
+
+
+def url_encode(name, string, **kwargs):
+    encoded = urllib.quote(string)
+    window_property(name, set=encoded)
 
 
 def widget_move(posa, posb, **kwargs):

@@ -231,7 +231,7 @@ def split_random_return(string, **kwargs):
 
     window_property(name, set=random)
     return random
-
+    
 
 def window_property(key, set=False, clear=False, window_id=10000, debug=False):
     window = Window(window_id)
