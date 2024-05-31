@@ -13,6 +13,9 @@ All code contained in this project is licensed under GPL 3.0.
 * __jurialmunkey__ for all the best-practice code examples from [plugin.video.themoviedb.helper](https://github.com/jurialmunkey/plugin.video.themoviedb.helper) and forum support.
 
 ### Changelog
+**1.0.18**
+- Added subtitle_limiter() script, which sets subtitles to the first stream in the desired language if it's available and then toggles between this subtitle stream and 'off'. If the preferred language stream is not available it will toggle through all available subtitles instead.
+
 **1.0.17**
 - Parse args for script actions to enable values with special characters to be properly escaped from Kodi using '"$INFO[ListItem.Title]"'
 

@@ -8,7 +8,6 @@ class Main:
     def __init__(self, *args):
         try:
             self.params = dict(arg.split('=', 1) for arg in args)
-            log(f'FUCK_IN: {self.params}', force=True)
             self._parse_params()
         except:
             self.params = {}
