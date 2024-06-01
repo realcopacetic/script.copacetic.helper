@@ -13,6 +13,9 @@ All code contained in this project is licensed under GPL 3.0.
 * __jurialmunkey__ for all the best-practice code examples from [plugin.video.themoviedb.helper](https://github.com/jurialmunkey/plugin.video.themoviedb.helper) and forum support.
 
 ### Changelog
+**1.0.19**
+- SlideshowMonitor() will now check for cropped clearlogos or crop them if no cropped version present
+
 **1.0.18**
 - Added subtitle_limiter() script, which sets subtitles to the first stream in the desired language if it's available and then toggles between this subtitle stream and 'off'. If the preferred language stream is not available it will toggle through all available subtitles instead.
 
@@ -44,7 +47,7 @@ All code contained in this project is licensed under GPL 3.0.
 - Enhanced Slideshow_Monitor class so that it can now fetch fanarts from containers with plugin sources when they are available then use these fanarts in the custom background slideshow. In this way, you can use a custom path to populate a global custom fanart slideshow even without any content in your local library
 
 **1.0.10**
-- read_fanart() method added in 1.0.10 now triggers on services monitor initialise rather than the first time that the SlideShow monitor is run so it should display backgrounds slightly quicker
+- fanart_read() method added in 1.0.10 now triggers on services monitor initialise rather than the first time that the SlideShow monitor is run so it should display backgrounds slightly quicker
 
 **1.0.10**
 - Custom path for Global slideshows can now be refreshed on first entry or on change of path without needing Kodi to restart https://github.com/realcopacetic/script.copacetic.helper/issues/6
