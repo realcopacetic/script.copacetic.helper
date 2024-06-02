@@ -13,7 +13,7 @@ All code contained in this project is licensed under GPL 3.0.
 * __jurialmunkey__ for all the best-practice code examples from [plugin.video.themoviedb.helper](https://github.com/jurialmunkey/plugin.video.themoviedb.helper) and forum support.
 
 ### Changelog
-**1.1.0**
+**.1.0**
 - Clearlogo cropper will resize larger crops to 1600x620 max, this is 2x the Kodi standard clearlogo requirement https://kodi.wiki/view/Artwork_types#clearlogo
 
 **1.0.19**
