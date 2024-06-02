@@ -98,7 +98,11 @@ class ImageEditor():
                 log(
                     f'ImageEditor: Error - could not convert image due to unsupport mode {image.mode} --> {error}', force=True)
             else:
-                with xbmcvfs.File(self.destination, 'wb') as f:
+                # Resize image to max 1600 x 620, 2x standard kodi size of 800x310
+                width, height = image.size
+                if width > 1600 or height > 620:
+                    image.thumbnail((1600, 620))
+                with xbmcvfs.File(self.destination, 'wb') as f:  # Save new image
                     image.save(f, 'PNG')
                 self._image_functions(image)
                 log(
