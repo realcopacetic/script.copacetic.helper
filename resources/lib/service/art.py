@@ -413,7 +413,7 @@ class SlideshowMonitor:
         clearlogo = art.get('clearlogo-billboard', False)
         if not clearlogo:
             clearlogo = art.get('clearlogo', False)
-        if clearlogo:
+        if clearlogo and condition('!Skin.HasSetting(Experiment_Disable_Transitions)'):
             clearlogo = url_decode_path(clearlogo)
             clearlogo = self._crop_clearlogo(clearlogo)
         window_property(f'{key}_clearlogo', set=clearlogo)

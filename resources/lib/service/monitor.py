@@ -181,7 +181,6 @@ class Monitor(xbmc.Monitor):
             self._on_skinsettings()
             self._on_recommendedsettings()
             self.waitForAbort(1)
-
         # else wait for next poll
         else:
             self.check_cache = True
@@ -196,7 +195,7 @@ class Monitor(xbmc.Monitor):
             current_dbid != self.dbid or
             current_dbtype != self.dbtype
         ) and not self._container_scrolling(key):
-            if crop:
+            if crop and condition('!Skin.HasSetting(Experiment_Disable_Transitions)'):
                 self._clearlogo_cropper(
                     source=key, return_color=return_color, reporting=window_property)
             if get_info:

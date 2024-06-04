@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 **.1.0**
+- Cropper automatically disabled if animation transitions are disabled in Copacetic skin.
+
+**.1.0**
 - Clearlogo cropper will resize larger crops to 1600x620 max, this is 2x the Kodi standard clearlogo requirement https://kodi.wiki/view/Artwork_types#clearlogo
 
 **1.0.19**
