@@ -204,8 +204,12 @@ class ImageEditor():
 
     def _return_scaled_height(self, image):
         image.thumbnail(self.clearlogo_bbox)
-        size = image.size
-        height = size[1]
+        try:
+            size = image.size
+        except AttributeError:
+            height = False
+        else:
+            height = size[1]
         return height
 
     def _rgb_to_hex(self, rgb):
