@@ -20,6 +20,7 @@ class ImageEditor():
         self.cropped_folder = CROPPED_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
         self.lookup = LOOKUP_XML
+        self.destination, self.height, self.color, self.luminosity = False, False, False, False
 
     def clearlogo_cropper(self, url=False, type='clearlogo', source='ListItem', return_color=False, reporting=window_property, reporting_key=None):
         # establish clearlogo urls
@@ -44,7 +45,6 @@ class ImageEditor():
         root = lookup_tree.getroot()
         for key, value in list(clearlogos.items()):
             self.id = infolabel(f'{path}.dbid')
-            self.destination, self.height, self.color, self.luminosity = False, False, False, False
             name = reporting_key or key
             if value:
                 for node in root.find('clearlogos'):
