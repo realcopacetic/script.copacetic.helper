@@ -45,6 +45,7 @@ class ImageEditor():
         root = lookup_tree.getroot()
         for key, value in list(clearlogos.items()):
             self.id = infolabel(f'{path}.dbid')
+            self.destination, self.height, self.color, self.luminosity = False, False, False, False
             name = reporting_key or key
             if value:
                 for node in root.find('clearlogos'):
