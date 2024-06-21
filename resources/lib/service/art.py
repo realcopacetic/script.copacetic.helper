@@ -89,7 +89,7 @@ class ImageEditor():
             log(
                 f'ImageEditor: Error - could not open cached image --> {error}', force=True)
         else:
-            if image.mode == 'LA':  # Convert if mode == 'LA'
+            if image.mode == 'LA' or image.mode == 'RGB':  # Convert if mode == 'LA' or 'RGB'
                 converted_image = Image.new("RGBA", image.size)
                 converted_image.paste(image)
                 image = converted_image
