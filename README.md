@@ -14,7 +14,7 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 **.1.1.2**
-- Support for edge case conversion of RGB > RGBA in clearlogo_cropper().
+- Support for more edge case conversions of different image modes in clearlogo_cropper().
 
 **.1.1.1**
 - Fixed bug in previous version causing dark cropped clearlogos to always be served in certain scenarios
