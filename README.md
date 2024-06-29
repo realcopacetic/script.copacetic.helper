@@ -15,6 +15,7 @@ All code contained in this project is licensed under GPL 3.0.
 ### Changelog
 **.1.1.2**
 - Support for more edge case conversions of different image modes in clearlogo_cropper().
+- Added method to service monitor to calculate watched percentage of sets and return as a property
 
 **.1.1.1**
 - Fixed bug in previous version causing dark cropped clearlogos to always be served in certain scenarios
