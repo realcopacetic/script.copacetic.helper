@@ -9,7 +9,7 @@ from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
                                      TEMP_FOLDERPATH, condition, create_dir,
-                                     get_cache_size, infolabel, log,
+                                     get_cache_size, infolabel, json_call, log,
                                      log_and_execute, split,
                                      split_random_return, validate_path,
                                      window_property)
@@ -68,22 +68,6 @@ class Monitor(xbmc.Monitor):
         dbtype = infolabel(f'{container}.ListItem.DBType')
         return (container, item, dbid, dbtype)
 
-    def _get_collection_percentage(self):
-        watched = 0
-        try:
-            num_movies = int(infolabel('Container(3100).NumItems'))
-        except ValueError:
-            return
-        else:
-            for movie in range(num_movies):
-                if condition(
-                    f'String.IsEqual(Container(3100).ListItem({movie}).Overlay,OverlayWatched.png)'
-                ):
-                    watched += 1
-            # https://stackoverflow.com/a/68118106/21112145
-            percentage = (num_movies and watched / num_movies or 0) * 100
-            window_property('collection_watched_percentage', set=percentage)
-
     def _get_info(self):
         split_random_return(
             infolabel('ListItem.Director'), name='RandomDirector')
@@ -108,7 +92,7 @@ class Monitor(xbmc.Monitor):
             self.check_settings = True
             log_and_execute('Skin.ToggleSetting(run_set_default)')
 
-    def _on_scroll_functions(self, key='ListItem', crop=True, return_color=True, get_info=False, get_collection_percentage=False):
+    def _on_scroll_functions(self, key='ListItem', crop=True, return_color=True, get_info=False):
         path, current_item, current_dbid, current_dbtype = self._current_item(
             key)
         if (
@@ -126,9 +110,6 @@ class Monitor(xbmc.Monitor):
                     source=key, return_color=return_color, reporting=window_property)
             if get_info:
                 self._get_info()
-            if get_collection_percentage:
-                self.waitForAbort(0.5)
-                self._get_collection_percentage()
             self.position = current_item
             self.dbid = current_dbid
             self.dbtype = current_dbtype
@@ -164,7 +145,7 @@ class Monitor(xbmc.Monitor):
             del self.settings_monitor
             del self.art_monitor
             log(f'Monitor stopped', force=True)
-    
+
     def poller(self):
         # video playing fullscreen
         if condition(
@@ -187,7 +168,8 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3208) | '
             'Control.HasFocus(3209)]'
         ):
-            self._on_scroll_functions(crop=False, return_color=False, get_info=True)
+            self._on_scroll_functions(
+                crop=False, return_color=False, get_info=True)
             self.waitForAbort(0.2)
 
         # media view is visible and container content type not empty
@@ -209,7 +191,7 @@ class Monitor(xbmc.Monitor):
                 self._on_scroll_functions(key='3100', return_color=False)
             # primary
             else:
-                self._on_scroll_functions(get_collection_percentage=True)
+                self._on_scroll_functions()
             self.waitForAbort(0.2)
 
         # home widgets has clearlogo visible
