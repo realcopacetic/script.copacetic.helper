@@ -101,10 +101,7 @@ class Monitor(xbmc.Monitor):
             current_dbtype != self.dbtype
         ) and not self._container_scrolling(key):
             if crop and condition(
-                'Skin.HasSetting(Crop_Clearlogos) + ['
-                'Control.IsVisible(501) | '
-                'Control.IsVisible(502) | '
-                'Control.IsVisible(504)]'
+                'Skin.HasSetting(Crop_Clearlogos)'
             ):
                 self._clearlogo_cropper(
                     source=key, return_color=return_color, reporting=window_property)

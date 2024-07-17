@@ -13,6 +13,10 @@ All code contained in this project is licensed under GPL 3.0.
 * __jurialmunkey__ for all the best-practice code examples from [plugin.video.themoviedb.helper](https://github.com/jurialmunkey/plugin.video.themoviedb.helper) and forum support.
 
 ### Changelog
+---
+**1.1.3**
+- Fixed conditional that was preventing cropped clearlogo paths from being fetched for home widgets
+
 **.1.1.2**
 - Support for more edge case conversions of different image modes in clearlogo_cropper().
 - Added method to service monitor to calculate watched percentage of sets and return as a property
