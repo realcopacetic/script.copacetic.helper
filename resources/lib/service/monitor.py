@@ -165,6 +165,7 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3208) | '
             'Control.HasFocus(3209)]'
         ):
+            self._get_info()
             self._on_scroll_functions(
                 crop=False, return_color=False, get_info=True)
             self.waitForAbort(0.2)
