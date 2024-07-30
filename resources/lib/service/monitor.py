@@ -76,6 +76,14 @@ class Monitor(xbmc.Monitor):
         split(infolabel('ListItem.Writer'), name='WriterSplit')
         split(infolabel('ListItem.Studio'), name='StudioSplit')
 
+    def _get_season_info(self, container):
+        window_property('Season_Number', infolabel(
+            f'{container}.ListItem.Season'))
+        window_property('Season_Year', infolabel(
+            f'{container}.ListItem.Year'))
+        window_property('Season_Fanart', infolabel(
+            f'{container}.ListItem.Art(fanart)'))
+
     def _get_skindir(self):
         skindir = xbmc.getSkinDir()
         if 'skin.copacetic' in skindir:
@@ -92,7 +100,7 @@ class Monitor(xbmc.Monitor):
             self.check_settings = True
             log_and_execute('Skin.ToggleSetting(run_set_default)')
 
-    def _on_scroll_functions(self, key='ListItem', crop=True, return_color=True, get_info=False):
+    def _on_scroll_functions(self, key='ListItem', crop=True, return_color=True, get_info=False, get_season_info=True):
         path, current_item, current_dbid, current_dbtype = self._current_item(
             key)
         if (
@@ -107,6 +115,8 @@ class Monitor(xbmc.Monitor):
                     source=key, return_color=return_color, reporting=window_property)
             if get_info:
                 self._get_info()
+            if get_season_info:
+                self._get_season_info(path)
             self.position = current_item
             self.dbid = current_dbid
             self.dbtype = current_dbtype
@@ -167,7 +177,7 @@ class Monitor(xbmc.Monitor):
         ):
             self._get_info()
             self._on_scroll_functions(
-                crop=False, return_color=False, get_info=True)
+                crop=False, return_color=False, get_info=True, get_season_info=False)
             self.waitForAbort(0.2)
 
         # media view is visible and container content type not empty
