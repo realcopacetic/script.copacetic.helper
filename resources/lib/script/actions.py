@@ -34,6 +34,7 @@ def dialog_yesno(heading, message, **kwargs):
 
 
 def get_collection_status(dbid, **kwargs):
+    window_property('collection_watched_calculating', set='true')
     watched = 0
     query = json_call(
         'VideoLibrary.GetMovieSetDetails',
@@ -60,10 +61,10 @@ def get_collection_status(dbid, **kwargs):
         # https://stackoverflow.com/a/68118106/21112145
         percentage = (total and watched / total or 0) * 100
         unwatched = total - watched
+        window_property('collection_watched_calculating', clear=True)
         window_property('collection_watched_dbid', set=dbid)
         window_property('collection_watched_percentage', set=percentage)
         window_property('collection_unwatched', set=unwatched)
-
 
 def globalsearch_input(**kwargs):
     kb = xbmc.Keyboard(

@@ -17,6 +17,7 @@ All code contained in this project is licensed under GPL 3.0.
 **1.1.4**
 - Fixed bug with infoscreen widgets not updating when navigating between infoscreens by ensuring director and genre properties update each time the infoscreen is loaded, even if the underlying list hasn't been scrolled
 - Added season info monitoring
+- Added a window property that is set to true while set progress is being calculated in get_collection_status()
 
 **1.1.3**
 - Fixed conditional that was preventing cropped clearlogo paths from being fetched for home widgets
