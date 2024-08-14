@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.6**
+- Added missing PVR windows to background monitor expression
+
 **1.1.5**
 - Fixed bug in actor_credits() where the current infoscreen item was not being removed from the 'More from X' actor credits widget if the infoscreen was for an episode, because it was expecting to find the TV show title in ListItem.Label and instead receiving the episode name, which wouldn't ever match.
 
