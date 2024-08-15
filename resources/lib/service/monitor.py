@@ -175,7 +175,6 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3208) | '
             'Control.HasFocus(3209)]'
         ):
-            self._get_info()
             self._on_scroll_functions(
                 crop=False, return_color=False, get_info=True, get_season_info=False)
             self.waitForAbort(0.2)
@@ -240,11 +239,11 @@ class Monitor(xbmc.Monitor):
             'Window.IsVisible(mediasource) | '
             'Window.IsVisible(smartplaylisteditor) | '
             'Window.IsVisible(musicplaylisteditor) | '
-            'Window.IsVisible(tvguide) | Window.IsVisible(radioguide) | '
-            'Window.IsVisible(tvchannels) | Window.IsVisible(radiochannels) | '
-            'Window.IsVisible(tvsearch) | Window.IsVisible(radiosearch) | '
-            'Window.IsVisible(tvtimers) | Window.IsVisible(radiotimers) | '
-            'Window.IsVisible(tvtimerrules) | Window.IsVisible(radiotimerrules) | '
+            'Window.IsVisible(radiochannels) | Window.IsVisible(tvchannels) | '
+            'Window.IsVisible(radioguide) | Window.IsVisible(tvguide) | '
+            'Window.IsVisible(radiosearch) | Window.IsVisible(tvsearch) | '
+            'Window.IsVisible(radiotimers) | Window.IsVisible(tvtimers) | '
+            'Window.IsVisible(radiotimerrules) | Window.IsVisible(tvtimerrules) | '
             'Container.Content(genres) | '
             'Container.Content(years) | '
             'Container.Content(playlists) | '
