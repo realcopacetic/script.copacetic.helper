@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.7**
+- Run subtitle_limiter() on video playback if a preferred subtitle language has been set in skin settings
+
 **1.1.6**
 - Added missing PVR windows to background monitor expression
 

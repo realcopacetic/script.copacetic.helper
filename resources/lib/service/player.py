@@ -2,9 +2,9 @@
 
 from xbmc import Player
 
-from resources.lib.script.actions import clean_filename
+from resources.lib.script.actions import clean_filename, subtitle_limiter
 from resources.lib.service.art import ImageEditor
-from resources.lib.utilities import condition, json_call, log, window_property
+from resources.lib.utilities import condition, infolabel, json_call, window_property
 
 
 class PlayerMonitor(Player):
@@ -24,7 +24,7 @@ class PlayerMonitor(Player):
                 clean_filename(label=label)
             else:
                 window_property('Return_Label', clear=True)
-            
+
             # Get set id
             tag = self.getVideoInfoTag()
             dbid = tag.getDbId()
@@ -39,9 +39,13 @@ class PlayerMonitor(Player):
                     setid = int(query['result']['moviedetails']['setid'])
                     window_property('VideoPlayer_SetID', set=setid)
 
+            # Switch subtitles to lang if set in skin settings
+            lang = infolabel('Skin.String(Subtitle_Limiter)')
+            if lang:
+                subtitle_limiter(lang)
 
         # Get user rating on music playback
-        if self.isPlayingAudio():
+        elif self.isPlayingAudio():
             tag = self.getMusicInfoTag()
             user_rating = tag.getUserRating()
             album_artist = tag.getAlbumArtist()
