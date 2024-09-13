@@ -41,7 +41,7 @@ class PlayerMonitor(Player):
 
             # Switch subtitles to lang if set in skin settings
             lang = infolabel('Skin.String(Subtitle_Limiter)')
-            if lang:
+            if lang and condition('VideoPlayer.SubtitlesEnabled'):
                 subtitle_limiter(lang)
 
         # Get user rating on music playback

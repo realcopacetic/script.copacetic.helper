@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.8**
+- Only run subtitle_limited() on video playback if VideoPlayer.SubtitlesEnabled is true
+
 **1.1.7**
 - Run subtitle_limiter() on video playback if a preferred subtitle language has been set in skin settings
 
