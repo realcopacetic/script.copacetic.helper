@@ -14,8 +14,12 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.9**
+- After fanarts for slideshow are fetched, each time one is randomly selected to be displayed, it is now removed from the list of fetched fanarts so it won't be displayed again until potentially the next fetch.
+- Added second slideshow, configurable in Copacetic skin settings with option to set timers for both so you can switch between slideshows at different times of day. Useful e.g. for having kid-friendly slideshow in the daytime then switching to a different slideshow in the evening.
+
 **1.1.8**
-- Only run subtitle_limited() on video playback if VideoPlayer.SubtitlesEnabled is true
+- Only run subtitle_limiter() on video playback if VideoPlayer.SubtitlesEnabled is true
 
 **1.1.7**
 - Run subtitle_limiter() on video playback if a preferred subtitle language has been set in skin settings

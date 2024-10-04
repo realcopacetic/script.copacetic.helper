@@ -225,37 +225,26 @@ class SlideshowMonitor:
         self.art_types = ['global', 'movies',
                           'tvshows', 'videos', 'artists', 'custom']
         self.on_next_run_flag = True
-        self.custom_source = ''
-        self.custom_path = infolabel(
-            'Skin.String(Background_Slideshow_Custom_Path)')
         self.refresh_count = self.refresh_interval = self._get_refresh_interval()
-        self.fetch_count = self.fetch_interval = self.refresh_interval * 40
+        self.fetch_count = self.fetch_interval = self.refresh_interval * 20
+        self.custom_path = self._get_slideshow()
+        self.custom_source = self._get_source()
         self._crop_image = ImageEditor().crop_image
 
     def background_slideshow(self):
-        # If refresh interval has been adjusted in skin settings
+        # Check if refresh interval has been adjusted in skin settings
         if self.refresh_interval != self._get_refresh_interval():
             self.refresh_interval = self._get_refresh_interval()
-            self.fetch_interval = self.refresh_interval * 40
+            self.fetch_interval = self.refresh_interval * 20
         # Capture plugin art if it's available and on_next_run flag is true
-        if 'plugin://' in self.custom_path:
-            self.custom_source = 'plugin'
-        elif 'videodb://' in self.custom_path:
-            self.custom_source = 'library'
-        elif 'musicdb://' in self.custom_path:
-            self.custom_source = 'library'
-        elif 'library://' in self.custom_path:
-            self.custom_source = 'library'
-        else:
-            self.custom_source = 'other'
         if condition(
             'Integer.IsGreater(Container(3300).NumItems,0)'
         ) and not 'library' in self.custom_source and self.on_next_run_flag:
             self._get_art_external()
-        # Fech art every 40 x refresh interval, reset if custom path changes
-        if self.fetch_count >= self.fetch_interval or self.custom_path != infolabel('Skin.String(Background_Slideshow_Custom_Path)'):
-            self.custom_path = infolabel(
-                'Skin.String(Background_Slideshow_Custom_Path)')
+        # Fetch art every 20 x refresh interval, reset if current slideshow or custom path changes
+        if self.fetch_count >= self.fetch_interval or self.custom_path != self._get_slideshow():
+            self.custom_path = self._get_slideshow()
+            self.custom_source = self._get_source()
             if not 'library' in self.custom_source and not self.on_next_run_flag:
                 self.on_next_run_flag = True
             log('Monitor fetching background art')
@@ -280,7 +269,8 @@ class SlideshowMonitor:
                 path = node.find('path').text
                 return path
         else:
-            crop_destination, crop_height, crop_color, crop_luminosity = self._crop_image(url)
+            crop_destination, crop_height, crop_color, crop_luminosity = self._crop_image(
+                url)
             clearlogo = ET.SubElement(
                 root.find('clearlogos'), 'clearlogo')
             clearlogo.attrib['name'] = url
@@ -333,20 +323,20 @@ class SlideshowMonitor:
         for type in self.art_types:
             self.art[type] = []
         # Populate custom path/playlist slideshow if selected in skin settings
-        if self.custom_path and 'library' in self.custom_source and condition('Skin.String(Background_Slideshow,Custom)'):
+        if self.custom_path and 'library' in self.custom_source:
             query = json_call('Files.GetDirectory',
-                              params={'directory': self.custom_path},
-                              sort={'method': 'random'},
-                              limit=40, parent='get_directory')
+                            params={'directory': self.custom_path},
+                            sort={'method': 'random'},
+                            limit=20, parent='get_directory')
             try:
                 for result in query['result']['files']:
                     type = result['type']
                     id = result['id']
                     dbtype = 'Video' if type != 'artist' else 'Audio'
                     query = json_call(f'{dbtype}Library.Get{type}Details',
-                                      params={'properties': [
-                                          'art'], f'{type}id': id},
-                                      parent='get_item_details')
+                                    params={'properties': [
+                                        'art'], f'{type}id': id},
+                                    parent='get_item_details')
                     result = query['result'][f'{type}details']
                     if result['art'].get('fanart'):
                         data = {'title': result.get('label', '')}
@@ -358,7 +348,7 @@ class SlideshowMonitor:
         for item in ['movies', 'tvshows', 'artists']:
             dbtype = 'Video' if item != 'artists' else 'Audio'
             query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={
-                              'method': 'random'}, limit=40, parent='get_art')
+                              'method': 'random'}, limit=20, parent='get_art')
             try:
                 for result in query['result'][item]:
                     if result['art'].get('fanart'):
@@ -403,8 +393,47 @@ class SlideshowMonitor:
             self.refresh_interval_check = 10
         return self.refresh_interval_check
 
+    def _get_slideshow(self):
+        # Get current time and slideshow start times
+        slideshow = ''
+        if condition('Skin.HasSetting(Background_Slideshow2)'):
+            time = int(infolabel('System.Time(hh)'))
+            am_pm = infolabel('System.Time(xx)')
+            time += 12 if 'PM' in am_pm else time
+            slideshow_time = int(
+                infolabel('Skin.String(Background_Slideshow_Timer)'))
+            slideshow2_time = int(
+                infolabel('Skin.String(Background_Slideshow2_Timer)'))
+            # Calculate current slideshow
+            if (
+                slideshow2_time > slideshow_time and (
+                    time >= slideshow2_time or time < slideshow_time
+                )
+            ):
+                slideshow = '2'
+            elif (
+                slideshow2_time < slideshow_time and 
+                time >= slideshow2_time and 
+                time < slideshow_time
+            ):
+                slideshow = '2'
+        window_property('CurrentSlideshow',set=slideshow)
+        return infolabel(
+            f'Skin.String(Background_Slideshow{slideshow}_Custom_Path)')
+        
+    def _get_source(self):
+        library_strings = ['db://', 'library://', '.xsp', '.xml']
+        if 'plugin://' in self.custom_path:
+            source = 'plugin'
+        elif any(x in self.custom_path for x in library_strings):
+            source = 'library'
+        else:
+            source = 'other'
+        return source
+
     def _set_art(self, key, items):
         art = random.choice(items)
+        items.remove(art)
         art.pop('set.fanart', None)
         fanarts = {key: value for (
             key, value) in art.items() if 'fanart' in key}
