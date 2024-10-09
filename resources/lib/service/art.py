@@ -400,10 +400,16 @@ class SlideshowMonitor:
             time = int(infolabel('System.Time(hh)'))
             am_pm = infolabel('System.Time(xx)')
             time += 12 if 'PM' in am_pm else time
-            slideshow_time = int(
-                infolabel('Skin.String(Background_Slideshow_Timer)'))
-            slideshow2_time = int(
-                infolabel('Skin.String(Background_Slideshow2_Timer)'))
+            try:
+                slideshow_time = int(
+                    infolabel('Skin.String(Background_Slideshow_Timer)'))
+            except ValueError:
+                slideshow_time = 6
+            try:
+                slideshow2_time = int(
+                    infolabel('Skin.String(Background_Slideshow2_Timer)'))
+            except ValueError:
+                slideshow2_time = 20
             # Calculate current slideshow
             if (
                 slideshow2_time > slideshow_time and (

@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.10**
+- Fix for _get_slideshow(self) when skin strings for slideshow and slideshow2 timers are empty
+
 **1.1.9**
 - Reduced number of fanarts fetched for slideshows to 20 per json query
 - After fanarts for slideshow are fetched, each time one is randomly selected to be displayed, it is now removed from the list of fetched fanarts so it won't be displayed again until potentially the next fetch.
