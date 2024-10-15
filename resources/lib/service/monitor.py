@@ -192,6 +192,8 @@ class Monitor(xbmc.Monitor):
             'Container.Content(albums) | '
             'Container.Content(songs) | '
             'Container.Content(musicvideos)]'
+        ) and (
+            condition('!String.IsEmpty(ListItem.Art(clearlogo))')
         ):
             # secondary
             if condition('Control.HasFocus(3100)'):

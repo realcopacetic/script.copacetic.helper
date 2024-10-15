@@ -14,6 +14,10 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.11**
+- Refactored SlideshowMonitor class in attempt to improve efficiency
+- Added a fix to ensure that cropped clearlogo URLs are fetched on first load of moviescreen. Previously the script was running too early, before artwork had been fetched by the DB. It then only runs again once the user scrolls to a new item, so the first focused item after laoding videos/music windows wouldn't populate the cropped clearlogo window properties. Now it will wait for art to be populated before running for the first time. 
+
 **1.1.10**
 - Fix for _get_slideshow(self) when skin strings for slideshow and slideshow2 timers are empty
 

@@ -219,47 +219,58 @@ class ImageEditor():
 
 
 class SlideshowMonitor:
+    MAX_FETCH_COUNT = 20
+    DEFAULT_REFRESH_INTERVAL = 10
+
     def __init__(self):
         self.lookup = LOOKUP_XML
-        self.art = {}
         self.art_types = ['global', 'movies',
-                          'tvshows', 'videos', 'artists', 'custom']
-        self.on_next_run_flag = True
+                          'tvshows', 'video', 'music', 'custom']
+        # Remove any art types not present in user library 
+        for type in range(1,5):
+            if not condition(f'Library.HasContent({self.art_types[type]})'):
+                self.art_types.pop(type)
+        # List comprehension to replace 'music' with 'artist' if it's present in the list
+        self.art_types = ['artists' if 'music' in ele else ele for ele in self.art_types] 
+        self.run_get_art_flag = True
         self.refresh_count = self.refresh_interval = self._get_refresh_interval()
-        self.fetch_count = self.fetch_interval = self.refresh_interval * 20
+        self.refreshing = False
+        self.fetch_count = self.fetch_interval = self.refresh_interval * self.MAX_FETCH_COUNT
         self.custom_path = self._get_slideshow()
         self.custom_source = self._get_source()
         self._crop_image = ImageEditor().crop_image
 
     def background_slideshow(self):
         # Check if refresh interval has been adjusted in skin settings
-        if self.refresh_interval != self._get_refresh_interval():
-            self.refresh_interval = self._get_refresh_interval()
-            self.fetch_interval = self.refresh_interval * 20
-        # Capture plugin art if it's available and on_next_run flag is true
-        if condition(
-            'Integer.IsGreater(Container(3300).NumItems,0)'
-        ) and not 'library' in self.custom_source and self.on_next_run_flag:
-            self._get_art_external()
-        # Fetch art every 20 x refresh interval, reset if current slideshow or custom path changes
-        if self.fetch_count >= self.fetch_interval or self.custom_path != self._get_slideshow():
-            self.custom_path = self._get_slideshow()
-            self.custom_source = self._get_source()
-            if not 'library' in self.custom_source and not self.on_next_run_flag:
-                self.on_next_run_flag = True
+        new_refresh_interval = self._get_refresh_interval()
+        if self.refresh_interval != new_refresh_interval:
+            self.refresh_interval = new_refresh_interval
+            self.fetch_interval = self.refresh_interval * self.MAX_FETCH_COUNT
+
+        # Fetch art if first run, if refresh interval reaches maximum count or if custom slideshow path has changed
+        new_slideshow = self._get_slideshow()
+        if (
+            self.run_get_art_flag or self.fetch_count >= self.fetch_interval or self.custom_path != new_slideshow
+        ) and not self.refreshing:
             log('Monitor fetching background art')
-            self.art = self._get_art()
-            self.fetch_count = 1
+            self.run_get_art_flag = False
+            self.custom_path = new_slideshow
+            self.custom_source = self._get_source()
+            self._get_art()
+            self.fetch_count = 1  # Reset fetch count
         else:
-            self.fetch_count += 1
+            self.fetch_count += 1  # Increment fetch count
+
         # Set art every refresh interval
         if self.refresh_count >= self.refresh_interval:
-            for type in self.art_types:
-                if self.art.get(type):
-                    self._set_art(f'background_{type}', self.art[type])
-            self.refresh_count = 1
+            self.refreshing = True
+            for art_type in self.art_types:
+                if art_type in self.art:  # Ensure key exists before accessing
+                    self._set_art(f'background_{art_type}', self.art[art_type])
+            self.refreshing = False
+            self.refresh_count = 1  # Reset refresh count
         else:
-            self.refresh_count += 1
+            self.refresh_count += 1  # Increment refresh count
 
     def _crop_clearlogo(self, url):
         lookup_tree = ET.parse(self.lookup)
@@ -319,24 +330,27 @@ class SlideshowMonitor:
         lookup_tree.write(self.lookup, encoding="utf-8")
 
     def _get_art(self):
+        # Clear art dictionary ahead of new fetch
         self.art = {}
         for type in self.art_types:
             self.art[type] = []
-        # Populate custom path/playlist slideshow if selected in skin settings
-        if self.custom_path and 'library' in self.custom_source:
+        # Fetch custom art from external if conditions met otherwise fetch from library
+        if self.custom_path and 'library' not in self.custom_source and condition('Integer.IsGreater(Container(3300).NumItems,0)'):
+            self._get_art_external()
+        elif self.custom_path and 'library' in self.custom_source:
             query = json_call('Files.GetDirectory',
-                            params={'directory': self.custom_path},
-                            sort={'method': 'random'},
-                            limit=20, parent='get_directory')
+                              params={'directory': self.custom_path},
+                              sort={'method': 'random'},
+                              limit=self.MAX_FETCH_COUNT, parent='get_directory')
             try:
                 for result in query['result']['files']:
                     type = result['type']
                     id = result['id']
                     dbtype = 'Video' if type != 'artist' else 'Audio'
                     query = json_call(f'{dbtype}Library.Get{type}Details',
-                                    params={'properties': [
-                                        'art'], f'{type}id': id},
-                                    parent='get_item_details')
+                                      params={'properties': [
+                                          'art'], f'{type}id': id},
+                                      parent='get_item_details')
                     result = query['result'][f'{type}details']
                     if result['art'].get('fanart'):
                         data = {'title': result.get('label', '')}
@@ -346,26 +360,31 @@ class SlideshowMonitor:
                 pass
         # Populate video and music slidshows from library
         for item in ['movies', 'tvshows', 'artists']:
-            dbtype = 'Video' if item != 'artists' else 'Audio'
-            query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={
-                              'method': 'random'}, limit=20, parent='get_art')
-            try:
-                for result in query['result'][item]:
-                    if result['art'].get('fanart'):
-                        data = {'title': result.get('label', '')}
-                        data.update(result['art'])
-                        self.art[item].append(data)
-            except KeyError:
-                pass
-        self.art['videos'] = self.art['movies'] + self.art['tvshows']
-        # Populate global slideshow
-        for list in self.art:
-            if self.art[list]:
-                self.art['global'] = self.art['global'] + self.art[list]
+            if item in self.art_types:
+                dbtype = 'Video' if item != 'artists' else 'Audio'
+                query = json_call(f'{dbtype}Library.Get{item}', properties=['art'], sort={
+                                'method': 'random'}, limit=self.MAX_FETCH_COUNT, parent='get_art')
+                try:
+                    for result in query['result'][item]:
+                        if result['art'].get('fanart'):
+                            data = {'title': result.get('label', '')}
+                            data.update(result['art'])
+                            self.art[item].append(data)
+                except KeyError:
+                    pass
+        for type in self.art:
+            if 'movies' in type or 'tvshows' in type:
+                self.art['video'] += self.art[type]
+                self.art['global'] += self.art[type]
+            elif 'artists' in type or 'custom' in type:
+                self.art['global'] += self.art[type]
+        if len(self.art['video']) > 20:
+            self.art['video'] = random.sample(self.art['video'],20)
+        if len(self.art['global']) > 20:
+            self.art['global'] = random.sample(self.art['global'], 20)
         return self.art
 
     def _get_art_external(self):
-        self.art['custom'] = []
         num_items = int(infolabel('Container(3300).NumItems'))
         for i in range(num_items):
             fanart = infolabel(
@@ -382,7 +401,6 @@ class SlideshowMonitor:
                         f'Container(3300).ListItem({i}).Art(clearlogo)')
                 }
                 self.art['custom'].append(item)
-        self.on_next_run_flag = False
 
     def _get_refresh_interval(self):
         try:
@@ -390,16 +408,19 @@ class SlideshowMonitor:
                 infolabel('Skin.String(Background_Interval)')
             )
         except ValueError:
-            self.refresh_interval_check = 10
+            self.refresh_interval_check = self.DEFAULT_REFRESH_INTERVAL
         return self.refresh_interval_check
 
     def _get_slideshow(self):
-        # Get current time and slideshow start times
-        slideshow = ''
         if condition('Skin.HasSetting(Background_Slideshow2)'):
             time = int(infolabel('System.Time(hh)'))
             am_pm = infolabel('System.Time(xx)')
-            time += 12 if 'PM' in am_pm else time
+            # Convert 12-hour format to 24-hour format
+            if 'PM' in am_pm and time != 12:
+                time += 12
+            elif 'AM' in am_pm and time == 12:
+                time = 0
+            # Get the slideshow times, use default values in case of error
             try:
                 slideshow_time = int(
                     infolabel('Skin.String(Background_Slideshow_Timer)'))
@@ -410,23 +431,23 @@ class SlideshowMonitor:
                     infolabel('Skin.String(Background_Slideshow2_Timer)'))
             except ValueError:
                 slideshow2_time = 20
-            # Calculate current slideshow
-            if (
-                slideshow2_time > slideshow_time and (
-                    time >= slideshow2_time or time < slideshow_time
-                )
-            ):
-                slideshow = '2'
-            elif (
-                slideshow2_time < slideshow_time and 
-                time >= slideshow2_time and 
-                time < slideshow_time
-            ):
-                slideshow = '2'
-        window_property('CurrentSlideshow',set=slideshow)
+            # slideshow2 starts later in the day than slideshow...
+            if slideshow2_time > slideshow_time:
+                # ... so it is only active from slideshow2 start until end of day, or from 0 until slideshow start
+                if time >= slideshow2_time or time < slideshow_time:
+                    slideshow = '2'
+                else:
+                    slideshow = ''
+            else:
+                # slideshow2 doesn't start later, so it's only active from slideshow2 start until slideshow start
+                if slideshow_time > time >= slideshow2_time:
+                    slideshow = '2'
+                else:
+                    slideshow = ''
+        window_property('CurrentSlideshow', set=slideshow)
         return infolabel(
             f'Skin.String(Background_Slideshow{slideshow}_Custom_Path)')
-        
+
     def _get_source(self):
         library_strings = ['db://', 'library://', '.xsp', '.xml']
         if 'plugin://' in self.custom_path:
@@ -438,23 +459,27 @@ class SlideshowMonitor:
         return source
 
     def _set_art(self, key, items):
-        art = random.choice(items)
-        items.remove(art)
-        art.pop('set.fanart', None)
-        fanarts = {key: value for (
-            key, value) in art.items() if 'fanart' in key}
-        fanart = random.choice(list(fanarts.values()))
-        fanart = url_decode_path(fanart)
-        if 'transform?size=thumb' in fanart:
-            fanart = fanart[:-21]
-        window_property(f'{key}_fanart', set=fanart)
-        # clearlogo if present otherwise clear
-        clearlogo = art.get('clearlogo-billboard', False)
-        if not clearlogo:
-            clearlogo = art.get('clearlogo', False)
-        if clearlogo and condition('!Skin.HasSetting(Quick_Transitions)'):
-            clearlogo = url_decode_path(clearlogo)
-            clearlogo = self._crop_clearlogo(clearlogo)
-        window_property(f'{key}_clearlogo', set=clearlogo)
-        # title
-        window_property(f'{key}_title', set=art.get('title', False))
+        if len(items) > 0:
+            art = random.choice(items)
+            items.remove(art)
+            art.pop('set.fanart', None)
+            fanarts = {key: value for (
+                key, value) in art.items() if 'fanart' in key}
+            fanart = random.choice(list(fanarts.values()))
+            fanart = url_decode_path(fanart)
+            if 'transform?size=thumb' in fanart:
+                fanart = fanart[:-21]
+            window_property(f'{key}_fanart', set=fanart)
+            # clearlogo if present otherwise clear
+            clearlogo = art.get('clearlogo-billboard', False)
+            if not clearlogo:
+                clearlogo = art.get('clearlogo', False)
+            if clearlogo and condition('!Skin.HasSetting(Quick_Transitions)'):
+                clearlogo = url_decode_path(clearlogo)
+                clearlogo = self._crop_clearlogo(clearlogo)
+            window_property(f'{key}_clearlogo', set=clearlogo)
+            # title
+            window_property(f'{key}_title', set=art.get('title', False))
+        else:
+            # if no items left, trigger get_art
+            self.run_get_art_flag = True
