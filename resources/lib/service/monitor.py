@@ -7,9 +7,10 @@ import xbmc
 from resources.lib.service.art import ImageEditor, SlideshowMonitor
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
+from resources.lib.service.xml import XMLHandler
 from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
                                      TEMP_FOLDERPATH, condition, create_dir,
-                                     get_cache_size, infolabel, json_call, log,
+                                     get_cache_size, infolabel, log,
                                      log_and_execute, split,
                                      split_random_return, validate_path,
                                      window_property)
@@ -23,6 +24,8 @@ XMLSTR = '''<?xml version="1.0" encoding="utf-8"?>
 
 
 class Monitor(xbmc.Monitor):
+    DEFAULT_REFRESH_INTERVAL = 10
+
     def __init__(self):
         # Poller
         self.start = True
@@ -36,8 +39,9 @@ class Monitor(xbmc.Monitor):
         # Monitors
         self.player_monitor = None
         self.settings_monitor = SettingsMonitor()
-        self.art_monitor = SlideshowMonitor()
-        self._clearlogo_cropper = ImageEditor().clearlogo_cropper
+        self.xmlHandler = XMLHandler()
+        self.art_monitor = SlideshowMonitor(self.xmlHandler)
+        self._clearlogo_cropper = ImageEditor(self.xmlHandler).clearlogo_cropper
         # Run
         self._create_dirs()
         self._on_start()
@@ -60,6 +64,15 @@ class Monitor(xbmc.Monitor):
             root = ET.fromstring(XMLSTR)
             ET.ElementTree(root).write(
                 self.lookup, xml_declaration=True, encoding="utf-8")
+
+    def _get_refresh_interval(self):
+        try:
+            refresh_interval = int(
+                infolabel('Skin.String(Background_Interval)')
+            )
+        except ValueError:
+            refresh_interval = self.DEFAULT_REFRESH_INTERVAL
+        return refresh_interval
 
     def _current_item(self, key='ListItem'):
         container = 'Container' if key == 'ListItem' else f'Container({key})'
@@ -133,7 +146,6 @@ class Monitor(xbmc.Monitor):
             log('Monitor started', force=True)
             self.start = False
             self.player_monitor = PlayerMonitor()
-            self.art_monitor.fanart_read()
         else:
             log('Monitor resumed', force=True) if self._conditions_met() else None
         while not self.abortRequested() and self._conditions_met():
@@ -147,7 +159,6 @@ class Monitor(xbmc.Monitor):
         if not self.abortRequested():
             self._on_start()
         else:
-            self.art_monitor.fanart_write()
             del self.player_monitor
             del self.settings_monitor
             del self.art_monitor
@@ -260,7 +271,7 @@ class Monitor(xbmc.Monitor):
             self.art_monitor.background_slideshow()
             self._on_skinsettings()
             self._on_recommendedsettings()
-            self.waitForAbort(1)
+            self.waitForAbort(self._get_refresh_interval()) # Run background_slideshow() at interval defined by skin setting
         # else wait for next poll
         else:
             self.check_cache = True

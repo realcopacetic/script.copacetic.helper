@@ -278,7 +278,7 @@ def subtitle_limiter(lang,**kwargs):
         subtitles = []
         current_subtitle = player.getSubtitles()
         subtitles = player.getAvailableSubtitleStreams()
-        if lang not in current_subtitle or condition('!VideoPlayer.SubtitlesEnabled'):
+        if lang not in current_subtitle and condition('VideoPlayer.SubtitlesEnabled'):
             try:
                 index = subtitles.index(lang)
             except ValueError as error:
