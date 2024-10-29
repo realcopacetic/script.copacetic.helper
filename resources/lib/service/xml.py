@@ -14,7 +14,8 @@ class XMLHandler:
         self._instance_id = id(self)  # Unique identifier for each instance
 
     def get_root(self):
-        log(f"Using XMLHandler instance ID: {self._instance_id}", force=True)
+        # Log instance ID to see if it is correctly being passed to other classes (ImageEditor, SlideshowMonitor, PlayerMonitor)
+        log(f'Using XMLHandler instance ID: {self._instance_id}')
         # Only reparse XML if it has not been cached or if forced to after a write.
         if self._cached_lookup is None or self._force_read:
             try:

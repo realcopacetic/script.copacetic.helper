@@ -145,7 +145,7 @@ class Monitor(xbmc.Monitor):
         if self.start:
             log('Monitor started', force=True)
             self.start = False
-            self.player_monitor = PlayerMonitor()
+            self.player_monitor = PlayerMonitor(self.xmlHandler)
         else:
             log('Monitor resumed', force=True) if self._conditions_met() else None
         while not self.abortRequested() and self._conditions_met():

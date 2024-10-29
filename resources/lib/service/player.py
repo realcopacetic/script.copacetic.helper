@@ -4,13 +4,15 @@ from xbmc import Player
 
 from resources.lib.script.actions import clean_filename, subtitle_limiter
 from resources.lib.service.art import ImageEditor
+from resources.lib.service.xml import XMLHandler
 from resources.lib.utilities import condition, infolabel, json_call, log, window_property
 
 
 class PlayerMonitor(Player):
-    def __init__(self):
+    def __init__(self, xml_handler=None):
         Player.__init__(self)
-        self.clearlogo_cropper = ImageEditor().clearlogo_cropper
+        self.xml = xml_handler if xml_handler else XMLHandler()
+        self.clearlogo_cropper = ImageEditor(self.xml).clearlogo_cropper
 
     def onAVStarted(self):
         if self.isPlayingVideo() and condition('String.IsEmpty(Window(home).Property(Trailer_Autoplay))'):
