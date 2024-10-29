@@ -272,13 +272,15 @@ def shuffle_artist(**kwargs):
               parent='shuffle_artist')
 
 
-def subtitle_limiter(lang,**kwargs):
+def subtitle_limiter(lang,user_trigger=True, **kwargs):
     if condition('VideoPlayer.HasSubtitles'):
         player = xbmc.Player()
         subtitles = []
         current_subtitle = player.getSubtitles()
         subtitles = player.getAvailableSubtitleStreams()
-        if lang not in current_subtitle and condition('VideoPlayer.SubtitlesEnabled'):
+        if lang not in current_subtitle or (
+            user_trigger and condition('!VideoPlayer.SubtitlesEnabled')
+        ):
             try:
                 index = subtitles.index(lang)
             except ValueError as error:
@@ -288,7 +290,7 @@ def subtitle_limiter(lang,**kwargs):
             else:
                 player.setSubtitleStream(index)
                 log(f'Subtitle Limiter: Switching to subtitle stream {index} in preferred language: {lang}', force=True)
-        elif condition('VideoPlayer.SubtitlesEnabled'):
+        elif condition('VideoPlayer.SubtitlesEnabled') and user_trigger:
             log_and_execute('Action(ShowSubtitles)')
     else:
         log('Subtitle Limiter: Error - Playing video has no subtitles', force=True)

@@ -4,7 +4,7 @@ from xbmc import Player
 
 from resources.lib.script.actions import clean_filename, subtitle_limiter
 from resources.lib.service.art import ImageEditor
-from resources.lib.utilities import condition, infolabel, json_call, window_property
+from resources.lib.utilities import condition, infolabel, json_call, log, window_property
 
 
 class PlayerMonitor(Player):
@@ -42,7 +42,7 @@ class PlayerMonitor(Player):
             # Switch subtitles to lang if set in skin settings
             lang = infolabel('Skin.String(Subtitle_Limiter)')
             if lang and condition('VideoPlayer.SubtitlesEnabled'):
-                subtitle_limiter(lang)
+                subtitle_limiter(lang, user_trigger=False)
 
         # Get user rating on music playback
         elif self.isPlayingAudio():

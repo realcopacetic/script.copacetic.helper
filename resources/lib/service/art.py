@@ -71,7 +71,6 @@ class ImageEditor:
             reporting_key = reporting_key + '_' if reporting_key else ''
             reporting(key=f'{reporting_key}{name}_cropped', set=destination)
             reporting(key=f'{reporting_key}{name}_cropped-height', set=height)
-            log(f'FUCK_{reporting_key}{name}_cropped-color', force=True)
             if return_color:
                 reporting(
                     key=f'{reporting_key}{name}_cropped-color', set=color)
