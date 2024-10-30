@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.12**
+- Fixed bug in naming of _slideshow_time method.
+
 **1.1.11**
 - Refactored SlideshowMonitor, ImageEditor classes in attempt to improve efficiency
 - Added XMLHandler class and made instance persistent across classes

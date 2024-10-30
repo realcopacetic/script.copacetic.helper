@@ -340,9 +340,9 @@ class SlideshowMonitor:
             elif 'AM' in am_pm and time == 12:
                 time = 0
             # Get the slideshow times, use default values in case of error
-            slideshow_time = self._get_slideshow_time(
+            slideshow_time = self._slideshow_time(
                 'Skin.String(Background_Slideshow_Timer)', 6)
-            slideshow2_time = self._get_slideshow_time(
+            slideshow2_time = self._slideshow_time(
                 'Skin.String(Background_Slideshow2_Timer)', 20)
             # slideshow2 starts later in the day than slideshow...
             if slideshow2_time > slideshow_time:
