@@ -14,6 +14,9 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.13**
+- Fixed bug in number of arguments for _slideshow_time method.
+
 **1.1.12**
 - Fixed bug in naming of _slideshow_time method.
 

@@ -323,7 +323,7 @@ class SlideshowMonitor:
                 }
                 self.art['custom'].append(item)
 
-    def _slideshow_time(label, default):
+    def _slideshow_time(self, label, default):
         try:
             return int(infolabel(label))
         except ValueError:
