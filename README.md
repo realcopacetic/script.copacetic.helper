@@ -54,7 +54,7 @@ All code contained in this project is licensed under GPL 3.0.
 - Fixed conditional that was preventing cropped clearlogo paths from being fetched for home widgets
 
 **.1.1.2**
-- Support for more edge case conversions of different image modes in clearlogo_cropper().
+- Support for more edge case conversions of different image modes in image_handler().
 - Added method to service monitor to calculate watched percentage of sets and return as a property
 
 **.1.1.1**

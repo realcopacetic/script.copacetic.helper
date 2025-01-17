@@ -6,7 +6,7 @@ import random
 from PIL import Image
 
 from resources.lib.service.xml import XMLHandler
-from resources.lib.utilities import (CROPPED_FOLDERPATH, TEMP_FOLDERPATH,
+from resources.lib.utilities import (BLUR_FOLDERPATH, CROP_FOLDERPATH, TEMP_FOLDERPATH,
                                      condition, infolabel, json_call,
                                      log, os, url_decode_path, validate_path,
                                      window_property, xbmc, xbmcvfs)
@@ -16,30 +16,27 @@ class ImageEditor:
     def __init__(self, xml_handler=None):
         self.xml = xml_handler if xml_handler else XMLHandler()
         self.clearlogo_bbox = (600, 240)
-        self.cropped_folder = CROPPED_FOLDERPATH
+        self.blur_folder = BLUR_FOLDERPATH
+        self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
 
-    def clearlogo_cropper(self, url=False, type='clearlogo', source='ListItem', return_color=False, reporting=window_property, reporting_key=None):
-        # Establish clearlogo urls
-        if url:
-            clearlogos = {type: url}
-        else:
-            clearlogos = {
-                'clearlogo': False,
-                'clearlogo-alt': False,
-                'clearlogo-billboard': False
-            }
-            if source == 'ListItem' or source == 'VideoPlayer':
-                path = source
-            else:
-                path = f'Container({source}).ListItem'
-            for key in clearlogos:
-                url = infolabel(f'{path}.Art({key})')
-                if url:
-                    clearlogos[key] = url
-            reporting(key='clearlogo_cropped-id',
-                      set=infolabel(f'{path}.dbid'))
-        # Lookup urls in cache/table or run crop_image() and write values to table
+    def image_handler(self, url=False, art_type='clearlogo', source='ListItem', process="crop", reporting=window_property, reporting_key=None):
+        # fetch art url
+        path = source if source in [
+            'ListItem', 'VideoPlayer'
+        ] else f'Container({source}).ListItem'
+        art = {art_type: url} if url else self._fetch_art_url(
+            art_type, path)
+        reporting(key=f'{art_type}_{process}_id',
+                  set=infolabel(f'{path}.dbid'))
+        # find art in lookup table or process if missing
+        lookup = self._lookup_art_url(art)
+        if not lookup:
+            process_method = getattr(self, f'_{process}_art', None)
+            process_method(art)
+
+
+        """
         root = self.xml.get_root()
         for key, value in list(clearlogos.items()):
             name = type or key
@@ -77,11 +74,54 @@ class ImageEditor:
                 reporting(
                     key=f'{reporting_key}{name}_cropped-luminosity', set=luminosity)
             return destination
+            """
+
+    def _fetch_art_url(self, art_type, path):
+        art = {art_type: False}
+        url = infolabel(f'{path}.Art({art_type})')
+        if url:
+            art[art_type] = url
+        return art
+    
+    def _lookup_art_url(self, art):
+        root = self.xml.get_root()
+        art = list(art.items())[0]
+        for node in root.find(f'{art[0]}s'):
+            processed = node.attrib.get('processed', None)
+            if art[1] in node.attrib['url'] and validate_path(processed):
+                return node
+    
+    def _create_processed_url(self, url, folder, suffix):
+        filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
+        filepath = os.path.join(folder, filename)
+
+        '''
+        def _return_image_path(self, source, suffix):
+            # Use source URL to generate cached url. If cached url doesn't exist, return source url
+        cleaned_source = url_decode_path(source)
+        cached_thumb = xbmc.getCacheThumbName(
+            cleaned_source).replace('.tbn', '')
+        cached_url = os.path.join(
+            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + suffix)
+        if validate_path(cached_url):
+            return cached_url
+        return self._create_temp_file(cleaned_source, suffix)
+        '''
+
+    def _blur_art(self, art):
+        log('FUCK_BLUR', force=True)
+
+    def _crop_art(self, art):
+        art = list(art.items())[0]
+        processed_url = self._create_processed_url(art[1], self.crop_folder, '.png')
+
+
+
 
     def _crop_image(self, url):
         # Get image url
         filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
-        destination = os.path.join(self.cropped_folder, filename)
+        destination = os.path.join(self.crop_folder, filename)
         url = self._return_image_path(url, '.png')
         #  Open and crop, then get height and color
         try:
@@ -210,7 +250,7 @@ class SlideshowMonitor:
 
     def __init__(self, xml_handler=None):
         self.xml = xml_handler if xml_handler else XMLHandler()
-        self.cropper = ImageEditor(self.xml).clearlogo_cropper
+        self.cropper = ImageEditor(self.xml).image_handler
         # Establish available art types in the db:
         self.art_types = [art_type for art_type in ['movies', 'tvshows',
                                                     'video', 'music'] if condition(f'Library.HasContent({art_type})')]
@@ -382,9 +422,12 @@ class SlideshowMonitor:
             clearlogo = art.get('clearlogo-billboard')
             type = 'clearlogo-billboard' if clearlogo else 'clearlogo'
             clearlogo = clearlogo or art.get('clearlogo')
+            '''
             if clearlogo:
                 clearlogo = url_decode_path(clearlogo)
-                clearlogo = self.cropper(url=clearlogo, type=type, reporting_key=key)
+                clearlogo = self.cropper(
+                    url=clearlogo, art_type=type, reporting_key=key)
+            '''
             window_property(f'{key}_title', set=art.get('title', False))
         else:
             self.trigger_get_art = True  # No items left, trigger refresh

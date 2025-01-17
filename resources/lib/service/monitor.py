@@ -8,7 +8,7 @@ from resources.lib.service.art import ImageEditor, SlideshowMonitor
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.service.xml import XMLHandler
-from resources.lib.utilities import (CROPPED_FOLDERPATH, LOOKUP_XML,
+from resources.lib.utilities import (BLUR_FOLDERPATH, CROP_FOLDERPATH, LOOKUP_XML,
                                      TEMP_FOLDERPATH, condition, create_dir,
                                      get_cache_size, infolabel, log,
                                      log_and_execute, split,
@@ -33,7 +33,8 @@ class Monitor(xbmc.Monitor):
         self.check_settings, self.check_cache = True, True
         self.position, self.dbid, self.dbtype = False, False, False
         # Setup
-        self.cropped_folder = CROPPED_FOLDERPATH
+        self.blur_folder = BLUR_FOLDERPATH
+        self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
         self.lookup = LOOKUP_XML
         # Monitors
@@ -41,7 +42,7 @@ class Monitor(xbmc.Monitor):
         self.settings_monitor = SettingsMonitor()
         self.xmlHandler = XMLHandler()
         self.art_monitor = SlideshowMonitor(self.xmlHandler)
-        self._clearlogo_cropper = ImageEditor(self.xmlHandler).clearlogo_cropper
+        self._image_handler = ImageEditor(self.xmlHandler).image_handler
         # Run
         self._create_dirs()
         self._on_start()
@@ -56,8 +57,10 @@ class Monitor(xbmc.Monitor):
         return condition(f'{container}.Scrolling')
 
     def _create_dirs(self):
-        if not validate_path(self.cropped_folder):
-            create_dir(self.cropped_folder)
+        if not validate_path(self.blur_folder):
+            create_dir(self.blur_folder)
+        if not validate_path(self.crop_folder):
+            create_dir(self.crop_folder)
         if not validate_path(self.temp_folder):
             create_dir(self.temp_folder)
         if not validate_path(self.lookup):
@@ -113,7 +116,7 @@ class Monitor(xbmc.Monitor):
             self.check_settings = True
             log_and_execute('Skin.ToggleSetting(run_set_default)')
 
-    def _on_scroll_functions(self, key='ListItem', crop=True, return_color=True, get_info=False, get_season_info=True):
+    def _on_scroll_functions(self, key='ListItem', crop=True, get_info=False, get_season_info=True):
         path, current_item, current_dbid, current_dbtype = self._current_item(
             key)
         if (
@@ -124,8 +127,8 @@ class Monitor(xbmc.Monitor):
             if crop and condition(
                 'Skin.HasSetting(Crop_Clearlogos)'
             ):
-                self._clearlogo_cropper(
-                    source=key, return_color=return_color, reporting=window_property)
+                self._image_handler(
+                    source=key, reporting=window_property)
             if get_info:
                 self._get_info()
             if get_season_info:
@@ -187,7 +190,7 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3209)]'
         ):
             self._on_scroll_functions(
-                crop=False, return_color=False, get_info=True, get_season_info=False)
+                crop=False, get_info=True, get_season_info=False)
             self.waitForAbort(0.2)
 
         # media view is visible and container content type not empty
@@ -208,7 +211,7 @@ class Monitor(xbmc.Monitor):
         ):
             # secondary
             if condition('Control.HasFocus(3100)'):
-                self._on_scroll_functions(key='3100', return_color=False)
+                self._on_scroll_functions(key='3100')
             # primary
             else:
                 self._on_scroll_functions()

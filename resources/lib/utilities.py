@@ -18,7 +18,8 @@ ADDON_ID = ADDON.getAddonInfo('id')
 ADDONDATA = 'special://profile/addon_data/script.copacetic.helper/'
 ADDONDATA = xbmcvfs.validatePath(
     xbmcvfs.translatePath(ADDONDATA))
-CROPPED_FOLDERPATH = os.path.join(ADDONDATA, 'crop/')
+BLUR_FOLDERPATH = os.path.join(ADDONDATA, 'blur/')
+CROP_FOLDERPATH = os.path.join(ADDONDATA, 'crop/')
 TEMP_FOLDERPATH = os.path.join(ADDONDATA, 'temp/')
 LOOKUP_XML = os.path.join(ADDONDATA, '_lookup.xml')
 
@@ -43,7 +44,7 @@ def condition(condition):
     return xbmc.getCondVisibility(condition)
 
 
-def get_folder_size(source=CROPPED_FOLDERPATH):
+def get_folder_size(source=CROP_FOLDERPATH):
     bytes = 0
     if xbmcvfs.exists(source):
         dirs, files = xbmcvfs.listdir(source)
@@ -60,8 +61,8 @@ def get_cache_size(precision=1):
     temp_size, crop_size = 0, 0
     if xbmcvfs.exists(TEMP_FOLDERPATH):
         temp_size = get_folder_size(source=TEMP_FOLDERPATH)
-    if xbmcvfs.exists(CROPPED_FOLDERPATH):
-        crop_size = get_folder_size(source=CROPPED_FOLDERPATH)
+    if xbmcvfs.exists(CROP_FOLDERPATH):
+        crop_size = get_folder_size(source=CROP_FOLDERPATH)
     size = temp_size + crop_size
     ''' Credit Doug Latornell for bitshift method
     https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
@@ -100,9 +101,9 @@ def clear_cache(**kwargs):
     if xbmcvfs.exists(TEMP_FOLDERPATH):
         xbmcvfs.rmdir(TEMP_FOLDERPATH, force=True)
         create_dir(TEMP_FOLDERPATH)
-    if xbmcvfs.exists(CROPPED_FOLDERPATH):
-        xbmcvfs.rmdir(CROPPED_FOLDERPATH, force=True)
-        create_dir(CROPPED_FOLDERPATH)
+    if xbmcvfs.exists(CROP_FOLDERPATH):
+        xbmcvfs.rmdir(CROP_FOLDERPATH, force=True)
+        create_dir(CROP_FOLDERPATH)
         log(f'Clearlogo cache cleared by user. {readable_size} saved.')
         string = ADDON.getLocalizedString(
             32201) + f', {readable_size} ' + ADDON.getLocalizedString(32202) + '.'
