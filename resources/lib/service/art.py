@@ -20,23 +20,30 @@ class ImageEditor:
         self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
 
-    def image_handler(self, url=False, art_type='clearlogo', source='ListItem', process="crop", reporting=window_property, reporting_key=None):
+    def image_handler(self, url=False, art_type='clearlogo', source='ListItem', process="crop"):
         # fetch art url
         path = source if source in [
             'ListItem', 'VideoPlayer'
         ] else f'Container({source}).ListItem'
         art = {art_type: url} if url else self._fetch_art_url(
             art_type, path)
-        reporting(key=f'{art_type}_{process}_id',
-                  set=infolabel(f'{path}.dbid'))
-        # find art in lookup table or process if missing
-        lookup = self._lookup_art_url(art)
-        if not lookup:
+        # find art in lookup table or process and write to lookup if missing
+        attributes = self._lookup_art(art)
+        if not attributes:
             process_method = getattr(self, f'_{process}_art', None)
-            process_method(art)
-
-
+            attributes = process_method(art, path)
+            self._write_lookup(art_type, attributes)
+        return attributes
+    
         """
+                    
+                    clearlogos_root = root.find('clearlogos')
+                    self.xml.add_sub_element(
+                        clearlogos_root, 'clearlogo', attributes)
+            # Write to disk and populate window props for use within skin.copacetic
+            self.xml.write()
+
+
         root = self.xml.get_root()
         for key, value in list(clearlogos.items()):
             name = type or key
@@ -82,50 +89,34 @@ class ImageEditor:
         if url:
             art[art_type] = url
         return art
-    
-    def _lookup_art_url(self, art):
+
+    def _lookup_art(self, art):
         root = self.xml.get_root()
         art = list(art.items())[0]
         for node in root.find(f'{art[0]}s'):
             processed = node.attrib.get('processed', None)
             if art[1] in node.attrib['url'] and validate_path(processed):
-                return node
+                attributes = {key: value for key, value in node.attrib.items()}
+                return attributes
     
-    def _create_processed_url(self, url, folder, suffix):
-        filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
-        filepath = os.path.join(folder, filename)
-
-        '''
-        def _return_image_path(self, source, suffix):
-            # Use source URL to generate cached url. If cached url doesn't exist, return source url
-        cleaned_source = url_decode_path(source)
-        cached_thumb = xbmc.getCacheThumbName(
-            cleaned_source).replace('.tbn', '')
-        cached_url = os.path.join(
-            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + suffix)
-        if validate_path(cached_url):
-            return cached_url
-        return self._create_temp_file(cleaned_source, suffix)
-        '''
+    def _write_lookup(self, art_type, attributes):
+        root = self.xml.get_root()
+        art_type_root = root.find(f'{art_type}s')
+        self.xml.add_sub_element(art_type_root, art_type, attributes)
+        self.xml.write()
 
     def _blur_art(self, art):
-        log('FUCK_BLUR', force=True)
-
-    def _crop_art(self, art):
         art = list(art.items())[0]
-        processed_url = self._create_processed_url(art[1], self.crop_folder, '.png')
+        filepath = self._get_filepath(art[1], self.blur_folder, '.jpg')
+        url = self._get_cached_art(filepath, '.jpg')
 
-
-
-
-    def _crop_image(self, url):
-        # Get image url
-        filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
-        destination = os.path.join(self.crop_folder, filename)
-        url = self._return_image_path(url, '.png')
+    def _crop_art(self, art, path):
+        art = list(art.items())[0]
+        filepath = self._get_filepath(art[1], self.crop_folder, '.png')
+        url = self._get_cached_art(filepath, '.png')
         #  Open and crop, then get height and color
         try:
-            image = self._open_image(url)
+            image = self._image_open(url)
         except Exception as error:
             log(
                 f'ImageEditor: Error - could not open cached image --> {error}', force=True)
@@ -143,15 +134,35 @@ class ImageEditor:
                 width, height = image.size
                 if width > 1600 or height > 620:
                     image.thumbnail((1600, 620))
-                with xbmcvfs.File(destination, 'wb') as f:  # Save new image
+                with xbmcvfs.File(filepath, 'wb') as f:  # Save new image
                     image.save(f, 'PNG')
                 height, color, luminosity = self._image_functions(image)
                 log(
-                    f'ImageEditor: Image cropped and saved: {url} --> {destination}')
+                    f'ImageEditor: Image cropped and saved: {url} --> {filepath}')
                 if self.temp_folder in url:  # If temp file  created, delete it now
                     xbmcvfs.delete(url)
                     log(f'ImageEditor: Temporary file deleted --> {url}')
-        return (destination, height, color, luminosity)
+        return {
+            'id': infolabel(f'{path}.dbid'),
+            'url': art[1],
+            'processed': filepath, 
+            'height': height, 
+            'color': color, 
+            'luminosity': luminosity
+        }
+
+    def _get_filepath(self, url, folder, suffix):
+        filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
+        filepath = url_decode_path(os.path.join(folder, filename))
+        return filepath
+
+    def _get_cached_art(self, filepath, suffix):
+        cached_thumb = xbmc.getCacheThumbName(filepath).replace('.tbn', '')
+        cached_url = os.path.join(
+            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + suffix)
+        if validate_path(cached_url):
+            return cached_url
+        return self._create_temp_file(filepath, suffix)
 
     def return_luminosity(self, rgb):
         # Credit to Mark Ransom for luminosity calculation
@@ -169,7 +180,7 @@ class ImageEditor:
         luminosity = 0.2126 * r + 0.7152 * g + 0.0722 * b
         return luminosity
 
-    def _open_image(self, url):
+    def _image_open(self, url):
         image = Image.open(xbmcvfs.translatePath(url))
         return image
 
@@ -177,7 +188,7 @@ class ImageEditor:
         height = self._return_scaled_height(image)
         color, luminosity = self._return_dominant_color(image)
         image.close()
-        return height, color, luminosity
+        return str(height), color, luminosity
 
     def _return_dominant_color(self, image):
         width, height = 25, 10
@@ -213,18 +224,7 @@ class ImageEditor:
                 luminosity = self.return_luminosity(dominant)
                 luminosity = int(luminosity * 1000)
                 dominant = self._rgb_to_hex(dominant)
-                return (dominant, luminosity)
-
-    def _return_image_path(self, source, suffix):
-        # Use source URL to generate cached url. If cached url doesn't exist, return source url
-        cleaned_source = url_decode_path(source)
-        cached_thumb = xbmc.getCacheThumbName(
-            cleaned_source).replace('.tbn', '')
-        cached_url = os.path.join(
-            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + suffix)
-        if validate_path(cached_url):
-            return cached_url
-        return self._create_temp_file(cleaned_source, suffix)
+                return (dominant, str(luminosity))
 
     def _create_temp_file(self, cleaned_source, suffix):
         # Create temp file to avoid access issues to direct source

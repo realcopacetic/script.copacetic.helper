@@ -17,8 +17,8 @@ from resources.lib.utilities import (BLUR_FOLDERPATH, CROP_FOLDERPATH, LOOKUP_XM
 
 XMLSTR = '''<?xml version="1.0" encoding="utf-8"?>
 <data>
-    <backgrounds />
     <clearlogos />
+    <fanarts />
 </data>
 '''
 
@@ -52,8 +52,7 @@ class Monitor(xbmc.Monitor):
             self._get_skindir() and not self.idle
         )
 
-    def _container_scrolling(self, key='ListItem'):
-        container = 'Container' if key == 'ListItem' else f'Container({key})'
+    def _container_scrolling(self, container):
         return condition(f'{container}.Scrolling')
 
     def _create_dirs(self):
@@ -77,20 +76,19 @@ class Monitor(xbmc.Monitor):
             refresh_interval = self.DEFAULT_REFRESH_INTERVAL
         return refresh_interval
 
-    def _current_item(self, key='ListItem'):
-        container = 'Container' if key == 'ListItem' else f'Container({key})'
+    def _current_item(self, container):
         item = infolabel(f'{container}.CurrentItem')
         dbid = infolabel(f'{container}.ListItem.DBID')
         dbtype = infolabel(f'{container}.ListItem.DBType')
-        return (container, item, dbid, dbtype)
+        return (item, dbid, dbtype)
 
-    def _get_info(self):
+    def _get_info(self, container):
         split_random_return(
-            infolabel('ListItem.Director'), name='RandomDirector')
+            infolabel(f'{container}.ListItem.Director'), name='RandomDirector')
         split_random_return(
-            infolabel('ListItem.Genre'), name='RandomGenre')
-        split(infolabel('ListItem.Writer'), name='WriterSplit')
-        split(infolabel('ListItem.Studio'), name='StudioSplit')
+            infolabel(f'{container}.ListItem.Genre'), name='RandomGenre')
+        split(infolabel(f'{container}.ListItem.Writer'), name='WriterSplit')
+        split(infolabel(f'{container}.ListItem.Studio'), name='StudioSplit')
 
     def _get_season_info(self, container):
         window_property('Season_Number', infolabel(
@@ -115,24 +113,22 @@ class Monitor(xbmc.Monitor):
             self.settings_monitor.set_default()
             self.check_settings = True
             log_and_execute('Skin.ToggleSetting(run_set_default)')
-
-    def _on_scroll_functions(self, key='ListItem', crop=True, get_info=False, get_season_info=True):
-        path, current_item, current_dbid, current_dbtype = self._current_item(
-            key)
+        
+    def _on_scroll(self, key='ListItem', images_to_process={}):
+        container = 'Container' if 'ListItem' in key else f'Container({key})'
+        current_item, current_dbid, current_dbtype = self._current_item(
+            container)
         if (
             current_item != self.position or
             current_dbid != self.dbid or
             current_dbtype != self.dbtype
-        ) and not self._container_scrolling(key):
-            if crop and condition(
-                'Skin.HasSetting(Crop_Clearlogos)'
-            ):
-                self._image_handler(
-                    source=key, reporting=window_property)
-            if get_info:
-                self._get_info()
-            if get_season_info:
-                self._get_season_info(path)
+        ) and not self._container_scrolling(container):
+            if images_to_process:
+                self._image_processor(
+                    source=container, process=images_to_process
+                )
+            if 'season' in current_dbtype:
+                self._get_season_info(container)
             self.position = current_item
             self.dbid = current_dbid
             self.dbtype = current_dbtype
@@ -189,8 +185,7 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3208) | '
             'Control.HasFocus(3209)]'
         ):
-            self._on_scroll_functions(
-                crop=False, get_info=True, get_season_info=False)
+            self._get_info('Container')
             self.waitForAbort(0.2)
 
         # media view is visible and container content type not empty
@@ -209,12 +204,18 @@ class Monitor(xbmc.Monitor):
         ) and (
             condition('!String.IsEmpty(ListItem.Art(clearlogo))')
         ):
+            images_to_process = {
+                'clearlogo': 'crop',
+                'clearlogo-alt': 'crop',
+                'clearlogo-billboard': 'crop',
+                'fanart': 'blur'
+            }
             # secondary
             if condition('Control.HasFocus(3100)'):
-                self._on_scroll_functions(key='3100')
+                self._on_scroll(key='3100',images_to_process=images_to_process)
             # primary
             else:
-                self._on_scroll_functions()
+                self._on_scroll(images_to_process=images_to_process)
             self.waitForAbort(0.2)
 
         # home widgets has clearlogo visible
@@ -232,7 +233,7 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3209)]'
         ):
             widget = infolabel('System.CurrentControlID')
-            self._on_scroll_functions(key=widget)
+            self._on_scroll(key=widget)
             self.waitForAbort(0.2)
 
         # slideshow window is visible run SlideshowMonitor()

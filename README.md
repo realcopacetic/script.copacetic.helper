@@ -14,6 +14,10 @@ All code contained in this project is licensed under GPL 3.0.
 
 ### Changelog
 ---
+**1.1.14**
+- Fix to ensure clearlogo properties for SlideshowMonitor are cleared if there is no clearlogo present
+- Refactored ImageEditor to ImageHandler - making it generic so can be used for deriving dominant color from fanarts as well as clearlogo cropping
+
 **1.1.13**
 - Fixed bug in number of arguments for _slideshow_time method.
 
