@@ -42,7 +42,7 @@ class Monitor(xbmc.Monitor):
         self.settings_monitor = SettingsMonitor()
         self.xmlHandler = XMLHandler()
         self.art_monitor = SlideshowMonitor(self.xmlHandler)
-        self._image_handler = ImageEditor(self.xmlHandler).image_handler
+        self._image_processor = ImageEditor(self.xmlHandler).image_processor
         # Run
         self._create_dirs()
         self._on_start()
@@ -76,27 +76,27 @@ class Monitor(xbmc.Monitor):
             refresh_interval = self.DEFAULT_REFRESH_INTERVAL
         return refresh_interval
 
-    def _current_item(self, container):
+    def _current_item(self, container='Container'):
         item = infolabel(f'{container}.CurrentItem')
         dbid = infolabel(f'{container}.ListItem.DBID')
         dbtype = infolabel(f'{container}.ListItem.DBType')
         return (item, dbid, dbtype)
 
-    def _get_info(self, container):
+    def _get_info(self, listitem='Container.ListItem'):
         split_random_return(
-            infolabel(f'{container}.ListItem.Director'), name='RandomDirector')
+            infolabel(f'{listitem}.Director'), name='RandomDirector')
         split_random_return(
-            infolabel(f'{container}.ListItem.Genre'), name='RandomGenre')
-        split(infolabel(f'{container}.ListItem.Writer'), name='WriterSplit')
-        split(infolabel(f'{container}.ListItem.Studio'), name='StudioSplit')
+            infolabel(f'{listitem}.Genre'), name='RandomGenre')
+        split(infolabel(f'{listitem}.Writer'), name='WriterSplit')
+        split(infolabel(f'{listitem}.Studio'), name='StudioSplit')
 
-    def _get_season_info(self, container):
+    def _get_season_info(self, listitem='Container.ListItem'):
         window_property('Season_Number', infolabel(
-            f'{container}.ListItem.Season'))
+            f'{listitem}.Season'))
         window_property('Season_Year', infolabel(
-            f'{container}.ListItem.Year'))
+            f'{listitem}.Year'))
         window_property('Season_Fanart', infolabel(
-            f'{container}.ListItem.Art(fanart)'))
+            f'{listitem}.Art(fanart)'))
 
     def _get_skindir(self):
         skindir = xbmc.getSkinDir()
@@ -114,8 +114,9 @@ class Monitor(xbmc.Monitor):
             self.check_settings = True
             log_and_execute('Skin.ToggleSetting(run_set_default)')
         
-    def _on_scroll(self, key='ListItem', images_to_process={}):
-        container = 'Container' if 'ListItem' in key else f'Container({key})'
+    def _on_scroll(self, key='Container', processes={}):
+        container = key if 'Container' in key else f'Container({key})'
+        source = f'{container}.ListItem'
         current_item, current_dbid, current_dbtype = self._current_item(
             container)
         if (
@@ -123,12 +124,10 @@ class Monitor(xbmc.Monitor):
             current_dbid != self.dbid or
             current_dbtype != self.dbtype
         ) and not self._container_scrolling(container):
-            if images_to_process:
-                self._image_processor(
-                    source=container, process=images_to_process
-                )
+            if processes:
+                self._image_processor(source=source, processes=processes)
             if 'season' in current_dbtype:
-                self._get_season_info(container)
+                self._get_season_info(source)
             self.position = current_item
             self.dbid = current_dbid
             self.dbtype = current_dbtype
@@ -185,7 +184,7 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3208) | '
             'Control.HasFocus(3209)]'
         ):
-            self._get_info('Container')
+            self._get_info()
             self.waitForAbort(0.2)
 
         # media view is visible and container content type not empty
@@ -212,10 +211,10 @@ class Monitor(xbmc.Monitor):
             }
             # secondary
             if condition('Control.HasFocus(3100)'):
-                self._on_scroll(key='3100',images_to_process=images_to_process)
+                self._on_scroll(key='3100',processes=images_to_process)
             # primary
             else:
-                self._on_scroll(images_to_process=images_to_process)
+                self._on_scroll(processes=images_to_process)
             self.waitForAbort(0.2)
 
         # home widgets has clearlogo visible
@@ -233,7 +232,7 @@ class Monitor(xbmc.Monitor):
             'Control.HasFocus(3209)]'
         ):
             widget = infolabel('System.CurrentControlID')
-            self._on_scroll(key=widget)
+            self._on_scroll(key=widget, processes={'fanart': 'blur'})
             self.waitForAbort(0.2)
 
         # slideshow window is visible run SlideshowMonitor()

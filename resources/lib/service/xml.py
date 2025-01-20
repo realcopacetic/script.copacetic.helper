@@ -36,7 +36,7 @@ class XMLHandler:
         return sub_element
 
     def write(self):
-        # Write to xml file then set flag to ensure updated file is reparsed on next load
+        # Write to xml file if sub_elements are waiting to be written, then set flag to ensure updated file is reparsed on next load
         if self._force_write:
             try:
                 self._cached_lookup.write(self.lookup, encoding="utf-8")
@@ -45,4 +45,4 @@ class XMLHandler:
             else:
                 self._force_read = True
                 self._force_write = False
-                log(f'Writing new element(s) to _lookup.xml file')
+                log(f'Writing new element(s) to _lookup.xml file', force=True)

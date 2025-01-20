@@ -3,14 +3,13 @@
 import hashlib
 import random
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from resources.lib.service.xml import XMLHandler
 from resources.lib.utilities import (BLUR_FOLDERPATH, CROP_FOLDERPATH, TEMP_FOLDERPATH,
                                      condition, infolabel, json_call,
                                      log, os, url_decode_path, validate_path,
                                      window_property, xbmc, xbmcvfs)
-
 
 class ImageEditor:
     def __init__(self, xml_handler=None):
@@ -20,103 +19,98 @@ class ImageEditor:
         self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
 
-    def image_handler(self, url=False, art_type='clearlogo', source='ListItem', process="crop"):
-        # fetch art url
-        path = source if source in [
-            'ListItem', 'VideoPlayer'
-        ] else f'Container({source}).ListItem'
-        art = {art_type: url} if url else self._fetch_art_url(
-            art_type, path)
-        # find art in lookup table or process and write to lookup if missing
-        attributes = self._lookup_art(art)
-        if not attributes:
-            process_method = getattr(self, f'_{process}_art', None)
-            attributes = process_method(art, path)
-            self._write_lookup(art_type, attributes)
-        return attributes
-    
+    def image_processor(self, source, processes):
         """
-                    
-                    clearlogos_root = root.find('clearlogos')
-                    self.xml.add_sub_element(
-                        clearlogos_root, 'clearlogo', attributes)
-            # Write to disk and populate window props for use within skin.copacetic
+        reporting_key = reporting_key + '_' if reporting_key else ''
+        reporting(key=f'{reporting_key}{name}_cropped',
+                    set=destination)
+        reporting(
+            key=f'{reporting_key}{name}_cropped-height', set=height)
+        if return_color:
+            reporting(
+                key=f'{reporting_key}{name}_cropped-color', set=color)
+            reporting(
+                key=f'{reporting_key}{name}_cropped-luminosity', set=luminosity)
+        return destination
+        """
+        try:
+            for key,value in processes.items():
+                attributes = self._handle_image(art_type=key, source=source, process=value)
+                log(f'FUCK {attributes}', force=True)
             self.xml.write()
+        except Exception as error:
+            log(f"ImageEditor: Error during XML write --> {error}", force=True)
+    
+    def _handle_image(self, url=False, art_cat='clearlogos', art_type='clearlogo', source='Container.ListItem', process='crop'):
+        # fetch art url
+        art_cat = 'clearlogos' if 'clearlogo' in art_type else f'{art_type}s'
+        art = {art_type: url} if url else self._fetch_art_url(
+            art_type, source)
+        if art:
+            # check for processed art in lookup table
+            attributes = self._lookup_art(art_cat, art)
+            # or process and write to lookup if missing
+            if not attributes:
+                process_method = getattr(self, f'_{process}_art', None)
+                attributes = process_method(art, source)
+                self._write_lookup(art_type, attributes)
+            return attributes
 
-
-        root = self.xml.get_root()
-        for key, value in list(clearlogos.items()):
-            name = type or key
-            destination, height, color, luminosity = 0, 0, 'ff000000', 0
-            if value:
-                for node in root.find('clearlogos'):
-                    clearlogo_path = node.attrib.get('path', None)
-                    if value in node.attrib['name'] and validate_path(clearlogo_path):
-                        destination = clearlogo_path
-                        height = node.attrib.get('height', None)
-                        color = node.attrib.get('color', None)
-                        luminosity = node.attrib.get('luminosity', None)
-                        break
-                else:
-                    destination, height, color, luminosity = self._crop_image(
-                        value)
-                    attributes = {
-                        'name': value,
-                        'path': destination,
-                        'height': str(height),
-                        'color': color,
-                        'luminosity': str(luminosity)
-                    }
-                    clearlogos_root = root.find('clearlogos')
-                    self.xml.add_sub_element(
-                        clearlogos_root, 'clearlogo', attributes)
-            # Write to disk and populate window props for use within skin.copacetic
-            self.xml.write()
-            reporting_key = reporting_key + '_' if reporting_key else ''
-            reporting(key=f'{reporting_key}{name}_cropped', set=destination)
-            reporting(key=f'{reporting_key}{name}_cropped-height', set=height)
-            if return_color:
-                reporting(
-                    key=f'{reporting_key}{name}_cropped-color', set=color)
-                reporting(
-                    key=f'{reporting_key}{name}_cropped-luminosity', set=luminosity)
-            return destination
-            """
-
-    def _fetch_art_url(self, art_type, path):
+    def _fetch_art_url(self, art_type, source):
         art = {art_type: False}
-        url = infolabel(f'{path}.Art({art_type})')
+        url = infolabel(f'{source}.Art({art_type})')
         if url:
             art[art_type] = url
-        return art
+            return art
 
-    def _lookup_art(self, art):
+    def _lookup_art(self, art_cat, art):
         root = self.xml.get_root()
         art = list(art.items())[0]
-        for node in root.find(f'{art[0]}s'):
-            processed = node.attrib.get('processed', None)
-            if art[1] in node.attrib['url'] and validate_path(processed):
-                attributes = {key: value for key, value in node.attrib.items()}
-                return attributes
+        if art[1]:
+            for node in root.find(art_cat):
+                processed = node.attrib.get('processed', None)
+                if art[1] in node.attrib['url'] and validate_path(processed):
+                    attributes = {key: value for key, value in node.attrib.items()}
+                    return attributes
     
     def _write_lookup(self, art_type, attributes):
-        root = self.xml.get_root()
-        art_type_root = root.find(f'{art_type}s')
-        self.xml.add_sub_element(art_type_root, art_type, attributes)
-        self.xml.write()
+        if attributes:
+            art_type = 'clearlogo' if 'clearlogo' in art_type else art_type
+            root = self.xml.get_root()
+            art_type_root = root.find(f'{art_type}s')
+            self.xml.add_sub_element(art_type_root, art_type, attributes)
 
-    def _blur_art(self, art):
+    def _blur_art(self, art, source):
         art = list(art.items())[0]
-        filepath = self._get_filepath(art[1], self.blur_folder, '.jpg')
-        url = self._get_cached_art(filepath, '.jpg')
-
-    def _crop_art(self, art, path):
-        art = list(art.items())[0]
-        filepath = self._get_filepath(art[1], self.crop_folder, '.png')
-        url = self._get_cached_art(filepath, '.png')
-        #  Open and crop, then get height and color
+        url = art[1]
+        source_url, destination_url = self._generate_image_urls(
+            self.blur_folder, url, '.jpg')
         try:
-            image = self._image_open(url)
+            image = self._image_open(source_url)
+        except Exception as error:
+            log(
+                f'ImageEditor: Error - could not open cached image --> {error}', force=True)
+        else:
+            image.thumbnail((96, 54))
+            image = image.filter(ImageFilter.GaussianBlur(radius=25))
+            with xbmcvfs.File(destination_url, 'wb') as f:  # Save new image
+                image.save(f, 'JPEG')
+                log(
+                    f'ImageEditor: Image blurred and saved: {url} --> {destination_url}')
+            return {
+                'art_type': art[0],
+                'url': url,
+                'processed': destination_url,
+                'id': infolabel(f'{source}.dbid'),
+            }
+
+    def _crop_art(self, art, source):
+        art = list(art.items())[0]
+        url = art[1]
+        source_url, destination_url = self._generate_image_urls(
+            self.crop_folder, url, '.png')
+        try:
+            image = self._image_open(source_url)
         except Exception as error:
             log(
                 f'ImageEditor: Error - could not open cached image --> {error}', force=True)
@@ -134,35 +128,50 @@ class ImageEditor:
                 width, height = image.size
                 if width > 1600 or height > 620:
                     image.thumbnail((1600, 620))
-                with xbmcvfs.File(filepath, 'wb') as f:  # Save new image
+                with xbmcvfs.File(destination_url, 'wb') as f:  # Save new image
                     image.save(f, 'PNG')
                 height, color, luminosity = self._image_functions(image)
                 log(
-                    f'ImageEditor: Image cropped and saved: {url} --> {filepath}')
-                if self.temp_folder in url:  # If temp file  created, delete it now
-                    xbmcvfs.delete(url)
-                    log(f'ImageEditor: Temporary file deleted --> {url}')
-        return {
-            'id': infolabel(f'{path}.dbid'),
-            'url': art[1],
-            'processed': filepath, 
-            'height': height, 
-            'color': color, 
-            'luminosity': luminosity
-        }
+                    f'ImageEditor: Image cropped and saved: {url} --> {destination_url}')
+                if self.temp_folder in source_url:  # If temp file  created, delete it now
+                    xbmcvfs.delete(source_url)
+                    log(
+                        f'ImageEditor: Temporary file deleted --> {source_url}')
+            return {
+                'art_type': art[0],
+                'url': url,
+                'processed': destination_url,
+                'id': infolabel(f'{source}.dbid'),
+                'height': height, 
+                'color': color, 
+                'luminosity': luminosity
+            }
 
-    def _get_filepath(self, url, folder, suffix):
-        filename = f'{hashlib.md5(url.encode()).hexdigest()}.png'
-        filepath = url_decode_path(os.path.join(folder, filename))
-        return filepath
+    def _get_cached_thumb(self, url, suffix):
+        # use source url to generate cached url
+        cached_thumb = xbmc.getCacheThumbName(url).replace('.tbn', f'{suffix}')
+        return cached_thumb
+    
+    def _generate_image_urls(self, folder, url, suffix):
+        decoded_url = url_decode_path(url)
+        cached_thumb = self._get_cached_thumb(decoded_url, suffix)
+        source_url = os.path.join(
+            f'special://profile/Thumbnails/{cached_thumb[0]}/', cached_thumb
+        )
+        destination_url = os.path.join(folder, cached_thumb)
+        if validate_path(source_url):
+            return source_url, destination_url
+        else:
+            source_url = self._create_temp_file(decoded_url, cached_thumb)
+            return source_url, destination_url
 
-    def _get_cached_art(self, filepath, suffix):
-        cached_thumb = xbmc.getCacheThumbName(filepath).replace('.tbn', '')
-        cached_url = os.path.join(
-            'special://profile/Thumbnails/', f'{cached_thumb[0]}/', cached_thumb + suffix)
-        if validate_path(cached_url):
-            return cached_url
-        return self._create_temp_file(filepath, suffix)
+    def _create_temp_file(self, url, cached_thumb):
+        # create temp file from original url
+        temp_url = os.path.join(self.temp_folder, cached_thumb)
+        if not validate_path(temp_url):
+            xbmcvfs.copy(url, temp_url)
+            log(f'ImageEditor: Temporary file created --> {temp_url}')
+        return temp_url
 
     def return_luminosity(self, rgb):
         # Credit to Mark Ransom for luminosity calculation
@@ -202,7 +211,7 @@ class ImageEditor:
                          color in opaque_pixeldata for _ in range(count)]
         if not opaque_pixeldata:
             log('ImageEditor: Error - No opaque pixels found for calculation of dominant colour and luminosity', force=True)
-            return ('ff000000', 0)
+            return ('ff000000', '0')
         else:
             # Create a palette directly from the opaque pixels
             paletted = Image.new('RGBA', (len(opaque_pixels), 1))
@@ -217,7 +226,7 @@ class ImageEditor:
             except IndexError as error:
                 log(
                     f'ImageEditor: Error - could not calculate dominant colour for {infolabel("ListItem.Label")} --> {error}', force=True)
-                return ('ff000000', 0)
+                return ('ff000000', '0')
             else:
                 # Convert to rgb and calculate luminosity
                 dominant = palette[palette_index*3:palette_index*3+3]
@@ -225,15 +234,6 @@ class ImageEditor:
                 luminosity = int(luminosity * 1000)
                 dominant = self._rgb_to_hex(dominant)
                 return (dominant, str(luminosity))
-
-    def _create_temp_file(self, cleaned_source, suffix):
-        # Create temp file to avoid access issues to direct source
-        filename = f'{hashlib.md5(cleaned_source.encode()).hexdigest()}.png'
-        destination = os.path.join(self.temp_folder, filename)
-        if not validate_path(destination):
-            xbmcvfs.copy(cleaned_source, destination)
-            log(f'ImageEditor: Temporary file created --> {destination}')
-        return destination
 
     def _return_scaled_height(self, image):
         image.thumbnail(self.clearlogo_bbox)
@@ -250,7 +250,7 @@ class SlideshowMonitor:
 
     def __init__(self, xml_handler=None):
         self.xml = xml_handler if xml_handler else XMLHandler()
-        self.cropper = ImageEditor(self.xml).image_handler
+        self.cropper = ImageEditor(self.xml).image_processor
         # Establish available art types in the db:
         self.art_types = [art_type for art_type in ['movies', 'tvshows',
                                                     'video', 'music'] if condition(f'Library.HasContent({art_type})')]
