@@ -21,6 +21,10 @@ class ImageEditor:
 
     def image_processor(self, source, processes):
         """
+        Window props
+        Refactor common code in blur_art and crop_art
+        Play around with size of blur
+
         reporting_key = reporting_key + '_' if reporting_key else ''
         reporting(key=f'{reporting_key}{name}_cropped',
                     set=destination)
