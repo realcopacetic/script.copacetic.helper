@@ -45,4 +45,4 @@ class XMLHandler:
             else:
                 self._force_read = True
                 self._force_write = False
-                log(f'Writing new element(s) to _lookup.xml file', force=True)
+                log(f'Writing new element(s) to _lookup.xml file')

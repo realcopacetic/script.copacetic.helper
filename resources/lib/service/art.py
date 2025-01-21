@@ -20,27 +20,12 @@ class ImageEditor:
         self.temp_folder = TEMP_FOLDERPATH
 
     def image_processor(self, source, processes):
-        """
-        Window props
-        Refactor common code in blur_art and crop_art
-        Play around with size of blur
-
-        reporting_key = reporting_key + '_' if reporting_key else ''
-        reporting(key=f'{reporting_key}{name}_cropped',
-                    set=destination)
-        reporting(
-            key=f'{reporting_key}{name}_cropped-height', set=height)
-        if return_color:
-            reporting(
-                key=f'{reporting_key}{name}_cropped-color', set=color)
-            reporting(
-                key=f'{reporting_key}{name}_cropped-luminosity', set=luminosity)
-        return destination
-        """
         try:
-            for key,value in processes.items():
-                attributes = self._handle_image(art_type=key, source=source, process=value)
-                log(f'FUCK {attributes}', force=True)
+            for art_type, process in processes.items():
+                attributes = self._handle_image(art_type=art_type, source=source, process=process)
+                if attributes:
+                    for key, value in attributes.items():
+                        window_property(f'{art_type}_{process}_{key}',value)
             self.xml.write()
         except Exception as error:
             log(f"ImageEditor: Error during XML write --> {error}", force=True)
@@ -52,7 +37,7 @@ class ImageEditor:
             art_type, source)
         if art:
             # check for processed art in lookup table
-            attributes = self._lookup_art(art_cat, art)
+            attributes = self._read_lookup(art_cat, art)
             # or process and write to lookup if missing
             if not attributes:
                 process_method = getattr(self, f'_{process}_art', None)
@@ -67,7 +52,7 @@ class ImageEditor:
             art[art_type] = url
             return art
 
-    def _lookup_art(self, art_cat, art):
+    def _read_lookup(self, art_cat, art):
         root = self.xml.get_root()
         art = list(art.items())[0]
         if art[1]:
@@ -95,14 +80,13 @@ class ImageEditor:
             log(
                 f'ImageEditor: Error - could not open cached image --> {error}', force=True)
         else:
-            image.thumbnail((96, 54))
-            image = image.filter(ImageFilter.GaussianBlur(radius=25))
+            image.thumbnail((384, 216))
+            image = image.filter(ImageFilter.GaussianBlur(radius=50))
             with xbmcvfs.File(destination_url, 'wb') as f:  # Save new image
                 image.save(f, 'JPEG')
                 log(
                     f'ImageEditor: Image blurred and saved: {url} --> {destination_url}')
             return {
-                'art_type': art[0],
                 'url': url,
                 'processed': destination_url,
                 'id': infolabel(f'{source}.dbid'),
@@ -142,7 +126,6 @@ class ImageEditor:
                     log(
                         f'ImageEditor: Temporary file deleted --> {source_url}')
             return {
-                'art_type': art[0],
                 'url': url,
                 'processed': destination_url,
                 'id': infolabel(f'{source}.dbid'),
