@@ -15,6 +15,7 @@ class ImageEditor:
     def __init__(self, xml_handler=None):
         self.xml = xml_handler if xml_handler else XMLHandler()
         self.clearlogo_bbox = (600, 240)
+        self.blur_bbox = (640, 360)
         self.blur_folder = BLUR_FOLDERPATH
         self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
@@ -80,12 +81,16 @@ class ImageEditor:
             log(
                 f'ImageEditor: Error - could not open cached image --> {error}', force=True)
         else:
-            image.thumbnail((384, 216))
+            image.thumbnail(self.blur_bbox)
             image = image.filter(ImageFilter.GaussianBlur(radius=50))
             with xbmcvfs.File(destination_url, 'wb') as f:  # Save new image
                 image.save(f, 'JPEG')
                 log(
                     f'ImageEditor: Image blurred and saved: {url} --> {destination_url}')
+                if self.temp_folder in source_url:  # If temp file  created, delete it now
+                    xbmcvfs.delete(source_url)
+                    log(
+                        f'ImageEditor: Temporary file deleted --> {source_url}')
             return {
                 'url': url,
                 'processed': destination_url,
