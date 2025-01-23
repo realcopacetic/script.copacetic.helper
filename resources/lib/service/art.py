@@ -20,18 +20,28 @@ class ImageEditor:
         self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
 
-    def image_processor(self, source, processes):
+    def image_processor(self, dbid, source, processes):
+        window_props = {
+            'url': False, 
+            'processed': False, 
+            'height': False,
+            'color': False,
+            'luminosity': False
+        }
         try:
             for art_type, process in processes.items():
-                attributes = self._handle_image(art_type=art_type, source=source, process=process)
+                attributes = self._handle_image(dbid=dbid, source=source, art_type=art_type, process=process)
                 if attributes:
-                    for key, value in attributes.items():
-                        window_property(f'{art_type}_{process}_{key}',value)
+                    window_props = attributes
+                for key, value in window_props.items():
+                    window_property(f'{art_type}_{process}_{key}',value)
+
+
             self.xml.write()
         except Exception as error:
             log(f"ImageEditor: Error during XML write --> {error}", force=True)
     
-    def _handle_image(self, url=False, art_cat='clearlogos', art_type='clearlogo', source='Container.ListItem', process='crop'):
+    def _handle_image(self, dbid=False, source='Container.ListItem', url=False, art_cat='clearlogos', art_type='clearlogo', process='crop'):
         # fetch art url
         art_cat = 'clearlogos' if 'clearlogo' in art_type else f'{art_type}s'
         art = {art_type: url} if url else self._fetch_art_url(
@@ -42,7 +52,8 @@ class ImageEditor:
             # or process and write to lookup if missing
             if not attributes:
                 process_method = getattr(self, f'_{process}_art', None)
-                attributes = process_method(art, source)
+                log(f'FUCK_ {dbid} - {art}', force=True)
+                attributes = process_method(dbid, art)
                 self._write_lookup(art_type, attributes)
             return attributes
 
@@ -70,7 +81,7 @@ class ImageEditor:
             art_type_root = root.find(f'{art_type}s')
             self.xml.add_sub_element(art_type_root, art_type, attributes)
 
-    def _blur_art(self, art, source):
+    def _blur_art(self, source, art):
         art = list(art.items())[0]
         url = art[1]
         source_url, destination_url = self._generate_image_urls(
@@ -94,10 +105,9 @@ class ImageEditor:
             return {
                 'url': url,
                 'processed': destination_url,
-                'id': infolabel(f'{source}.dbid'),
             }
 
-    def _crop_art(self, art, source):
+    def _crop_art(self, source, art):
         art = list(art.items())[0]
         url = art[1]
         source_url, destination_url = self._generate_image_urls(
@@ -133,7 +143,6 @@ class ImageEditor:
             return {
                 'url': url,
                 'processed': destination_url,
-                'id': infolabel(f'{source}.dbid'),
                 'height': height, 
                 'color': color, 
                 'luminosity': luminosity

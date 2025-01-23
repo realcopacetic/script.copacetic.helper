@@ -125,7 +125,7 @@ class Monitor(xbmc.Monitor):
             current_dbtype != self.dbtype
         ) and not self._container_scrolling(container):
             if processes:
-                self._image_processor(source=source, processes=processes)
+                self._image_processor(current_dbid, source, processes)
             if 'season' in current_dbtype:
                 self._get_season_info(source)
             self.position = current_item
@@ -163,14 +163,8 @@ class Monitor(xbmc.Monitor):
             log(f'Monitor stopped', force=True)
 
     def poller(self):
-        # video playing fullscreen
-        if condition(
-            'VideoPlayer.IsFullscreen'
-        ):
-            self.waitForAbort(1)
-
         # info screen visible and main menu selected
-        elif condition(
+        if condition(
             '[Window.Is(movieinformation) | '
             'Window.Is(musicinformation) | '
             'Window.Is(songinformation)] + !['
@@ -190,18 +184,8 @@ class Monitor(xbmc.Monitor):
         # media view is visible and container content type not empty
         elif condition(
             '[Window.Is(videos) | Window.Is(music)] + '
-            '[Container.Content(movies) | '
-            'Container.Content(sets) | '
-            'Container.Content(tvshows) | '
-            'Container.Content(seasons) | '
-            'Container.Content(episodes) | '
-            'Container.Content(videos) | '
-            'Container.Content(artists) | '
-            'Container.Content(albums) | '
-            'Container.Content(songs) | '
-            'Container.Content(musicvideos)]'
-        ) and (
-            condition('!String.IsEmpty(ListItem.Art(clearlogo))')
+            '!Container.Content() + '
+            '!String.IsEmpty(ListItem.Art(fanart))'
         ):
             images_to_process = {
                 'clearlogo': 'crop',
@@ -209,13 +193,13 @@ class Monitor(xbmc.Monitor):
                 'clearlogo-billboard': 'crop',
                 'fanart': 'blur'
             }
-            # secondary
+            # secondary list     
             if condition('Control.HasFocus(3100)'):
                 self._on_scroll(key='3100',processes=images_to_process)
-            # primary
+            # primary list
             else:
                 self._on_scroll(processes=images_to_process)
-            self.waitForAbort(0.2)
+            self.waitForAbort(0.1)
 
         # home widgets has clearlogo visible
         elif condition(
@@ -233,7 +217,7 @@ class Monitor(xbmc.Monitor):
         ):
             widget = infolabel('System.CurrentControlID')
             self._on_scroll(key=widget, processes={'fanart': 'blur'})
-            self.waitForAbort(0.2)
+            self.waitForAbort(0.)
 
         # slideshow window is visible run SlideshowMonitor()
         elif condition(
@@ -274,12 +258,12 @@ class Monitor(xbmc.Monitor):
             self.art_monitor.background_slideshow()
             self._on_skinsettings()
             self._on_recommendedsettings()
-            self.waitForAbort(self._get_refresh_interval()) # Run background_slideshow() at interval defined by skin setting
+            self.waitForAbort(0.5)
         # else wait for next poll
         else:
             self.check_cache = True
             self.check_settings = True
-            self.waitForAbort(1)
+            self.waitForAbort(0.5)
 
     def onScreensaverActivated(self):
         self.idle = True
