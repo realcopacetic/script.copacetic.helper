@@ -52,7 +52,6 @@ class ImageEditor:
             # or process and write to lookup if missing
             if not attributes:
                 process_method = getattr(self, f'_{process}_art', None)
-                log(f'FUCK_ {dbid} - {art}', force=True)
                 attributes = process_method(dbid, art)
                 self._write_lookup(art_type, attributes)
             return attributes

@@ -20,7 +20,6 @@ def clean_filename(label=False, **kwargs):
 
     window_property('Return_Label', set=label)
 
-
 def dialog_yesno(heading, message, **kwargs):
     yes_actions = kwargs.get('yes_actions', '').split('|')
     no_actions = kwargs.get('no_actions', 'Null').split('|')
@@ -31,7 +30,6 @@ def dialog_yesno(heading, message, **kwargs):
     else:
         for action in no_actions:
             log_and_execute(action)
-
 
 def get_collection_status(dbid, **kwargs):
     window_property('collection_watched_calculating', set='true')
@@ -261,6 +259,14 @@ def rate_song(**kwargs):
         player.updateInfoTag(item)
         '''
 
+
+def set_edit(id, return_id, **kwargs):
+    text = str(kwargs.get('text', ''))
+    log_and_execute(f'SetFocus({id})')
+    xbmc.Monitor().waitForAbort(0.05)
+    json_call('Input.SendText',
+            params={'text': text, 'done': True},
+            parent='set_edit')
 
 def shuffle_artist(**kwargs):
     clear_playlists()
