@@ -4,7 +4,7 @@ import xbmc
 from xbmcgui import ListItem
 
 
-def add_items(li, json_query, type):
+def add_items(li, json_query, type='helper'):
     for item in json_query:
         if type == 'movie':
             set_movie(li, item)
@@ -14,7 +14,17 @@ def add_items(li, json_query, type):
             set_episode(li, item)
         elif type == 'musicvideo':
             set_musicvideo(li, item)
+        else:
+            set_helper(li, item)
 
+
+def set_helper(li, item):
+    li_item = ListItem(item['title'], offscreen=True)
+    videoInfoTag = li_item.getVideoInfoTag()
+    videoInfoTag.setResumePoint(
+        item['resume']['position'], item['resume']['total']
+    )
+    li.append(('xyz', li_item, False))
 
 def set_movie(li, item):
     li_item = ListItem(item['title'], offscreen=True)

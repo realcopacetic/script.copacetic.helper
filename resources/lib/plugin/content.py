@@ -10,8 +10,10 @@ class PluginContent(object):
     def __init__(self, params, li):
         self.dbtitle = params.get('title')
         self.dbtype = params.get('type')
+        self.dbid = params.get('id')
         self.limit = params.get('limit')
         self.label = params.get('label')
+        self.target = params.get('target')
         self.exclude_key = params.get('exclude_key')
         self.exclude_value = params.get('exclude_value')
         self.li = li
@@ -64,6 +66,51 @@ class PluginContent(object):
             self.filter_exclude = {'field': self.exclude_key,
                                    'operator': 'isnot', 'value': self.exclude_value}
 
+    def helper(self):
+        log(f'FUCK75_', force=True)
+        resume = {'position': 0, 'total': 100}
+        progress_types = [
+            'ListItem.PercentPlayed',
+            'ListItem.Property(WatchedEpisodePercent)'
+        ]
+        for type in progress_types:
+            position = infolabel(type)
+            if position:
+                log(f'FUCK99_{position}', force=True)
+                resume['position'] = int(position)
+                break
+        else:
+            if 'set' in self.dbtype:
+                log(f'FUCK76_', force=True)
+                watched = 0
+                query = json_call(
+                    'VideoLibrary.GetMovieSetDetails',
+                    params={'setid': int(self.dbid)},
+                    parent='get_set_movies'
+                )
+                try:
+                    total = query['result']['setdetails']['limits']['total']
+                    movies = query['result']['setdetails']['movies']
+                except KeyError:
+                    total = 0
+                else:
+                    for movie in movies:
+                        query = json_call(
+                            'VideoLibrary.GetMovieDetails',
+                            params={'properties': [
+                                'playcount'], 'movieid': movie['movieid']},
+                            parent='get_movie_playcounts'
+                        )
+                        playcount = query['result']['moviedetails'].get('playcount')
+                        if playcount:
+                            watched += 1
+                finally:
+                    # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
+                    log(f'FUCK77_ {watched} / {total}', force=True)
+                    resume['position'] = (total and watched / total or 0) * 100
+        data = [{'title': infolabel('ListItem.Label'), 'resume': resume}]
+        add_items(self.li, data)
+    
     def in_progress(self):
         filters = [self.filter_inprogress]
 
@@ -80,7 +127,7 @@ class PluginContent(object):
                 log('Widget in_progress: No movies found.')
             else:
                 add_items(self.li, json_query, type='movie')
-
+        
         if self.dbtype != 'movie':
             json_query = json_call('VideoLibrary.GetEpisodes',
                                    properties=JSON_MAP['episode_properties'],
