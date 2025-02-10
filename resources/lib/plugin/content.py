@@ -38,6 +38,7 @@ class DataHandler:
         genre = split_random(self.infolabels["Genre"])
         resume, unwatched = self._resumepoint()
         studio = self._studio()
+        multiart = self._multiart()
         return {
             'title': return_label(self.infolabels["Label"]),
             'director': director,
@@ -45,7 +46,8 @@ class DataHandler:
             'genre': genre,
             'resume': {'position': resume, 'total': 100},
             'unwatchedepisodes': str(unwatched),
-            'studio': studio
+            'studio': studio,
+            'art': multiart
         }
 
     def _resumepoint(self):
@@ -88,6 +90,25 @@ class DataHandler:
             if condition('String.IsEqual(ListItem.DBID,Container(3100).ListItem.SetID)'):
                 return True
             xbmc.sleep(10)
+        return False
+    
+    def _multiart(self):
+        multiart = {}
+        if self._wait_for_art():
+            art_type = infolabel('Control.GetLabel(6400)')
+            for count in range(16):
+                position = str(count) if count > 0 else ''
+                art = infolabel(f'ListItem.Art({art_type}{position})')
+                if art:
+                    multiart[f"multiart{position}"] = art
+        return multiart
+
+    def _wait_for_art(self):
+        timeout = time.time() + 2  # Set a timeout 2s in the future
+        while time.time() < timeout:
+            if condition('!String.IsEmpty(Control.GetLabel(6010))'):
+                return True
+            xbmc.sleep(10)  # Sleep for 10ms before retrying
         return False
 
 
@@ -136,7 +157,8 @@ class PluginContent(object):
             self.data = future_data.result()
             self.processed_images = future_images.result()
         if self.processed_images:
-            self.data.fetched['art'] = self.processed_images
+            self.data.fetched.setdefault(
+                'art', {}).update(self.processed_images)
         add_items(self.li, [self.data.fetched])
 
     def in_progress(self):
