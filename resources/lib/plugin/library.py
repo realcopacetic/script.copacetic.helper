@@ -29,6 +29,8 @@ def set_helper(li, item):
     videoInfoTag.setGenres([item['genre']])
     videoInfoTag.setStudios([item['studio']])
     li_item.setProperty('unwatchedepisodes', item['unwatchedepisodes'])
+    if item.get('art'):
+        li_item.setArt(item['art'])
     li.append(('file', li_item, False))
 
 def set_movie(li, item):

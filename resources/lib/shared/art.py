@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import random
+import time
 
 from PIL import Image, ImageFilter
 
@@ -23,34 +24,56 @@ class ImageEditor:
 
     def image_processor(self, dbid, source, processes):
         log(f"ImageEditor: Processing image for dbid: {dbid}, source: {source}, processes: {processes}")
+        attributes = []
+        art = {}
         try:
             for art_type, process in processes.items():
-                attributes = self._handle_image(dbid=dbid, source=source, art_type=art_type, process=process)
-            return attributes
+                current_attributes = self._handle_image(dbid=dbid, source=source, art_type=art_type, process=process)
+                attributes.append(current_attributes)
         except Exception as error:
             log(f"ImageEditor: Error during SQL write --> {error}", force=True)
-    
+        else:
+            for attribute in attributes:
+                if not attribute:  # Skip if attribute is None
+                    continue
+                try:
+                    if attribute["processed"]:
+                        art[f'{attribute["category"]}'] = attribute["processed"]
+                    for key in ["height", "color", "luminosity"]:
+                        value = attribute.get(key)
+                        if value is not None:
+                            art[f'{attribute["category"]}_{key}'] = value
+                except (TypeError, KeyError):
+                    continue  # Skip empty attributes
+            return art
+
     def _handle_image(self, dbid=False, source='Container.ListItem', url=False, art_type='clearlogo', process='crop'):
         # fetch art url
-        art_cat = 'clearlogos' if 'clearlogo' in art_type else f'{art_type}s'
         art = {art_type: url} if url else self._fetch_art_url(
-            art_type, source)
+            source, art_type)
         if art:
             # check for processed art in lookup table
             attributes = self._read_lookup(art)
             # or process and write to lookup if missing
             if not attributes:
                 process_method = getattr(self, f'_{process}_art', None)
-                attributes = process_method(dbid, art)
-                self._write_lookup(art_cat, art_type, attributes)
+                attributes = process_method(art)
+                self._write_lookup(art_type, attributes)
             return attributes
 
-    def _fetch_art_url(self, art_type, source):
+    def _fetch_art_url(self, source, art_type):
         art = {art_type: False}
-        url = infolabel(f'{source}.Art({art_type})')
-        if url:
-            art[art_type] = url
+        if self._wait_for_art(source, art_type):
+            art[art_type] = infolabel(f'{source}.Art({art_type})')
             return art
+    
+    def _wait_for_art(self, source, art_type):
+        timeout = time.time() + 2  # Set a timeout 2s in the future
+        while time.time() < timeout:
+            if condition('!String.IsEmpty(Control.GetLabel(6010))'):
+                return True
+            xbmc.sleep(10)  # Sleep for 10ms before retrying
+        return False
 
     def _read_lookup(self, art):
         url = list(art.values())[0] if art else None
@@ -59,37 +82,13 @@ class ImageEditor:
         attributes = self.sqlite.get_entry(url)
         return attributes if attributes and validate_path(attributes["processed"]) else None
     
-    def _write_lookup(self, art_cat, art_type, attributes):
+    def _write_lookup(self, art_type, attributes):
         #   writes processed image data to JSON
         if attributes:
             art_type = 'clearlogo' if 'clearlogo' in art_type else art_type
-            self.sqlite.add_entry(art_cat, attributes)
+            self.sqlite.add_entry(art_type, attributes)
 
-    def _process_image(self, folder, art, extension, process_func):
-        art = list(art.items())[0]
-        url = art[1]
-        source_url, destination_url = self._generate_image_urls(folder, url, extension)
-        try:
-            image = self._image_open(source_url)
-        except Exception as error:
-            log(
-                f'ImageEditor: Error - could not open cached image --> {error}', force=True)
-            return None
-        else:
-            result = process_func(image)
-            with xbmcvfs.File(destination_url, 'wb') as f:
-                result['image'].save(f, result.get('format', 'PNG'))
-                log(f'ImageEditor: Image processed and saved: {url} --> {destination_url}')
-                if self.temp_folder in source_url:  # If temp file created, delete it now
-                    xbmcvfs.delete(source_url)
-                    log(f'ImageEditor: Temporary file deleted --> {source_url}')
-            return {
-                'url': url,
-                'processed': destination_url,
-                **result.get('metadata', {})  # Merge additional metadata if available
-            }
-
-    def _blur_art(self, source, art):
+    def _blur_art(self, art):
         def blur(image):
             image.thumbnail(self.blur_bbox)
             image = image.filter(ImageFilter.GaussianBlur(radius=50))
@@ -99,7 +98,7 @@ class ImageEditor:
             }
         return self._process_image(self.blur_folder, art, '.jpg', blur)
 
-    def _crop_art(self, source, art):
+    def _crop_art(self, art):
         def crop(image):
             converted_image = Image.new("RGBA", image.size)
             converted_image.paste(image)
@@ -120,6 +119,35 @@ class ImageEditor:
                 'metadata': {'height': height, 'color': color, 'luminosity': luminosity}
             }
         return self._process_image(self.crop_folder, art, '.png', crop)
+
+    def _process_image(self, folder, art, extension, process_func):
+        art = list(art.items())[0]
+        url = art[1]
+        source_url, destination_url = self._generate_image_urls(
+            folder, url, extension)
+        try:
+            image = self._image_open(source_url)
+        except Exception as error:
+            log(
+                f'ImageEditor: Error - could not open cached image --> {error}', force=True)
+            return None
+        else:
+            result = process_func(image)
+            with xbmcvfs.File(destination_url, 'wb') as f:
+                result['image'].save(f, result.get('format', 'PNG'))
+                log(
+                    f'ImageEditor: Image processed and saved: {url} --> {destination_url}')
+                if self.temp_folder in source_url:  # If temp file created, delete it now
+                    xbmcvfs.delete(source_url)
+                    log(
+                        f'ImageEditor: Temporary file deleted --> {source_url}')
+            return {
+                'category': art[0],
+                'url': url,
+                'processed': destination_url,
+                # Merge additional metadata if available
+                **result.get('metadata', {})
+            }
 
     def _get_cached_thumb(self, url, suffix):
         # use source url to generate cached url

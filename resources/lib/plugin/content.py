@@ -24,7 +24,8 @@ class DataHandler:
             "Studio",
             "PercentPlayed",
             "Property(WatchedEpisodePercent)",
-            "Property(WatchedProgress)"
+            "Property(WatchedProgress)",
+            "Property(UnwatchedEpisodes)"
         ])
         self.fetched = self.fetch_data()
 
@@ -48,6 +49,7 @@ class DataHandler:
         }
 
     def _resumepoint(self):
+        unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
         progress_types = [
             self.infolabels["PercentPlayed"],
             self.infolabels["Property(WatchedEpisodePercent)"],
@@ -56,21 +58,22 @@ class DataHandler:
         resume = next((value for p in progress_types if p.isdigit()
                       and (value := int(p)) > 0), 0)
         if resume:
-            return resume, False
-        if condition(f'String.IsEqual({self.listitem}.Overlay,OverlayWatched.png)'):
-            return 100, False
-        if 'set' in self.dbtype and self._wait_for_set_match():
-            total = int(infolabel('Container(3100).NumItems') or 0)
-            watched = sum(
-                condition(
-                    f'Integer.IsGreater(Container(3100).ListItem({x}).PlayCount,0)')
-                for x in range(total)
-            )
-            # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
-            resume = (total and watched / total or 0) * 100
-            unwatched = (total - watched)
             return resume, unwatched
-        return resume, False
+        if condition(f'String.IsEqual({self.listitem}.Overlay,OverlayWatched.png)'):
+            return 100, ''
+        if 'set' in self.dbtype:
+            if self._wait_for_set_match():
+                total = int(infolabel('Container(3100).NumItems') or 0)
+                watched = sum(
+                    condition(
+                        f'Integer.IsGreater(Container(3100).ListItem({x}).PlayCount,0)')
+                    for x in range(total)
+                )
+                # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
+                resume = (total and watched / total or 0) * 100
+                unwatched = (total - watched)
+                return resume, unwatched
+        return resume, unwatched
 
     def _studio(self):
         if 'set' in self.dbtype:
@@ -124,8 +127,6 @@ class PluginContent(object):
     def helper(self):
         images_to_process = {
             'clearlogo': 'crop',
-            # 'clearlogo-alt': 'crop',
-            # 'clearlogo-billboard': 'crop',
             'fanart': 'blur'
         }
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -134,6 +135,8 @@ class PluginContent(object):
 
             self.data = future_data.result()
             self.processed_images = future_images.result()
+        if self.processed_images:
+            self.data.fetched['art'] = self.processed_images
         add_items(self.li, [self.data.fetched])
 
     def in_progress(self):
