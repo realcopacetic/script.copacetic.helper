@@ -24,7 +24,12 @@ def set_helper(li, item):
     videoInfoTag.setResumePoint(
         item['resume']['position'], item['resume']['total']
     )
-    li.append(('xyz', li_item, False))
+    videoInfoTag.setDirectors([item['director']])
+    videoInfoTag.setWriters([item['writer']])
+    videoInfoTag.setGenres([item['genre']])
+    videoInfoTag.setStudios([item['studio']])
+    li_item.setProperty('unwatchedepisodes', item['unwatchedepisodes'])
+    li.append(('file', li_item, False))
 
 def set_movie(li, item):
     li_item = ListItem(item['title'], offscreen=True)

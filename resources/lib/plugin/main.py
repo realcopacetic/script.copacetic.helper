@@ -13,21 +13,16 @@ class Main:
     def __init__(self):
         self._parse_argv()
         self.info = self.params.get('info')
-        self.action = self.params.get('action')
         if self.info:
             self.getinfos()
-        elif self.action:
-            self.actions()
         else:
             self.listing()
 
     def _parse_argv(self):
         path = sys.argv[2]
-
         try:
             args = path[1:]
             self.params = dict(urllib.parse_qsl(args))
-
             ''' Workaround to get the correct values for titles with special characters
             '''
             if ('title=\'\"' and '\"\'') in args:
@@ -35,9 +30,10 @@ class Main:
                 end_pos = args.find('\"\'')
                 clean_title = args[start_pos+8:end_pos]
                 self.params['title'] = clean_title
-
         except Exception:
             self.params = {}
+        log(f"PluginContent initialized with params: {self.params}")
+
 
     def getinfos(self):
         li = list()

@@ -1,19 +1,20 @@
 # author: realcopacetic
 
-import hashlib
 import random
 
 from PIL import Image, ImageFilter
 
-from resources.lib.service.xml import XMLHandler
-from resources.lib.utilities import (BLUR_FOLDERPATH, CROP_FOLDERPATH, TEMP_FOLDERPATH,
-                                     condition, infolabel, json_call,
-                                     log, os, url_decode_path, validate_path,
-                                     window_property, xbmc, xbmcvfs)
+from resources.lib.shared.sqlite import SQLiteHandler
+from resources.lib.utilities import (BLUR_FOLDERPATH, CROP_FOLDERPATH,
+                                     TEMP_FOLDERPATH, condition, infolabel,
+                                     json_call, log, os, url_decode_path,
+                                     validate_path, window_property, xbmc,
+                                     xbmcvfs)
+
 
 class ImageEditor:
-    def __init__(self, xml_handler=None):
-        self.xml = xml_handler if xml_handler else XMLHandler()
+    def __init__(self, sqlite_handler=None):
+        self.sqlite = sqlite_handler if sqlite_handler else SQLiteHandler()
         self.clearlogo_bbox = (600, 240)
         self.blur_bbox = (640, 360)
         self.blur_folder = BLUR_FOLDERPATH
@@ -21,39 +22,27 @@ class ImageEditor:
         self.temp_folder = TEMP_FOLDERPATH
 
     def image_processor(self, dbid, source, processes):
-        window_props = {
-            'url': False, 
-            'processed': False, 
-            'height': False,
-            'color': False,
-            'luminosity': False
-        }
+        log(f"ImageEditor: Processing image for dbid: {dbid}, source: {source}, processes: {processes}")
         try:
             for art_type, process in processes.items():
                 attributes = self._handle_image(dbid=dbid, source=source, art_type=art_type, process=process)
-                if attributes:
-                    window_props = attributes
-                for key, value in window_props.items():
-                    window_property(f'{art_type}_{process}_{key}',value)
-
-
-            self.xml.write()
+            return attributes
         except Exception as error:
-            log(f"ImageEditor: Error during XML write --> {error}", force=True)
+            log(f"ImageEditor: Error during SQL write --> {error}", force=True)
     
-    def _handle_image(self, dbid=False, source='Container.ListItem', url=False, art_cat='clearlogos', art_type='clearlogo', process='crop'):
+    def _handle_image(self, dbid=False, source='Container.ListItem', url=False, art_type='clearlogo', process='crop'):
         # fetch art url
         art_cat = 'clearlogos' if 'clearlogo' in art_type else f'{art_type}s'
         art = {art_type: url} if url else self._fetch_art_url(
             art_type, source)
         if art:
             # check for processed art in lookup table
-            attributes = self._read_lookup(art_cat, art)
+            attributes = self._read_lookup(art)
             # or process and write to lookup if missing
             if not attributes:
                 process_method = getattr(self, f'_{process}_art', None)
                 attributes = process_method(dbid, art)
-                self._write_lookup(art_type, attributes)
+                self._write_lookup(art_cat, art_type, attributes)
             return attributes
 
     def _fetch_art_url(self, art_type, source):
@@ -63,89 +52,74 @@ class ImageEditor:
             art[art_type] = url
             return art
 
-    def _read_lookup(self, art_cat, art):
-        root = self.xml.get_root()
-        art = list(art.items())[0]
-        if art[1]:
-            for node in root.find(art_cat):
-                processed = node.attrib.get('processed', None)
-                if art[1] in node.attrib['url'] and validate_path(processed):
-                    attributes = {key: value for key, value in node.attrib.items()}
-                    return attributes
+    def _read_lookup(self, art):
+        url = list(art.values())[0] if art else None
+        if not url:
+            return None
+        attributes = self.sqlite.get_entry(url)
+        return attributes if attributes and validate_path(attributes["processed"]) else None
     
-    def _write_lookup(self, art_type, attributes):
+    def _write_lookup(self, art_cat, art_type, attributes):
+        #   writes processed image data to JSON
         if attributes:
             art_type = 'clearlogo' if 'clearlogo' in art_type else art_type
-            root = self.xml.get_root()
-            art_type_root = root.find(f'{art_type}s')
-            self.xml.add_sub_element(art_type_root, art_type, attributes)
+            self.sqlite.add_entry(art_cat, attributes)
 
-    def _blur_art(self, source, art):
+    def _process_image(self, folder, art, extension, process_func):
         art = list(art.items())[0]
         url = art[1]
-        source_url, destination_url = self._generate_image_urls(
-            self.blur_folder, url, '.jpg')
+        source_url, destination_url = self._generate_image_urls(folder, url, extension)
         try:
             image = self._image_open(source_url)
         except Exception as error:
             log(
                 f'ImageEditor: Error - could not open cached image --> {error}', force=True)
+            return None
         else:
-            image.thumbnail(self.blur_bbox)
-            image = image.filter(ImageFilter.GaussianBlur(radius=50))
-            with xbmcvfs.File(destination_url, 'wb') as f:  # Save new image
-                image.save(f, 'JPEG')
-                log(
-                    f'ImageEditor: Image blurred and saved: {url} --> {destination_url}')
-                if self.temp_folder in source_url:  # If temp file  created, delete it now
+            result = process_func(image)
+            with xbmcvfs.File(destination_url, 'wb') as f:
+                result['image'].save(f, result.get('format', 'PNG'))
+                log(f'ImageEditor: Image processed and saved: {url} --> {destination_url}')
+                if self.temp_folder in source_url:  # If temp file created, delete it now
                     xbmcvfs.delete(source_url)
-                    log(
-                        f'ImageEditor: Temporary file deleted --> {source_url}')
+                    log(f'ImageEditor: Temporary file deleted --> {source_url}')
             return {
                 'url': url,
                 'processed': destination_url,
+                **result.get('metadata', {})  # Merge additional metadata if available
             }
 
+    def _blur_art(self, source, art):
+        def blur(image):
+            image.thumbnail(self.blur_bbox)
+            image = image.filter(ImageFilter.GaussianBlur(radius=50))
+            return {
+                'image': image, 
+                'format': 'JPEG'
+            }
+        return self._process_image(self.blur_folder, art, '.jpg', blur)
+
     def _crop_art(self, source, art):
-        art = list(art.items())[0]
-        url = art[1]
-        source_url, destination_url = self._generate_image_urls(
-            self.crop_folder, url, '.png')
-        try:
-            image = self._image_open(source_url)
-        except Exception as error:
-            log(
-                f'ImageEditor: Error - could not open cached image --> {error}', force=True)
-        else:
+        def crop(image):
             converted_image = Image.new("RGBA", image.size)
             converted_image.paste(image)
             image = converted_image
             try:
                 image = image.crop(image.convert('RGBa').getbbox())
             except ValueError as error:
-                log(
-                    f'ImageEditor: Error - could not convert image due to unsupport mode {image.mode} --> {error}', force=True)
-            else:
-                # Resize image to max 1600 x 620, 2x standard kodi size of 800x310
-                width, height = image.size
-                if width > 1600 or height > 620:
-                    image.thumbnail((1600, 620))
-                with xbmcvfs.File(destination_url, 'wb') as f:  # Save new image
-                    image.save(f, 'PNG')
-                height, color, luminosity = self._image_functions(image)
-                log(
-                    f'ImageEditor: Image cropped and saved: {url} --> {destination_url}')
-                if self.temp_folder in source_url:  # If temp file  created, delete it now
-                    xbmcvfs.delete(source_url)
-                    log(
-                        f'ImageEditor: Temporary file deleted --> {source_url}')
+                log(f'ImageEditor: Error - could not convert image due to unsupported mode {image.mode} --> {error}', force=True)
+                return None
+            # Resize image to max 1600 x 620, 2x standard kodi size of 800x310
+            width, height = image.size
+            if width > 1600 or height > 620:
+                image.thumbnail((1600, 620))
+            height, color, luminosity = self._image_functions(image)
             return {
-                'url': url,
-                'processed': destination_url,
-                'height': height, 
-                'color': color, 
-                'luminosity': luminosity
+                'image': image, 
+                'format': 'PNG', 
+                'metadata': {'height': height, 'color': color, 'luminosity': luminosity}
             }
+        return self._process_image(self.crop_folder, art, '.png', crop)
 
     def _get_cached_thumb(self, url, suffix):
         # use source url to generate cached url
@@ -196,15 +170,17 @@ class ImageEditor:
     def _image_functions(self, image):
         height = self._return_scaled_height(image)
         color, luminosity = self._return_dominant_color(image)
-        image.close()
         return str(height), color, luminosity
 
     def _return_dominant_color(self, image):
         width, height = 25, 10
         small_image = image.copy()
-        small_image.thumbnail((width, height))
+        try:
+            small_image.thumbnail((width, height))
+            pixeldata = small_image.getcolors(width * height)
+        finally:
+            small_image.close()
         # Remove transparent pixels
-        pixeldata = small_image.getcolors(width * height)
         sorted_pixeldata = sorted(pixeldata, key=lambda t: t[0], reverse=True)
         opaque_pixeldata = [p for p in sorted_pixeldata if p[-1][-1] > 64]
         opaque_pixels = [color for count,
@@ -215,29 +191,34 @@ class ImageEditor:
         else:
             # Create a palette directly from the opaque pixels
             paletted = Image.new('RGBA', (len(opaque_pixels), 1))
-            paletted.putdata(opaque_pixels)
-            paletted = paletted.convert(
-                'P', palette=Image.ADAPTIVE, colors=16)
-            # Find color that occurs most often
-            palette = paletted.getpalette()
-            color_counts = sorted(paletted.getcolors(), reverse=True)
             try:
-                palette_index = color_counts[0][1]
-            except IndexError as error:
-                log(
-                    f'ImageEditor: Error - could not calculate dominant colour for {infolabel("ListItem.Label")} --> {error}', force=True)
-                return ('ff000000', '0')
-            else:
-                # Convert to rgb and calculate luminosity
-                dominant = palette[palette_index*3:palette_index*3+3]
-                luminosity = self.return_luminosity(dominant)
-                luminosity = int(luminosity * 1000)
-                dominant = self._rgb_to_hex(dominant)
-                return (dominant, str(luminosity))
+                paletted.putdata(opaque_pixels)
+                paletted = paletted.convert('P', palette=Image.ADAPTIVE, colors=16)
+                # Find color that occurs most often
+                palette = paletted.getpalette()
+                color_counts = sorted(paletted.getcolors(), reverse=True)
+                try:
+                    palette_index = color_counts[0][1]
+                except IndexError as error:
+                    log(
+                        f'ImageEditor: Error - could not calculate dominant colour --> {error}', force=True)
+                    return ('ff000000', '0')
+                else:
+                    # Convert to RGB and calculate luminosity
+                    dominant = palette[palette_index * 3:palette_index * 3 + 3]
+                    luminosity = self.return_luminosity(dominant)
+                    luminosity = int(luminosity * 1000)
+                    dominant = self._rgb_to_hex(dominant)
+                    return (dominant, str(luminosity))
+            finally:
+                paletted.close()  # Now safe to close after it's fully used
 
     def _return_scaled_height(self, image):
-        image.thumbnail(self.clearlogo_bbox)
-        return image.size[1] if image.size else 0
+        small_image = image.copy()  # Create a copy so the original image is not modified
+        small_image.thumbnail(self.clearlogo_bbox)
+        height = small_image.size[1] if small_image.size else 0
+        small_image.close()  # Free up memory after calculation
+        return height
 
     def _rgb_to_hex(self, rgb):
         red, green, blue = rgb[:3]
@@ -248,9 +229,9 @@ class ImageEditor:
 class SlideshowMonitor:
     MAX_FETCH_COUNT = 20
 
-    def __init__(self, xml_handler=None):
-        self.xml = xml_handler if xml_handler else XMLHandler()
-        self.cropper = ImageEditor(self.xml).image_processor
+    def __init__(self, sqlite_handler=None):
+        self.sqlite = sqlite_handler if sqlite_handler else SQLiteHandler()
+        self.cropper = ImageEditor(self.sqlite).image_processor
         # Establish available art types in the db:
         self.art_types = [art_type for art_type in ['movies', 'tvshows',
                                                     'video', 'music'] if condition(f'Library.HasContent({art_type})')]

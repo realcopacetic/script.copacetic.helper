@@ -1,116 +1,141 @@
 # author: realcopacetic, sualfred
+import concurrent.futures
+import time
 
 from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
-from resources.lib.utilities import (ADDON, condition, infolabel, json_call, log,
-                                     set_plugincontent)
+from resources.lib.shared.art import ImageEditor
+from resources.lib.shared.sqlite import SQLiteHandler
+from resources.lib.utilities import (ADDON, condition, infolabel, json_call,
+                                     log, return_label, set_plugincontent,
+                                     split, split_random, window_property,
+                                     xbmc)
+
+
+class DataHandler:
+    def __init__(self, listitem, dbtype):
+        self.listitem = listitem
+        self.dbtype = dbtype
+        self.infolabels = self._get_infolabels([
+            "Label",
+            "Director",
+            "Writer",
+            "Genre",
+            "Studio",
+            "PercentPlayed",
+            "Property(WatchedEpisodePercent)",
+            "Property(WatchedProgress)"
+        ])
+        self.fetched = self.fetch_data()
+
+    def _get_infolabels(self, keys):
+        return {key: infolabel(f'{self.listitem}.{key}') for key in keys}
+
+    def fetch_data(self):
+        director = split_random(self.infolabels["Director"])
+        writer = split(self.infolabels["Writer"])
+        genre = split_random(self.infolabels["Genre"])
+        resume, unwatched = self._resumepoint()
+        studio = self._studio()
+        return {
+            'title': return_label(self.infolabels["Label"]),
+            'director': director,
+            'writer': writer,
+            'genre': genre,
+            'resume': {'position': resume, 'total': 100},
+            'unwatchedepisodes': str(unwatched),
+            'studio': studio
+        }
+
+    def _resumepoint(self):
+        progress_types = [
+            self.infolabels["PercentPlayed"],
+            self.infolabels["Property(WatchedEpisodePercent)"],
+            self.infolabels["Property(WatchedProgress)"]
+        ]
+        resume = next((value for p in progress_types if p.isdigit()
+                      and (value := int(p)) > 0), 0)
+        if resume:
+            return resume, False
+        if condition(f'String.IsEqual({self.listitem}.Overlay,OverlayWatched.png)'):
+            return 100, False
+        if 'set' in self.dbtype and self._wait_for_set_match():
+            total = int(infolabel('Container(3100).NumItems') or 0)
+            watched = sum(
+                condition(
+                    f'Integer.IsGreater(Container(3100).ListItem({x}).PlayCount,0)')
+                for x in range(total)
+            )
+            # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
+            resume = (total and watched / total or 0) * 100
+            unwatched = (total - watched)
+            return resume, unwatched
+        return resume, False
+
+    def _studio(self):
+        if 'set' in self.dbtype:
+            if self._wait_for_set_match():
+                return split(infolabel('Container(3100).ListItem(-1).Studio'))
+        else:
+            return split(self.infolabels["Studio"])
+
+    def _wait_for_set_match(self):
+        timeout = time.time() + 0.5  # Set a timeout 0.5s in the future
+        while time.time() < timeout:
+            if condition('String.IsEqual(ListItem.DBID,Container(3100).ListItem.SetID)'):
+                return True
+            xbmc.sleep(10)
+        return False
 
 
 class PluginContent(object):
     def __init__(self, params, li):
-        self.dbtitle = params.get('title')
-        self.dbtype = params.get('type')
-        self.dbid = params.get('id')
-        self.limit = params.get('limit')
-        self.label = params.get('label')
-        self.target = params.get('target')
-        self.exclude_key = params.get('exclude_key')
-        self.exclude_value = params.get('exclude_value')
+        self.sqlite = SQLiteHandler()
+        self.image_processor = ImageEditor(self.sqlite).image_processor
+
+        self.title = params.get('title', '')
+        self.dbtype = params.get('type', '')
+        self.dbid = params.get('id', '')
+        self.label = params.get('label', '')
+        self.target = params.get('target', 'ListItem')
+        if self.target.isdigit():
+            self.target = f'Container({self.target}).ListItem'
+        self.exclude_key = params.get('exclude_key', 'title')
+        self.exclude_value = params.get('exclude_value', '')
         self.li = li
 
-        if not self.exclude_key:
-            self.exclude_key = 'title'
-
-        if self.limit:
-            self.limit = int(self.limit)
-
-        if self.dbtype:
-            if self.dbtype in ['movie', 'tvshow', 'season', 'episode', 'musicvideo']:
-                library = 'Video'
-            else:
-                library = 'Audio'
-
-            self.method_details = f'{library}Library.Get{self.dbtype}Details'
-            self.method_item = f'{library}Library.Get{self.dbtype}s'
-            self.param = f'{self.dbtype}id'
-            self.key_details = f'{self.dbtype}details'
-            self.key_items = f'{self.dbtype}s'
-            self.properties = JSON_MAP.get(f'{self.dbtype}_properties')
-
         self.sort_lastplayed = {'order': 'descending', 'method': 'lastplayed'}
-        self.sort_recent = {'order': 'descending', 'method': 'dateadded'}
         self.sort_year = {'order': 'descending', 'method': 'year'}
-        self.sort_random = {'method': 'random'}
-
         self.filter_unwatched = {'field': 'playcount',
                                  'operator': 'lessthan', 'value': '1'}
         self.filter_watched = {'field': 'playcount',
                                'operator': 'greaterthan', 'value': '0'}
-        self.filter_unwatched_episodes = {
-            'field': 'numwatched', 'operator': 'lessthan', 'value': ['1']}
-        self.filter_watched_episodes = {
-            'field': 'numwatched', 'operator': 'greaterthan', 'value': ['0']}
         self.filter_no_specials = {'field': 'season',
                                    'operator': 'greaterthan', 'value': '0'}
         self.filter_inprogress = {
             'field': 'inprogress', 'operator': 'true', 'value': ''}
-        self.filter_not_inprogress = {
-            'field': 'inprogress', 'operator': 'false', 'value': ''}
-        self.filter_title = {'field': 'title',
-                             'operator': 'is', 'value': self.dbtitle}
         self.filter_director = {'field': 'director',
                                 'operator': 'is', 'value': self.label}
         self.filter_actor = {'field': 'actor',
                              'operator': 'is', 'value': self.label}
-        if self.exclude_value:
-            self.filter_exclude = {'field': self.exclude_key,
-                                   'operator': 'isnot', 'value': self.exclude_value}
+        self.filter_exclude = {'field': self.exclude_key,
+                               'operator': 'isnot', 'value': self.exclude_value}
 
     def helper(self):
-        log(f'FUCK75_', force=True)
-        resume = {'position': 0, 'total': 100}
-        progress_types = [
-            'ListItem.PercentPlayed',
-            'ListItem.Property(WatchedEpisodePercent)'
-        ]
-        for type in progress_types:
-            position = infolabel(type)
-            if position:
-                log(f'FUCK99_{position}', force=True)
-                resume['position'] = int(position)
-                break
-        else:
-            if 'set' in self.dbtype:
-                log(f'FUCK76_', force=True)
-                watched = 0
-                query = json_call(
-                    'VideoLibrary.GetMovieSetDetails',
-                    params={'setid': int(self.dbid)},
-                    parent='get_set_movies'
-                )
-                try:
-                    total = query['result']['setdetails']['limits']['total']
-                    movies = query['result']['setdetails']['movies']
-                except KeyError:
-                    total = 0
-                else:
-                    for movie in movies:
-                        query = json_call(
-                            'VideoLibrary.GetMovieDetails',
-                            params={'properties': [
-                                'playcount'], 'movieid': movie['movieid']},
-                            parent='get_movie_playcounts'
-                        )
-                        playcount = query['result']['moviedetails'].get('playcount')
-                        if playcount:
-                            watched += 1
-                finally:
-                    # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
-                    log(f'FUCK77_ {watched} / {total}', force=True)
-                    resume['position'] = (total and watched / total or 0) * 100
-        data = [{'title': infolabel('ListItem.Label'), 'resume': resume}]
-        add_items(self.li, data)
-    
+        images_to_process = {
+            'clearlogo': 'crop',
+            # 'clearlogo-alt': 'crop',
+            # 'clearlogo-billboard': 'crop',
+            'fanart': 'blur'
+        }
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_data = executor.submit(DataHandler, self.target, self.dbtype)
+            future_images = executor.submit(self.image_processor, self.dbid, self.target, images_to_process)
+
+            self.data = future_data.result()
+            self.processed_images = future_images.result()
+        add_items(self.li, [self.data.fetched])
+
     def in_progress(self):
         filters = [self.filter_inprogress]
 
@@ -127,7 +152,7 @@ class PluginContent(object):
                 log('Widget in_progress: No movies found.')
             else:
                 add_items(self.li, json_query, type='movie')
-        
+
         if self.dbtype != 'movie':
             json_query = json_call('VideoLibrary.GetEpisodes',
                                    properties=JSON_MAP['episode_properties'],
@@ -151,7 +176,8 @@ class PluginContent(object):
                     try:
                         tvshow_json_query = tvshow_json_query['result']['tvshowdetails']
                     except Exception:
-                        log(f'Widget in_progress: Parent tv show not found --> {tvshowid}')
+                        log(
+                            f'Widget in_progress: Parent tv show not found --> {tvshowid}')
                     else:
                         episode['studio'] = tvshow_json_query.get('studio')
                         episode['mpaa'] = tvshow_json_query.get('mpaa')

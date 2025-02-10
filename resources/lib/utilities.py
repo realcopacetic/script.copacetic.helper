@@ -21,7 +21,7 @@ ADDONDATA = xbmcvfs.validatePath(
 BLUR_FOLDERPATH = os.path.join(ADDONDATA, 'blur/')
 CROP_FOLDERPATH = os.path.join(ADDONDATA, 'crop/')
 TEMP_FOLDERPATH = os.path.join(ADDONDATA, 'temp/')
-LOOKUP_XML = os.path.join(ADDONDATA, '_lookup.xml')
+LOOKUP_DB = os.path.join(ADDONDATA, '_lookup.db')
 
 DEBUG = xbmc.LOGDEBUG
 INFO = xbmc.LOGINFO
@@ -94,6 +94,7 @@ def create_dir(path):
 
 
 def clear_cache(**kwargs):
+    '''
     import xml.etree.ElementTree as ET
 
     # remove temp and crop folders
@@ -116,6 +117,8 @@ def clear_cache(**kwargs):
     del root[0]
     ET.SubElement(root, 'clearlogos')
     lookup_tree.write(LOOKUP_XML, encoding="utf-8")
+    '''
+    return
 
 
 def get_joined_items(item):
@@ -177,20 +180,14 @@ def log_and_execute(action):
     xbmc.executebuiltin(action)
 
 
-def return_label(property=True, **kwargs):
-
-    label = kwargs.get('label', xbmc.getInfoLabel('ListItem.Label'))
+def return_label(label=infolabel('ListItem.Label'), **kwargs):
     find = kwargs.get('find', '.')
     replace = kwargs.get('replace', ' ')
-
     count = label.count(find)
     label = label.replace(urllib.unquote(find),
                           urllib.unquote(replace),
                           count)
-    if property:
-        window_property('Return_Label', set=label)
-    else:
-        return label
+    return label
 
 
 def set_plugincontent(content=None, category=None):
@@ -213,25 +210,20 @@ def skin_string(key, set=False, clear=False, debug=False):
 
 def split(string, **kwargs):
     separator = kwargs.get('separator', ' / ')
-    name = kwargs.get('name', 'Split')
-
+    number = kwargs.get('number', 0)
     for count, value in enumerate(string.split(separator)):
-        window_property(f'{name}.{count}', set=value)
+        if count == number:
+            return value
 
-
-def split_random_return(string, **kwargs):
+def split_random(string, **kwargs):
     import random
     separator = kwargs.get('separator', '/')
-    name = kwargs.get('name', 'SplitRandomReturn')
     string = random.choice(string.split(separator))
     string.replace(' ','')
     string = 'Hip Hop' if 'Hip-Hop' in string else string
     random = random.choice(string.split(' & '))
-    random = return_label(label=random,
-                          property=False) if random != 'Sci-Fi' else random
+    random = return_label(random) if random != 'Sci-Fi' else random
     random = random.strip()
-
-    window_property(name, set=random)
     return random
 
 def url_decode_path(path):

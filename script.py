@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 from resources.lib.script.actions import *
-from resources.lib.utilities import clear_cache, sys, urllib
+from resources.lib.utilities import sys
 
 
 class Main:
