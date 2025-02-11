@@ -8,8 +8,7 @@ from resources.lib.shared.art import ImageEditor
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.utilities import (ADDON, condition, infolabel, json_call,
                                      log, return_label, set_plugincontent,
-                                     split, split_random, window_property,
-                                     xbmc)
+                                     split, split_random, xbmc)
 
 
 class DataHandler:
@@ -108,7 +107,7 @@ class DataHandler:
         while time.time() < timeout:
             if condition('!String.IsEmpty(Control.GetLabel(6010))'):
                 return True
-            xbmc.sleep(10)  # Sleep for 10ms before retrying
+            xbmc.Monitor().waitForAbort(0.05)  # Wait for 50ms before retrying
         return False
 
 

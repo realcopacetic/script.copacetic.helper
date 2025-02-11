@@ -2,7 +2,6 @@
 
 import random
 import time
-from multiprocessing import Pool
 
 from PIL import Image, ImageFilter
 
@@ -75,7 +74,7 @@ class ImageEditor:
         while time.time() < timeout:
             if condition('!String.IsEmpty(Control.GetLabel(6010))'):
                 return True
-            xbmc.sleep(10)  # Sleep for 10ms before retrying
+            xbmc.Monitor().waitForAbort(0.05)  # Wait for 50ms before retrying
         return False
 
     def _read_lookup(self, art):
@@ -93,8 +92,11 @@ class ImageEditor:
 
     def _blur_art(self, art):
         def blur(image):
-            image.thumbnail(self.blur_bbox)
+            start_time = time.perf_counter()  # Start timing
+            image.thumbnail(self.blur_bbox, Image.LANCZOS)
             image = image.filter(ImageFilter.GaussianBlur(radius=50))
+            end_time = time.perf_counter()  # Stop timing
+            log(f'ImageEditor: Blur time: {end_time - start_time:.6f} seconds')
             return {
                 'image': image,
                 'format': 'JPEG'
@@ -103,11 +105,16 @@ class ImageEditor:
 
     def _crop_art(self, art):
         def crop(image):
-            converted_image = Image.new("RGBA", image.size)
-            converted_image.paste(image)
-            image = converted_image
+            start_time = time.perf_counter()  # Start timing
+            if image.mode != "RGBA":
+                image = image.convert("RGBA")
+            # Resize large images before cropping to reduce processing time
+            width, height = image.size
+            if width > 1840 or height > 713:
+                image.thumbnail((1840, 713), Image.LANCZOS)
+            # crop using alpha channel
             try:
-                image = image.crop(image.convert('RGBa').getbbox())
+                image = image.crop(image.convert("RGBA").getbbox())
             except ValueError as error:
                 log(
                     f'ImageEditor: Error - could not convert image due to unsupported mode {image.mode} --> {error}', force=True)
@@ -115,8 +122,10 @@ class ImageEditor:
             # Resize image to max 1600 x 620, 2x standard kodi size of 800x310
             width, height = image.size
             if width > 1600 or height > 620:
-                image.thumbnail((1600, 620))
+                image.thumbnail((1600, 620), Image.LANCZOS)
             height, color, luminosity = self._image_functions(image)
+            end_time = time.perf_counter()  # Stop timing
+            log(f'ImageEditor: Crop time: {end_time - start_time:.6f} seconds')
             return {
                 'image': image,
                 'format': 'PNG',
