@@ -106,6 +106,7 @@ class ImageEditor:
     def _crop_art(self, art):
         def crop(image):
             start_time = time.perf_counter()  # Start timing
+            log(f'FUCK {image.mode}', force=True)
             if image.mode != "RGBA":
                 image = image.convert("RGBA")
             # Resize large images before cropping to reduce processing time

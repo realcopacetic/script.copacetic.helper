@@ -12,9 +12,10 @@ from resources.lib.utilities import (ADDON, condition, infolabel, json_call,
 
 
 class DataHandler:
-    def __init__(self, listitem, dbtype):
+    def __init__(self, listitem, dbtype, dbid):
         self.listitem = listitem
         self.dbtype = dbtype
+        self.dbid = dbid
         self.infolabels = self._get_infolabels([
             "Label",
             "Director",
@@ -51,6 +52,7 @@ class DataHandler:
 
     def _resumepoint(self):
         unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
+        # percentage
         progress_types = [
             self.infolabels["PercentPlayed"],
             self.infolabels["Property(WatchedEpisodePercent)"],
@@ -60,8 +62,13 @@ class DataHandler:
                       and (value := int(p)) > 0), 0)
         if resume:
             return resume, unwatched
-        if condition(f'String.IsEqual({self.listitem}.Overlay,OverlayWatched.png)'):
+        # watched
+        if condition(
+            f'String.IsEqual({self.listitem}.Overlay,OverlayWatched.png) | '
+            f'Integer.IsGreater({self.listitem}.PlayCount,0)'
+        ):
             return 100, ''
+        # set
         if 'set' in self.dbtype:
             if self._wait_for_set_match():
                 total = int(infolabel('Container(3100).NumItems') or 0)
@@ -150,7 +157,7 @@ class PluginContent(object):
             'fanart': 'blur'
         }
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            future_data = executor.submit(DataHandler, self.target, self.dbtype)
+            future_data = executor.submit(DataHandler, self.target, self.dbtype, self.dbid)
             future_images = executor.submit(self.image_processor, self.dbid, self.target, images_to_process)
 
             self.data = future_data.result()
