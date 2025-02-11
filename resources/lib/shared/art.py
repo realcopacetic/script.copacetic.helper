@@ -2,6 +2,7 @@
 
 import random
 import time
+from multiprocessing import Pool
 
 from PIL import Image, ImageFilter
 
@@ -17,18 +18,20 @@ class ImageEditor:
     def __init__(self, sqlite_handler=None):
         self.sqlite = sqlite_handler if sqlite_handler else SQLiteHandler()
         self.clearlogo_bbox = (600, 240)
-        self.blur_bbox = (640, 360)
+        self.blur_bbox = (480, 270)
         self.blur_folder = BLUR_FOLDERPATH
         self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
 
     def image_processor(self, dbid, source, processes):
-        log(f"ImageEditor: Processing image for dbid: {dbid}, source: {source}, processes: {processes}")
+        log(
+            f"ImageEditor: Processing image for dbid: {dbid}, source: {source}, processes: {processes}")
         attributes = []
         art = {}
         try:
             for art_type, process in processes.items():
-                current_attributes = self._handle_image(dbid=dbid, source=source, art_type=art_type, process=process)
+                current_attributes = self._handle_image(
+                    dbid=dbid, source=source, art_type=art_type, process=process)
                 attributes.append(current_attributes)
         except Exception as error:
             log(f"ImageEditor: Error during SQL write --> {error}", force=True)
@@ -66,9 +69,9 @@ class ImageEditor:
         if self._wait_for_art(source, art_type):
             art[art_type] = infolabel(f'{source}.Art({art_type})')
             return art
-    
+
     def _wait_for_art(self, source, art_type):
-        timeout = time.time() + 2  # Set a timeout 2s in the future
+        timeout = time.time() + 3  # Set a timeout 2s in the future
         while time.time() < timeout:
             if condition('!String.IsEmpty(Control.GetLabel(6010))'):
                 return True
@@ -81,7 +84,7 @@ class ImageEditor:
             return None
         attributes = self.sqlite.get_entry(url)
         return attributes if attributes and validate_path(attributes["processed"]) else None
-    
+
     def _write_lookup(self, art_type, attributes):
         #   writes processed image data to JSON
         if attributes:
@@ -93,7 +96,7 @@ class ImageEditor:
             image.thumbnail(self.blur_bbox)
             image = image.filter(ImageFilter.GaussianBlur(radius=50))
             return {
-                'image': image, 
+                'image': image,
                 'format': 'JPEG'
             }
         return self._process_image(self.blur_folder, art, '.jpg', blur)
@@ -106,7 +109,8 @@ class ImageEditor:
             try:
                 image = image.crop(image.convert('RGBa').getbbox())
             except ValueError as error:
-                log(f'ImageEditor: Error - could not convert image due to unsupported mode {image.mode} --> {error}', force=True)
+                log(
+                    f'ImageEditor: Error - could not convert image due to unsupported mode {image.mode} --> {error}', force=True)
                 return None
             # Resize image to max 1600 x 620, 2x standard kodi size of 800x310
             width, height = image.size
@@ -114,8 +118,8 @@ class ImageEditor:
                 image.thumbnail((1600, 620))
             height, color, luminosity = self._image_functions(image)
             return {
-                'image': image, 
-                'format': 'PNG', 
+                'image': image,
+                'format': 'PNG',
                 'metadata': {'height': height, 'color': color, 'luminosity': luminosity}
             }
         return self._process_image(self.crop_folder, art, '.png', crop)
@@ -153,7 +157,7 @@ class ImageEditor:
         # use source url to generate cached url
         cached_thumb = xbmc.getCacheThumbName(url).replace('.tbn', f'{suffix}')
         return cached_thumb
-    
+
     def _generate_image_urls(self, folder, url, suffix):
         decoded_url = url_decode_path(url)
         cached_thumb = self._get_cached_thumb(decoded_url, suffix)
@@ -221,7 +225,8 @@ class ImageEditor:
             paletted = Image.new('RGBA', (len(opaque_pixels), 1))
             try:
                 paletted.putdata(opaque_pixels)
-                paletted = paletted.convert('P', palette=Image.ADAPTIVE, colors=16)
+                paletted = paletted.convert(
+                    'P', palette=Image.ADAPTIVE, colors=16)
                 # Find color that occurs most often
                 palette = paletted.getpalette()
                 color_counts = sorted(paletted.getcolors(), reverse=True)
