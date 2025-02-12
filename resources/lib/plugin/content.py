@@ -84,13 +84,16 @@ class DataHandler:
         return resume, unwatched
 
     def _studio(self):
+        studio = ''
         if 'set' in self.dbtype:
             if self._wait_for_set_match():
                 studio = split(
                     infolabel('Container(3100).ListItem(-1).Studio'))
         else:
             studio = split(self.infolabels["Studio"])
-        return studio.replace('+', '')
+        if studio:
+            studio.replace('+', '')
+        return studio
 
     def _wait_for_set_match(self):
         timeout = time.time() + 0.5  # Set a timeout 0.5s in the future
@@ -106,9 +109,10 @@ class DataHandler:
             art_type = infolabel('Control.GetLabel(6400)')
             for count in range(16):
                 position = str(count) if count > 0 else ''
-                art = infolabel(f'ListItem.Art({art_type}{position})')
+                art = infolabel(f'{self.listitem}.Art({art_type}{position})')
                 if art:
                     multiart[f"multiart{position}"] = art
+        log(f'FUCK_ {multiart}', force=True)
         return multiart
 
     def _wait_for_art(self):
