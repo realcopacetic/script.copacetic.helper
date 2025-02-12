@@ -86,9 +86,11 @@ class DataHandler:
     def _studio(self):
         if 'set' in self.dbtype:
             if self._wait_for_set_match():
-                return split(infolabel('Container(3100).ListItem(-1).Studio'))
+                studio = split(
+                    infolabel('Container(3100).ListItem(-1).Studio'))
         else:
-            return split(self.infolabels["Studio"])
+            studio = split(self.infolabels["Studio"])
+        return studio.replace('+', '')
 
     def _wait_for_set_match(self):
         timeout = time.time() + 0.5  # Set a timeout 0.5s in the future
