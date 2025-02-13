@@ -281,12 +281,6 @@ def toggle_addon(id, **kwargs):
                   parent='toggle_addon')
         DIALOG.notification(id, ADDON.getLocalizedString(32206))
 
-
-def url_encode(name, string, **kwargs):
-    encoded = urllib.quote(string)
-    window_property(name, set=encoded)
-
-
 def widget_move(posa, posb, **kwargs):
     # create list of (widget position, dictionary)
     content_types = ['Disabled', 'InProgress', 'NextUp', 'LatestMovies', 'LatestTVShows', 'RandomMovies',

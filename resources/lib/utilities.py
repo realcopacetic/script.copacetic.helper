@@ -226,6 +226,10 @@ def split_random(string, **kwargs):
     random = random.strip()
     return random
 
+def url_encode(string):
+    encoded = urllib.quote(string)
+    return encoded
+
 def url_decode_path(path):
     path = path[:-1] if path.endswith('/') else path
     path = urllib.unquote(path.replace('image://', ''))

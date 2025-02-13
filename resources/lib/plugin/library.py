@@ -19,7 +19,7 @@ def add_items(li, json_query, type='helper'):
 
 
 def set_helper(li, item):
-    li_item = ListItem(item['title'], offscreen=True)
+    li_item = ListItem(item['label'], offscreen=True)
     li_item.setProperty('unwatchedepisodes', item['unwatchedepisodes'])
     li_item.setArt(item['art']) if item.get('art') else None
     videoInfoTag = li_item.getVideoInfoTag()

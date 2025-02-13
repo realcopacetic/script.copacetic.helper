@@ -8,7 +8,8 @@ from resources.lib.shared.art import ImageEditor
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.utilities import (ADDON, condition, infolabel, json_call,
                                      log, return_label, set_plugincontent,
-                                     split, split_random, xbmc)
+                                     split, split_random, url_encode,
+                                     window_property, xbmc)
 
 
 class DataHandler:
@@ -33,14 +34,20 @@ class DataHandler:
         return {key: infolabel(f'{self.listitem}.{key}') for key in keys}
 
     def fetch_data(self):
+        label = return_label(self.infolabels["Label"])
+        encoded_label = url_encode(label)
         director = split_random(self.infolabels["Director"])
         writer = split(self.infolabels["Writer"])
         genre = split_random(self.infolabels["Genre"])
         resume, unwatched = self._resumepoint()
         studio = self._studio()
         multiart = self._multiart()
+        if '3100' not in self.listitem:
+            window_property('url_encoded_label', set=encoded_label)
+            window_property('random_genre', set=genre)
+            window_property('random_director', set=director)
         return {
-            'title': return_label(self.infolabels["Label"]),
+            'label': encoded_label,
             'director': director,
             'writer': writer,
             'genre': genre,
@@ -49,7 +56,7 @@ class DataHandler:
             'studio': studio,
             'art': multiart
         }
-
+    
     def _resumepoint(self):
         unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
         # percentage
@@ -107,12 +114,12 @@ class DataHandler:
         multiart = {}
         if self._wait_for_art():
             art_type = infolabel('Control.GetLabel(6400)')
-            for count in range(16):
-                position = str(count) if count > 0 else ''
-                art = infolabel(f'{self.listitem}.Art({art_type}{position})')
-                if art:
-                    multiart[f"multiart{position}"] = art
-        log(f'FUCK_ {multiart}', force=True)
+            if art_type:
+                for count in range(16):
+                    position = str(count) if count > 0 else ''
+                    art = infolabel(f'{self.listitem}.Art({art_type}{position})')
+                    if art:
+                        multiart[f"multiart{position}"] = art
         return multiart
 
     def _wait_for_art(self):
