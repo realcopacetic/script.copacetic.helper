@@ -5,7 +5,7 @@ from xbmc import Player
 from resources.lib.script.actions import clean_filename, subtitle_limiter
 from resources.lib.shared.art import ImageEditor
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.utilities import condition, infolabel, json_call, log, window_property
+from resources.lib.shared.utilities import condition, infolabel, json_call, log, window_property
 
 
 class PlayerMonitor(Player):

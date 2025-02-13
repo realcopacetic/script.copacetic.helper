@@ -2,7 +2,7 @@
 
 import sqlite3
 
-from resources.lib.utilities import LOOKUP_DB
+from resources.lib.shared.utilities import LOOKUP_DB
 
 
 class SQLiteHandler:

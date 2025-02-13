@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 from resources.lib.script.actions import *
-from resources.lib.utilities import sys
+from resources.lib.shared.utilities import sys
 
 
 class Main:

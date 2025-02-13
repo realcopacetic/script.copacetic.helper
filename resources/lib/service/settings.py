@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from resources.lib.utilities import (ADDON, ADDON_ID, DIALOG, condition,
+from resources.lib.shared.utilities import (ADDON, ADDON_ID, DIALOG, condition,
                                      json_call, log, window_property)
 
 
@@ -23,7 +23,7 @@ class SettingsMonitor:
         }
         self.settings_to_change = {}
 
-    def get_default(self, **kwargs):
+    def get_defaults(self, **kwargs):
         self.settings_to_change.clear()
         window_property('Settings_To_Change')
         cats = {
@@ -66,7 +66,7 @@ class SettingsMonitor:
         item_count = cat_count + len(self.settings_to_change)
         window_property('Settings_To_Change', set=item_count)
 
-    def set_default(self, **kwargs):
+    def set_defaults(self, **kwargs):
         count = 0
         for item in list(self.settings_to_change.items()):
             if condition(f'Skin.HasSetting({item[0]})'):

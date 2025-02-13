@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 import xbmcgui
 
-from resources.lib.utilities import ADDON, ADDON_ID, set_plugincontent
+from resources.lib.shared.utilities import ADDON, ADDON_ID, set_plugincontent
 
 LISTING = {
     'mixed': [

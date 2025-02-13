@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 from resources.lib.shared.art import ImageEditor
-from resources.lib.utilities import (ADDON, DIALOG, clear_playlists, condition,
+from resources.lib.shared.utilities import (ADDON, DIALOG, clear_playlists, condition,
                                      infolabel, json_call, log, log_and_execute,
                                      skin_string, window_property, xbmc, urllib)
 

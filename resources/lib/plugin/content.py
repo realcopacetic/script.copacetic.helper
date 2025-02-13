@@ -6,7 +6,7 @@ from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
 from resources.lib.shared.art import ImageEditor
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.utilities import (ADDON, condition, infolabel, json_call,
+from resources.lib.shared.utilities import (ADDON, condition, infolabel, json_call,
                                      log, return_label, set_plugincontent,
                                      split, split_random, url_encode,
                                      window_property, xbmc)

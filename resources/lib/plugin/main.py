@@ -5,7 +5,7 @@ import urllib.parse as urllib
 import xbmcplugin
 
 from resources.lib.plugin.content import *
-from resources.lib.utilities import sys
+from resources.lib.shared.utilities import sys
 from resources.lib.plugin.listing import PluginListing
 
 
