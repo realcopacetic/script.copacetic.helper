@@ -96,7 +96,8 @@ class Monitor(xbmc.Monitor):
         if condition("Window.IsVisible(home)"):
             # Run slideshow whenever wait is 0
             if self.slideshow_wait == 0:
-                self.slideshow.background_slideshow() 
+                self.slideshow.background_slideshow(
+                    infolabel("Skin.String(slideshow_type)"))
             # Account for interval changes ahead of next pass
             new_slideshow_interval = self.get_slideshow_interval()
             if self.slideshow_interval != new_slideshow_interval:

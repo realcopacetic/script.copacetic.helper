@@ -22,13 +22,13 @@ class ImageEditor:
         self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
 
-    def image_processor(self, dbid=False, source=False, processes=False, url=False):
+    def image_processor(self, dbid=None, source=None, processes=None, url=None):
+        if not processes:
+            return {}
         if dbid:
-            log(
-                f"ImageEditor: Processing image for dbid: {dbid}, source: {source}, processes: {processes}")
+            log(f"ImageEditor: Processing image for dbid: {dbid}, source: {source}, processes: {processes}")
         if url:
-            log(
-                f"ImageEditor: Processing image for url: {url}, processes: {processes}")
+            log(f"ImageEditor: Processing image for url: {url}, processes: {processes}")
         attributes = []
         art = {}
         try:
@@ -43,11 +43,10 @@ class ImageEditor:
                 if not attribute:  # Skip if attribute is None
                     continue
                 try:
-                    if attribute["processed"]:
-                        art[f'{attribute["category"]}'] = attribute["processed"]
+                    if attribute and attribute.get("processed"):
+                        art[f'{attribute["category"]}'] = attribute.get("processed")
                     for key in ["color", "luminosity"]:
-                        value = attribute.get(key)
-                        if value is not None:
+                        if (value := attribute.get(key)) is not None:
                             art[f'{attribute["category"]}_{key}'] = value
                 except (TypeError, KeyError):
                     continue  # Skip empty attributes
@@ -63,8 +62,9 @@ class ImageEditor:
             # or process and write to lookup if missing
             if not attributes:
                 process_method = getattr(self, f"_{process}_art", None)
-                attributes = process_method(art)
-                self._write_lookup(art_type, attributes)
+                if process_method:
+                    attributes = process_method(art)
+            self._write_lookup(art_type, attributes)
             return attributes
 
     def _fetch_art_url(self, source, art_type):
@@ -82,7 +82,7 @@ class ImageEditor:
         return False
 
     def _read_lookup(self, art):
-        url = list(art.values())[0] if art else None
+        url = next(iter(art.values()), None)
         if not url:
             return None
         attributes = self.sqlite.get_entry(url)
@@ -90,6 +90,8 @@ class ImageEditor:
 
     def _write_lookup(self, art_type, attributes):
         #   writes processed image data to JSON
+        log(f'ART_TYPE {art_type}', force=True)
+        log(f'ATTRIBUTES {attributes}', force=True)
         if attributes:
             art_type = "clearlogo" if "clearlogo" in art_type else art_type
             self.sqlite.add_entry(art_type, attributes)
@@ -127,7 +129,7 @@ class ImageEditor:
             width, height = image.size
             if width > 1600 or height > 620:
                 image.thumbnail((1600, 620), Image.LANCZOS)
-            color, luminosity = self._image_functions(image)
+            color, luminosity = self._color_functions(image)
             end_time = time.perf_counter()  # Stop timing
             log(f"ImageEditor: Crop time: {end_time - start_time:.6f} seconds")
             return {
@@ -138,28 +140,25 @@ class ImageEditor:
         return self._process_image(self.crop_folder, art, ".png", crop)
 
     def _process_image(self, folder, art, extension, process_func):
-        art = list(art.items())[0]
-        url = art[1]
+        category, url = next(iter(art.items()))
         source_url, destination_url = self._generate_image_urls(
             folder, url, extension)
-        try:
-            image = self._image_open(source_url)
-        except Exception as error:
-            log(
-                f"ImageEditor: Error - could not open cached image --> {error}", force=True)
+        image = self._image_open(source_url)
+        if not image:
             return None
-        else:
-            result = process_func(image)
-            with xbmcvfs.File(destination_url, "wb") as f:
-                result["image"].save(f, result.get("format", "PNG"))
-                log(
-                    f"ImageEditor: Image processed and saved: {url} --> {destination_url}")
-                if self.temp_folder in source_url:  # If temp file created, delete it now
-                    xbmcvfs.delete(source_url)
-                    log(
-                        f"ImageEditor: Temporary file deleted --> {source_url}")
-            return {
-                "category": art[0],
+        result = process_func(image)
+        if not result or not result.get("image"):
+            return None
+        with xbmcvfs.File(destination_url, "wb") as f:
+            result["image"].save(f, result.get("format", "PNG"))
+            log(
+                f"ImageEditor: Image processed and saved: {url} --> {destination_url}")
+        if self.temp_folder in source_url:  # If temp file created, delete it now
+            xbmcvfs.delete(source_url)
+            log(
+                f"ImageEditor: Temporary file deleted --> {source_url}")
+        return {
+                "category": category,
                 "url": url,
                 "processed": destination_url,
                 # Merge additional metadata if available
@@ -209,10 +208,13 @@ class ImageEditor:
         return luminosity
 
     def _image_open(self, url):
-        image = Image.open(xbmcvfs.translatePath(url))
-        return image
+        try:
+            return Image.open(xbmcvfs.translatePath(url))
+        except (FileNotFoundError, OSError) as error:
+            log(f"ImageEditor: Error - Cannot open image {url} --> {error}", force=True)
+            return None
 
-    def _image_functions(self, image):
+    def _color_functions(self, image):
         width, height = 25, 10
         small_image = image.copy()
         try:
@@ -221,8 +223,9 @@ class ImageEditor:
         finally:
             small_image.close()
         # Remove transparent pixels
-        sorted_pixeldata = sorted(pixeldata, key=lambda t: t[0], reverse=True)
-        opaque_pixeldata = [p for p in sorted_pixeldata if p[-1][-1] > 64]
+        opaque_pixeldata = sorted(
+            [p for p in pixeldata if p[-1][-1] > 64], key=lambda t: t[0], reverse=True
+        )
         opaque_pixels = [color for count,
                          color in opaque_pixeldata for _ in range(count)]
         if not opaque_pixeldata:
@@ -256,7 +259,7 @@ class ImageEditor:
 
     def _rgb_to_hex(self, rgb):
         red, green, blue = rgb[:3]
-        hex_color = "ff%02x%02x%02x" % (red, green, blue)
+        hex_color = "ff{:02x}{:02x}{:02x}".format(red, green, blue)
         return hex_color
 
 
@@ -271,9 +274,9 @@ class SlideshowMonitor:
         self.fetch_count = 0
         self.art = []
 
-    def background_slideshow(self):
+    def background_slideshow(self, art_type=None):
         # Fetch art types
-        self.art_type = infolabel("Skin.String(slideshow_type)") or "global"
+        self.art_type = art_type or "global"
         content_map = {
             "movies": "movies",
             "tvshows": "tvshows",
@@ -360,16 +363,14 @@ class SlideshowMonitor:
         log(f"SlideshowMonitor: Total artwork found: {len(self.art)}" if self.art else "SlideshowMonitor: WARNING - No artwork was found!", force=not self.art)
 
     def _get_plugin_art(self):
-        self.art.extend(
-            item for i in range(int(infolabel("Container(3300).NumItems")))
+        self.art.extend({
+            "title": infolabel(f"Container(3300).ListItem({i}).Label"),
+            "fanart": fanart,
+            "clearlogo": infolabel(f"Container(3300).ListItem({i}).Art(clearlogo)")
+        } for i in range(int(infolabel("Container(3300).NumItems")))
             if (fanart := infolabel(f"Container(3300).ListItem({i}).Art(fanart)")) or
             ("folder" in (self.slideshow_source or "") and
              (fanart := infolabel(f"Container(3300).ListItem({i}).Art(thumb)")))
-            if (item := {
-                "title": infolabel(f"Container(3300).ListItem({i}).Label"),
-                "fanart": fanart,
-                "clearlogo": infolabel(f"Container(3300).ListItem({i}).Art(clearlogo)")
-            })
         )
 
     def _get_slideshow_path(self):
@@ -401,14 +402,14 @@ class SlideshowMonitor:
             fanart = url_decode_path(fanart)
             fanart = fanart[:-21] if "transform?size=thumb" in fanart else fanart
         # Extract and process clearlogo
+        clearlogo_path = None
         if clearlogo := art.get("clearlogo-billboard") or art.get("clearlogo"):
             clearlogo = url_decode_path(clearlogo)
             clearlogo_type = "clearlogo-billboard" if "billboard" in clearlogo else "clearlogo"
             processed = self.image_processor(
                 url=clearlogo, processes={clearlogo_type: "crop"})
-            clearlogo_path = processed.get(clearlogo_type)
-        else:
-            clearlogo_path = None
+            if processed:
+                clearlogo_path = processed.get(clearlogo_type)
         # Set window properties
         window_property("slideshow_fanart", set=fanart)
         window_property("slideshow_clearlogo", set=clearlogo_path)
