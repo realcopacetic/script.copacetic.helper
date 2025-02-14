@@ -22,7 +22,7 @@ class ImageEditor:
         self.crop_folder = CROP_FOLDERPATH
         self.temp_folder = TEMP_FOLDERPATH
 
-    def image_processor(self, dbid, source, processes, url=False):
+    def image_processor(self, dbid=False, source=False, processes=False, url=False):
         if dbid:
             log(
                 f"ImageEditor: Processing image for dbid: {dbid}, source: {source}, processes: {processes}")
@@ -265,44 +265,46 @@ class SlideshowMonitor:
 
     def __init__(self, sqlite_handler=None):
         self.sqlite = sqlite_handler if sqlite_handler else SQLiteHandler()
-        self.cropper = ImageEditor(self.sqlite).image_processor
+        self.image_processor = ImageEditor(self.sqlite).image_processor
         self.slideshow_path = self._get_slideshow_path()
         self.slideshow_source = self._check_slideshow_source()
         self.fetch_count = 0
+        self.art = []
 
     def background_slideshow(self):
         # Fetch art types
         self.art_type = infolabel("Skin.String(slideshow_type)") or "global"
-        if "global" in self.art_type:
+        content_map = {
+            "movies": "movies",
+            "tvshows": "tvshows",
+            "music": "artists"
+        }
+        if self.art_type == "global":
             self.art_types = [
-                art_type for art_type in ["movies", "tvshows", "music"] 
-                if condition(f"Library.HasContent({art_type})")
+                content_map[k] for k in content_map if condition(f"Library.HasContent({k})")
             ]
-        elif "videos" in self.art_type:
+        elif self.art_type == "videos":
             self.art_types = [
-                art_type for art_type in ["movies", "tvshows"] 
-                if condition(f"Library.HasContent({art_type})")
+                content_map[k] for k in ["movies", "tvshows"] if condition(f"Library.HasContent({k})")
             ]
+        elif self.art_type == "custom":
+            self.art_types = ["custom"]
         else:
-            self.art_types = [self.art_type] if condition(f"Library.HasContent({self.art_type})") else []
-        self.art_types = ["artists" if art_type == "music" else art_type for art_type in self.art_types]
+            self.art_types = [content_map.get(self.art_type, self.art_type)] if condition(
+                f"Library.HasContent({self.art_type})") else []
         # Get art every 20 calls
-        current_slideshow_path = self._get_slideshow_path()
-        current_slideshow_source = self._check_slideshow_source()
         if (
             self.fetch_count == 0
             or not self.art
-            or self.slideshow_path != current_slideshow_path
-            or self.slideshow_source != current_slideshow_source
+            or (new_path := self._get_slideshow_path()) != self.slideshow_path
+            or (new_source := self._check_slideshow_source()) != self.slideshow_source
         ):
-            self.slideshow_path = current_slideshow_path
-            self.slideshow_source = current_slideshow_source
+            self.slideshow_path, self.slideshow_source = new_path, new_source
             log("SlideshowMonitor: Fetching background art")
             self._get_art()
-            log(f"CHECK self.art {self.art}", force=True)
-        self.fetch_count = 0 if self.fetch_count >= self.MAX_FETCH_COUNT else self.fetch_count + 1
+        self.fetch_count = (self.fetch_count + 1) % self.MAX_FETCH_COUNT
         # Set art every call
-        self._set_art(self.art)
+        self._set_art()
 
     def _get_art(self):
         if not self.art_types:
@@ -319,7 +321,8 @@ class SlideshowMonitor:
                 self._get_plugin_art()
                 return
             # Get custom library art
-            log(f"SlideshowMonitor: Fetching custom library art from {self.slideshow_path}")
+            log(
+                f"SlideshowMonitor: Fetching custom library art from {self.slideshow_path}")
             query = json_call(
                 "Files.GetDirectory",
                 params={"directory": self.slideshow_path},
@@ -327,20 +330,19 @@ class SlideshowMonitor:
                 limit=self.MAX_FETCH_COUNT, parent="get_directory"
             )
             for result in query.get("result", {}).get("files", []):
-                item_type = result.get("type")
-                item_id = result.get("id")
+                item_type, item_id = result.get("type"), result.get("id")
                 dbtype = "Video" if item_type != "artist" else "Audio"
                 details_query = json_call(
                     f"{dbtype}Library.Get{item_type}Details",
                     params={"properties": ["art"], f"{item_type}id": item_id},
                     parent="get_item_details"
                 )
-                item_details = details_query.get("result", {}).get(f"{item_type}details", {})
+                item_details = details_query.get(
+                    "result", {}).get(f"{item_type}details", {})
                 art_data = item_details.get("art", {})
                 if art_data.get("fanart"):
-                    data = {"title": item_details.get("label", "")}
-                    data.update(art_data)
-                    self.art.append(data)
+                    self.art.append(
+                        {"title": item_details.get("label", ""), **art_data})
         # Get predefined library art
         else:
             log("SlideshowMonitor: Fetching predefined library artwork")
@@ -349,104 +351,64 @@ class SlideshowMonitor:
                 query = json_call(f"{dbtype}Library.Get{art_type}", properties=["art"], sort={
                     "method": "random"}, limit=self.MAX_FETCH_COUNT, parent="get_art")
                 for result in query.get("result", {}).get(art_type, []):
-                    art_data = result.get("art", {})
-                    if art_data.get("fanart"):
-                        data = {"title": result.get("label", "")}
-                        data.update(result["art"])
-                        self.art.append(data)
-        # Trim number of artworks to MAX_FETCH_COUNT
+                    if result.get("art").get("fanart"):
+                        self.art.append(
+                            {"title": result.get("label", ""), **result["art"]})
         if len(self.art) > self.MAX_FETCH_COUNT:
             self.art = random.sample(self.art, self.MAX_FETCH_COUNT)
-        if self.art:
-            log(f"SlideshowMonitor: Total artwork found: {len(self.art)}")
-        else:
-            log("SlideshowMonitor: WARNING - No artwork was found!", force=True)
+        log(f"SlideshowMonitor: Total artwork found: {len(self.art)}" if self.art else "SlideshowMonitor: WARNING - No artwork was found!", force=not self.art)
 
     def _get_plugin_art(self):
-        num_items = int(infolabel("Container(3300).NumItems"))
-        for i in range(num_items):
-            fanart = infolabel(
-                f"Container(3300).ListItem({i}).Art(fanart)")
-            if not fanart and "other" in (self.slideshow_source or ""):
-                fanart = infolabel(
-                    f"Container(3300).ListItem({i}).Art(thumb)")
-            if fanart:
-                item = {
-                    "title": infolabel(
-                        f"Container(3300).ListItem({i}).Label"),
-                    "fanart": fanart,
-                    "clearlogo": infolabel(
-                        f"Container(3300).ListItem({i}).Art(clearlogo)")
-                }
-                self.art.append(item)
+        self.art.extend(
+            item for i in range(int(infolabel("Container(3300).NumItems")))
+            if (fanart := infolabel(f"Container(3300).ListItem({i}).Art(fanart)")) or
+            ("folder" in (self.slideshow_source or "") and
+             (fanart := infolabel(f"Container(3300).ListItem({i}).Art(thumb)")))
+            if (item := {
+                "title": infolabel(f"Container(3300).ListItem({i}).Label"),
+                "fanart": fanart,
+                "clearlogo": infolabel(f"Container(3300).ListItem({i}).Art(clearlogo)")
+            })
+        )
 
     def _get_slideshow_path(self):
-        slideshow = ""
-        if condition("Skin.HasSetting(Background_Slideshow2)"):
-            time = int(infolabel("System.Time(hh)"))
-            am_pm = infolabel("System.Time(xx)")
-            # Convert 12-hour format to 24-hour format
-            if "PM" in am_pm and time != 12:
-                time += 12
-            elif "AM" in am_pm and time == 12:
-                time = 0
-            # Get the slideshow times, use default values in case of error
-            slideshow_time = self._slideshow_time(
-                "Skin.String(Background_Slideshow_Timer)", 6)
-            slideshow2_time = self._slideshow_time(
-                "Skin.String(Background_Slideshow2_Timer)", 20)
-            # slideshow2 starts later in the day than slideshow...
-            if slideshow2_time > slideshow_time:
-                # ... so it is only active from slideshow2 start until end of day, or from 0 until slideshow start
-                if time >= slideshow2_time or time < slideshow_time:
-                    slideshow = "2"
-            else:
-                # slideshow2 doesn't start later, so it's only active from slideshow2 start until slideshow start
-                if slideshow_time > time >= slideshow2_time:
-                    slideshow = "2"
-        window_property("CurrentSlideshow", set=slideshow)
-        return infolabel(
-            f"Skin.String(Background_Slideshow{slideshow}_Custom_Path)")
-
-    def _slideshow_time(self, label, default):
-        try:
-            return int(infolabel(label))
-        except ValueError:
-            return default
+        current_time = time.localtime().tm_hour
+        start = int(infolabel("Skin.String(slideshow_start)") or 6)
+        alt_start = int(infolabel("Skin.String(alt_slideshow_start)") or 20)
+        is_alt_slideshow = (
+            (alt_start > start and (current_time >= alt_start or current_time < start)) or
+            (alt_start <= start and start > current_time >= alt_start)
+        )
+        slideshow = "alt_" if is_alt_slideshow else ""
+        return infolabel(f"Skin.String({slideshow}slideshow_path)")
 
     def _check_slideshow_source(self):
-        library_strings = ["db://", "library://", ".xsp", ".xml"]
         if "plugin://" in self.slideshow_path:
             return "plugin"
-        elif any(x in self.slideshow_path for x in library_strings):
-            return "library"
-        else:
-            return "other"
+        return "library" if any(x in self.slideshow_path for x in ["db://", "library://", ".xsp", ".xml"]) else "folder"
 
-    def _set_art(self, items):
-        art = random.choice(items)
-        # Remove the random selection from items after it's been stored
-        items.remove(art)
-        art.pop("set.fanart", None)
-        fanarts = {k: v for k, v in art.items() if "fanart" in k}
-        if fanarts:
-            fanart = url_decode_path(random.choice(list(fanarts.values())))
-            if "transform?size=thumb" in fanart:
-                fanart = fanart[:-21]
-        window_property("slideshow_fanart", set=fanart)
-        clearlogo = art.get("clearlogo-billboard")
-        clearlogo_type = "clearlogo-billboard" if clearlogo else "clearlogo"
-        clearlogo = clearlogo or art.get("clearlogo")
-        if clearlogo:
+    def _set_art(self):
+        # Ensure items exist before proceeding
+        if not self.art:
+            log("SlideshowMonitor: No artwork available, waiting for next fetch", force=True)
+            return
+        # Select a random artwork and remove it from the list
+        art = self.art.pop(random.randrange(len(self.art)))
+        # Extract the first fanart
+        fanart = next((art[k] for k in art if "fanart" in k), None)
+        if fanart:
+            fanart = url_decode_path(fanart)
+            fanart = fanart[:-21] if "transform?size=thumb" in fanart else fanart
+        # Extract and process clearlogo
+        if clearlogo := art.get("clearlogo-billboard") or art.get("clearlogo"):
             clearlogo = url_decode_path(clearlogo)
-            process = {
-                f'{clearlogo_type}': 'crop'
-            }
-            clearlogo = self.cropper(
-                url=clearlogo, art_type=clearlogo_type, processes=process)
-            window_property("clearlogo_title", set=clearlogo)
-        title = art.get("title", False)
-        window_property("slideshow_title", set=title)
-        log(f'CHECK fanart {fanart}', force=True)
-        log(f'CHECK clearlogo {clearlogo}', force=True)
-        log(f'CHECK title {title}', force=True)
+            clearlogo_type = "clearlogo-billboard" if "billboard" in clearlogo else "clearlogo"
+            processed = self.image_processor(
+                url=clearlogo, processes={clearlogo_type: "crop"})
+            clearlogo_path = processed.get(clearlogo_type)
+        else:
+            clearlogo_path = None
+        # Set window properties
+        window_property("slideshow_fanart", set=fanart)
+        window_property("slideshow_clearlogo", set=clearlogo_path)
+        window_property("slideshow_title", set=art.get("title"))
