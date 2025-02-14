@@ -293,11 +293,12 @@ class SlideshowMonitor:
             self.art_types = [content_map.get(self.art_type, self.art_type)] if condition(
                 f"Library.HasContent({self.art_type})") else []
         # Get art every 20 calls
+        new_path, new_source = self._get_slideshow_path(), self._check_slideshow_source()
         if (
             self.fetch_count == 0
             or not self.art
-            or (new_path := self._get_slideshow_path()) != self.slideshow_path
-            or (new_source := self._check_slideshow_source()) != self.slideshow_source
+            or new_path != self.slideshow_path
+            or new_source != self.slideshow_source
         ):
             self.slideshow_path, self.slideshow_source = new_path, new_source
             log("SlideshowMonitor: Fetching background art")
