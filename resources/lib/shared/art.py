@@ -90,8 +90,6 @@ class ImageEditor:
 
     def _write_lookup(self, art_type, attributes):
         #   writes processed image data to JSON
-        log(f'ART_TYPE {art_type}', force=True)
-        log(f'ATTRIBUTES {attributes}', force=True)
         if attributes:
             art_type = "clearlogo" if "clearlogo" in art_type else art_type
             self.sqlite.add_entry(art_type, attributes)
@@ -141,6 +139,8 @@ class ImageEditor:
 
     def _process_image(self, folder, art, extension, process_func):
         category, url = next(iter(art.items()))
+        if not url:
+            return None
         source_url, destination_url = self._generate_image_urls(
             folder, url, extension)
         image = self._image_open(source_url)
