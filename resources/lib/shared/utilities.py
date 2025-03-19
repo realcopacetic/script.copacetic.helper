@@ -32,6 +32,7 @@ SKINEXTRAS = str(Path(SKIN) / "extras")
 SKINXML = str(Path(SKIN) / "16x9")
 
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
+VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 SKINSETTINGS = str(Path(ADDONDATA) / "skinsettings.json")
 
 DEBUG = xbmc.LOGDEBUG

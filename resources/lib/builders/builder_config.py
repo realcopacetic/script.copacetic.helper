@@ -4,12 +4,21 @@ from resources.lib.builders.modules import (
     controlsBuilder,
     expressionsBuilder,
     skinsettingsBuilder,
+    variablesBuilder,
 )
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.xml import XMLHandler
-from resources.lib.shared.utilities import EXPRESSIONS, SKINSETTINGS
+from resources.lib.shared.utilities import EXPRESSIONS, SKINSETTINGS, VARIABLES
 
 BUILDER_CONFIG = {
+    "controls": {
+        "module": controlsBuilder,
+        "run_at_startup": False,
+        "file_type": None,
+        "file_path": None,
+        "handler": None,
+        "write_kwargs": {},
+    },
     "expressions": {
         "module": expressionsBuilder,
         "run_at_startup": True,
@@ -19,7 +28,7 @@ BUILDER_CONFIG = {
         "write_kwargs": {
             "root_tag": "includes",
             "element_name": "expression",
-            "transform_func": XMLHandler._dict_to_xml,  # Explicitly define transform function
+            "transform_func": XMLHandler._dict_to_xml,
         },
     },
     "skinsettings": {
@@ -30,12 +39,16 @@ BUILDER_CONFIG = {
         "handler": JSONHandler,
         "write_kwargs": {},
     },
-    "controls": {
-        "module": controlsBuilder,
-        "run_at_startup": False,
-        "file_type": None,
-        "file_path": None,
-        "handler": None,
-        "write_kwargs": {},
+    "variables": {
+        "module": variablesBuilder,
+        "run_at_startup": True,
+        "file_type": "xml",
+        "file_path": VARIABLES,
+        "handler": XMLHandler,
+        "write_kwargs": {
+            "root_tag": "includes",
+            "element_name": "variable",
+            "transform_func": XMLHandler._dict_to_xml,
+        },
     },
 }

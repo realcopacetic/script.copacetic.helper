@@ -1,7 +1,10 @@
 # author: realcopacetic
 
 import xbmc
+
 from resources.lib.builders.build_elements import BuildElements
+from resources.lib.service.player import PlayerMonitor
+from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared.art import SlideshowMonitor
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
@@ -10,6 +13,7 @@ from resources.lib.shared.utilities import (
     EXPRESSIONS,
     SKINSETTINGS,
     TEMPS,
+    VARIABLES,
     condition,
     create_dir,
     get_cache_size,
@@ -18,9 +22,6 @@ from resources.lib.shared.utilities import (
     log_and_execute,
     validate_path,
 )
-
-from resources.lib.service.player import PlayerMonitor
-from resources.lib.service.settings import SettingsMonitor
 
 
 class Monitor(xbmc.Monitor):
@@ -69,7 +70,11 @@ class Monitor(xbmc.Monitor):
         """
         elements_processor = BuildElements()
 
-        if not validate_path(str(EXPRESSIONS)) or not validate_path(str(SKINSETTINGS)):
+        if (
+            not validate_path(EXPRESSIONS)
+            or not validate_path(VARIABLES)
+            or not validate_path(SKINSETTINGS)
+        ):
             elements_processor.process()
 
     def _create(self):

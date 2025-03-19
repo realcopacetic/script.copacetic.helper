@@ -44,17 +44,17 @@ class BaseBuilder:
         :yield: Dictionary of processed elements.
         """
 
-        # content_types-style dictionary outer loop
         if isinstance(self.loop_values, dict):
             for loop_key, loop_items in self.loop_values.items():
                 yield from self._resolve_element(
                     element_name, element_data, loop_key, loop_items
                 )
-        # widgets-style list with no outer loop
         elif isinstance(self.loop_values, list):
             yield from self._resolve_element(
                 element_name, element_data, None, self.loop_values
             )
+        else:
+            yield from self._resolve_element(element_name, element_data, None, None)
 
     def _resolve_element(self, element_name, element_data, loop_key, loop_values):
         """
@@ -93,6 +93,23 @@ class BaseBuilder:
         }
 
         yield final_results, dict(placeholder_map)
+
+
+class controlsBuilder(BaseBuilder):
+    """
+    Builds controls dynamically linked to skin settings for use in dynamic windows.
+    """
+
+    def _process_single_element(self, control_data):
+        """ """
+        ...
+
+    def _resolve_element(self, control_name, control_data, loop_key, loop_values):
+        """ """
+        for processed_results, placeholders in super()._resolve_element(
+            control_name, control_data, loop_key, loop_values
+        ):
+            yield dict(processed_results)
 
 
 class expressionsBuilder(BaseBuilder):
@@ -165,7 +182,7 @@ class expressionsBuilder(BaseBuilder):
                 # Identify whether fallback value is from outer loop or inner loop
                 index_override = None
                 if isinstance(
-                    self.placeholders, dict
+                    self.loop_values, dict
                 ) and placeholder in self.placeholders.get("key", []):
                     index_override = list(self.loop_values.keys()).index(loop_key)
 
@@ -235,7 +252,9 @@ class skinsettingsBuilder(BaseBuilder):
             resolved = self.resolver.resolve({setting_name: setting_data}, placeholders)
 
             for resolved_setting_name, resolved_setting_data in resolved.items():
-                processed_result = self._process_single_element(resolved_setting_data, placeholders)
+                processed_result = self._process_single_element(
+                    resolved_setting_data, placeholders
+                )
                 yield {resolved_setting_name: processed_result}
 
     def _process_single_element(self, setting_data, placeholders):
@@ -246,10 +265,7 @@ class skinsettingsBuilder(BaseBuilder):
         setting_type = "bool" if set(items).issubset({"true", "false"}) else "string"
         values = self._filter_items(items, rules, filter_mode)
 
-        result = {
-            "type": setting_type,
-            "values": values
-        }
+        result = {"type": setting_type, "values": values}
 
         return {k: v for k, v in result.items() if v is not None}
 
@@ -273,18 +289,23 @@ class skinsettingsBuilder(BaseBuilder):
 
         return filtered_items
 
-class controlsBuilder(BaseBuilder):
+
+class variablesBuilder(BaseBuilder):
     """
-    Builds controls dynamically linked to skin settings for use in dynamic windows.
+    Builds dynamic variable mappings based on Kodi skin expressions and settings.
     """
 
-    def _process_single_element(self, control_data):
-        """ """
-        ...
+    def _resolve_element(self, var_name, var_data, loop_key, loop_values):
+        """
+        Generates structured variable XML mappings.
+        """
+        log(f"FUCK DEBUG: var_name {var_name}", force=True)
+        log(f"FUCK DEBUG: var_data {var_data}", force=True)
+        log(f"FUCK DEBUG: loop_key {loop_key}", force=True)
+        log(f"FUCK DEBUG: loop_values {loop_values}", force=True)
 
-    def _resolve_element(self, control_name, control_data, loop_key, loop_values):
-        """ """
-        for processed_results, placeholders in super()._resolve_element(
-            control_name, control_data, loop_key, loop_values
+        for processed_results in super()._resolve_element(
+            var_name, var_data, loop_key, loop_values
         ):
-            yield dict(processed_results)
+            log(f"FUCK DEBUG: processed_results {processed_results}", force=True)
+            yield processed_results

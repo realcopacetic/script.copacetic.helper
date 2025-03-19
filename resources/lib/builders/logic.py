@@ -99,10 +99,11 @@ class PlaceholderResolver:
         :param values: Ordered values to match with the keys in self.mapping.
         :return: A dictionary where the placeholders are correctly assigned their values.
         """
+        valid_values = [v for v in values if v is not None]
+
         return {
             placeholder: value
-            for (_, placeholder), value in zip(self.mapping.items(), values)
-            if value is not None
+            for (_, placeholder), value in zip(self.mapping.items(), valid_values)
         }
 
     def resolve(self, data, placeholders):

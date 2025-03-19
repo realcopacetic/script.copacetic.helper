@@ -33,14 +33,14 @@ class BuildElements:
         :return: A tuple containing the accumulated expressions, skinsettings, and controls data.
         """
 
-        processed_data = {}
+        values_to_write = {}
         start_time = time.time()
 
         for mapping_name, items_data in self.json_merger.get_merged_data():
             mapping_defaults = DEFAULT_MAPPINGS.get("default_mappings", {}).get(
                 mapping_name, {}
             )
-            loop_values = mapping_defaults.get("items", {})
+            loop_values = mapping_defaults.get("items", None)
             placeholders = mapping_defaults.get("placeholders", {})
 
             for builder, elements in items_data.items():
@@ -58,17 +58,21 @@ class BuildElements:
                 builder_instance = builder_info["module"](loop_values, placeholders)
 
                 # Chain a generator to process each element lazily
-                processed_data[builder] = {
-                    k: v
-                    for key, value in elements.items()
-                    for d in builder_instance.process_elements(key, value)
-                    for k, v in d.items()
-                }
-
-                log(
-                    f"{self.__class__.__name__}: Rule processing took {time.time() - start_time:.4f} seconds",
+                values_to_write.setdefault(builder, {}).update(
+                    {
+                        k: v
+                        for key, value in elements.items()
+                        for d in builder_instance.process_elements(key, value)
+                        for k, v in d.items()
+                    }
                 )
-                self.write_file(processed_data[builder], builder)
+
+        for builder, builder_data in values_to_write.items():
+            self.write_file(builder_data, builder)
+
+        log(
+            f"{self.__class__.__name__}: Rule processing took {time.time() - start_time:.4f} seconds",
+        )
 
     def write_file(self, processed_data, builder_name):
         """

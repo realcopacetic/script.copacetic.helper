@@ -20,7 +20,7 @@ DEFAULT_MAPPINGS = {
         },
         "widgets": {
             "items": ["3201", "3202", "3203"],
-            "placeholders": "{id}",
+            "placeholders": {"key": "{id}"},
         },
     },
     "custom_mappings": ["custom_mapping1.json", "custom_mapping2.json"],
