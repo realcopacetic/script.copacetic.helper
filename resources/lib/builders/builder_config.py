@@ -28,7 +28,7 @@ BUILDER_CONFIG = {
         "file_type": "json",
         "file_path": SKINSETTINGS,
         "handler": JSONHandler,
-        "write_kwargs": {},  # JSON doesn't need extra arguments
+        "write_kwargs": {},
     },
     "controls": {
         "module": controlsBuilder,
