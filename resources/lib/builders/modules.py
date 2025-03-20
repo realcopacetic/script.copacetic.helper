@@ -1,5 +1,5 @@
 # author: realcopacetic
-
+from functools import wraps
 from collections import defaultdict
 
 from resources.lib.builders.logic import RuleEngine, PlaceholderResolver
@@ -16,6 +16,15 @@ def get_fallback_entry(fallback_list, index, default="false"):
     return (
         fallback_list[min(index, len(fallback_list) - 1)] if fallback_list else default
     )
+
+def expand_element_data(method):
+    """Decorator to automatically loop over element_data items before calling the processing method."""
+    def wrapper(self, element_name, element_data):
+        processed_results = {}
+        for k, v in element_data.items():
+            method(self, k, v, processed_results)
+        return processed_results
+    return wrapper
 
 
 class BaseBuilder:
@@ -43,7 +52,7 @@ class BaseBuilder:
         :param element_data: Dictionary containing items, rules, and fallback settings.
         :yield: Dictionary of processed elements.
         """
-
+        
         if isinstance(self.loop_values, dict):
             for loop_key, loop_items in self.loop_values.items():
                 yield from self._resolve_element(
@@ -52,9 +61,11 @@ class BaseBuilder:
         elif isinstance(self.loop_values, list):
             yield from self._resolve_element(
                 element_name, element_data, None, self.loop_values
-            )
+            )  
         else:
-            yield from self._resolve_element(element_name, element_data, None, None)
+            yield from self._resolve_element(
+                element_name, element_data, None, None
+            ) 
 
     def _resolve_element(self, element_name, element_data, loop_key, loop_values):
         """
@@ -66,16 +77,12 @@ class BaseBuilder:
         :param loop_values: List of values from the inner loop (e.g., content types, widgets).
         :yield: A dictionary of processed expressions with fallback applied.
         """
-
         processed_results = defaultdict(set)
         placeholder_map = defaultdict(dict)
 
-        for element_item in element_data.get("items", []):
-            for inner_item in ensure_list(loop_values):
-
-                placeholders = self.resolver.build_placeholders(
-                    loop_key, inner_item, element_item
-                )
+        if loop_values:
+            for loop_value in loop_values:
+                placeholders = self.resolver.build_placeholders(loop_key, loop_value)
                 resolved = self.resolver.resolve(
                     {element_name: element_data}, placeholders
                 )
@@ -85,7 +92,19 @@ class BaseBuilder:
                 value = self._process_single_element(resolved_data)
                 processed_results[resolved_name].add(value if value else "false")
 
-                placeholder_map[inner_item] = placeholders
+                placeholder_map[loop_value] = placeholders
+        else:
+            placeholders = self.resolver.build_placeholders()
+            resolved = self.resolver.resolve(
+                {element_name: element_data}, placeholders
+            )
+            resolved_name, resolved_data = next(
+                iter(resolved.items()), (None, None)
+            )
+            value = self._process_single_element(resolved_data)
+            processed_results[resolved_name].add(value if value else "false")
+
+            placeholder_map = placeholders
 
         final_results = {
             key: " | ".join(values - {"false"}) if values - {"false"} else "false"
@@ -93,6 +112,7 @@ class BaseBuilder:
         }
 
         yield final_results, dict(placeholder_map)
+
 
 
 class controlsBuilder(BaseBuilder):
