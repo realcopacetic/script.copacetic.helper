@@ -1,6 +1,7 @@
 # author: realcopacetic
-from functools import wraps
+
 from collections import defaultdict
+import functools
 
 from resources.lib.builders.logic import RuleEngine, PlaceholderResolver
 from resources.lib.shared.utilities import log
@@ -17,13 +18,20 @@ def get_fallback_entry(fallback_list, index, default="false"):
         fallback_list[min(index, len(fallback_list) - 1)] if fallback_list else default
     )
 
-def expand_element_data(method):
-    """Decorator to automatically loop over element_data items before calling the processing method."""
-    def wrapper(self, element_name, element_data):
-        processed_results = {}
-        for k, v in element_data.items():
-            method(self, k, v, processed_results)
-        return processed_results
+
+def wrap_with_element_items(func):
+    """
+    Decorator to iterate over `element_data.get("items", [])`
+    and inject `element_item` into `build_placeholders`.
+    """
+
+    @functools.wraps(func)
+    def wrapper(self, element_name, element_data, loop_key, loop_values):
+        for element_item in element_data.get("items", []):
+            yield from func(
+                self, element_name, element_data, loop_key, loop_values, element_item
+            )
+
     return wrapper
 
 
@@ -46,73 +54,65 @@ class BaseBuilder:
 
     def process_elements(self, element_name, element_data):
         """
-        Iterates through elements based on the relevant looping values and yields results.
+        Iterates through elements based on the relevant looping values and yields resolved results.
 
         :param element_name: Name of the element to process.
         :param element_data: Dictionary containing items, rules, and fallback settings.
+
         :yield: Dictionary of processed elements.
         """
-        
-        if isinstance(self.loop_values, dict):
-            for loop_key, loop_items in self.loop_values.items():
-                yield from self._resolve_element(
-                    element_name, element_data, loop_key, loop_items
-                )
-        elif isinstance(self.loop_values, list):
-            yield from self._resolve_element(
-                element_name, element_data, None, self.loop_values
-            )  
-        else:
-            yield from self._resolve_element(
-                element_name, element_data, None, None
-            ) 
 
-    def _resolve_element(self, element_name, element_data, loop_key, loop_values):
+        if isinstance(self.loop_values, dict):
+            normalised_loop_values = self.loop_values
+        elif isinstance(self.loop_values, list):
+            normalised_loop_values = {None: self.loop_values}
+        else:
+            normalised_loop_values = {None: None}
+
+        for loop_key, loop_items in normalised_loop_values.items():
+            element_set = {}
+            for data in self._resolve_element(
+                element_name, element_data, loop_key, loop_items
+            ):
+                element_set.update(data)
+            yield element_set
+
+    def _resolve_element(
+        self, element_name, element_data, loop_key, loop_values, element_item=None
+    ):
         """
-        Resolves placeholders, applies fallback logic, and yields a processed dictionary dynamically.
+        Resolves placeholders, calls subclass processor logic, and yields a processed dictionary dynamically.
 
         :param element_name: The name of the element.
         :param element_data: Dictionary with element details.
         :param loop_key: Outer loop key (if applicable, e.g., 'videos').
         :param loop_values: List of values from the inner loop (e.g., content types, widgets).
-        :yield: A dictionary of processed expressions with fallback applied.
+        :param element_item: Optionally passed by wrap_with_element_items() decorator if builder requires extra loop
+
+        :yield: A dictionary containing resolved element name and processed value.
         """
-        processed_results = defaultdict(set)
-        placeholder_map = defaultdict(dict)
 
-        if loop_values:
-            for loop_value in loop_values:
-                placeholders = self.resolver.build_placeholders(loop_key, loop_value)
-                resolved = self.resolver.resolve(
-                    {element_name: element_data}, placeholders
-                )
-                resolved_name, resolved_data = next(
-                    iter(resolved.items()), (None, None)
-                )
-                value = self._process_single_element(resolved_data)
-                processed_results[resolved_name].add(value if value else "false")
+        string_values = defaultdict(set)
 
-                placeholder_map[loop_value] = placeholders
-        else:
-            placeholders = self.resolver.build_placeholders()
-            resolved = self.resolver.resolve(
-                {element_name: element_data}, placeholders
+        for inner_item in ensure_list(loop_values):
+
+            placeholders = self.resolver.build_placeholders(
+                loop_key, inner_item, element_item
             )
-            resolved_name, resolved_data = next(
-                iter(resolved.items()), (None, None)
-            )
+            resolved = self.resolver.resolve({element_name: element_data}, placeholders)
+            resolved_name, resolved_data = next(iter(resolved.items()), (None, None))
             value = self._process_single_element(resolved_data)
-            processed_results[resolved_name].add(value if value else "false")
 
-            placeholder_map = placeholders
-
-        final_results = {
-            key: " | ".join(values - {"false"}) if values - {"false"} else "false"
-            for key, values in processed_results.items()
-        }
-
-        yield final_results, dict(placeholder_map)
-
+            if isinstance(value, dict):
+                yield value
+                break
+            else:
+                string_values[resolved_name].add(value if value else "false")
+        else:
+            yield {
+                key: " | ".join(values - {"false"}) if values - {"false"} else "false"
+                for key, values in string_values.items()
+            }
 
 
 class controlsBuilder(BaseBuilder):
@@ -124,18 +124,23 @@ class controlsBuilder(BaseBuilder):
         """ """
         ...
 
-    def _resolve_element(self, control_name, control_data, loop_key, loop_values):
-        """ """
-        for processed_results, placeholders in super()._resolve_element(
-            control_name, control_data, loop_key, loop_values
-        ):
-            yield dict(processed_results)
-
 
 class expressionsBuilder(BaseBuilder):
     """
     Builds expressions defining visibility, inclusion, and logic for Kodi UI elements.
     """
+    def process_elements(self, exp_name, exp_data):
+        for exp_set in super().process_elements(exp_name, exp_data):
+            yield self._apply_fallbacks(exp_set, exp_name, exp_data)
+
+    @wrap_with_element_items
+    def _resolve_element(
+        self, exp_name, exp_data, loop_key, loop_values, element_item=None
+    ):
+        self.loop_key = loop_key
+        yield from super()._resolve_element(
+            exp_name, exp_data, loop_key, loop_values, element_item
+        )
 
     def _process_single_element(self, exp_data):
         """
@@ -165,89 +170,36 @@ class expressionsBuilder(BaseBuilder):
 
         return value
 
-    def _resolve_element(self, exp_name, exp_data, loop_key, loop_values):
-        """
-        Resolves expressions by calling `BaseBuilder._resolve_element()` first,
-        then applies fallback logic specific to expressions.
+    def _apply_fallbacks(self, exp_set, exp_name, exp_data):
+        fallback_key = next(
+            (k for k in exp_data if k.startswith("fallback_for_")), ""
+        )
+        if not fallback_key:
+            return exp_set
 
-        :param exp_name: The base name of the expression with placeholders (e.g., "views_{item}_{window}_include").
-        :param exp_data: A dictionary containing items, rules and fallback conditions.
-        :param loop_key: The parent key being iterated (e.g., "window") or None for list-based loops.
-        :param loop_values: The values or list being iterated (e.g. "content_types" or "widgets").
+        placeholder = fallback_key.replace("fallback_for_","")
+        fallback_data = exp_data[fallback_key]
+        fallback_values = fallback_data.get("fallback_values", [])
+        fallback_items = fallback_data.get("fallback_items", [])
 
-        :yield: A dictionary mapping resolved expression names to their processed values.
-        """
+        is_outer_loop = isinstance(
+            self.loop_values, dict
+        ) and placeholder in self.placeholders.get("key", [])
 
-        for processed_results, placeholder_map in super()._resolve_element(
-            exp_name, exp_data, loop_key, loop_values
-        ):
+        if is_outer_loop:
+            index = list(self.loop_values.keys()).index(self.loop_key)
 
-            fallback_key = next(
-                (k for k in exp_data if k.startswith("fallback_for_")), None
-            )
+        log(f"FUCK DEBUG self.placeholders {self.placeholders}", force=True)
+        log(f"FUCK DEBUG self.loop_key {self.loop_key}", force=True)
+        log(f"FUCK DEBUG self.loop_values {self.loop_values}", force=True)
+        log(F'FUCK DEBUG exp_set {exp_set}', force=True)
+        log(F'FUCK DEBUG exp_name {exp_name}', force=True)
+        log(F'FUCK DEBUG exp_data {exp_data}', force=True)
+        log(f"FUCK DEBUG placeholder {placeholder}", force=True)
+        log(f"FUCK DEBUG fallback_values {fallback_values}", force=True)
+        log(f"FUCK DEBUG fallback_items {fallback_items}", force=True)
 
-            if fallback_key:
-                placeholder = fallback_key.replace("fallback_for_", "")
-                fallback_data = exp_data[fallback_key]
-                fallback_values = fallback_data.get("fallback_values", [])
-                fallback_items = fallback_data.get("fallback_items", [])
-
-                # Handle inner loop wether it's a dictionary or list
-                inner_loop_values = (
-                    self.loop_values.get(loop_key, [])
-                    if isinstance(self.loop_values, dict)
-                    else self.loop_values
-                )
-
-                # Identify whether fallback value is from outer loop or inner loop
-                index_override = None
-                if isinstance(
-                    self.loop_values, dict
-                ) and placeholder in self.placeholders.get("key", []):
-                    index_override = list(self.loop_values.keys()).index(loop_key)
-
-                """
-                For each inner loop iteration, resolve target expression and value.
-                Even if fallback is for outer loop, we must do this because some
-                fallback values are an inversion of the appended inner loop values
-                """
-                for index, inner_key in enumerate(inner_loop_values):
-                    inner_placeholder_map = placeholder_map.get(inner_key, {})
-
-                    if index_override is not None:
-                        index = index_override
-
-                    fallback_item = get_fallback_entry(fallback_items, index)
-                    fallback_value = get_fallback_entry(
-                        fallback_values, index, default="false"
-                    )
-
-                    resolved_fallback_target = (
-                        exp_name.replace("{item}", fallback_item)
-                        if fallback_item
-                        else exp_name
-                    )
-
-                    for placeholder, value in inner_placeholder_map.items():
-                        resolved_fallback_target = resolved_fallback_target.replace(
-                            placeholder, value
-                        )
-
-                    if resolved_fallback_target in processed_results:
-                        if fallback_value == "invert()":
-                            processed_results[resolved_fallback_target] = (
-                                self.rules.invert(
-                                    {
-                                        k: v
-                                        for k, v in processed_results.items()
-                                        if k != resolved_fallback_target
-                                    }
-                                )
-                            )
-                        else:
-                            processed_results[resolved_fallback_target] = fallback_value
-            yield dict(processed_results)
-
+        return exp_set
 
 class skinsettingsBuilder(BaseBuilder):
     """
@@ -255,36 +207,13 @@ class skinsettingsBuilder(BaseBuilder):
     that can be used in dynamic settings windows to map settings to controls.
     """
 
-    def _resolve_element(self, setting_name, setting_data, loop_key, loop_values):
-        """
-        Override BaseBuilder's _resolve_element method with a simpler loop to allow
-        flatter processing of skin settings.
-
-        :param element_name: The name of the element.
-        :param element_data: Dictionary with element details.
-        :param loop_key: Outer loop key (if applicable, e.g., 'videos').
-        :param loop_values: List of values from the inner loop (e.g., content types, widgets).
-        :yield: A dictionary of processed expressions with fallback applied.
-        """
-        for inner_item in ensure_list(loop_values):
-
-            placeholders = self.resolver.build_placeholders(loop_key, inner_item)
-            resolved = self.resolver.resolve({setting_name: setting_data}, placeholders)
-
-            for resolved_setting_name, resolved_setting_data in resolved.items():
-                processed_result = self._process_single_element(
-                    resolved_setting_data, placeholders
-                )
-                yield {resolved_setting_name: processed_result}
-
-    def _process_single_element(self, setting_data, placeholders):
+    def _process_single_element(self, setting_data):
         items = setting_data.get("items", [])
         rules = setting_data.get("rules", [])
         filter_mode = setting_data.get("filter_mode", "exclude")
 
         setting_type = "bool" if set(items).issubset({"true", "false"}) else "string"
         values = self._filter_items(items, rules, filter_mode)
-
         result = {"type": setting_type, "values": values}
 
         return {k: v for k, v in result.items() if v is not None}
@@ -297,7 +226,6 @@ class skinsettingsBuilder(BaseBuilder):
             rule_values = rule["value"]
 
             if condition and self.rules.evaluate(condition):
-
                 if filter_mode == "exclude":
                     filtered_items = [
                         item for item in filtered_items if item not in rule_values
@@ -315,17 +243,14 @@ class variablesBuilder(BaseBuilder):
     Builds dynamic variable mappings based on Kodi skin expressions and settings.
     """
 
-    def _resolve_element(self, var_name, var_data, loop_key, loop_values):
-        """
-        Generates structured variable XML mappings.
-        """
-        log(f"FUCK DEBUG: var_name {var_name}", force=True)
-        log(f"FUCK DEBUG: var_data {var_data}", force=True)
-        log(f"FUCK DEBUG: loop_key {loop_key}", force=True)
-        log(f"FUCK DEBUG: loop_values {loop_values}", force=True)
-
-        for processed_results in super()._resolve_element(
-            var_name, var_data, loop_key, loop_values
-        ):
-            log(f"FUCK DEBUG: processed_results {processed_results}", force=True)
-            yield processed_results
+    @wrap_with_element_items
+    def _resolve_element(
+        self, var_name, var_data, loop_key, loop_values, element_item=None
+    ):
+        yield from super()._resolve_element(
+            var_name, var_data, loop_key, loop_values, element_item
+        )
+    
+    def _process_single_element(self, control_data):
+        """ """
+        ...
