@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 import re
-from resources.lib.shared.utilities import condition, log
+from resources.lib.shared.utilities import condition
 
 
 class RuleEngine:
@@ -11,7 +11,8 @@ class RuleEngine:
     CONDITION_PATTERN = re.compile(r"^(not\s+)?(\w+)\(\s*([^,]+)\s*,\s*([^)]+)\s*\)$")
 
     CONDITION_MAP = {
-        "in": lambda subj, vals: subj in [x.strip() for x in vals.strip("[]").split(",")],
+        "in": lambda subj, vals: subj
+        in [x.strip() for x in vals.strip("[]").split(",")],
         "equals": lambda subj, val: subj == val,
         "not_equals": lambda subj, val: subj != val,
         "startswith": lambda subj, prefix: subj.startswith(prefix),
@@ -72,58 +73,3 @@ class RuleEngine:
             return "true"
 
         return f"![{ ' | '.join(values) }]"
-
-
-class PlaceholderResolver:
-    """Resolves placeholders efficiently by separating placeholder creation and substitution."""
-
-    def __init__(self, loop_values=None, placeholders=None, dynamic_key=None):
-        self.loop_values = loop_values
-        self.base_placeholders = placeholders
-        self.dynamic_key = dynamic_key
-        self.expanded_placeholders = self._expand()
-
-    def _expand(self):
-        
-
-    def build_placeholders(self, *values):
-        """
-        Dynamically maps placeholders stored in self.mapping to the values passed in.
-
-        :param values: Ordered values to match with the keys in self.mapping.
-        :return: A dictionary where the placeholders are correctly assigned their values.
-        """
-        valid_values = [v for v in values if v is not None]
-
-        return {
-            placeholder: value
-            for (_, placeholder), value in zip(self.mapping.items(), valid_values)
-        }
-
-    def resolve(self, data, placeholders):
-        """
-        Recursively resolves placeholders in strings, lists, and dictionaries.
-        Also replaces placeholders in dictionary keys.
-
-        :param data: The text, list, or dictionary containing placeholders.
-        :param placeholders: Dictionary of placeholder mappings.
-        :return: Data with placeholders replaced.
-        """
-        if isinstance(data, str):
-            for key, value in placeholders.items():
-                data = data.replace(key, value)
-            return data
-
-        # Process each list item recursively
-        elif isinstance(data, list):
-            return [self.resolve(item, placeholders) for item in data]
-
-        # Process both keys and values recursively
-        elif isinstance(data, dict):
-            return {
-                self.resolve(k, placeholders): self.resolve(v, placeholders)
-                for k, v in data.items()
-            }
-
-        # Return unchanged if not string, list, or dict
-        return data

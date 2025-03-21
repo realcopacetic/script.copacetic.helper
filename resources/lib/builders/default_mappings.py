@@ -16,11 +16,11 @@ DEFAULT_MAPPINGS = {
                     "musicvideos",
                 ],
             },
-            "placeholders": {"key": "{window}", "value": "{content_type}"},
+            "placeholders": {"key": "window", "value": "content_type"},
         },
         "widgets": {
             "items": ["3201", "3202", "3203"],
-            "placeholders": {"key": "{id}"},
+            "placeholders": {"key": "id"},
         },
     },
     "custom_mappings": ["custom_mapping1.json", "custom_mapping2.json"],

@@ -6,7 +6,6 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.default_mappings import DEFAULT_MAPPINGS
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import SKINEXTRAS, Path, log
-from resources.lib.builders.logic import RuleEngine, PlaceholderResolver
 
 
 class BuildElements:
@@ -27,46 +26,32 @@ class BuildElements:
 
     def process(self, run_context="startup"):
         """
-        Iterates through each mapping lazily, applies loop values and placeholders,
-        and processes all dynamically discovered items.
+        Iterates through each mapping, filters builders by run_context,
+        and delegates builder processing.
 
-        :param process_controls: If True, includes building controls. If False, controls are skipped.
-        :return: A tuple containing the accumulated expressions, skinsettings, and controls data.
+        :param run_context: e.g. "startup", "runtime", etc.
         """
-
         values_to_write = {}
         start_time = time.time()
 
         for mapping_name, items_data in self.json_merger.get_merged_data():
-            mapping_defaults = DEFAULT_MAPPINGS.get("default_mappings", {}).get(
-                mapping_name, {}
-            )
+            mapping_defaults = DEFAULT_MAPPINGS.get("default_mappings", {}).get(mapping_name, {})
             loop_values = mapping_defaults.get("items", None)
             placeholders = mapping_defaults.get("placeholders", {})
 
             for builder, elements in items_data.items():
-
-                dynamic_key = builder_info.get("dynamic_key")
-                resolver = PlaceholderResolver(loop_values, elements, placeholders, dynamic_key)
-
                 builder_info = BUILDER_CONFIG.get(builder)
                 if not builder_info or not builder_info["module"]:
-                    continue  # Skip if no valid builder is found
+                    continue
 
-                dynamic_key = builder_info.get("dynamic_key")
-                self.resolver = PlaceholderResolver(
-                    loop_values, placeholders, dynamic_key
-                )
+                run_contexts = builder_info.get("run_contexts")
+                if run_context not in run_contexts:
+                    continue
 
-                if (
-                    not builder_info.get("run_at_startup", True)
-                    and run_context == "startup"
-                ):
-                    continue  # Skip builders flagged not to run at startup
+                builder_class = builder_info["module"]
+                dynamic_key = next(iter(builder_info.get("dynamic_key", {})), None)
+                builder_instance = builder_class(loop_values, placeholders, dynamic_key)
 
-                builder_instance = builder_info["module"](loop_values, placeholders)
-
-                # Chain a generator to process each element lazily
                 values_to_write.setdefault(builder, {}).update(
                     {
                         k: v
@@ -79,9 +64,7 @@ class BuildElements:
         for builder, builder_data in values_to_write.items():
             self.write_file(builder_data, builder)
 
-        log(
-            f"{self.__class__.__name__}: Rule processing took {time.time() - start_time:.4f} seconds",
-        )
+        log(f"{self.__class__.__name__}: Rule processing took {time.time() - start_time:.4f} seconds")
 
     def write_file(self, processed_data, builder_name):
         """
