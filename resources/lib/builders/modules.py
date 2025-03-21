@@ -182,24 +182,33 @@ class expressionsBuilder(BaseBuilder):
         fallback_values = fallback_data.get("fallback_values", [])
         fallback_items = fallback_data.get("fallback_items", [])
 
-        is_outer_loop = isinstance(
-            self.loop_values, dict
-        ) and placeholder in self.placeholders.get("key", [])
+        def apply_fallback(index, key):
+            """Handles fallback assignment logic to avoid repetition."""
+            fallback_item = get_fallback_entry(fallback_items, index)
+            fallback_value = get_fallback_entry(fallback_values, index)
 
-        if is_outer_loop:
-            index = list(self.loop_values.keys()).index(self.loop_key)
+            if (fallback_target := next(
+                (expr for expr in exp_set if key in expr and fallback_item in expr),
+                None
+            )) in exp_set:
+                exp_set[fallback_target] = (
+                    self.rules.invert({k: v for k, v in exp_set.items() if k != fallback_target})
+                    if fallback_value == "invert()" 
+                    else fallback_value
+                )
 
-        log(f"FUCK DEBUG self.placeholders {self.placeholders}", force=True)
-        log(f"FUCK DEBUG self.loop_key {self.loop_key}", force=True)
-        log(f"FUCK DEBUG self.loop_values {self.loop_values}", force=True)
-        log(F'FUCK DEBUG exp_set {exp_set}', force=True)
-        log(F'FUCK DEBUG exp_name {exp_name}', force=True)
-        log(F'FUCK DEBUG exp_data {exp_data}', force=True)
-        log(f"FUCK DEBUG placeholder {placeholder}", force=True)
-        log(f"FUCK DEBUG fallback_values {fallback_values}", force=True)
-        log(f"FUCK DEBUG fallback_items {fallback_items}", force=True)
-
+        if isinstance(self.loop_values, dict):
+            if placeholder in self.placeholders.get("key", []):
+                index = list(self.loop_values.keys()).index(self.loop_key)
+                apply_fallback(index, self.loop_key)
+            else:
+                for index, value in enumerate(self.loop_values.get(self.loop_key, [])):
+                    apply_fallback(index, value)
+        elif isinstance(self.loop_values, list):
+            for index, value in enumerate(self.loop_values):
+                apply_fallback(index, value)
         return exp_set
+
 
 class skinsettingsBuilder(BaseBuilder):
     """
