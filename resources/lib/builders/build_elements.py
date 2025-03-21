@@ -6,6 +6,7 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.default_mappings import DEFAULT_MAPPINGS
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import SKINEXTRAS, Path, log
+from resources.lib.builders.logic import RuleEngine, PlaceholderResolver
 
 
 class BuildElements:
@@ -45,9 +46,17 @@ class BuildElements:
 
             for builder, elements in items_data.items():
 
+                dynamic_key = builder_info.get("dynamic_key")
+                resolver = PlaceholderResolver(loop_values, elements, placeholders, dynamic_key)
+
                 builder_info = BUILDER_CONFIG.get(builder)
                 if not builder_info or not builder_info["module"]:
                     continue  # Skip if no valid builder is found
+
+                dynamic_key = builder_info.get("dynamic_key")
+                self.resolver = PlaceholderResolver(
+                    loop_values, placeholders, dynamic_key
+                )
 
                 if (
                     not builder_info.get("run_at_startup", True)

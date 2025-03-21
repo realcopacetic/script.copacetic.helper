@@ -77,20 +77,14 @@ class RuleEngine:
 class PlaceholderResolver:
     """Resolves placeholders efficiently by separating placeholder creation and substitution."""
 
-    def __init__(self, mapping=None):
-        """
-        Initializes the resolver with either a dictionary or single placeholder.
+    def __init__(self, loop_values=None, placeholders=None, dynamic_key=None):
+        self.loop_values = loop_values
+        self.base_placeholders = placeholders
+        self.dynamic_key = dynamic_key
+        self.expanded_placeholders = self._expand()
 
-        :param mapping: Dict for placeholder mappings, or single placeholder string.
-        Example dict:
-            {"{window}": "videos", "{content_type}": "movies"}
-        Example single placeholder:
-            "{id}"
-        """
-        self.mapping = mapping or {}
-
-        # Add {item} as placeholder for skinner's json items
-        self.mapping["item"] = "{item}"
+    def _expand(self):
+        
 
     def build_placeholders(self, *values):
         """
