@@ -10,6 +10,7 @@ class BaseBuilder:
         self.placeholders = placeholders
         self.dynamic_key = dynamic_key
         self.rules = RuleEngine()
+        self.group_map = {}
 
     def process_elements(self, element_name, element_data):
         """
@@ -65,22 +66,18 @@ class BaseBuilder:
         to produce the final value for each group.
         Returns a dict of {resolved_template_name: expression_value}.
         """
-        log(f"FUCK DEBUG template_name {template_name}", force=True)
-        log(f"FUCK DEBUG rules {rules}", force=True)
-        log(f"FUCK DEBUG substitutions {substitutions}", force=True)
         grouped = defaultdict(list)
         for sub in substitutions:
             key = template_name.format(**sub)
             grouped[key].append(sub)
-        log(f"FUCK DEBUG grouped {grouped}", force=True)
+            self.group_map[key] = sub
+            
 
-        results = {
+        return {
             key: " | ".join(resolved) if resolved else None
             for key, subs in grouped.items()
             for resolved in [self.resolve_values(subs, rules)]
         }
-        log(f"FUCK DEBUG results {results}", force=True)
-        return results
 
 
 class controlsBuilder(BaseBuilder):
@@ -94,6 +91,59 @@ class expressionsBuilder(BaseBuilder):
     Builder that processes expression definitions by resolving template placeholders
     and evaluating rule-based logic to produce final expressions.
     """
+
+    def process_elements(self, expr_name, expr_data):
+        resolved = {}
+        for d in super().process_elements(expr_name, expr_data):
+            resolved.update(d)
+
+        fallback_key = next((k for k in expr_data if k.startswith("fallback_for_")), None)
+
+        if fallback_key:
+            fallback_field = fallback_key.replace("fallback_for_", "").strip("{}")
+            fallback_items = expr_data[fallback_key].get("fallback_items", [])
+            fallback_values = expr_data[fallback_key].get("fallback_values", [])
+
+            if not fallback_items:
+                fallback_items = fallback_values
+
+            all_exprs_by_group = {}
+
+            for expr_name, sub in self.group_map.items():
+                if expr_name in resolved and fallback_field in sub:
+                    group_key = sub[fallback_field]
+                    all_exprs_by_group.setdefault(group_key, []).append(expr_name)
+
+            for i, group_key in enumerate(all_exprs_by_group):
+                expr_list = all_exprs_by_group.get(group_key, [])
+
+                if not expr_list:
+                    continue
+
+                fallback_item = fallback_items[min(i, len(fallback_items) - 1)]
+                fallback_value = fallback_values[min(i, len(fallback_values) - 1)]
+
+                target_expr = None
+                others = set()
+
+                for expr_name in expr_list:
+                    if self.group_map[expr_name].get("item") == fallback_item:
+                        target_expr = expr_name
+                    else:
+                        val = resolved.get(expr_name)
+                        if val and val != "false" and val != "None":
+                            others.add(val)
+
+                if target_expr:
+                    if fallback_value in ("invert()", "{invert}"):
+                        resolved[target_expr] = f"![{' | '.join(sorted(others))}]" if others else "true"
+                    else:
+                        resolved[target_expr] = fallback_value
+
+        yield resolved
+
+
+
 
     def resolve_values(self, subs, rules):
         """
