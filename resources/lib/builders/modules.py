@@ -1,5 +1,6 @@
 from collections import defaultdict
-from itertools import product
+from itertools import product, zip_longest
+
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import log
 
@@ -71,7 +72,6 @@ class BaseBuilder:
             key = template_name.format(**sub)
             grouped[key].append(sub)
             self.group_map[key] = sub
-            
 
         return {
             key: " | ".join(resolved) if resolved else None
@@ -97,53 +97,7 @@ class expressionsBuilder(BaseBuilder):
         for d in super().process_elements(expr_name, expr_data):
             resolved.update(d)
 
-        fallback_key = next((k for k in expr_data if k.startswith("fallback_for_")), None)
-
-        if fallback_key:
-            fallback_field = fallback_key.replace("fallback_for_", "").strip("{}")
-            fallback_items = expr_data[fallback_key].get("fallback_items", [])
-            fallback_values = expr_data[fallback_key].get("fallback_values", [])
-
-            if not fallback_items:
-                fallback_items = fallback_values
-
-            all_exprs_by_group = {}
-
-            for expr_name, sub in self.group_map.items():
-                if expr_name in resolved and fallback_field in sub:
-                    group_key = sub[fallback_field]
-                    all_exprs_by_group.setdefault(group_key, []).append(expr_name)
-
-            for i, group_key in enumerate(all_exprs_by_group):
-                expr_list = all_exprs_by_group.get(group_key, [])
-
-                if not expr_list:
-                    continue
-
-                fallback_item = fallback_items[min(i, len(fallback_items) - 1)]
-                fallback_value = fallback_values[min(i, len(fallback_values) - 1)]
-
-                target_expr = None
-                others = set()
-
-                for expr_name in expr_list:
-                    if self.group_map[expr_name].get("item") == fallback_item:
-                        target_expr = expr_name
-                    else:
-                        val = resolved.get(expr_name)
-                        if val and val != "false" and val != "None":
-                            others.add(val)
-
-                if target_expr:
-                    if fallback_value in ("invert()", "{invert}"):
-                        resolved[target_expr] = f"![{' | '.join(sorted(others))}]" if others else "true"
-                    else:
-                        resolved[target_expr] = fallback_value
-
-        yield resolved
-
-
-
+        yield self._apply_fallbacks(resolved, expr_data)
 
     def resolve_values(self, subs, rules):
         """
@@ -165,6 +119,68 @@ class expressionsBuilder(BaseBuilder):
                 else:
                     raise ValueError(f"Unsupported rule type: {rule['type']}")
         return resolved if resolved else ["false"]
+
+    def _apply_fallbacks(self, resolved, expr_data):
+        fallback_key = next(
+            (k for k in expr_data if k.startswith("fallback_for_")), None
+        )
+        if not fallback_key:
+            return resolved
+
+        fallback_field = fallback_key.replace("fallback_for_", "").strip("{}")
+        fallback_values = expr_data[fallback_key].get("fallback_values", [])
+        fallback_items = (
+            expr_data[fallback_key].get("fallback_items", []) or fallback_values
+        )
+
+        all_exprs_by_group = defaultdict(list)
+        for expr_name in resolved:
+            sub = self.group_map.get(expr_name, {})
+            if fallback_field in sub:
+                all_exprs_by_group[sub[fallback_field]].append(expr_name)
+
+        for i, (group_key, expr_list) in enumerate(all_exprs_by_group.items()):
+            fallback_item = fallback_items[min(i, len(fallback_items) - 1)]
+            fallback_value = fallback_values[min(i, len(fallback_values) - 1)]
+
+            if not expr_list:
+                continue
+
+            target_expr = next(
+                (
+                    name
+                    for name in expr_list
+                    if self.group_map[name].get("item") == fallback_item
+                ),
+                None,
+            )
+
+            if not target_expr:
+                log(
+                    f"[Fallback skipped] No match for fallback_item '{fallback_item}' in group '{group_key}'",
+                    force=True,
+                )
+                continue
+
+            others = {
+                name: resolved[name]
+                for name in expr_list
+                if self.group_map[name].get("item") != fallback_item
+                and resolved.get(name) not in ("false", "None", None)
+            }
+
+            resolved[target_expr] = (
+                self.rules.invert(others)
+                if fallback_value in ("invert()", "{invert}")
+                else fallback_value
+            ) or "true"
+
+            log(
+                f"[Fallback applied] {target_expr} = {resolved[target_expr]} (group: {group_key}, others: {list(others.keys())})",
+                force=True,
+            )
+
+        return resolved
 
 
 class skinsettingsBuilder(BaseBuilder):
