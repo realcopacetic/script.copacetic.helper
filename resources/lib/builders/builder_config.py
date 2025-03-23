@@ -40,7 +40,8 @@ BUILDER_CONFIG = {
         "handler": JSONHandler,
         "write_kwargs": {},
         "dynamic_key": {},
-        "run_contexts": ["buildtime"],
+        # "run_contexts": ["buildtime"],
+        "run_contexts": ["startup"],
     },
     "variables": {
         "module": variablesBuilder,
@@ -53,6 +54,7 @@ BUILDER_CONFIG = {
             "transform_func": XMLHandler._dict_to_xml,
         },
         "dynamic_key": {"index": "index"},
-        "run_contexts": ["buildtime"],
+        # "run_contexts": ["buildtime"],
+        "run_contexts": ["startup"],
     },
 }

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from itertools import product, zip_longest
+from itertools import product
 
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import log
@@ -19,16 +19,12 @@ class BaseBuilder:
         expanding rules, and returning final results.
         """
         items = element_data.get("items", [])
-        rules = element_data.get("rules", [])
-
-        if not rules:
-            raise ValueError(f"No rules defined for element '{element_name}'")
-
         substitutions = self.generate_substitutions(items)
+
         yield from (
             {k: v}
             for k, v in self.group_and_expand(
-                element_name, rules, substitutions
+                element_name, element_data, substitutions
             ).items()
         )
 
@@ -47,7 +43,11 @@ class BaseBuilder:
                 )
 
             return [
-                {key_name: outer_key, value_name: inner_value, self.dynamic_key: item}
+                {
+                    key_name: outer_key,
+                    value_name: inner_value,
+                    **({self.dynamic_key: item} if self.dynamic_key else {}),
+                }
                 for outer_key, inner_values in self.loop_values.items()
                 for inner_value, item in product(inner_values, items)
             ]
@@ -61,7 +61,7 @@ class BaseBuilder:
         else:
             return [{self.dynamic_key: item} for item in items]
 
-    def group_and_expand(self, template_name, rules, substitutions):
+    def group_and_expand(self, template_name, data, substitutions):
         """
         Groups substitutions by formatted template name and applies resolve_values()
         to produce the final value for each group.
@@ -76,14 +76,18 @@ class BaseBuilder:
         return {
             key: " | ".join(resolved) if resolved else None
             for key, subs in grouped.items()
-            for resolved in [self.resolve_values(subs, rules)]
+            for resolved in [self.resolve_values(subs, data)]
         }
+
+    def substitute(self, string, substitutions):
+        return string.format(**substitutions)
 
 
 class controlsBuilder(BaseBuilder):
     def resolve_values(self, subs, rules):
-        ...
-        return []
+        raise NotImplementedError(
+            "controlsBuilder does not implement resolve_values() yet."
+        )
 
 
 class expressionsBuilder(BaseBuilder):
@@ -99,19 +103,23 @@ class expressionsBuilder(BaseBuilder):
 
         yield self._apply_fallbacks(resolved, expr_data)
 
-    def resolve_values(self, subs, rules):
+    def resolve_values(self, subs, data):
         """
         Evaluates all rules for a group of substitutions, returning the final values
         according to rule priority and type.
         """
         resolved = []
+        rules = data.get("rules", [])
+
         for sub in subs:
             for rule in rules:
                 condition = rule["condition"].format(**sub)
+
                 if not self.rules.evaluate(condition):
                     continue
 
                 value = rule["value"].format(**sub)
+                
                 if rule["type"] == "assign":
                     return [value]  # short-circuit with override
                 elif rule["type"] == "append":
@@ -158,7 +166,6 @@ class expressionsBuilder(BaseBuilder):
             if not target_expr:
                 log(
                     f"[Fallback skipped] No match for fallback_item '{fallback_item}' in group '{group_key}'",
-                    force=True,
                 )
                 continue
 
@@ -166,7 +173,7 @@ class expressionsBuilder(BaseBuilder):
                 name: resolved[name]
                 for name in expr_list
                 if self.group_map[name].get("item") != fallback_item
-                and resolved.get(name) not in ("false", "None", None)
+                and resolved.get(name) not in ("false", None)
             }
 
             resolved[target_expr] = (
@@ -177,19 +184,78 @@ class expressionsBuilder(BaseBuilder):
 
             log(
                 f"[Fallback applied] {target_expr} = {resolved[target_expr]} (group: {group_key}, others: {list(others.keys())})",
-                force=True,
             )
 
         return resolved
 
 
 class skinsettingsBuilder(BaseBuilder):
-    def resolve_values(self, subs, rules):
-        ...
-        return []
+    def resolve_values(self, subs, data):
+        items = data.get("items", [])
+        filter_mode = data.get("filter_mode", "exclude")
+        rules = data.get("rules", [])
+
+        excluded = set()
+        for sub in subs:
+            for rule in rules:
+                condition = rule.get("condition")
+
+                log(f"FUCK DEBUG sub {sub}", force=True)
+                log(f"FUCK DEBUG rule {rule}", force=True)
+                log(f"FUCK DEBUG condition {condition}", force=True)
+                values = rule.get("value", [])
+
+                log(f"FUCK DEBUG value {values}", force=True)
+                if self.rules.evaluate(condition):
+                    excluded.update(values)
+
+        if filter_mode == "exclude":
+            final_items = [item for item in items if item not in excluded]
+        else:
+            final_items = [item for item in items if item in excluded]
+
+        return {"items": final_items}
 
 
 class variablesBuilder(BaseBuilder):
-    def resolve_values(self, subs, rules):
-        ...
-        return []
+    def resolve_values(self, subs, data):
+        values = data.get("values", [])
+        index_range = self._parse_index_range(data.get("index"))
+        key = subs.get("key", "")
+
+        if index_range is None:
+            name = self.substitute(key, subs)
+            return [self._build_variable(name, values, subs)]
+
+        return [
+            self._build_variable(
+                self.substitute(key, {**subs, "index": str(i)}),
+                values,
+                {**subs, "index": str(i)},
+            )
+            for i in index_range
+        ]
+
+    def _parse_index_range(self, index_obj):
+        if not isinstance(index_obj, dict):
+            return None
+
+        try:
+            start = int(index_obj["start"])
+            end = int(index_obj["end"])
+            step = int(index_obj.get("step", 1))
+            return range(start, end, step)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def _build_variable(self, name, values, subs):
+        return {
+            "name": name,
+            "values": [
+                {
+                    "condition": self.substitute(v.get("condition", ""), subs),
+                    "value": self.substitute(v.get("value", ""), subs),
+                }
+                for v in values
+            ],
+        }
