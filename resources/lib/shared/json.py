@@ -22,7 +22,7 @@ class JSONHandler:
         if self.path.is_file() and self.path.suffix == ".json":
             self._load_single_file(self.path, data)
         elif self.path.is_dir():
-            for json_file in self.path.glob("*.json"):
+            for json_file in sorted(self.path.glob("*.json")):
                 self._load_single_file(json_file, data)
         return data
 
@@ -70,22 +70,26 @@ class JSONMerger:
     Ensures that all files contain a valid "mapping" key before processing.
     """
 
-    def __init__(self, base_folder, subfolders):
+    def __init__(self, base_folder, subfolders, grouping_key=None):
         """Initializes the merger with a base folder and list of subfolders to load JSON from."""
         self.base_folder = base_folder
         self.subfolders = subfolders
+        self.grouping_key = grouping_key
 
     def _merge_json_files(self, folder_path):
         json_handler = JSONHandler(folder_path)
         for file_path, content in json_handler.data.items():
-            mapping = content.get("mapping")
-            if not mapping:
-                log(
-                    f"{self.__class__.__name__}: Missing 'mapping' key in {file_path}. Skipping file."
-                )
-                continue  # Skip files without mapping key
-            yield mapping, content
-
+            if self.grouping_key:
+                key = content.get(self.grouping_key)
+                if not key:
+                    log(
+                        f"{self.__class__.__name__}: Missing '{self.grouping_key}' key in {file_path}. Skipping file."
+                    )
+                    continue
+                yield key, content
+            else:
+                yield from content.items()
+        
     def get_merged_data(self):
         """
         Generator that merges JSON elements across subfolders lazily.

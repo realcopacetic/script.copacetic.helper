@@ -24,6 +24,7 @@ $RECYCLE.BIN/
 
 # VS Code
 .vscode
+.venv
 
 # OSX
 .DS_Store

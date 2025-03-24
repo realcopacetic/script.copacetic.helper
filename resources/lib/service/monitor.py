@@ -3,6 +3,7 @@
 import xbmc
 
 from resources.lib.builders.build_elements import BuildElements
+from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared.art import SlideshowMonitor
@@ -10,10 +11,7 @@ from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     BLURS,
     CROPS,
-    EXPRESSIONS,
-    SKINSETTINGS,
     TEMPS,
-    VARIABLES,
     condition,
     create_dir,
     get_cache_size,
@@ -65,17 +63,21 @@ class Monitor(xbmc.Monitor):
 
     def _generate_missing_skin_files(self):
         """
-        Ensures that necessary skin files (XML and JSON) exist at startup.
-        If missing, triggers BuildElements to regenerate them.
+        At Kodi startup, ensure required skin files exist.
+        If any are missing for startup/buildtime builders, regenerate them.
         """
         elements_processor = BuildElements()
+        run_contexts = ["buildtime", "startup"]
 
-        if (
-            not validate_path(EXPRESSIONS)
-            or not validate_path(VARIABLES)
-            or not validate_path(SKINSETTINGS)
-        ):
-            elements_processor.process()
+        for context in run_contexts:
+            missing = any(
+                config.get("file_path")
+                and context in config.get("run_contexts", [])
+                and not validate_path(config["file_path"])
+                for config in BUILDER_CONFIG.values()
+            )
+            if missing:
+                elements_processor.process(run_context=context)
 
     def _create(self):
         """Handles startup initialization, ensuring directories and files exist."""

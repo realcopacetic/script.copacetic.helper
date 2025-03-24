@@ -23,7 +23,7 @@ BUILDER_CONFIG = {
     "expressions": {
         "module": expressionsBuilder,
         "dynamic_key": {"item": "items"},
-        "run_contexts": ["startup", "runtime"],
+        "run_contexts": ["buildtime", "runtime"],
         "file_type": "xml",
         "file_path": EXPRESSIONS,
         "file_handler": XMLHandler,
@@ -55,5 +55,26 @@ BUILDER_CONFIG = {
             "sub_element_name": "value",
             "transform_func": XMLHandler._dict_to_xml,
         },
+    },
+}
+
+BUILDER_MAPPINGS = {
+    "content_types": {
+        "items": {
+            "addons": ["addons"],
+            "favourites": ["favourites"],
+            "music": ["artists", "albums", "songs"],
+            "pictures": ["images"],
+            "videos": [
+                "movies",
+                "sets",
+                "tvshows",
+                "seasons",
+                "episodes",
+                "videos",
+                "musicvideos",
+            ],
+        },
+        "placeholders": {"key": "window", "value": "content_type"},
     },
 }

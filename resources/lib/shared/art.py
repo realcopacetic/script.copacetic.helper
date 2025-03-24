@@ -36,9 +36,11 @@ class ImageEditor:
             return {}
 
         log(
-            f"{self.__class__.__name__}: Processing {key}: {value} for {processes}"
-            for key, value in {"dbid": dbid, "url": url}.items()
-            if value
+            ", ".join(
+                f"{self.__class__.__name__}: Processing {key}: {value} for {processes}"
+                for key, value in {"dbid": dbid, "url": url}.items()
+                if value
+            )
         )
 
         try:
@@ -380,7 +382,7 @@ class SlideshowMonitor:
             if "library" not in self.slideshow_source and condition(
                 "Integer.IsGreater(Container(3300).NumItems,0)"
             ):
-                log("SlideshowMonitor: Fetching plugin art")
+                log(f"{self.__class__.__name__}: Fetching plugin art")
                 self._Fetch_plugin_art()
                 return
 

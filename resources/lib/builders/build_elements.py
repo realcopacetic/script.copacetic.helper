@@ -2,8 +2,7 @@
 
 import time
 
-from resources.lib.builders.builder_config import BUILDER_CONFIG
-from resources.lib.builders.default_mappings import DEFAULT_MAPPINGS
+from resources.lib.builders.builder_config import BUILDER_CONFIG, BUILDER_MAPPINGS
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import SKINEXTRAS, Path, log
 
@@ -18,9 +17,18 @@ class BuildElements:
         """
         Initializes the BuildElements class.
         """
+        self.mapping_merger = JSONMerger(
+            base_folder=Path(SKINEXTRAS) / "builders",
+            subfolders=["custom_mappings"],
+            grouping_key=None
+        )
+        self.merged_mappings = dict(self.mapping_merger.get_merged_data())
+        self.all_mappings = {**BUILDER_MAPPINGS, **self.merged_mappings}
+
         self.json_merger = JSONMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
             subfolders=list(BUILDER_CONFIG.keys()),
+            grouping_key="mapping",
         )
         self.merged_data = self.json_merger.get_merged_data()
 
@@ -34,10 +42,10 @@ class BuildElements:
         values_to_write = {}
         start_time = time.time()
 
-        for mapping_name, items_data in self.json_merger.get_merged_data():
-            mapping_defaults = DEFAULT_MAPPINGS.get("default_mappings", {}).get(mapping_name, {})
-            loop_values = mapping_defaults.get("items", None)
-            placeholders = mapping_defaults.get("placeholders", {})
+        for mapping_name, items_data in self.merged_data:
+            mapping_values = self.all_mappings.get(mapping_name, {})
+            loop_values = mapping_values.get("items", None)
+            placeholders = mapping_values.get("placeholders", {})
 
             for builder, elements in items_data.items():
                 builder_info = BUILDER_CONFIG.get(builder)
