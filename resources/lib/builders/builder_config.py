@@ -51,6 +51,7 @@ BUILDER_CONFIG = {
         "write_kwargs": {
             "root_tag": "includes",
             "element_name": "variable",
+            "sub_element_name": "value",
             "transform_func": XMLHandler._dict_to_xml,
         },
         "dynamic_key": {"index": "index"},

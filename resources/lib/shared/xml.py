@@ -14,14 +14,15 @@ def xml_functions(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         root_tag = kwargs.get("root_tag", self.root_element)
-        element_name = kwargs.get("element_name", "expression")
+        element_name = kwargs.get("element_name")
+        sub_element_name = kwargs.get("sub_element_name")
         transform_func = kwargs.get("transform_func", None)
 
         if not self.file_exists():
             log(
                 f"{self.__class__.__name__}: File '{self.file_path}' not found, creating a new one."
             )
-            self.create_new_xml(root_tag)
+            self.create_new_xml(root_tag, element_name)
 
         if not transform_func:
             log(
@@ -35,6 +36,7 @@ def xml_functions(func):
             {
                 "root_tag": root_tag,
                 "element_name": element_name,
+                "sub_element_name": sub_element_name,
                 "transform_func": transform_func,
             }
         )
@@ -56,11 +58,12 @@ class XMLHandler:
         """
         try:
             tree = ET.ElementTree(
-                kwargs["transform_func"](
+                kwargs.get("transform_func")(
                     self,
-                    kwargs["root_tag"],
+                    kwargs.get("root_tag"),
                     data_dict,
-                    element_name=kwargs["element_name"],
+                    element_name=kwargs.get("element_name"),
+                    sub_element_name=kwargs.get("sub_element_name"),
                 )
             )
             self._save_xml(tree)
@@ -122,15 +125,16 @@ class XMLHandler:
             )
             return None
 
-    def create_new_xml(self, root_tag, default_structure=None):
+    def create_new_xml(self, root_tag, element_name, default_structure=None):
         """
         Creates a new XML file with a given root and optional default structure.
+        Element name (e.g., "expression" or "variable") is used for each child element.
         """
         root = ET.Element(root_tag)
         default_structure = default_structure or {}
 
         for key, value in default_structure.items():
-            ET.SubElement(root, "expression", name=key).text = value
+            ET.SubElement(root, element_name, name=key).text = value
 
         tree = ET.ElementTree(root)
         self._save_xml(tree)
@@ -139,15 +143,43 @@ class XMLHandler:
         )
         return tree
 
-    def _dict_to_xml(self, root_tag, data_dict, element_name="expression"):
+    def _dict_to_xml(
+        self,
+        root_tag,
+        data_dict,
+        element_name="variable",
+        sub_element_name="value",
+        text_key="value",
+    ):
         """
-        Converts a flat dictionary to an XML ElementTree structure.
-        Each key-value pair in data_dict becomes an XML element with a configurable name.
+        Prepares flat and nested dictionaries for XML writing
+        Flat: { key: str }
+        Nested: { key: [ {condition: ..., value: ...}, ... ] }
         """
         root = ET.Element(root_tag)
-        for setting_id, value in data_dict.items():
-            elem = ET.SubElement(root, element_name, name=setting_id)
-            elem.text = str(value)  # Store value as inner text
+
+        for outer_key, outer_value in data_dict.items():
+            if isinstance(outer_value, str):
+                # Flat structure
+                ET.SubElement(root, element_name, name=outer_key).text = outer_value
+            elif isinstance(outer_value, list) and all(
+                isinstance(item, dict) for item in outer_value
+            ):
+                # Nested structure
+                outer_elem = ET.SubElement(root, element_name, name=outer_key)
+                for item in outer_value:
+                    sub_elem = ET.SubElement(outer_elem, sub_element_name)
+                    for attr, val in item.items():
+                        if attr == "value":
+                            sub_elem.text = val
+                        else:
+                            sub_elem.set(attr, val)
+            else:
+                log(
+                    f"{self.__class__.__name__}: Unsupported data type for '{outer_key}': {type(outer_value)}",
+                    force=True,
+                )
+
         return root
 
     def _save_xml(self, tree):
