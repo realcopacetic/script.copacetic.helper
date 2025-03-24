@@ -77,7 +77,7 @@ class BuildElements:
         builder_info = BUILDER_CONFIG.get(builder_name, {})
         file_type = builder_info.get("file_type")
         file_path = builder_info.get("file_path")
-        handler = builder_info.get("handler")
+        handler = builder_info.get("file_handler")
         write_kwargs = builder_info.get("write_kwargs", {})
 
         if not file_path:
