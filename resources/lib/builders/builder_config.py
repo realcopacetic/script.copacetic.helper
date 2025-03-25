@@ -13,7 +13,6 @@ from resources.lib.shared.utilities import EXPRESSIONS, SKINSETTINGS, VARIABLES
 BUILDER_CONFIG = {
     "controls": {
         "module": controlsBuilder,
-        "dynamic_key": {"id": "id_start"},
         "run_contexts": ["runtime"],
         "file_type": None,
         "file_path": None,
