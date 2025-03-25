@@ -6,7 +6,14 @@ from itertools import product
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import log
 
+
 def expand_index(index_obj):
+    """
+    Expands a dict with start/end/step into a list of string indices.
+
+    :param index_obj: Dictionary with "start", "end", and optional "step".
+    :returns: List of stringified index values.
+    """
     try:
         start = int(index_obj["start"])
         end = int(index_obj["end"]) + 1
@@ -15,8 +22,21 @@ def expand_index(index_obj):
     except (KeyError, TypeError, ValueError):
         return []
 
+
 class BaseBuilder:
+    """
+    Base class for all builders that handles loop expansion and substitution logic.
+    Used by all specialized builder types to generate template values.
+    """
+
     def __init__(self, loop_values, placeholders, dynamic_key):
+        """
+        Initializes builder with placeholders, loop values, and dynamic key.
+
+        :param loop_values: List or dict of content types or keys to loop over.
+        :param placeholders: Dictionary of placeholder names for formatting.
+        :param dynamic_key: Optional placeholder for nested dynamic values.
+        """
         self.loop_values = loop_values
         self.placeholders = placeholders
         self.dynamic_key = dynamic_key
@@ -25,10 +45,15 @@ class BaseBuilder:
 
     def process_elements(self, element_name, element_data):
         """
-        Processes a single template element by generating all substitutions,
-        expanding rules, and returning final results.
+        Processes a template element by generating and expanding substitutions.
+
+        :param element_name: The name of the expression/template.
+        :param element_data: Data dict containing rules and item values.
+        :returns: Generator yielding {name: value} dicts.
         """
-        items = element_data.get("items") or expand_index(element_data.get("index")) or []
+        items = (
+            element_data.get("items") or expand_index(element_data.get("index")) or []
+        )
         substitutions = self.generate_substitutions(items)
 
         yield from (
@@ -40,8 +65,10 @@ class BaseBuilder:
 
     def generate_substitutions(self, items):
         """
-        Generates all valid placeholder-to-value substitution dictionaries for a single element.
-        Raises an error if required placeholder keys are missing.
+        Generates substitution dicts based on loop structure and items.
+
+        :param items: List of items to loop over.
+        :returns: List of substitution dictionaries.
         """
         key_name = self.placeholders.get("key")
         value_name = self.placeholders.get("value")
@@ -72,6 +99,13 @@ class BaseBuilder:
             return [{self.dynamic_key: item} for item in items]
 
     def substitute(self, string, substitutions):
+        """
+        Formats a string using the provided substitution dictionary.
+
+        :param string: Template string with placeholders.
+        :param substitutions: Dict of key-value substitutions.
+        :returns: Fully formatted string.
+        """
         return string.format(**substitutions)
 
 
@@ -84,11 +118,19 @@ class controlsBuilder(BaseBuilder):
 
 class expressionsBuilder(BaseBuilder):
     """
-    Builder that processes expression definitions by resolving template placeholders
-    and evaluating rule-based logic to produce final expressions.
+    Builder that processes expression definitions by expanding all possible
+    variations and handles conditional logic.
     """
 
     def process_elements(self, element_name, element_data):
+        """
+        Overrides BaseBuilder class, calling super().process_elements then
+        applying fallback logic after substitution.
+
+        :param element_name: Expression name template.
+        :param element_data: Dictionary of rule definitions and items.
+        :returns: Generator yielding final expression dict.
+        """
         resolved = {}
         for d in super().process_elements(element_name, element_data):
             resolved.update(d)
@@ -97,9 +139,12 @@ class expressionsBuilder(BaseBuilder):
 
     def group_and_expand(self, template_name, data, substitutions):
         """
-        Groups substitutions by formatted template name and applies resolve_values()
-        to produce the final value for each group.
-        Returns a dict of {resolved_template_name: expression_value}.
+        Groups substitutions and resolves values based on expression rules.
+
+        :param template_name: Expression key pattern with placeholders.
+        :param data: Raw template and rule data.
+        :param substitutions: List of substitution dicts.
+        :returns: Dictionary of {expression_key: expression_value}.
         """
         grouped = defaultdict(list)
         for sub in substitutions:
@@ -115,8 +160,11 @@ class expressionsBuilder(BaseBuilder):
 
     def resolve_values(self, subs, data):
         """
-        Evaluates all rules for a group of substitutions, returning the final values
-        according to rule priority and type.
+        Resolves rules for each substitution group and returns values.
+
+        :param subs: List of substitution dictionaries for one group.
+        :param data: Template rule data.
+        :returns: List of expression values (or "false" fallback).
         """
         resolved = []
         rules = data.get("rules", [])
@@ -139,6 +187,13 @@ class expressionsBuilder(BaseBuilder):
         return resolved if resolved else ["false"]
 
     def _apply_fallbacks(self, resolved, expr_data):
+        """
+        Applies fallback values to expression groups when needed.
+
+        :param resolved: Dict of resolved expressions.
+        :param expr_data: The expression's full rule definition.
+        :returns: Updated resolved expression dict with fallbacks applied.
+        """
         fallback_key = next(
             (k for k in expr_data if k.startswith("fallback_for_")), None
         )
@@ -200,7 +255,19 @@ class expressionsBuilder(BaseBuilder):
 
 
 class skinsettingsBuilder(BaseBuilder):
+    """
+    Builder that resolves UI skinsettings based on exclusion/inclusion rules.
+    """
+
     def group_and_expand(self, template_name, data, substitutions):
+        """
+        Groups and evaluates skinsetting options based on filtering logic.
+
+        :param template_name: Template name for setting key.
+        :param data: Rule and items data.
+        :param substitutions: List of dicts for placeholder substitution.
+        :returns: Dictionary of setting key → {items: [...]}
+        """
         grouped = defaultdict(list)
         for sub in substitutions:
             key = template_name.format(**sub)
@@ -210,6 +277,13 @@ class skinsettingsBuilder(BaseBuilder):
         return {key: self.resolve_values(subs, data) for key, subs in grouped.items()}
 
     def resolve_values(self, subs, data):
+        """
+        Resolves filtered setting values based on rule conditions.
+
+        :param subs: List of substitutions for a single setting group.
+        :param data: Full setting definition, including filter_mode and rules.
+        :returns: Dict of final filtered items.
+        """
         items = data.get("items", [])
         filter_mode = data.get("filter_mode", "exclude")
         rules = data.get("rules", [])
@@ -232,7 +306,19 @@ class skinsettingsBuilder(BaseBuilder):
 
 
 class variablesBuilder(BaseBuilder):
+    """
+    Builder that generates Kodi-style variable definitions with condition/value pairs.
+    """
+
     def group_and_expand(self, template_name, data, substitutions):
+        """
+        Groups variable templates and resolves multiple indexed variations.
+
+        :param template_name: Template for variable name.
+        :param data: Rule and value definitions for the variable.
+        :param substitutions: List of substitution dicts.
+        :returns: Dictionary of variable name → value list.
+        """
         grouped = defaultdict(list)
 
         for sub in substitutions:
@@ -247,10 +333,18 @@ class variablesBuilder(BaseBuilder):
         }
 
     def resolve_values(self, template_name, subs, data):
+        """
+        Builds one or more variables from template and substitutions.
+
+        :param template_name: Name pattern of variable.
+        :param subs: Substitution set for this group.
+        :param data: Variable definition including values and index.
+        :returns: List of variable dicts with name and condition/value pairs.
+        """
         values = data.get("values", [])
         index_range = expand_index(data.get("index"))
 
-        if index_range is None:
+        if not index_range:
             name = self.substitute(template_name, subs[0])
             return [self._build_variable(name, values, subs[0])]
 
@@ -264,6 +358,14 @@ class variablesBuilder(BaseBuilder):
         ]
 
     def _build_variable(self, name, values, subs):
+        """
+        Creates a variable dict with condition/value mappings from template.
+
+        :param name: Fully formatted variable name.
+        :param values: List of condition/value template pairs.
+        :param subs: Substitution dictionary for formatting.
+        :returns: Dict with 'name' and resolved 'values' list.
+        """
         return {
             "name": name,
             "values": [

@@ -20,6 +20,12 @@ from resources.lib.windows.viewsettings import ViewSettings
 
 
 def clean_filename(label=False, **kwargs):
+    """
+    Cleans a filename by removing extensions and formatting characters.
+
+    :param label: Optional input string. If not provided, uses ListItem.Label.
+    :returns: Sets the result to "Return_Label" window property.
+    """
     json_response = json_call(
         "Settings.GetSettingValue",
         params={"setting": "filelists.showextensions"},
@@ -32,10 +38,18 @@ def clean_filename(label=False, **kwargs):
     count = label.count(".") - subtraction
     label = label.replace(".", " ", count).replace("_", " ").strip()
 
-    window_property("Return_Label", set=label)
+    window_property("Return_Label", value=label)
 
 
 def dialog_yesno(heading, message, **kwargs):
+    """
+    Opens a yes/no dialog and runs a set of Kodi actions based on the result.
+
+    :param heading: Dialog heading.
+    :param message: Dialog body text.
+    :param yes_actions: Pipe-separated string of built-in actions if "Yes" selected.
+    :param no_actions: Pipe-separated string of actions if "No" selected.
+    """
     yes_actions = kwargs.get("yes_actions", "").split("|")
     no_actions = kwargs.get("no_actions", "Null").split("|")
 
@@ -48,17 +62,27 @@ def dialog_yesno(heading, message, **kwargs):
 
 
 def globalsearch_input(**kwargs):
+    """
+    Prompts the user for a global search query and activates the search window.
+    Stores the result in Skin String 'globalsearch'.
+    """
     kb = xbmc.Keyboard(
         infolabel("$INFO[Skin.String(globalsearch)]"), infolabel("$LOCALIZE[137]")
     )
     kb.doModal()
     if kb.isConfirmed():
         text = kb.getText()
-        skin_string("globalsearch", set=text)
+        skin_string("globalsearch", value=text)
         xbmc.executebuiltin("ActivateWindow(1180)")
 
 
 def hex_contrast_check(**kwargs):
+    """
+    Calculates contrast for a hex color and sets Skin.String(Accent_Color_Contrast).
+
+    :param hex: Hex string (e.g., "#ffffff" or "ffffffff").
+    :returns: "light" or "dark" contrast hint.
+    """
     image = ImageEditor()
     hex = kwargs.get("hex", "")
 
@@ -74,11 +98,17 @@ def hex_contrast_check(**kwargs):
 
 
 def jump_button(**kwargs):
+    """Updates the position of the jump scrollbar indicator."""
     jump_button = JumpButton()
     jump_button.update_position()
 
 
 def play_album(**kwargs):
+    """
+    Starts playback of an album by ID.
+
+    :param id: Album ID (int).
+    """
     clear_playlists()
 
     dbid = int(kwargs.get("id", False))
@@ -92,6 +122,12 @@ def play_album(**kwargs):
 
 
 def play_album_from_track(**kwargs):
+    """
+    Plays an album starting from a specific track.
+
+    :param id: Song ID to look up album.
+    :param track: Track number to start from (1-based).
+    """
     clear_playlists()
 
     dbid = int(kwargs.get("id", False))
@@ -119,6 +155,13 @@ def play_album_from_track(**kwargs):
 
 
 def play_items(id, **kwargs):
+    """
+    Plays all media items in a container by index.
+
+    :param id: Container ID.
+    :param method: "from_here" or "shuffle" for behavior control.
+    :param type: "music" or "video".
+    """
     clear_playlists()
 
     method = kwargs.get("method", "")
@@ -174,6 +217,11 @@ def play_items(id, **kwargs):
 
 
 def play_radio(**kwargs):
+    """
+    Builds a randomized genre-based playlist based on current song ID.
+
+    :param id: Optional song ID (defaults to ListItem.DBID).
+    """
     import random
 
     clear_playlists()
@@ -226,6 +274,12 @@ def play_radio(**kwargs):
 
 
 def rate_song(**kwargs):
+    """
+    Sets the user rating for a song and updates skin string for MusicPlayer.
+
+    :param id: Song ID.
+    :param rating: Rating threshold value.
+    """
     dbid = int(kwargs.get("id", xbmc.getInfoLabel("ListItem.DBID")))
     rating_threshold = int(
         kwargs.get(
@@ -246,9 +300,9 @@ def rate_song(**kwargs):
 
     if dbid == player_dbid:
         if rating_threshold != 0:
-            window_property("MusicPlayer_UserRating", set=rating_threshold)
+            window_property("MusicPlayer_UserRating", value=rating_threshold)
         else:
-            window_property("MusicPlayer_UserRating", clear=True)
+            window_property("MusicPlayer_UserRating")
         """
         player_path = player.getPlayingFile()
         item = xbmcgui.ListItem(path=player_path)
@@ -258,7 +312,14 @@ def rate_song(**kwargs):
         """
 
 
-def set_edit(id, return_id, **kwargs):
+def set_edit(id, **kwargs):
+    """
+    Focuses a Kodi control, sends text, and confirms it.
+
+    :param id: Control ID to focus.
+    :param return_id: Unused, reserved for future use.
+    :param text: Text to send.
+    """
     text = str(kwargs.get("text", ""))
     log_and_execute(f"SetFocus({id})")
     xbmc.Monitor().waitForAbort(0.05)
@@ -266,6 +327,11 @@ def set_edit(id, return_id, **kwargs):
 
 
 def shuffle_artist(**kwargs):
+    """
+    Starts shuffled playback for a given artist.
+
+    :param id: Artist ID.
+    """
     clear_playlists()
 
     dbid = int(kwargs.get("id", False))
@@ -278,6 +344,12 @@ def shuffle_artist(**kwargs):
 
 
 def subtitle_limiter(lang, user_trigger=True, **kwargs):
+    """
+    Switches to preferred subtitle stream or toggles through them.
+
+    :param lang: Preferred language (e.g., "en").
+    :param user_trigger: If True, toggles on/off if already active.
+    """
     if condition("VideoPlayer.HasSubtitles"):
         player = xbmc.Player()
         subtitles = []
@@ -307,6 +379,11 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
 
 
 def toggle_addon(id, **kwargs):
+    """
+    Enables or disables an addon and shows a notification.
+
+    :param id: Addon ID.
+    """
     if condition(f"System.AddonIsEnabled({id})"):
         json_call(
             "Addons.SetAddonEnabled",
@@ -328,6 +405,9 @@ def view_setter(**kwargs):
 
 
 def viewsettings_window(**kwargs):
+    """
+    Opens the ViewSettings window as a modal dialog.
+    """
     myWindow = ViewSettings(
         "script-copacetic-helper_viewsettings.xml", SKINXML, "Default", ""
     )
@@ -336,6 +416,14 @@ def viewsettings_window(**kwargs):
 
 
 def widget_move(posa, posb, **kwargs):
+    """
+    Swaps widget configuration between two slots (A ↔ B).
+
+    Preserves all known skin settings: content type, view style, scroll, logos, etc.
+    
+    :param posa: First widget position index (int).
+    :param posb: Second widget position index (int).
+    """
     # create list of (widget position, dictionary)
     content_types = [
         "Disabled",
@@ -397,6 +485,6 @@ def widget_move(posa, posb, **kwargs):
         )
         for key, value in item[1].items():
             if type(value) == str:
-                skin_string(f"Widget{item[0]}_{key}", set=value)
+                skin_string(f"Widget{item[0]}_{key}", value=value)
             elif type(value) == bool and value and "Content" not in key:
                 xbmc.executebuiltin(f"Skin.ToggleSetting(Widget{item[0]}_{key})")

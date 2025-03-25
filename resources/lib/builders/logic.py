@@ -5,7 +5,10 @@ from resources.lib.shared.utilities import condition
 
 
 class RuleEngine:
-    """Class-based evaluator for condition strings, supporting dynamic evaluations."""
+    """
+    Evaluates conditional expressions using predefined operators or Kodi conditions.
+    Supports caching, inversion, and dynamic expression parsing.
+    """
 
     # Regex to match conditions in the form: "[not] EvaluatorKeyword(param1, param2)"
     CONDITION_PATTERN = re.compile(r"^(not\s+)?(\w+)\(\s*([^,]+)\s*,\s*([^)]+)\s*\)$")
@@ -25,20 +28,29 @@ class RuleEngine:
     }
 
     def __init__(self):
-        self.condition_cach = {}
+        """Initializes the RuleEngine with an empty condition cache."""
+        self.condition_cache = {}
 
     def evaluate(self, condition):
-        if condition in self.condition_cach:
-            return self.condition_cach[condition]
+        """
+        Evaluates a condition string, using cached results if available.
+
+        :param condition: The condition string to evaluate.
+        :returns: Boolean result of the evaluated condition.
+        """
+        if condition in self.condition_cache:
+            return self.condition_cache[condition]
 
         result = self._evaluate_condition(condition)
-        self.condition_cach[condition] = result
+        self.condition_cache[condition] = result
         return result
 
     def _evaluate_condition(self, condition_str):
         """
-        Evaluates a condition string and returns True or False. Parses condition using regex
-        and looks up appropriate evaluator CONDIITON_MAP.
+        Parses and evaluates a condition string using regex and evaluators.
+
+        :param condition_str: The full condition string to evaluate.
+        :returns: True if the condition evaluates successfully, else False.
         """
         # Check first for Kodi native expressions marked "xml(expression)"
         if condition_str.lower().startswith("xml("):
@@ -62,14 +74,11 @@ class RuleEngine:
 
     def invert(self, values_dict):
         """
-        Inverts the given values.
+        Builds a Kodi boolean inversion expression from a dictionary of values.
 
-        :param values_dict: A dictionary mapping keys to their values.
-        :return: A properly formatted inverted expression.
+        :param values_dict: Dictionary of expression values to invert.
+        :returns: A Kodi-formatted inversion expression string.
         """
         values = [v for v in values_dict.values() if v and v != "false" and v != "true"]
 
-        if not values:
-            return "true"
-
-        return f"![{ ' | '.join(values) }]"
+        return "true" if not values else f"![{ ' | '.join(values) }]"

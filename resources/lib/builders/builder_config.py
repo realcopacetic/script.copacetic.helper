@@ -22,7 +22,7 @@ BUILDER_CONFIG = {
     "expressions": {
         "module": expressionsBuilder,
         "dynamic_key": {"item": "items"},
-        "run_contexts": ["buildtime", "runtime"],
+        "run_contexts": ["startup", "runtime"],
         "file_type": "xml",
         "file_path": EXPRESSIONS,
         "file_handler": XMLHandler,

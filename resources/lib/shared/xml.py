@@ -7,8 +7,9 @@ from functools import wraps
 
 def xml_functions(func):
     """
-    Decorator to handle common XML processing logic.
-    Ensures root_tag, element_name, and transform_func are retrieved from kwargs.
+    Decorator to handle common XML transformation arguments.
+    Retrieves root_tag, element_name, and transform_func from kwargs
+    and injects them before the decorated method is called.
     """
 
     @wraps(func)
@@ -16,13 +17,13 @@ def xml_functions(func):
         root_tag = kwargs.get("root_tag", self.root_element)
         element_name = kwargs.get("element_name")
         sub_element_name = kwargs.get("sub_element_name")
-        transform_func = kwargs.get("transform_func", None)
+        transform_func = kwargs.get("transform_func")
 
-        if not self.file_exists():
+        if not self._file_exists():
             log(
                 f"{self.__class__.__name__}: File '{self.file_path}' not found, creating a new one."
             )
-            self.create_new_xml(root_tag, element_name)
+            self._create_new_xml(root_tag, element_name)
 
         if not transform_func:
             log(
@@ -46,15 +47,28 @@ def xml_functions(func):
 
 
 class XMLHandler:
+    """
+    Handles reading, writing, and updating XML files using dynamic transformation logic.
+    Supports structured transformations of flat or nested dictionary data into Kodi-compatible XML.
+    """
+
     def __init__(self, file_path, root_element="includes"):
+        """
+        Initializes the handler with a file path and default root element.
+
+        :param file_path: Path to the target XML file.
+        :param root_element: Root tag name used when creating new XML.
+        """
         self.file_path = file_path
         self.root_element = root_element
 
     @xml_functions
     def write_xml(self, data_dict, **kwargs):
         """
-        Converts a dictionary into an XML structure and writes it to a file.
-        Uses dynamically provided transformation settings.
+        Writes a new XML structure from a dictionary using a transformation function.
+
+        :param data_dict: Dictionary to be converted into XML.
+        :param kwargs: Includes transform_func, root_tag, element_name, etc.
         """
         try:
             tree = ET.ElementTree(
@@ -73,11 +87,13 @@ class XMLHandler:
     @xml_functions
     def update_xml(self, updates, **kwargs):
         """
-        Updates an existing XML file by modifying or adding new elements.
-        Uses dynamically provided transformation settings.
+        Modifies or adds elements in an existing XML file using transformation settings.
+
+        :param updates: Dictionary of key → value updates to apply.
+        :param kwargs: Includes transform_func, root_tag, element_name, etc.
         """
         try:
-            tree = self.read_xml()
+            tree = self._read_xml()
             if tree is None:
                 log(
                     f"XML file '{self.file_path}' not found, creating a new one.",
@@ -112,8 +128,21 @@ class XMLHandler:
         except Exception as e:
             log(f"{self.__class__.__name__}: ERROR updating XML --> {e}", force=True)
 
-    def read_xml(self):
-        if not self.file_exists():
+    def _file_exists(self):
+        """
+        Checks if the XML file exists and is valid.
+
+        :returns: True if file exists and is accessible.
+        """
+        return validate_path(self.file_path)
+
+    def _read_xml(self):
+        """
+        Parses and returns the current XML tree from file if it exists.
+
+        :returns: ElementTree instance or None on error.
+        """
+        if not self._file_exists():
             return None
 
         try:
@@ -125,10 +154,14 @@ class XMLHandler:
             )
             return None
 
-    def create_new_xml(self, root_tag, element_name, default_structure=None):
+    def _create_new_xml(self, root_tag, element_name, default_structure=None):
         """
-        Creates a new XML file with a given root and optional default structure.
-        Element name (e.g., "expression" or "variable") is used for each child element.
+        Creates and saves a new XML file with the specified structure.
+
+        :param root_tag: Root element tag name.
+        :param element_name: Child tag name for each item in the structure.
+        :param default_structure: Optional dictionary of name → text value.
+        :returns: ElementTree instance.
         """
         root = ET.Element(root_tag)
         default_structure = default_structure or {}
@@ -152,9 +185,14 @@ class XMLHandler:
         text_key="value",
     ):
         """
-        Prepares flat and nested dictionaries for XML writing
-        Flat: { key: str }
-        Nested: { key: [ {condition: ..., value: ...}, ... ] }
+        Converts a dictionary into an XML tree, supporting both flat and nested formats.
+
+        :param root_tag: XML root tag.
+        :param data_dict: Dictionary to be converted.
+        :param element_name: XML tag for main elements.
+        :param sub_element_name: XML tag for nested value elements.
+        :param text_key: Key to use as the inner text of sub-elements.
+        :returns: Root Element.
         """
         root = ET.Element(root_tag)
 
@@ -184,7 +222,10 @@ class XMLHandler:
 
     def _save_xml(self, tree):
         """
-        Saves the XML tree to a file with indentation.
+        Saves an ElementTree to disk with indentation and UTF-8 encoding.
+
+        :param tree: XML ElementTree to write.
+        :returns: None
         """
         try:
             with open(self.file_path, "wb") as file:
@@ -199,6 +240,3 @@ class XMLHandler:
             log(
                 f"{self.__class__.__name__}: XML file '{self.file_path}' updated successfully."
             )
-
-    def file_exists(self):
-        return validate_path(self.file_path)

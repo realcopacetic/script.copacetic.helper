@@ -31,7 +31,7 @@ class PlayerMonitor(Player):
             if label:
                 clean_filename(label=label)
             else:
-                window_property("Return_Label", clear=True)
+                window_property("Return_Label")
 
             # Get set id
             tag = self.getVideoInfoTag()
@@ -44,7 +44,7 @@ class PlayerMonitor(Player):
                 )
                 if query["result"].get("moviedetails", None):
                     setid = int(query["result"]["moviedetails"]["setid"])
-                    window_property("VideoPlayer_SetID", set=setid)
+                    window_property("VideoPlayer_SetID", value=setid)
 
             # Switch subtitles to lang if set in skin settings
             lang = infolabel("Skin.String(Subtitle_Limiter)")
@@ -56,12 +56,12 @@ class PlayerMonitor(Player):
             tag = self.getMusicInfoTag()
             user_rating = tag.getUserRating()
             album_artist = tag.getAlbumArtist()
-            window_property("MusicPlayer_UserRating", set=user_rating)
-            window_property("MusicPlayer_AlbumArtist", set=album_artist)
+            window_property("MusicPlayer_UserRating", value=user_rating)
+            window_property("MusicPlayer_AlbumArtist", value=album_artist)
 
     def onPlayBackStopped(self):
         # Clean properties
-        window_property("MusicPlayer_UserRating", clear=True)
-        window_property("MusicPlayer_AlbumArtist", clear=True)
-        window_property("VideoPlayer_SetID", clear=True)
-        window_property("Return_Label", clear=True)
+        window_property("MusicPlayer_UserRating")
+        window_property("MusicPlayer_AlbumArtist")
+        window_property("VideoPlayer_SetID")
+        window_property("Return_Label")

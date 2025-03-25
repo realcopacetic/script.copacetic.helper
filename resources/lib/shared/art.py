@@ -25,13 +25,32 @@ from resources.lib.shared.utilities import (
 
 
 class ImageEditor:
+    """
+    Handles cropping, blurring, and metadata extraction for artwork images.
+    Uses PIL to process images and manages caching via SQLite.
+    """
+
     def __init__(self, sqlite_handler=None):
+        """
+        Initializes the editor and sets default processing parameters.
+
+        :param sqlite_handler: Optional SQLiteHandler instance for caching.
+        """
         self.sqlite = sqlite_handler or SQLiteHandler()
         self.clearlogo_bbox = (600, 240)
         self.blur_bbox = (480, 270)
         self.temp_folder = TEMPS
 
     def image_processor(self, dbid=None, source=None, processes=None, url=None):
+        """
+        Coordinates image processing tasks and returns metadata and paths.
+
+        :param dbid: Optional DB ID for the item.
+        :param source: Source of artwork, e.g. Container.ListItem.
+        :param processes: Dict of art_type → process type (e.g., crop, blur).
+        :param url: Optional direct artwork URL.
+        :returns: Dict of processed paths and metadata.
+        """
         if not processes:
             return {}
 
@@ -46,7 +65,6 @@ class ImageEditor:
         try:
             attributes = [
                 self._handle_image(
-                    dbid=dbid,
                     source=source,
                     url=url,
                     art_type=art_type,
@@ -75,12 +93,16 @@ class ImageEditor:
 
     def _handle_image(
         self,
-        dbid=False,
         source="Container.ListItem",
         url=False,
         art_type="clearlogo",
         process="crop",
     ):
+        """
+        Retrieves or processes a single image and writes it to the lookup table.
+
+        :returns: Metadata dict or None.
+        """
         if not (
             art := {art_type: url} if url else self._fetch_art_url(source, art_type)
         ):
@@ -95,11 +117,21 @@ class ImageEditor:
         return attributes
 
     def _fetch_art_url(self, source, art_type):
+        """
+        Retrieves artwork URL via infolabel if not provided directly.
+
+        :returns: Dict containing artwork URL or False.
+        """
         if not self._wait_for_art():
             return {art_type: False}
         return {art_type: infolabel(f"{source}.Art({art_type})")}
 
     def _wait_for_art(self):
+        """
+        Waits briefly for Kodi to populate artwork if needed.
+
+        :returns: True if art is ready, else False.
+        """
         timeout = time.time() + 2
 
         if not condition("String.IsEmpty(Window(home).Property(art_loaded))"):
@@ -107,13 +139,18 @@ class ImageEditor:
 
         while time.time() < timeout:
             if condition("!String.IsEmpty(Control.GetLabel(6010))"):
-                window_property("art_loaded", "true")
+                window_property("art_loaded", value="true")
                 return True
             xbmc.Monitor().waitForAbort(0.02)  # Wait for 20ms before retrying
 
         return False
 
     def _read_lookup(self, art):
+        """
+        Reads processed metadata from the SQLite lookup cache.
+
+        :returns: Cached metadata dict or None.
+        """
         url = next(iter(art.values()), None)
         return (
             attributes
@@ -126,12 +163,24 @@ class ImageEditor:
         )
 
     def _write_lookup(self, art_type, attributes):
+        """
+        Writes metadata into the SQLite cache.
+
+        :returns: None
+        """
         if attributes:
             self.sqlite.add_entry(
                 "clearlogo" if "clearlogo" in art_type else art_type, attributes
             )
 
     def _process_image(folder, extension):
+        """
+        Decorator that wraps a process method to handle PIL image I/O.
+
+        :param folder: Destination folder for saved image.
+        :param extension: Output file extension.
+        :returns: Wrapped image processor method.
+        """
         def decorator(process_func):
             @wraps(process_func)
             def wrapper(self, art):
@@ -177,12 +226,22 @@ class ImageEditor:
 
     @_process_image(folder=BLURS, extension=".jpg")
     def _blur_art(self, image):
+        """
+        Applies Gaussian blur and resizes to blur bounding box.
+
+        :returns: Dict with processed PIL image and format info.
+        """
         image.thumbnail(self.blur_bbox, Image.LANCZOS)
         image = image.filter(ImageFilter.GaussianBlur(radius=50))
         return {"image": image, "format": "JPEG"}
 
     @_process_image(folder=CROPS, extension=".png")
     def _crop_art(self, image):
+        """
+        Crops and resizes clearlogos, returns color and luminosity metadata.
+
+        :returns: Dict with image, format, and metadata.
+        """
         if image.mode != "RGBA":
             image = image.convert("RGBA")
 
@@ -212,6 +271,11 @@ class ImageEditor:
         }
 
     def _generate_image_urls(self, folder, url, suffix):
+        """
+        Determines source and destination paths for processed artwork.
+
+        :returns: Tuple of (source_path, destination_path).
+        """
         decoded_url = url_decode_path(url)
         cached_thumb = self._get_cached_thumb(decoded_url, suffix)
         source_url = (
@@ -226,12 +290,22 @@ class ImageEditor:
         )
 
     def _create_temp_file(self, url, cached_thumb):
+        """
+        Copies original image to temp folder if no cache exists.
+
+        :returns: Path to the temp file.
+        """
         temp_url = Path(self.temp_folder) / cached_thumb
         if not validate_path(temp_url) and xbmcvfs.copy(url, temp_url):
             log(f"{self.__class__.__name__}: Temporary file created → {temp_url}")
         return temp_url
 
     def _color_functions(self, image):
+        """
+        Extracts dominant color and computes perceived luminosity.
+
+        :returns: Tuple of (hex color, luminosity as int).
+        """
         try:
             small_image = image.copy()
             small_image.thumbnail((25, 10))
@@ -274,10 +348,20 @@ class ImageEditor:
 
     @staticmethod
     def _get_cached_thumb(url, suffix):
+        """
+        Returns cache-safe filename from a URL with given extension.
+
+        :returns: Cached filename string.
+        """
         return xbmc.getCacheThumbName(url).replace(".tbn", f"{suffix}")
 
     @staticmethod
     def _image_open(url):
+        """
+        Attempts to open an image using PIL from a Kodi VFS path.
+
+        :returns: PIL Image or None on failure.
+        """
         try:
             return Image.open(xbmcvfs.translatePath(url))
         except (FileNotFoundError, OSError) as error:
@@ -289,7 +373,11 @@ class ImageEditor:
 
     @staticmethod
     def _return_luminosity(rgb):
-        # https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
+        """
+        Calculates perceived brightness of an RGB color.
+        https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
+        :returns: Float between 0 and 1.
+        """
         def linearize(channel):
             c = channel / 255.0
             return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
@@ -299,14 +387,28 @@ class ImageEditor:
 
     @staticmethod
     def _rgb_to_hex(rgb):
+        """
+        Converts an RGB tuple into a hex string with ff prefix.
+
+        :returns: ARGB hex string.
+        """
         r, g, b = rgb[:3]
         return f"ff{r:02x}{g:02x}{b:02x}"
 
 
 class SlideshowMonitor:
+    """
+    Manages dynamic background artwork for slideshows in Kodi.
+    Supports videodb, musicdb and custom user sources.
+    """
     MAX_FETCH_COUNT = 20
 
     def __init__(self, sqlite_handler=None):
+        """
+        Initializes the slideshow with optional SQLite and processing tools.
+
+        :param sqlite_handler: Optional SQLiteHandler instance.
+        """
         self.sqlite = sqlite_handler or SQLiteHandler()
         self.image_processor = ImageEditor(self.sqlite).image_processor
         self.slideshow_path = self._get_slideshow_path()
@@ -315,6 +417,11 @@ class SlideshowMonitor:
         self.art = []
 
     def background_slideshow(self, art_type=None):
+        """
+        Main method for updating artwork slideshow periodically for use in Kodi.
+
+        :param art_type: Optional content type ("movies", "music", etc.).
+        """
         self.art_type = art_type or "global"
         content_map = {"movies": "movies", "tvshows": "tvshows", "music": "artists"}
 
@@ -363,6 +470,7 @@ class SlideshowMonitor:
         self._set_art()
 
     def _get_art(self):
+        """Fetches new artwork based on content type and source."""
         if not self.art_types:
             log(
                 f"{self.__class__.__name__}: No slideshow artwork available, skipping fetch"
@@ -383,7 +491,7 @@ class SlideshowMonitor:
                 "Integer.IsGreater(Container(3300).NumItems,0)"
             ):
                 log(f"{self.__class__.__name__}: Fetching plugin art")
-                self._Fetch_plugin_art()
+                self._get_plugin_art()
                 return
 
             # Fetch custom library art
@@ -443,6 +551,7 @@ class SlideshowMonitor:
         )
 
     def _get_plugin_art(self):
+        """Fetches artwork directly from plugin containers (e.g., widgets)."""
         num_items = int(infolabel("Container(3300).NumItems"))
         self.art.extend(
             {
@@ -459,6 +568,11 @@ class SlideshowMonitor:
         )
 
     def _get_slideshow_path(self):
+        """
+        Determines the correct slideshow path based on time of day.
+
+        :returns: String path from skin setting.
+        """
         current_hour = time.localtime().tm_hour
         start = int(infolabel("Skin.String(slideshow_start)") or 6)
         alt_start = int(infolabel("Skin.String(alt_slideshow_start)") or 20)
@@ -471,6 +585,11 @@ class SlideshowMonitor:
         return infolabel(f"Skin.String({slideshow_prefix}slideshow_path)")
 
     def _check_slideshow_source(self):
+        """
+        Identifies whether slideshow source is a folder, plugin, or library.
+
+        :returns: Source type string.
+        """
         if "plugin://" in self.slideshow_path:
             return "plugin"
         return (
@@ -483,6 +602,10 @@ class SlideshowMonitor:
         )
 
     def _set_art(self):
+        """
+        Selects and displays the next random fanart + optional clearlogo,
+        writing these values to window properties for use within Kodi.
+        """
         if not self.art:
             log(
                 f"{self.__class__.__name__}: No art available, waiting for next fetch",
@@ -491,7 +614,7 @@ class SlideshowMonitor:
             return
 
         def get_fanart(art):
-            fanart = next((art[k] for k in art if "fanart" in k), None)
+            fanart = next((art.get(k) for k in art if "fanart" in k), None)
             return (
                 url_decode_path(fanart[:-21])
                 if "transform?size=thumb" in fanart
@@ -529,4 +652,4 @@ class SlideshowMonitor:
             "slideshow_clearlogo": clearlogo,
             "slideshow_title": art.get("title"),
         }.items():
-            window_property(key, set=value)
+            window_property(key, value=value)

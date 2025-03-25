@@ -35,7 +35,7 @@ class ViewSettings(xbmcgui.WindowXMLDialog):
         Slider group ids start from 300, e.g.
         Slider group 1: group_id = 300 button_id = 3001, slider_id = 3002)
         Slider group 2: group_id = 301 button_id = 3011, slider_id = 3012)
-        window_property("viewsettings", "true")
+        window_property("viewsettings", value="true")
         self.last_focus_id = None
         self.current_content = next(iter(CONTENT_TYPES))
 
@@ -172,7 +172,7 @@ class ViewSettings(xbmcgui.WindowXMLDialog):
                         new_value = self.skinstrings_map[slider_key][new_index - 1]
                     except (IndexError, KeyError):
                         new_value = self.skinstrings_map[slider_key][0]
-                    skin_string(slider_key, new_value)
+                    skin_string(slider_key, value=new_value)
                     button = self.slider_buttons.get(category)
                     button.setLabel(label2=new_value.title())
                     self.check_dependencies()

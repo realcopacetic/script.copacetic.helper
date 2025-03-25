@@ -23,9 +23,15 @@ from resources.lib.shared.utilities import (
 
 
 class Monitor(xbmc.Monitor):
+    """
+    Background service monitor for handling slideshow, player, and skin setup.
+    Manages lifecycle events, directory setup, file regeneration, and idle polling.
+    """
+
     DEFAULT_SLIDESHOW_INTERVAL = 10
 
     def __init__(self):
+        """Initializes the monitor, sets up handlers, and begins polling."""
         # Poller
         self.start = True
         self.idle = False
@@ -46,14 +52,18 @@ class Monitor(xbmc.Monitor):
         self._on_start()
 
     def _get_slideshow_interval(self):
-        # Fetches user-defined slideshow interval or defaults to 10 seconds
+        """
+        Gets the slideshow interval from skin settings or defaults to 10.
+
+        :returns: Integer value in seconds.
+        """
         return int(
             infolabel("Skin.String(slideshow_interval)")
             or self.DEFAULT_SLIDESHOW_INTERVAL
         )
 
     def _ensure_directories_exist(self):
-        """Ensures that necessary directories exist at startup."""
+        """Ensures required directories for blur, crop, and temp exist at startup."""
         if not validate_path(self.blur_folder):
             create_dir(self.blur_folder)
         if not validate_path(self.crop_folder):
@@ -62,10 +72,7 @@ class Monitor(xbmc.Monitor):
             create_dir(self.temp_folder)
 
     def _generate_missing_skin_files(self):
-        """
-        At Kodi startup, ensure required skin files exist.
-        If any are missing for startup/buildtime builders, regenerate them.
-        """
+        """Regenerates missing builder output files at startup using BuildElements."""
         elements_processor = BuildElements()
         run_contexts = ["buildtime", "startup"]
 
@@ -80,12 +87,12 @@ class Monitor(xbmc.Monitor):
                 elements_processor.process(run_context=context)
 
     def _create(self):
-        """Handles startup initialization, ensuring directories and files exist."""
+        """Handles full startup initialization (directories + skin files)."""
         self._ensure_directories_exist()
         self._generate_missing_skin_files()
 
     def _on_start(self):
-        # Handles monitor startup and polling loop
+        """Begins the monitor loop and attaches the player monitor."""
         if self.start:
             log(f"{self.__class__.__name__}: Started", force=True)
             self.start = False
@@ -101,15 +108,15 @@ class Monitor(xbmc.Monitor):
         self._on_stop()
 
     def _conditions_met(self):
-        # Checks if monitor should continue running
+        """
+        Checks whether polling should continue (not idle + valid skin).
+        
+        :returns: Boolean
+        """
         return self._get_skindir() and not self.idle
 
-    def _get_skindir(self):
-        # Checks if skin.copacetic or skin.copacetic2 is active skin
-        return "skin.copacetic" in xbmc.getSkinDir()
-
     def _on_stop(self):
-        # Handles shutdown behaviour
+        """Called when monitor loop exits. Waits for restart or exits cleanly."""
         log(f"{self.__class__.__name__}: Idle, waiting...", force=True)
         while not self.abortRequested() and not self._conditions_met():
             self.waitForAbort(2)
@@ -122,15 +129,15 @@ class Monitor(xbmc.Monitor):
             log(f"{self.__class__.__name__}: Stopped", force=True)
 
     def onScreensaverActivated(self):
-        # Pauses monitoring when screensaver activates
+        """Kodi event hook: Pause monitoring when screensaver starts."""
         self.idle = True
 
     def onScreensaverDeactivated(self):
-        # Resumes monitoring when screensaver deactivates
+        """Kodi event hook: Resume monitoring when screensaver ends."""
         self.idle = False
 
     def poller(self):
-        # Loop for background task
+        """Polling loop that runs background tasks for different windows."""
         if condition("Window.IsVisible(home)"):
             # Run slideshow whenever wait is 0
             if self.slideshow_wait == 0:
@@ -143,11 +150,7 @@ class Monitor(xbmc.Monitor):
                 self.slideshow_interval = new_slideshow_interval
                 self.slideshow_wait = min(self.slideshow_wait, self.slideshow_interval)
             # Reset countdown if interval reached, otherwise increment
-            self.slideshow_wait = (
-                0
-                if self.slideshow_wait + 1 == self.slideshow_interval
-                else self.slideshow_wait + 1
-            )
+            self.slideshow_wait = (self.slideshow_wait + 1) % self.slideshow_interval
         elif condition("Window.IsVisible(skinsettings)"):
             if self.check_cache:
                 get_cache_size()
@@ -163,3 +166,12 @@ class Monitor(xbmc.Monitor):
             self.check_cache = True
             self.check_settings = True
         self.waitForAbort(1)
+
+    @staticmethod
+    def _get_skindir():
+        """
+        Validates that the active skin is part of the Copacetic skin family.
+
+        :returns: True if active skin matches expected ID, else False.
+        """
+        return "skin.copacetic" in xbmc.getSkinDir()

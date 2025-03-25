@@ -1,23 +1,32 @@
 # author: realcopacetic
 
 import json
+from functools import cached_property
 
-from resources.lib.shared.utilities import log, Path
+from resources.lib.shared.utilities import Path, log
 
 
 class JSONHandler:
     """
-    Handles loading, parsing, validating, and writing JSON files.
-    Supports multiple files per folder and allows dynamic folder selection.
+    Loads, validates, and writes JSON files or all JSONs within a folder.
+    Supports merging multiple JSON sources via filename-based keys.
     """
 
     def __init__(self, path):
-        """Initializes the JSON handler with a file or folder path."""
+        """
+        Initializes the handler and loads content from a file or folder.
+
+        :param path: Path to a JSON file or directory of JSON files.
+        """
         self.path = Path(path)
         self.data = self._load_json()
 
     def _load_json(self):
-        """Loads a JSON file or all JSON files in a folder and returns a dictionary."""
+        """
+        Loads one or more JSON files and returns a combined dictionary.
+
+        :returns: Dictionary of {Path: content}.
+        """
         data = {}
         if self.path.is_file() and self.path.suffix == ".json":
             self._load_single_file(self.path, data)
@@ -27,7 +36,12 @@ class JSONHandler:
         return data
 
     def _load_single_file(self, file_path, data):
-        """Loads a single JSON file and adds its content to the data dictionary."""
+        """
+        Loads a single JSON file into the given dictionary.
+
+        :param file_path: Path to the .json file.
+        :param data: Reference to dictionary to update with parsed content.
+        """
         with open(file_path, "r", encoding="utf-8") as file:
             try:
                 content = json.load(file)
@@ -40,7 +54,9 @@ class JSONHandler:
 
     def write_json(self, content):
         """
-        Writes JSON content to a file, ensuring indentation and error handling.
+        Writes a JSON-serializable dictionary to disk with indentation.
+
+        :param content: Data to be written to the current path.
         """
         try:
             with open(self.path, "w", encoding="utf-8") as file:
@@ -56,7 +72,12 @@ class JSONHandler:
             )
 
     def validate_json(self, content):
-        """Validates JSON structure (basic check)."""
+        """
+        Validates if the provided content is JSON-serializable.
+
+        :param content: Python object to validate.
+        :returns: True if valid, False otherwise.
+        """
         try:
             json.dumps(content)  # Check if serializable
             return True
@@ -66,17 +87,29 @@ class JSONHandler:
 
 class JSONMerger:
     """
-    Lazily merges multiple JSON files from different directories by yielding individual elements.
-    Ensures that all files contain a valid "mapping" key before processing.
+    Merges JSON files across multiple folders, supporting both lazy and eager access.
+    Lazily yields mappings from multiple files or returns a cached dict for fast reuse.
     """
 
     def __init__(self, base_folder, subfolders, grouping_key=None):
-        """Initializes the merger with a base folder and list of subfolders to load JSON from."""
+        """
+        Initializes the merger with folder structure and optional grouping key.
+
+        :param base_folder: Root folder path.
+        :param subfolders: List of subfolder names to search.
+        :param grouping_key: Optional key to group data by (e.g., "mapping").
+        """
         self.base_folder = base_folder
         self.subfolders = subfolders
         self.grouping_key = grouping_key
 
     def _merge_json_files(self, folder_path):
+        """
+        Lazily merges JSON data from a single folder.
+
+        :param folder_path: Path to a subfolder containing JSON files.
+        :yields: (grouping_key, content) or (key, value) pairs.
+        """
         json_handler = JSONHandler(folder_path)
         for file_path, content in json_handler.data.items():
             if self.grouping_key:
@@ -89,19 +122,36 @@ class JSONMerger:
                 yield key, content
             else:
                 yield from content.items()
-        
-    def get_merged_data(self):
+
+    def yield_merged_data(self):
         """
-        Generator that merges JSON elements across subfolders lazily.
-        Instead of loading all data at once, it yields one mapping at a time.
+        Lazily yields all JSON mappings across the configured subfolders.
+        Useful when processing data incrementally or working with large files.
+
+        :yields: (mapping_key, content) tuples.
         """
         for subfolder in self.subfolders:
             folder_path = Path(self.base_folder) / subfolder
             for mapping, content in self._merge_json_files(folder_path):
                 yield mapping, content
 
+    @cached_property
+    def cached_merged_data(self):
+        """
+        Eagerly loads and caches all JSON mappings as a dictionary.
+        Useful for random access or repeated lookups.
+
+        :returns: Dictionary of {mapping_key: content}
+        """
+        return dict(self.yield_merged_data())
+
     def get_mapping(self, mapping_name):
-        """Returns a generator that yields only data for a specific mapping."""
+        """
+        Lazily filters and yields mappings matching a specific name.
+
+        :param mapping_name: Mapping identifier to filter by.
+        :returns: Generator yielding matching content.
+        """
         return (
             content
             for mapping, content in self.get_merged_data()

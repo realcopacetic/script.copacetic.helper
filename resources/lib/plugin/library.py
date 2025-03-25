@@ -1,13 +1,20 @@
 # author: realcopacetic
 
-
 from functools import wraps
 
 import xbmc
 from xbmcgui import ListItem
 
 
-def add_items(li, items, type="helper"):
+def add_items(li, items, media_type="helper"):
+    """
+    Appends a list of file-based ListItems to a Kodi list container.
+
+    :param li: The Kodi list container (e.g., a directory).
+    :param items: List of item dictionaries with metadata.
+    :param media_type: Media type used to determine handler function.
+    :returns: None
+    """
     type_mapping = {
         "helper": set_helper,
         "movie": set_movie,
@@ -15,13 +22,22 @@ def add_items(li, items, type="helper"):
         "episode": set_episode,
         "musicvideo": set_musicvideo,
     }
-    handler = type_mapping.get(type, set_helper)
+    handler = type_mapping.get(media_type, set_helper)
     for item in items:
         li_item = handler(item)
         li.append((item["file"], li_item, False))
 
 
 def create_li_item(item, label, default_icon, properties=None):
+    """
+    Creates a Kodi ListItem with basic art and optional properties.
+
+    :param item: Dictionary containing artwork and other metadata.
+    :param label: Display label for the item.
+    :param default_icon: Fallback icon if artwork is missing.
+    :param properties: Optional dictionary of ListItem properties.
+    :returns: xbmcgui.ListItem instance
+    """
     li_item = ListItem(label, offscreen=True)
     li_item.setArt({**item.get("art", {}), "icon": default_icon})
 
@@ -31,14 +47,23 @@ def create_li_item(item, label, default_icon, properties=None):
 
     return li_item
 
+
 def videoinfotag_setter(media_type, info_mapping, stream_fields=None):
+    """
+    Decorator that injects video metadata and stream details into ListItem.
+
+    :param media_type: Default media type string, or dynamic fallback.
+    :param info_mapping: Dict mapping input keys to VideoInfoTag setters.
+    :param stream_fields: Dict mapping stream types to setter functions.
+    :returns: Decorator wrapping a ListItem creation function.
+    """
+
     def decorator(func):
         @wraps(func)
         def wrapper(item):
             li_item = func(item)
             video_info = li_item.getVideoInfoTag()
-            nonlocal media_type
-            video_info.setMediaType(media_type or (media_type := item.get("dbtype")))
+            video_info.setMediaType(media_type or item.get("dbtype"))
 
             for key, attr in info_mapping.items():
                 if value := item.get(key):
@@ -81,6 +106,12 @@ def videoinfotag_setter(media_type, info_mapping, stream_fields=None):
     },
 )
 def set_helper(item):
+    """
+    Builds a Kodi ListItem for helper service using mapped metadata and artwork.
+
+    :param item: Dictionary containing item metadata.
+    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    """
     return create_li_item(
         item,
         item.get("label"),
@@ -109,6 +140,12 @@ def set_helper(item):
     stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
 )
 def set_movie(item):
+    """
+    Builds a Kodi ListItem for a movie using mapped metadata and artwork.
+
+    :param item: Dictionary containing movie metadata.
+    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    """
     return create_li_item(item, item.get("title"), "DefaultMovies.png")
 
 
@@ -125,6 +162,12 @@ def set_movie(item):
     },
 )
 def set_tvshow(item):
+    """
+    Builds a Kodi ListItem for a tv show using mapped metadata and artwork.
+
+    :param item: Dictionary containing tv show metadata.
+    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    """
     episode = item.get("episode", 0)
     watched_episodes = item.get("watchedepisodes", 0)
     season = item.get("season", 0)
@@ -164,6 +207,12 @@ def set_tvshow(item):
     stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
 )
 def set_episode(item):
+    """
+    Builds a Kodi ListItem for an episode using mapped metadata and artwork.
+
+    :param item: Dictionary containing episode metadata.
+    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    """
     return create_li_item(
         item,
         f"{item.get('season', 0)}x{item.get('episode', 0):02}",
@@ -185,4 +234,10 @@ def set_episode(item):
     stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
 )
 def set_musicvideo(item):
+    """
+    Builds a Kodi ListItem for a music video using mapped metadata and artwork.
+
+    :param item: Dictionary containing music video metadata.
+    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    """
     return create_li_item(item, item.get("title"), "DefaultVideo.png")

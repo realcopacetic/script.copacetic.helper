@@ -78,12 +78,12 @@ class SettingsMonitor:
                 cats.update({category: True})
                 self.settings_to_change.update({item[0]: item[1]})
                 if isinstance(value, list):
-                    window_property(key=item[0], set=", ".join(value))
+                    window_property(key=item[0], value=", ".join(value))
                 else:
-                    window_property(key=item[0], set=value)
+                    window_property(key=item[0], value=value)
         cat_count = sum(value for value in list(cats.values()))
         item_count = cat_count + len(self.settings_to_change)
-        window_property("Settings_To_Change", set=item_count)
+        window_property("Settings_To_Change", value=item_count)
 
     def set_defaults(self, **kwargs):
         count = 0

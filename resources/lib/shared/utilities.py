@@ -2,7 +2,9 @@
 
 import json
 import sys
+import time
 import urllib.parse as urllib
+from functools import wraps
 from pathlib import Path
 
 import xbmc
@@ -19,9 +21,7 @@ from xbmcplugin import (
 ADDON = Addon()
 ADDON_ID = ADDON.getAddonInfo("id")
 
-ADDONDATA = xbmcvfs.translatePath(
-    "special://profile/addon_data/script.copacetic.helper/"
-)
+ADDONDATA = xbmcvfs.translatePath(f"special://profile/addon_data/{ADDON_ID}/")
 BLURS = str(Path(ADDONDATA) / "blur")
 CROPS = str(Path(ADDONDATA) / "crop")
 TEMPS = str(Path(ADDONDATA) / "temp")
@@ -31,8 +31,8 @@ SKIN = xbmcvfs.translatePath("special://skin/")
 SKINEXTRAS = str(Path(SKIN) / "extras")
 SKINXML = str(Path(SKIN) / "16x9")
 
-EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
-VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
+EXPRESSIONS = str(Path(SKINXML) / f"{ADDON_ID}_expressions.xml")
+VARIABLES = str(Path(SKINXML) / f"{ADDON_ID}_variables.xml")
 SKINSETTINGS = str(Path(ADDONDATA) / "skinsettings.json")
 
 DEBUG = xbmc.LOGDEBUG
@@ -52,49 +52,84 @@ def clear_playlists():
     MUSICPLAYLIST.unshuffle()
 
 
+"""KODI HELPERS"""
+
+
 def condition(condition):
+    """
+    Evaluates a Kodi visibility condition.
+
+    :param condition: String condition (e.g., "Skin.HasSetting(x)").
+    :returns: Boolean result.
+    """
     return xbmc.getCondVisibility(condition)
 
 
-def get_folder_size(source=CROPS):
-    bytes = 0
-    if xbmcvfs.exists(source):
-        dirs, files = xbmcvfs.listdir(source)
-        for filename in files:
-            path = Path(source) / filename
-            item = xbmcvfs.File(path)
-            size = item.size()
-            bytes += size
-            item.close()
-    return bytes
-
-
-def get_cache_size(precision=1):
-    temp_size, crop_size = 0, 0
-    if xbmcvfs.exists(TEMPS):
-        temp_size = get_folder_size(source=TEMPS)
-    if xbmcvfs.exists(CROPS):
-        crop_size = get_folder_size(source=CROPS)
-    size = temp_size + crop_size
-    """ Credit Doug Latornell for bitshift method
-    https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
+def execute(action):
     """
-    abbrevs = ((1 << 30, "GB"), (1 << 20, "MB"), (1 << 10, "KB"), (1, "bytes"))
-    for factor, suffix in abbrevs:
-        if size >= factor:
-            break
-    readable = (
-        "%.*f %s" % (precision, size / factor, suffix) if size > 0 else "0.0 bytes"
-    )
-    window_property("Addon_Data_Folder_Size", set=readable)
-    return readable
+    Executes a Kodi built-in function.
+
+    :param action: The action string to run.
+    """
+    xbmc.executebuiltin(action)
 
 
-def validate_path(path):
-    return xbmcvfs.exists(path)
+def infolabel(infolabel):
+    """
+    Retrieves the value of a Kodi InfoLabel expression.
+
+    :param infolabel: The InfoLabel string.
+    :returns: Evaluated string value.
+    """
+    return xbmc.getInfoLabel(infolabel)
+
+
+def skin_string(key, value=False, debug=False):
+    """
+    Sets or clears a Kodi skin string with optional logging.
+    If `value` is a value, it sets the string. If it's False or empty, it clears it.
+
+    :param key: Skin string key.
+    :param value: Value to assign.
+    :param debug: If True, forces debug log.
+    """
+    if value:
+        xbmc.executebuiltin(f"Skin.SetString({key}, {value})")
+        log(f"Skin string: Set, {key}, {value}", force=debug)
+    else:
+        xbmc.executebuiltin(f"Skin.SetString({key},)")
+        log(f"Skin string: Clear, {key}", force=debug)
+
+
+def window_property(key, value=False, window_id=10000, debug=False):
+    """
+    Sets or clears a window property for a specific Kodi window with optional logging.
+    If `value` is a value, it sets the prop. If it's False or empty, it clears it.
+
+    :param key: Property name.
+    :param value: Value to assign.
+    :param window_id: ID of the Kodi window, defaults to 10000 for home
+    :param debug: If True, forces debug log.
+    """
+    window = Window(window_id)
+    if value:
+        window.setProperty(key, f"{value}")
+        log(f"Window property: Set, {window_id}, {key}, {value}", force=debug)
+    else:
+        window.clearProperty(key)
+        log(f"Window property: Clear, {window_id}, {key}", force=debug)
+
+
+"""FILE HELPERS & PATH UTILITIES"""
 
 
 def create_dir(path):
+    """
+    Creates a directory if it doesn't already exist.
+
+    :param path: Directory path.
+    :returns: None
+    """
     try:  # Try makedir to avoid race conditions
         xbmcvfs.mkdirs(path)
     except FileExistsError:
@@ -103,46 +138,94 @@ def create_dir(path):
 
 def clear_cache(**kwargs):
     """
-    import xml.etree.ElementTree as ET
-
-    # remove temp and crop folders
-    readable_size = get_cache_size()
-    if xbmcvfs.exists(TEMPS):
-        xbmcvfs.rmdir(TEMPS, force=True)
-        create_dir(TEMPS)
-    if xbmcvfs.exists(CROPS):
-        xbmcvfs.rmdir(CROPS, force=True)
-        create_dir(CROPS)
-        log(f'Clearlogo cache cleared by user. {readable_size} saved.')
-        string = ADDON.getLocalizedString(
-            32201) + f', {readable_size} ' + ADDON.getLocalizedString(32202) + '.'
-        DIALOG.notification(ADDON_ID, string)
-    # Update cache label
-    get_cache_size()
-    # Remove old clearlogos from lookup table
-    lookup_tree = ET.parse(LOOKUP_XML)
-    root = lookup_tree.getroot()
-    del root[0]
-    ET.SubElement(root, 'clearlogos')
-    lookup_tree.write(LOOKUP_XML, encoding="utf-8")
+    Clears all temporary artwork processing data and resets the artwork lookup database.
+    Resets the cache size display, and posts a notification with the amount of space saved.
     """
-    return
+    readable_size = get_cache_size()
+
+    for folder in [BLURS, CROPS, TEMPS]:
+        if xbmcvfs.exists(folder):
+            xbmcvfs.rmdir(folder, force=True)
+            create_dir(folder)
+
+    from resources.lib.shared.sqlite import SQLiteHandler
+
+    SQLiteHandler().clear_all()
+
+    log(f"Artwork cache cleared by user. {readable_size} saved.")
+    message = f"{ADDON.getLocalizedString(32201)}, {readable_size} {ADDON.getLocalizedString(32202)}."
+    DIALOG.notification(ADDON_ID, message)
+
+    get_cache_size()
 
 
-def execute(action):
-    xbmc.executebuiltin(action)
+def get_cache_size(precision=1):
+    """
+    Computes the combined size of temp and crop folders and sets it as a window property.
+    Credit Doug Latornell for bitshift method
+    https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
+
+    :param precision: Decimal precision for human-readable output.
+    :returns: Formatted size string (e.g., "1.2 MB").
+    """
+    size = get_total_size(ADDONDATA)
+    abbrevs = ((1 << 30, "GB"), (1 << 20, "MB"), (1 << 10, "KB"), (1, "bytes"))
+    for factor, suffix in abbrevs:
+        if size >= factor:
+            break
+    readable = (
+        "%.*f %s" % (precision, size / factor, suffix) if size > 0 else "0.0 bytes"
+    )
+    window_property("Addon_Data_Folder_Size", value=readable)
+    return readable
 
 
-def get_joined_items(item):
-    if len(item) > 0 and item is not None:
-        item = " / ".join(item)
-    else:
-        item = ""
-    return item
+def get_total_size(path):
+    """
+    Calculates the total size of a file or all files in a folder (recursively).
+
+    :param path: Path to a file or directory.
+    :returns: Total size in bytes.
+    """
+    path = Path(path)
+    if path.is_file():
+        return path.stat().st_size
+    elif path.is_dir():
+        return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+    return 0
 
 
-def infolabel(infolabel):
-    return xbmc.getInfoLabel(infolabel)
+def url_encode(string):
+    """
+    Encodes a string for safe URL usage.
+
+    :param string: Input string.
+    :returns: URL-encoded string.
+    """
+    return urllib.quote(string)
+
+
+def url_decode_path(path):
+    """
+    Decodes a Kodi image:// path into a usable file path.
+
+    :param path: Encoded image path.
+    :returns: Decoded file path.
+    """
+    return urllib.unquote(path.replace("image://", "").rstrip("/"))
+
+
+def validate_path(path):
+    """
+    Checks if a given path exists on the filesystem.
+
+    :param path: File or folder path.
+    :returns: True if path exists.
+    """
+    return xbmcvfs.exists(path)
+
+
+"""JSON"""
 
 
 def json_call(
@@ -154,46 +237,78 @@ def json_call(
     params=None,
     item=None,
     options=None,
-    limits=None,
     parent=None,
     debug=False,
 ):
-    json_string = {"jsonrpc": "2.0", "id": 1, "method": method, "params": {}}
+    """
+    Builds and sends a JSON-RPC request to Kodi with optional debug logging.
 
-    if properties is not None:
-        json_string["params"]["properties"] = properties
+    :param method: JSON-RPC method name (e.g., "VideoLibrary.GetMovies").
+    :param properties: List of requested fields.
+    :param sort: Dictionary describing sort method.
+    :param query_filter: Dictionary for filtering results.
+    :param limit: End limit for results — sets "limits": {"start": 0, "end": limit}.
+    :param params: Additional parameters to inject directly into "params".
+    :param item: Single "item" object for certain queries.
+    :param options: Dictionary of additional JSON-RPC options.
+    :param parent: Name of caller (used in log output).
+    :param debug: If True, logs full request and result.
+    :returns: Parsed response as a Python dictionary.
+    """
+    json_string = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": {},
+    }
+
+    for key, value in [
+        ("properties", properties),
+        ("sort", sort),
+        ("filter", query_filter),
+        ("options", options),
+        ("item", item),
+    ]:
+        if value is not None:
+            json_string["params"][key] = value
+
     if limit is not None:
         json_string["params"]["limits"] = {"start": 0, "end": int(limit)}
-    if sort is not None:
-        json_string["params"]["sort"] = sort
-    if query_filter is not None:
-        json_string["params"]["filter"] = query_filter
-    if options is not None:
-        json_string["params"]["options"] = options
-    if limits is not None:
-        json_string["params"]["limits"] = limits
-    if item is not None:
-        json_string["params"]["item"] = item
+
     if params is not None:
         json_string["params"].update(params)
 
-    jsonrpc_call = json.dumps(json_string)
-    result = xbmc.executeJSONRPC(jsonrpc_call)
-    result = json.loads(result)
+    jsonrpc_call = json.dumps(json_string, ensure_ascii=False)
+    result = json.loads(xbmc.executeJSONRPC(jsonrpc_call))
 
     if ADDON.getSettingBool("json_logging") or debug:
-        log(
-            f"JSON call for function {parent} " + pretty_print(json_string), force=debug
-        )
+        log(f"JSON call for function {parent} " + pretty_print(json_string), force=debug)
         log(f"JSON result for function {parent} " + pretty_print(result), force=debug)
+
     return result
 
 
 def pretty_print(string):
+    """
+    Converts a Python object into a formatted JSON string.
+
+    :param string: JSON-serializable object.
+    :returns: Pretty-printed JSON string.
+    """
     return json.dumps(string, sort_keys=True, indent=4, separators=(",", ": "))
 
 
+"""LOGGING"""
+
+
 def log(message, loglevel=DEBUG, force=False):
+    """
+    Logs a message with addon prefix, respecting log level and debug settings.
+
+    :param message: Message string.
+    :param loglevel: Kodi log level constant.
+    :param force: If True, logs regardless of settings.
+    """
     if (ADDON.getSettingBool("debug_logging") or force) and loglevel not in [
         WARNING,
         ERROR,
@@ -203,16 +318,36 @@ def log(message, loglevel=DEBUG, force=False):
 
 
 def log_and_execute(action):
+    """
+    Logs and executes a built-in Kodi command.
+
+    :param action: Built-in Kodi command string.
+    """
     log(f"Execute: {action}", DEBUG)
     xbmc.executebuiltin(action)
 
 
-def return_label(label=infolabel("ListItem.Label"), **kwargs):
-    find = kwargs.get("find", ".")
-    replace = kwargs.get("replace", " ")
-    count = label.count(find)
-    label = label.replace(urllib.unquote(find), urllib.unquote(replace), count)
-    return label
+def log_duration(func):
+    """
+    Decorator that logs the execution time of a method.
+
+    :param func: The method to wrap.
+    :returns: Wrapped method with timing log.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        cls_name = args[0].__class__.__name__ if args else "UnknownClass"
+        start = time.time()
+        result = func(*args, **kwargs)
+        duration = time.time() - start
+        log(f"{cls_name}.{func.__name__} took {duration:.4f} seconds")
+        return result
+
+    return wrapper
+
+
+"""PLUGINS"""
 
 
 def set_plugincontent(content=None, category=None):
@@ -224,52 +359,51 @@ def set_plugincontent(content=None, category=None):
         addSortMethod(int(sys.argv[1]), SORT_METHOD_LASTPLAYED)
 
 
-def skin_string(key, set=False, clear=False, debug=False):
-    if set:
-        xbmc.executebuiltin(f"Skin.SetString({key}, {set})")
-        log(f"Skin string: Set, {key}, {set}", force=debug)
-    else:
-        xbmc.executebuiltin(f"Skin.SetString({key},)")
-        log(f"Skin string: Clear, {key}", force=debug)
+"""STRINGS"""
 
 
-def split(string, **kwargs):
-    separator = kwargs.get("separator", " / ")
-    number = kwargs.get("number", 0)
-    for count, value in enumerate(string.split(separator)):
-        if count == number:
-            return value
+def return_label(label=infolabel("ListItem.Label"), *, find=".", replace=" ", **kwargs):
+    """
+    Replaces a specific character in a label with another character.
+
+    :param label: Input string (defaults to ListItem.Label).
+    :param find: Character to replace.
+    :param replace: Replacement character.
+    :returns: Cleaned-up label.
+    """
+    find = urllib.unquote(find)
+    replace = urllib.unquote(replace)
+    return label.replace(find, replace, label.count(find))
 
 
-def split_random(string, **kwargs):
+def split(string, *, separator=" / ", number=0, **kwargs):
+    """
+    Returns the Nth element from a split string using a given separator.
+
+    :param string: The input string.
+    :param separator: Separator to split on (default: " / ").
+    :param number: Index of element to return.
+    :returns: Selected substring.
+    """
+    parts = string.split(separator)
+    return parts[number] if 0 <= number < len(parts) else parts[0]
+
+
+def split_random(string, *, separator="/", **kwargs):
+    """
+    Randomly selects and cleans a genre substring from a compound string.
+    Handles edge case "Hip-Hop" → "Hip Hop"
+
+    :param string: Genre string (e.g., "Action / Hip-Hop & R&B").
+    :param separator: Delimiter used to split top-level genres (default: "/").
+    :returns: Cleaned and formatted random genre."
+    """
     import random
 
-    separator = kwargs.get("separator", "/")
-    string = random.choice(string.split(separator))
-    string.replace(" ", "")
-    string = "Hip Hop" if "Hip-Hop" in string else string
-    random = random.choice(string.split(" & "))
-    random = return_label(random) if random != "Sci-Fi" else random
-    random = random.strip()
-    return random
+    primary = random.choice(string.split(separator)).strip()
+    if "Hip-Hop" in primary:
+        primary = "Hip Hop"
 
-
-def url_encode(string):
-    encoded = urllib.quote(string)
-    return encoded
-
-
-def url_decode_path(path):
-    path = path[:-1] if path.endswith("/") else path
-    path = urllib.unquote(path.replace("image://", ""))
-    return path
-
-
-def window_property(key, set=False, clear=False, window_id=10000, debug=False):
-    window = Window(window_id)
-    if set:
-        window.setProperty(key, f"{set}")
-        log(f"Window property: Set, {window_id}, {key}, {set}", force=debug)
-    else:
-        window.clearProperty(key)
-        log(f"Window property: Clear, {window_id}, {key}", force=debug)
+    subs = [s.strip() for s in primary.split("&")]
+    picked = random.choice(subs)
+    return return_label(picked)
