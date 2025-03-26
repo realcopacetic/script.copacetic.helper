@@ -74,17 +74,18 @@ class Monitor(xbmc.Monitor):
     def _generate_missing_skin_files(self):
         """Regenerates missing builder output files at startup using BuildElements."""
         elements_processor = BuildElements()
-        run_contexts = ["buildtime", "startup"]
-
-        for context in run_contexts:
-            missing = any(
+        contexts_to_run = []
+        for context in ["buildtime", "startup"]:
+            if any(
                 config.get("file_path")
                 and context in config.get("run_contexts", [])
                 and not validate_path(config["file_path"])
                 for config in BUILDER_CONFIG.values()
-            )
-            if missing:
-                elements_processor.process(run_context=context)
+            ):
+                contexts_to_run.append(context)
+
+        if contexts_to_run:
+            elements_processor.process(run_contexts=contexts_to_run)
 
     def _create(self):
         """Handles full startup initialization (directories + skin files)."""

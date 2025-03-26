@@ -230,7 +230,7 @@ class expressionsBuilder(BaseBuilder):
 
             if not target_expr:
                 log(
-                    f"[Fallback skipped] No match for fallback_item '{fallback_item}' in group '{group_key}'",
+                    f"{self.__class__.__name__}: [Fallback skipped] No match for fallback_item '{fallback_item}' in group '{group_key}'",
                 )
                 continue
 
@@ -248,7 +248,7 @@ class expressionsBuilder(BaseBuilder):
             ) or "true"
 
             log(
-                f"[Fallback applied] {target_expr} = {resolved[target_expr]} (group: {group_key}, others: {list(others.keys())})",
+                f"{self.__class__.__name__}: [Fallback applied] {target_expr} = {resolved[target_expr]} (group: {group_key}, others: {list(others.keys())})",
             )
 
         return resolved

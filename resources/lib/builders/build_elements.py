@@ -32,12 +32,12 @@ class BuildElements:
         self.merged_data = self.json_merger.yield_merged_data()
 
     @log_duration
-    def process(self, run_context="startup"):
+    def process(self, run_contexts=("startup",)):
         """
-        Runs all eligible builders based on the given run context and writes output.
+        Runs all eligible builders matching the given run contexts.
 
-        :param run_context: Context in which builder runs (e.g., "startup", "runtime").
-        :returns: Dictionary of processed builder output if file write is not required.
+        :param run_contexts: A tuple or list of context strings to process.
+            :returns: Dictionary of processed builder output if file write is not required.
         """
         values_to_write = {}
         values_to_return = {}
@@ -52,10 +52,9 @@ class BuildElements:
                 if not builder_info or not builder_info["module"]:
                     continue
 
-                run_contexts = builder_info.get("run_contexts", [])
-                if run_context not in run_contexts:
+                if not any(ctx in builder_info.get("run_contexts", []) for ctx in run_contexts):
                     continue
-
+                
                 builder_class = builder_info["module"]
                 dynamic_key = next(iter(builder_info.get("dynamic_key", {})), None)
                 builder_instance = builder_class(loop_values, placeholders, dynamic_key)
