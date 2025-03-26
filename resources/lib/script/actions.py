@@ -1,7 +1,5 @@
 # author: realcopacetic
 
-from resources.lib.shared.art import ImageEditor
-from resources.lib.shared.controls import JumpButton
 from resources.lib.shared.utilities import (
     ADDON,
     DIALOG,
@@ -16,7 +14,6 @@ from resources.lib.shared.utilities import (
     window_property,
     xbmc,
 )
-from resources.lib.windows.viewsettings import ViewSettings
 
 
 def clean_filename(label=False, **kwargs):
@@ -83,6 +80,8 @@ def hex_contrast_check(**kwargs):
     :param hex: Hex string (e.g., "#ffffff" or "ffffffff").
     :returns: "light" or "dark" contrast hint.
     """
+    from resources.lib.shared.art import ImageEditor
+
     image = ImageEditor()
     hex = kwargs.get("hex", "")
 
@@ -99,6 +98,8 @@ def hex_contrast_check(**kwargs):
 
 def jump_button(**kwargs):
     """Updates the position of the jump scrollbar indicator."""
+    from resources.lib.shared.controls import JumpButton
+
     jump_button = JumpButton()
     jump_button.update_position()
 
@@ -408,7 +409,9 @@ def viewsettings_window(**kwargs):
     """
     Opens the ViewSettings window as a modal dialog.
     """
-    myWindow = ViewSettings(
+    from resources.lib.windows.dynamiceditor import DynamicEditor
+
+    myWindow = DynamicEditor(
         "script-copacetic-helper_viewsettings.xml", SKINXML, "Default", ""
     )
     myWindow.doModal()

@@ -31,9 +31,10 @@ SKIN = xbmcvfs.translatePath("special://skin/")
 SKINEXTRAS = str(Path(SKIN) / "extras")
 SKINXML = str(Path(SKIN) / "16x9")
 
+CONTROLS = str(Path(ADDONDATA) / "controls.json")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
-VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 SKINSETTINGS = str(Path(ADDONDATA) / "skinsettings.json")
+VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 
 DEBUG = xbmc.LOGDEBUG
 INFO = xbmc.LOGINFO

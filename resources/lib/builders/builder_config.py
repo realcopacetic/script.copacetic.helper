@@ -7,16 +7,22 @@ from resources.lib.builders.modules import (
     variablesBuilder,
 )
 from resources.lib.shared.json import JSONHandler
+from resources.lib.shared.utilities import (
+    CONTROLS,
+    EXPRESSIONS,
+    SKINSETTINGS,
+    VARIABLES,
+)
 from resources.lib.shared.xml import XMLHandler
-from resources.lib.shared.utilities import EXPRESSIONS, SKINSETTINGS, VARIABLES
+
 
 BUILDER_CONFIG = {
     "controls": {
         "module": controlsBuilder,
-        "run_contexts": ["runtime"],
-        "file_type": None,
-        "file_path": None,
-        "file_handler": None,
+        "run_contexts": ["buildtime"],
+        "file_type": "json",
+        "file_path": CONTROLS,
+        "file_handler": JSONHandler,
         "write_kwargs": {},
     },
     "expressions": {

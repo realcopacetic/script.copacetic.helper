@@ -52,7 +52,9 @@ class BaseBuilder:
         :returns: Generator yielding {name: value} dicts.
         """
         items = (
-            element_data.get("items") or expand_index(element_data.get("index")) or []
+            element_data.get("items") or
+            expand_index(element_data.get("index")) or
+            self.loop_values
         )
         substitutions = self.generate_substitutions(items)
 
@@ -110,10 +112,65 @@ class BaseBuilder:
 
 
 class controlsBuilder(BaseBuilder):
-    def resolve_values(self, subs, rules):
-        raise NotImplementedError(
-            "controlsBuilder does not implement resolve_values() yet."
-        )
+    def group_and_expand(self, template_name, data, substitutions):
+        """
+        Groups control definitions by their formatted key and expands them per substitution.
+
+        :param template_name: Template string for the control's key (e.g. "{content_type}_button")
+        :param data: The original control definition template
+        :param substitutions: List of substitution dictionaries for this control group
+        :return: Dictionary of fully resolved control definitions keyed by their final names
+        """
+
+        grouped = defaultdict(list)
+
+        for sub in substitutions:
+            key = template_name.format(**sub)
+            grouped[key].append(sub)
+            self.group_map[key] = sub
+
+        id_start = data.get("id_start")
+        return {
+            key: self._with_id(self.resolve_values(subs, data), id_start, i)
+            for i, (key, subs) in enumerate(grouped.items())
+        }
+
+    def _with_id(self, control, id_start, index):
+        """
+        Assigns a unique `id` to a control if an `id_start` is defined in its template.
+        Used to incrementally assign control IDs during expansion.
+
+        :param control: The resolved control definition (dict)
+        :param id_start: The base ID from which to start counting (if any)
+        :param index: The current offset from `id_start`
+        :return: Control dict with `id` added if applicable
+        """
+        if id_start is not None:
+            control["id"] = id_start + index
+        return control
+
+    def resolve_values(self, subs, data):
+        """
+        Resolves control fields per substitution. Supports dynamic field mapping for
+        any placeholder, not just {content_type}.
+        
+        :param subs: List of substitutions for one control group
+        :param data: Control definition (template)
+        :return: Dict of resolved control fields
+        """
+        resolved = {}
+        placeholders = subs[0].keys()  # dynamic keys like content_type, id, etc.
+
+        for field, value in data.items():
+            if isinstance(value, str) and any(f"{{{ph}}}" in value for ph in placeholders):
+                resolved[field] = {
+                    sub[next(iter(placeholders))]: self.substitute(value, sub)
+                    for sub in subs
+                }
+            else:
+                resolved[field] = value
+
+        return resolved
 
 
 class expressionsBuilder(BaseBuilder):
