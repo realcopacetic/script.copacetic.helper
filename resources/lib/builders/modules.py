@@ -112,63 +112,82 @@ class BaseBuilder:
 
 
 class controlsBuilder(BaseBuilder):
+    """
+    Builder that generates fully expanded control definitions.
+    Expands placeholders, assigns IDs, and resolves update triggers.
+    """
+
     def group_and_expand(self, template_name, data, substitutions):
         """
-        Groups control definitions by their formatted key and expands them per substitution.
+        Groups and expands control definitions by key and type.
 
-        :param template_name: Template string for the control's key (e.g. "{content_type}_button")
-        :param data: The original control definition template
-        :param substitutions: List of substitution dictionaries for this control group
-        :return: Dictionary of fully resolved control definitions keyed by their final names
+        :param template_name: Control name template
+        :param data: Control definition template
+        :param substitutions: List of substitution dictionaries
+        :returns: Dict of {control_name: resolved_definition}
         """
+        id_start = data.get("id_start")
+        id_fixed = data.get("id")
 
+        # Dynamic controls
+        if "dynamic_linking" in data:
+            resolved_list = []
+            seen = set()
+            for sub in substitutions:
+                resolved = {
+                    field: self.substitute(value, sub)
+                    for field, value in data["dynamic_linking"].items()
+                    if isinstance(value, str)
+                }
+                key = tuple(sorted(resolved.items()))
+                if key not in seen:
+                    seen.add(key)
+                    resolved_list.append(resolved)
+
+            return {
+                template_name: {
+                    **{
+                        k: v
+                        for k, v in data.items()
+                        if k not in ("dynamic_linking", "id")
+                    },
+                    "id": id_fixed,
+                    "dynamic_linking": resolved_list,
+                }
+            }
+        # Static controls
         grouped = defaultdict(list)
-
         for sub in substitutions:
             key = template_name.format(**sub)
             grouped[key].append(sub)
             self.group_map[key] = sub
 
-        id_start = data.get("id_start")
         return {
-            key: self._with_id(self.resolve_values(subs, data), id_start, i)
+            key: self.resolve_values(subs[0], data, id_start, i)
             for i, (key, subs) in enumerate(grouped.items())
         }
 
-    def _with_id(self, control, id_start, index):
+    def resolve_values(self, sub, data, id_start, index):
         """
-        Assigns a unique `id` to a control if an `id_start` is defined in its template.
-        Used to incrementally assign control IDs during expansion.
+        Resolves fields for a flat (non-dynamic) control.
 
-        :param control: The resolved control definition (dict)
-        :param id_start: The base ID from which to start counting (if any)
-        :param index: The current offset from `id_start`
-        :return: Control dict with `id` added if applicable
+        :param sub: Substitution dict
+        :param data: Control template
+        :param id_start: Optional starting ID
+        :param index: Index for control ID
+        :returns: Resolved control dict
         """
-        if id_start is not None:
-            control["id"] = id_start + index
-        return control
-
-    def resolve_values(self, subs, data):
-        """
-        Resolves control fields per substitution. Supports dynamic field mapping for
-        any placeholder, not just {content_type}.
-        
-        :param subs: List of substitutions for one control group
-        :param data: Control definition (template)
-        :return: Dict of resolved control fields
-        """
-        resolved = {}
-        placeholders = subs[0].keys()  # dynamic keys like content_type, id, etc.
-
+        resolved = {
+            field: self.substitute(value, sub)
+            for field, value in data.items()
+            if isinstance(value, str)
+        }
         for field, value in data.items():
-            if isinstance(value, str) and any(f"{{{ph}}}" in value for ph in placeholders):
-                resolved[field] = {
-                    sub[next(iter(placeholders))]: self.substitute(value, sub)
-                    for sub in subs
-                }
-            else:
+            if not isinstance(value, str):
                 resolved[field] = value
+
+        if id_start is not None:
+            resolved["id"] = id_start + index
 
         return resolved
 

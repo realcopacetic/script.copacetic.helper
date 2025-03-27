@@ -52,10 +52,18 @@ class RuleEngine:
         :param condition_str: The full condition string to evaluate.
         :returns: True if the condition evaluates successfully, else False.
         """
-        # Check first for Kodi native expressions marked "xml(expression)"
+        # Native Kodi XML boolean expression in format xml()
         if condition_str.lower().startswith("xml("):
             inner = condition_str[4:-1].strip()
             return condition(inner)
+
+        # focused(123) → Control.HasFocus(123) / useful as builders can substitute rules
+        # in the format focused("string") into focused("id") with simple substitution
+        if condition_str.lower().startswith("focused(") and condition_str.endswith(")"):
+            inner = condition_str[8:-1].strip()
+            if inner.isdigit():
+                return condition(f"Control.HasFocus({inner})")
+            return False
 
         # Use regex matching for all other conditions.
         if match := self.CONDITION_PATTERN.match(condition_str):
