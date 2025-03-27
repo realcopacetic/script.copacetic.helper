@@ -21,14 +21,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.parent_control_instances = {}
         self.child_control_instances = {}
 
-        self.current_content = next(iter(self.parent_controls)).replace("_button", "")
-
         self.all_skinsettings = {
             setting_id: setting
             for settings_dict in self.skinsettings_handler.data.values()
             for setting_id, setting in settings_dict.items()
         }
 
+        # Attach control instances
         for control_id, control in self.parent_controls.items():
             control_obj = self.getControl(control["id"])
             if control_obj:
@@ -37,9 +36,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         for control_id, control in self.child_controls.items():
             control_obj = self.getControl(control["id"])
             if control_obj:
-                self.child_control_instances[control_id] = control_obj
-
-        self.update_child_controls()
+                self.update_child_controls()
+        
+        
 
     def build_controls(self):
 
