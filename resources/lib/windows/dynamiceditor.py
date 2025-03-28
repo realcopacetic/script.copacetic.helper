@@ -2,7 +2,13 @@
 
 import xbmcgui
 from resources.lib.shared.json import JSONHandler
-from resources.lib.shared.utilities import log, SKINSETTINGS, CONTROLS, condition, skin_string, infolabel
+from resources.lib.shared.utilities import (
+    log,
+    SKINSETTINGS,
+    CONTROLS,
+    skin_string,
+    infolabel,
+)
 
 
 class DynamicEditor(xbmcgui.WindowXMLDialog):
@@ -16,8 +22,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.all_controls = {}
         self.static_controls = {}
         self.dynamic_controls = {}
-
         self.control_instances = {}
+
         self.current_content = None
         self.last_focus = None
 
@@ -44,13 +50,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 self.static_controls[cid] = ctrl
 
     def onInit(self):
-        # Attach control objects to their IDs and set up dynamic linking where applicable
         for control_id, control in self.all_controls.items():
             try:
                 control_obj = self.getControl(control["id"])
                 self.control_instances[control_id] = control_obj
-            except RuntimeError:
-                log(f"Warning: Control ID {control['id']} ({control_id}) not found in XML layout.")
+            except RuntimeError as e:
+                log(
+                    f"Warning: Control ID {control['id']} ({control_id}) not found in XML layout: {e}"
+                )
 
         # Trigger initial focus logic manually
         self.last_focus = self.getFocusId()
@@ -60,7 +67,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         a_id = action.getId()
         current_focus = self.getFocusId()
 
-        # Whenever focused control ID changes...
         if current_focus != self.last_focus:
             self.onFocusChanged(current_focus)
             self.last_focus = current_focus
@@ -77,14 +83,17 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
     def handle_slider_interactions(self, control, instance, a_id):
         if a_id in (xbmcgui.ACTION_MOVE_LEFT, xbmcgui.ACTION_MOVE_RIGHT):
             index = instance.getInt()
-            for link in control["dynamic_linking"]:
-                if self.evaluate_trigger(link["update_trigger"]):
-                    setting_id = link["linked_setting"]
-                    values = self.skinsettings.get(setting_id, {}).get("items", [])
-                    if 0 <= index < len(values):
-                        value = values[index]
-                        skin_string(setting_id, value)
-                        log(f"Updated setting: {setting_id} → {value}")
+            link = self.get_active_link(control)
+            if not link:
+                return
+
+            setting_id = link["linked_setting"]
+            values = self.skinsettings.get(setting_id, {}).get("items", [])
+
+            if 0 <= index < len(values):
+                value = values[index]
+                skin_string(setting_id, value)
+                log(f"Updated setting: {setting_id} → {value}")
 
     def onFocusChanged(self, focus_id):
         focus_control_id = next(
@@ -96,47 +105,48 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             None,
         )
 
+        if focus_control_id:
+            self.current_content = focus_control_id
+
         for control_id, control in self.dynamic_controls.items():
             instance = self.control_instances.get(control_id)
-            matched_link = next(
-                (
-                    link
-                    for link in control["dynamic_linking"]
-                    if link.get("update_trigger") == f"focused({focus_control_id})"
-                ),
-                None,
-            )
-
-            if matched_link:
+            link = self.get_active_link(control)
+            if link:
                 self.update_dynamic_control_value(
-                    control, instance, matched_link["linked_setting"]
+                    control, instance, link["linked_setting"]
                 )
 
     def update_dynamic_control_value(self, control, instance, linked_setting):
         setting_values = self.skinsettings.get(linked_setting, {}).get("items", [])
+        if not setting_values:
+            return
 
         if control["control_type"] == "slider":
-            if setting_values:
-                index = self.get_slider_index(linked_setting, setting_values)
-                instance.setInt(index, 0, 1, len(setting_values) - 1)
+            index = self.get_slider_index(linked_setting, setting_values)
+            instance.setInt(index, 0, 1, len(setting_values) - 1)
+
         elif control["control_type"] == "radiobutton":
-            if setting_values:
-                value = self.get_radio_value(linked_setting)
-                instance.setSelected(value == "true")
-        # Add other types here as needed
+            ...
 
     def get_slider_index(self, setting_id, setting_values):
         current_value = infolabel(f"Skin.String({setting_id})")
         try:
             return setting_values.index(current_value)
         except ValueError:
-            return 0  # Fallback to first item
-        
+            return 0
+
     def evaluate_trigger(self, trigger):
         if trigger.startswith("focused(") and trigger.endswith(")"):
             name = trigger[8:-1]
             return self.current_content == name
         return False
-    
-    def get_radio_value(self, setting_id):
-        return infolabel(f"Skin.String({setting_id})").lower()
+
+    def get_active_link(self, control):
+        return next(
+            (
+                link
+                for link in control.get("dynamic_linking", [])
+                if self.evaluate_trigger(link.get("update_trigger", ""))
+            ),
+            None,
+        )
