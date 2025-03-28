@@ -405,14 +405,17 @@ def view_setter(**kwargs):
     ...
 
 
-def viewsettings_window(**kwargs):
+def dynamic_settings_window(**kwargs):
     """
-    Opens the ViewSettings window as a modal dialog.
+    Opens the a dynamic settings window as a modal dialog.
     """
     from resources.lib.windows.dynamiceditor import DynamicEditor
 
+    name = kwargs.get("name", "dynamic_window")
+    window_property(name, value="true")
+    
     myWindow = DynamicEditor(
-        "script-copacetic-helper_viewsettings.xml", SKINXML, "Default", ""
+        f"{name}.xml", SKINXML, "Default", ""
     )
     myWindow.doModal()
     del myWindow

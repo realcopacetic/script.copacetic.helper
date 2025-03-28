@@ -102,6 +102,23 @@ def skin_string(key, value=False, debug=False):
         log(f"Skin string: Clear, {key}", force=debug)
 
 
+def toggle_bool(setting_id, debug=False):
+    """
+    Toggles a boolean skin setting using Kodi built-in functions.
+
+    If the setting is currently enabled (Skin.HasSetting), it will reset (clear it).
+    If the setting is currently disabled, it will set it to true.
+
+    :param setting_id: The skin setting ID (e.g., "mysetting").
+    """
+    if condition(f"Skin.HasSetting({setting_id})"):
+        execute(f"Skin.Reset({setting_id})")
+        log(f"Skin Bool reset: {setting_id}", force=debug)
+    else:
+        execute(f"Skin.SetBool({setting_id})")
+        log(f"Skin Bool set: {setting_id}", force=debug)
+
+
 def window_property(key, value=False, window_id=10000, debug=False):
     """
     Sets or clears a window property for a specific Kodi window with optional logging.
