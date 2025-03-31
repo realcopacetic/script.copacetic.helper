@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 import re
-from resources.lib.shared.utilities import condition
+from resources.lib.shared.utilities import condition, log
 
 
 class RuleEngine:
@@ -31,18 +31,22 @@ class RuleEngine:
         """Initializes the RuleEngine with an empty condition cache."""
         self.condition_cache = {}
 
-    def evaluate(self, condition):
+    def evaluate(self, condition, runtime=False):
         """
         Evaluates a condition string, using cached results if available.
 
         :param condition: The condition string to evaluate.
+        :param runtime: If True, disables result caching.
         :returns: Boolean result of the evaluated condition.
         """
-        if condition in self.condition_cache:
+        if not runtime and condition in self.condition_cache:
             return self.condition_cache[condition]
 
         result = self._evaluate_condition(condition)
-        self.condition_cache[condition] = result
+
+        if not runtime:
+            self.condition_cache[condition] = result
+
         return result
 
     def _evaluate_condition(self, condition_str):
@@ -52,6 +56,13 @@ class RuleEngine:
         :param condition_str: The full condition string to evaluate.
         :returns: True if the condition evaluates successfully, else False.
         """
+        # Simple "true" / "false" strings
+        if condition_str == "true":
+            return True
+
+        if condition_str == "false":
+            return False
+
         # Native Kodi XML boolean expression in format xml()
         if condition_str.lower().startswith("xml("):
             inner = condition_str[4:-1].strip()

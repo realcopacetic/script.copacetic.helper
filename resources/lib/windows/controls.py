@@ -1,25 +1,35 @@
 # author: realcopacetic
 
+from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import (
     condition,
     execute,
     infolabel,
+    log,
     skin_string,
     toggle_bool,
 )
 
 
-def set_instance_labels(link, control, instance):
+def set_instance_labels(link, control, instance, skinsettings):
     """
     Applies label and label2 to a control instance, checking link first, then control.
     If label2 is missing, falls back to the current value of the linked skin string.
     """
     setting_id = (link or {}).get("linked_setting")
+    fallback = skinsettings.get(setting_id, {}).get("items")
     label = (link or {}).get("label") or control.get("label")
     label2 = (
         (link or {}).get("label2")
         or control.get("label2")
-        or (infolabel(f"Skin.String({setting_id})").capitalize() if setting_id else "")
+        or (
+            value.capitalize()
+            if (value := infolabel(f"Skin.String({setting_id})"))
+            else ""
+        )
+        or (
+            fallback[0].capitalize() if fallback else ""
+        )
     )
 
     if label or label2:
@@ -31,13 +41,25 @@ class BaseControlHandler:
         self.control = control
         self.instance = instance
         self.skinsettings = skinsettings
+        self.rule_engine = RuleEngine()
 
     def update_visibility(self, current_content):
         link = self._find_link(current_content)
-        visible_condition = link.get("visible") if link else self.control.get("visible")
+        visible_condition = link.get("visible", "") if link else self.control.get("visible", "")
 
-        is_visible = condition(visible_condition) if visible_condition else True
+        setting_id = link["linked_setting"]
+        setting_values = self.skinsettings.get(setting_id, {}).get("items", [])
+        if setting_values:
+            current_value = infolabel(f"Skin.String({setting_id})")
+
+        log(f'FUCK DEBUG current_value {current_value}')
+        log(f'FUCK DEBUG visible_condition {visible_condition}')
+        is_visible = (
+            self.rule_engine.evaluate(visible_condition, runtime=True) if visible_condition else True
+        )
+        log(f"FUCK DEBUG is_visible {is_visible}")
         self.instance.setVisible(is_visible)
+        return link
 
     def _find_link(self, current_content):
         expected_trigger = f"focused({current_content})"
@@ -48,6 +70,10 @@ class BaseControlHandler:
 
 
 class RadioButtonHandler(BaseControlHandler):
+    def update_visibility(self, current_content):
+        link = super().update_visibility(current_content)
+        set_instance_labels(link, self.control, self.instance, self.skinsettings)
+
     def update_value(self, current_content):
         link = self._find_link(current_content)
         if not link:
@@ -59,7 +85,6 @@ class RadioButtonHandler(BaseControlHandler):
         is_selected = condition(f"Skin.HasSetting({setting_id})")
         self.instance.setSelected(is_selected)
         self.instance.setEnabled(len(values) > 1)
-        set_instance_labels(link, self.control, self.instance)
 
     def handle_interaction(self, current_content, a_id, focused_control_id=None):
         from xbmcgui import ACTION_SELECT_ITEM
@@ -97,7 +122,6 @@ class SliderHandler(BaseControlHandler):
                 index = 0
             self.instance.setInt(index, 0, 1, len(setting_values) - 1)
         self.instance.setEnabled(len(setting_values) > 1)
-        return link
 
     def handle_interaction(self, current_content, a_id, focused_control_id=None):
         from xbmcgui import ACTION_MOVE_LEFT, ACTION_MOVE_RIGHT
@@ -112,6 +136,7 @@ class SliderHandler(BaseControlHandler):
 
         setting_id = link["linked_setting"]
         values = self.skinsettings.get(setting_id, {}).get("items", [])
+
         if 0 <= index < len(values):
             skin_string(setting_id, values[index])
 
@@ -121,9 +146,9 @@ class SliderExHandler(SliderHandler):
         super().__init__(control, slider_instance, skinsettings)
         self.button_instance = button_instance
 
-    def update_value(self, current_content):
-        link = super().update_value(current_content)
-        set_instance_labels(link, self.control, self.button_instance)
+    def update_visibility(self, current_content):
+        link = super().update_visibility(current_content)
+        set_instance_labels(link, self.control, self.button_instance, self.skinsettings)
 
     def handle_interaction(self, current_content, a_id, focused_control_id=None):
         from xbmcgui import ACTION_SELECT_ITEM

@@ -70,7 +70,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         # Trigger initial focus and visibility logic manually
         self.last_focus = self.getFocusId()
         self.onFocusChanged(self.last_focus)
-    
+
         for handler in self.handlers.values():
             handler.update_visibility(self.current_content)
 
@@ -85,7 +85,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         for handler in self.handlers.values():
             handler.handle_interaction(self.current_content, a_id, current_focus)
 
-        for handler in self.handlers.values():
+        for handler in self.handlers.values():  
             handler.update_visibility(self.current_content)
 
         super().onAction(action)
@@ -102,6 +102,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         if focus_control_id:
             self.current_content = focus_control_id
-
-        for handler in self.handlers.values():
-            handler.update_value(self.current_content)
+            # Only update dyanmic control values when focusing a static control
+            for handler in self.handlers.values():
+                handler.update_value(self.current_content)
