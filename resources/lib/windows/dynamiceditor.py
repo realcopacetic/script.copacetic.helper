@@ -12,7 +12,20 @@ from resources.lib.windows.control_factory import DynamicControlFactory
 
 
 class DynamicEditor(xbmcgui.WindowXMLDialog):
+    """
+    A dynamic skin settings editor window that adapts controls based on focus.
+    Dynamically builds and manages visibility, interaction, and values for skin settings.
+    """
+
     def __init__(self, xmlFilename, skinPath, defaultSkin, defaultRes):
+        """
+        Initialize the editor and prepare handlers for dynamic/static controls.
+
+        :param xmlFilename: Name of the active XML window file.
+        :param skinPath: Path to the current skin directory.
+        :param defaultSkin: Name of the default skin.
+        :param defaultRes: Default resolution.
+        """
         super().__init__()
         self._xml_filename = xmlFilename.lower()
         self.controls_handler = JSONHandler(CONTROLS)
@@ -32,6 +45,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.build_dicts()
 
     def build_dicts(self):
+        """
+        Populate control and skinsetting mappings from JSON definitions.
+        Separates static and dynamic controls.
+        """
         self.skinsettings = {
             setting_id: setting
             for settings_dict in self.skinsettings_handler.data.values()
@@ -52,6 +69,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 self.static_controls[cid] = ctrl
 
     def onInit(self):
+        """
+        Initializes controls and binds handlers. Applies initial visibility logic.
+        """
         for control_id, control in self.all_controls.items():
             try:
                 instance = self.getControl(control["id"])
@@ -75,6 +95,12 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             handler.update_visibility(self.current_content)
 
     def onAction(self, action):
+        """
+        Called by Kodi when a user performs an action (e.g., movement, selection).
+        Propagates action to each handler, updates focus and visibility.
+
+        :param action: xbmcgui.Action object representing the user's input.
+        """
         a_id = action.getId()
         current_focus = self.getFocusId()
 
@@ -91,6 +117,12 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         super().onAction(action)
 
     def onFocusChanged(self, focus_id):
+        """
+        Called when the focused control changes.
+        Updates the current content type and triggers updates for linked dynamic controls.
+
+        :param focus_id: ID of the newly focused control.
+        """
         focus_control_id = next(
             (
                 cid
