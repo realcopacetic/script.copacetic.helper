@@ -35,6 +35,7 @@ CONTROLS = str(Path(ADDONDATA) / "controls.json")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
 SKINSETTINGS = str(Path(ADDONDATA) / "skinsettings.json")
 VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
+ELEMENTS = str(Path(SKINXML) / "script-copacetic-helper_elements.xml")
 
 DEBUG = xbmc.LOGDEBUG
 INFO = xbmc.LOGINFO

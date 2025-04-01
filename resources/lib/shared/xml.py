@@ -1,8 +1,10 @@
 # author: realcopacetic
 
 import xml.etree.ElementTree as ET
+from functools import cached_property, wraps
+from pathlib import Path
+
 from resources.lib.shared.utilities import log, validate_path
-from functools import wraps
 
 
 def xml_functions(func):
@@ -21,7 +23,7 @@ def xml_functions(func):
 
         if not self._file_exists():
             log(
-                f"{self.__class__.__name__}: File '{self.file_path}' not found, creating a new one."
+                f"{self.__class__.__name__}: File '{self.path}' not found, creating a new one."
             )
             self._create_new_xml(root_tag, element_name)
 
@@ -52,15 +54,16 @@ class XMLHandler:
     Supports structured transformations of flat or nested dictionary data into Kodi-compatible XML.
     """
 
-    def __init__(self, file_path, root_element="includes"):
+    def __init__(self, path, root_element="includes"):
         """
         Initializes the handler with a file path and default root element.
 
-        :param file_path: Path to the target XML file.
+        :param path: Path to the target XML file.
         :param root_element: Root tag name used when creating new XML.
         """
-        self.file_path = file_path
+        self.path = Path(path)
         self.root_element = root_element
+        self.data = self._read_xml()
 
     @xml_functions
     def write_xml(self, data_dict, **kwargs):
@@ -96,7 +99,7 @@ class XMLHandler:
             tree = self._read_xml()
             if tree is None:
                 log(
-                    f"XML file '{self.file_path}' not found, creating a new one.",
+                    f"XML file '{self.path}' not found, creating a new one.",
                     force=True,
                 )
                 self.write_xml(updates, **kwargs)
@@ -128,29 +131,46 @@ class XMLHandler:
         except Exception as e:
             log(f"{self.__class__.__name__}: ERROR updating XML --> {e}", force=True)
 
-    def _file_exists(self):
-        """
-        Checks if the XML file exists and is valid.
-
-        :returns: True if file exists and is accessible.
-        """
-        return validate_path(self.file_path)
-
     def _read_xml(self):
         """
-        Parses and returns the current XML tree from file if it exists.
+        Reads and returns the XML data. If the file path is a directory,
+        merges XML files into a single tree, or returns a dictionary of trees if merging isn't possible.
 
-        :returns: ElementTree instance or None on error.
+        :returns: Dictionary of {file_name: ElementTree} if a folder,
+                  or a single ElementTree if it's a file.
         """
-        if not self._file_exists():
+        if self.path.is_dir():
+            # Handle directory, merge XML files
+            data = {}
+            for xml_file in sorted(self.path.glob("*.xml")):
+                tree = self._parse_single_xml(xml_file)
+                if tree is not None:
+                    data[xml_file.stem] = tree
+            return data
+        else:
+            # Handle single file
+            return self._parse_single_xml(self.path)
+
+    def _parse_single_xml(self, file_path):
+        """
+        Parse a single XML file and return its ElementTree.
+
+        :param file_path: Path to the XML file.
+        :returns: ElementTree instance or None if the file doesn't exist or there is an error.
+        """
+        if not self._file_exists(file_path):
+            log(
+                f"{self.__class__.__name__}: File '{file_path}' does not exist.", force=True
+            )
             return None
 
         try:
-            with open(self.file_path, "rb") as file:
+            with open(file_path, "rb") as file:
                 return ET.parse(file)
         except (ET.ParseError, IOError) as e:
             log(
-                f"{self.__class__.__name__}: Error parsing XML file --> {e}", force=True
+                f"{self.__class__.__name__}: Error parsing XML file '{file_path}' --> {e}",
+                force=True,
             )
             return None
 
@@ -172,7 +192,7 @@ class XMLHandler:
         tree = ET.ElementTree(root)
         self._save_xml(tree)
         log(
-            f"{self.__class__.__name__}: Created new XML file '{self.file_path}' with root '{root_tag}'."
+            f"{self.__class__.__name__}: Created new XML file '{self.path}' with root '{root_tag}'."
         )
         return tree
 
@@ -228,7 +248,7 @@ class XMLHandler:
         :returns: None
         """
         try:
-            with open(self.file_path, "wb") as file:
+            with open(self.path, "wb") as file:
                 ET.indent(tree, space="  ")  # Ensures properly formatted XML
                 tree.write(file, encoding="utf-8", xml_declaration=True)
         except IOError as e:
@@ -238,5 +258,92 @@ class XMLHandler:
             )
         else:
             log(
-                f"{self.__class__.__name__}: XML file '{self.file_path}' updated successfully."
+                f"{self.__class__.__name__}: XML file '{self.path}' updated successfully."
             )
+    
+    @staticmethod
+    def _file_exists(file_path):
+        """
+        Checks if the XML file exists and is valid.
+
+        :returns: True if file exists and is accessible.
+        """
+        return validate_path(file_path)
+
+
+class XMLMerger:
+    """
+    Merges XML files across multiple folders, matching structure of JSONMerger.
+    XML files must contain a <mapping> tag and a nested <elements> section.
+    """
+
+    def __init__(self, base_folder, subfolders=None):
+        """
+        Initializes the XML merger with the folder structure.
+
+        :param base_folder: Root folder path containing builder subfolders.
+        :param subfolders: List of subfolder names to search for XML files.
+        """
+        self.base_folder = Path(base_folder)
+        self.subfolders = subfolders or []
+
+    def _merge_xml_files(self, folder_path):
+        """
+        Merges XML files from a given folder path, grouping them by <mapping> tag.
+
+        :param folder_path: Path to a subfolder containing XML files.
+        :yields: (mapping_name, builder_data) tuples.
+                 - mapping_name: The text content of the <mapping> tag.
+                 - builder_data: Dictionary in the format { "xml": {name: Element, ...} }.
+        """
+        xml_handler = XMLHandler(folder_path)
+        for path, tree in xml_handler.data.items():
+            root = tree.getroot()
+
+            mapping_tag = root.find("mapping")
+            if mapping_tag is None or not mapping_tag.text:
+                log(
+                    f"{self.__class__.__name__}: Missing mapping key in {path}. Skipping file.",
+                    force=True
+                )
+                continue
+
+            mapping_name = mapping_tag.text.strip()
+            elements_root = root.find("elements")
+            if elements_root is None:
+                log(
+                    f"{self.__class__.__name__}: Missing xml elements to be expanded in {path}. Skipping file.",
+                    force=True
+                )
+                continue
+
+            builder_data = {
+                "xml": {
+                    elem.attrib["name"]: elem
+                    for elem in elements_root
+                    if "name" in elem.attrib
+                }
+            }
+
+            yield mapping_name, builder_data
+
+    def yield_merged_data(self):
+        """
+        Lazily yields all XML mappings across the configured subfolders.
+
+        :yields: (mapping_name, builder_data) tuples.
+        """
+        for subfolder in self.subfolders:
+            folder_path = self.base_folder / subfolder
+            if not folder_path.exists():
+                continue
+            yield from self._merge_xml_files(folder_path)
+
+    @cached_property
+    def cached_merged_data(self):
+        """
+        Eagerly loads and caches all XML mappings as a dictionary.
+
+        :returns: Dictionary of {mapping_name: builder_data}
+        """
+        return dict(self.yield_merged_data())

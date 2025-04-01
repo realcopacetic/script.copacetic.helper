@@ -5,10 +5,12 @@ from resources.lib.builders.modules import (
     expressionsBuilder,
     skinsettingsBuilder,
     variablesBuilder,
+    xmlBuilder
 )
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
     CONTROLS,
+    ELEMENTS,
     EXPRESSIONS,
     SKINSETTINGS,
     VARIABLES,
@@ -61,6 +63,19 @@ BUILDER_CONFIG = {
             "transform_func": XMLHandler._dict_to_xml,
         },
     },
+    # "xml": {
+    #     "module": xmlBuilder,
+    #     "dynamic_key": {},
+    #     "run_contexts": ["buildtime"],
+    #     "file_type": "xml",
+    #     "file_path": ELEMENTS,
+    #     "file_handler": XMLHandler,
+    #     "write_kwargs": {
+    #         "root_tag": "includes",
+    #         "element_name": "include",
+    #         "transform_func": XMLHandler._dict_to_xml,
+    #     },
+    # },
 }
 
 BUILDER_MAPPINGS = {

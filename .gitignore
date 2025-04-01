@@ -1,7 +1,10 @@
 # Addon
-to_do.txt
 __pycache__/
 *.pyc
+
+# VS Code
+.vscode
+.venv
 
 # Windows image file caches
 Thumbs.db
@@ -21,10 +24,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
-
-# VS Code
-.vscode
-.venv
 
 # OSX
 .DS_Store

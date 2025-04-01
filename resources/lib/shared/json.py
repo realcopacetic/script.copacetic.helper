@@ -27,17 +27,21 @@ class JSONHandler:
 
         :returns: Dictionary of {Path: content}.
         """
-        data = {}
-        if self.path.is_file() and self.path.suffix == ".json":
-            self._load_single_file(self.path, data)
-        elif self.path.is_dir():
+        if self.path_is_dir():
+            # Handle directory, merge json files
+            data = {}
             for json_file in sorted(self.path.glob("*.json")):
                 self._load_single_file(json_file, data)
-        return data
+            return data
+        else:
+            # Handle single file
+            self._load_single_file(self.path, data)
 
     def _load_single_file(self, file_path, data):
         """
-        Loads a single JSON file into the given dictionary.
+        Parses a JSON file and updates the provided dictionary with the content.
+        The dictionary is mutable and modified in place, so no explicit return value
+        needs to be declared.
 
         :param file_path: Path to the .json file.
         :param data: Reference to dictionary to update with parsed content.
@@ -100,7 +104,7 @@ class JSONMerger:
         :param grouping_key: Optional key to group data by (e.g., "mapping").
         """
         self.base_folder = base_folder
-        self.subfolders = subfolders
+        self.subfolders = subfolders or []
         self.grouping_key = grouping_key
 
     def _merge_json_files(self, folder_path):
