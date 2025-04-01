@@ -27,15 +27,15 @@ class JSONHandler:
 
         :returns: Dictionary of {Path: content}.
         """
-        if self.path_is_dir():
+        data = {}
+        if self.path.is_dir():
             # Handle directory, merge json files
-            data = {}
             for json_file in sorted(self.path.glob("*.json")):
                 self._load_single_file(json_file, data)
-            return data
         else:
             # Handle single file
             self._load_single_file(self.path, data)
+        return data
 
     def _load_single_file(self, file_path, data):
         """

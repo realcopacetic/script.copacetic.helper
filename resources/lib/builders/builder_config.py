@@ -63,19 +63,19 @@ BUILDER_CONFIG = {
             "transform_func": XMLHandler._dict_to_xml,
         },
     },
-    # "xml": {
-    #     "module": xmlBuilder,
-    #     "dynamic_key": {},
-    #     "run_contexts": ["buildtime"],
-    #     "file_type": "xml",
-    #     "file_path": ELEMENTS,
-    #     "file_handler": XMLHandler,
-    #     "write_kwargs": {
-    #         "root_tag": "includes",
-    #         "element_name": "include",
-    #         "transform_func": XMLHandler._dict_to_xml,
-    #     },
-    # },
+    "xml": {
+        "module": xmlBuilder,
+        "dynamic_key": {},
+        "run_contexts": ["buildtime"],
+        "file_type": "xml",
+        "file_path": ELEMENTS,
+        "file_handler": XMLHandler,
+        "write_kwargs": {
+            "root_tag": "includes",
+            "element_name": "include",
+            "transform_func": XMLHandler._dict_to_xml,
+        },
+    },
 }
 
 BUILDER_MAPPINGS = {

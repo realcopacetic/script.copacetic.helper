@@ -21,7 +21,7 @@ def xml_functions(func):
         sub_element_name = kwargs.get("sub_element_name")
         transform_func = kwargs.get("transform_func")
 
-        if not self._file_exists():
+        if not self.path.exists():
             log(
                 f"{self.__class__.__name__}: File '{self.path}' not found, creating a new one."
             )
@@ -158,7 +158,7 @@ class XMLHandler:
         :param file_path: Path to the XML file.
         :returns: ElementTree instance or None if the file doesn't exist or there is an error.
         """
-        if not self._file_exists(file_path):
+        if not file_path.exists():
             log(
                 f"{self.__class__.__name__}: File '{file_path}' does not exist.", force=True
             )
@@ -260,15 +260,6 @@ class XMLHandler:
             log(
                 f"{self.__class__.__name__}: XML file '{self.path}' updated successfully."
             )
-    
-    @staticmethod
-    def _file_exists(file_path):
-        """
-        Checks if the XML file exists and is valid.
-
-        :returns: True if file exists and is accessible.
-        """
-        return validate_path(file_path)
 
 
 class XMLMerger:
@@ -287,6 +278,9 @@ class XMLMerger:
         self.base_folder = Path(base_folder)
         self.subfolders = subfolders or []
 
+        log(f'FUCK DEBUG XMLMerger self.base_folder {self.base_folder}')
+        log(f"FUCK DEBUG XMLMerger self.subfolders {self.subfolders}")
+
     def _merge_xml_files(self, folder_path):
         """
         Merges XML files from a given folder path, grouping them by <mapping> tag.
@@ -296,8 +290,11 @@ class XMLMerger:
                  - mapping_name: The text content of the <mapping> tag.
                  - builder_data: Dictionary in the format { "xml": {name: Element, ...} }.
         """
+        log(f'FUCK DEBUG XMLMerger _merge_xml_files() called')
         xml_handler = XMLHandler(folder_path)
         for path, tree in xml_handler.data.items():
+            log(f'FUCK DEBUG XMLMerger path {path}')
+            log(f"FUCK DEBUG XMLMerger tree {tree}")
             root = tree.getroot()
 
             mapping_tag = root.find("mapping")
@@ -335,8 +332,10 @@ class XMLMerger:
         """
         for subfolder in self.subfolders:
             folder_path = self.base_folder / subfolder
+            log(f'FUCK XMLMerger yield_merged_data() folder_path {folder_path}')
             if not folder_path.exists():
                 continue
+            log(f"FUCK XMLMerger yield_merged_data() folder_path {folder_path} exists!")
             yield from self._merge_xml_files(folder_path)
 
     @cached_property

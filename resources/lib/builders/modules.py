@@ -1,10 +1,12 @@
 # author: realcopacetic
 
 from collections import defaultdict
+from functools import wraps
 from itertools import product
 
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import log
+import xml.etree.ElementTree as ET
 
 
 def expand_index(index_obj):
@@ -38,6 +40,7 @@ class BaseBuilder:
         :param dynamic_key: Optional placeholder for nested dynamic values.
         """
         self.loop_values = loop_values
+        log(f'FUCK loop_values {loop_values}')
         self.placeholders = placeholders
         self.dynamic_key = dynamic_key
         self.rules = RuleEngine()
@@ -452,3 +455,105 @@ class variablesBuilder(BaseBuilder):
                 for v in values
             ],
         }
+
+
+class xmlBuilder(BaseBuilder):
+    """
+    XML-specific builder that processes XML-based elements and applies
+    the same logic as BaseBuilder but with XML-specific conversion.
+    """
+
+    def convert_xml_to_dict(self, element):
+        """
+        Converts XML element data into a dictionary for easier processing.
+        Handles placeholders like {metadata:xyz} for later substitution.
+        """
+        if isinstance(element, ET.Element):
+            # Build a dictionary of the XML structure
+            return {element.tag: {child.tag: child.text for child in element}}
+        return {}
+
+    def process_elements(self, element_name, element_data):
+        """
+        Processes the XML element by generating substitutions and grouping
+        them into the desired format.
+        :param element_name: The name of the expression/template.
+        :param element_data: Data dict containing rules and item values.
+        :returns: Generator yielding {name: value} dicts.
+        """
+        # If the data is XML, convert it into a dictionary
+        if isinstance(element_data, ET.Element):
+            element_data = self.convert_xml_to_dict(element_data)
+
+        # Use the inherited process_elements logic from BaseBuilder
+        yield from super().process_elements(element_name, element_data)
+
+    def group_and_expand(self, template_name, data, substitutions):
+        """
+        Groups and expands the XML-specific elements by key and type,
+        allowing for dynamic key substitution and expansion.
+
+        :param template_name: The name of the XML element to process.
+        :param data: Data related to the XML element.
+        :param substitutions: List of substitutions to apply.
+        :returns: Expanded XML data as dictionary.
+        """
+        grouped = defaultdict(list)
+        for sub in substitutions:
+            key = template_name.format(**sub)
+            grouped[key].append(sub)
+            self.group_map[key] = sub
+
+        # Reconstruct the elements as necessary, using the groupings
+        return {key: self.resolve_values(subs, data) for key, subs in grouped.items()}
+
+    def resolve_values(self, subs, data):
+        """
+        Resolves and processes the values for the XML structure.
+        - Handles {metadata:xyz} substitutions
+        :param subs: The substitution dictionary.
+        :param data: The XML element data.
+        :returns: The resolved values.
+        """
+        resolved = {}
+        for sub in subs:
+            # Substitute placeholders with values (including {metadata:xyz})
+            resolved[sub] = self.substitute(data, sub)
+
+        return resolved
+
+    def substitute(self, string, substitutions):
+        """
+        Custom substitution logic to handle both {key} and {metadata:xyz} tags.
+        :param string: The string to substitute placeholders in.
+        :param substitutions: The substitutions to apply.
+        :returns: The substituted string.
+        """
+        # First substitute for placeholders like {key} or {item}
+        result = string.format(**substitutions)
+
+        # Now handle {metadata:xyz} by checking if it's part of the substitutions
+        result = self.handle_metadata_tags(result)
+
+        return result
+
+    def handle_metadata_tags(self, string):
+        """
+        Handles metadata tags like {metadata:xyz} and substitutes them from the mappings.
+        :param string: The string with potential {metadata:xyz} placeholders.
+        :returns: The string with metadata tags substituted.
+        """
+        import re
+
+        # Find all {metadata:xyz} tags in the string
+        metadata_pattern = r"{metadata:(\w+)}"
+        matches = re.findall(metadata_pattern, string)
+
+        for match in matches:
+            # Replace {metadata:xyz} with the corresponding value from mappings
+            if match in self.placeholders:
+                string = string.replace(
+                    f"{{metadata:{match}}}", self.placeholders[match]
+                )
+
+        return string
