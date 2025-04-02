@@ -278,9 +278,6 @@ class XMLMerger:
         self.base_folder = Path(base_folder)
         self.subfolders = subfolders or []
 
-        log(f'FUCK DEBUG XMLMerger self.base_folder {self.base_folder}')
-        log(f"FUCK DEBUG XMLMerger self.subfolders {self.subfolders}")
-
     def _merge_xml_files(self, folder_path):
         """
         Merges XML files from a given folder path, grouping them by <mapping> tag.
@@ -290,11 +287,8 @@ class XMLMerger:
                  - mapping_name: The text content of the <mapping> tag.
                  - builder_data: Dictionary in the format { "xml": {name: Element, ...} }.
         """
-        log(f'FUCK DEBUG XMLMerger _merge_xml_files() called')
         xml_handler = XMLHandler(folder_path)
         for path, tree in xml_handler.data.items():
-            log(f'FUCK DEBUG XMLMerger path {path}')
-            log(f"FUCK DEBUG XMLMerger tree {tree}")
             root = tree.getroot()
 
             mapping_tag = root.find("mapping")
@@ -332,10 +326,8 @@ class XMLMerger:
         """
         for subfolder in self.subfolders:
             folder_path = self.base_folder / subfolder
-            log(f'FUCK XMLMerger yield_merged_data() folder_path {folder_path}')
             if not folder_path.exists():
                 continue
-            log(f"FUCK XMLMerger yield_merged_data() folder_path {folder_path} exists!")
             yield from self._merge_xml_files(folder_path)
 
     @cached_property

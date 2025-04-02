@@ -40,7 +40,7 @@ class BaseBuilder:
         :param dynamic_key: Optional placeholder for nested dynamic values.
         """
         self.loop_values = loop_values
-        log(f'FUCK loop_values {loop_values}')
+        log(f"FUCK DEBUG {self.__class__.__name__}: loop_values {loop_values}")
         self.placeholders = placeholders
         self.dynamic_key = dynamic_key
         self.rules = RuleEngine()
@@ -60,6 +60,8 @@ class BaseBuilder:
             self.loop_values
         )
         substitutions = self.generate_substitutions(items)
+
+        log(f"FUCK DEBUG {self.__class__.__name__}: substitutions: {substitutions}")
 
         yield from (
             {k: v}
@@ -96,12 +98,18 @@ class BaseBuilder:
 
         elif isinstance(self.loop_values, list):
             return [
-                {key_name: loop_value, self.dynamic_key: item}
+                {
+                    key_name: loop_value,
+                    **({self.dynamic_key: item} if self.dynamic_key else {}),
+                }
                 for loop_value, item in product(self.loop_values, items)
             ]
 
         else:
-            return [{self.dynamic_key: item} for item in items]
+            return [
+                {**({self.dynamic_key: item} if self.dynamic_key else {})}
+                for item in items
+            ]
 
     def substitute(self, string, substitutions):
         """
