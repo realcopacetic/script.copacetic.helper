@@ -1,9 +1,8 @@
 # author: realcopacetic
 
 from resources.lib.builders.builder_config import BUILDER_CONFIG, BUILDER_MAPPINGS
-from resources.lib.builders.modules import expand_index
 from resources.lib.shared.json import JSONMerger
-from resources.lib.shared.utilities import SKINEXTRAS, Path, log, log_duration
+from resources.lib.shared.utilities import SKINEXTRAS, expand_index, Path, log, log_duration
 from resources.lib.shared.xml import XMLMerger
 
 
@@ -56,29 +55,13 @@ class BuildElements:
 
         :param run_contexts: A tuple or list of context strings to process.
         :returns: Dictionary of processed builder output if file write is not required.
-
-        build_elements:
-        builder_elements {'mapping': 'content_types', 'controls': {'{content_type}_button': {'id_start': 100, 'control_type': 'button', 'window': ['viewsettings'], 'visible': 'true', 'label': '{content_type}'}, 'view': {'id': 200, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_view', 'update_trigger': 'focused({content_type}_button)'}, 'label': 'View'}, 'layout': {'id': 201, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_layout', 'update_trigger': 'focused({content_type}_button)'}, 'label': 'Layout'}, 'size': {'id': 202, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_size', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(Skin.String({content_type}_view,grid))'}, 'label': 'Size'}, 'clearlogo': {'id': 203, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_clearlogo', 'update_trigger': 'focused({content_type}_button)', 'visible': 'In({content_type}, [movies, sets, tvshows, artists])'}, 'label': 'Clearlogo'}, 'keyart': {'id': 204, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_keyart', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(Skin.String({content_type}_layout,poster))'}, 'label': 'Keyart'}, 'landscape': {'id': 205, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_landscape', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(!Skin.String({content_type}_layout,poster) + !Skin.String({content_type}_layout,square))', '_comment': 'Defensive pattern for visible condition in case initial skin string state not set'}, 'label': 'Landscape'}}}
-
-        self.merged_json
-        mapping_name content_types
-        items_data {'mapping': 'content_types', 'controls': {'{content_type}_button': {'id_start': 100, 'control_type': 'button', 'window': ['viewsettings'], 'visible': 'true', 'label': '{content_type}'}, 'view': {'id': 200, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_view', 'update_trigger': 'focused({content_type}_button)'}, 'label': 'View'}, 'layout': {'id': 201, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_layout', 'update_trigger': 'focused({content_type}_button)'}, 'label': 'Layout'}, 'size': {'id': 202, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_size', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(Skin.String({content_type}_view,grid))'}, 'label': 'Size'}, 'clearlogo': {'id': 203, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_clearlogo', 'update_trigger': 'focused({content_type}_button)', 'visible': 'In({content_type}, [movies, sets, tvshows, artists])'}, 'label': 'Clearlogo'}, 'keyart': {'id': 204, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_keyart', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(Skin.String({content_type}_layout,poster))'}, 'label': 'Keyart'}, 'landscape': {'id': 205, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_landscape', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(!Skin.String({content_type}_layout,poster) + !Skin.String({content_type}_layout,square))', '_comment': 'Defensive pattern for visible condition in case initial skin string state not set'}, 'label': 'Landscape'}}}
-
-        mapping_name content_types
-        items_data {'controls': {'mapping': 'content_types', 'controls': {'{content_type}_button': {'id_start': 100, 'control_type': 'button', 'window': ['viewsettings'], 'visible': 'true', 'label': '{content_type}'}, 'view': {'id': 200, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_view', 'update_trigger': 'focused({content_type}_button)'}, 'label': 'View'}, 'layout': {'id': 201, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_layout', 'update_trigger': 'focused({content_type}_button)'}, 'label': 'Layout'}, 'size': {'id': 202, 'control_type': 'sliderex', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_size', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(Skin.String({content_type}_view,grid))'}, 'label': 'Size'}, 'clearlogo': {'id': 203, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_clearlogo', 'update_trigger': 'focused({content_type}_button)', 'visible': 'In({content_type}, [movies, sets, tvshows, artists])'}, 'label': 'Clearlogo'}, 'keyart': {'id': 204, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_keyart', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(Skin.String({content_type}_layout,poster))'}, 'label': 'Keyart'}, 'landscape': {'id': 205, 'control_type': 'radiobutton', 'window': ['viewsettings'], 'dynamic_linking': {'linked_setting': '{content_type}_landscape', 'update_trigger': 'focused({content_type}_button)', 'visible': 'xml(!Skin.String({content_type}_layout,poster) + !Skin.String({content_type}_layout,square))', '_comment': 'Defensive pattern for visible condition in case initial skin string state not set'}, 'label': 'Landscape'}}}}
         """
         values_to_write = {}
         values_to_return = {}
 
         for mapping_name, items_data in self.combined_data():
             mapping_values = self.all_mappings.get(mapping_name, {})
-            loop_values = mapping_values.get("items") or mapping_values.get("index")
-            if (
-                isinstance(loop_values, dict)
-                and "start" in loop_values
-                and "end" in loop_values
-            ):
-                loop_values = expand_index(loop_values)
+            loop_values = mapping_values.get("items")
             placeholders = mapping_values.get("placeholders", {})
 
             for builder, builder_elements in (items_data or {}).items():
@@ -92,8 +75,7 @@ class BuildElements:
                     continue
 
                 builder_class = builder_info["module"]
-                dynamic_key = next(iter(builder_info.get("dynamic_key", {})), None)
-                builder_instance = builder_class(loop_values, placeholders, dynamic_key)
+                builder_instance = builder_class(loop_values, placeholders)
 
                 processed = {
                     k: v

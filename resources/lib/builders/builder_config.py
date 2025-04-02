@@ -29,7 +29,6 @@ BUILDER_CONFIG = {
     },
     "expressions": {
         "module": expressionsBuilder,
-        "dynamic_key": {"item": "items"},
         "run_contexts": ["startup", "runtime"],
         "file_type": "xml",
         "file_path": EXPRESSIONS,
@@ -42,7 +41,6 @@ BUILDER_CONFIG = {
     },
     "skinsettings": {
         "module": skinsettingsBuilder,
-        "dynamic_key": {},
         "run_contexts": ["buildtime"],
         "file_type": "json",
         "file_path": SKINSETTINGS,
@@ -51,7 +49,6 @@ BUILDER_CONFIG = {
     },
     "variables": {
         "module": variablesBuilder,
-        "dynamic_key": {"index": "index"},
         "run_contexts": ["buildtime"],
         "file_type": "xml",
         "file_path": VARIABLES,
@@ -65,7 +62,6 @@ BUILDER_CONFIG = {
     },
     "xml": {
         "module": xmlBuilder,
-        "dynamic_key": {},
         "run_contexts": ["buildtime"],
         "file_type": "xml",
         "file_path": ELEMENTS,

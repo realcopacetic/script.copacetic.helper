@@ -301,7 +301,9 @@ def json_call(
     result = json.loads(xbmc.executeJSONRPC(jsonrpc_call))
 
     if ADDON.getSettingBool("json_logging") or debug:
-        log(f"JSON call for function {parent} " + pretty_print(json_string), force=debug)
+        log(
+            f"JSON call for function {parent} " + pretty_print(json_string), force=debug
+        )
         log(f"JSON result for function {parent} " + pretty_print(result), force=debug)
 
     return result
@@ -379,6 +381,22 @@ def set_plugincontent(content=None, category=None):
 
 
 """STRINGS"""
+
+
+def expand_index(index_obj):
+    """
+    Expands a dict with start/end/step into a list of string indices.
+
+    :param index_obj: Dictionary with "start", "end", and optional "step".
+    :returns: List of stringified index values.
+    """
+    try:
+        start = int(index_obj["start"])
+        end = int(index_obj["end"]) + 1
+        step = int(index_obj.get("step", 1))
+        return [str(i) for i in range(start, end, step)]
+    except (KeyError, TypeError, ValueError):
+        return []
 
 
 def return_label(label=infolabel("ListItem.Label"), *, find=".", replace=" ", **kwargs):

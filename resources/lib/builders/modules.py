@@ -1,28 +1,11 @@
 # author: realcopacetic
 
 from collections import defaultdict
-from functools import wraps
 from itertools import product
 
 from resources.lib.builders.logic import RuleEngine
-from resources.lib.shared.utilities import log
+from resources.lib.shared.utilities import log, expand_index
 import xml.etree.ElementTree as ET
-
-
-def expand_index(index_obj):
-    """
-    Expands a dict with start/end/step into a list of string indices.
-
-    :param index_obj: Dictionary with "start", "end", and optional "step".
-    :returns: List of stringified index values.
-    """
-    try:
-        start = int(index_obj["start"])
-        end = int(index_obj["end"]) + 1
-        step = int(index_obj.get("step", 1))
-        return [str(i) for i in range(start, end, step)]
-    except (KeyError, TypeError, ValueError):
-        return []
 
 
 class BaseBuilder:
@@ -31,18 +14,15 @@ class BaseBuilder:
     Used by all specialized builder types to generate template values.
     """
 
-    def __init__(self, loop_values, placeholders, dynamic_key):
+    def __init__(self, loop_values, placeholders):
         """
         Initializes builder with placeholders, loop values, and dynamic key.
 
         :param loop_values: List or dict of content types or keys to loop over.
         :param placeholders: Dictionary of placeholder names for formatting.
-        :param dynamic_key: Optional placeholder for nested dynamic values.
         """
         self.loop_values = loop_values
-        log(f"FUCK DEBUG {self.__class__.__name__}: loop_values {loop_values}")
         self.placeholders = placeholders
-        self.dynamic_key = dynamic_key
         self.rules = RuleEngine()
         self.group_map = {}
 
@@ -54,14 +34,24 @@ class BaseBuilder:
         :param element_data: Data dict containing rules and item values.
         :returns: Generator yielding {name: value} dicts.
         """
-        items = (
-            element_data.get("items") or
-            expand_index(element_data.get("index")) or
-            self.loop_values
+        items = element_data.get("items") or expand_index(element_data.get("index"))
+        dynamic_key_mapping = {"items": "item", "index": "index"}
+        dynamic_key = next(
+            (
+                dynamic_key_mapping[key]
+                for key in dynamic_key_mapping
+                if key in element_data
+            ),
+            None,
         )
-        substitutions = self.generate_substitutions(items)
+        substitutions = self.generate_substitutions(items, dynamic_key)
 
-        log(f"FUCK DEBUG {self.__class__.__name__}: substitutions: {substitutions}")
+        log(
+            f"FUCK DEBUG {self.__class__.__name__}: self.loop_values {self.loop_values}"
+        )
+        log(f"FUCK DEBUG {self.__class__.__name__}: dynamic_key {dynamic_key}")
+        log(f"FUCK DEBUG {self.__class__.__name__}: items {items}")
+        log(f"FUCK DEBUG {self.__class__.__name__}: substitutions {substitutions}")
 
         yield from (
             {k: v}
@@ -70,46 +60,61 @@ class BaseBuilder:
             ).items()
         )
 
-    def generate_substitutions(self, items):
+    def generate_substitutions(self, items, dynamic_key):
         """
         Generates substitution dicts based on loop structure and items.
 
         :param items: List of items to loop over.
+        :param dynamic_key: Optional substitution key used in json/xml templates (either "item" or "index")
         :returns: List of substitution dictionaries.
         """
         key_name = self.placeholders.get("key")
         value_name = self.placeholders.get("value")
 
-        if isinstance(self.loop_values, dict):
-            if not key_name or not value_name:
-                raise ValueError(
-                    "Missing 'key' or 'value' in placeholders for dict-based loop_values"
-                )
-
+        if isinstance(self.loop_values, dict) and items:
             return [
                 {
                     key_name: outer_key,
                     value_name: inner_value,
-                    **({self.dynamic_key: item} if self.dynamic_key else {}),
+                    dynamic_key: item,
                 }
                 for outer_key, inner_values in self.loop_values.items()
                 for inner_value, item in product(inner_values, items)
             ]
 
-        elif isinstance(self.loop_values, list):
+        elif isinstance(self.loop_values, dict) and not items:
+            return [
+                {
+                    key_name: outer_key,
+                    value_name: inner_value,
+                }
+                for outer_key, inner_values in self.loop_values.items()
+                for inner_value in inner_values
+            ]
+
+        elif isinstance(self.loop_values, list) and items:
             return [
                 {
                     key_name: loop_value,
-                    **({self.dynamic_key: item} if self.dynamic_key else {}),
+                    dynamic_key: item,
                 }
                 for loop_value, item in product(self.loop_values, items)
             ]
 
-        else:
+        elif isinstance(self.loop_values, list) and not items:
+            return [{key_name: loop_value} for loop_value in self.loop_values]
+
+        elif not self.loop_values and items:
             return [
-                {**({self.dynamic_key: item} if self.dynamic_key else {})}
+                {
+                    dynamic_key: item,
+                }
                 for item in items
             ]
+
+        raise ValueError(
+            "Missing loop value items and items/index in json/xml templates"
+        )
 
     def substitute(self, string, substitutions):
         """
@@ -476,10 +481,21 @@ class xmlBuilder(BaseBuilder):
         Converts XML element data into a dictionary for easier processing.
         Handles placeholders like {metadata:xyz} for later substitution.
         """
-        if isinstance(element, ET.Element):
-            # Build a dictionary of the XML structure
-            return {element.tag: {child.tag: child.text for child in element}}
-        return {}
+        log(
+            f"FUCK DEBUG {self.__class__.__name__}: element {element}"
+        )
+        result = {}
+
+        for child in element:
+            if child.tag == "items" and child.text:
+                result[child.tag] = [item.strip() for item in child.text.split(",")]
+            else:
+                # Recursively convert child elements to dictionaries
+                result[child.tag] = self.convert_xml_to_dict(child)
+
+        log(f"FUCK DEBUG {self.__class__.__name__}: element.tag {element.tag}")
+        log(f"FUCK DEBUG {self.__class__.__name__}: result {result}")
+        return {element.tag: result}
 
     def process_elements(self, element_name, element_data):
         """
