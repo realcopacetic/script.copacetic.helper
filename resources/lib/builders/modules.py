@@ -1,11 +1,12 @@
 # author: realcopacetic
 
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 from itertools import product
 
 from resources.lib.builders.logic import RuleEngine
-from resources.lib.shared.utilities import log, expand_index
-import xml.etree.ElementTree as ET
+from resources.lib.shared.utilities import expand_index, log
+from resources.lib.shared.xml import XMLDictConverter
 
 
 class BaseBuilder:
@@ -476,27 +477,6 @@ class xmlBuilder(BaseBuilder):
     the same logic as BaseBuilder but with XML-specific conversion.
     """
 
-    def convert_xml_to_dict(self, element):
-        """
-        Converts XML element data into a dictionary for easier processing.
-        Handles placeholders like {metadata:xyz} for later substitution.
-        """
-        log(
-            f"FUCK DEBUG {self.__class__.__name__}: element {element}"
-        )
-        result = {}
-
-        for child in element:
-            if child.tag == "items" and child.text:
-                result[child.tag] = [item.strip() for item in child.text.split(",")]
-            else:
-                # Recursively convert child elements to dictionaries
-                result[child.tag] = self.convert_xml_to_dict(child)
-
-        log(f"FUCK DEBUG {self.__class__.__name__}: element.tag {element.tag}")
-        log(f"FUCK DEBUG {self.__class__.__name__}: result {result}")
-        return {element.tag: result}
-
     def process_elements(self, element_name, element_data):
         """
         Processes the XML element by generating substitutions and grouping
@@ -507,7 +487,8 @@ class xmlBuilder(BaseBuilder):
         """
         # If the data is XML, convert it into a dictionary
         if isinstance(element_data, ET.Element):
-            element_data = self.convert_xml_to_dict(element_data)
+            xml_converter = XMLDictConverter()
+            element_data = xml_converter.element_to_dict(element_data)
 
         # Use the inherited process_elements logic from BaseBuilder
         yield from super().process_elements(element_name, element_data)

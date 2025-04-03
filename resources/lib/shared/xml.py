@@ -1,10 +1,11 @@
 # author: realcopacetic
 
 import xml.etree.ElementTree as ET
+from collections import defaultdict
 from functools import cached_property, wraps
 from pathlib import Path
 
-from resources.lib.shared.utilities import log, validate_path
+from resources.lib.shared.utilities import log
 
 
 def xml_functions(func):
@@ -160,7 +161,8 @@ class XMLHandler:
         """
         if not file_path.exists():
             log(
-                f"{self.__class__.__name__}: File '{file_path}' does not exist.", force=True
+                f"{self.__class__.__name__}: File '{file_path}' does not exist.",
+                force=True,
             )
             return None
 
@@ -295,7 +297,7 @@ class XMLMerger:
             if mapping_tag is None or not mapping_tag.text:
                 log(
                     f"{self.__class__.__name__}: Missing mapping key in {path}. Skipping file.",
-                    force=True
+                    force=True,
                 )
                 continue
 
@@ -304,7 +306,7 @@ class XMLMerger:
             if elements_root is None:
                 log(
                     f"{self.__class__.__name__}: Missing xml elements to be expanded in {path}. Skipping file.",
-                    force=True
+                    force=True,
                 )
                 continue
 
@@ -338,3 +340,94 @@ class XMLMerger:
         :returns: Dictionary of {mapping_name: builder_data}
         """
         return dict(self.yield_merged_data())
+
+
+class XMLDictConverter:
+    ATTR_PREFIX = "@"
+    TEXT_KEY = "#text"
+
+    def element_to_dict(self, element):
+        """
+        Convert an ElementTree.Element to a nested dictionary.
+        """
+        
+        node_dict = {element.tag: {} if element.attrib or list(element) else None}
+        children = list(element)
+
+        # Handle child elements
+        if children:
+            child_dict = defaultdict(list)
+            for child in children:
+                child_data = self.element_to_dict(child)
+                tag, value = next(iter(child_data.items()))
+                child_dict[tag].append(value)
+            for tag, values in child_dict.items():
+                node_dict[element.tag][tag] = values if len(values) > 1 else values[0]
+
+        # Handle attributes
+        for attr, val in element.attrib.items():
+            node_dict[element.tag][f"{self.ATTR_PREFIX}{attr}"] = val
+
+        # Handle text content
+        text = (element.text or "").strip()
+        if text:
+            if children or element.attrib:
+                node_dict[element.tag][self.TEXT_KEY] = text
+            else:
+                if element.tag == "items":
+                    node_dict[element.tag] = [item.strip() for item in text.split(",")]
+                else:
+                    node_dict[element.tag] = text
+
+        return node_dict
+
+    def dict_to_element(self, data):
+        """
+        Convert a nested dictionary back into an ElementTree.Element.
+        """
+
+        def _build_element(tag, content):
+            elem = ET.Element(tag)
+            if isinstance(content, dict):
+                for key, val in content.items():
+                    if key.startswith(self.ATTR_PREFIX):
+                        attr = key[len(self.ATTR_PREFIX) :]
+                        elem.attrib[attr] = val
+                    elif key == self.TEXT_KEY:
+                        elem.text = val
+                    elif isinstance(val, list):
+                        for item in val:
+                            child = _build_element(key, item)
+                            elem.append(child)
+                    else:
+                        child = _build_element(key, val)
+                        elem.append(child)
+            elif isinstance(content, list) and tag == "items":
+                elem.text = ", ".join(content)
+            elif isinstance(content, str):
+                elem.text = content
+            return elem
+
+        tag, content = next(iter(data.items()))
+        return _build_element(tag, content)
+
+    def pretty_print(self, element, indent="  "):
+        """
+        Pretty print an ElementTree.Element for debugging.
+        """
+
+        def _indent(elem, level=0):
+            i = "\n" + level * indent
+            if len(elem):
+                if not elem.text or not elem.text.strip():
+                    elem.text = i + indent
+                for child in elem:
+                    _indent(child, level + 1)
+                if not elem.tail or not elem.tail.strip():
+                    elem.tail = i
+            else:
+                if level and (not elem.tail or not elem.tail.strip()):
+                    elem.tail = i
+
+        _indent(element)
+        return ET.tostring(element, encoding="unicode")
