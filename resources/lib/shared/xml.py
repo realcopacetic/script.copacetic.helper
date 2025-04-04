@@ -11,22 +11,22 @@ from resources.lib.shared.utilities import log
 def xml_functions(func):
     """
     Decorator to handle common XML transformation arguments.
-    Retrieves root_tag, element_name, and transform_func from kwargs
+    Retrieves root_tag, element_tag, and transform_func from kwargs
     and injects them before the decorated method is called.
     """
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        root_tag = kwargs.get("root_tag", self.root_element)
-        element_name = kwargs.get("element_name")
-        sub_element_name = kwargs.get("sub_element_name")
+        root_tag = kwargs.get("root_tag", self.root_tag)
+        element_tag = kwargs.get("element_tag")
+        sub_element_tag = kwargs.get("sub_element_tag")
         transform_func = kwargs.get("transform_func")
 
         if not self.path.exists():
             log(
                 f"{self.__class__.__name__}: File '{self.path}' not found, creating a new one."
             )
-            self._create_new_xml(root_tag, element_name)
+            self._create_new_xml(root_tag, element_tag)
 
         if not transform_func:
             log(
@@ -39,8 +39,8 @@ def xml_functions(func):
         kwargs.update(
             {
                 "root_tag": root_tag,
-                "element_name": element_name,
-                "sub_element_name": sub_element_name,
+                "element_tag": element_tag,
+                "sub_element_tag": sub_element_tag,
                 "transform_func": transform_func,
             }
         )
@@ -55,15 +55,15 @@ class XMLHandler:
     Supports structured transformations of flat or nested dictionary data into Kodi-compatible XML.
     """
 
-    def __init__(self, path, root_element="includes"):
+    def __init__(self, path, root_tag="includes"):
         """
         Initializes the handler with a file path and default root element.
 
         :param path: Path to the target XML file.
-        :param root_element: Root tag name used when creating new XML.
+        :param root_tag: Root tag name used when creating new XML.
         """
         self.path = Path(path)
-        self.root_element = root_element
+        self.root_tag = root_tag
         self.data = self._read_xml()
 
     @xml_functions
@@ -72,7 +72,7 @@ class XMLHandler:
         Writes a new XML structure from a dictionary using a transformation function.
 
         :param data_dict: Dictionary to be converted into XML.
-        :param kwargs: Includes transform_func, root_tag, element_name, etc.
+        :param kwargs: Includes transform_func, root_tag, element_tag, etc.
         """
         try:
             tree = ET.ElementTree(
@@ -80,8 +80,8 @@ class XMLHandler:
                     self,
                     kwargs.get("root_tag"),
                     data_dict,
-                    element_name=kwargs.get("element_name"),
-                    sub_element_name=kwargs.get("sub_element_name"),
+                    element_tag=kwargs.get("element_tag"),
+                    sub_element_tag=kwargs.get("sub_element_tag"),
                 )
             )
             self._save_xml(tree)
@@ -94,7 +94,7 @@ class XMLHandler:
         Modifies or adds elements in an existing XML file using transformation settings.
 
         :param updates: Dictionary of key → value updates to apply.
-        :param kwargs: Includes transform_func, root_tag, element_name, etc.
+        :param kwargs: Includes transform_func, root_tag, element_tag, etc.
         """
         try:
             tree = self._read_xml()
@@ -119,13 +119,13 @@ class XMLHandler:
             # Modify or add elements under the correct root
             for key, value in updates.items():
                 existing_element = target_root.find(
-                    f".//{kwargs['element_name']}[@name='{key}']"
+                    f".//{kwargs['element_tag']}[@name='{key}']"
                 )
                 if existing_element is not None:
                     existing_element.text = value  # Modify existing element
                 else:
                     ET.SubElement(
-                        target_root, kwargs["element_name"], name=key
+                        target_root, kwargs["element_tag"], name=key
                     ).text = value  # Add new element
 
             self._save_xml(tree)
@@ -176,12 +176,12 @@ class XMLHandler:
             )
             return None
 
-    def _create_new_xml(self, root_tag, element_name, default_structure=None):
+    def _create_new_xml(self, root_tag, element_tag, default_structure=None):
         """
         Creates and saves a new XML file with the specified structure.
 
         :param root_tag: Root element tag name.
-        :param element_name: Child tag name for each item in the structure.
+        :param element_tag: Child tag name for each item in the structure.
         :param default_structure: Optional dictionary of name → text value.
         :returns: ElementTree instance.
         """
@@ -189,7 +189,7 @@ class XMLHandler:
         default_structure = default_structure or {}
 
         for key, value in default_structure.items():
-            ET.SubElement(root, element_name, name=key).text = value
+            ET.SubElement(root, element_tag, name=key).text = value
 
         tree = ET.ElementTree(root)
         self._save_xml(tree)
@@ -202,8 +202,8 @@ class XMLHandler:
         self,
         root_tag,
         data_dict,
-        element_name="variable",
-        sub_element_name="value",
+        element_tag="variable",
+        sub_element_tag="value",
         text_key="value",
     ):
         """
@@ -211,8 +211,8 @@ class XMLHandler:
 
         :param root_tag: XML root tag.
         :param data_dict: Dictionary to be converted.
-        :param element_name: XML tag for main elements.
-        :param sub_element_name: XML tag for nested value elements.
+        :param element_tag: XML tag for main elements.
+        :param sub_element_tag: XML tag for nested value elements.
         :param text_key: Key to use as the inner text of sub-elements.
         :returns: Root Element.
         """
@@ -221,14 +221,14 @@ class XMLHandler:
         for outer_key, outer_value in data_dict.items():
             if isinstance(outer_value, str):
                 # Flat structure
-                ET.SubElement(root, element_name, name=outer_key).text = outer_value
+                ET.SubElement(root, element_tag, name=outer_key).text = outer_value
             elif isinstance(outer_value, list) and all(
                 isinstance(item, dict) for item in outer_value
             ):
                 # Nested structure
-                outer_elem = ET.SubElement(root, element_name, name=outer_key)
+                outer_elem = ET.SubElement(root, element_tag, name=outer_key)
                 for item in outer_value:
-                    sub_elem = ET.SubElement(outer_elem, sub_element_name)
+                    sub_elem = ET.SubElement(outer_elem, sub_element_tag)
                     for attr, val in item.items():
                         if attr == "value":
                             sub_elem.text = val
@@ -270,7 +270,7 @@ class XMLMerger:
     XML files must contain a <mapping> tag and a nested <elements> section.
     """
 
-    def __init__(self, base_folder, subfolders=None):
+    def __init__(self, base_folder, subfolders=None, **read_kwargs):
         """
         Initializes the XML merger with the folder structure.
 
@@ -279,6 +279,10 @@ class XMLMerger:
         """
         self.base_folder = Path(base_folder)
         self.subfolders = subfolders or []
+        self.read_kwargs = read_kwargs
+        self.root_tag = read_kwargs.get("root_tag", "xml")
+        self.container_tag = read_kwargs.get("container_tag", "elements")
+        self.element_tag = read_kwargs.get("element_tag", "element")
 
     def _merge_xml_files(self, folder_path):
         """
@@ -290,37 +294,45 @@ class XMLMerger:
                  - builder_data: Dictionary in the format { "xml": {name: Element, ...} }.
         """
         xml_handler = XMLHandler(folder_path)
+        converter = XMLDictConverter()
+
         for path, tree in xml_handler.data.items():
             root = tree.getroot()
-
             mapping_tag = root.find("mapping")
             if mapping_tag is None or not mapping_tag.text:
-                log(
-                    f"{self.__class__.__name__}: Missing mapping key in {path}. Skipping file.",
-                    force=True,
-                )
+                log(f"{self.__class__.__name__}: Missing mapping key in {path}. Skipping file.", force=True)
                 continue
 
             mapping_name = mapping_tag.text.strip()
-            elements_root = root.find("elements")
-            if elements_root is None:
-                log(
-                    f"{self.__class__.__name__}: Missing xml elements to be expanded in {path}. Skipping file.",
-                    force=True,
-                )
+            container_tag = (
+                root if self.container_tag is None else root.find(self.container_tag)
+            )
+            if container_tag is None:
+                log(f"{self.__class__.__name__}: Missing <elements> in {path}. Skipping.", force=True)
                 continue
 
-            converter = XMLDictConverter()
-            builder_data = {
-                "xml": {
-                    elem.attrib["name"]: converter.element_to_dict(elem)
-                    for elem in elements_root
-                    if "name" in elem.attrib
-                }
-            }
-            log(f"FUCK DEBUG {self.__class__.__name__}: builder_data {builder_data}")
+            builder_elements = {}
+            for entry in container_tag.findall(self.element_tag):
+                entry_dict = converter.element_to_dict(entry)
+                entry_dict = entry_dict.get(entry.tag, {})
 
-            yield mapping_name, builder_data
+                # Identify the tag holding the template (e.g., <include>, <control>)
+                tag_keys = [k for k in entry_dict if not k.startswith('@')]
+                if not tag_keys:
+                    continue
+
+                tag = tag_keys[0]
+                tag_data = entry_dict[tag]
+
+                if isinstance(tag_data, list):
+                    tag_data = tag_data[0]
+                    
+                element_tag = tag_data.get("@name") or tag_data.get("@id") or tag
+
+                builder_elements[element_tag] = entry_dict
+
+            log(f"FUCK DEBUG {self.__class__.__name__}: builder_data {builder_elements}")
+            yield mapping_name, { "xml": builder_elements }
 
     def yield_merged_data(self):
         """
@@ -353,6 +365,7 @@ class XMLDictConverter:
         Convert an ElementTree.Element to a nested dictionary.
         """
         
+        log(f'FUCK DEBUG {self.__class__.__name__} self.pretty_print {self.pretty_print(element)}')
         node_dict = {element.tag: {} if element.attrib or list(element) else None}
         children = list(element)
 

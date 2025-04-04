@@ -32,9 +32,11 @@ class BuildElements:
         )
         self.merged_json = self.json_merger.yield_merged_data()
 
+        read_kwargs = BUILDER_CONFIG["xml"].get("read_kwargs", {})
         self.xml_merger = XMLMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
             subfolders=["xml"],
+            **read_kwargs
         )
         self.merged_xml = self.xml_merger.yield_merged_data()
 
@@ -63,10 +65,9 @@ class BuildElements:
             mapping_values = self.all_mappings.get(mapping_name, {})
             loop_values = mapping_values.get("items")
             placeholders = mapping_values.get("placeholders", {})
+            metadata = mapping_values.get("metadata", {})
 
             for builder, builder_elements in (items_data or {}).items():
-
-                log(f"FUCK DEBUG {self.__class__.__name__} builder_elements {builder_elements}")
                 builder_info = BUILDER_CONFIG.get(builder)
                 if not builder_info or not builder_info["module"]:
                     continue
@@ -77,7 +78,7 @@ class BuildElements:
                     continue
 
                 builder_class = builder_info["module"]
-                builder_instance = builder_class(loop_values, placeholders)
+                builder_instance = builder_class(loop_values, placeholders, metadata)
 
                 processed = {
                     k: v
@@ -108,22 +109,22 @@ class BuildElements:
         :returns: None
         """
         builder_info = BUILDER_CONFIG.get(builder_name, {})
-        file_type = builder_info.get("file_type")
-        file_path = builder_info.get("file_path")
-        handler = builder_info.get("file_handler")
+        write_type = builder_info.get("write_type")
+        write_path = builder_info.get("write_path")
+        handler = builder_info.get("write_handler")
         write_kwargs = builder_info.get("write_kwargs", {})
 
-        if not file_path:
+        if not write_path:
             return
 
         if handler:
-            handler = handler(file_path)
+            handler = handler(write_path)
 
-            write_method_name = f"write_{file_type}"
+            write_method_name = f"write_{write_type}"
             write_method = getattr(handler, write_method_name, None)
 
             if write_method:
                 write_method(processed_data, **write_kwargs)
                 log(
-                    f"{builder_name.capitalize()} saved to {file_type.upper()} file: {file_path}"
+                    f"{builder_name.capitalize()} saved to {write_type.upper()} file: {write_path}"
                 )

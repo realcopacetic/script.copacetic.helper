@@ -14,15 +14,17 @@ class BaseBuilder:
     Used by all specialized builder types to generate template values.
     """
 
-    def __init__(self, loop_values, placeholders):
+    def __init__(self, loop_values, placeholders, metadata):
         """
         Initializes builder with placeholders, loop values, and dynamic key.
 
         :param loop_values: List or dict of content types or keys to loop over.
         :param placeholders: Dictionary of placeholder names for formatting.
+        :param placeholders: Dictionary of metatada for injection into xml elements
         """
         self.loop_values = loop_values
         self.placeholders = placeholders
+        self.metadata = metadata
         self.rules = RuleEngine()
         self.group_map = {}
 
@@ -120,15 +122,25 @@ class BaseBuilder:
             "Missing loop value items and items/index in json/xml templates"
         )
 
-    def substitute(self, string, substitutions):
+    def substitute(self, object, substitutions):
         """
-        Formats a string using the provided substitution dictionary.
+        Formats an object using the provided substitution dictionary.
 
-        :param string: Template string with placeholders.
+        :param object: Template string with placeholders.
         :param substitutions: Dict of key-value substitutions.
         :returns: Fully formatted string.
         """
-        return string.format(**substitutions)
+        if isinstance(object, str):
+            return object.format(**substitutions)
+        elif isinstance(object, list):
+            return [self.substitute(item, substitutions) for item in object]
+        elif isinstance(object, dict):
+            return {
+                key: self.substitute(value, substitutions)
+                for key, value in object.items()
+            }
+        else:
+            return object
 
 
 class controlsBuilder(BaseBuilder):
@@ -501,55 +513,54 @@ class xmlBuilder(BaseBuilder):
             self.group_map[key] = sub
 
         # Reconstruct the elements as necessary, using the groupings
-        return {key: self.resolve_values(subs, data) for key, subs in grouped.items()}
+        return {
+            key: self.resolve_values(key, subs, data) 
+            for key, subs in grouped.items()
+        }
 
-    def resolve_values(self, subs, data):
+    def resolve_values(self, key, subs, data):
         """
         Resolves and processes the values for the XML structure.
         - Handles {metadata:xyz} substitutions
+        
         :param subs: The substitution dictionary.
         :param data: The XML element data.
         :returns: The resolved values.
         """
-        resolved = {}
-        for sub in subs:
-            # Substitute placeholders with values (including {metadata:xyz})
-            resolved[sub] = self.substitute(data, sub)
+        resolved = self.substitute(data, subs[0])
+        # Inject metadata after all placeholder substitutions
+        if self.metadata:
+            metadata_key_name = self.placeholders.get("key")
+            metadata_key = self.group_map.get(key, {}).get(metadata_key_name)
+            if metadata_key:
+                metadata = self.metadata.get(metadata_key, {})
+                resolved = self.handle_metadata_tags(resolved, metadata)
 
         return resolved
 
-    def substitute(self, string, substitutions):
+    def handle_metadata_tags(self, obj, metadata):
         """
-        Custom substitution logic to handle both {key} and {metadata:xyz} tags.
-        :param string: The string to substitute placeholders in.
-        :param substitutions: The substitutions to apply.
-        :returns: The substituted string.
-        """
-        # First substitute for placeholders like {key} or {item}
-        result = string.format(**substitutions)
+        Recursively resolves {metadata:xyz} placeholders in a string, dict, or list.
 
-        # Now handle {metadata:xyz} by checking if it's part of the substitutions
-        result = self.handle_metadata_tags(result)
-
-        return result
-
-    def handle_metadata_tags(self, string):
-        """
-        Handles metadata tags like {metadata:xyz} and substitutes them from the mappings.
-        :param string: The string with potential {metadata:xyz} placeholders.
-        :returns: The string with metadata tags substituted.
+        :param obj: The object (str, dict, or list) to process.
+        :param metadata: Dict of metadata values to use for replacement.
+        :returns: Object with {metadata:xyz} resolved.
         """
         import re
 
-        # Find all {metadata:xyz} tags in the string
-        metadata_pattern = r"{metadata:(\w+)}"
-        matches = re.findall(metadata_pattern, string)
+        if isinstance(obj, str):
+            pattern = r"{metadata:(\w+)}"
 
-        for match in matches:
-            # Replace {metadata:xyz} with the corresponding value from mappings
-            if match in self.placeholders:
-                string = string.replace(
-                    f"{{metadata:{match}}}", self.placeholders[match]
-                )
+            def replace(match):
+                key = match.group(1)
+                return metadata.get(key, match.group(0))
 
-        return string
+            return re.sub(pattern, replace, obj)
+
+        elif isinstance(obj, dict):
+            return {k: self.handle_metadata_tags(v, metadata) for k, v in obj.items()}
+
+        elif isinstance(obj, list):
+            return [self.handle_metadata_tags(i, metadata) for i in obj]
+
+        return obj

@@ -390,10 +390,13 @@ def expand_index(index_obj):
     :param index_obj: Dictionary with "start", "end", and optional "step".
     :returns: List of stringified index values.
     """
+    if not index_obj:
+        return []
     try:
-        start = int(index_obj["start"])
-        end = int(index_obj["end"]) + 1
-        step = int(index_obj.get("step", 1))
+        keys = {k.lstrip("@"): v for k, v in index_obj.items()}
+        start = int(keys["start"])
+        end = int(keys["end"]) + 1
+        step = int(keys.get("step", 1))
         return [str(i) for i in range(start, end, step)]
     except (KeyError, TypeError, ValueError):
         return []

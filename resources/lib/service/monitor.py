@@ -77,9 +77,9 @@ class Monitor(xbmc.Monitor):
         contexts_to_run = []
         for context in ["buildtime", "startup"]:
             if any(
-                config.get("file_path")
+                config.get("write_path")
                 and context in config.get("run_contexts", [])
-                and not validate_path(config["file_path"])
+                and not validate_path(config["write_path"])
                 for config in BUILDER_CONFIG.values()
             ):
                 contexts_to_run.append(context)
