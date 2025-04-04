@@ -2,7 +2,7 @@
 
 from resources.lib.builders.builder_config import BUILDER_CONFIG, BUILDER_MAPPINGS
 from resources.lib.shared.json import JSONMerger
-from resources.lib.shared.utilities import SKINEXTRAS, expand_index, Path, log, log_duration
+from resources.lib.shared.utilities import SKINEXTRAS, Path, log, log_duration
 from resources.lib.shared.xml import XMLMerger
 
 
@@ -65,6 +65,8 @@ class BuildElements:
             placeholders = mapping_values.get("placeholders", {})
 
             for builder, builder_elements in (items_data or {}).items():
+
+                log(f"FUCK DEBUG {self.__class__.__name__} builder_elements {builder_elements}")
                 builder_info = BUILDER_CONFIG.get(builder)
                 if not builder_info or not builder_info["module"]:
                     continue

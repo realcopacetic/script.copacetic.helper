@@ -6,7 +6,6 @@ from itertools import product
 
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import expand_index, log
-from resources.lib.shared.xml import XMLDictConverter
 
 
 class BaseBuilder:
@@ -35,6 +34,10 @@ class BaseBuilder:
         :param element_data: Data dict containing rules and item values.
         :returns: Generator yielding {name: value} dicts.
         """
+
+        log(f"FUCK DEBUG {self.__class__.__name__} element_name {element_name}")
+        log(f"FUCK DEBUG {self.__class__.__name__} element_data {element_data}")
+
         items = element_data.get("items") or expand_index(element_data.get("index"))
         dynamic_key_mapping = {"items": "item", "index": "index"}
         dynamic_key = next(
@@ -477,22 +480,6 @@ class xmlBuilder(BaseBuilder):
     the same logic as BaseBuilder but with XML-specific conversion.
     """
 
-    def process_elements(self, element_name, element_data):
-        """
-        Processes the XML element by generating substitutions and grouping
-        them into the desired format.
-        :param element_name: The name of the expression/template.
-        :param element_data: Data dict containing rules and item values.
-        :returns: Generator yielding {name: value} dicts.
-        """
-        # If the data is XML, convert it into a dictionary
-        if isinstance(element_data, ET.Element):
-            xml_converter = XMLDictConverter()
-            element_data = xml_converter.element_to_dict(element_data)
-
-        # Use the inherited process_elements logic from BaseBuilder
-        yield from super().process_elements(element_name, element_data)
-
     def group_and_expand(self, template_name, data, substitutions):
         """
         Groups and expands the XML-specific elements by key and type,
@@ -503,6 +490,10 @@ class xmlBuilder(BaseBuilder):
         :param substitutions: List of substitutions to apply.
         :returns: Expanded XML data as dictionary.
         """
+
+        log(f"FUCK DEBUG {self.__class__.__name__} template_name {template_name}")
+        log(f"FUCK DEBUG {self.__class__.__name__} data {data}")
+
         grouped = defaultdict(list)
         for sub in substitutions:
             key = template_name.format(**sub)

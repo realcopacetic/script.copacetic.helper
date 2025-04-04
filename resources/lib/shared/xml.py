@@ -310,13 +310,15 @@ class XMLMerger:
                 )
                 continue
 
+            converter = XMLDictConverter()
             builder_data = {
                 "xml": {
-                    elem.attrib["name"]: elem
+                    elem.attrib["name"]: converter.element_to_dict(elem)
                     for elem in elements_root
                     if "name" in elem.attrib
                 }
             }
+            log(f"FUCK DEBUG {self.__class__.__name__}: builder_data {builder_data}")
 
             yield mapping_name, builder_data
 
