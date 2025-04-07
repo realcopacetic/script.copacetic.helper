@@ -362,6 +362,87 @@ class expressionsBuilder(BaseBuilder):
         return resolved
 
 
+
+class includesBuilder(BaseBuilder):
+    """
+    XML-specific builder that processes XML-based elements and applies
+    the same logic as BaseBuilder but with XML-specific conversion.
+    """
+
+    def group_and_expand(self, template_name, data, substitutions):
+        """
+        Groups and expands the XML-specific elements by key and type,
+        allowing for dynamic key substitution and expansion.
+
+        :param template_name: The name of the XML element to process.
+        :param data: Data related to the XML element.
+        :param substitutions: List of substitutions to apply.
+        :returns: Expanded XML data as dictionary.
+        """
+
+        log(f"FUCK DEBUG {self.__class__.__name__} template_name {template_name}")
+        log(f"FUCK DEBUG {self.__class__.__name__} data {data}")
+
+        grouped = defaultdict(list)
+        for sub in substitutions:
+            key = template_name.format(**sub)
+            grouped[key].append(sub)
+            self.group_map[key] = sub
+
+        # Reconstruct the elements as necessary, using the groupings
+        return {
+            key: self.resolve_values(key, subs, data) for key, subs in grouped.items()
+        }
+
+    def resolve_values(self, key, subs, data):
+        """
+        Resolves and processes the values for the XML structure.
+        - Handles {metadata:xyz} substitutions
+
+        :param subs: The substitution dictionary.
+        :param data: The XML element data.
+        :returns: The resolved values.
+        """
+        resolved = self.substitute(data, subs[0])
+        # Inject metadata after all placeholder substitutions
+        if self.metadata:
+            metadata_key_name = self.placeholders.get("key")
+            metadata_key = self.group_map.get(key, {}).get(metadata_key_name)
+            if metadata_key:
+                metadata = self.metadata.get(metadata_key, {})
+                resolved = self.handle_metadata_tags(resolved, metadata)
+
+        return resolved
+
+    def handle_metadata_tags(self, obj, metadata):
+        """
+        Recursively resolves {metadata:xyz} placeholders in a string, dict, or list.
+
+        :param obj: The object (str, dict, or list) to process.
+        :param metadata: Dict of metadata values to use for replacement.
+        :returns: Object with {metadata:xyz} resolved.
+        """
+        import re
+
+        if isinstance(obj, str):
+            pattern = r"{metadata:(\w+)}"
+
+            def replace(match):
+                key = match.group(1)
+                return metadata.get(key, match.group(0))
+
+            return re.sub(pattern, replace, obj)
+
+        elif isinstance(obj, dict):
+            return {k: self.handle_metadata_tags(v, metadata) for k, v in obj.items()}
+
+        elif isinstance(obj, list):
+            return [self.handle_metadata_tags(i, metadata) for i in obj]
+
+        return obj
+
+
+
 class skinsettingsBuilder(BaseBuilder):
     """
     Builder that resolves UI skinsettings based on exclusion/inclusion rules.
@@ -484,83 +565,3 @@ class variablesBuilder(BaseBuilder):
                 for v in values
             ],
         }
-
-
-class xmlBuilder(BaseBuilder):
-    """
-    XML-specific builder that processes XML-based elements and applies
-    the same logic as BaseBuilder but with XML-specific conversion.
-    """
-
-    def group_and_expand(self, template_name, data, substitutions):
-        """
-        Groups and expands the XML-specific elements by key and type,
-        allowing for dynamic key substitution and expansion.
-
-        :param template_name: The name of the XML element to process.
-        :param data: Data related to the XML element.
-        :param substitutions: List of substitutions to apply.
-        :returns: Expanded XML data as dictionary.
-        """
-
-        log(f"FUCK DEBUG {self.__class__.__name__} template_name {template_name}")
-        log(f"FUCK DEBUG {self.__class__.__name__} data {data}")
-
-        grouped = defaultdict(list)
-        for sub in substitutions:
-            key = template_name.format(**sub)
-            grouped[key].append(sub)
-            self.group_map[key] = sub
-
-        # Reconstruct the elements as necessary, using the groupings
-        return {
-            key: self.resolve_values(key, subs, data) 
-            for key, subs in grouped.items()
-        }
-
-    def resolve_values(self, key, subs, data):
-        """
-        Resolves and processes the values for the XML structure.
-        - Handles {metadata:xyz} substitutions
-        
-        :param subs: The substitution dictionary.
-        :param data: The XML element data.
-        :returns: The resolved values.
-        """
-        resolved = self.substitute(data, subs[0])
-        # Inject metadata after all placeholder substitutions
-        if self.metadata:
-            metadata_key_name = self.placeholders.get("key")
-            metadata_key = self.group_map.get(key, {}).get(metadata_key_name)
-            if metadata_key:
-                metadata = self.metadata.get(metadata_key, {})
-                resolved = self.handle_metadata_tags(resolved, metadata)
-
-        return resolved
-
-    def handle_metadata_tags(self, obj, metadata):
-        """
-        Recursively resolves {metadata:xyz} placeholders in a string, dict, or list.
-
-        :param obj: The object (str, dict, or list) to process.
-        :param metadata: Dict of metadata values to use for replacement.
-        :returns: Object with {metadata:xyz} resolved.
-        """
-        import re
-
-        if isinstance(obj, str):
-            pattern = r"{metadata:(\w+)}"
-
-            def replace(match):
-                key = match.group(1)
-                return metadata.get(key, match.group(0))
-
-            return re.sub(pattern, replace, obj)
-
-        elif isinstance(obj, dict):
-            return {k: self.handle_metadata_tags(v, metadata) for k, v in obj.items()}
-
-        elif isinstance(obj, list):
-            return [self.handle_metadata_tags(i, metadata) for i in obj]
-
-        return obj

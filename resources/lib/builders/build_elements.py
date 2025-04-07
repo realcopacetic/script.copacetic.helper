@@ -35,7 +35,7 @@ class BuildElements:
         read_kwargs = BUILDER_CONFIG["xml"].get("read_kwargs", {})
         self.xml_merger = XMLMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
-            subfolders=["xml"],
+            subfolders=["includes"],
             **read_kwargs
         )
         self.merged_xml = self.xml_merger.yield_merged_data()

@@ -3,20 +3,19 @@
 from resources.lib.builders.modules import (
     controlsBuilder,
     expressionsBuilder,
+    includesBuilder,
     skinsettingsBuilder,
     variablesBuilder,
-    xmlBuilder
 )
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
     CONTROLS,
-    ELEMENTS,
     EXPRESSIONS,
+    INCLUDES,
     SKINSETTINGS,
     VARIABLES,
 )
 from resources.lib.shared.xml import XMLHandler
-
 
 BUILDER_CONFIG = {
     "controls": {
@@ -39,6 +38,23 @@ BUILDER_CONFIG = {
             "transform_func": XMLHandler._dict_to_xml,
         },
     },
+    "includes": {
+        "module": includesBuilder,
+        "run_contexts": ["buildtime"],
+        "read_kwargs": {
+            "root_tag": "xml",
+            "container_tag": "templates",
+            "element_tag": "template",
+        },
+        "write_type": "xml",
+        "write_path": INCLUDES,
+        "write_handler": XMLHandler,
+        "write_kwargs": {
+            "root_tag": "includes",
+            "element_tag": "include",
+            "transform_func": XMLHandler._dict_to_xml,
+        },
+    },
     "skinsettings": {
         "module": skinsettingsBuilder,
         "run_contexts": ["buildtime"],
@@ -57,23 +73,6 @@ BUILDER_CONFIG = {
             "root_tag": "includes",
             "element_tag": "variable",
             "sub_element_tag": "value",
-            "transform_func": XMLHandler._dict_to_xml,
-        },
-    },
-    "xml": {
-        "module": xmlBuilder,
-        "run_contexts": ["buildtime"],
-        "read_kwargs": {
-          "root_tag": "xml",
-          "container_tag": "elements",
-          "element_tag": "element"
-        },
-        "write_type": "xml",
-        "write_path": ELEMENTS,
-        "write_handler": XMLHandler,
-        "write_kwargs": {
-            "root_tag": "includes",
-            "element_tag": "include",
             "transform_func": XMLHandler._dict_to_xml,
         },
     },
