@@ -64,7 +64,18 @@ class XMLHandler:
         """
         self.path = Path(path)
         self.root_tag = root_tag
-        self.data = self._read_xml()
+        self._data = None
+        
+    @property
+    def data(self):
+        """
+        Lazily loads and returns data from the specified path. 
+
+        :returns: Dictionary of {Path: content}.
+        """
+        if self._data is None:
+            self._data = self._read_xml()
+        return self._data
 
     @xml_functions
     def write_xml(self, data_dict, **kwargs):
@@ -140,6 +151,9 @@ class XMLHandler:
         :returns: Dictionary of {file_name: ElementTree} if a folder,
                   or a single ElementTree if it's a file.
         """
+        if not self.path.exists():
+            return {}
+        
         if self.path.is_dir():
             # Handle directory, merge XML files
             data = {}
@@ -302,37 +316,43 @@ class XMLMerger:
             if mapping_tag is None or not mapping_tag.text:
                 log(f"{self.__class__.__name__}: Missing mapping key in {path}. Skipping file.", force=True)
                 continue
-
+            
             mapping_name = mapping_tag.text.strip()
-            container_tag = (
-                root if self.container_tag is None else root.find(self.container_tag)
-            )
+            container_tag = root.find(self.container_tag)
             if container_tag is None:
-                log(f"{self.__class__.__name__}: Missing <elements> in {path}. Skipping.", force=True)
+                log(f"{self.__class__.__name__}: Missing <{self.container_tag}> in {path}. Skipping.", force=True)
                 continue
 
             builder_elements = {}
             for entry in container_tag.findall(self.element_tag):
-                entry_dict = converter.element_to_dict(entry)
-                entry_dict = entry_dict.get(entry.tag, {})
+                entry_dict = converter.element_to_dict(entry).get(self.element_tag, {})
 
-                # Identify the tag holding the template (e.g., <include>, <control>)
-                tag_keys = [k for k in entry_dict if not k.startswith('@')]
+                log(f'{self.__class__.__name__} _merge_xml_files() FUCK DEBUG: entry_dict {entry_dict}')
+
+                tag_keys = [k for k in entry_dict if not k.startswith("@")]
                 if not tag_keys:
+                    log(
+                        f"{self.__class__.__name__}: Skipping element with no child tags in {path}.",
+                        force=True,
+                    )
                     continue
 
                 tag = tag_keys[0]
                 tag_data = entry_dict[tag]
 
+                # Handle the case where there are multiple top-level <include> tags
                 if isinstance(tag_data, list):
-                    tag_data = tag_data[0]
-                    
-                element_tag = tag_data.get("@name") or tag_data.get("@id") or tag
+                    log(
+                        f"{self.__class__.__name__}: Warning — Multiple <{tag}> tags found in one <element> in {path}. "
+                        "Only the first will be used to determine the template name.",
+                        force=True,
+                    )
+                    tag_data = tag_data[0]  # Use the first one
 
-                builder_elements[element_tag] = entry_dict
+                element_name = tag_data.get("@name") or tag_data.get("@id") or tag
+                builder_elements[element_name] = entry_dict
 
-            log(f"FUCK DEBUG {self.__class__.__name__}: builder_data {builder_elements}")
-            yield mapping_name, { "xml": builder_elements }
+            yield mapping_name, {"xml": builder_elements}
 
     def yield_merged_data(self):
         """
@@ -364,9 +384,13 @@ class XMLDictConverter:
         """
         Convert an ElementTree.Element to a nested dictionary.
         """
-        
-        log(f'FUCK DEBUG {self.__class__.__name__} self.pretty_print {self.pretty_print(element)}')
+        log(f'FUCK DEBUG {self.__class__.__name__} element_to_dict(element): element -> {self.pretty_print(element)}')
         node_dict = {element.tag: {} if element.attrib or list(element) else None}
+
+        # Handle attributes
+        for attr, val in element.attrib.items():
+            node_dict[element.tag][f"{self.ATTR_PREFIX}{attr}"] = val
+
         children = list(element)
 
         # Handle child elements
@@ -376,12 +400,9 @@ class XMLDictConverter:
                 child_data = self.element_to_dict(child)
                 tag, value = next(iter(child_data.items()))
                 child_dict[tag].append(value)
+
             for tag, values in child_dict.items():
                 node_dict[element.tag][tag] = values if len(values) > 1 else values[0]
-
-        # Handle attributes
-        for attr, val in element.attrib.items():
-            node_dict[element.tag][f"{self.ATTR_PREFIX}{attr}"] = val
 
         # Handle text content
         text = (element.text or "").strip()
@@ -389,10 +410,7 @@ class XMLDictConverter:
             if children or element.attrib:
                 node_dict[element.tag][self.TEXT_KEY] = text
             else:
-                if element.tag == "items":
-                    node_dict[element.tag] = [item.strip() for item in text.split(",")]
-                else:
-                    node_dict[element.tag] = text
+                node_dict[element.tag] = text
 
         return node_dict
 
@@ -400,13 +418,12 @@ class XMLDictConverter:
         """
         Convert a nested dictionary back into an ElementTree.Element.
         """
-
         def _build_element(tag, content):
             elem = ET.Element(tag)
             if isinstance(content, dict):
                 for key, val in content.items():
                     if key.startswith(self.ATTR_PREFIX):
-                        attr = key[len(self.ATTR_PREFIX) :]
+                        attr = key[len(self.ATTR_PREFIX):]
                         elem.attrib[attr] = val
                     elif key == self.TEXT_KEY:
                         elem.text = val
@@ -417,8 +434,6 @@ class XMLDictConverter:
                     else:
                         child = _build_element(key, val)
                         elem.append(child)
-            elif isinstance(content, list) and tag == "items":
-                elem.text = ", ".join(content)
             elif isinstance(content, str):
                 elem.text = content
             return elem

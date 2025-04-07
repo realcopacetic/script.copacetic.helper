@@ -32,7 +32,7 @@ class BuildElements:
         )
         self.merged_json = self.json_merger.yield_merged_data()
 
-        read_kwargs = BUILDER_CONFIG["xml"].get("read_kwargs", {})
+        read_kwargs = BUILDER_CONFIG["includes"].get("read_kwargs", {})
         self.xml_merger = XMLMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
             subfolders=["includes"],
@@ -89,7 +89,7 @@ class BuildElements:
 
                 output_target = (
                     values_to_write
-                    if builder_info.get("file_type")
+                    if builder_info.get("write_type")
                     else values_to_return
                 )
 
@@ -109,22 +109,22 @@ class BuildElements:
         :returns: None
         """
         builder_info = BUILDER_CONFIG.get(builder_name, {})
+
         write_type = builder_info.get("write_type")
         write_path = builder_info.get("write_path")
-        handler = builder_info.get("write_handler")
+        write_handler = builder_info.get("write_handler")
         write_kwargs = builder_info.get("write_kwargs", {})
 
         if not write_path:
             return
 
-        if handler:
-            handler = handler(write_path)
+        if write_handler:
+            handler = write_handler(write_path)
+            method_name = f"write_{write_type}"
+            method = getattr(handler, method_name, None)
 
-            write_method_name = f"write_{write_type}"
-            write_method = getattr(handler, write_method_name, None)
-
-            if write_method:
-                write_method(processed_data, **write_kwargs)
+            if method:
+                method(processed_data, **write_kwargs)
                 log(
                     f"{builder_name.capitalize()} saved to {write_type.upper()} file: {write_path}"
                 )

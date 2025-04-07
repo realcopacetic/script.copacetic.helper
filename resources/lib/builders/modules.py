@@ -36,10 +36,6 @@ class BaseBuilder:
         :param element_data: Data dict containing rules and item values.
         :returns: Generator yielding {name: value} dicts.
         """
-
-        log(f"FUCK DEBUG {self.__class__.__name__} element_name {element_name}")
-        log(f"FUCK DEBUG {self.__class__.__name__} element_data {element_data}")
-
         items = element_data.get("items") or expand_index(element_data.get("index"))
         dynamic_key_mapping = {"items": "item", "index": "index"}
         dynamic_key = next(
@@ -51,13 +47,6 @@ class BaseBuilder:
             None,
         )
         substitutions = self.generate_substitutions(items, dynamic_key)
-
-        log(
-            f"FUCK DEBUG {self.__class__.__name__}: self.loop_values {self.loop_values}"
-        )
-        log(f"FUCK DEBUG {self.__class__.__name__}: dynamic_key {dynamic_key}")
-        log(f"FUCK DEBUG {self.__class__.__name__}: items {items}")
-        log(f"FUCK DEBUG {self.__class__.__name__}: substitutions {substitutions}")
 
         yield from (
             {k: v}
@@ -379,10 +368,6 @@ class includesBuilder(BaseBuilder):
         :param substitutions: List of substitutions to apply.
         :returns: Expanded XML data as dictionary.
         """
-
-        log(f"FUCK DEBUG {self.__class__.__name__} template_name {template_name}")
-        log(f"FUCK DEBUG {self.__class__.__name__} data {data}")
-
         grouped = defaultdict(list)
         for sub in substitutions:
             key = template_name.format(**sub)

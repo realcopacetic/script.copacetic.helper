@@ -19,7 +19,18 @@ class JSONHandler:
         :param path: Path to a JSON file or directory of JSON files.
         """
         self.path = Path(path)
-        self.data = self._load_json()
+        self._data = None
+
+    @property
+    def data(self):
+        """
+        Lazily loads and returns data from the specified path. 
+
+        :returns: Dictionary of {Path: content}.
+        """
+        if self._data is None:
+            self._data = self._load_json()
+        return self._data
 
     def _load_json(self):
         """
@@ -27,6 +38,9 @@ class JSONHandler:
 
         :returns: Dictionary of {Path: content}.
         """
+        if not self.path.exists():
+            return {}
+        
         data = {}
         if self.path.is_dir():
             # Handle directory, merge json files
@@ -55,6 +69,7 @@ class JSONHandler:
                     f"{self.__class__.__name__}: Error parsing {file_path}: {e}",
                     force=True,
                 )
+        return
 
     def write_json(self, content):
         """
