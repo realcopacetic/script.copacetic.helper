@@ -3,7 +3,7 @@
 from resources.lib.builders.builder_config import BUILDER_CONFIG, BUILDER_MAPPINGS
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import SKINEXTRAS, Path, log, log_duration
-from resources.lib.shared.xml import XMLMerger
+from resources.lib.shared.xml import XMLMerger, XMLDictConverter
 
 
 class BuildElements:
@@ -32,11 +32,11 @@ class BuildElements:
         )
         self.merged_json = self.json_merger.yield_merged_data()
 
-        read_kwargs = BUILDER_CONFIG["includes"].get("read_kwargs", {})
+        self.read_kwargs = BUILDER_CONFIG["includes"].get("read_kwargs", {})
         self.xml_merger = XMLMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
             subfolders=["includes"],
-            **read_kwargs
+            **self.read_kwargs
         )
         self.merged_xml = self.xml_merger.yield_merged_data()
 
@@ -48,7 +48,10 @@ class BuildElements:
         :returns: Generator that yields combined data lazily, based on available data (JSON or XML).
         """
         yield from self.merged_json
-        yield from self.merged_xml
+        yield from (
+            (mapping_name, XMLDictConverter(xml_root, **self.read_kwargs).convert())
+            for mapping_name, xml_root in self.merged_xml
+        )
 
     @log_duration
     def process(self, run_contexts=("startup",)):

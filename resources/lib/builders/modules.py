@@ -35,12 +35,7 @@ class BaseBuilder:
         :param element_name: The name of the expression/template.
         :param element_data: Data dict containing rules and item values.
         :returns: Generator yielding {name: value} dicts.
-        """
-        log(f'FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_name {element_name}')
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_data {element_data}"
-        )
-        
+        """        
         items = element_data.get("items") or expand_index(element_data.get("index"))
         dynamic_key_mapping = {"items": "item", "index": "index"}
         dynamic_key = next(
@@ -52,6 +47,15 @@ class BaseBuilder:
             None,
         )
         substitutions = self.generate_substitutions(items, dynamic_key)
+
+        log(f'FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_name {element_name}')
+        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_data {element_data}")
+        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG placeholders {self.placeholders}")
+        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG loop values {self.loop_values}")
+        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG metadata {self.metadata}")
+        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG items {items}")
+        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG dynamic_key {dynamic_key}")
+        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG substitutions {substitutions}")
 
         yield from (
             {k: v}
@@ -393,13 +397,15 @@ class includesBuilder(BaseBuilder):
         :returns: The resolved values.
         """
         resolved = self.substitute(data, subs[0])
+        # log(f'FUCK DEBUG {self.__class__.__name__} resolve_values resolved {resolved}')
+        # log(f"FUCK DEBUG {self.__class__.__name__} resolve_values self.metadata {self.metadata}")
         # Inject metadata after all placeholder substitutions
-        if self.metadata:
-            metadata_key_name = self.placeholders.get("key")
-            metadata_key = self.group_map.get(key, {}).get(metadata_key_name)
-            if metadata_key:
-                metadata = self.metadata.get(metadata_key, {})
-                resolved = self.handle_metadata_tags(resolved, metadata)
+        # if self.metadata:
+        #     metadata_key_name = self.placeholders.get("key")
+        #     metadata_key = self.group_map.get(key, {}).get(metadata_key_name)
+        #     if metadata_key:
+        #         metadata = self.metadata.get(metadata_key, {})
+        #         resolved = self.handle_metadata_tags(resolved, metadata)
 
         return resolved
 

@@ -43,7 +43,7 @@ BUILDER_CONFIG = {
         "run_contexts": ["buildtime"],
         "read_kwargs": {
             "root_tag": "xml",
-            "container_tag": "templates",
+            "container_tag": "includes",
             "element_tag": "template",
         },
         "write_type": "xml",

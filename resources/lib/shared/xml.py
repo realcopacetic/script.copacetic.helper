@@ -65,11 +65,11 @@ class XMLHandler:
         self.path = Path(path)
         self.root_tag = root_tag
         self._data = None
-        
+
     @property
     def data(self):
         """
-        Lazily loads and returns data from the specified path. 
+        Lazily loads and returns data from the specified path.
 
         :returns: Dictionary of {Path: content}.
         """
@@ -135,9 +135,9 @@ class XMLHandler:
                 if existing_element is not None:
                     existing_element.text = value  # Modify existing element
                 else:
-                    ET.SubElement(
-                        target_root, kwargs["element_tag"], name=key
-                    ).text = value  # Add new element
+                    ET.SubElement(target_root, kwargs["element_tag"], name=key).text = (
+                        value  # Add new element
+                    )
 
             self._save_xml(tree)
         except Exception as e:
@@ -153,7 +153,7 @@ class XMLHandler:
         """
         if not self.path.exists():
             return {}
-        
+
         if self.path.is_dir():
             # Handle directory, merge XML files
             data = {}
@@ -280,120 +280,72 @@ class XMLHandler:
 
 class XMLMerger:
     """
-    Merges XML files across multiple folders, matching structure of JSONMerger.
-    XML files must contain a <mapping> tag and a nested <elements> section.
+    Merges XML files across multiple folders grouped by their <mapping> tags.
+    Outputs a single aggregated ET.Element per mapping.
     """
 
     def __init__(self, base_folder, subfolders=None, **read_kwargs):
-        """
-        Initializes the XML merger with the folder structure.
-
-        :param base_folder: Root folder path containing builder subfolders.
-        :param subfolders: List of subfolder names to search for XML files.
-        """
         self.base_folder = Path(base_folder)
         self.subfolders = subfolders or []
-        self.read_kwargs = read_kwargs
         self.root_tag = read_kwargs.get("root_tag", "xml")
-        self.container_tag = read_kwargs.get("container_tag", "elements")
-        self.element_tag = read_kwargs.get("element_tag", "element")
-
-    def _merge_xml_files(self, folder_path):
-        """
-        Merges XML files from a given folder path, grouping them by <mapping> tag.
-
-        :param folder_path: Path to a subfolder containing XML files.
-        :yields: (mapping_name, builder_data) tuples.
-                 - mapping_name: The text content of the <mapping> tag.
-                 - builder_data: Dictionary in the format { "xml": {name: Element, ...} }.
-        """
-        xml_handler = XMLHandler(folder_path)
-        converter = XMLDictConverter()
-
-        for path, tree in xml_handler.data.items():
-            root = tree.getroot()
-            mapping_tag = root.find("mapping")
-            if mapping_tag is None or not mapping_tag.text:
-                log(f"{self.__class__.__name__}: Missing mapping key in {path}. Skipping file.", force=True)
-                continue
-            
-            mapping_name = mapping_tag.text.strip()
-            container_tag = root.find(self.container_tag)
-            if container_tag is None:
-                log(f"{self.__class__.__name__}: Missing <{self.container_tag}> in {path}. Skipping.", force=True)
-                continue
-
-            builder_elements = {}
-            for entry in container_tag.findall(self.element_tag):
-                entry_dict = converter.element_to_dict(entry).get(self.element_tag, {})
-                tag_keys = [k for k in entry_dict if not k.startswith("@")]
-                if not tag_keys:
-                    log(
-                        f"{self.__class__.__name__}: Skipping element with no child tags in {path}.",
-                        force=True,
-                    )
-                    continue
-
-                tag = tag_keys[0]
-                tag_data = entry_dict[tag]
-
-                # Handle the case where there are multiple top-level <include> tags
-                if isinstance(tag_data, list):
-                    log(
-                        f"{self.__class__.__name__}: Warning — Multiple <{tag}> tags found in one <element> in {path}. "
-                        "Only the first will be used to determine the template name.",
-                        force=True,
-                    )
-                    tag_data = tag_data[0]  # Use the first one
-
-                if isinstance(tag_data, dict):
-                    element_name = tag_data.get("@name") or tag_data.get("@id") or tag
-                else:
-                    element_name = tag
-
-                builder_elements[element_name] = entry_dict
-
-            yield mapping_name, {"xml": builder_elements}
+        self.container_tag = read_kwargs.get("container_tag", "includes")
+        self.element_tag = read_kwargs.get("element_tag", "template")
 
     def yield_merged_data(self):
-        """
-        Lazily yields all XML mappings across the configured subfolders.
+        mappings = defaultdict(list)
 
-        :yields: (mapping_name, builder_data) tuples.
-        """
         for subfolder in self.subfolders:
             folder_path = self.base_folder / subfolder
             if not folder_path.exists():
                 continue
-            yield from self._merge_xml_files(folder_path)
 
-    @cached_property
-    def cached_merged_data(self):
-        """
-        Eagerly loads and caches all XML mappings as a dictionary.
+            xml_handler = XMLHandler(folder_path)
 
-        :returns: Dictionary of {mapping_name: builder_data}
-        """
-        return dict(self.yield_merged_data())
+            for path, tree in xml_handler.data.items():
+                root = tree.getroot()
+                mapping_name = root.findtext("mapping", "none").strip()
+
+                container = root.find(self.container_tag)
+                if container is None:
+                    log(
+                        f"No container <{self.container_tag}> in {path}. Skipping.",
+                        force=True,
+                    )
+                    continue
+
+                # Append all elements under this mapping
+                mappings[mapping_name].extend(container.findall(self.element_tag))
+
+        for mapping, elements in mappings.items():
+            # Create a single merged ET per mapping
+            merged_root = ET.Element(self.root_tag)
+            merged_mapping = ET.SubElement(merged_root, "mapping")
+            merged_mapping.text = mapping
+            merged_container = ET.SubElement(merged_root, self.container_tag)
+
+            for elem in elements:
+                merged_container.append(elem)
+
+            yield mapping, merged_root
 
 
 class XMLDictConverter:
     ATTR_PREFIX = "@"
     TEXT_KEY = "#text"
 
+    def __init__(self, root_element, **read_kwargs):
+        self.root = root_element
+        self.container_tag = read_kwargs.get("container_tag", "includes")
+        self.element_tag = read_kwargs.get("element_tag", "template")
+
     def element_to_dict(self, element):
-        """
-        Convert an ElementTree.Element to a nested dictionary.
-        """
         node_dict = {element.tag: {} if element.attrib or list(element) else None}
 
-        # Handle attributes
         for attr, val in element.attrib.items():
             node_dict[element.tag][f"{self.ATTR_PREFIX}{attr}"] = val
 
         children = list(element)
 
-        # Handle child elements
         if children:
             child_dict = defaultdict(list)
             for child in children:
@@ -402,9 +354,12 @@ class XMLDictConverter:
                 child_dict[tag].append(value)
 
             for tag, values in child_dict.items():
-                node_dict[element.tag][tag] = values if len(values) > 1 else values[0]
+                # Enforce 'param' always as list
+                if tag == "param":
+                    node_dict[element.tag][tag] = values
+                else:
+                    node_dict[element.tag][tag] = values if len(values) > 1 else values[0]
 
-        # Handle text content
         text = (element.text or "").strip()
         if text:
             if children or element.attrib:
@@ -414,50 +369,43 @@ class XMLDictConverter:
 
         return node_dict
 
-    def dict_to_element(self, data):
-        """
-        Convert a nested dictionary back into an ElementTree.Element.
-        """
-        def _build_element(tag, content):
-            elem = ET.Element(tag)
-            if isinstance(content, dict):
-                for key, val in content.items():
-                    if key.startswith(self.ATTR_PREFIX):
-                        attr = key[len(self.ATTR_PREFIX):]
-                        elem.attrib[attr] = val
-                    elif key == self.TEXT_KEY:
-                        elem.text = val
-                    elif isinstance(val, list):
-                        for item in val:
-                            child = _build_element(key, item)
-                            elem.append(child)
-                    else:
-                        child = _build_element(key, val)
-                        elem.append(child)
-            elif isinstance(content, str):
-                elem.text = content
-            return elem
+    def convert(self):
+        output_dict = {
+            "mapping": self.root.findtext("mapping", default="none").lower(),
+            self.container_tag: {},
+        }
 
-        tag, content = next(iter(data.items()))
-        return _build_element(tag, content)
+        container = self.root.find(self.container_tag)
+        if container is None:
+            raise ValueError(f"Container tag <{self.container_tag}> not found.")
 
-    def pretty_print(self, element, indent="  "):
-        """
-        Pretty print an ElementTree.Element for debugging.
-        """
+        for element in container.findall(self.element_tag):
+            template_dict = {}
 
-        def _indent(elem, level=0):
-            i = "\n" + level * indent
-            if len(elem):
-                if not elem.text or not elem.text.strip():
-                    elem.text = i + indent
-                for child in elem:
-                    _indent(child, level + 1)
-                if not elem.tail or not elem.tail.strip():
-                    elem.tail = i
-            else:
-                if level and (not elem.tail or not elem.tail.strip()):
-                    elem.tail = i
+            index_elem = element.find("index")
+            items_elem = element.find("items")
 
-        _indent(element)
-        return ET.tostring(element, encoding="unicode")
+            if index_elem is not None:
+                template_dict["index"] = {
+                    f"{self.ATTR_PREFIX}start": index_elem.get("start", "1"),
+                    f"{self.ATTR_PREFIX}end": index_elem.get("end", "1"),
+                }
+
+            if items_elem is not None:
+                items = [item.strip() for item in items_elem.text.split(",")]
+                template_dict["items"] = items
+
+            include_elem = element.find("include")
+            if include_elem is None or "name" not in include_elem.attrib:
+                raise ValueError("Top-level <include> must have a 'name' attribute.")
+
+            template_key = include_elem.get("name")
+
+            include_dict = self.element_to_dict(include_elem)
+            include_dict[include_elem.tag].pop(f"{self.ATTR_PREFIX}name", None)
+
+            template_dict.update(include_dict[include_elem.tag])
+
+            output_dict[self.container_tag][template_key] = template_dict
+
+        return output_dict
