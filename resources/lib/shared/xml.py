@@ -326,9 +326,6 @@ class XMLMerger:
             builder_elements = {}
             for entry in container_tag.findall(self.element_tag):
                 entry_dict = converter.element_to_dict(entry).get(self.element_tag, {})
-
-                log(f'{self.__class__.__name__} _merge_xml_files() FUCK DEBUG: entry_dict {entry_dict}')
-
                 tag_keys = [k for k in entry_dict if not k.startswith("@")]
                 if not tag_keys:
                     log(
@@ -349,7 +346,11 @@ class XMLMerger:
                     )
                     tag_data = tag_data[0]  # Use the first one
 
-                element_name = tag_data.get("@name") or tag_data.get("@id") or tag
+                if isinstance(tag_data, dict):
+                    element_name = tag_data.get("@name") or tag_data.get("@id") or tag
+                else:
+                    element_name = tag
+
                 builder_elements[element_name] = entry_dict
 
             yield mapping_name, {"xml": builder_elements}
@@ -384,7 +385,6 @@ class XMLDictConverter:
         """
         Convert an ElementTree.Element to a nested dictionary.
         """
-        log(f'FUCK DEBUG {self.__class__.__name__} element_to_dict(element): element -> {self.pretty_print(element)}')
         node_dict = {element.tag: {} if element.attrib or list(element) else None}
 
         # Handle attributes

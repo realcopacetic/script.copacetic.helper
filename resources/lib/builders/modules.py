@@ -36,6 +36,11 @@ class BaseBuilder:
         :param element_data: Data dict containing rules and item values.
         :returns: Generator yielding {name: value} dicts.
         """
+        log(f'FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_name {element_name}')
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_data {element_data}"
+        )
+        
         items = element_data.get("items") or expand_index(element_data.get("index"))
         dynamic_key_mapping = {"items": "item", "index": "index"}
         dynamic_key = next(
@@ -351,7 +356,6 @@ class expressionsBuilder(BaseBuilder):
         return resolved
 
 
-
 class includesBuilder(BaseBuilder):
     """
     XML-specific builder that processes XML-based elements and applies
@@ -425,7 +429,6 @@ class includesBuilder(BaseBuilder):
             return [self.handle_metadata_tags(i, metadata) for i in obj]
 
         return obj
-
 
 
 class skinsettingsBuilder(BaseBuilder):
