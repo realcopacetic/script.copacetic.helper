@@ -163,16 +163,3 @@ class JSONMerger:
         :returns: Dictionary of {mapping_key: content}
         """
         return dict(self.yield_merged_data())
-
-    def get_mapping(self, mapping_name):
-        """
-        Lazily filters and yields mappings matching a specific name.
-
-        :param mapping_name: Mapping identifier to filter by.
-        :returns: Generator yielding matching content.
-        """
-        return (
-            content
-            for mapping, content in self.get_merged_data()
-            if mapping == mapping_name
-        )

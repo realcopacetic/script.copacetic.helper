@@ -48,45 +48,12 @@ class BaseBuilder:
         )
         substitutions = self.generate_substitutions(items, dynamic_key)
 
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_name {element_name}"
-        )
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_data {element_data}"
-        )
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG placeholders {self.placeholders}"
-        )
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG loop values {self.loop_values}"
-        )
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG metadata {self.metadata}"
-        )
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG items {items}"
-        )
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG dynamic_key {dynamic_key}"
-        )
-        log(
-            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG substitutions {substitutions}"
-        )
-
         yield from (
             {k: v}
             for k, v in self.group_and_expand(
                 element_name, element_data, substitutions
             ).items()
         )
-
-    def _with_metadata(self, substitutions, *keys):
-        """Merge substitutions with metadata if metadata for any key exists."""
-        combined_metadata = {}
-        for key in keys:
-            metadata = self.metadata.get(key, {})
-            combined_metadata.update(metadata)
-        return {**substitutions, **combined_metadata}
 
     def generate_substitutions(self, items, dynamic_key):
         """
@@ -101,7 +68,7 @@ class BaseBuilder:
 
         if isinstance(self.loop_values, dict) and items:
             return [
-                self._with_metadata(
+                self._inject_metadata(
                     {
                         key_name: outer_key,
                         value_name: inner_value,
@@ -116,7 +83,7 @@ class BaseBuilder:
 
         elif isinstance(self.loop_values, dict) and not items:
             return [
-                self._with_metadata(
+                self._inject_metadata(
                     {
                         key_name: outer_key,
                         value_name: inner_value,
@@ -130,7 +97,7 @@ class BaseBuilder:
 
         elif isinstance(self.loop_values, list) and items:
             return [
-                self._with_metadata(
+                self._inject_metadata(
                     {
                         key_name: loop_value,
                         dynamic_key: item,
@@ -142,7 +109,7 @@ class BaseBuilder:
 
         elif isinstance(self.loop_values, list) and not items:
             return [
-                self._with_metadata({key_name: loop_value}, loop_value)
+                self._inject_metadata({key_name: loop_value}, loop_value)
                 for loop_value in self.loop_values
             ]
 
@@ -167,16 +134,38 @@ class BaseBuilder:
         :returns: Fully formatted string.
         """
         if isinstance(object, str):
-            return object.format(**substitutions)
+            try:
+                return object.format(**substitutions)
+            except KeyError:
+                return ""
+
         elif isinstance(object, list):
-            return [self.substitute(item, substitutions) for item in object]
+            substituted_list = [self.substitute(item, substitutions) for item in object]
+            return [item for item in substituted_list if item]
+
         elif isinstance(object, dict):
-            return {
+            substituted_dict = {
                 key: self.substitute(value, substitutions)
                 for key, value in object.items()
             }
+
+            if ("@value" in substituted_dict and substituted_dict["@value"] == "") or (
+                "#text" in substituted_dict and substituted_dict["#text"] == ""
+            ):
+                return {}
+
+            return {k: v for k, v in substituted_dict.items() if v != {}}
+
         else:
             return object
+
+    def _inject_metadata(self, substitutions, *keys):
+        """Merge substitutions with metadata if metadata for any key exists."""
+        combined_metadata = {}
+        for key in keys:
+            metadata = self.metadata.get(key, {})
+            combined_metadata.update(metadata)
+        return {**substitutions, **combined_metadata}
 
 
 class controlsBuilder(BaseBuilder):
@@ -197,7 +186,7 @@ class controlsBuilder(BaseBuilder):
         id_start = data.get("id_start")
         id_fixed = data.get("id")
 
-        # Dynamic controls
+        # Dynamic controls with inner recursive expansion
         if "dynamic_linking" in data:
             resolved_list = []
             seen = set()
@@ -223,7 +212,7 @@ class controlsBuilder(BaseBuilder):
                     "dynamic_linking": resolved_list,
                 }
             }
-        # Static controls
+        # Static controls with standard expansion
         grouped = defaultdict(list)
         for sub in substitutions:
             key = template_name.format(**sub)
@@ -414,66 +403,79 @@ class includesBuilder(BaseBuilder):
         :param substitutions: List of substitutions to apply.
         :returns: Expanded XML data as dictionary.
         """
-        grouped = defaultdict(list)
-        for sub in substitutions:
-            key = template_name.format(**sub)
-            grouped[key].append(sub)
-            self.group_map[key] = sub
+        has_placeholder_in_name = any(
+            f"{{{placeholder}}}" in template_name
+            for placeholder in self.placeholders.values()
+        )
 
-        # Reconstruct the elements as necessary, using the groupings
-        return {
-            key: self.resolve_values(key, subs, data) for key, subs in grouped.items()
-        }
+        if has_placeholder_in_name:
+            grouped = defaultdict(list)
+            for sub in substitutions:
+                expanded_key = template_name.format(**sub)
+                grouped[expanded_key].append(sub)
 
-    def resolve_values(self, key, subs, data):
+            return {
+                key: self.resolve_values(key, data, subs[0])
+                for key, subs in grouped.items()
+            }
+
+    def resolve_values(self, key, data, subs):
+        expanded_data = self.recursive_expand(data, subs)
+
+        # Remove processing-only keys
+        expanded_data.pop("index", None)
+        expanded_data.pop("items", None)
+
+        return {"include": {"@name": key, **expanded_data}}
+
+    def recursive_expand(self, data, substitutions):
         """
-        Resolves and processes the values for the XML structure.
-        - Handles {metadata:xyz} substitutions
+        Recursively expands placeholders within XML structures.
 
-        :param subs: The substitution dictionary.
-        :param data: The XML element data.
-        :returns: The resolved values.
+        :param data: XML data structure.
+        :param substitutions: Single dict or list of dicts.
+        :returns: Expanded XML data.
         """
-        resolved = self.substitute(data, subs[0])
-        # log(f'FUCK DEBUG {self.__class__.__name__} resolve_values resolved {resolved}')
-        # log(f"FUCK DEBUG {self.__class__.__name__} resolve_values self.metadata {self.metadata}")
-        # Inject metadata after all placeholder substitutions
-        # if self.metadata:
-        #     metadata_key_name = self.placeholders.get("key")
-        #     metadata_key = self.group_map.get(key, {}).get(metadata_key_name)
-        #     if metadata_key:
-        #         metadata = self.metadata.get(metadata_key, {})
-        #         resolved = self.handle_metadata_tags(resolved, metadata)
+        if isinstance(data, dict):
+            # Check if 'index' present for internal looping
+            if "index" in data:
+                index_range = range(int(data["index"]["@start"]), int(data["index"]["@end"]) + 1)
+                expanded_list = []
+                for idx in index_range:
+                    new_sub = {**substitutions, "index": str(idx)}
+                    inner_data = {k: v for k, v in data.items() if k != "index"}
+                    expanded_item = self.recursive_expand(inner_data, new_sub)
+                    expanded_list.append(expanded_item)
+                return expanded_list
 
-        return resolved
+            # Regular dictionary recursion
+            expanded_dict = {}
+            for key, value in data.items():
+                expanded_value = self.recursive_expand(value, substitutions)
+                if expanded_value not in (None, {}, [], ""):
+                    expanded_dict[key] = expanded_value
+            return expanded_dict
 
-    def handle_metadata_tags(self, obj, metadata):
-        """
-        Recursively resolves {metadata:xyz} placeholders in a string, dict, or list.
+        elif isinstance(data, list):
+            expanded_list = [self.recursive_expand(item, substitutions) for item in data]
+            return [item for item in expanded_list if item not in (None, {}, [], "")]
 
-        :param obj: The object (str, dict, or list) to process.
-        :param metadata: Dict of metadata values to use for replacement.
-        :returns: Object with {metadata:xyz} resolved.
-        """
-        import re
+        elif isinstance(data, str):
+            # Handle a single substitution or multiple substitutions (for lists)
+            if isinstance(substitutions, list):
+                results = []
+                for sub in substitutions:
+                    try:
+                        results.append(data.format(**sub))
+                    except KeyError:
+                        continue
+                return results if results else ""
+            try:
+                return data.format(**substitutions)
+            except KeyError:
+                return ""
 
-        if isinstance(obj, str):
-            pattern = r"{metadata:(\w+)}"
-
-            def replace(match):
-                key = match.group(1)
-                return metadata.get(key, match.group(0))
-
-            return re.sub(pattern, replace, obj)
-
-        elif isinstance(obj, dict):
-            return {k: self.handle_metadata_tags(v, metadata) for k, v in obj.items()}
-
-        elif isinstance(obj, list):
-            return [self.handle_metadata_tags(i, metadata) for i in obj]
-
-        return obj
-
+        return data
 
 class skinsettingsBuilder(BaseBuilder):
     """

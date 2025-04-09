@@ -35,7 +35,7 @@ BUILDER_CONFIG = {
         "write_kwargs": {
             "root_tag": "includes",
             "element_tag": "expression",
-            "transform_func": XMLHandler._dict_to_xml,
+            "transform_func": XMLHandler._simple_dict_to_xml,
         },
     },
     "includes": {
@@ -51,8 +51,7 @@ BUILDER_CONFIG = {
         "write_handler": XMLHandler,
         "write_kwargs": {
             "root_tag": "includes",
-            "element_tag": "include",
-            "transform_func": XMLHandler._dict_to_xml,
+            "transform_func": XMLHandler._complex_dict_to_xml,
         },
     },
     "skinsettings": {
@@ -73,7 +72,7 @@ BUILDER_CONFIG = {
             "root_tag": "includes",
             "element_tag": "variable",
             "sub_element_tag": "value",
-            "transform_func": XMLHandler._dict_to_xml,
+            "transform_func": XMLHandler._simple_dict_to_xml,
         },
     },
 }

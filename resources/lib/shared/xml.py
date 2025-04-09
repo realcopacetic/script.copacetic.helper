@@ -80,20 +80,14 @@ class XMLHandler:
     @xml_functions
     def write_xml(self, data_dict, **kwargs):
         """
-        Writes a new XML structure from a dictionary using a transformation function.
+        Writes an XML file using the specified transform function and dictionary data.
 
-        :param data_dict: Dictionary to be converted into XML.
-        :param kwargs: Includes transform_func, root_tag, element_tag, etc.
+        :param data_dict: Dictionary to convert into XML elements.
+        :param kwargs: Configuration arguments, including `transform_func`, `root_tag`, etc.
         """
         try:
             tree = ET.ElementTree(
-                kwargs.get("transform_func")(
-                    self,
-                    kwargs.get("root_tag"),
-                    data_dict,
-                    element_tag=kwargs.get("element_tag"),
-                    sub_element_tag=kwargs.get("sub_element_tag"),
-                )
+                kwargs["transform_func"](data_dict, **kwargs)
             )
             self._save_xml(tree)
         except Exception as e:
@@ -212,50 +206,6 @@ class XMLHandler:
         )
         return tree
 
-    def _dict_to_xml(
-        self,
-        root_tag,
-        data_dict,
-        element_tag="variable",
-        sub_element_tag="value",
-        text_key="value",
-    ):
-        """
-        Converts a dictionary into an XML tree, supporting both flat and nested formats.
-
-        :param root_tag: XML root tag.
-        :param data_dict: Dictionary to be converted.
-        :param element_tag: XML tag for main elements.
-        :param sub_element_tag: XML tag for nested value elements.
-        :param text_key: Key to use as the inner text of sub-elements.
-        :returns: Root Element.
-        """
-        root = ET.Element(root_tag)
-
-        for outer_key, outer_value in data_dict.items():
-            if isinstance(outer_value, str):
-                # Flat structure
-                ET.SubElement(root, element_tag, name=outer_key).text = outer_value
-            elif isinstance(outer_value, list) and all(
-                isinstance(item, dict) for item in outer_value
-            ):
-                # Nested structure
-                outer_elem = ET.SubElement(root, element_tag, name=outer_key)
-                for item in outer_value:
-                    sub_elem = ET.SubElement(outer_elem, sub_element_tag)
-                    for attr, val in item.items():
-                        if attr == "value":
-                            sub_elem.text = val
-                        else:
-                            sub_elem.set(attr, val)
-            else:
-                log(
-                    f"{self.__class__.__name__}: Unsupported data type for '{outer_key}': {type(outer_value)}",
-                    force=True,
-                )
-
-        return root
-
     def _save_xml(self, tree):
         """
         Saves an ElementTree to disk with indentation and UTF-8 encoding.
@@ -277,6 +227,57 @@ class XMLHandler:
                 f"{self.__class__.__name__}: XML file '{self.path}' updated successfully."
             )
 
+    @staticmethod
+    def _simple_dict_to_xml(data_dict, **kwargs):
+        """
+        Converts flat or nested dictionaries into a Kodi-compatible XML Element.
+
+        :param data_dict: Dictionary containing flat or nested data structures.
+        :param kwargs: Includes optional `root_tag`, `element_tag`, and `sub_element_tag`.
+        :returns: XML root Element built from dictionary data.
+        """
+        root_tag = kwargs.get("root_tag", "includes")
+        element_tag = kwargs.get("element_tag", "variable")
+        sub_element_tag = kwargs.get("sub_element_tag", "value")
+        root = ET.Element(root_tag)
+
+        for outer_key, outer_value in data_dict.items():
+            # Flat structure
+            if isinstance(outer_value, str):
+                ET.SubElement(root, element_tag, name=outer_key).text = outer_value
+            # Nested structure
+            elif isinstance(outer_value, list) and all(
+                isinstance(item, dict) for item in outer_value
+            ):
+                outer_elem = ET.SubElement(root, element_tag, name=outer_key)
+                for item in outer_value:
+                    sub_elem = ET.SubElement(outer_elem, sub_element_tag)
+                    for attr, val in item.items():
+                        if attr == "value":
+                            sub_elem.text = val
+                        else:
+                            sub_elem.set(attr, val)
+            else:
+                log(
+                    f"XMLHandler: Unsupported data type for '{outer_key}': {type(outer_value)}",
+                    force=True,
+                )
+
+        return root
+
+    @staticmethod
+    def _complex_dict_to_xml(data_dict, **kwargs):
+        """
+        Converts structured dictionaries from XMLDictConverter back into XML elements.
+
+        :param data_dict: Structured dictionary to convert back to XML.
+        :param kwargs: Optional XML configuration arguments (e.g., `root_tag`).
+        :returns: XML root Element representing structured dictionary data.
+        """
+        root_tag = kwargs.get("root_tag", "includes")
+        converter = XMLDictConverter(None)
+        return converter.dict_to_xml(data_dict, root_tag=root_tag)
+
 
 class XMLMerger:
     """
@@ -285,60 +286,169 @@ class XMLMerger:
     """
 
     def __init__(self, base_folder, subfolders=None, **read_kwargs):
+        """
+        Initialises class with kwargs passed from BUILDER_CONFIG for each
+        individual xml builder.
+
+        :param base_folder: Base directory containing XML subfolders.
+        :param subfolders: List of subfolders to search and merge XML from.
+        :param read_kwargs: Keyword arguments defining XML structure tags.
+        """
         self.base_folder = Path(base_folder)
         self.subfolders = subfolders or []
         self.root_tag = read_kwargs.get("root_tag", "xml")
         self.container_tag = read_kwargs.get("container_tag", "includes")
         self.element_tag = read_kwargs.get("element_tag", "template")
 
-    def yield_merged_data(self):
-        mappings = defaultdict(list)
+    def _merge_xml_files(self, folder_path):
+        """
+        Lazily merges XML elements from a single folder.
 
+        :param folder_path: Path to a subfolder containing XML files.
+        :yields: Tuples of (mapping_name, ET.Element).
+        """
+        xml_handler = XMLHandler(folder_path)
+        for file_path, tree in xml_handler.data.items():
+            root = tree.getroot()
+            mapping_name = root.findtext("mapping", "none").strip()
+            container = root.find(self.container_tag)
+            if container is None:
+                log(f"{self.__class__.__name__}: No container <{self.container_tag}> in {file_path}. Skipping file.")
+                continue
+            elements = container.findall(self.element_tag)
+            yield mapping_name, elements
+
+    def yield_merged_data(self):
+        """
+        Lazily yields aggregated XML elements merged by mapping names.
+
+        :yields: Tuples of (mapping_name, merged ET.Element).
+        """
+        mappings = defaultdict(list)
         for subfolder in self.subfolders:
             folder_path = self.base_folder / subfolder
             if not folder_path.exists():
+                log(f"{self.__class__.__name__}: Folder {folder_path} does not exist. Skipping.")
                 continue
-
-            xml_handler = XMLHandler(folder_path)
-
-            for path, tree in xml_handler.data.items():
-                root = tree.getroot()
-                mapping_name = root.findtext("mapping", "none").strip()
-
-                container = root.find(self.container_tag)
-                if container is None:
-                    log(
-                        f"No container <{self.container_tag}> in {path}. Skipping.",
-                        force=True,
-                    )
-                    continue
-
-                # Append all elements under this mapping
-                mappings[mapping_name].extend(container.findall(self.element_tag))
+            for mapping_name, elements in self._merge_xml_files(folder_path):
+                mappings[mapping_name].extend(elements)
 
         for mapping, elements in mappings.items():
-            # Create a single merged ET per mapping
-            merged_root = ET.Element(self.root_tag)
-            merged_mapping = ET.SubElement(merged_root, "mapping")
-            merged_mapping.text = mapping
-            merged_container = ET.SubElement(merged_root, self.container_tag)
+            yield mapping, self._build_merged_xml(mapping, elements)
 
-            for elem in elements:
-                merged_container.append(elem)
+    def _build_merged_xml(self, mapping, elements):
+        """
+        Builds a single merged ET.Element for a given mapping.
 
-            yield mapping, merged_root
+        :param mapping: The mapping name for the XML elements.
+        :param elements: List of ET.Elements to merge.
+        :returns: Merged ET.Element.
+        """
+        merged_root = ET.Element(self.root_tag)
+        merged_mapping = ET.SubElement(merged_root, "mapping")
+        merged_mapping.text = mapping
+        merged_container = ET.SubElement(merged_root, self.container_tag)
+        merged_container.extend(elements)
+        return merged_root
+
+    @cached_property
+    def cached_merged_data(self):
+        """
+        Eagerly loads and caches all XML mappings as a dictionary.
+        Useful for random access or repeated lookups.
+
+        :returns: Dictionary of {mapping_key: content}
+        """
+        return dict(self.yield_merged_data())
 
 
 class XMLDictConverter:
+    """
+    Converts between XML ElementTrees and structured dictionaries.
+    """
     ATTR_PREFIX = "@"
     TEXT_KEY = "#text"
 
     def __init__(self, root_element, **read_kwargs):
+        """
+        Initialises class with kwargs passed from BUILDER_CONFIG for each
+        individual xml builder.
+
+        :param root_element: Root element of the XML to convert.
+        :param read_kwargs: XML parsing options (container and element tags).
+        """
         self.root = root_element
         self.container_tag = read_kwargs.get("container_tag", "includes")
         self.element_tag = read_kwargs.get("element_tag", "template")
 
+    def xml_to_dict(self):
+        """
+        Converts an XML tree into a structured dictionary.
+
+        :returns: Structured dictionary representation of the XML.
+        """
+        output_dict = {
+            "mapping": self.root.findtext("mapping", default="none").lower(),
+            self.container_tag: {},
+        }
+
+        container = self.root.find(self.container_tag)
+        if container is None:
+            log(
+                f"{self.__class__.__name__}: Missing container tag <{self.container_tag}>.",
+                force=True,
+            )
+            return output_dict
+
+        for element in container.findall(self.element_tag):
+            template_dict = {}
+
+            index_elem = element.find("index")
+            items_elem = element.find("items")
+
+            if index_elem is not None:
+                template_dict["index"] = {
+                    f"{self.ATTR_PREFIX}start": index_elem.get("start", "1"),
+                    f"{self.ATTR_PREFIX}end": index_elem.get("end", "1"),
+                }
+
+            if items_elem is not None:
+                items = [item.strip() for item in items_elem.text.split(",")]
+                template_dict["items"] = items
+
+            
+            include_elem = element.find("include")
+            if include_elem is None or "name" not in include_elem.attrib:
+                log(
+                    f"{self.__class__.__name__}: Missing or invalid 'include' tag in element.",
+                    force=True,
+                )
+                continue
+
+            template_key = include_elem.get("name")
+
+            try:
+                include_dict = self.element_to_dict(include_elem)
+                include_dict[include_elem.tag].pop(f"{self.ATTR_PREFIX}name", None)
+                template_dict.update(include_dict[include_elem.tag])
+                output_dict[self.container_tag][template_key] = template_dict
+
+            except Exception as e:
+                log(
+                    f"{self.__class__.__name__}: Error processing element '{element}' → {e}",
+                    force=True,
+                )
+                continue
+
+        return output_dict
+
     def element_to_dict(self, element):
+        """
+        Recursively converts an XML element into a dictionary.
+
+        :param element: XML element to convert.
+        :returns: Dictionary representation of the element.
+        """
         node_dict = {element.tag: {} if element.attrib or list(element) else None}
 
         for attr, val in element.attrib.items():
@@ -369,43 +479,61 @@ class XMLDictConverter:
 
         return node_dict
 
-    def convert(self):
-        output_dict = {
-            "mapping": self.root.findtext("mapping", default="none").lower(),
-            self.container_tag: {},
-        }
+    def dict_to_xml(self, data_dict, root_tag="includes"):
+        """
+        Converts a structured dictionary back into an XML Element.
 
-        container = self.root.find(self.container_tag)
-        if container is None:
-            raise ValueError(f"Container tag <{self.container_tag}> not found.")
+        :param data_dict: Structured dictionary to convert.
+        :param root_tag: Tag name for the root XML element.
+        :returns: XML Element representing the structured dictionary.
+        """
+        root_elem = ET.Element(root_tag)
 
-        for element in container.findall(self.element_tag):
-            template_dict = {}
+        for key, value in data_dict.items():
+            try:
+                child_elem = self.dict_to_element({key: value})
+                root_elem.append(child_elem)
+            except Exception as e:
+                log(
+                    f"{self.__class__.__name__}: Failed to convert '{key}' with error: {e}",
+                    force=True,
+                )
+        return root_elem
 
-            index_elem = element.find("index")
-            items_elem = element.find("items")
+    def dict_to_element(self, data, parent_tag=None):
+        """
+        Recursively converts dictionary elements into XML elements.
 
-            if index_elem is not None:
-                template_dict["index"] = {
-                    f"{self.ATTR_PREFIX}start": index_elem.get("start", "1"),
-                    f"{self.ATTR_PREFIX}end": index_elem.get("end", "1"),
-                }
+        :param data: Dictionary to convert into XML.
+        :param parent_tag: Optional parent XML tag.
+        :returns: XML Element representing the dictionary entry.
+        """
+        if not isinstance(data, dict):
+            elem = ET.Element(parent_tag or "item")
+            elem.text = str(data)
+            return elem
 
-            if items_elem is not None:
-                items = [item.strip() for item in items_elem.text.split(",")]
-                template_dict["items"] = items
+        tag = parent_tag or next(iter(data))
+        elem_data = data if parent_tag else data[tag]
 
-            include_elem = element.find("include")
-            if include_elem is None or "name" not in include_elem.attrib:
-                raise ValueError("Top-level <include> must have a 'name' attribute.")
+        elem = ET.Element(tag)
 
-            template_key = include_elem.get("name")
+        if isinstance(elem_data, dict):
+            for k, v in elem_data.items():
+                if k.startswith(self.ATTR_PREFIX):
+                    elem.set(k[len(self.ATTR_PREFIX) :], v)
+                elif k == self.TEXT_KEY:
+                    elem.text = v
+                else:
+                    child = self.dict_to_element({k: v})
+                    elem.append(child)
 
-            include_dict = self.element_to_dict(include_elem)
-            include_dict[include_elem.tag].pop(f"{self.ATTR_PREFIX}name", None)
+        elif isinstance(elem_data, list):
+            for item in elem_data:
+                child = self.dict_to_element(item, parent_tag=tag)
+                elem.append(child)
 
-            template_dict.update(include_dict[include_elem.tag])
+        else:
+            elem.text = str(elem_data)
 
-            output_dict[self.container_tag][template_key] = template_dict
-
-        return output_dict
+        return elem

@@ -49,7 +49,7 @@ class BuildElements:
         """
         yield from self.merged_json
         yield from (
-            (mapping_name, XMLDictConverter(xml_root, **self.read_kwargs).convert())
+            (mapping_name, XMLDictConverter(xml_root, **self.read_kwargs).xml_to_dict())
             for mapping_name, xml_root in self.merged_xml
         )
 

@@ -33,7 +33,7 @@ SKINXML = str(Path(SKIN) / "16x9")
 
 CONTROLS = str(Path(ADDONDATA) / "controls.json")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
-INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_elements.xml")
+INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_includes.xml")
 SKINSETTINGS = str(Path(ADDONDATA) / "skinsettings.json")
 VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 
