@@ -35,7 +35,7 @@ class BaseBuilder:
         :param element_name: The name of the expression/template.
         :param element_data: Data dict containing rules and item values.
         :returns: Generator yielding {name: value} dicts.
-        """        
+        """
         items = element_data.get("items") or expand_index(element_data.get("index"))
         dynamic_key_mapping = {"items": "item", "index": "index"}
         dynamic_key = next(
@@ -48,14 +48,30 @@ class BaseBuilder:
         )
         substitutions = self.generate_substitutions(items, dynamic_key)
 
-        log(f'FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_name {element_name}')
-        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_data {element_data}")
-        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG placeholders {self.placeholders}")
-        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG loop values {self.loop_values}")
-        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG metadata {self.metadata}")
-        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG items {items}")
-        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG dynamic_key {dynamic_key}")
-        log(f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG substitutions {substitutions}")
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_name {element_name}"
+        )
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG element_data {element_data}"
+        )
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG placeholders {self.placeholders}"
+        )
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG loop values {self.loop_values}"
+        )
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG metadata {self.metadata}"
+        )
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG items {items}"
+        )
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG dynamic_key {dynamic_key}"
+        )
+        log(
+            f"FUCK {self.__class__.__name__} process_elements: FUCK DEBUG substitutions {substitutions}"
+        )
 
         yield from (
             {k: v}
@@ -63,6 +79,14 @@ class BaseBuilder:
                 element_name, element_data, substitutions
             ).items()
         )
+
+    def _with_metadata(self, substitutions, *keys):
+        """Merge substitutions with metadata if metadata for any key exists."""
+        combined_metadata = {}
+        for key in keys:
+            metadata = self.metadata.get(key, {})
+            combined_metadata.update(metadata)
+        return {**substitutions, **combined_metadata}
 
     def generate_substitutions(self, items, dynamic_key):
         """
@@ -77,36 +101,50 @@ class BaseBuilder:
 
         if isinstance(self.loop_values, dict) and items:
             return [
-                {
-                    key_name: outer_key,
-                    value_name: inner_value,
-                    dynamic_key: item,
-                }
+                self._with_metadata(
+                    {
+                        key_name: outer_key,
+                        value_name: inner_value,
+                        dynamic_key: item,
+                    },
+                    outer_key,
+                    inner_value,
+                )
                 for outer_key, inner_values in self.loop_values.items()
                 for inner_value, item in product(inner_values, items)
             ]
 
         elif isinstance(self.loop_values, dict) and not items:
             return [
-                {
-                    key_name: outer_key,
-                    value_name: inner_value,
-                }
+                self._with_metadata(
+                    {
+                        key_name: outer_key,
+                        value_name: inner_value,
+                    },
+                    outer_key,
+                    inner_value,
+                )
                 for outer_key, inner_values in self.loop_values.items()
                 for inner_value in inner_values
             ]
 
         elif isinstance(self.loop_values, list) and items:
             return [
-                {
-                    key_name: loop_value,
-                    dynamic_key: item,
-                }
+                self._with_metadata(
+                    {
+                        key_name: loop_value,
+                        dynamic_key: item,
+                    },
+                    loop_value,
+                )
                 for loop_value, item in product(self.loop_values, items)
             ]
 
         elif isinstance(self.loop_values, list) and not items:
-            return [{key_name: loop_value} for loop_value in self.loop_values]
+            return [
+                self._with_metadata({key_name: loop_value}, loop_value)
+                for loop_value in self.loop_values
+            ]
 
         elif not self.loop_values and items:
             return [
