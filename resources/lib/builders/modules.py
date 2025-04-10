@@ -1,8 +1,10 @@
 # author: realcopacetic
 
-import xml.etree.ElementTree as ET
+import json
+import re
 from collections import defaultdict
 from itertools import product
+from urllib.parse import quote
 
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import expand_index, log
@@ -148,12 +150,6 @@ class BaseBuilder:
                 key: self.substitute(value, substitutions)
                 for key, value in object.items()
             }
-
-            if ("@value" in substituted_dict and substituted_dict["@value"] == "") or (
-                "#text" in substituted_dict and substituted_dict["#text"] == ""
-            ):
-                return {}
-
             return {k: v for k, v in substituted_dict.items() if v != {}}
 
         else:
@@ -389,93 +385,109 @@ class expressionsBuilder(BaseBuilder):
 
 class includesBuilder(BaseBuilder):
     """
-    XML-specific builder that processes XML-based elements and applies
-    the same logic as BaseBuilder but with XML-specific conversion.
+    Expands Kodi XML 'include' templates by substituting placeholders and encoding XSP metadata.
+    Handles recursive multi-level expansions for dynamic XML generation.
     """
+
+    def __init__(self, loop_values, placeholders, metadata):
+        super().__init__(loop_values, placeholders, metadata)
+        self._prepare_xsp_urls()
 
     def group_and_expand(self, template_name, data, substitutions):
         """
-        Groups and expands the XML-specific elements by key and type,
-        allowing for dynamic key substitution and expansion.
+        Groups substitutions by expanded template names and expands values.
 
-        :param template_name: The name of the XML element to process.
-        :param data: Data related to the XML element.
-        :param substitutions: List of substitutions to apply.
-        :returns: Expanded XML data as dictionary.
+        :param template_name: Template string possibly containing placeholders.
+        :param data: Dictionary representing XML structure.
+        :param substitutions: List of substitution dictionaries.
         """
-        has_placeholder_in_name = any(
-            f"{{{placeholder}}}" in template_name
-            for placeholder in self.placeholders.values()
+        has_placeholder = any(
+            f"{{{key}}}" in template_name for sub in substitutions for key in sub
         )
 
-        if has_placeholder_in_name:
-            grouped = defaultdict(list)
+        grouped = defaultdict(list)
+        if has_placeholder:
             for sub in substitutions:
-                expanded_key = template_name.format(**sub)
-                grouped[expanded_key].append(sub)
+                key = template_name.format(**sub)
+                grouped[key].append(sub)
+                self.group_map[key] = sub
+        else:
+            grouped[template_name] = substitutions
 
-            return {
-                key: self.resolve_values(key, data, subs[0])
-                for key, subs in grouped.items()
-            }
+        return {
+            key: self.resolve_values(subs, data["include"])
+            for key, subs in grouped.items()
+        }
 
-    def resolve_values(self, key, data, subs):
-        expanded_data = self.recursive_expand(data, subs)
+    def resolve_values(self, substitutions, include_element):
+        """
+        Resolves values recursively within the include element with substitutions.
 
-        # Remove processing-only keys
-        expanded_data.pop("index", None)
-        expanded_data.pop("items", None)
-
-        return {"include": {"@name": key, **expanded_data}}
+        :param substitutions: List of substitution dictionaries.
+        :param include_element: Dictionary representing the include XML structure.
+        """
+        return {"include": self.recursive_expand(include_element, substitutions)}
 
     def recursive_expand(self, data, substitutions):
         """
-        Recursively expands placeholders within XML structures.
+        Recursively expands placeholders within dictionaries and lists, explicitly
+        removing elements and attributes with empty "@value" or "#text" after substitution.
 
-        :param data: XML data structure.
-        :param substitutions: Single dict or list of dicts.
-        :returns: Expanded XML data.
+        :param data: Data structure (dict, list, or string) with potential placeholders.
+        :param substitutions: List of substitution dictionaries.
         """
         if isinstance(data, dict):
-            # Check if 'index' present for internal looping
-            if "index" in data:
-                index_range = range(int(data["index"]["@start"]), int(data["index"]["@end"]) + 1)
-                expanded_list = []
-                for idx in index_range:
-                    new_sub = {**substitutions, "index": str(idx)}
-                    inner_data = {k: v for k, v in data.items() if k != "index"}
-                    expanded_item = self.recursive_expand(inner_data, new_sub)
-                    expanded_list.append(expanded_item)
-                return expanded_list
+            expanded_dict = {
+                key: self.recursive_expand(value, substitutions)
+                for key, value in data.items()
+            }
+            if ("@value" in expanded_dict and expanded_dict["@value"] == "") or (
+                "#text" in expanded_dict and expanded_dict["#text"] == ""
+            ):
+                return {}
 
-            # Regular dictionary recursion
-            expanded_dict = {}
-            for key, value in data.items():
-                expanded_value = self.recursive_expand(value, substitutions)
-                if expanded_value not in (None, {}, [], ""):
-                    expanded_dict[key] = expanded_value
-            return expanded_dict
+            return {
+                k: v for k, v in expanded_dict.items() if v not in ("", {}, [], None)
+            }
 
         elif isinstance(data, list):
-            expanded_list = [self.recursive_expand(item, substitutions) for item in data]
-            return [item for item in expanded_list if item not in (None, {}, [], "")]
+            expanded_list = []
+            for item in data:
+                expand_multiple = (
+                    isinstance(item, dict)
+                    and "@content" in item
+                    and any(
+                        f"{{{p}}}" in item["@content"]
+                        for sub in substitutions
+                        for p in sub
+                    )
+                )
+                sub_list = substitutions if expand_multiple else [substitutions[0]]
+                for sub in sub_list:
+                    expanded_item = self.recursive_expand(item, [sub])
+                    if expanded_item not in ({}, [], "", None):
+                        expanded_list.append(expanded_item)
+
+            return expanded_list
 
         elif isinstance(data, str):
-            # Handle a single substitution or multiple substitutions (for lists)
-            if isinstance(substitutions, list):
-                results = []
-                for sub in substitutions:
-                    try:
-                        results.append(data.format(**sub))
-                    except KeyError:
-                        continue
-                return results if results else ""
-            try:
-                return data.format(**substitutions)
-            except KeyError:
-                return ""
+            return self.substitute(data, substitutions[0])
 
         return data
+
+    def _prepare_xsp_urls(self):
+        """
+        Encodes XSP dictionaries in metadata into URL-encoded strings.
+        Removes encoded quotes (%22) around $ESCINFO[] references.
+        """
+        escinfo_pattern = re.compile(r"%22(\$ESCINFO\[.*?\])%22")
+
+        for meta in self.metadata.values():
+            if "xsp" in meta:
+                xsp_json = quote(json.dumps(meta["xsp"]))
+                xsp_json = escinfo_pattern.sub(r"\1", xsp_json)
+                meta["xsp"] = f"?xsp={xsp_json}"
+
 
 class skinsettingsBuilder(BaseBuilder):
     """

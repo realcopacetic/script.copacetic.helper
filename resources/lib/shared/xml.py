@@ -366,6 +366,7 @@ class XMLDictConverter:
     """
     Converts between XML ElementTrees and structured dictionaries.
     """
+
     ATTR_PREFIX = "@"
     TEXT_KEY = "#text"
 
@@ -416,7 +417,6 @@ class XMLDictConverter:
                 items = [item.strip() for item in items_elem.text.split(",")]
                 template_dict["items"] = items
 
-            
             include_elem = element.find("include")
             if include_elem is None or "name" not in include_elem.attrib:
                 log(
@@ -429,8 +429,9 @@ class XMLDictConverter:
 
             try:
                 include_dict = self.element_to_dict(include_elem)
-                include_dict[include_elem.tag].pop(f"{self.ATTR_PREFIX}name", None)
-                template_dict.update(include_dict[include_elem.tag])
+                template_dict["include"] = include_dict["include"]
+                template_dict["include"][f"{self.ATTR_PREFIX}name"] = template_key
+
                 output_dict[self.container_tag][template_key] = template_dict
 
             except Exception as e:
@@ -464,11 +465,12 @@ class XMLDictConverter:
                 child_dict[tag].append(value)
 
             for tag, values in child_dict.items():
-                # Enforce 'param' always as list
                 if tag == "param":
                     node_dict[element.tag][tag] = values
                 else:
-                    node_dict[element.tag][tag] = values if len(values) > 1 else values[0]
+                    node_dict[element.tag][tag] = (
+                        values if len(values) > 1 else values[0]
+                    )
 
         text = (element.text or "").strip()
         if text:
@@ -481,7 +483,8 @@ class XMLDictConverter:
 
     def dict_to_xml(self, data_dict, root_tag="includes"):
         """
-        Converts a structured dictionary back into an XML Element.
+        Converts a structured dictionary back into an XML Element,
+        explicitly handling lists to avoid unwanted wrappers.
 
         :param data_dict: Structured dictionary to convert.
         :param root_tag: Tag name for the root XML element.
@@ -491,18 +494,30 @@ class XMLDictConverter:
 
         for key, value in data_dict.items():
             try:
-                child_elem = self.dict_to_element({key: value})
-                root_elem.append(child_elem)
+                if isinstance(value, dict):
+                    for inner_key, inner_value in value.items():
+                        child_elem = self.dict_to_element({inner_key: inner_value})
+
+                        if child_elem.tag == "temporary":
+                            root_elem.extend(list(child_elem))
+                        else:
+                            root_elem.append(child_elem)
+                else:
+                    child_elem = self.dict_to_element({key: value})
+                    root_elem.append(child_elem)
+
             except Exception as e:
                 log(
                     f"{self.__class__.__name__}: Failed to convert '{key}' with error: {e}",
                     force=True,
                 )
+
         return root_elem
 
     def dict_to_element(self, data, parent_tag=None):
         """
-        Recursively converts dictionary elements into XML elements.
+        Recursively converts dictionary elements into XML elements without
+        creating extra wrapper tags for lists.
 
         :param data: Dictionary to convert into XML.
         :param parent_tag: Optional parent XML tag.
@@ -516,6 +531,13 @@ class XMLDictConverter:
         tag = parent_tag or next(iter(data))
         elem_data = data if parent_tag else data[tag]
 
+        if isinstance(elem_data, list):
+            temp_elem = ET.Element("temporary")
+            for item in elem_data:
+                child = self.dict_to_element(item, parent_tag=tag)
+                temp_elem.append(child)
+            return temp_elem
+
         elem = ET.Element(tag)
 
         if isinstance(elem_data, dict):
@@ -524,14 +546,13 @@ class XMLDictConverter:
                     elem.set(k[len(self.ATTR_PREFIX) :], v)
                 elif k == self.TEXT_KEY:
                     elem.text = v
+                elif isinstance(v, list):
+                    for child_item in v:
+                        child = self.dict_to_element(child_item, parent_tag=k)
+                        elem.append(child)
                 else:
                     child = self.dict_to_element({k: v})
                     elem.append(child)
-
-        elif isinstance(elem_data, list):
-            for item in elem_data:
-                child = self.dict_to_element(item, parent_tag=tag)
-                elem.append(child)
 
         else:
             elem.text = str(elem_data)
