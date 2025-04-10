@@ -49,7 +49,6 @@ class BaseBuilder:
             None,
         )
         substitutions = self.generate_substitutions(items, dynamic_key)
-
         yield from (
             {k: v}
             for k, v in self.group_and_expand(
@@ -413,6 +412,11 @@ class includesBuilder(BaseBuilder):
                 self.group_map[key] = sub
         else:
             grouped[template_name] = substitutions
+
+        log(f"FUCK DEBUG template: {template_name} - subs: {substitutions}")
+        log(f"FUCK DEBUG has placeholder in main include name: {has_placeholder}")
+        log(f"FUCK DEBUG grouped dictionary: {grouped}")
+        log(f"FUCK DEBUG self.group_map dictionary: {self.group_map}")
 
         return {
             key: self.resolve_values(subs, data["include"])

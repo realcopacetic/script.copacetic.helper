@@ -274,9 +274,8 @@ class XMLHandler:
         :param kwargs: Optional XML configuration arguments (e.g., `root_tag`).
         :returns: XML root Element representing structured dictionary data.
         """
-        root_tag = kwargs.get("root_tag", "includes")
-        converter = XMLDictConverter(None)
-        return converter.dict_to_xml(data_dict, root_tag=root_tag)
+        converter = XMLDictConverter(None, **kwargs)
+        return converter.dict_to_xml(data_dict)
 
 
 class XMLMerger:
@@ -370,7 +369,7 @@ class XMLDictConverter:
     ATTR_PREFIX = "@"
     TEXT_KEY = "#text"
 
-    def __init__(self, root_element, **read_kwargs):
+    def __init__(self, root_element, **kwargs):
         """
         Initialises class with kwargs passed from BUILDER_CONFIG for each
         individual xml builder.
@@ -379,8 +378,12 @@ class XMLDictConverter:
         :param read_kwargs: XML parsing options (container and element tags).
         """
         self.root = root_element
-        self.container_tag = read_kwargs.get("container_tag", "includes")
-        self.element_tag = read_kwargs.get("element_tag", "template")
+        self.root_tag = kwargs.get("root_tag")
+        self.container_tag = kwargs.get("container_tag", self.root_tag)
+        self.element_tag = kwargs.get("element_tag")
+        self.mapping_tag = kwargs.get("mapping_tag")
+        self.template_tag = kwargs.get("template_tag")
+        self.sub_element_tag = kwargs.get("sub_element_tag")
 
     def xml_to_dict(self):
         """
@@ -389,7 +392,7 @@ class XMLDictConverter:
         :returns: Structured dictionary representation of the XML.
         """
         output_dict = {
-            "mapping": self.root.findtext("mapping", default="none").lower(),
+            self.mapping_tag: self.root.findtext(self.mapping_tag, default="none").lower(),
             self.container_tag: {},
         }
 
@@ -417,10 +420,10 @@ class XMLDictConverter:
                 items = [item.strip() for item in items_elem.text.split(",")]
                 template_dict["items"] = items
 
-            include_elem = element.find("include")
+            include_elem = element.find(self.sub_element_tag)
             if include_elem is None or "name" not in include_elem.attrib:
                 log(
-                    f"{self.__class__.__name__}: Missing or invalid 'include' tag in element.",
+                    f"{self.__class__.__name__}: Missing or invalid {self.sub_element_tag} tag in element.",
                     force=True,
                 )
                 continue
@@ -429,14 +432,14 @@ class XMLDictConverter:
 
             try:
                 include_dict = self.element_to_dict(include_elem)
-                template_dict["include"] = include_dict["include"]
-                template_dict["include"][f"{self.ATTR_PREFIX}name"] = template_key
+                template_dict[self.sub_element_tag] = include_dict[self.sub_element_tag]
+                template_dict[self.sub_element_tag][f"{self.ATTR_PREFIX}name"] = template_key
 
                 output_dict[self.container_tag][template_key] = template_dict
 
             except Exception as e:
                 log(
-                    f"{self.__class__.__name__}: Error processing element '{element}' → {e}",
+                    f"{self.__class__.__name__}: Error processing element '{template_key}' → {e}",
                     force=True,
                 )
                 continue
@@ -481,7 +484,7 @@ class XMLDictConverter:
 
         return node_dict
 
-    def dict_to_xml(self, data_dict, root_tag="includes"):
+    def dict_to_xml(self, data_dict):
         """
         Converts a structured dictionary back into an XML Element,
         explicitly handling lists to avoid unwanted wrappers.
@@ -490,26 +493,35 @@ class XMLDictConverter:
         :param root_tag: Tag name for the root XML element.
         :returns: XML Element representing the structured dictionary.
         """
-        root_elem = ET.Element(root_tag)
+
+        log(f"FUCK dict_to_xml root_tag: {self.root_tag}", force=True)
+        log(f"FUCK data_dict content: {data_dict}", force=True)
+
+        root_elem = ET.Element(self.root_tag)
 
         for key, value in data_dict.items():
             try:
                 if isinstance(value, dict):
                     for inner_key, inner_value in value.items():
-                        child_elem = self.dict_to_element({inner_key: inner_value})
-
-                        if child_elem.tag == "temporary":
-                            root_elem.extend(list(child_elem))
+                        if isinstance(inner_value, list):
+                            # Explicitly handle lists at the top level
+                            for item in inner_value:
+                                child_elem = self.dict_to_element({inner_key: item})
+                                root_elem.append(child_elem)
                         else:
+                            child_elem = self.dict_to_element({inner_key: inner_value})
                             root_elem.append(child_elem)
+                elif isinstance(value, list):
+                    for item in value:
+                        child_elem = self.dict_to_element({key: item})
+                        root_elem.append(child_elem)
                 else:
                     child_elem = self.dict_to_element({key: value})
                     root_elem.append(child_elem)
 
             except Exception as e:
                 log(
-                    f"{self.__class__.__name__}: Failed to convert '{key}' with error: {e}",
-                    force=True,
+                    f"{self.__class__.__name__}: Error converting '{key}' → {e}", force=True
                 )
 
         return root_elem
@@ -531,29 +543,25 @@ class XMLDictConverter:
         tag = parent_tag or next(iter(data))
         elem_data = data if parent_tag else data[tag]
 
-        if isinstance(elem_data, list):
-            temp_elem = ET.Element("temporary")
-            for item in elem_data:
-                child = self.dict_to_element(item, parent_tag=tag)
-                temp_elem.append(child)
-            return temp_elem
-
         elem = ET.Element(tag)
 
         if isinstance(elem_data, dict):
             for k, v in elem_data.items():
                 if k.startswith(self.ATTR_PREFIX):
-                    elem.set(k[len(self.ATTR_PREFIX) :], v)
+                    elem.set(k[len(self.ATTR_PREFIX):], v)
                 elif k == self.TEXT_KEY:
                     elem.text = v
                 elif isinstance(v, list):
                     for child_item in v:
-                        child = self.dict_to_element(child_item, parent_tag=k)
+                        child = self.dict_to_element({k: child_item})
                         elem.append(child)
                 else:
                     child = self.dict_to_element({k: v})
                     elem.append(child)
-
+        elif isinstance(elem_data, list):
+            for item in elem_data:
+                child = self.dict_to_element(item, parent_tag=tag)
+                elem.append(child)
         else:
             elem.text = str(elem_data)
 
