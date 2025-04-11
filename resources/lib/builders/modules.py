@@ -134,14 +134,20 @@ class BaseBuilder:
         :param substitutions: Dict of key-value substitutions.
         :returns: Fully formatted string.
         """
+        log(f'FUCK DEBUG substitute() object {object}')
+        log(f"FUCK DEBUG substitute() substitutions {substitutions}")
         if isinstance(object, str):
             try:
+                log(f"FUCK DEBUG substitute() object is a string {object.format(**substitutions)}")
                 return object.format(**substitutions)
             except KeyError:
                 return ""
 
         elif isinstance(object, list):
             substituted_list = [self.substitute(item, substitutions) for item in object]
+            log(
+                f"FUCK DEBUG substitute() object is a list {[item for item in substituted_list if item]}"
+            )
             return [item for item in substituted_list if item]
 
         elif isinstance(object, dict):
@@ -149,6 +155,8 @@ class BaseBuilder:
                 key: self.substitute(value, substitutions)
                 for key, value in object.items()
             }
+            to_return = {k: v for k, v in substituted_dict.items() if v != {}}
+            f"FUCK DEBUG substitute() object is a dict {to_return}"
             return {k: v for k, v in substituted_dict.items() if v != {}}
 
         else:
@@ -414,6 +422,7 @@ class includesBuilder(BaseBuilder):
             grouped[template_name] = substitutions
 
         log(f"FUCK DEBUG template: {template_name} - subs: {substitutions}")
+        log(f"FUCK DEBUG data: {data}")
         log(f"FUCK DEBUG has placeholder in main include name: {has_placeholder}")
         log(f"FUCK DEBUG grouped dictionary: {grouped}")
         log(f"FUCK DEBUG self.group_map dictionary: {self.group_map}")
@@ -445,11 +454,12 @@ class includesBuilder(BaseBuilder):
                 key: self.recursive_expand(value, substitutions)
                 for key, value in data.items()
             }
+            """
             if ("@value" in expanded_dict and expanded_dict["@value"] == "") or (
                 "#text" in expanded_dict and expanded_dict["#text"] == ""
             ):
                 return {}
-
+            """
             return {
                 k: v for k, v in expanded_dict.items() if v not in ("", {}, [], None)
             }

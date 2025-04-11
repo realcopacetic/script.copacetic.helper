@@ -468,7 +468,10 @@ class XMLDictConverter:
                 child_dict[tag].append(value)
 
             for tag, values in child_dict.items():
-                if tag == "param":
+                # Always wrap certain tags (like "param" and "include") in a list, even if
+                # there is only one element. This simplifies downstream template expansion
+                # and parameter substitution logic by ensuring consistent handling.
+                if tag in {"param", "include"}:
                     node_dict[element.tag][tag] = values
                 else:
                     node_dict[element.tag][tag] = (
