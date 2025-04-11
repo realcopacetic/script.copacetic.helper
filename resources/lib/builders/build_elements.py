@@ -100,8 +100,6 @@ class BuildElements:
 
         for builder, builder_data in values_to_write.items():
             self.write_file(builder_data, builder)
-            log(f'FUCK DEBUG builder {builder}')
-            log(f'FUCK DEBUG builder_data {builder_data}')
 
         return values_to_return
 

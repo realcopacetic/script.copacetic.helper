@@ -496,10 +496,6 @@ class XMLDictConverter:
         :param root_tag: Tag name for the root XML element.
         :returns: XML Element representing the structured dictionary.
         """
-
-        log(f"FUCK dict_to_xml root_tag: {self.root_tag}", force=True)
-        log(f"FUCK data_dict content: {data_dict}", force=True)
-
         root_elem = ET.Element(self.root_tag)
 
         for key, value in data_dict.items():

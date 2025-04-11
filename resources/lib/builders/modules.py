@@ -9,6 +9,8 @@ from urllib.parse import quote
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import expand_index, log
 
+PLACEHOLDER_PATTERN = re.compile(r"{(.*?)}")
+
 
 class BaseBuilder:
     """
@@ -134,30 +136,23 @@ class BaseBuilder:
         :param substitutions: Dict of key-value substitutions.
         :returns: Fully formatted string.
         """
-        log(f'FUCK DEBUG substitute() object {object}')
-        log(f"FUCK DEBUG substitute() substitutions {substitutions}")
         if isinstance(object, str):
-            try:
-                log(f"FUCK DEBUG substitute() object is a string {object.format(**substitutions)}")
-                return object.format(**substitutions)
-            except KeyError:
-                return ""
+            if not substitutions or ("{" not in object):
+                return object
+            return PLACEHOLDER_PATTERN.sub(
+                lambda match: substitutions.get(match.group(1), ""),
+                object,
+            )
 
         elif isinstance(object, list):
-            substituted_list = [self.substitute(item, substitutions) for item in object]
-            log(
-                f"FUCK DEBUG substitute() object is a list {[item for item in substituted_list if item]}"
-            )
-            return [item for item in substituted_list if item]
+            return [self.substitute(item, substitutions) for item in object]
 
         elif isinstance(object, dict):
             substituted_dict = {
                 key: self.substitute(value, substitutions)
                 for key, value in object.items()
             }
-            to_return = {k: v for k, v in substituted_dict.items() if v != {}}
-            f"FUCK DEBUG substitute() object is a dict {to_return}"
-            return {k: v for k, v in substituted_dict.items() if v != {}}
+            return {k: v for k, v in substituted_dict.items() if v not in ("", {}, [], None)}
 
         else:
             return object
@@ -421,12 +416,6 @@ class includesBuilder(BaseBuilder):
         else:
             grouped[template_name] = substitutions
 
-        log(f"FUCK DEBUG template: {template_name} - subs: {substitutions}")
-        log(f"FUCK DEBUG data: {data}")
-        log(f"FUCK DEBUG has placeholder in main include name: {has_placeholder}")
-        log(f"FUCK DEBUG grouped dictionary: {grouped}")
-        log(f"FUCK DEBUG self.group_map dictionary: {self.group_map}")
-
         return {
             key: self.resolve_values(subs, data["include"])
             for key, subs in grouped.items()
@@ -454,12 +443,10 @@ class includesBuilder(BaseBuilder):
                 key: self.recursive_expand(value, substitutions)
                 for key, value in data.items()
             }
-            """
             if ("@value" in expanded_dict and expanded_dict["@value"] == "") or (
                 "#text" in expanded_dict and expanded_dict["#text"] == ""
             ):
                 return {}
-            """
             return {
                 k: v for k, v in expanded_dict.items() if v not in ("", {}, [], None)
             }
