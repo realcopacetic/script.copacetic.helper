@@ -3,7 +3,7 @@
 from resources.lib.builders.builder_config import BUILDER_CONFIG, BUILDER_MAPPINGS
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import SKINEXTRAS, Path, log, log_duration
-from resources.lib.shared.xml import XMLMerger, XMLDictConverter
+from resources.lib.shared.xml import XMLDictConverter, XMLMerger
 
 
 class BuildElements:
@@ -36,7 +36,7 @@ class BuildElements:
         self.xml_merger = XMLMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
             subfolders=["includes"],
-            **self.read_kwargs
+            **self.read_kwargs,
         )
         self.merged_xml = self.xml_merger.yield_merged_data()
 

@@ -26,9 +26,11 @@ class BaseBuilder:
         :param placeholders: Dictionary of placeholder names for formatting.
         :param placeholders: Dictionary of metatada for injection into xml elements
         """
-        self.loop_values = loop_values
-        self.placeholders = placeholders
-        self.metadata = metadata
+        self.loop_values, self.placeholders, self.metadata = (
+            loop_values,
+            placeholders,
+            metadata,
+        )
         self.rules = RuleEngine()
         self.group_map = {}
 
@@ -510,7 +512,11 @@ class skinsettingsBuilder(BaseBuilder):
             grouped[key].append(sub)
             self.group_map[key] = sub
 
-        return {key: self.resolve_values(subs, data) for key, subs in grouped.items()}
+        resolved = {
+            key: self.resolve_values(subs, data) for key, subs in grouped.items()
+        }
+
+        return self._apply_defaults(resolved, data)
 
     def resolve_values(self, subs, data):
         """
@@ -539,6 +545,37 @@ class skinsettingsBuilder(BaseBuilder):
             final_items = [item for item in items if item in excluded]
 
         return {"items": final_items}
+
+    def _apply_defaults(self, resolved, setting_data):
+        """
+        Resolves default values per window or content type, similar to fallbacks.
+
+        :param resolved: Dict of resolved skinsettings.
+        :param setting_data: The full skinsetting definition including defaults.
+        :returns: Updated resolved settings dict with defaults applied.
+        """
+        default_key = next(
+            (k for k in setting_data if k.startswith("defaults_for_")), None
+        )
+        if not default_key:
+            return resolved
+
+        default_field = default_key.replace("defaults_for_", "").strip("{}")
+        defaults_values = setting_data[default_key].get("defaults_values", [])
+
+        settings_by_group = defaultdict(list)
+        for setting_name in resolved:
+            sub = self.group_map.get(setting_name, {})
+            group = sub.get(default_field)
+            if group:
+                settings_by_group[group].append(setting_name)
+
+        for i, (group_key, setting_list) in enumerate(settings_by_group.items()):
+            default_value = defaults_values[min(i, len(defaults_values) - 1)]
+            for setting_name in setting_list:
+                resolved[setting_name]["default"] = default_value
+
+        return resolved
 
 
 class variablesBuilder(BaseBuilder):

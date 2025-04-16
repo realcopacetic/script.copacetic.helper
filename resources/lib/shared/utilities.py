@@ -47,14 +47,23 @@ VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 
+"""HELPER CLASSES"""
+
+
+class AutoInitMixin:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+"""KODI HELPERS"""
+
+
 def clear_playlists():
     log("Clear playlists")
     VIDEOPLAYLIST.clear()
     MUSICPLAYLIST.clear()
     MUSICPLAYLIST.unshuffle()
-
-
-"""KODI HELPERS"""
 
 
 def condition(condition):
