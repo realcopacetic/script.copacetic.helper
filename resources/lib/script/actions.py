@@ -401,10 +401,6 @@ def toggle_addon(id, **kwargs):
         DIALOG.notification(id, ADDON.getLocalizedString(32206))
 
 
-def view_setter(**kwargs):
-    ...
-
-
 def dynamic_settings_window(**kwargs):
     """
     Opens the a dynamic settings window as a modal dialog.

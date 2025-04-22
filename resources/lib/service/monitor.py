@@ -1,16 +1,19 @@
 # author: realcopacetic
 
 import xbmc
+from pathlib import Path
 
 from resources.lib.builders.build_elements import BuildElements
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared.art import SlideshowMonitor
+from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     BLURS,
     CROPS,
+    SKINSETTINGS,
     TEMPS,
     condition,
     create_dir,
@@ -18,6 +21,7 @@ from resources.lib.shared.utilities import (
     infolabel,
     log,
     log_and_execute,
+    skin_string,
     validate_path,
 )
 
@@ -62,6 +66,12 @@ class Monitor(xbmc.Monitor):
             or self.DEFAULT_SLIDESHOW_INTERVAL
         )
 
+    def _create(self):
+        """Handles full startup initialization (directories + skin files)."""
+        self._ensure_directories_exist()
+        self._generate_missing_skin_files()
+        self._ensure_skinsettings_defaults()
+
     def _ensure_directories_exist(self):
         """Ensures required directories for blur, crop, and temp exist at startup."""
         if not validate_path(self.blur_folder):
@@ -87,10 +97,25 @@ class Monitor(xbmc.Monitor):
         if contexts_to_run:
             elements_processor.process(run_contexts=contexts_to_run)
 
-    def _create(self):
-        """Handles full startup initialization (directories + skin files)."""
-        self._ensure_directories_exist()
-        self._generate_missing_skin_files()
+    def _ensure_skinsettings_defaults(self):
+        """Ensures default skinsettings are set at startup if not already defined."""
+        json_handler = JSONHandler(SKINSETTINGS)
+        skinsettings_data = json_handler.data.get(Path(SKINSETTINGS))
+
+        if not skinsettings_data:
+            log(
+                f"{self.__class__.__name__}: Skinsettings file missing or empty at {SKINSETTINGS}",
+                force=True,
+            )
+            return
+
+        for setting_key, setting_data in skinsettings_data.items():
+            default_value = setting_data.get("default")
+            if not default_value:
+                continue
+
+            if not condition(f"Skin.String({setting_key})"):
+                skin_string(setting_key, default_value)
 
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""
@@ -111,7 +136,7 @@ class Monitor(xbmc.Monitor):
     def _conditions_met(self):
         """
         Checks whether polling should continue (not idle + valid skin).
-        
+
         :returns: Boolean
         """
         return self._get_skindir() and not self.idle
