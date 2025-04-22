@@ -554,26 +554,31 @@ class skinsettingsBuilder(BaseBuilder):
         :param setting_data: The full skinsetting definition including defaults.
         :returns: Updated resolved settings dict with defaults applied.
         """
-        default_key = next(
-            (k for k in setting_data if k.startswith("defaults_for_")), None
-        )
+        default_key = next((k for k in setting_data if k.startswith("defaults_for_")), None)
         if not default_key:
-            return resolved
+            return resolved  # if no default key is defined, simply return resolved as-is
 
         default_field = default_key.replace("defaults_for_", "").strip("{}")
-        defaults_values = setting_data[default_key].get("defaults_values", [])
+        default_values = setting_data[default_key].get("defaults_values", [])
 
-        settings_by_group = defaultdict(list)
+        all_settings_by_group = defaultdict(list)
         for setting_name in resolved:
             sub = self.group_map.get(setting_name, {})
-            group = sub.get(default_field)
-            if group:
-                settings_by_group[group].append(setting_name)
+            if default_field in sub:
+                all_settings_by_group[sub[default_field]].append(setting_name)
 
-        for i, (group_key, setting_list) in enumerate(settings_by_group.items()):
-            default_value = defaults_values[min(i, len(defaults_values) - 1)]
+        for i, (group_key, setting_list) in enumerate(all_settings_by_group.items()):
+            default_value = default_values[min(i, len(default_values) - 1)]
+
+            if not setting_list:
+                continue
+
             for setting_name in setting_list:
                 resolved[setting_name]["default"] = default_value
+
+                log(
+                    f"{self.__class__.__name__}: [Default applied] {setting_name} default = {default_value} (group: {group_key})",
+                )
 
         return resolved
 
