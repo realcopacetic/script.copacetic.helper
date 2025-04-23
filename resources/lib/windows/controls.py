@@ -1,5 +1,7 @@
 # author: realcopacetic
 
+import re
+
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import (
     condition,
@@ -10,8 +12,15 @@ from resources.lib.shared.utilities import (
     toggle_bool,
 )
 
+COLOR_KEYS = {
+    "textcolor": "textColor",
+    "focusedcolor": "focusedColor",
+    "disabledcolor": "disabledColor",
+    "shadowcolor": "shadowColor",
+}
 
-def set_instance_labels(link, control, instance, skinsettings):
+
+def set_instance_labels(link, control, instance, skinsettings, focused_control_id):
     """
     Apply label and label2 to the control instance.
     If label2 is missing, use the current skin string or fallback value.
@@ -36,9 +45,26 @@ def set_instance_labels(link, control, instance, skinsettings):
             "",
         )
     )
-
+    colors = {
+        param_name: resolve_colour(control[color_key])
+        for color_key, param_name in COLOR_KEYS.items()
+        if control.get(color_key)
+    }
+    if focused_control_id != instance.getId() and (
+        color := colors.get("textColor")
+    ):
+        label2 = f"[COLOR {color}]{label2}[/COLOR]"
     if label or label2:
-        instance.setLabel(label=label or "", label2=label2 or "")
+        instance.setLabel(label=label or "", label2=label2 or "", **colors)
+
+
+def resolve_colour(value):
+    info_match = re.match(r"\$INFO\[(.*?)\]", value)
+    if info_match:
+        resolved = infolabel(info_match.group(1)).strip()
+        return f"0x{resolved}"
+    else:
+        return f"0x{value}"
 
 
 class BaseControlHandler:
@@ -46,6 +72,7 @@ class BaseControlHandler:
     Base handler class for dynamic Kodi skin controls.
     Manages visibility, skinsetting references, and dynamic linking.
     """
+
     def __init__(self, control, instance, skinsettings):
         """
         :param control: Dictionary defining control from JSON.
@@ -57,7 +84,10 @@ class BaseControlHandler:
         self.skinsettings = skinsettings
         self.rule_engine = RuleEngine()
 
-    def update_visibility(self, current_content):
+    def request_focus_change(self, target_id):
+        self.focus_target_id = target_id
+
+    def update_visibility(self, current_content, focused_control_id):
         """
         Evaluates and sets visibility based on the control's visible condition.
         """
@@ -72,9 +102,6 @@ class BaseControlHandler:
             else True
         )
 
-        log(f"[DEBUG] BaseHControlHandler.update_visibility() Visibility condition: {visible_condition}")
-        log(f"[DEBUG] BaseHControlHandler.update_visibility() RuleEngine result: {is_visible}")
-
         self.instance.setVisible(is_visible)
 
     def get_active_link(self, current_content):
@@ -86,8 +113,12 @@ class BaseControlHandler:
         """
         trigger = f"focused({current_content})"
         return next(
-            (link for link in self.control.get("dynamic_linking", []) if link.get("update_trigger") == trigger),
-            {}
+            (
+                link
+                for link in self.control.get("dynamic_linking", [])
+                if link.get("update_trigger") == trigger
+            ),
+            {},
         )
 
     def setting_id(self, current_content):
@@ -105,13 +136,17 @@ class RadioButtonHandler(BaseControlHandler):
     Handles interactions and updates for radiobutton controls.
     """
 
-    def update_visibility(self, current_content):
+    def update_visibility(self, current_content, focused_control_id):
         """
         Sets visibility and label/label2 for the radiobutton control.
         """
-        super().update_visibility(current_content)
+        super().update_visibility(current_content, focused_control_id)
         set_instance_labels(
-            self.get_active_link(current_content), self.control, self.instance, self.skinsettings
+            self.get_active_link(current_content),
+            self.control,
+            self.instance,
+            self.skinsettings,
+            focused_control_id,
         )
 
     def update_value(self, current_content):
@@ -123,8 +158,9 @@ class RadioButtonHandler(BaseControlHandler):
         if not (setting_id := self.setting_id(current_content)):
             return
 
-        values = self.skinsettings.get(setting_id, {}).get("items", [])
-        is_selected = condition(f"Skin.HasSetting({setting_id})")
+        values = self.skinsettings.get(setting_id, {}).get("items", ["false", "true"])
+        current_value = infolabel(f"Skin.String({setting_id})")
+        is_selected = current_value == "true"
 
         self.instance.setSelected(is_selected)
         self.instance.setEnabled(len(values) > 1)
@@ -145,10 +181,9 @@ class RadioButtonHandler(BaseControlHandler):
         ):
             return
 
-        values = self.skinsettings.get(setting_id, {}).get("items", [])
-
-        if "true" in values and "false" in values:
-            toggle_bool(setting_id)
+        new_value = "false" if self.instance.isSelected() else "true"
+        skin_string(setting_id, new_value)
+        self.instance.setSelected(new_value == "true")
 
 
 class SliderHandler(BaseControlHandler):
@@ -215,17 +250,21 @@ class SliderExHandler(SliderHandler):
         :param slider_instance: Main slider control instance.
         :param button_instance: Associated label button control.
         :param skinsettings: Skinsetting mappings.
-        """        
+        """
         super().__init__(control, slider_instance, skinsettings)
         self.button_instance = button_instance
 
-    def update_visibility(self, current_content):
+    def update_visibility(self, current_content, focused_control_id):
         """
         Updates slider visibility and updates the button's label/label2.
         """
-        super().update_visibility(current_content)
+        super().update_visibility(current_content, focused_control_id)
         set_instance_labels(
-            self.get_active_link(current_content), self.control, self.button_instance, self.skinsettings
+            self.get_active_link(current_content),
+            self.control,
+            self.button_instance,
+            self.skinsettings,
+            focused_control_id,
         )
 
     def handle_interaction(self, current_content, a_id, focused_control_id=None):
@@ -239,9 +278,9 @@ class SliderExHandler(SliderHandler):
 
         if a_id == ACTION_SELECT_ITEM:
             if self._on_button_focused(focused_control_id):
-                self._focus_slider()
+                self.request_focus_change(self.instance.getId())
             elif self._on_slider_focused(focused_control_id):
-                self._focus_button()
+                self.request_focus_change(self.button_instance.getId())
         else:
             super().handle_interaction(current_content, a_id, focused_control_id)
 
@@ -256,15 +295,3 @@ class SliderExHandler(SliderHandler):
         :return: True if slider is focused.
         """
         return self.instance.getId() == focused_id
-
-    def _focus_button(self):
-        """
-        Moves focus to the associated button.
-        """
-        execute(f"Control.SetFocus({self.button_instance.getId()})")
-
-    def _focus_slider(self):
-        """
-        Moves focus to the associated slider.
-        """
-        execute(f"Control.SetFocus({self.instance.getId()})")

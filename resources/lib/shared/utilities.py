@@ -105,11 +105,31 @@ def skin_string(key, value=False, debug=False):
     :param debug: If True, forces debug log.
     """
     if value:
-        xbmc.executebuiltin(f"Skin.SetString({key}, {value})")
+        execute(f"Skin.SetString({key}, {value})")
         log(f"Skin string: Set, {key}, {value}", force=debug)
     else:
-        xbmc.executebuiltin(f"Skin.SetString({key},)")
+        execute(f"Skin.SetString({key},)")
         log(f"Skin string: Clear, {key}", force=debug)
+
+
+def reset_bool(setting_id, debug=False):
+    """
+    Resets (clears) a boolean skin setting with optional logging.
+
+    :param setting_id: The skin setting ID (e.g., "mysetting").
+    """
+    execute(f"Skin.Reset({setting_id})")
+    log(f"Skin Bool reset: {setting_id}", force=debug)
+
+
+def set_bool(setting_id, debug=False):
+    """
+    Sets a boolean skin setting to True with optional logging.
+
+    :param setting_id: The skin setting ID (e.g., "mysetting").
+    """
+    execute(f'Skin.SetBool({setting_id})')
+    log(f"Skin Bool set: {setting_id}", force=debug)
 
 
 def toggle_bool(setting_id, debug=False):
@@ -117,16 +137,14 @@ def toggle_bool(setting_id, debug=False):
     Toggles a boolean skin setting using Kodi built-in functions.
 
     If the setting is currently enabled (Skin.HasSetting), it will reset (clear it).
-    If the setting is currently disabled, it will set it to true.
+    If the setting is currently disabled, it will set it to True.
 
     :param setting_id: The skin setting ID (e.g., "mysetting").
     """
     if condition(f"Skin.HasSetting({setting_id})"):
-        execute(f"Skin.Reset({setting_id})")
-        log(f"Skin Bool reset: {setting_id}", force=debug)
-    else:
-        execute(f"Skin.SetBool({setting_id})")
-        log(f"Skin Bool set: {setting_id}", force=debug)
+        reset_bool(setting_id)
+    else: 
+        set_bool(setting_id)
 
 
 def window_property(key, value=False, window_id=10000, debug=False):

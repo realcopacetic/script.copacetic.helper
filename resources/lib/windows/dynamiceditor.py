@@ -6,6 +6,7 @@ from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
     CONTROLS,
     SKINSETTINGS,
+    execute,
     log,
 )
 from resources.lib.windows.control_factory import DynamicControlFactory
@@ -92,7 +93,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.onFocusChanged(self.last_focus)
 
         for handler in self.handlers.values():
-            handler.update_visibility(self.current_content)
+            handler.update_visibility(self.current_content, self.last_focus)
 
     def onAction(self, action):
         """
@@ -101,18 +102,26 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object representing the user's input.
         """
+        requested_focus_change = None
         a_id = action.getId()
         current_focus = self.getFocusId()
+
+        for handler in self.handlers.values():
+            handler.handle_interaction(self.current_content, a_id, current_focus)
+            if hasattr(handler, "focus_target_id"):
+                requested_focus_change = handler.focus_target_id
+                del handler.focus_target_id
+
+        if requested_focus_change:
+            execute(f"Control.SetFocus({requested_focus_change})")
+            current_focus = requested_focus_change
 
         if current_focus != self.last_focus:
             self.onFocusChanged(current_focus)
             self.last_focus = current_focus
 
-        for handler in self.handlers.values():
-            handler.handle_interaction(self.current_content, a_id, current_focus)
-
         for handler in self.handlers.values():  
-            handler.update_visibility(self.current_content)
+            handler.update_visibility(self.current_content, self.last_focus)
 
         super().onAction(action)
 
