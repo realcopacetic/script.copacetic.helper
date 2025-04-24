@@ -304,10 +304,12 @@ class expressionsBuilder(BaseBuilder):
 
         for sub in subs:
             for rule in rules:
-                condition = rule["condition"].format(**sub)
+                condition = rule.get("condition")
 
-                if not self.rules.evaluate(condition):
-                    continue
+                if condition:
+                    formatted_condition = condition.format(**sub)
+                    if not self.rules.evaluate(formatted_condition):
+                        continue
 
                 value = rule["value"].format(**sub)
 
@@ -548,7 +550,9 @@ class skinsettingsBuilder(BaseBuilder):
 
     def _apply_defaults(self, resolved, setting_data):
         """
-        Resolves default values per window or content type, similar to fallbacks.
+        Resolves default values per loop value placeholder, similar to fallbacks.
+        Default will only be applied if it is an allowed skinsetting value.
+        If only one skinsetting value is allowed, this will overwrite any default.
 
         :param resolved: Dict of resolved skinsettings.
         :param setting_data: The full skinsetting definition including defaults.
@@ -574,11 +578,19 @@ class skinsettingsBuilder(BaseBuilder):
                 continue
 
             for setting_name in setting_list:
-                resolved[setting_name]["default"] = default_value
+                allowed_items = resolved[setting_name]["items"]
+                if default_value not in allowed_items: # default_value prohibited, safe fallback to first allowed item
+                    fallback_default = allowed_items[0]
+                    resolved[setting_name]["default"] = fallback_default
 
-                log(
-                    f"{self.__class__.__name__}: [Default applied] {setting_name} default = {default_value} (group: {group_key})",
-                )
+                    log(
+                        f"{self.__class__.__name__}: [Default override] {setting_name} default '{default_value}' invalid; using '{fallback_default}' instead (group: {group_key})"
+                    )
+                else: # default_value allowed 
+                    resolved[setting_name]["default"] = default_value
+                    log(
+                        f"{self.__class__.__name__}: [Default applied] {setting_name} default = {default_value} (group: {group_key})",
+                    )
 
         return resolved
 

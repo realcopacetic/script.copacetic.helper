@@ -403,7 +403,9 @@ def toggle_addon(id, **kwargs):
 
 def dynamic_settings_window(**kwargs):
     """
-    Opens the a dynamic settings window as a modal dialog.
+    Opens a dynamic settings window as a modal dialog and collects 
+    any static and dynamic controls that have been expanded from
+    skinner templates and tagged with this window's name.
     """
     from resources.lib.windows.dynamiceditor import DynamicEditor
 
@@ -418,6 +420,9 @@ def dynamic_settings_window(**kwargs):
 
 
 def update_views(**kwargs):
+    """
+    
+    """
     from resources.lib.builders.build_elements import BuildElements
 
     builder = BuildElements()
