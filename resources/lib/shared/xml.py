@@ -22,12 +22,6 @@ def xml_functions(func):
         sub_element_tag = kwargs.get("sub_element_tag")
         transform_func = kwargs.get("transform_func")
 
-        if not self.path.exists():
-            log(
-                f"{self.__class__.__name__}: File '{self.path}' not found, creating a new one."
-            )
-            self._create_new_xml(root_tag, element_tag)
-
         if not transform_func:
             log(
                 f"{self.__class__.__name__}: ERROR - No transform function provided!",

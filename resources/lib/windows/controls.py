@@ -180,10 +180,10 @@ class RadioButtonHandler(BaseControlHandler):
             or not (setting_id := self.setting_id(current_content))
         ):
             return
+        
+        new_value = "true" if self.instance.isSelected() else "false"
 
-        new_value = "false" if self.instance.isSelected() else "true"
         skin_string(setting_id, new_value)
-        self.instance.setSelected(new_value == "true")
 
 
 class SliderHandler(BaseControlHandler):
@@ -198,7 +198,7 @@ class SliderHandler(BaseControlHandler):
         :param current_content: Currently focused static control ID.
         """
         if not (setting_id := self.setting_id(current_content)):
-            return
+            return False
 
         setting_values = self.skinsettings.get(setting_id, {}).get("items", [])
 
@@ -209,7 +209,9 @@ class SliderHandler(BaseControlHandler):
             except ValueError:
                 index = 0
             self.instance.setInt(index, 0, 1, len(setting_values) - 1)
-        self.instance.setEnabled(len(setting_values) > 1)
+        enabled = len(setting_values) > 1
+        self.instance.setEnabled(enabled)
+        return enabled
 
     def handle_interaction(self, current_content, a_id, focused_control_id=None):
         """
@@ -266,6 +268,15 @@ class SliderExHandler(SliderHandler):
             self.skinsettings,
             focused_control_id,
         )
+
+    def update_value(self, current_content):
+        """
+        Passes slider update from parent class then enables/disables button accordingly.
+
+        :param current_content: Currently focused static control ID.
+        """
+        enabled = super().update_value(current_content)
+        self.button_instance.setEnabled(enabled)
 
     def handle_interaction(self, current_content, a_id, focused_control_id=None):
         """

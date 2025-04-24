@@ -417,6 +417,14 @@ def dynamic_settings_window(**kwargs):
     del myWindow
 
 
+def update_views(**kwargs):
+    from resources.lib.builders.build_elements import BuildElements
+
+    builder = BuildElements()
+    builder.process(run_contexts=("runtime",))
+    log_and_execute("ReloadSkin()")
+
+
 def widget_move(posa, posb, **kwargs):
     """
     Swaps widget configuration between two slots (A ↔ B).
