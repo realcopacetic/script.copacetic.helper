@@ -285,7 +285,7 @@ class ImageEditor:
 
         return (
             (source_url, destination_url)
-            if validate_path(source_url)
+            if validate_path(str(source_url))
             else (self._create_temp_file(decoded_url, cached_thumb), destination_url)
         )
 
@@ -296,7 +296,7 @@ class ImageEditor:
         :returns: Path to the temp file.
         """
         temp_url = Path(self.temp_folder) / cached_thumb
-        if not validate_path(temp_url) and xbmcvfs.copy(url, temp_url):
+        if not validate_path(str(temp_url)) and xbmcvfs.copy(url, temp_url):
             log(f"{self.__class__.__name__}: Temporary file created → {temp_url}")
         return temp_url
 
