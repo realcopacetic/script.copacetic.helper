@@ -434,6 +434,18 @@ class includesBuilder(BaseBuilder):
         """
         return {"include": self.recursive_expand(include_element, substitutions)}
 
+    def contains_placeholder(self, data, substitutions):
+        """
+        Recursively checks if data contains any placeholders from substitutions.
+        """
+        if isinstance(data, dict):
+            return any(self.contains_placeholder(value, substitutions) for value in data.values())
+        elif isinstance(data, list):
+            return any(self.contains_placeholder(item, substitutions) for item in data)
+        elif isinstance(data, str):
+            return any(f"{{{p}}}" in data for sub in substitutions for p in sub)
+        return False
+
     def recursive_expand(self, data, substitutions):
         """
         Recursively expands placeholders within dictionaries and lists, explicitly
@@ -452,21 +464,15 @@ class includesBuilder(BaseBuilder):
             ):
                 return {}
             return {
-                k: v for k, v in expanded_dict.items() if v not in ("", {}, [], None)
+                k: v 
+                for k, v in expanded_dict.items() 
+                if v not in ("", {}, [], None) or k == "nested"
             }
 
         elif isinstance(data, list):
             expanded_list = []
             for item in data:
-                expand_multiple = (
-                    isinstance(item, dict)
-                    and "@content" in item
-                    and any(
-                        f"{{{p}}}" in item["@content"]
-                        for sub in substitutions
-                        for p in sub
-                    )
-                )
+                expand_multiple = self.contains_placeholder(item, substitutions)
                 sub_list = substitutions if expand_multiple else [substitutions[0]]
                 for sub in sub_list:
                     expanded_item = self.recursive_expand(item, [sub])

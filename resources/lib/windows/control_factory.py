@@ -2,12 +2,14 @@
 
 from resources.lib.shared.utilities import log
 from resources.lib.windows.controls import (
+    ButtonHandler,
     RadioButtonHandler,
     SliderExHandler,
     SliderHandler,
 )
 
 HANDLER_REGISTRY = {
+    "button": ButtonHandler,
     "radiobutton": RadioButtonHandler,
     "slider": SliderHandler,
     "sliderex": SliderExHandler,

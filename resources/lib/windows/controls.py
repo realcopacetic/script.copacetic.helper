@@ -4,12 +4,8 @@ import re
 
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import (
-    condition,
-    execute,
     infolabel,
-    log,
     skin_string,
-    toggle_bool,
 )
 
 COLOR_KEYS = {
@@ -50,9 +46,7 @@ def set_instance_labels(link, control, instance, skinsettings, focused_control_i
         for color_key, param_name in COLOR_KEYS.items()
         if control.get(color_key)
     }
-    if focused_control_id != instance.getId() and (
-        color := colors.get("textColor")
-    ):
+    if focused_control_id != instance.getId() and (color := colors.get("textColor")):
         label2 = f"[COLOR {color}]{label2}[/COLOR]"
     if label or label2:
         instance.setLabel(label=label or "", label2=label2 or "", **colors)
@@ -82,6 +76,7 @@ class BaseControlHandler:
         self.control = control
         self.instance = instance
         self.skinsettings = skinsettings
+        self.description = control.get("description")
         self.rule_engine = RuleEngine()
 
     def request_focus_change(self, target_id):
@@ -129,6 +124,17 @@ class BaseControlHandler:
         :return: Skinsetting ID string or None.
         """
         return self.get_active_link(current_content).get("linked_setting")
+
+
+class ButtonHandler(BaseControlHandler):
+    """
+    Empty ButtonHandler class so that BaseControlHandler can pass associated
+    description labels for buttons.
+    """
+
+    def update_value(self, current_content): ...
+
+    def handle_interaction(self, current_content, a_id, focused_control_id=None): ...
 
 
 class RadioButtonHandler(BaseControlHandler):
@@ -180,7 +186,7 @@ class RadioButtonHandler(BaseControlHandler):
             or not (setting_id := self.setting_id(current_content))
         ):
             return
-        
+
         new_value = "true" if self.instance.isSelected() else "false"
 
         skin_string(setting_id, new_value)
@@ -255,6 +261,7 @@ class SliderExHandler(SliderHandler):
         """
         super().__init__(control, slider_instance, skinsettings)
         self.button_instance = button_instance
+        self.button_id = button_instance.getId()
 
     def update_visibility(self, current_content, focused_control_id):
         """

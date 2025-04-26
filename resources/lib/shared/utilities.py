@@ -268,7 +268,7 @@ def validate_path(path):
     :param path: File or folder path.
     :returns: True if path exists.
     """
-    return xbmcvfs.exists(path)
+    return xbmcvfs.exists(str(path))
 
 
 """JSON"""

@@ -73,6 +73,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         Initializes controls and binds handlers. Applies initial visibility logic.
         """
+        self.description_label = self.getControl(6)
+
         for control_id, control in self.all_controls.items():
             try:
                 instance = self.getControl(control["id"])
@@ -120,7 +122,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self.onFocusChanged(current_focus)
             self.last_focus = current_focus
 
-        for handler in self.handlers.values():  
+        for handler in self.handlers.values():
             handler.update_visibility(self.current_content, self.last_focus)
 
         super().onAction(action)
@@ -132,6 +134,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param focus_id: ID of the newly focused control.
         """
+        # Check if static control is focused and update dynamic controls
         focus_control_id = next(
             (
                 cid
@@ -146,3 +149,19 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             # Only update dyanmic control values when focusing a static control
             for handler in self.handlers.values():
                 handler.update_value(self.current_content)
+
+        # Find focused handler and pass description text to label
+        handler = next(
+            (
+                h
+                for h in self.handlers.values()
+                if h.instance.getId() == focus_id
+                or getattr(h, "button_id", None) == focus_id
+            ),
+            None,
+        )
+
+        if handler and (description_text := handler.description):
+            self.description_label.setText(description_text)
+        else:
+            self.description_label.setText("")
