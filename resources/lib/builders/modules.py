@@ -168,6 +168,113 @@ class BaseBuilder:
         return {**substitutions, **combined_metadata}
 
 
+class configsBuilder(BaseBuilder):
+    """
+    Builder that resolves UI configs based on exclusion/inclusion rules.
+    """
+
+    def group_and_expand(self, template_name, data, substitutions):
+        """
+        Groups and evaluates configs options based on filtering logic.
+
+        :param template_name: Template name for setting key.
+        :param data: Rule and items data.
+        :param substitutions: List of dicts for placeholder substitution.
+        :returns: Dictionary of setting key → {items: [...]}
+        """
+        grouped = defaultdict(list)
+        for sub in substitutions:
+            key = template_name.format(**sub)
+            grouped[key].append(sub)
+            self.group_map[key] = sub
+
+        resolved = {
+            key: self.resolve_values(subs, data) for key, subs in grouped.items()
+        }
+
+        return self._apply_defaults(resolved, data)
+
+    def resolve_values(self, subs, data):
+        """
+        Resolves filtered setting values based on rule conditions.
+
+        :param subs: List of substitutions for a single setting group.
+        :param data: Full setting definition, including filter_mode and rules.
+        :returns: Dict of final filtered items.
+        """
+        items = data.get("items", [])
+        filter_mode = data.get("filter_mode", "exclude")
+        rules = data.get("rules", [])
+
+        excluded = set()
+        for sub in subs:
+            for rule in rules:
+                condition = rule.get("condition", "").format(**sub)
+                values = rule.get("value", [])
+
+                if self.rules.evaluate(condition):
+                    excluded.update(values)
+
+        if filter_mode == "exclude":
+            final_items = [item for item in items if item not in excluded]
+        else:
+            final_items = [item for item in items if item in excluded]
+
+        return {"items": final_items}
+
+    def _apply_defaults(self, resolved, setting_data):
+        """
+        Resolves default values per loop value placeholder, similar to fallbacks.
+        Default will only be applied if it is an allowed config value.
+        If only one config value is allowed, this will overwrite any default.
+
+        :param resolved: Dict of resolved configs.
+        :param setting_data: The full config definition including defaults.
+        :returns: Updated resolved settings dict with defaults applied.
+        """
+        default_key = next(
+            (k for k in setting_data if k.startswith("defaults_for_")), None
+        )
+        if not default_key:
+            return (
+                resolved  # if no default key is defined, simply return resolved as-is
+            )
+
+        default_field = default_key.replace("defaults_for_", "").strip("{}")
+        default_values = setting_data[default_key].get("defaults_values", [])
+
+        all_settings_by_group = defaultdict(list)
+        for setting_name in resolved:
+            sub = self.group_map.get(setting_name, {})
+            if default_field in sub:
+                all_settings_by_group[sub[default_field]].append(setting_name)
+
+        for i, (group_key, setting_list) in enumerate(all_settings_by_group.items()):
+            default_value = default_values[min(i, len(default_values) - 1)]
+
+            if not setting_list:
+                continue
+
+            for setting_name in setting_list:
+                allowed_items = resolved[setting_name]["items"]
+                if (
+                    default_value not in allowed_items
+                ):  # default_value prohibited, safe fallback to first allowed item
+                    fallback_default = allowed_items[0]
+                    resolved[setting_name]["default"] = fallback_default
+
+                    log(
+                        f"{self.__class__.__name__}: [Default override] {setting_name} default '{default_value}' invalid; using '{fallback_default}' instead (group: {group_key})"
+                    )
+                else:  # default_value allowed
+                    resolved[setting_name]["default"] = default_value
+                    log(
+                        f"{self.__class__.__name__}: [Default applied] {setting_name} default = {default_value} (group: {group_key})",
+                    )
+
+        return resolved
+
+
 class controlsBuilder(BaseBuilder):
     """
     Builder that generates fully expanded control definitions.
@@ -498,107 +605,6 @@ class includesBuilder(BaseBuilder):
                 xsp_json = quote(json.dumps(meta["xsp"]))
                 xsp_json = escinfo_pattern.sub(r"\1", xsp_json)
                 meta["xsp"] = f"?xsp={xsp_json}"
-
-
-class skinsettingsBuilder(BaseBuilder):
-    """
-    Builder that resolves UI skinsettings based on exclusion/inclusion rules.
-    """
-
-    def group_and_expand(self, template_name, data, substitutions):
-        """
-        Groups and evaluates skinsetting options based on filtering logic.
-
-        :param template_name: Template name for setting key.
-        :param data: Rule and items data.
-        :param substitutions: List of dicts for placeholder substitution.
-        :returns: Dictionary of setting key → {items: [...]}
-        """
-        grouped = defaultdict(list)
-        for sub in substitutions:
-            key = template_name.format(**sub)
-            grouped[key].append(sub)
-            self.group_map[key] = sub
-
-        resolved = {
-            key: self.resolve_values(subs, data) for key, subs in grouped.items()
-        }
-
-        return self._apply_defaults(resolved, data)
-
-    def resolve_values(self, subs, data):
-        """
-        Resolves filtered setting values based on rule conditions.
-
-        :param subs: List of substitutions for a single setting group.
-        :param data: Full setting definition, including filter_mode and rules.
-        :returns: Dict of final filtered items.
-        """
-        items = data.get("items", [])
-        filter_mode = data.get("filter_mode", "exclude")
-        rules = data.get("rules", [])
-
-        excluded = set()
-        for sub in subs:
-            for rule in rules:
-                condition = rule.get("condition", "").format(**sub)
-                values = rule.get("value", [])
-
-                if self.rules.evaluate(condition):
-                    excluded.update(values)
-
-        if filter_mode == "exclude":
-            final_items = [item for item in items if item not in excluded]
-        else:
-            final_items = [item for item in items if item in excluded]
-
-        return {"items": final_items}
-
-    def _apply_defaults(self, resolved, setting_data):
-        """
-        Resolves default values per loop value placeholder, similar to fallbacks.
-        Default will only be applied if it is an allowed skinsetting value.
-        If only one skinsetting value is allowed, this will overwrite any default.
-
-        :param resolved: Dict of resolved skinsettings.
-        :param setting_data: The full skinsetting definition including defaults.
-        :returns: Updated resolved settings dict with defaults applied.
-        """
-        default_key = next((k for k in setting_data if k.startswith("defaults_for_")), None)
-        if not default_key:
-            return resolved  # if no default key is defined, simply return resolved as-is
-
-        default_field = default_key.replace("defaults_for_", "").strip("{}")
-        default_values = setting_data[default_key].get("defaults_values", [])
-
-        all_settings_by_group = defaultdict(list)
-        for setting_name in resolved:
-            sub = self.group_map.get(setting_name, {})
-            if default_field in sub:
-                all_settings_by_group[sub[default_field]].append(setting_name)
-
-        for i, (group_key, setting_list) in enumerate(all_settings_by_group.items()):
-            default_value = default_values[min(i, len(default_values) - 1)]
-
-            if not setting_list:
-                continue
-
-            for setting_name in setting_list:
-                allowed_items = resolved[setting_name]["items"]
-                if default_value not in allowed_items: # default_value prohibited, safe fallback to first allowed item
-                    fallback_default = allowed_items[0]
-                    resolved[setting_name]["default"] = fallback_default
-
-                    log(
-                        f"{self.__class__.__name__}: [Default override] {setting_name} default '{default_value}' invalid; using '{fallback_default}' instead (group: {group_key})"
-                    )
-                else: # default_value allowed 
-                    resolved[setting_name]["default"] = default_value
-                    log(
-                        f"{self.__class__.__name__}: [Default applied] {setting_name} default = {default_value} (group: {group_key})",
-                    )
-
-        return resolved
 
 
 class variablesBuilder(BaseBuilder):

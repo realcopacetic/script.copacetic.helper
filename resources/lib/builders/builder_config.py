@@ -1,46 +1,55 @@
 # author: realcopacetic
 
 from resources.lib.builders.modules import (
+    configsBuilder,
     controlsBuilder,
     expressionsBuilder,
     includesBuilder,
-    skinsettingsBuilder,
     variablesBuilder,
 )
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
+    CONFIGS,
     CONTROLS,
     EXPRESSIONS,
     INCLUDES,
-    SKINSETTINGS,
     VARIABLES,
 )
 from resources.lib.shared.xml import XMLHandler
 
 BUILDER_CONFIG = {
+    "configs": {
+        "module": configsBuilder,
+        "run_contexts": ["prep"],
+        "write_type": "json",
+        "write_path": CONFIGS,
+        "write_handler": JSONHandler,
+        "write_kwargs": {},
+    },
     "controls": {
         "module": controlsBuilder,
-        "run_contexts": ["buildtime"],
+        "run_contexts": ["prep"],
         "write_type": "json",
         "write_path": CONTROLS,
         "write_handler": JSONHandler,
         "write_kwargs": {},
     },
-    "expressions": {
-        "module": expressionsBuilder,
-        "run_contexts": ["startup", "runtime"],
+    "variables": {
+        "module": variablesBuilder,
+        "run_contexts": ["build"],
         "write_type": "xml",
-        "write_path": EXPRESSIONS,
+        "write_path": VARIABLES,
         "write_handler": XMLHandler,
         "write_kwargs": {
             "root_tag": "includes",
-            "element_tag": "expression",
+            "element_tag": "variable",
+            "sub_element_tag": "value",
             "transform_func": XMLHandler._simple_dict_to_xml,
         },
     },
     "includes": {
         "module": includesBuilder,
-        "run_contexts": ["buildtime"],
+        "run_contexts": ["build", "runtime"],
         "read_kwargs": {
             "root_tag": "xml",
             "mapping_tag": "mapping",
@@ -56,24 +65,15 @@ BUILDER_CONFIG = {
             "transform_func": XMLHandler._complex_dict_to_xml,
         },
     },
-    "skinsettings": {
-        "module": skinsettingsBuilder,
-        "run_contexts": ["buildtime"],
-        "write_type": "json",
-        "write_path": SKINSETTINGS,
-        "write_handler": JSONHandler,
-        "write_kwargs": {},
-    },
-    "variables": {
-        "module": variablesBuilder,
-        "run_contexts": ["buildtime"],
+    "expressions": {
+        "module": expressionsBuilder,
+        "run_contexts": ["build", "runtime"],
         "write_type": "xml",
-        "write_path": VARIABLES,
+        "write_path": EXPRESSIONS,
         "write_handler": XMLHandler,
         "write_kwargs": {
             "root_tag": "includes",
-            "element_tag": "variable",
-            "sub_element_tag": "value",
+            "element_tag": "expression",
             "transform_func": XMLHandler._simple_dict_to_xml,
         },
     },

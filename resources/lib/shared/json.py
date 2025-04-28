@@ -2,8 +2,9 @@
 
 import json
 from functools import cached_property
+from pathlib import Path
 
-from resources.lib.shared.utilities import Path, log
+from resources.lib.shared.utilities import log
 
 
 class JSONHandler:
@@ -24,7 +25,7 @@ class JSONHandler:
     @property
     def data(self):
         """
-        Lazily loads and returns data from the specified path. 
+        Lazily loads and returns data from the specified path.
 
         :returns: Dictionary of {Path: content}.
         """
@@ -40,7 +41,7 @@ class JSONHandler:
         """
         if not self.path.exists():
             return {}
-        
+
         data = {}
         if self.path.is_dir():
             # Handle directory, merge json files

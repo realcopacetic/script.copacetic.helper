@@ -1,19 +1,21 @@
 # author: realcopacetic
 
-import xbmc
 from pathlib import Path
+
+import xbmc
 
 from resources.lib.builders.build_elements import BuildElements
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared.art import SlideshowMonitor
+from resources.lib.shared.hash import HashManager
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     BLURS,
+    CONFIGS,
     CROPS,
-    SKINSETTINGS,
     TEMPS,
     condition,
     create_dir,
@@ -69,7 +71,7 @@ class Monitor(xbmc.Monitor):
     def _create(self):
         """Handles full startup initialization (directories + skin files)."""
         self._ensure_directories_exist()
-        self._generate_missing_skin_files()
+        self._builder_elements()
         self._ensure_skinsettings_defaults()
 
     def _ensure_directories_exist(self):
@@ -81,30 +83,38 @@ class Monitor(xbmc.Monitor):
         if not validate_path(self.temp_folder):
             create_dir(self.temp_folder)
 
-    def _generate_missing_skin_files(self):
-        """Regenerates missing builder output files at startup using BuildElements."""
+    def _builder_elements(self):
+        """
+        Regenerates missing or outdated builder output files for 'prep' and 'buildtime'
+        run contexts.
+        """
         elements_processor = BuildElements()
-        contexts_to_run = []
-        for context in ["buildtime", "startup"]:
-            if any(
-                config.get("write_path")
-                and context in config.get("run_contexts", [])
-                and not validate_path(config["write_path"])
-                for config in BUILDER_CONFIG.values()
-            ):
-                contexts_to_run.append(context)
+        hash_manager = HashManager()
+        developer_mode = False
 
-        if contexts_to_run:
-            elements_processor.process(run_contexts=contexts_to_run)
+        for context in ["prep", "build"]:
+            needs_to_run = any(
+                (write_path := config.get("write_path"))
+                and context in config.get("run_contexts", [])
+                and (
+                    developer_mode
+                    or not validate_path(write_path)
+                    #or not hash_manager.validate_hash(write_path)
+                )
+                for config in BUILDER_CONFIG.values()
+            )
+
+            if needs_to_run:
+                elements_processor.process(run_contexts=context)
 
     def _ensure_skinsettings_defaults(self):
         """Ensures default skinsettings are set at startup if not already defined."""
-        json_handler = JSONHandler(SKINSETTINGS)
-        skinsettings_data = json_handler.data.get(Path(SKINSETTINGS))
+        json_handler = JSONHandler(CONFIGS)
+        skinsettings_data = json_handler.data.get(Path(CONFIGS))
 
         if not skinsettings_data:
             log(
-                f"{self.__class__.__name__}: Skinsettings file missing or empty at {SKINSETTINGS}",
+                f"{self.__class__.__name__}: Skinsettings file missing or empty at {CONFIGS}",
                 force=True,
             )
             return

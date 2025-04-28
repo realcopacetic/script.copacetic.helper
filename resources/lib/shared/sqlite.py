@@ -31,6 +31,7 @@ class SQLiteHandler:
                 category TEXT NOT NULL,
                 original_url TEXT UNIQUE NOT NULL,
                 processed_path TEXT,
+                cached_file_hash TEXT,
                 color TEXT,
                 luminosity INTEGER
             )
@@ -47,19 +48,20 @@ class SQLiteHandler:
         Inserts or replaces an artwork entry into the database.
 
         :param category: Artwork category (e.g., "clearlogo", "fanart").
-        :param attributes: Dictionary with 'url', 'processed', 'color', 'luminosity'.
+        :param attributes: Dictionary with 'url', 'processed', 'color', 'luminosity', cached_file_hash'
         """
         with sqlite3.connect(self.db_path, timeout=5) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO artwork (category, original_url, processed_path, color, luminosity)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO artwork (category, original_url, processed_path, cached_file_hash, color, luminosity)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     category,
                     attributes.get("url"),
                     attributes.get("processed"),
+                    attributes.get("cached_file_hash"),
                     attributes.get("color"),
                     attributes.get("luminosity"),
                 ),
@@ -85,11 +87,12 @@ class SQLiteHandler:
                 "category": row[1],
                 "url": row[2],
                 "processed": row[3],
-                "color": row[4],
-                "luminosity": row[5],
+                "cached_file_hash": row[4],
+                "color": row[5],
+                "luminosity": row[6],
             }
         return None
-    
+
     def clear_all(self):
         """
         Deletes all entries from the artwork database.

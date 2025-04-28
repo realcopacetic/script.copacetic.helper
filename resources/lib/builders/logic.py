@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 import re
-from resources.lib.shared.utilities import condition, log
+from resources.lib.shared.utilities import condition
 
 
 class RuleEngine:

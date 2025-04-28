@@ -3,19 +3,21 @@
 import random
 import time
 from functools import wraps
+from pathlib import Path
 
 from PIL import Image, ImageFilter
 
+from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     BLURS,
     CROPS,
     TEMPS,
-    Path,
     condition,
     infolabel,
     json_call,
     log,
+    log_duration,
     url_decode_path,
     validate_path,
     window_property,
@@ -29,6 +31,10 @@ class ImageEditor:
     Handles cropping, blurring, and metadata extraction for artwork images.
     Uses PIL to process images and manages caching via SQLite.
     """
+    PROCESS_CONFIG = {
+        "blur": {"folder": BLURS, "extension": ".jpg"},
+        "crop": {"folder": CROPS, "extension": ".png"},
+    }
 
     def __init__(self, sqlite_handler=None):
         """
@@ -37,9 +43,15 @@ class ImageEditor:
         :param sqlite_handler: Optional SQLiteHandler instance for caching.
         """
         self.sqlite = sqlite_handler or SQLiteHandler()
+        self.hash_manager = HashManager()
         self.clearlogo_bbox = (600, 240)
         self.blur_bbox = (480, 270)
         self.temp_folder = TEMPS
+
+        self.decoded_url = None
+        self.cached_thumb = None
+        self.cached_image_path = None
+        self.cached_file_hash = None
 
     def image_processor(self, dbid=None, source=None, processes=None, url=None):
         """
@@ -108,7 +120,12 @@ class ImageEditor:
         ):
             return None
 
-        attributes = self._read_lookup(art) or (
+        original_url = next(iter(art.values()))
+        extension = self.PROCESS_CONFIG.get(process)["extension"]
+
+        self._prepare_cached_image(original_url, extension)
+
+        attributes = self._read_lookup(original_url) or (
             process_method(art)
             if (process_method := getattr(self, f"_{process}_art", None))
             else None
@@ -145,18 +162,17 @@ class ImageEditor:
 
         return False
 
-    def _read_lookup(self, art):
+    def _read_lookup(self, url):
         """
         Reads processed metadata from the SQLite lookup cache.
 
         :returns: Cached metadata dict or None.
         """
-        url = next(iter(art.values()), None)
         return (
             attributes
             if (
-                url
-                and (attributes := self.sqlite.get_entry(url))
+                (attributes := self.sqlite.get_entry(url))
+                and attributes.get("cached_file_hash") == self.cached_file_hash
                 and validate_path(attributes.get("processed"))
             )
             else None
@@ -173,7 +189,7 @@ class ImageEditor:
                 "clearlogo" if "clearlogo" in art_type else art_type, attributes
             )
 
-    def _process_image(folder, extension):
+    def _process_image(process_type):
         """
         Decorator that wraps a process method to handle PIL image I/O.
 
@@ -181,6 +197,7 @@ class ImageEditor:
         :param extension: Output file extension.
         :returns: Wrapped image processor method.
         """
+
         def decorator(process_func):
             @wraps(process_func)
             def wrapper(self, art):
@@ -190,14 +207,15 @@ class ImageEditor:
                 category, url = next(iter(art.items()), (None, None))
                 if not url:
                     return None
-
-                source, destination = self._generate_image_urls(folder, url, extension)
+                process_config = self.PROCESS_CONFIG.get(process_type)
+                source, destination = self._generate_image_urls(
+                    process_config["folder"],
+                    process_config["extension"]
+                )
                 if not (image := self._image_open(source)):
                     return None
 
-                start_time = time.perf_counter()
                 result = process_func(self, image)
-                end_time = time.perf_counter()
 
                 if not result or "image" not in result:
                     return None
@@ -210,13 +228,12 @@ class ImageEditor:
                 if self.temp_folder in source:  # If temp file created, delete it
                     xbmcvfs.delete(source)
                     log(f"{self.__class__.__name__}: Temp file deleted → {source}")
-                log(
-                    f"{self.__class__.__name__}: Processing time: {end_time - start_time:.3f} seconds"
-                )
+
                 return {
                     "category": category,
                     "url": url,
                     "processed": destination,
+                    "cached_file_hash": self.cached_file_hash,
                     **result.get("metadata", {}),
                 }
 
@@ -224,7 +241,8 @@ class ImageEditor:
 
         return decorator
 
-    @_process_image(folder=BLURS, extension=".jpg")
+    @log_duration
+    @_process_image("blur")
     def _blur_art(self, image):
         """
         Applies Gaussian blur and resizes to blur bounding box.
@@ -235,7 +253,8 @@ class ImageEditor:
         image = image.filter(ImageFilter.GaussianBlur(radius=50))
         return {"image": image, "format": "JPEG"}
 
-    @_process_image(folder=CROPS, extension=".png")
+    @log_duration
+    @_process_image("crop")
     def _crop_art(self, image):
         """
         Crops and resizes clearlogos, returns color and luminosity metadata.
@@ -270,23 +289,36 @@ class ImageEditor:
             "metadata": {"color": color, "luminosity": luminosity},
         }
 
-    def _generate_image_urls(self, folder, url, suffix):
+    def _prepare_cached_image(self, url, suffix):
+        """
+        Prepares cached thumb path and computes hash from the Kodi cached image.
+
+        :param url: URL of the original artwork.
+        """
+        self.decoded_url = url_decode_path(url)
+        self.cached_thumb = self._get_cached_thumb(self.decoded_url, suffix)
+        self.cached_image_path = (
+            Path(f"special://profile/Thumbnails/{self.cached_thumb[0]}")
+            / self.cached_thumb
+        )
+        self.cached_file_hash = self.hash_manager.compute_hash(self.cached_image_path)
+
+    def _generate_image_urls(self, folder, suffix):
         """
         Determines source and destination paths for processed artwork.
 
         :returns: Tuple of (source_path, destination_path).
         """
-        decoded_url = url_decode_path(url)
-        cached_thumb = self._get_cached_thumb(decoded_url, suffix)
-        source_url = str(
-            Path(f"special://profile/Thumbnails/{cached_thumb[0]}") / cached_thumb
-        )
-        destination_url = str(Path(folder) / cached_thumb)
+        source_url = str(self.cached_image_path)
+        destination_url = str(Path(folder) / self.cached_thumb)
 
         return (
             (source_url, destination_url)
             if validate_path(source_url)
-            else (self._create_temp_file(decoded_url, cached_thumb), destination_url)
+            else (
+                self._create_temp_file(self.decoded_url, self.cached_thumb),
+                destination_url,
+            )
         )
 
     def _create_temp_file(self, url, cached_thumb):
@@ -378,6 +410,7 @@ class ImageEditor:
         https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
         :returns: Float between 0 and 1.
         """
+
         def linearize(channel):
             c = channel / 255.0
             return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
@@ -401,6 +434,7 @@ class SlideshowMonitor:
     Manages dynamic background artwork for slideshows in Kodi.
     Supports videodb, musicdb and custom user sources.
     """
+
     MAX_FETCH_COUNT = 20
 
     def __init__(self, sqlite_handler=None):

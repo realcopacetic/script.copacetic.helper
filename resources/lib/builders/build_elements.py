@@ -1,8 +1,10 @@
 # author: realcopacetic
 
+from pathlib import Path
+
 from resources.lib.builders.builder_config import BUILDER_CONFIG, BUILDER_MAPPINGS
 from resources.lib.shared.json import JSONMerger
-from resources.lib.shared.utilities import SKINEXTRAS, Path, log, log_duration
+from resources.lib.shared.utilities import SKINEXTRAS, log, log_duration
 from resources.lib.shared.xml import XMLDictConverter, XMLMerger
 
 
