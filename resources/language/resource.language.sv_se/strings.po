@@ -1,0 +1,100 @@
+# Kodi Media Center Swedish language file
+# Addon Name: Copacetic Helper
+# Addon id: script.copacetic.helper
+# Addon Provider: realcopacetic
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: Daniel Nylander <github@danielnylander.se>\n"
+"Language-Team: \n"
+"Language: sv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 3.6\n"
+
+# ########################################################################################################
+# ########################################################################################################
+# ########################################################################################################
+#: Contents SETTINGS 320XX SERVICE 322XX SCRIPT 324XX PLUGIN 326XX
+#: /resources/settings.xml
+msgctxt "#32000"
+msgid "Copacetic"
+msgstr "Copacetic"
+
+#: /resources/settings.xml
+msgctxt "#32001"
+msgid "General"
+msgstr "Allmänt"
+
+#: /resources/settings.xml
+msgctxt "#32002"
+msgid "Debug"
+msgstr "Felsök"
+
+#: /resources/settings.xml
+msgctxt "#32003"
+msgid "Enable logging"
+msgstr "Aktivera loggning"
+
+#: /resources/settings.xml
+msgctxt "#32004"
+msgid "- Include json call/response logging"
+msgstr "- Inkludera json-loggning av anrop/svar"
+
+# ########################################################################################################
+# ########################################################################################################
+#: SERVICE 322XX /resources/lib/utilities.py, /resources/lib/script/acions.py
+msgctxt "#32201"
+msgid "Cropped cache cleared"
+msgstr "Beskuren cache tömd"
+
+#: /resources/lib/utilities.py, /resources/lib/script/acions.py
+msgctxt "#32202"
+msgid "saved"
+msgstr "sparad"
+
+#: /resources/lib/service/settings.py
+msgctxt "#32203"
+msgid "setting changed"
+msgstr "inställning ändrad"
+
+#: /resources/lib/service/settings.py
+msgctxt "#32204"
+msgid "settings changed"
+msgstr "inställningar ändrade"
+
+#: /resources/lib/script/acions.py
+msgctxt "#32205"
+msgid "Disabled"
+msgstr "Inaktiverad"
+
+#: /resources/lib/script/acions.py
+msgctxt "#32206"
+msgid "Enabled"
+msgstr "Aktiverad"
+
+# ########################################################################################################
+# ########################################################################################################
+#: PLUGIN 326XX /resources/lib/content.py
+msgctxt "#32600"
+msgid "Next up"
+msgstr "Nästa"
+
+#: /resources/lib/content.py
+msgctxt "#32601"
+msgid "Continue watching"
+msgstr "Fortsätt titta"
+
+#: /resources/lib/content.py
+msgctxt "#32602"
+msgid "Director credits"
+msgstr "Regissör"
+
+#: /resources/lib/content.py
+msgctxt "#32603"
+msgid "Actor credits"
+msgstr "Skådespelare"
