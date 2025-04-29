@@ -108,13 +108,13 @@ class Monitor(xbmc.Monitor):
                 elements_processor.process(run_contexts=context)
 
     def _ensure_skinsettings_defaults(self):
-        """Ensures default skinsettings are set at startup if not already defined."""
+        """Ensures default skinsettings configs are set at startup if not already defined."""
         json_handler = JSONHandler(CONFIGS)
         skinsettings_data = json_handler.data.get(Path(CONFIGS))
 
         if not skinsettings_data:
             log(
-                f"{self.__class__.__name__}: Skinsettings file missing or empty at {CONFIGS}",
+                f"{self.__class__.__name__}: Skinsettings config file missing or empty at {CONFIGS}",
                 force=True,
             )
             return
