@@ -13,6 +13,7 @@ from resources.lib.shared.utilities import (
     BLURS,
     CROPS,
     TEMPS,
+    THUMB_DB,
     condition,
     infolabel,
     json_call,
@@ -31,6 +32,7 @@ class ImageEditor:
     Handles cropping, blurring, and metadata extraction for artwork images.
     Uses PIL to process images and manages caching via SQLite.
     """
+
     PROCESS_CONFIG = {
         "blur": {"folder": BLURS, "extension": ".jpg"},
         "crop": {"folder": CROPS, "extension": ".png"},
@@ -122,9 +124,8 @@ class ImageEditor:
 
         original_url = next(iter(art.values()))
         extension = self.PROCESS_CONFIG.get(process)["extension"]
-
         self._prepare_cached_image(original_url, extension)
-
+        
         attributes = self._read_lookup(original_url) or (
             process_method(art)
             if (process_method := getattr(self, f"_{process}_art", None))
@@ -207,11 +208,9 @@ class ImageEditor:
                 category, url = next(iter(art.items()), (None, None))
                 if not url:
                     return None
-                process_config = self.PROCESS_CONFIG.get(process_type)
-                source, destination = self._generate_image_urls(
-                    process_config["folder"],
-                    process_config["extension"]
-                )
+
+                folder = self.PROCESS_CONFIG.get(process_type)["folder"]
+                source, destination = self._generate_image_urls(folder)
                 if not (image := self._image_open(source)):
                     return None
 
@@ -298,12 +297,11 @@ class ImageEditor:
         self.decoded_url = url_decode_path(url)
         self.cached_thumb = self._get_cached_thumb(self.decoded_url, suffix)
         self.cached_image_path = (
-            Path(f"special://profile/Thumbnails/{self.cached_thumb[0]}")
-            / self.cached_thumb
+            Path(THUMB_DB) / self.cached_thumb[0] / self.cached_thumb
         )
         self.cached_file_hash = self.hash_manager.compute_hash(self.cached_image_path)
 
-    def _generate_image_urls(self, folder, suffix):
+    def _generate_image_urls(self, folder):
         """
         Determines source and destination paths for processed artwork.
 

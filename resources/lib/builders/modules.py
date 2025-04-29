@@ -203,6 +203,7 @@ class configsBuilder(BaseBuilder):
         :returns: Dict of final filtered items.
         """
         items = data.get("items", [])
+        attributes = data.get("attributes", {})
         filter_mode = data.get("filter_mode", "exclude")
         rules = data.get("rules", [])
 
@@ -220,7 +221,10 @@ class configsBuilder(BaseBuilder):
         else:
             final_items = [item for item in items if item in excluded]
 
-        return {"items": final_items}
+        return {
+            "items": final_items,
+            **attributes,
+        }
 
     def _apply_defaults(self, resolved, setting_data):
         """

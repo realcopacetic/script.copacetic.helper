@@ -9,12 +9,9 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared.art import SlideshowMonitor
-from resources.lib.shared.hash import HashManager
-from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     BLURS,
-    CONFIGS,
     CROPS,
     TEMPS,
     condition,
@@ -23,7 +20,6 @@ from resources.lib.shared.utilities import (
     infolabel,
     log,
     log_and_execute,
-    skin_string,
     validate_path,
 )
 
@@ -72,60 +68,39 @@ class Monitor(xbmc.Monitor):
         """Handles full startup initialization (directories + skin files)."""
         self._ensure_directories_exist()
         self._builder_elements()
-        self._ensure_skinsettings_defaults()
 
     def _ensure_directories_exist(self):
         """Ensures required directories for blur, crop, and temp exist at startup."""
-        if not validate_path(self.blur_folder):
-            create_dir(self.blur_folder)
-        if not validate_path(self.crop_folder):
-            create_dir(self.crop_folder)
-        if not validate_path(self.temp_folder):
-            create_dir(self.temp_folder)
+        for folder in [
+            self.blur_folder,
+            self.crop_folder,
+            self.temp_folder,
+        ]:
+            if not validate_path(folder):
+                create_dir(folder)
 
     def _builder_elements(self):
         """
         Regenerates missing or outdated builder output files for 'prep' and 'buildtime'
         run contexts.
         """
-        elements_processor = BuildElements()
-        hash_manager = HashManager()
         developer_mode = False
 
         for context in ["prep", "build"]:
-            needs_to_run = any(
-                (write_path := config.get("write_path"))
-                and context in config.get("run_contexts", [])
-                and (
-                    developer_mode
-                    or not validate_path(write_path)
-                    #or not hash_manager.validate_hash(write_path)
+            builders = [
+                builder
+                for builder, config in BUILDER_CONFIG.items()
+                if context in config.get("run_contexts", [])
+                and (write_path := config.get("write_path"))
+                and not validate_path(write_path)
+            ]
+
+            if builders:
+                BuildElements(
+                    run_context=context,
+                    builders_to_run=builders,
+                    force_rebuild=developer_mode,
                 )
-                for config in BUILDER_CONFIG.values()
-            )
-
-            if needs_to_run:
-                elements_processor.process(run_contexts=context)
-
-    def _ensure_skinsettings_defaults(self):
-        """Ensures default skinsettings configs are set at startup if not already defined."""
-        json_handler = JSONHandler(CONFIGS)
-        skinsettings_data = json_handler.data.get(Path(CONFIGS))
-
-        if not skinsettings_data:
-            log(
-                f"{self.__class__.__name__}: Skinsettings config file missing or empty at {CONFIGS}",
-                force=True,
-            )
-            return
-
-        for setting_key, setting_data in skinsettings_data.items():
-            default_value = setting_data.get("default")
-            if not default_value:
-                continue
-
-            if not condition(f"Skin.String({setting_key})"):
-                skin_string(setting_key, default_value)
 
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""

@@ -18,6 +18,8 @@ from xbmcplugin import (
     setPluginCategory,
 )
 
+THUMB_DB = xbmcvfs.translatePath("special://profile/Thumbnails")
+
 ADDON = Addon()
 ADDON_ID = ADDON.getAddonInfo("id")
 
@@ -33,8 +35,9 @@ SKINXML = str(Path(SKIN) / "16x9")
 
 CONFIGS = str(Path(ADDONDATA) / "configs.json")
 CONTROLS = str(Path(ADDONDATA) / "controls.json")
-VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
+RUNTIME_STATE = str(Path(ADDONDATA) / "runtime_state.json")
 
+VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
 INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_includes.xml")
 

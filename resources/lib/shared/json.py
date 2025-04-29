@@ -139,7 +139,8 @@ class JSONMerger:
                         f"{self.__class__.__name__}: Missing '{self.grouping_key}' key in {file_path}. Skipping file."
                     )
                     continue
-                yield key, content
+                filtered = {k: v for k, v in content.items() if k != self.grouping_key}
+                yield key, filtered
             else:
                 yield from content.items()
 

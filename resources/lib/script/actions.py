@@ -425,8 +425,7 @@ def update_views(**kwargs):
     """
     from resources.lib.builders.build_elements import BuildElements
 
-    builder = BuildElements()
-    builder.process(run_contexts=("runtime",))
+    builder = BuildElements(run_context="runtime")
     log_and_execute("ReloadSkin()")
 
 
