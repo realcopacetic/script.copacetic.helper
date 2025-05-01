@@ -18,7 +18,7 @@ class BaseBuilder:
     Used by all specialized builder types to generate template values.
     """
 
-    def __init__(self, loop_values, placeholders, metadata):
+    def __init__(self, mapping_name, loop_values, placeholders, metadata):
         """
         Initializes builder with placeholders, loop values, and dynamic key.
 
@@ -26,7 +26,8 @@ class BaseBuilder:
         :param placeholders: Dictionary of placeholder names for formatting.
         :param placeholders: Dictionary of metatada for injection into xml elements
         """
-        self.loop_values, self.placeholders, self.metadata = (
+        self.mapping_name, self.loop_values, self.placeholders, self.metadata = (
+            mapping_name,
             loop_values,
             placeholders,
             metadata,
@@ -154,7 +155,9 @@ class BaseBuilder:
                 key: self.substitute(value, substitutions)
                 for key, value in object.items()
             }
-            return {k: v for k, v in substituted_dict.items() if v not in ("", {}, [], None)}
+            return {
+                k: v for k, v in substituted_dict.items() if v not in ("", {}, [], None)
+            }
 
         else:
             return object
@@ -202,28 +205,32 @@ class configsBuilder(BaseBuilder):
         :param data: Full setting definition, including filter_mode and rules.
         :returns: Dict of final filtered items.
         """
-        items = data.get("items", [])
-        attributes = data.get("attributes", {})
-        filter_mode = data.get("filter_mode", "exclude")
-        rules = data.get("rules", [])
+        defaults = {
+            "items": [],
+            "storage": "runtimejson",
+            "mapping": self.mapping_name,
+            "filter_mode": "exclude",
+            "rules": [],
+        }
+        resolved_data = {**defaults, **data}
 
-        excluded = set()
-        for sub in subs:
-            for rule in rules:
-                condition = rule.get("condition", "").format(**sub)
-                values = rule.get("value", [])
-
-                if self.rules.evaluate(condition):
-                    excluded.update(values)
-
-        if filter_mode == "exclude":
-            final_items = [item for item in items if item not in excluded]
-        else:
-            final_items = [item for item in items if item in excluded]
-
+        excluded = {
+            value
+            for sub in subs
+            for rule in resolved_data["rules"]
+            if self.rules.evaluate(rule["condition"].format(**sub))
+            for value in rule.get("value", [])
+        }
+        resolved_data["items"] = [
+            item for item in resolved_data["items"]
+            if (item not in excluded) == (resolved_data["filter_mode"] == "exclude")
+        ]
+        prefixes_to_remove = ("defaults_per_", "filter_mode", "rules")
+        
         return {
-            "items": final_items,
-            **attributes,
+            key: value
+            for key, value in resolved_data.items()
+            if not key.startswith(prefixes_to_remove)
         }
 
     def _apply_defaults(self, resolved, setting_data):
@@ -236,16 +243,16 @@ class configsBuilder(BaseBuilder):
         :param setting_data: The full config definition including defaults.
         :returns: Updated resolved settings dict with defaults applied.
         """
-        default_key = next(
-            (k for k in setting_data if k.startswith("defaults_for_")), None
+        default_entry = next(
+            ((k, v) for k, v in setting_data.items() if k.startswith("defaults_per_")),
+            (None, None)
         )
-        if not default_key:
-            return (
-                resolved  # if no default key is defined, simply return resolved as-is
-            )
 
-        default_field = default_key.replace("defaults_for_", "").strip("{}")
-        default_values = setting_data[default_key].get("defaults_values", [])
+        default_key, default_values = default_entry
+        if not default_key:
+            return resolved
+
+        default_field = default_key[len("defaults_per_"):].strip("{}")
 
         all_settings_by_group = defaultdict(list)
         for setting_name in resolved:
@@ -440,17 +447,18 @@ class expressionsBuilder(BaseBuilder):
         :param expr_data: The expression's full rule definition.
         :returns: Updated resolved expression dict with fallbacks applied.
         """
-        fallback_key = next(
-            (k for k in expr_data if k.startswith("fallback_for_")), None
+        fallback_entry = next(
+            ((k, v) for k, v in expr_data.items() if k.startswith("fallback_per_")),
+            (None, None)
         )
+
+        fallback_key, fallback_dict = fallback_entry
         if not fallback_key:
             return resolved
 
-        fallback_field = fallback_key.replace("fallback_for_", "").strip("{}")
-        fallback_values = expr_data[fallback_key].get("fallback_values", [])
-        fallback_items = (
-            expr_data[fallback_key].get("fallback_items", []) or fallback_values
-        )
+        fallback_field = fallback_key[len("fallback_per_"):].strip("{}")
+        fallback_values = fallback_dict.get("values", [])
+        fallback_items = fallback_dict.get("target_items", fallback_values)
 
         all_exprs_by_group = defaultdict(list)
         for expr_name in resolved:
@@ -550,7 +558,10 @@ class includesBuilder(BaseBuilder):
         Recursively checks if data contains any placeholders from substitutions.
         """
         if isinstance(data, dict):
-            return any(self.contains_placeholder(value, substitutions) for value in data.values())
+            return any(
+                self.contains_placeholder(value, substitutions)
+                for value in data.values()
+            )
         elif isinstance(data, list):
             return any(self.contains_placeholder(item, substitutions) for item in data)
         elif isinstance(data, str):
@@ -575,8 +586,8 @@ class includesBuilder(BaseBuilder):
             ):
                 return {}
             return {
-                k: v 
-                for k, v in expanded_dict.items() 
+                k: v
+                for k, v in expanded_dict.items()
                 if v not in ("", {}, [], None) or k == "nested"
             }
 
