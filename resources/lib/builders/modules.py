@@ -18,7 +18,7 @@ class BaseBuilder:
     Used by all specialized builder types to generate template values.
     """
 
-    def __init__(self, mapping_name, loop_values, placeholders, metadata):
+    def __init__(self, loop_values, placeholders, metadata):
         """
         Initializes builder with placeholders, loop values, and dynamic key.
 
@@ -26,8 +26,7 @@ class BaseBuilder:
         :param placeholders: Dictionary of placeholder names for formatting.
         :param placeholders: Dictionary of metatada for injection into xml elements
         """
-        self.mapping_name, self.loop_values, self.placeholders, self.metadata = (
-            mapping_name,
+        self.loop_values, self.placeholders, self.metadata = (
             loop_values,
             placeholders,
             metadata,
@@ -208,7 +207,6 @@ class configsBuilder(BaseBuilder):
         defaults = {
             "items": [],
             "storage": "runtimejson",
-            "mapping": self.mapping_name,
             "filter_mode": "exclude",
             "rules": [],
         }
@@ -222,11 +220,12 @@ class configsBuilder(BaseBuilder):
             for value in rule.get("value", [])
         }
         resolved_data["items"] = [
-            item for item in resolved_data["items"]
+            item
+            for item in resolved_data["items"]
             if (item not in excluded) == (resolved_data["filter_mode"] == "exclude")
         ]
         prefixes_to_remove = ("defaults_per_", "filter_mode", "rules")
-        
+
         return {
             key: value
             for key, value in resolved_data.items()
@@ -245,14 +244,14 @@ class configsBuilder(BaseBuilder):
         """
         default_entry = next(
             ((k, v) for k, v in setting_data.items() if k.startswith("defaults_per_")),
-            (None, None)
+            (None, None),
         )
 
         default_key, default_values = default_entry
         if not default_key:
             return resolved
 
-        default_field = default_key[len("defaults_per_"):].strip("{}")
+        default_field = default_key[len("defaults_per_") :].strip("{}")
 
         all_settings_by_group = defaultdict(list)
         for setting_name in resolved:
@@ -449,14 +448,14 @@ class expressionsBuilder(BaseBuilder):
         """
         fallback_entry = next(
             ((k, v) for k, v in expr_data.items() if k.startswith("fallback_per_")),
-            (None, None)
+            (None, None),
         )
 
         fallback_key, fallback_dict = fallback_entry
         if not fallback_key:
             return resolved
 
-        fallback_field = fallback_key[len("fallback_per_"):].strip("{}")
+        fallback_field = fallback_key[len("fallback_per_") :].strip("{}")
         fallback_values = fallback_dict.get("values", [])
         fallback_items = fallback_dict.get("target_items", fallback_values)
 
@@ -588,7 +587,7 @@ class includesBuilder(BaseBuilder):
             return {
                 k: v
                 for k, v in expanded_dict.items()
-                if v not in ("", {}, [], None) or k == "nested"
+                if v not in ({}, [], "", None) or k == "nested"
             }
 
         elif isinstance(data, list):

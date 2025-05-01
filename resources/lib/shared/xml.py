@@ -447,7 +447,7 @@ class XMLDictConverter:
         :param element: XML element to convert.
         :returns: Dictionary representation of the element.
         """
-        node_dict = {element.tag: {} if element.attrib or list(element) else None}
+        node_dict = {element.tag: {} if element.attrib or list(element) else ""}
 
         for attr, val in element.attrib.items():
             node_dict[element.tag][f"{self.ATTR_PREFIX}{attr}"] = val
@@ -555,7 +555,7 @@ class XMLDictConverter:
             for item in elem_data:
                 child = self.dict_to_element(item, parent_tag=tag)
                 elem.append(child)
-        else:
+        elif elem_data != "":
             elem.text = str(elem_data)
 
         return elem

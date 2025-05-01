@@ -120,9 +120,7 @@ class BuildElements:
                     continue
 
                 builder_class = builder_info["module"]
-                builder_instance = builder_class(
-                    mapping_name, loop_values, placeholders, metadata
-                )
+                builder_instance = builder_class(loop_values, placeholders, metadata)
 
                 processed = {
                     k: v
@@ -184,6 +182,7 @@ class BuildElements:
         This ensures default runtime states are set at build time.
         """
         runtime_manager = RuntimeStateManager(
+            mappings=self.all_mappings,
             configs_path=CONFIGS,
             runtime_state_path=RUNTIME_STATE,
         )
