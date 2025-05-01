@@ -25,34 +25,32 @@ class RuntimeStateManager:
         Initializes runtime_state.json based on user-defined schemas and defaults in configs.json.
         """
         configs_data = next(iter(self.configs_handler.data.values()), {})
-        runtime_state = {}
 
-        for mapping_key, mapping in self.mappings.items():
-            user_schema = mapping.get("user_defined_schema")
-            if not user_schema:
-                continue
-
-            default_order = mapping.get("default_order", [])
-            runtime_state[mapping_key] = []
-
-            for item in default_order:
-                instance = {}
-                placeholders = {mapping["placeholders"]["key"]: item}
-
-                for key, template in user_schema.get("strings", {}).items():
-                    instance[key] = template.format(**placeholders)
-
-                for key, config_template in user_schema.get("configs", {}).items():
-                    resolved_config_name = config_template.format(**placeholders)
-                    config_entry = configs_data.get(resolved_config_name, {})
-                    instance[key] = config_entry.get("default")
-
-                item_specific_configs = user_schema.get("item_configs", {}).get(item, {})
-                for key, config_name in item_specific_configs.items():
-                    item_config_entry = configs_data.get(config_name, {})
-                    instance[key] = item_config_entry.get("default", "")
-
-                runtime_state[mapping_key].append(instance)
+        runtime_state = {
+            mapping_key: [
+                {
+                    **{
+                        k: v.format(**{mapping["placeholders"]["key"]: item})
+                        for k, v in user_schema.get("strings", {}).items()
+                    },
+                    **{
+                        k: configs_data.get(
+                            v.format(**{mapping["placeholders"]["key"]: item}), {}
+                        ).get("default")
+                        for k, v in user_schema.get("configs", {}).items()
+                    },
+                    **{
+                        k: configs_data.get(v, {}).get("default", "")
+                        for k, v in user_schema.get("item_configs", {})
+                        .get(item, {})
+                        .items()
+                    },
+                }
+                for item in mapping.get("default_order", [])
+            ]
+            for mapping_key, mapping in self.mappings.items()
+            if (user_schema := mapping.get("user_defined_schema"))
+        }
 
         self.runtime_state_handler.write_json(runtime_state)
 
