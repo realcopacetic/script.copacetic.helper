@@ -28,7 +28,7 @@ BUILDER_CONFIG = {
     },
     "controls": {
         "module": controlsBuilder,
-        "run_contexts": ["prep"],
+        "run_contexts": ["build"],
         "write_type": "json",
         "write_path": CONTROLS,
         "write_handler": JSONHandler,
