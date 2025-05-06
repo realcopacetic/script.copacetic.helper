@@ -33,6 +33,7 @@ class BuildElements:
         :param force_rebuild: Ensures all builders with given run_context are processed.
         """
         self.run_context = run_context
+        self.runtime_manager = None
         self.force_rebuild = force_rebuild
         self.builders_to_run = (
             self._default_builders()
@@ -105,11 +106,18 @@ class BuildElements:
         values_to_write = {}
         values_to_return = {}
 
+        # Initialize runtime states and skin strings after builders finish processing configs.json
+        if self.run_context == "build":
+            self.runtime_manager = RuntimeStateManager(
+                mappings=self.all_mappings,
+                configs_path=CONFIGS,
+                runtime_state_path=RUNTIME_STATE,
+            )
+            self.initialize_runtime_states()
+            self.initialize_skinstrings()
+
         for mapping_name, items_data in self.combined_data():
             mapping_values = self.all_mappings.get(mapping_name, {})
-            loop_values = mapping_values.get("items")
-            placeholders = mapping_values.get("placeholders", {})
-            metadata = mapping_values.get("metadata", {})
 
             for builder, builder_elements in (items_data or {}).items():
                 builder_info = BUILDER_CONFIG.get(builder)
@@ -120,7 +128,9 @@ class BuildElements:
                     continue
 
                 builder_class = builder_info["module"]
-                builder_instance = builder_class(loop_values, placeholders, metadata)
+                builder_instance = builder_class(
+                    mapping_name, mapping_values, self.runtime_manager
+                )
 
                 processed = {
                     k: v
@@ -139,11 +149,6 @@ class BuildElements:
 
         for builder, builder_data in values_to_write.items():
             self.write_file(builder_data, builder)
-
-        # Initialize runtime states and skin strings after builders finish processing configs.json
-        if self.run_context == "prep":
-            self.initialize_runtime_states()
-            self.initialize_skinstrings()
 
         return values_to_return
 
@@ -181,12 +186,7 @@ class BuildElements:
         Initializes runtime_state.json based on default values in configs.json.
         This ensures default runtime states are set at build time.
         """
-        runtime_manager = RuntimeStateManager(
-            mappings=self.all_mappings,
-            configs_path=CONFIGS,
-            runtime_state_path=RUNTIME_STATE,
-        )
-        runtime_manager.initialize_runtime_state()
+        self.runtime_manager.initialize_runtime_state()
 
     def initialize_skinstrings(self):
         """

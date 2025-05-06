@@ -401,14 +401,19 @@ class XMLDictConverter:
         for element in container.findall(self.element_tag):
             template_dict = {}
 
+            expansion_elem = element.find("expansion")
             index_elem = element.find("index")
             items_elem = element.find("items")
 
+            if expansion_elem is not None:
+                template_dict["expansion"] = expansion_elem.text.strip()
+
             if index_elem is not None:
                 template_dict["index"] = {
-                    f"{self.ATTR_PREFIX}start": index_elem.get("start", "1"),
-                    f"{self.ATTR_PREFIX}end": index_elem.get("end", "1"),
+                    f"{self.ATTR_PREFIX}start": index_elem.get("start", "1")
                 }
+                if index_elem.get("end"):
+                    template_dict["index"][f"{self.ATTR_PREFIX}end"] = index_elem.get("end")
 
             if items_elem is not None:
                 items = [item.strip() for item in items_elem.text.split(",")]

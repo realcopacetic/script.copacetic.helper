@@ -18,19 +18,18 @@ class BaseBuilder:
     Used by all specialized builder types to generate template values.
     """
 
-    def __init__(self, loop_values, placeholders, metadata):
+    def __init__(self, mapping_name, mapping_values, runtime_manager=None):
         """
         Initializes builder with placeholders, loop values, and dynamic key.
 
-        :param loop_values: List or dict of content types or keys to loop over.
-        :param placeholders: Dictionary of placeholder names for formatting.
-        :param placeholders: Dictionary of metatada for injection into xml elements
+        :param mapping: Looping values, placeholders and metadata for expansion
+        :param runtime_manager: Instance of manager class for handling runtime configs
         """
-        self.loop_values, self.placeholders, self.metadata = (
-            loop_values,
-            placeholders,
-            metadata,
-        )
+        self.mapping_name = mapping_name
+        self.loop_values = mapping_values.get("items")
+        self.placeholders = mapping_values.get("placeholders", {})
+        self.metadata = mapping_values.get("metadata", {})
+        self.runtime_manager = runtime_manager
         self.rules = RuleEngine()
         self.group_map = {}
 
@@ -42,23 +41,54 @@ class BaseBuilder:
         :param element_data: Data dict containing rules and item values.
         :returns: Generator yielding {name: value} dicts.
         """
-        items = element_data.get("items") or expand_index(element_data.get("index"))
-        dynamic_key_mapping = {"items": "item", "index": "index"}
-        dynamic_key = next(
-            (
-                dynamic_key_mapping[key]
-                for key in dynamic_key_mapping
-                if key in element_data
-            ),
-            None,
-        )
-        substitutions = self.generate_substitutions(items, dynamic_key)
+        expansion_type = element_data.get("expansion", "mapping")
+
+        if expansion_type == "runtimejson" and (
+            runtime_items := self.runtime_manager.runtime_state.get(self.mapping_name)
+        ):
+            index_start = int(element_data.get("index", {}).get("@start", 1))
+            substitutions = self.generate_runtimejson_substitutions(runtime_items, index_start)
+        else:
+            items = element_data.get("items") or expand_index(element_data.get("index"))
+            dynamic_key_mapping = {"items": "item", "index": "index"}
+            dynamic_key = next(
+                (
+                    dynamic_key_mapping[key]
+                    for key in dynamic_key_mapping
+                    if key in element_data
+                ),
+                None,
+            )
+            substitutions = self.generate_substitutions(items, dynamic_key)
+
         yield from (
             {k: v}
             for k, v in self.group_and_expand(
                 element_name, element_data, substitutions
             ).items()
         )
+
+    def generate_runtimejson_substitutions(self, runtime_items, index_start):
+        """
+        Generates substitution dictionaries for runtimejson expansion,
+        injecting index, mapping placeholder, and all runtime values.
+
+        :param runtime_items: List of runtime state items for this mapping.
+        :param index_start: Starting index value (default 1).
+        :returns: List of substitution dictionaries for template expansion.
+        """
+        key_placeholder = self.placeholders.get("key")
+        return [
+            self._inject_metadata(
+                {
+                    key_placeholder: item["mapping_item"],
+                    "index": str(index_start + index),
+                    **{k: v for k, v in item.items() if k != "mapping_item"},
+                },
+                item["mapping_item"],
+            )
+            for index, item in enumerate(runtime_items)
+        ]
 
     def generate_substitutions(self, items, dynamic_key):
         """
@@ -513,8 +543,8 @@ class includesBuilder(BaseBuilder):
     Handles recursive multi-level expansions for dynamic XML generation.
     """
 
-    def __init__(self, loop_values, placeholders, metadata):
-        super().__init__(loop_values, placeholders, metadata)
+    def __init__(self, mapping_name, mapping_values, runtime_manager=None):
+        super().__init__(mapping_name, mapping_values, runtime_manager)
         self._prepare_xsp_urls()
 
     def group_and_expand(self, template_name, data, substitutions):

@@ -1,11 +1,17 @@
 # author: realcopacetic
 
+from pathlib import Path
+
 import xbmcgui
 
-from resources.lib.shared.json import JSONHandler
+from resources.lib.builders.builder_config import BUILDER_MAPPINGS
+from resources.lib.builders.runtime import RuntimeStateManager
+from resources.lib.shared.json import JSONHandler, JSONMerger
 from resources.lib.shared.utilities import (
+    CONFIGS,
     CONTROLS,
-    SKINSETTINGS,
+    RUNTIME_STATE,
+    SKINEXTRAS,
     execute,
     log,
 )
@@ -30,11 +36,25 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         super().__init__()
         self._xml_filename = xmlFilename.lower()
         self.controls_handler = JSONHandler(CONTROLS)
-        self.skinsettings_handler = JSONHandler(SKINSETTINGS)
+        self.configs_handler = JSONHandler(CONFIGS)
+
+        self.mapping_merger = JSONMerger(
+            base_folder=Path(SKINEXTRAS) / "builders",
+            subfolders=["custom_mappings"],
+            grouping_key=None,
+        )
+        self.all_mappings = {
+            **BUILDER_MAPPINGS,
+            **dict(self.mapping_merger.cached_merged_data),
+        }
+        self.runtime_manager = RuntimeStateManager(
+            mappings=self.all_mappings,
+            configs_path=CONFIGS,
+            runtime_state_path=RUNTIME_STATE,
+        )
 
         self.handlers = {}
-
-        self.skinsettings = {}
+        self.configs = {}
         self.all_controls = {}
         self.static_controls = {}
         self.dynamic_controls = {}
@@ -50,9 +70,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         Populate control and skinsetting mappings from JSON definitions.
         Separates static and dynamic controls.
         """
-        self.skinsettings = {
+        self.configs = {
             setting_id: setting
-            for settings_dict in self.skinsettings_handler.data.values()
+            for settings_dict in self.configs_handler.data.values()
             for setting_id, setting in settings_dict.items()
         }
 
@@ -80,7 +100,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 instance = self.getControl(control["id"])
                 self.control_instances[control_id] = instance
                 handler = DynamicControlFactory.create_handler(
-                    control, self.getControl, self.skinsettings
+                    control,
+                    self.getControl,
+                    self.configs,
+                    self.runtime_manager,
                 )
                 if handler:
                     self.handlers[control_id] = handler

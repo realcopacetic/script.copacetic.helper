@@ -20,27 +20,35 @@ class RuntimeStateManager:
         self.configs_handler = JSONHandler(configs_path)
         self.runtime_state_handler = JSONHandler(runtime_state_path)
 
+    @property
+    def runtime_state(self):
+        self.runtime_state_handler.reload()
+        return next(iter(self.runtime_state_handler.data.values()), {})
+
+    @property
+    def configs_data(self):
+        return next(iter(self.configs_handler.data.values()), {})
+
     def initialize_runtime_state(self):
         """
         Initializes runtime_state.json based on user-defined schemas and defaults in configs.json.
         """
-        configs_data = next(iter(self.configs_handler.data.values()), {})
-
         runtime_state = {
             mapping_key: [
                 {
-                    **{
+                    "mapping_item": item,
+                    ** {
                         k: v.format(**{mapping["placeholders"]["key"]: item})
                         for k, v in user_schema.get("strings", {}).items()
                     },
                     **{
-                        k: configs_data.get(
+                        k: self.configs_data.get(
                             v.format(**{mapping["placeholders"]["key"]: item}), {}
                         ).get("default")
                         for k, v in user_schema.get("configs", {}).items()
                     },
                     **{
-                        k: configs_data.get(v, {}).get("default", "")
+                        k: self.configs_data.get(v, {}).get("default", "")
                         for k, v in user_schema.get("item_configs", {})
                         .get(item, {})
                         .items()
@@ -63,8 +71,7 @@ class RuntimeStateManager:
         :param setting_name: The name of the setting to update.
         :param value: The new value for the setting.
         """
-        runtime_data = next(iter(self.runtime_state_handler.data.values()), {})
-        mapping_list = runtime_data.setdefault(mapping_key, [])
+        mapping_list = self.runtime_state.setdefault(mapping_key, [])
 
         if index >= len(mapping_list):
             raise IndexError(
@@ -72,7 +79,7 @@ class RuntimeStateManager:
             )
 
         mapping_list[index][setting_name] = value
-        self.runtime_state_handler.write_json(runtime_data)
+        self.runtime_state_handler.write_json(self.runtime_state)
 
     def get_runtime_setting(self, mapping_key, index, setting_name):
         """
@@ -83,8 +90,7 @@ class RuntimeStateManager:
         :param setting_name: The name of the setting to retrieve.
         :returns: The value of the requested runtime setting.
         """
-        runtime_data = next(iter(self.runtime_state_handler.data.values()), {})
-        mapping_list = runtime_data.get(mapping_key, [])
+        mapping_list = self.runtime_state.get(mapping_key, [])
 
         if index >= len(mapping_list):
             raise IndexError(

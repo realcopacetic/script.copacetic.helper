@@ -16,7 +16,7 @@ COLOR_KEYS = {
 }
 
 
-def set_instance_labels(link, control, instance, skinsettings, focused_control_id):
+def set_instance_labels(link, control, instance, configs, focused_control_id, runtime_state):
     """
     Apply label and label2 to the control instance.
     If label2 is missing, use the current skin string or fallback value.
@@ -24,22 +24,27 @@ def set_instance_labels(link, control, instance, skinsettings, focused_control_i
     :param link: Dynamic linking dictionary with label data.
     :param control: Full control definition from JSON.
     :param instance: Kodi GUI control instance.
-    :param skinsettings: Dictionary of all skinsetting options.
+    :param configs: Dictionary of all configs.
     """
     setting_id = (link or {}).get("linked_setting")
-    fallback = skinsettings.get(setting_id, {}).get("items")
+    fallback = configs.get(setting_id, {}).get("items")
     label = (link or {}).get("label") or control.get("label")
-    label2 = (
-        (link or {}).get("label2")
-        or control.get("label2")
-        or next(
+    storage = configs.get(setting_id, {}).get("storage", "skinstring")
+    if storage == "runtimejson":
+        current_value = next(
             (
-                v.capitalize()
-                for v in [infolabel(f"Skin.String({setting_id})"), *(fallback or [])]
-                if v
+                item.get("value")
+                for item in runtime_state.get(setting_id, [])
+                if item.get("active")
             ),
             "",
         )
+    else:
+        current_value = infolabel(f"Skin.String({setting_id})")
+    label2 = (
+        (link or {}).get("label2")
+        or control.get("label2")
+        or (current_value.capitalize() if current_value else "")
     )
     colors = {
         param_name: resolve_colour(control[color_key])
@@ -64,18 +69,19 @@ def resolve_colour(value):
 class BaseControlHandler:
     """
     Base handler class for dynamic Kodi skin controls.
-    Manages visibility, skinsetting references, and dynamic linking.
+    Manages visibility, config references, and dynamic linking.
     """
 
-    def __init__(self, control, instance, skinsettings):
+    def __init__(self, control, instance, configs, runtime_manager):
         """
         :param control: Dictionary defining control from JSON.
         :param instance: Kodi GUI control instance.
-        :param skinsettings: Mapping of skinsetting options.
+        :param configs: Mapping of configs.
         """
         self.control = control
         self.instance = instance
-        self.skinsettings = skinsettings
+        self.configs = configs
+        self.runtime_manager = runtime_manager
         self.description = control.get("description")
         self.rule_engine = RuleEngine()
 
@@ -121,7 +127,7 @@ class BaseControlHandler:
         Return the linked_setting ID for the currently matched dynamic link.
 
         :param current_content: Currently focused control ID.
-        :return: Skinsetting ID string or None.
+        :return: config ID string or None.
         """
         return self.get_active_link(current_content).get("linked_setting")
 
@@ -151,7 +157,8 @@ class RadioButtonHandler(BaseControlHandler):
             self.get_active_link(current_content),
             self.control,
             self.instance,
-            self.skinsettings,
+            self.configs,
+            self.runtime_manager.runtime_state,
             focused_control_id,
         )
 
@@ -164,7 +171,7 @@ class RadioButtonHandler(BaseControlHandler):
         if not (setting_id := self.setting_id(current_content)):
             return
 
-        values = self.skinsettings.get(setting_id, {}).get("items", ["false", "true"])
+        values = self.configs.get(setting_id, {}).get("items", ["false", "true"])
         current_value = infolabel(f"Skin.String({setting_id})")
         is_selected = current_value == "true"
 
@@ -194,19 +201,19 @@ class RadioButtonHandler(BaseControlHandler):
 
 class SliderHandler(BaseControlHandler):
     """
-    Handles slider controls mapped to a multi-option skinsetting.
+    Handles slider controls mapped to a multi-option config.
     """
 
     def update_value(self, current_content):
         """
-        Updates the slider to reflect the current skinsetting value.
+        Updates the slider to reflect the current config value.
 
         :param current_content: Currently focused static control ID.
         """
         if not (setting_id := self.setting_id(current_content)):
             return False
 
-        setting_values = self.skinsettings.get(setting_id, {}).get("items", [])
+        setting_values = self.configs.get(setting_id, {}).get("items", [])
 
         if setting_values:
             current_value = infolabel(f"Skin.String({setting_id})")
@@ -239,7 +246,7 @@ class SliderHandler(BaseControlHandler):
         ):
             return
 
-        values = self.skinsettings.get(setting_id, {}).get("items", [])
+        values = self.configs.get(setting_id, {}).get("items", [])
         index = self.instance.getInt()
 
         if 0 <= index < len(values):
@@ -252,14 +259,14 @@ class SliderExHandler(SliderHandler):
     Allows toggling focus between the slider and associated button.
     """
 
-    def __init__(self, control, slider_instance, button_instance, skinsettings):
+    def __init__(self, control, slider_instance, button_instance, configs, runtime_manager):
         """
         :param control: Control definition.
         :param slider_instance: Main slider control instance.
         :param button_instance: Associated label button control.
-        :param skinsettings: Skinsetting mappings.
+        :param configs: config mappings.
         """
-        super().__init__(control, slider_instance, skinsettings)
+        super().__init__(control, slider_instance, configs, runtime_manager)
         self.button_instance = button_instance
         self.button_id = button_instance.getId()
 
@@ -272,7 +279,8 @@ class SliderExHandler(SliderHandler):
             self.get_active_link(current_content),
             self.control,
             self.button_instance,
-            self.skinsettings,
+            self.configs,
+            self.runtime_manager.runtime_state,
             focused_control_id,
         )
 
