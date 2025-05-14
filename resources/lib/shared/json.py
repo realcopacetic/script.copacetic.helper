@@ -72,6 +72,12 @@ class JSONHandler:
                 )
         return
 
+    def reload(self):
+        """
+        Forces a reload of the JSON data from disk.
+        """
+        self._data = self._load_json()
+    
     def write_json(self, content):
         """
         Writes a JSON-serializable dictionary to disk with indentation.
