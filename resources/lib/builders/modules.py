@@ -43,11 +43,19 @@ class BaseBuilder:
         """
         expansion_type = element_data.get("expansion", "mapping")
 
-        if expansion_type == "runtimejson" and (
-            runtime_items := self.runtime_manager.runtime_state.get(self.mapping_name)
+        if (
+            expansion_type == "runtimejson"
+            and self.runtime_manager is not None
+            and (
+                runtime_items := self.runtime_manager.runtime_state.get(
+                    self.mapping_name
+                )
+            )
         ):
             index_start = int(element_data.get("index", {}).get("@start", 1))
-            substitutions = self.generate_runtimejson_substitutions(runtime_items, index_start)
+            substitutions = self.generate_runtimejson_substitutions(
+                runtime_items, index_start
+            )
         else:
             items = element_data.get("items") or expand_index(element_data.get("index"))
             dynamic_key_mapping = {"items": "item", "index": "index"}

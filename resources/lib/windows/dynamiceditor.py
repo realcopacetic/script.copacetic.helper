@@ -89,6 +89,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             else:
                 self.static_controls[cid] = ctrl
 
+        log(f'FUCK DEBUG self.dynamic_controls {self.dynamic_controls}')
+        log(f"FUCK DEBUG self.static_controls {self.static_controls}")
+
     def onInit(self):
         """
         Initializes controls and binds handlers. Applies initial visibility logic.
@@ -112,7 +115,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 log(
                     f"Warning: Control ID {control['id']} ({control_id}) not found in XML layout: {e}"
                 )
-
+        log(f'FUCK DEBUG self.handlers {self.handlers}')
         # Trigger initial focus and visibility logic manually
         self.last_focus = self.getFocusId()
         self.onFocusChanged(self.last_focus)
@@ -170,6 +173,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if focus_control_id:
             self.current_content = focus_control_id
             # Only update dyanmic control values when focusing a static control
+            log(f'FUCK DEBUG self.current_content {self.current_content}')
             for handler in self.handlers.values():
                 handler.update_value(self.current_content)
 

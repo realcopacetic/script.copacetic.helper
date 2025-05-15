@@ -15,48 +15,6 @@ COLOR_KEYS = {
     "shadowcolor": "shadowColor",
 }
 
-
-def set_instance_labels(link, control, instance, configs, focused_control_id, runtime_state):
-    """
-    Apply label and label2 to the control instance.
-    If label2 is missing, use the current skin string or fallback value.
-
-    :param link: Dynamic linking dictionary with label data.
-    :param control: Full control definition from JSON.
-    :param instance: Kodi GUI control instance.
-    :param configs: Dictionary of all configs.
-    """
-    setting_id = (link or {}).get("linked_setting")
-    fallback = configs.get(setting_id, {}).get("items")
-    label = (link or {}).get("label") or control.get("label")
-    storage = configs.get(setting_id, {}).get("storage", "skinstring")
-    if storage == "runtimejson":
-        current_value = next(
-            (
-                item.get("value")
-                for item in runtime_state.get(setting_id, [])
-                if item.get("active")
-            ),
-            "",
-        )
-    else:
-        current_value = infolabel(f"Skin.String({setting_id})")
-    label2 = (
-        (link or {}).get("label2")
-        or control.get("label2")
-        or (current_value.capitalize() if current_value else "")
-    )
-    colors = {
-        param_name: resolve_colour(control[color_key])
-        for color_key, param_name in COLOR_KEYS.items()
-        if control.get(color_key)
-    }
-    if focused_control_id != instance.getId() and (color := colors.get("textColor")):
-        label2 = f"[COLOR {color}]{label2}[/COLOR]"
-    if label or label2:
-        instance.setLabel(label=label or "", label2=label2 or "", **colors)
-
-
 def resolve_colour(value):
     info_match = re.match(r"\$INFO\[(.*?)\]", value)
     if info_match:
@@ -87,6 +45,24 @@ class BaseControlHandler:
 
     def request_focus_change(self, target_id):
         self.focus_target_id = target_id
+    
+    def get_setting_value(self, setting_id):
+        storage = self.configs.get(setting_id, {}).get("storage", "skinstring")
+        if storage == "runtimejson":
+            return next(
+                (item.get("value", "") for item in self.runtime_manager.runtime_state.get(setting_id, [])),
+                ""
+            )
+        return infolabel(f"Skin.String({setting_id})")
+    
+    def set_setting_value(self, setting_id, value):
+        storage = self.configs.get(setting_id, {}).get("storage", "skinstring")
+        if storage == "runtimejson":
+            for item in self.runtime_manager.runtime_state.get(setting_id, []):
+                item["value"] = value
+            self.runtime_manager.runtime_state_handler.write_json(self.runtime_manager.runtime_state)
+        else:
+            skin_string(setting_id, value)
 
     def update_visibility(self, current_content, focused_control_id):
         """
@@ -130,6 +106,26 @@ class BaseControlHandler:
         :return: config ID string or None.
         """
         return self.get_active_link(current_content).get("linked_setting")
+    
+    def set_instance_labels(self, link, instance, focused_control_id):
+        setting_id = (link or {}).get("linked_setting")
+        fallback = self.configs.get(setting_id, {}).get("items")
+        label = (link or {}).get("label") or self.control.get("label")
+        current_value = self.get_setting_value(setting_id)
+        label2 = (
+            (link or {}).get("label2")
+            or self.control.get("label2")
+            or (current_value.capitalize() if current_value else "")
+        )
+        colors = {
+            param_name: resolve_colour(self.control[color_key])
+            for color_key, param_name in COLOR_KEYS.items()
+            if self.control.get(color_key)
+        }
+        if focused_control_id != instance.getId() and (color := colors.get("textColor")):
+            label2 = f"[COLOR {color}]{label2}[/COLOR]"
+        if label or label2:
+            instance.setLabel(label=label or "", label2=label2 or "", **colors)
 
 
 class ButtonHandler(BaseControlHandler):
@@ -153,13 +149,10 @@ class RadioButtonHandler(BaseControlHandler):
         Sets visibility and label/label2 for the radiobutton control.
         """
         super().update_visibility(current_content, focused_control_id)
-        set_instance_labels(
-            self.get_active_link(current_content),
-            self.control,
-            self.instance,
-            self.configs,
-            self.runtime_manager.runtime_state,
-            focused_control_id,
+        self.set_instance_labels(
+            link=self.get_active_link(current_content),
+            instance=self.instance,
+            focused_control_id=focused_control_id,
         )
 
     def update_value(self, current_content):
@@ -172,7 +165,7 @@ class RadioButtonHandler(BaseControlHandler):
             return
 
         values = self.configs.get(setting_id, {}).get("items", ["false", "true"])
-        current_value = infolabel(f"Skin.String({setting_id})")
+        current_value = self.get_setting_value(setting_id)
         is_selected = current_value == "true"
 
         self.instance.setSelected(is_selected)
@@ -196,7 +189,7 @@ class RadioButtonHandler(BaseControlHandler):
 
         new_value = "true" if self.instance.isSelected() else "false"
 
-        skin_string(setting_id, new_value)
+        self.set_setting_value(setting_id, new_value)
 
 
 class SliderHandler(BaseControlHandler):
@@ -216,7 +209,7 @@ class SliderHandler(BaseControlHandler):
         setting_values = self.configs.get(setting_id, {}).get("items", [])
 
         if setting_values:
-            current_value = infolabel(f"Skin.String({setting_id})")
+            current_value = self.get_setting_value(setting_id)
             try:
                 index = setting_values.index(current_value)
             except ValueError:
@@ -250,7 +243,7 @@ class SliderHandler(BaseControlHandler):
         index = self.instance.getInt()
 
         if 0 <= index < len(values):
-            skin_string(setting_id, values[index])
+            self.set_setting_value(setting_id, values[index])
 
 
 class SliderExHandler(SliderHandler):
@@ -275,13 +268,10 @@ class SliderExHandler(SliderHandler):
         Updates slider visibility and updates the button's label/label2.
         """
         super().update_visibility(current_content, focused_control_id)
-        set_instance_labels(
-            self.get_active_link(current_content),
-            self.control,
-            self.button_instance,
-            self.configs,
-            self.runtime_manager.runtime_state,
-            focused_control_id,
+        self.set_instance_labels(
+            link=self.get_active_link(current_content),
+            instance=self.button_instance,
+            focused_control_id=focused_control_id,
         )
 
     def update_value(self, current_content):
