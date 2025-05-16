@@ -11,6 +11,7 @@ from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared.art import SlideshowMonitor
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
+    ADDON,
     BLURS,
     CROPS,
     TEMPS,
@@ -84,23 +85,24 @@ class Monitor(xbmc.Monitor):
         Regenerates missing or outdated builder output files for 'prep' and 'buildtime'
         run contexts.
         """
-        developer_mode = False
+        dev_mode = ADDON.getSettingBool("dev_mode")
 
         for context in ["prep", "build"]:
-            builders = [
-                builder
-                for builder, config in BUILDER_CONFIG.items()
-                if context in config.get("run_contexts", [])
-                and (write_path := config.get("write_path"))
-                and not validate_path(write_path)
-            ]
+            builders = None
+            if not dev_mode:
+                builders = [
+                    builder
+                    for builder, config in BUILDER_CONFIG.items()
+                    if context in config.get("run_contexts", [])
+                    and (write_path := config.get("write_path"))
+                    and not validate_path(write_path)
+                ]
 
-            if builders:
-                BuildElements(
-                    run_context=context,
-                    builders_to_run=builders,
-                    force_rebuild=developer_mode,
-                )
+            BuildElements(
+                run_context=context,
+                builders_to_run=builders,
+                force_rebuild=dev_mode,
+            )
 
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""

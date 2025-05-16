@@ -17,6 +17,7 @@ msgstr ""
 #: Contents
 
 #: SETTINGS           320XX
+#: SETTINGS HEL       321XX
 #: SERVICE            322XX
 #: SCRIPT             324XX
 #: PLUGIN             326XX
@@ -27,6 +28,7 @@ msgstr ""
 #########################################################################################################
 
 #: SETTINGS           320XX
+#: SETTINGS HELP      321XX
 
 #########################################################################################################
 
@@ -37,32 +39,52 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32001"
-msgid "General"
+msgid "Troubleshooting"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32002"
-msgid "Debug"
+msgid "Logs"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32003"
-msgid "Enable logging"
+msgid "Enable extra debug logs"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32103"
+msgid "Diagnostic and informational logs will be included in the Kodi log file to help troubleshooting."
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32004"
-msgid "- Include json call/response logging"
+msgid "- Include json call/response logs"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32004"
-msgid "- Include json call/response logging"
+msgctxt "#32104"
+msgid "Whenever Kodi's internal database is queried by the addon using JSON-RPC, the queries and responses will also be logged."
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32004"
-msgid "- Include json call/response logging"
+msgctxt "#32005"
+msgid "Skinners"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32006"
+msgid "Dev mode"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32007"
+msgid "Enable Dev mode"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32107"
+msgid "This will force all skin builder files to be rebuilt every time Kodi starts."
 msgstr ""
 
 

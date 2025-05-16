@@ -40,6 +40,7 @@ class BuildElements:
             if (force_rebuild or builders_to_run is None)
             else builders_to_run
         )
+        log(f'FUCK DEBUG self.builders_to_run {self.builders_to_run}')
 
         self.mapping_merger = JSONMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
@@ -107,14 +108,15 @@ class BuildElements:
         values_to_return = {}
 
         # Initialize runtime states and skin strings after builders finish processing configs.json
-        if self.run_context == "build":
+        if self.run_context in ("build", "runtime"):
             self.runtime_manager = RuntimeStateManager(
                 mappings=self.all_mappings,
                 configs_path=CONFIGS,
                 runtime_state_path=RUNTIME_STATE,
             )
-            self.initialize_runtime_states()
-            self.initialize_skinstrings()
+            if self.run_context == "build":
+                self.initialize_runtime_states()
+                self.initialize_skinstrings()
 
         for mapping_name, items_data in self.combined_data():
             mapping_values = self.all_mappings.get(mapping_name, {})
@@ -193,6 +195,7 @@ class BuildElements:
         Initializes skin string defaults based on configs.json.
         This ensures default skin strings are set at build time.
         """
+        log(f'FUCK DEBUG initialise_skinstrings')
         json_handler = JSONHandler(CONFIGS)
         configs_data = next(iter(json_handler.data.values()), {})
 

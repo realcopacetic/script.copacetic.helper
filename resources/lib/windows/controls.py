@@ -5,6 +5,7 @@ import re
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import (
     infolabel,
+    log,
     skin_string,
 )
 
@@ -45,16 +46,19 @@ class BaseControlHandler:
 
     def request_focus_change(self, target_id):
         self.focus_target_id = target_id
-    
+
     def get_setting_value(self, setting_id):
-        storage = self.configs.get(setting_id, {}).get("storage", "skinstring")
+        config = self.configs.get(setting_id, {})
+        storage = config.get("storage", "skinstring")
+        default = config.get("default", "")
         if storage == "runtimejson":
             return next(
-                (item.get("value", "") for item in self.runtime_manager.runtime_state.get(setting_id, [])),
-                ""
+                (item.get("value", "") for item in self.runtime_manager.runtime_state.get(setting_id, []) if item.get("value")),
+                default
             )
-        return infolabel(f"Skin.String({setting_id})")
-    
+        value = infolabel(f"Skin.String({setting_id})").strip()
+        return value or default
+
     def set_setting_value(self, setting_id, value):
         storage = self.configs.get(setting_id, {}).get("storage", "skinstring")
         if storage == "runtimejson":
@@ -100,15 +104,15 @@ class BaseControlHandler:
 
     def setting_id(self, current_content):
         """
-        Return the linked_setting ID for the currently matched dynamic link.
+        Return the linked_config ID for the currently matched dynamic link.
 
         :param current_content: Currently focused control ID.
         :return: config ID string or None.
         """
-        return self.get_active_link(current_content).get("linked_setting")
-    
+        return self.get_active_link(current_content).get("linked_config")
+
     def set_instance_labels(self, link, instance, focused_control_id):
-        setting_id = (link or {}).get("linked_setting")
+        setting_id = (link or {}).get("linked_config")
         fallback = self.configs.get(setting_id, {}).get("items")
         label = (link or {}).get("label") or self.control.get("label")
         current_value = self.get_setting_value(setting_id)
@@ -165,7 +169,9 @@ class RadioButtonHandler(BaseControlHandler):
             return
 
         values = self.configs.get(setting_id, {}).get("items", ["false", "true"])
+        log(f"FUCK DBEUG update_value values {values}")
         current_value = self.get_setting_value(setting_id)
+        log(f"FUCK DBEUG update_value current_value {current_value}")
         is_selected = current_value == "true"
 
         self.instance.setSelected(is_selected)
