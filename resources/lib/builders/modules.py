@@ -358,6 +358,7 @@ class controlsBuilder(BaseBuilder):
 
             return {
                 template_name: {
+                    "mapping": self.mapping_name,
                     **{
                         k: v
                         for k, v in data.items()
@@ -390,10 +391,14 @@ class controlsBuilder(BaseBuilder):
         :returns: Resolved control dict
         """
         resolved = {
-            field: self.substitute(value, sub)
-            for field, value in data.items()
-            if isinstance(value, str)
+            "mapping": self.mapping_name,
+            **{
+                field: self.substitute(value, sub)
+                for field, value in data.items()
+                if isinstance(value, str)
+            },
         }
+
         for field, value in data.items():
             if not isinstance(value, str):
                 resolved[field] = value

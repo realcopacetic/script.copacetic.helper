@@ -13,6 +13,7 @@ from resources.lib.shared.utilities import (
     RUNTIME_STATE,
     SKINEXTRAS,
     execute,
+    infolabel,
     log,
 )
 from resources.lib.windows.control_factory import DynamicControlFactory
@@ -54,14 +55,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         )
 
         self.handlers = {}
-        self.configs = {}
-        self.all_controls = {}
-        self.static_controls = {}
-        self.dynamic_controls = {}
         self.control_instances = {}
-
         self.current_content = None
         self.last_focus = None
+        self.last_selected_index = -1
 
         self.build_dicts()
 
@@ -76,26 +73,43 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             for setting_id, setting in settings_dict.items()
         }
 
-        self.all_controls = {
+        filtered_controls = {
             control_id: control
             for controls_dict in self.controls_handler.data.values()
             for control_id, control in controls_dict.items()
             if any(w in self._xml_filename for w in control.get("window", []))
         }
 
-        for cid, ctrl in self.all_controls.items():
-            if "dynamic_linking" in ctrl:
+        self.listitems = {}
+        self.dynamic_controls = {}
+
+        for cid, ctrl in filtered_controls.items():
+            if ctrl.get("control_type") == "listitem":
+                self.listitems[cid] = ctrl
+            elif "dynamic_linking" in ctrl:
                 self.dynamic_controls[cid] = ctrl
-            else:
-                self.static_controls[cid] = ctrl
 
     def onInit(self):
         """
         Initializes controls and binds handlers. Applies initial visibility logic.
         """
+        self.list_container = self.getControl(100)
         self.description_label = self.getControl(6)
 
-        for control_id, control in self.all_controls.items():
+        for cid, item in self.listitems.items():
+            raw = item.get("label", "")
+            label = infolabel(raw) if raw.startswith("$") else raw
+
+            listitem = xbmcgui.ListItem(label=label)
+            listitem.setProperty("content_id", cid)
+            icon = item.get("icon")
+
+            listitem.setArt({item.get("icon", "DefaultCopacetic.png"): icon})
+            self.list_container.addItem(listitem)
+
+        execute(f"SetFocus({self.list_container.getId()})")
+
+        for control_id, control in self.dynamic_controls.items():
             try:
                 instance = self.getControl(control["id"])
                 self.control_instances[control_id] = instance
@@ -107,17 +121,17 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 )
                 if handler:
                     self.handlers[control_id] = handler
-
             except RuntimeError as e:
                 log(
                     f"Warning: Control ID {control['id']} ({control_id}) not found in XML layout: {e}"
                 )
-        # Trigger initial focus and visibility logic manually
-        self.last_focus = self.getFocusId()
-        self.onFocusChanged(self.last_focus)
+
+        if self.listitems:
+            self.list_container.selectItem(0)
+            self.onListScroll(self.list_container)
 
         for handler in self.handlers.values():
-            handler.update_visibility(self.current_content, self.last_focus)
+            handler.update_visibility(self.current_content, self.list_container.getId())
 
     def onAction(self, action):
         """
@@ -126,12 +140,20 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object representing the user's input.
         """
-        requested_focus_change = None
         a_id = action.getId()
         current_focus = self.getFocusId()
+        requested_focus_change = None
+
+        if current_focus == self.list_container.getId():
+            self.onListScroll(self.list_container)
 
         for handler in self.handlers.values():
-            handler.handle_interaction(self.current_content, a_id, current_focus)
+            handler.handle_interaction(
+                self.current_content,
+                a_id,
+                self.last_selected_index,
+                current_focus,
+            )
             if hasattr(handler, "focus_target_id"):
                 requested_focus_change = handler.focus_target_id
                 del handler.focus_target_id
@@ -140,50 +162,28 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             execute(f"Control.SetFocus({requested_focus_change})")
             current_focus = requested_focus_change
 
-        if current_focus != self.last_focus:
-            self.onFocusChanged(current_focus)
-            self.last_focus = current_focus
-
         for handler in self.handlers.values():
             handler.update_visibility(self.current_content, self.last_focus)
 
         super().onAction(action)
 
-    def onFocusChanged(self, focus_id):
+    def onListScroll(self, list):
         """
-        Called when the focused control changes.
-        Updates the current content type and triggers updates for linked dynamic controls.
-
-        :param focus_id: ID of the newly focused control.
+        Called when a list receives interaction — particularly needed for list selection.
         """
-        # Check if static control is focused and update dynamic controls
-        focus_control_id = next(
-            (
-                cid
-                for cid, ctrl in self.static_controls.items()
-                if ctrl["id"] == focus_id
-            ),
-            None,
-        )
+        if list == self.list_container:
+            index = self.list_container.getSelectedPosition()
+            if index < 0 or index == self.last_selected_index:
+                return
 
-        if focus_control_id:
-            self.current_content = focus_control_id
-            # Only update dyanmic control values when focusing a static control
+            self.last_selected_index = index
+            selected_item = self.list_container.getListItem(index)
+            content_id = selected_item.getProperty("content_id")
+            self.current_content = content_id
+
             for handler in self.handlers.values():
-                handler.update_value(self.current_content)
+                handler.update_value(self.current_content, self.last_selected_index)
+                handler.update_visibility(self.current_content, self.last_focus)
 
-        # Find focused handler and pass description text to label
-        handler = next(
-            (
-                h
-                for h in self.handlers.values()
-                if h.instance.getId() == focus_id
-                or getattr(h, "button_id", None) == focus_id
-            ),
-            None,
-        )
-
-        if handler and (description_text := handler.description):
-            self.description_label.setText(description_text)
-        else:
-            self.description_label.setText("")
+            description = self.listitems.get(content_id, {}).get("description", "")
+            self.description_label.setText(description or "")

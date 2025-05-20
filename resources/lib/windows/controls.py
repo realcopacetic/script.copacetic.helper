@@ -52,6 +52,7 @@ class BaseControlHandler:
         storage = config.get("storage", "skinstring")
         default = config.get("default", "")
         if storage == "runtimejson":
+            mapping_key = config.get("mapping")
             return next(
                 (item.get("value", "") for item in self.runtime_manager.runtime_state.get(setting_id, []) if item.get("value")),
                 default
@@ -59,9 +60,15 @@ class BaseControlHandler:
         value = infolabel(f"Skin.String({setting_id})").strip()
         return value or default
 
-    def set_setting_value(self, setting_id, value):
-        storage = self.configs.get(setting_id, {}).get("storage", "skinstring")
+    def set_setting_value(self, setting_id, value, list_index):
+        config = self.configs[setting_id]
+        storage = config.get("storage", "skinstring")
         if storage == "runtimejson":
+            mapping_key = config["mapping"]
+            entries = self.runtime_manager.runtime_state.setdefault(mapping_key, [])
+            try:
+                entry = entries[list_index]
+                
             for item in self.runtime_manager.runtime_state.get(setting_id, []):
                 item["value"] = value
             self.runtime_manager.runtime_state_handler.write_json(self.runtime_manager.runtime_state)
@@ -138,7 +145,7 @@ class ButtonHandler(BaseControlHandler):
     description labels for buttons.
     """
 
-    def update_value(self, current_content): ...
+    def update_value(self, current_content, list_index): ...
 
     def handle_interaction(self, current_content, a_id, focused_control_id=None): ...
 
@@ -159,7 +166,7 @@ class RadioButtonHandler(BaseControlHandler):
             focused_control_id=focused_control_id,
         )
 
-    def update_value(self, current_content):
+    def update_value(self, current_content, list_index):
         """
         Updates the selected state and enabled status of the radio control.
 
@@ -169,15 +176,13 @@ class RadioButtonHandler(BaseControlHandler):
             return
 
         values = self.configs.get(setting_id, {}).get("items", ["false", "true"])
-        log(f"FUCK DBEUG update_value values {values}")
         current_value = self.get_setting_value(setting_id)
-        log(f"FUCK DBEUG update_value current_value {current_value}")
         is_selected = current_value == "true"
 
         self.instance.setSelected(is_selected)
         self.instance.setEnabled(len(values) > 1)
 
-    def handle_interaction(self, current_content, a_id, focused_control_id=None):
+    def handle_interaction(self, current_content, a_id, list_index, focused_control_id=None):
         """
         Toggles the boolean setting if user selects the radiobutton.
 
@@ -195,7 +200,7 @@ class RadioButtonHandler(BaseControlHandler):
 
         new_value = "true" if self.instance.isSelected() else "false"
 
-        self.set_setting_value(setting_id, new_value)
+        self.set_setting_value(setting_id, new_value, list_index)
 
 
 class SliderHandler(BaseControlHandler):
@@ -203,7 +208,7 @@ class SliderHandler(BaseControlHandler):
     Handles slider controls mapped to a multi-option config.
     """
 
-    def update_value(self, current_content):
+    def update_value(self, current_content, list_index):
         """
         Updates the slider to reflect the current config value.
 
@@ -225,7 +230,7 @@ class SliderHandler(BaseControlHandler):
         self.instance.setEnabled(enabled)
         return enabled
 
-    def handle_interaction(self, current_content, a_id, focused_control_id=None):
+    def handle_interaction(self, current_content, a_id, list_index, focused_control_id=None):
         """
         Updates the skin string when the user interacts with the slider.
 
@@ -249,7 +254,7 @@ class SliderHandler(BaseControlHandler):
         index = self.instance.getInt()
 
         if 0 <= index < len(values):
-            self.set_setting_value(setting_id, values[index])
+            self.set_setting_value(setting_id, values[index], list_index)
 
 
 class SliderExHandler(SliderHandler):
@@ -280,13 +285,13 @@ class SliderExHandler(SliderHandler):
             focused_control_id=focused_control_id,
         )
 
-    def update_value(self, current_content):
+    def update_value(self, current_content, list_index):
         """
         Passes slider update from parent class then enables/disables button accordingly.
 
         :param current_content: Currently focused static control ID.
         """
-        enabled = super().update_value(current_content)
+        enabled = super().update_value(current_content, list_index)
         self.button_instance.setEnabled(enabled)
 
     def handle_interaction(self, current_content, a_id, focused_control_id=None):
