@@ -26,6 +26,7 @@ class BaseBuilder:
         :param runtime_manager: Instance of manager class for handling runtime configs
         """
         self.mapping_name = mapping_name
+        self.mapping_values = mapping_values
         self.loop_values = mapping_values.get("items")
         self.placeholders = mapping_values.get("placeholders", {})
         self.metadata = mapping_values.get("metadata", {})
@@ -356,9 +357,22 @@ class controlsBuilder(BaseBuilder):
                     seen.add(key)
                     resolved_list.append(resolved)
 
+            linked_config = data["dynamic_linking"].get("linked_config")
+            schema = self.mapping_values.get("user_defined_schema", {})
+            configs = schema.get("configs", {})
+            field_name = next(
+                (
+                    fname
+                    for fname, template in configs.items()
+                    if template == linked_config
+                ),
+                None,
+            )
+
             return {
                 template_name: {
                     "mapping": self.mapping_name,
+                    "field": field_name,
                     **{
                         k: v
                         for k, v in data.items()

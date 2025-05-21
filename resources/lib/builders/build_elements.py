@@ -40,7 +40,6 @@ class BuildElements:
             if (force_rebuild or builders_to_run is None)
             else builders_to_run
         )
-        log(f'FUCK DEBUG self.builders_to_run {self.builders_to_run}')
 
         self.mapping_merger = JSONMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
@@ -195,7 +194,6 @@ class BuildElements:
         Initializes skin string defaults based on configs.json.
         This ensures default skin strings are set at build time.
         """
-        log(f'FUCK DEBUG initialise_skinstrings')
         json_handler = JSONHandler(CONFIGS)
         configs_data = next(iter(json_handler.data.values()), {})
 

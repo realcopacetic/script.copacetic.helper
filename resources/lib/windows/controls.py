@@ -66,8 +66,8 @@ class BaseControlHandler:
         if storage == "runtimejson":
             mapping_key = config["mapping"]
             entries = self.runtime_manager.runtime_state.setdefault(mapping_key, [])
-            try:
-                entry = entries[list_index]
+
+            entry = entries[list_index]
                 
             for item in self.runtime_manager.runtime_state.get(setting_id, []):
                 item["value"] = value
