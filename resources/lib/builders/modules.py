@@ -372,7 +372,7 @@ class controlsBuilder(BaseBuilder):
             return {
                 template_name: {
                     "mapping": self.mapping_name,
-                    "field": field_name,
+                    **({"field": field_name} if field_name else {}),
                     **{
                         k: v
                         for k, v in data.items()

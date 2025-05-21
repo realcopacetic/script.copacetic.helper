@@ -56,9 +56,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self.handlers = {}
         self.control_instances = {}
-        self.current_content = None
-        self.last_focus = None
-        self.last_selected_index = -1
+        self.current_listitem = None
+        self.container_position = -1
 
         self.build_dicts()
 
@@ -107,7 +106,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             listitem.setArt({item.get("icon", "DefaultCopacetic.png"): icon})
             self.list_container.addItem(listitem)
 
-        execute(f"SetFocus({self.list_container.getId()})")
+        current_focus = self.list_container.getId()
+        execute(f"SetFocus({current_focus})")
 
         for control_id, control in self.dynamic_controls.items():
             try:
@@ -128,10 +128,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         if self.listitems:
             self.list_container.selectItem(0)
-            self.onListScroll(self.list_container)
-
-        for handler in self.handlers.values():
-            handler.update_visibility(self.current_content, self.list_container.getId())
+            self.onListScroll(current_focus)
 
     def onAction(self, action):
         """
@@ -145,13 +142,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         requested_focus_change = None
 
         if current_focus == self.list_container.getId():
-            self.onListScroll(self.list_container)
+            self.onListScroll(current_focus)
 
         for handler in self.handlers.values():
             handler.handle_interaction(
-                self.current_content,
+                self.current_listitem,
+                self.container_position,
                 a_id,
-                self.last_selected_index,
                 current_focus,
             )
             if hasattr(handler, "focus_target_id"):
@@ -163,27 +160,36 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             current_focus = requested_focus_change
 
         for handler in self.handlers.values():
-            handler.update_visibility(self.current_content, self.last_focus)
+            handler.update_visibility(
+                self.current_listitem,
+                self.container_position,
+                current_focus,
+            )
 
         super().onAction(action)
 
-    def onListScroll(self, list):
+    def onListScroll(self, current_focus):
         """
-        Called when a list receives interaction — particularly needed for list selection.
+        Update dynamic controls when the list selection changes.
+        
+        :param current_focus: ID of the currently focused control.
         """
-        if list == self.list_container:
-            index = self.list_container.getSelectedPosition()
-            if index < 0 or index == self.last_selected_index:
-                return
+        index = self.list_container.getSelectedPosition()
+        if index < 0 or index == self.container_position:
+            return
 
-            self.last_selected_index = index
-            selected_item = self.list_container.getListItem(index)
-            content_id = selected_item.getProperty("content_id")
-            self.current_content = content_id
+        self.container_position = index
+        selected_item = self.list_container.getListItem(index)
+        content_id = selected_item.getProperty("content_id")
+        self.current_listitem = content_id
 
-            for handler in self.handlers.values():
-                handler.update_value(self.current_content, self.last_selected_index)
-                handler.update_visibility(self.current_content, self.last_focus)
+        for handler in self.handlers.values():
+            handler.update_value(self.current_listitem, self.container_position)
+            handler.update_visibility(
+                self.current_listitem,
+                self.container_position,
+                current_focus,
+            )
 
-            description = self.listitems.get(content_id, {}).get("description", "")
-            self.description_label.setText(description or "")
+        description = self.listitems.get(content_id, {}).get("description", "")
+        self.description_label.setText(description or "")
