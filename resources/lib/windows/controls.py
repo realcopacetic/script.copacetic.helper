@@ -62,14 +62,10 @@ class BaseControlHandler:
         if storage == "runtimejson":
             mapping = self.control.get("mapping")
             field = self.control.get("field")
-            log(f'FUCK DEBUG mapping {mapping}')
-            log(f"FUCK DEBUG field {field}")
             try:
-                x = self.runtime_manager.get_runtime_setting(
+                return self.runtime_manager.get_runtime_setting(
                     mapping, container_position, field
                 )
-                log(f'FUCK DEBUG x {x}')
-                return x
             except (IndexError, KeyError):
                 return default
 
@@ -86,6 +82,7 @@ class BaseControlHandler:
         """
         config = self.configs[setting_id]
         storage = config.get("storage", "skinstring")
+
         if storage == "runtimejson":
             mapping = self.control.get("mapping")
             field = self.control.get("field")
@@ -310,7 +307,6 @@ class SliderHandler(BaseControlHandler):
             return False
 
         setting_values = self.configs.get(setting_id, {}).get("items", [])
-
         if setting_values:
             current_value = self.get_setting_value(setting_id, container_position)
             try:
@@ -362,7 +358,10 @@ class SliderExHandler(SliderHandler):
                 self.request_focus_change(self.button_instance.getId())
         else:
             super().handle_interaction(
-                current_listitem, container_position, a_id, focused_control_id
+                current_listitem,
+                container_position,
+                focused_control_id,
+                a_id,
             )
 
     def update_value(self, current_listitem, container_position):

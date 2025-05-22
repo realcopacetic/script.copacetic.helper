@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 from resources.lib.shared.json import JSONHandler
+from resources.lib.shared.utilities import log
 
 
 class RuntimeStateManager:
@@ -71,7 +72,8 @@ class RuntimeStateManager:
         :param setting_name: The name of the setting to update.
         :param value: The new value for the setting.
         """
-        mapping_list = self.runtime_state.setdefault(mapping_key, [])
+        state = self.runtime_state
+        mapping_list = state.setdefault(mapping_key, [])
 
         if index >= len(mapping_list):
             raise IndexError(
@@ -79,7 +81,7 @@ class RuntimeStateManager:
             )
 
         mapping_list[index][setting_name] = value
-        self.runtime_state_handler.write_json(self.runtime_state)
+        self.runtime_state_handler.write_json(state)
 
     def get_runtime_setting(self, mapping_key, index, setting_name):
         """

@@ -143,28 +143,28 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         if current_focus == self.list_container.getId():
             self.onListScroll(current_focus)
+        else:
+            for handler in self.handlers.values():
+                handler.handle_interaction(
+                    self.current_listitem,
+                    self.container_position,
+                    self.getFocusId(),
+                    a_id,
+                )
+                if hasattr(handler, "focus_target_id"):
+                    requested_focus_change = handler.focus_target_id
+                    del handler.focus_target_id
 
-        for handler in self.handlers.values():
-            handler.handle_interaction(
-                self.current_listitem,
-                self.container_position,
-                current_focus,
-                a_id,
-            )
-            if hasattr(handler, "focus_target_id"):
-                requested_focus_change = handler.focus_target_id
-                del handler.focus_target_id
+            if requested_focus_change:
+                execute(f"Control.SetFocus({requested_focus_change})")
+                current_focus = requested_focus_change
 
-        if requested_focus_change:
-            execute(f"Control.SetFocus({requested_focus_change})")
-            current_focus = requested_focus_change
-
-        for handler in self.handlers.values():
-            handler.update_visibility(
-                self.current_listitem,
-                self.container_position,
-                current_focus,
-            )
+            for handler in self.handlers.values():
+                handler.update_visibility(
+                    self.current_listitem,
+                    self.container_position,
+                    current_focus,
+                )
 
         super().onAction(action)
 
