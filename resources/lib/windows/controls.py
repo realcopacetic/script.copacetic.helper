@@ -5,6 +5,7 @@ import re
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import (
     infolabel,
+    log,
     skin_string,
 )
 
@@ -61,10 +62,14 @@ class BaseControlHandler:
         if storage == "runtimejson":
             mapping = self.control.get("mapping")
             field = self.control.get("field")
+            log(f'FUCK DEBUG mapping {mapping}')
+            log(f"FUCK DEBUG field {field}")
             try:
-                return self.runtime_manager.get_runtime_setting(
+                x = self.runtime_manager.get_runtime_setting(
                     mapping, container_position, field
                 )
+                log(f'FUCK DEBUG x {x}')
+                return x
             except (IndexError, KeyError):
                 return default
 
@@ -153,7 +158,9 @@ class BaseControlHandler:
         if label or label2:
             instance.setLabel(label=label or "", label2=label2 or "", **colors)
 
-    def update_visibility(self, current_listitem, container_position, focused_control_id):
+    def update_visibility(
+        self, current_listitem, container_position, focused_control_id
+    ):
         """
         Evaluates and sets visibility based on the control's visible condition.
 
@@ -183,7 +190,7 @@ class ButtonHandler(BaseControlHandler):
     """
 
     def handle_interaction(
-        self, current_listitem, container_position, a_id, focused_control_id=None
+        self, current_listitem, container_position, focused_control_id, a_id
     ): ...
 
     def update_value(self, current_listitem, container_position): ...
@@ -195,15 +202,15 @@ class RadioButtonHandler(BaseControlHandler):
     """
 
     def handle_interaction(
-        self, current_listitem, container_position, a_id, focused_control_id=None
+        self, current_listitem, container_position, focused_control_id, a_id
     ):
         """
         Toggles the boolean setting if user selects the radiobutton.
 
         :param current_listitem: ID of the static control in focus.
         :param container_position: The current index position in the runtime list.
-        :param a_id: Kodi action ID.
         :param focused_control_id: ID of currently focused control.
+        :param a_id: Kodi action ID.
         """
         from xbmcgui import ACTION_SELECT_ITEM
 
@@ -262,15 +269,15 @@ class SliderHandler(BaseControlHandler):
     """
 
     def handle_interaction(
-        self, current_listitem, container_position, a_id, focused_control_id=None
+        self, current_listitem, container_position, focused_control_id, a_id
     ):
         """
         Updates the skin string when the user interacts with the slider.
 
         :param current_listitem: ID of the static control in focus.
         :param container_position: The current index position in the runtime list.
-        :param a_id: Kodi action ID.
         :param focused_control_id: ID of currently focused control.
+        :param a_id: Kodi action ID.
         """
         from xbmcgui import ACTION_MOVE_LEFT, ACTION_MOVE_RIGHT
 
@@ -336,15 +343,15 @@ class SliderExHandler(SliderHandler):
         self.button_id = button_instance.getId()
 
     def handle_interaction(
-        self, current_listitem, container_position, a_id, focused_control_id=None
+        self, current_listitem, container_position, focused_control_id, a_id
     ):
         """
         Handles focus toggle or delegates to slider handler based on action.
 
         :param current_listitem: ID of the static control in focus.
         :param container_position: The current index position in the runtime list.
-        :param a_id: Kodi action ID.
         :param focused_control_id: ID of currently focused control.
+        :param a_id: Kodi action ID.
         """
         from xbmcgui import ACTION_SELECT_ITEM
 

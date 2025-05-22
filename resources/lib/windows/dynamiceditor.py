@@ -148,8 +148,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             handler.handle_interaction(
                 self.current_listitem,
                 self.container_position,
-                a_id,
                 current_focus,
+                a_id,
             )
             if hasattr(handler, "focus_target_id"):
                 requested_focus_change = handler.focus_target_id
