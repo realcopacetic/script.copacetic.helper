@@ -1,7 +1,6 @@
 # author: realcopacetic
 
 from resources.lib.shared.json import JSONHandler
-from resources.lib.shared.utilities import log
 
 
 class RuntimeStateManager:
@@ -17,40 +16,49 @@ class RuntimeStateManager:
         :param configs_path: Path to configs.json for fetching default configuration values.
         :param runtime_state_path: Path to runtime_state.json for persisting runtime states.
         """
-        self.mappings = mappings
+        self._mappings = mappings
         self.configs_handler = JSONHandler(configs_path)
         self.runtime_state_handler = JSONHandler(runtime_state_path)
 
     @property
-    def runtime_state(self):
-        self.runtime_state_handler.reload()
-        return next(iter(self.runtime_state_handler.data.values()), {})
+    def mappings(self):
+        """return: All mapping definitions (BUILDER_MAPPINGS + custom_mappings)."""
+        return self._mappings
 
     @property
     def configs_data(self):
+        """return: Flat dict of all configs.json entries, keyed by setting_id."""
         return next(iter(self.configs_handler.data.values()), {})
+
+    @property
+    def runtime_state(self):
+        """return: Flat dict of current runtime JSON data."""
+        self.runtime_state_handler.reload()
+        return next(iter(self.runtime_state_handler.data.values()), {})
 
     def initialize_runtime_state(self):
         """
-        Initializes runtime_state.json based on user-defined schemas and defaults in configs.json.
+        Initializes runtime_state.json at build time based on user-defined schemas 
+        in custom mapping files and defaults in configs.json.
         """
         runtime_state = {
             mapping_key: [
                 {
                     "mapping_item": item,
-                    ** {
-                        k: v.format(**{mapping["placeholders"]["key"]: item})
-                        for k, v in user_schema.get("value_fields", {}).items()
-                    },
                     **{
-                        k: self.configs_data.get(
-                            v.format(**{mapping["placeholders"]["key"]: item}), {}
+                        field_name: self.configs_data.get(
+                            template.format(
+                                **{mapping["placeholders"]["key"]: item}
+                            ),
+                            {},
                         ).get("default")
-                        for k, v in user_schema.get("config_fields", {}).items()
+                        for field_name, template in user_schema.get(
+                            "config_fields", {}
+                        ).items()
                     },
                     **{
-                        k: self.configs_data.get(v, {}).get("default", "")
-                        for k, v in user_schema.get("item_fields", {})
+                        meta_key: default
+                        for meta_key, default in user_schema.get("metadata_fields", {})
                         .get(item, {})
                         .items()
                     },

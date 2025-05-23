@@ -19,7 +19,7 @@ HANDLER_REGISTRY = {
 
 class DynamicControlFactory:
     @staticmethod
-    def create_handler(control, get_control_func, configs, runtime_manager):
+    def create_handler(control, get_control_func, runtime_manager):
         control_type = control.get("control_type")
 
         if control_type == "sliderex":
@@ -28,7 +28,7 @@ class DynamicControlFactory:
                 button_id = int(f"{control['id']}0")
                 button_instance = get_control_func(button_id)
                 return SliderExHandler(
-                    control, slider_instance, button_instance, configs, runtime_manager
+                    control, slider_instance, button_instance, runtime_manager
                 )
             except RuntimeError as e:
                 log(
@@ -39,6 +39,6 @@ class DynamicControlFactory:
         handler_cls = HANDLER_REGISTRY.get(control_type)
         if handler_cls:
             instance = get_control_func(control["id"])
-            return handler_cls(control, instance, configs, runtime_manager)
+            return handler_cls(control, instance, runtime_manager)
 
         return None

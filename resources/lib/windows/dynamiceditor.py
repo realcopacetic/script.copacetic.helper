@@ -37,7 +37,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         super().__init__()
         self._xml_filename = xmlFilename.lower()
         self.controls_handler = JSONHandler(CONTROLS)
-        self.configs_handler = JSONHandler(CONFIGS)
 
         self.mapping_merger = JSONMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
@@ -66,12 +65,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         Populate control and skinsetting mappings from JSON definitions.
         Separates static and dynamic controls.
         """
-        self.configs = {
-            setting_id: setting
-            for settings_dict in self.configs_handler.data.values()
-            for setting_id, setting in settings_dict.items()
-        }
-
         filtered_controls = {
             control_id: control
             for controls_dict in self.controls_handler.data.values()
@@ -110,20 +103,23 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         execute(f"SetFocus({current_focus})")
 
         for control_id, control in self.dynamic_controls.items():
+            id = control.get("id")
+            if id is None:
+                log(f"Skipping dynamic control {control_id}: missing 'id'")
+                continue
             try:
-                instance = self.getControl(control["id"])
+                instance = self.getControl(id)
                 self.control_instances[control_id] = instance
                 handler = DynamicControlFactory.create_handler(
                     control,
                     self.getControl,
-                    self.configs,
                     self.runtime_manager,
                 )
                 if handler:
                     self.handlers[control_id] = handler
             except RuntimeError as e:
                 log(
-                    f"Warning: Control ID {control['id']} ({control_id}) not found in XML layout: {e}"
+                    f"Warning: Control ID {id} ({control_id}) not found in XML layout: {e}"
                 )
 
         if self.listitems:
