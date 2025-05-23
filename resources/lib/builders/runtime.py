@@ -40,17 +40,17 @@ class RuntimeStateManager:
                     "mapping_item": item,
                     ** {
                         k: v.format(**{mapping["placeholders"]["key"]: item})
-                        for k, v in user_schema.get("strings", {}).items()
+                        for k, v in user_schema.get("value_fields", {}).items()
                     },
                     **{
                         k: self.configs_data.get(
                             v.format(**{mapping["placeholders"]["key"]: item}), {}
                         ).get("default")
-                        for k, v in user_schema.get("configs", {}).items()
+                        for k, v in user_schema.get("config_fields", {}).items()
                     },
                     **{
                         k: self.configs_data.get(v, {}).get("default", "")
-                        for k, v in user_schema.get("item_configs", {})
+                        for k, v in user_schema.get("item_fields", {})
                         .get(item, {})
                         .items()
                     },
