@@ -74,7 +74,7 @@ class OnClickActions:
         return dlg.select(
             cfg["heading"],
             cfg["items"],
-            cfg.get("autoclose"),
-            cfg.get("preselect"),
-            cfg.get("useDetails"),
+            cfg.get("autoclose", -1),
+            cfg.get("preselect", 0),
+            cfg.get("useDetails", False),
         )

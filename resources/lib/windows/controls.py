@@ -2,13 +2,9 @@
 
 import re
 
-from resources.lib.windows.onclick_actions import OnClickActions
 from resources.lib.builders.logic import RuleEngine
-from resources.lib.shared.utilities import (
-    infolabel,
-    skin_string,
-    log
-)
+from resources.lib.shared.utilities import infolabel, log, skin_string
+from resources.lib.windows.onclick_actions import OnClickActions
 
 COLOR_KEYS = {
     "textcolor": "textColor",
@@ -43,15 +39,41 @@ class BaseControlHandler:
         self.runtime_manager = runtime_manager
         self.description = control.get("description")
         self.rule_engine = RuleEngine()
+        self.current_listitem = None
+        self.container_position = None
 
-    def _get_active_link(self, current_listitem):
+    def _get_active_link(self):
         """
         Return the dynamic_linking entry that matches the currently focused static control.
 
-        :param current_listitem: Named ID of the currently selected listitem.
         :return: Matching dynamic_link dictionary, or empty dict if no match.
         """
-        trigger = f"focused({current_listitem})"
+        trigger = f"focused({self.current_listitem})"
+
+        if self.control.get("expansion") == "runtimejson":
+            mapping_key = self.control["mapping"]
+            current_value = self.runtime_manager.get_runtime_setting(
+                mapping_key,
+                self.container_position,
+                "mapping_item",
+            )
+            schema = self.runtime_manager.mappings[mapping_key].get(
+                "user_defined_schema", {}
+            )
+            config_fields = schema.get("config_fields", {})
+            field = self.control.get("field")
+            template = config_fields.get(field)
+            if template:
+                placeholders = self.runtime_manager.mappings[mapping_key].get(
+                    "placeholders", {}
+                )
+                return {
+                    "update_trigger": trigger,
+                    "linked_config": template.format(
+                        **{ph_name: current_value for ph_name in placeholders.values()}
+                    ),
+                }
+
         return next(
             (
                 link
@@ -61,37 +83,33 @@ class BaseControlHandler:
             {},
         )
 
-    def _linked_config(self, current_listitem):
+    def _linked_config(self):
         """
         Return the linked_config ID for the currently matched dynamic link.
 
-        :param current_listitem: Named ID of the currently selected listitem.
         :return: config ID string or None.
         """
-        return self._get_active_link(current_listitem).get("linked_config")
+        return self._get_active_link().get("linked_config")
 
-    def _allowed_items(self, current_listitem):
+    def _allowed_items(self):
         """
         Return the list of values this control may choose from:
 
-        :param current_listitem: Named ID of the currently selected listitem.
         :returns: List of approved string values.
         """
-        if config := self._linked_config(current_listitem):
+        if config := self._linked_config():
             return self.runtime_manager.configs_data.get(config, {}).get("items", [])
         mapping_key = self.control["mapping"]
         return self.runtime_manager.mappings.get(mapping_key, {}).get("items", [])
 
-    def get_setting_value(self, current_listitem, container_position):
+    def _get_setting_value(self):
         """
         Return the current value for this control at the given list index.
         First checks for linked_config then falls back to mapping items.
 
-        :param current_listitem: Named ID of the currently selected listitem.
-        :param container_position: Current index position in the runtime list.
         :returns: The current setting or mapping_item value, or None.
         """
-        link = self._get_active_link(current_listitem)
+        link = self._get_active_link()
 
         if cfg := link.get("linked_config"):
             cfg_data = self.runtime_manager.configs_data.get(cfg, {})
@@ -103,7 +121,7 @@ class BaseControlHandler:
                 field_name = self.control.get("field")
                 try:
                     return self.runtime_manager.get_runtime_setting(
-                        mapping_key, container_position, field_name
+                        mapping_key, self.container_position, field_name
                     )
                 except (IndexError, KeyError):
                     return default
@@ -114,28 +132,25 @@ class BaseControlHandler:
         mapping_key = self.control["mapping"]
         try:
             return self.runtime_manager.get_runtime_setting(
-                mapping_key, container_position, "mapping_item"
+                mapping_key, self.container_position, "mapping_item"
             )
 
         except (IndexError, KeyError):
             default_order = self.runtime_manager.mappings.get(mapping_key, {}).get(
                 "default_order", []
             )
-            if 0 <= container_position < len(default_order):
-                return default_order[container_position]
+            if 0 <= self.container_position < len(default_order):
+                return default_order[self.container_position]
 
         return None
 
-    def set_setting_value(self, current_listitem, container_position, value):
+    def _set_setting_value(self, value):
         """
         Set a new value for this control at the given list index.
 
-
-        :param current_listitem: Named ID of the currently selected listitem.
-        :param container_position: Current index position in the runtime list.
         :param value: The new value to store.
         """
-        link = self._get_active_link(current_listitem)
+        link = self._get_active_link()
         if cfg := link.get("linked_config"):
             cfg_data = self.runtime_manager.configs_data.get(cfg, {})
             storage = cfg_data.get("storage", "skinstring")
@@ -145,7 +160,7 @@ class BaseControlHandler:
                 field_name = self.control.get("field")
                 try:
                     self.runtime_manager.update_runtime_setting(
-                        mapping_key, container_position, field_name, value
+                        mapping_key, self.container_position, field_name, value
                     )
                 except IndexError:
                     pass
@@ -156,33 +171,75 @@ class BaseControlHandler:
         mapping_key = self.control["mapping"]
         try:
             self.runtime_manager.update_runtime_setting(
-                mapping_key, container_position, "mapping_item", value
+                mapping_key, self.container_position, "mapping_item", value
             )
         except IndexError:
             pass
         return
 
-    def set_instance_labels(
-        self, current_listitem, container_position, focused_control_id, instance=None
+    def refresh_after_mapping_item_change(
+        self, current_listitem, container_position, focus_id
     ):
         """
-        Update the label and secondary label (label2) on a control instance.
+        If this control has a 'field', refresh its UI and reset its JSON
+        value if no longer allowed, using the declared default when available.
 
         :param current_listitem: Named ID of the currently selected listitem.
         :param container_position: Current index position in the runtime list.
+        :param focused_control_id: GUI control ID that currently has focus.
+        """
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
+        if "field" not in self.control:
+            return
+
+        val = self._get_setting_value()
+        allowed = self._allowed_items()
+        if allowed and val not in allowed:
+            if cfg_key := self._linked_config():
+                cfg_data = self.runtime_manager.configs_data.get(cfg_key, {})
+                default_val = cfg_data.get("default", allowed[0])
+            else:
+                default_val = allowed[0]
+
+            self._set_setting_value(default_val)
+
+        self.update_value(current_listitem, container_position)
+        self.update_visibility(current_listitem, container_position, focus_id)
+
+    def set_instance_labels(self, focused_control_id, instance=None):
+        """
+        Update the label and secondary label (label2) on a control instance.
+
         :param focused_control_id: GUI control ID that currently has focus.
         :param instance: The GUI control to update.
         """
         if instance is None:
             instance = self.instance
-        link = self._get_active_link(current_listitem)
-        current_value = self.get_setting_value(current_listitem, container_position)
+        link = self._get_active_link()
+        current_value = self._get_setting_value()
         label = link.get("label") or self.control.get("label", "")
         label2 = (
             link.get("label2")
             or self.control.get("label2")
             or (current_value.capitalize() if current_value else "")
         )
+
+        mapping_key = self.control.get("mapping")
+        try:
+            mapping_item = self.runtime_manager.get_runtime_setting(
+                mapping_key, self.container_position, "mapping_item"
+            )
+            meta = self.runtime_manager.mappings[mapping_key].get("metadata", {}).get(mapping_item, {})
+        except Exception:
+            meta = {}
+
+        label, label2 = [
+            txt.format(**meta) if isinstance(txt, str) and "{" in txt else txt
+            for txt in (label, label2)
+        ]
+
         colors = {
             param_name: resolve_colour(self.control[color_key])
             for color_key, param_name in COLOR_KEYS.items()
@@ -205,7 +262,10 @@ class BaseControlHandler:
         :param focused_control_id: GUI control ID that has current focus.
 
         """
-        link = self._get_active_link(current_listitem)
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
+        link = self._get_active_link()
         visible_condition = (
             link.get("visible", "") if link else self.control.get("visible", "")
         )
@@ -248,40 +308,45 @@ class ButtonHandler(BaseControlHandler):
         """
         from xbmcgui import ACTION_SELECT_ITEM
 
-        log(f'FUCK DEBUG handle_interaction()')
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
         if (
             focused_control_id != self.instance.getId()
             or a_id != ACTION_SELECT_ITEM
-            or not self._linked_config(current_listitem)
+            or not self._get_active_link()
         ):
             return
-
-        log(f"FUCK DEBUG handle_interaction() no early return")
 
         onclick = self.control.get("onclick")
         if not onclick:
             return
 
-        action_type = onclick.get("type", "custom")
-        if action_type in ("browseSingle", "browse_single"):
-            action_type = "browse_single"
-        elif action_type in ("browseMultiple", "browse_multiple"):
-            action_type = "browse_multiple"
+        action_type = onclick.get("type", "custom").lower()
+        action_type = {
+            "browsesingle": "browse_single",
+            "browsemultiple": "browse_multiple",
+        }.get(action_type, action_type)
 
         handler = self.ACTIONS.get(action_type, OnClickActions.custom)
         cfg = self._build_cfg(onclick)
         result = handler(cfg)
+        if isinstance(result, int):
+            if result < 0:
+                return
+            items = cfg["items"]
+            if 0 <= result < len(items):
+                result = items[result]
         if result is not None:
-            self.set_setting_value(current_listitem, container_position, result)
+            self._set_setting_value(result)
+            if "field" not in self.control:
+                self.parent.onMappingItemChanged()
 
     def _build_cfg(self, onclick):
         """
-        Consolidate onclick settings into a flat config dict.
+        Build the flat config dict for OnClickActions, merging core and optional keys.
         """
-        cfg = {"heading": onclick.get("heading", ""), "action": onclick.get("action")}
-        if "items" in onclick:
-            cfg["items"] = onclick["items"]
-        for key in (
+        optional = (
             "browseType",
             "shares",
             "mask",
@@ -292,12 +357,25 @@ class ButtonHandler(BaseControlHandler):
             "autoclose",
             "preselect",
             "useDetails",
-        ):
-            if key in onclick:
-                cfg[key] = onclick[key]
-        return cfg
+        )
+        return {
+            "heading": onclick.get("heading", ""),
+            "action": onclick.get("action"),
+            "items": onclick.get("items")
+            or self._allowed_items(),
+            **{k: onclick[k] for k in optional if k in onclick},
+        }
 
-    def update_value(self, current_listitem, container_position): ...
+    def update_value(self, current_listitem, container_position):
+        """
+        No-op stub to avoid breaking handler.update_value loop through all 
+        controls in window class.
+
+        :param current_listitem: Named ID of the currently selected listitem.
+        :param container_position: Current index position in the runtime list.
+        """
+        self.current_listitem = current_listitem
+        self.container_position = container_position
 
     def update_visibility(
         self, current_listitem, container_position, focused_control_id
@@ -312,9 +390,7 @@ class ButtonHandler(BaseControlHandler):
         super().update_visibility(
             current_listitem, container_position, focused_control_id
         )
-        self.set_instance_labels(
-            current_listitem, container_position, focused_control_id
-        )
+        self.set_instance_labels(focused_control_id)
 
 
 class RadioButtonHandler(BaseControlHandler):
@@ -335,15 +411,18 @@ class RadioButtonHandler(BaseControlHandler):
         """
         from xbmcgui import ACTION_SELECT_ITEM
 
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
         if (
             focused_control_id != self.instance.getId()
             or a_id != ACTION_SELECT_ITEM
-            or not self._linked_config(current_listitem)
+            or not self._get_active_link()
         ):
             return
 
         new_value = "true" if self.instance.isSelected() else "false"
-        self.set_setting_value(current_listitem, container_position, new_value)
+        self._set_setting_value(new_value)
 
     def update_value(self, current_listitem, container_position):
         """
@@ -352,8 +431,11 @@ class RadioButtonHandler(BaseControlHandler):
         :param current_listitem: Named ID of the currently selected listitem.
         :param container_position: Current index position in the runtime list.
         """
-        allowed = self._allowed_items(current_listitem)
-        current = self.get_setting_value(current_listitem, container_position)
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
+        allowed = self._allowed_items()
+        current = self._get_setting_value()
         self.instance.setSelected(current == "true")
         self.instance.setEnabled(len(allowed) > 1)
 
@@ -370,9 +452,7 @@ class RadioButtonHandler(BaseControlHandler):
         super().update_visibility(
             current_listitem, container_position, focused_control_id
         )
-        self.set_instance_labels(
-            current_listitem, container_position, focused_control_id
-        )
+        self.set_instance_labels(focused_control_id)
 
 
 class SliderHandler(BaseControlHandler):
@@ -393,6 +473,9 @@ class SliderHandler(BaseControlHandler):
         """
         from xbmcgui import ACTION_MOVE_LEFT, ACTION_MOVE_RIGHT
 
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
         if (
             focused_control_id != self.instance.getId()
             or a_id
@@ -400,14 +483,14 @@ class SliderHandler(BaseControlHandler):
                 ACTION_MOVE_LEFT,
                 ACTION_MOVE_RIGHT,
             )
-            or not self._linked_config(current_listitem)
+            or not self._get_active_link()
         ):
             return
 
-        values = self._allowed_items(current_listitem)
+        values = self._allowed_items()
         idx = self.instance.getInt()
         if 0 <= idx < len(values):
-            self.set_setting_value(current_listitem, container_position, values[idx])
+            self._set_setting_value(values[idx])
 
     def update_value(self, current_listitem, container_position):
         """
@@ -417,11 +500,14 @@ class SliderHandler(BaseControlHandler):
         :param container_position: Current index position in the runtime list.
         :return: True if more than one values are available, otherwise False.
         """
-        if not self._linked_config(current_listitem):
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
+        if not self._linked_config():
             return False
 
-        values = self._allowed_items(current_listitem)
-        current = self.get_setting_value(current_listitem, container_position)
+        values = self._allowed_items()
+        current = self._get_setting_value()
         try:
             idx = values.index(current)
         except ValueError:
@@ -461,6 +547,9 @@ class SliderExHandler(SliderHandler):
         """
         from xbmcgui import ACTION_SELECT_ITEM
 
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
         if a_id == ACTION_SELECT_ITEM:
             if self._on_button_focused(focused_control_id):
                 self.request_focus_change(self.instance.getId())
@@ -494,12 +583,13 @@ class SliderExHandler(SliderHandler):
         :param container_position: Current index position in the runtime list.
         :param focused_control_id: GUI control ID that has current focus.
         """
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
         super().update_visibility(
             current_listitem, container_position, focused_control_id
         )
         self.set_instance_labels(
-            current_listitem,
-            container_position,
             focused_control_id,
             instance=self.button_instance,
         )

@@ -346,11 +346,16 @@ class controlsBuilder(BaseBuilder):
         if "dynamic_linking" in data:
             resolved_list = []
             seen = set()
+            is_runtime = data.get("expansion") == "runtimejson"
+            _exclude = {"label", "label2", "description"}
             for sub in substitutions:
                 resolved = {
-                    field: self.substitute(value, sub)
-                    for field, value in data["dynamic_linking"].items()
-                    if isinstance(value, str)
+                    k: (
+                        v
+                        if ((is_runtime and k in _exclude) or not isinstance(v, str))
+                        else self.substitute(v, sub)
+                    )
+                    for k, v in data["dynamic_linking"].items()
                 }
                 key = tuple(sorted(resolved.items()))
                 if key not in seen:
@@ -359,7 +364,7 @@ class controlsBuilder(BaseBuilder):
 
             linked_config = data["dynamic_linking"].get("linked_config")
             schema = self.mapping_values.get("user_defined_schema", {})
-            configs = schema.get("configs", {})
+            configs = schema.get("config_fields", {})
             field_name = next(
                 (
                     fname
@@ -404,18 +409,19 @@ class controlsBuilder(BaseBuilder):
         :param index: Index for control ID
         :returns: Resolved control dict
         """
+        is_runtime = data.get("expansion") == "runtimejson"
+        _exclude = {"label", "label2", "description"}
         resolved = {
             "mapping": self.mapping_name,
             **{
-                field: self.substitute(value, sub)
-                for field, value in data.items()
-                if isinstance(value, str)
+                k: (
+                    v
+                    if ((is_runtime and k in _exclude) or not isinstance(v, str))
+                    else self.substitute(v, sub)
+                )
+                for k, v in data.items()
             },
         }
-
-        for field, value in data.items():
-            if not isinstance(value, str):
-                resolved[field] = value
 
         if id_start is not None:
             resolved["id"] = id_start + index

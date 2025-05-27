@@ -36,11 +36,20 @@ class RuntimeStateManager:
         self.runtime_state_handler.reload()
         return next(iter(self.runtime_state_handler.data.values()), {})
 
+    def exists(self):
+        """
+        Returns True if the runtime_state.json already exists on disk.
+        """
+        return self.runtime_state_handler.exists()
+
     def initialize_runtime_state(self):
         """
         Initializes runtime_state.json at build time based on user-defined schemas 
         in custom mapping files and defaults in configs.json.
         """
+        if self.exists:
+            return
+        
         runtime_state = {
             mapping_key: [
                 {

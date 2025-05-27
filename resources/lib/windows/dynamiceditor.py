@@ -116,6 +116,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     self.runtime_manager,
                 )
                 if handler:
+                    handler.parent = self
                     self.handlers[control_id] = handler
             except RuntimeError as e:
                 log(
@@ -189,3 +190,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         description = self.listitems.get(content_id, {}).get("description", "")
         self.description_label.setText(description or "")
+
+    def onMappingItemChanged(self):
+        for handler in self.handlers.values():
+            handler.refresh_after_mapping_item_change(
+                self.current_listitem, self.container_position, self.getFocusId()
+            )

@@ -33,6 +33,12 @@ class JSONHandler:
             self._data = self._load_json()
         return self._data
 
+    def exists(self):
+        """
+        Returns True if the target path (file or directory) exists.
+        """
+        return self.path.exists()
+
     def _load_json(self):
         """
         Loads one or more JSON files and returns a combined dictionary.
@@ -77,7 +83,7 @@ class JSONHandler:
         Forces a reload of the JSON data from disk.
         """
         self._data = self._load_json()
-    
+
     def write_json(self, content):
         """
         Writes a JSON-serializable dictionary to disk with indentation.

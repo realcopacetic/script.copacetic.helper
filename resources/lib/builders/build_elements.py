@@ -114,7 +114,7 @@ class BuildElements:
                 runtime_state_path=RUNTIME_STATE,
             )
             if self.run_context == "build":
-                self.initialize_runtime_states()
+                self.runtime_manager.initialize_runtime_state()
                 self.initialize_skinstrings()
 
         for mapping_name, items_data in self.combined_data():
@@ -181,13 +181,6 @@ class BuildElements:
                 log(
                     f"{builder_name.capitalize()} saved to {write_type.upper()} file: {write_path}"
                 )
-
-    def initialize_runtime_states(self):
-        """
-        Initializes runtime_state.json based on default values in configs.json.
-        This ensures default runtime states are set at build time.
-        """
-        self.runtime_manager.initialize_runtime_state()
 
     def initialize_skinstrings(self):
         """
