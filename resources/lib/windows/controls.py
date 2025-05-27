@@ -2,10 +2,12 @@
 
 import re
 
+from resources.lib.windows.onclick_actions import OnClickActions
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import (
     infolabel,
     skin_string,
+    log
 )
 
 COLOR_KEYS = {
@@ -222,15 +224,97 @@ class BaseControlHandler:
 
 class ButtonHandler(BaseControlHandler):
     """
-    Empty ButtonHandler class so that BaseControlHandler can pass associated
-    description labels for buttons.
+    Routes control onclick configs to the appropriate OnClickActions method.
     """
+
+    ACTIONS = {
+        "select": OnClickActions.select,
+        "browse": OnClickActions.browse,
+        "browse_single": OnClickActions.browse_single,
+        "browse_multiple": OnClickActions.browse_multiple,
+        "custom": OnClickActions.custom,
+    }
 
     def handle_interaction(
         self, current_listitem, container_position, focused_control_id, a_id
-    ): ...
+    ):
+        """
+        Dispatches the onclick action when the button is activated.
+
+        :param current_listitem: Named ID of the currently selected listitem.
+        :param container_position: Index in the runtime list.
+        :param focused_control_id: ID of the focused control.
+        :param a_id: Kodi action ID.
+        """
+        from xbmcgui import ACTION_SELECT_ITEM
+
+        log(f'FUCK DEBUG handle_interaction()')
+        if (
+            focused_control_id != self.instance.getId()
+            or a_id != ACTION_SELECT_ITEM
+            or not self._linked_config(current_listitem)
+        ):
+            return
+
+        log(f"FUCK DEBUG handle_interaction() no early return")
+
+        onclick = self.control.get("onclick")
+        if not onclick:
+            return
+
+        action_type = onclick.get("type", "custom")
+        if action_type in ("browseSingle", "browse_single"):
+            action_type = "browse_single"
+        elif action_type in ("browseMultiple", "browse_multiple"):
+            action_type = "browse_multiple"
+
+        handler = self.ACTIONS.get(action_type, OnClickActions.custom)
+        cfg = self._build_cfg(onclick)
+        result = handler(cfg)
+        if result is not None:
+            self.set_setting_value(current_listitem, container_position, result)
+
+    def _build_cfg(self, onclick):
+        """
+        Consolidate onclick settings into a flat config dict.
+        """
+        cfg = {"heading": onclick.get("heading", ""), "action": onclick.get("action")}
+        if "items" in onclick:
+            cfg["items"] = onclick["items"]
+        for key in (
+            "browseType",
+            "shares",
+            "mask",
+            "useThumbs",
+            "treatAsFolder",
+            "default",
+            "enableMultiple",
+            "autoclose",
+            "preselect",
+            "useDetails",
+        ):
+            if key in onclick:
+                cfg[key] = onclick[key]
+        return cfg
 
     def update_value(self, current_listitem, container_position): ...
+
+    def update_visibility(
+        self, current_listitem, container_position, focused_control_id
+    ):
+        """
+        Sets visibility and label/label2 for the radiobutton control.
+
+        :param current_listitem: Named ID of the currently selected listitem.
+        :param container_position: Current index position in the runtime list.
+        :param focused_control_id: GUI control ID that has current focus.
+        """
+        super().update_visibility(
+            current_listitem, container_position, focused_control_id
+        )
+        self.set_instance_labels(
+            current_listitem, container_position, focused_control_id
+        )
 
 
 class RadioButtonHandler(BaseControlHandler):
@@ -354,9 +438,7 @@ class SliderExHandler(SliderHandler):
     or press select to flip focus between slider and its label-button.
     """
 
-    def __init__(
-        self, control, slider_instance, button_instance, runtime_manager
-    ):
+    def __init__(self, control, slider_instance, button_instance, runtime_manager):
         """
         :param control: Control definition.
         :param slider_instance: Main slider control instance.
