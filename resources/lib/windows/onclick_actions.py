@@ -73,7 +73,7 @@ class OnClickActions:
         dlg = Dialog()
         return dlg.select(
             cfg["heading"],
-            cfg["items"],
+            cfg["display_items"],
             cfg.get("autoclose", -1),
             cfg.get("preselect", 0),
             cfg.get("useDetails", False),

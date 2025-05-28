@@ -386,7 +386,8 @@ class ButtonHandler(BaseControlHandler):
         return {
             "heading": onclick.get("heading", ""),
             "action": onclick.get("action"),
-            "items": display_items,
+            "items": items,
+            "display_items": display_items,
             **{k: onclick[k] for k in optional if k in onclick},
         }
 
