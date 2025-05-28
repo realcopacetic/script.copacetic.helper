@@ -177,6 +177,16 @@ class BaseControlHandler:
             pass
         return
 
+    def _apply_metadata(self, template):
+        """
+        If `template` contains “{…}”, look up the current
+        mapping_item’s metadata and do a .format(**meta), otherwise
+        return it unchanged.
+        """
+        return self.runtime_manager.format_metadata(
+            self.control["mapping"], self.container_position, template
+        )
+
     def refresh_after_mapping_item_change(
         self, current_listitem, container_position, focus_id
     ):
@@ -219,26 +229,19 @@ class BaseControlHandler:
             instance = self.instance
         link = self._get_active_link()
         current_value = self._get_setting_value()
-        label = link.get("label") or self.control.get("label", "")
-        label2 = (
+        raw_label = link.get("label") or self.control.get("label", "")
+        raw_label2 = (
             link.get("label2")
             or self.control.get("label2")
             or (current_value.capitalize() if current_value else "")
         )
 
-        mapping_key = self.control.get("mapping")
-        try:
-            mapping_item = self.runtime_manager.get_runtime_setting(
-                mapping_key, self.container_position, "mapping_item"
+        label, label2 = (
+            self.runtime_manager.format_metadata(
+                self.control["mapping"], self.container_position, txt
             )
-            meta = self.runtime_manager.mappings[mapping_key].get("metadata", {}).get(mapping_item, {})
-        except Exception:
-            meta = {}
-
-        label, label2 = [
-            txt.format(**meta) if isinstance(txt, str) and "{" in txt else txt
-            for txt in (label, label2)
-        ]
+            for txt in (raw_label, raw_label2)
+        )
 
         colors = {
             param_name: resolve_colour(self.control[color_key])
@@ -361,14 +364,13 @@ class ButtonHandler(BaseControlHandler):
         return {
             "heading": onclick.get("heading", ""),
             "action": onclick.get("action"),
-            "items": onclick.get("items")
-            or self._allowed_items(),
+            "items": onclick.get("items") or self._allowed_items(),
             **{k: onclick[k] for k in optional if k in onclick},
         }
 
     def update_value(self, current_listitem, container_position):
         """
-        No-op stub to avoid breaking handler.update_value loop through all 
+        No-op stub to avoid breaking handler.update_value loop through all
         controls in window class.
 
         :param current_listitem: Named ID of the currently selected listitem.

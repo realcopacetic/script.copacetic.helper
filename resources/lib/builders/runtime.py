@@ -44,21 +44,19 @@ class RuntimeStateManager:
 
     def initialize_runtime_state(self):
         """
-        Initializes runtime_state.json at build time based on user-defined schemas 
+        Initializes runtime_state.json at build time based on user-defined schemas
         in custom mapping files and defaults in configs.json.
         """
         if self.exists:
             return
-        
+
         runtime_state = {
             mapping_key: [
                 {
                     "mapping_item": item,
                     **{
                         field_name: self.configs_data.get(
-                            template.format(
-                                **{mapping["placeholders"]["key"]: item}
-                            ),
+                            template.format(**{mapping["placeholders"]["key"]: item}),
                             {},
                         ).get("default")
                         for field_name, template in user_schema.get(
@@ -123,3 +121,17 @@ class RuntimeStateManager:
             )
 
         return instance[setting_name]
+
+    def format_metadata(self, mapping_key, index, template):
+        """
+        If template contains “{…}”, look up the runtime_state[mapping_key][index].mapping_item
+        and then its metadata dict, and format the template. Otherwise return template.
+        """
+        if not isinstance(template, str) or "{" not in template:
+            return template
+        try:
+            item = self.get_runtime_setting(mapping_key, index, "mapping_item")
+            meta = self.mappings[mapping_key].get("metadata", {}).get(item, {})
+            return template.format(**meta)
+        except Exception:
+            return template

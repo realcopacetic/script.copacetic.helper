@@ -81,6 +81,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             elif "dynamic_linking" in ctrl:
                 self.dynamic_controls[cid] = ctrl
 
+    def _format_and_localize(self, mapping_key, idx, raw):
+        """
+        Substitute any {metadata} tokens in `raw` via runtime_state,
+        then run infolabel() if it still begins with a Kodi $INFO reference.
+        """
+        formatted = self.runtime_manager.format_metadata(mapping_key, idx, raw)
+        return infolabel(formatted) if formatted.startswith("$") else formatted
+
     def onInit(self):
         """
         Initializes controls and binds handlers. Applies initial visibility logic.
@@ -88,27 +96,23 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.list_container = self.getControl(100)
         self.description_label = self.getControl(6)
 
-        for cid, item in self.listitems.items():
-            raw = item.get("label", "")
-            label = infolabel(raw) if raw.startswith("$") else raw
-
-            listitem = xbmcgui.ListItem(label=label)
-            listitem.setProperty("content_id", cid)
+        for idx, (cid, item) in enumerate(self.listitems.items()):
+            label = self._format_and_localize(
+                item["mapping"], idx, item.get("label", "")
+            )
+            li = xbmcgui.ListItem(label=label)
+            li.setProperty("content_id", cid)
             icon = item.get("icon")
-
-            listitem.setArt({item.get("icon", "DefaultCopacetic.png"): icon})
-            self.list_container.addItem(listitem)
-
-        current_focus = self.list_container.getId()
-        execute(f"SetFocus({current_focus})")
+            li.setArt({item.get("icon", "DefaultCopacetic.png"): icon})
+            self.list_container.addItem(li)
 
         for control_id, control in self.dynamic_controls.items():
-            id = control.get("id")
-            if id is None:
+            cid = control.get("id")
+            if cid is None:
                 log(f"Skipping dynamic control {control_id}: missing 'id'")
                 continue
             try:
-                instance = self.getControl(id)
+                instance = self.getControl(cid)
                 self.control_instances[control_id] = instance
                 handler = DynamicControlFactory.create_handler(
                     control,
@@ -124,6 +128,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 )
 
         if self.listitems:
+            self.container_position = -1
+            current_focus = self.list_container.getId()
+            execute(f"SetFocus({current_focus})")
             self.list_container.selectItem(0)
             self.onListScroll(current_focus)
 
@@ -168,7 +175,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
     def onListScroll(self, current_focus):
         """
         Update dynamic controls when the list selection changes.
-        
+
         :param current_focus: ID of the currently focused control.
         """
         index = self.list_container.getSelectedPosition()
@@ -176,9 +183,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             return
 
         self.container_position = index
-        selected_item = self.list_container.getListItem(index)
-        content_id = selected_item.getProperty("content_id")
-        self.current_listitem = content_id
+        cid = self.list_container.getListItem(index).getProperty("content_id")
+        self.current_listitem = cid
 
         for handler in self.handlers.values():
             handler.update_value(self.current_listitem, self.container_position)
@@ -188,11 +194,29 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 current_focus,
             )
 
-        description = self.listitems.get(content_id, {}).get("description", "")
-        self.description_label.setText(description or "")
+        item = self.listitems[cid]
+        desc = self._format_and_localize(
+            item["mapping"],
+            index,
+            item.get("description", ""),
+        )
+        self.description_label.setText(desc or "")
 
     def onMappingItemChanged(self):
         for handler in self.handlers.values():
             handler.refresh_after_mapping_item_change(
                 self.current_listitem, self.container_position, self.getFocusId()
             )
+
+        li = self.list_container.getListItem(self.container_position)
+        item_def = self.listitems[self.current_listitem]
+        for attr, setter in (
+            ("label", li.setLabel),
+            ("description", self.description_label.setText),
+        ):
+            raw = item_def.get(attr, "")
+            text = self._format_and_localize(
+                item_def["mapping"], self.container_position, raw
+            )
+            resolved = infolabel(text) if text.startswith("$") else text
+            setter(resolved or "")
