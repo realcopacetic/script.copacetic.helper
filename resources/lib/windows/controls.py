@@ -229,10 +229,15 @@ class BaseControlHandler:
             instance = self.instance
         link = self._get_active_link()
         current_value = self._get_setting_value()
+        mapping_key = self.control["mapping"]
+        meta = (
+            self.runtime_manager.mappings[mapping_key].get("metadata", {}).get(current_value, {})
+        )
         raw_label = link.get("label") or self.control.get("label", "")
         raw_label2 = (
             link.get("label2")
             or self.control.get("label2")
+            or meta.get("label")
             or (current_value.capitalize() if current_value else "")
         )
 
@@ -361,10 +366,27 @@ class ButtonHandler(BaseControlHandler):
             "preselect",
             "useDetails",
         )
+
+        # Fetch items, then check for human-readable labels in metadata
+        items = onclick.get("items") or self._allowed_items()
+        mapping_key = self.control["mapping"]
+        display_items = [
+            infolabel(lbl) if isinstance(lbl, str) and lbl.startswith("$") else lbl
+            for item in items
+            for lbl in [
+                (
+                    self.runtime_manager.mappings[mapping_key]
+                    .get("metadata", {})
+                    .get(item, {})
+                    .get("label")
+                    or item.replace("_", " ").title()
+                )
+            ]
+        ]
         return {
             "heading": onclick.get("heading", ""),
             "action": onclick.get("action"),
-            "items": onclick.get("items") or self._allowed_items(),
+            "items": display_items,
             **{k: onclick[k] for k in optional if k in onclick},
         }
 

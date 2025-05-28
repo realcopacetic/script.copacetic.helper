@@ -33,6 +33,7 @@ class JSONHandler:
             self._data = self._load_json()
         return self._data
 
+    @property
     def exists(self):
         """
         Returns True if the target path (file or directory) exists.

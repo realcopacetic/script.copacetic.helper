@@ -35,12 +35,13 @@ class RuntimeStateManager:
         """return: Flat dict of current runtime JSON data."""
         self.runtime_state_handler.reload()
         return next(iter(self.runtime_state_handler.data.values()), {})
-
+    
+    @property
     def exists(self):
         """
         Returns True if the runtime_state.json already exists on disk.
         """
-        return self.runtime_state_handler.exists()
+        return self.runtime_state_handler.exists
 
     def initialize_runtime_state(self):
         """
