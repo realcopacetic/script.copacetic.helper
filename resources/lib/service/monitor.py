@@ -4,11 +4,11 @@ from pathlib import Path
 
 import xbmc
 
+from resources.lib.art.slideshow import SlideshowMonitor
 from resources.lib.builders.build_elements import BuildElements
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
-from resources.lib.shared.art import SlideshowMonitor
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     ADDON,

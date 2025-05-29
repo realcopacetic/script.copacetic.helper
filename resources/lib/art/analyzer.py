@@ -99,7 +99,7 @@ class ColorAnalyzer:
     def get_contrasting_color(self, rgb, shift=0.4):
         """
         Shifts lightness to generate a contrast color.
-        
+
         :param rgb: Original RGB tuple.
         :param shift: Amount to adjust L in HLS.
         :returns: Adjusted RGB color with contrast.
@@ -122,7 +122,7 @@ class ColorAnalyzer:
         rgb = self.extract_dominant_color(image)
         contrast_rgb = self.get_contrasting_color(rgb, shift=shift)
         return {
-            "dominant_hex": self.to_hex(rgb),
-            "luminosity": self.get_luminosity(rgb),
+            "hex": self.to_hex(rgb),
             "contrast_hex": self.to_hex(contrast_rgb),
+            "luminosity": self.get_luminosity(rgb),
         }

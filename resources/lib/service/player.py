@@ -2,8 +2,8 @@
 
 from xbmc import Player
 
+from resources.lib.art.editor import ImageEditor
 from resources.lib.script.actions import clean_filename, subtitle_limiter
-from resources.lib.shared.art import ImageEditor
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     condition,

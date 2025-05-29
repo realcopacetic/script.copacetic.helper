@@ -80,7 +80,7 @@ def hex_contrast_check(**kwargs):
     :param hex: Hex string (e.g., "#ffffff" or "ffffffff").
     :returns: "light" or "dark" contrast hint.
     """
-    from resources.lib.shared.art import ImageEditor
+    from resources.lib.art.editor import ImageEditor
 
     image = ImageEditor()
     hex = kwargs.get("hex", "")

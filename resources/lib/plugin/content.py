@@ -3,9 +3,9 @@
 import concurrent.futures
 import time
 
+from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
-from resources.lib.shared.art import ImageEditor
 from resources.lib.shared.controls import JumpButton, ProgressIndicator
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (

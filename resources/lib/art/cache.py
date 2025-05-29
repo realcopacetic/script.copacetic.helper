@@ -22,8 +22,8 @@ class ArtworkCacheManager:
     """
 
     def __init__(self, sqlite_handler, hash_manager):
-        self.sqlite = sqlite_handler or SQLiteHandler()
-        self.hash_manager = hash_manager or HashManager()
+        self.sqlite = sqlite_handler
+        self.hash_manager = hash_manager
         self.temp_folder = TEMPS
 
         # Cached state after prepare_cache() is called
