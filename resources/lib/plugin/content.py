@@ -76,7 +76,6 @@ class DataHandler:
 
     def _resumepoint(self):
         unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
-        # Try percentage-based progress tracking first
         for p in [
             self.infolabels["PercentPlayed"],
             self.infolabels["Property(WatchedEpisodePercent)"],
@@ -84,50 +83,39 @@ class DataHandler:
         ]:
             if p.isdigit() and (resume := int(p)) > 0:
                 return resume, unwatched
-        # Otherwise check if item marked as watched
+            
         if condition(
             f"String.IsEqual({self.listitem}.Overlay,OverlayWatched.png) | "
             f"Integer.IsGreater({self.listitem}.PlayCount,0)"
         ):
             return 100, ""
-        # For sets, calculation is required
+        
         if "set" in self.dbtype:
-            if self._wait_for_set_match():
-                total = int(infolabel("Container(3100).NumItems") or 0)
-                watched = sum(
-                    condition(
-                        f"Integer.IsGreater(Container(3100).ListItem({x}).PlayCount,0)"
-                    )
-                    for x in range(total)
+            total = int(infolabel("Container(3100).NumItems") or 0)
+            watched = sum(
+                condition(
+                    f"Integer.IsGreater(Container(3100).ListItem({x}).PlayCount,0)"
                 )
-                return ((total and watched / total or 0) * 100), (
-                    total - watched
-                )  # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
+                for x in range(total)
+            )
+            return ((total and watched / total or 0) * 100), (
+                total - watched
+            )  # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
+        
         return 0, unwatched
 
     def _studio(self):
         studio = (
             split(infolabel("Container(3100).ListItem(-1).Studio"))
-            if "set" in self.dbtype and self._wait_for_set_match()
+            if "set" in self.dbtype
             else split(self.infolabels["Studio"])
         )
         return studio.replace("+", "") if studio else ""
 
-    def _wait_for_set_match(self):
-        timeout = time.time() + 2  # Set a timeout 2s in the future
-        while time.time() < timeout:
-            if condition(
-                "String.IsEqual(ListItem.DBID,Container(3100).ListItem.SetID)"
-            ) and condition("!Container(3100).IsUpdating"):
-                return True
-            xbmc.Monitor().waitForAbort(0.02)  # Wait for 20ms before retrying
-        return False
-
     def _multiart(self):
-        if not (
-            self._wait_for_art() and (art_type := infolabel("Control.GetLabel(6400)"))
-        ):
+        if not (art_type := infolabel("Control.GetLabel(6400)")):
             return {}
+        
         return {
             f"multiart{pos if pos else ''}": art
             for pos in range(16)
@@ -135,14 +123,6 @@ class DataHandler:
                 art := infolabel(f"{self.listitem}.Art({art_type}{pos if pos else ''})")
             )
         }
-
-    def _wait_for_art(self):
-        timeout = time.time() + 3  # Set a timeout 3s in the future
-        while time.time() < timeout:
-            if condition("!String.IsEmpty(Window(home).Property(art_loaded))"):
-                return True
-            xbmc.Monitor().waitForAbort(0.02)  # Wait for 20ms before retrying
-        return False
 
 
 class PluginContent(object):
@@ -154,6 +134,8 @@ class PluginContent(object):
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
         self.label = params.get("label", "")
+        self.art_refresh = params.get("art_refresh", "")
+        self.set_refresh = params.get("set_refresh", "")
         self.sortletter = params.get("sortletter", "")
         self.target = params.get("target", "ListItem")
         if self.target.isdigit():

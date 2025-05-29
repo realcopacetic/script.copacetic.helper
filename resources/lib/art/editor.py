@@ -2,6 +2,7 @@
 
 import time
 
+import xbmc
 import xbmcvfs
 from PIL import Image
 
@@ -105,7 +106,6 @@ class ImageEditor:
         ) or self._run_processor(process, art)
 
         self.cache_manager.write_lookup(art_type, attributes)
-        self._expose_to_kodi(attributes)
         return attributes
 
     def _run_processor(self, process, art):
@@ -152,26 +152,7 @@ class ImageEditor:
 
         :returns: Dict with {art_type: url} or False if not found.
         """
-        if not self._wait_for_art():
-            return {art_type: False}
         return {art_type: infolabel(f"{source}.Art({art_type})")}
-
-    def _wait_for_art(self):
-        """
-        Waits briefly for artwork to populate in Kodi UI.
-        """
-        timeout = time.time() + 2
-
-        if not condition("String.IsEmpty(Window(home).Property(art_loaded))"):
-            return True
-
-        while time.time() < timeout:
-            if condition("!String.IsEmpty(Control.GetLabel(6010))"):
-                window_property("art_loaded", value="true")
-                return True
-            xbmc.Monitor().waitForAbort(0.02)
-
-        return False
 
     def _image_open(self, url):
         """
@@ -185,15 +166,3 @@ class ImageEditor:
                 force=True,
             )
             return None
-
-    def _expose_to_kodi(self, attributes):
-        """
-        Exposes color, contrast, and luminosity as Kodi window properties.
-        """
-        if not attributes:
-            return
-
-        for key in ["color", "contrast", "luminosity"]:
-            value = attributes.get(key)
-            if value is not None:
-                window_property(key, str(value))

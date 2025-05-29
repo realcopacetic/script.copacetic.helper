@@ -55,7 +55,7 @@ class SQLiteHandler:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO artwork (category, original_url, processed_path, cached_file_hash, color, luminosity)
+                INSERT OR REPLACE INTO artwork (category, original_url, processed_path, cached_file_hash, color, contrast, luminosity)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -64,7 +64,7 @@ class SQLiteHandler:
                     attributes.get("processed"),
                     attributes.get("cached_file_hash"),
                     attributes.get("color"),
-                    attributes.get("contast"),
+                    attributes.get("contrast"),
                     attributes.get("luminosity"),
                 ),
             )
