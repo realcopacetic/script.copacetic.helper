@@ -24,7 +24,7 @@ class ColorAnalyzer:
         opaque_pixels = [
             color
             for count, color in sorted(pixeldata or [], reverse=True)
-            if len(color) == 4 and color[-1] > 64  # RGBA check
+            if (len(color) == 3 or (len(color) == 4 and color[3] > 64))  # RGBA check
         ]
 
         if not opaque_pixels:
@@ -99,6 +99,7 @@ class ColorAnalyzer:
     def get_contrasting_color(self, rgb, shift=0.4):
         """
         Shifts lightness to generate a contrast color.
+        
         :param rgb: Original RGB tuple.
         :param shift: Amount to adjust L in HLS.
         :returns: Adjusted RGB color with contrast.
@@ -113,7 +114,7 @@ class ColorAnalyzer:
     def analyze(self, image, shift=0.4):
         """
         Extracts dominant color, computes luminosity, and generates a contrast color.
-        
+
         :param image: PIL Image (resized/cropped externally).
         :param shift: Lightness delta for contrast color.
         :returns: Dict with hex, luminosity, and contrast_hex.
