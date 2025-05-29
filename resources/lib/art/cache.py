@@ -1,4 +1,4 @@
-# author: realcopacetic, sualfred
+# author: realcopacetic
 
 from pathlib import Path
 
@@ -96,7 +96,7 @@ class ArtworkCacheManager:
     def write_lookup(self, art_type, metadata):
         """
         Writes metadata to the cache lookup database.
-        
+
         :param art_type: Type of artwork (e.g., 'clearlogo').
         :param metadata: Dictionary of attributes to store.
         """

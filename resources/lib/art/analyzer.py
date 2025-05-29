@@ -1,4 +1,4 @@
-# author: realcopacetic, sualfred
+# author: realcopacetic
 
 import colorsys
 from PIL import Image
