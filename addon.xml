@@ -19,6 +19,8 @@
       <fanart>resources/fanart.jpg</fanart>
     </assets>
     <summary lang="en_GB">Extend the power of Copacetic</summary>
+    <summary lang="sv_SE">Utöka kraften i Copacetic</summary>
     <description lang="en_GB">Helper script for the skin Copacetic.</description>
+    <description lang="sv_SE">Hjälpskript för skalet Copacetic.</description>
   </extension>
 </addon>
