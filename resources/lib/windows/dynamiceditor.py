@@ -93,9 +93,23 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         Initializes controls and binds handlers. Applies initial visibility logic.
         """
-        self.list_container = self.getControl(100)
         self.description_label = self.getControl(6)
+        self.list_container = self.getControl(100)
+        self.btn_add = self.getControl(410)
+        self.btn_delete = self.getControl(411)
+        self.btn_up = self.getControl(412)
+        self.btn_down = self.getControl(413)
 
+        # Management buttons visible if a special 'mapping preset' control is included
+        has_preset = any(
+            ctrl
+            for ctrl in self.dynamic_controls.values()
+            if ctrl.get("mapping") and "field" not in ctrl
+        )
+        for btn in (self.btn_add, self.btn_delete, self.btn_up, self.btn_down):
+            btn.setVisible(has_preset)
+
+        # Populate list
         for idx, (cid, item) in enumerate(self.listitems.items()):
             label = self._format_and_localize(
                 item["mapping"], idx, item.get("label", "")
@@ -106,6 +120,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             li.setArt({item.get("icon", "DefaultCopacetic.png"): icon})
             self.list_container.addItem(li)
 
+        # Create handlers
         for control_id, control in self.dynamic_controls.items():
             cid = control.get("id")
             if cid is None:
@@ -127,6 +142,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     f"Warning: Control ID {id} ({control_id}) not found in XML layout: {e}"
                 )
 
+        # Initial state
         if self.listitems:
             self.container_position = -1
             current_focus = self.list_container.getId()
@@ -141,10 +157,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object representing the user's input.
         """
+        from xbmcgui import ACTION_SELECT_ITEM
+
         a_id = action.getId()
         current_focus = self.getFocusId()
         requested_focus_change = None
 
+        # List or handler interactions
         if current_focus == self.list_container.getId():
             self.onListScroll(current_focus)
         else:
@@ -169,6 +188,34 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     self.container_position,
                     current_focus,
                 )
+        # Management buttons
+        if a_id == ACTION_SELECT_ITEM:
+            idx = self.container_position
+            mapping_key = self.listitems[self.current_listitem]["mapping"]
+
+            if current_focus == self.btn_add.getId():
+                preset_ctrl = next(
+                    h
+                    for h in self.handlers.values()
+                    if h.control.get("mapping") and "field" not in h.control
+                )
+                preset_ctrl.handle_interaction(
+                    self.current_listitem, idx, current_focus, ACTION_SELECT_ITEM
+                )
+                self._refresh_list()
+                return
+
+            if current_focus == self.btn_delete.getId():
+                self.runtime_manager.delete_mapping_item(mapping_key, idx)
+                self.container_position = max(0, idx - 1)
+                self._refresh_list()
+                return
+
+            if current_focus == self.btn_up.getId():
+                return self._on_move_up()
+
+            if current_focus == self.btn_down.getId():
+                return self._on_move_down()
 
         super().onAction(action)
 
@@ -220,3 +267,80 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             )
             resolved = infolabel(text) if text.startswith("$") else text
             setter(resolved or "")
+
+    def _refresh_list(self):
+        """Rebuild the entire list from runtime_state, restore selection, and re-sync controls."""
+        items = list(self.listitems.items())
+        old = self.container_position
+        self.list_container.reset()
+
+        for idx, (cid, item) in enumerate(items):
+            label = self._format_and_localize(
+                item["mapping"], idx, item.get("label", "")
+            )
+            li = xbmcgui.ListItem(label=label)
+            li.setProperty("content_id", cid)
+            icon = item.get("icon", "DefaultCopacetic.png")
+            li.setArt({icon: icon})
+            self.list_container.addItem(li)
+
+        # restore selection
+        size = self.list_container.size()
+        sel = old if 0 <= old < size else 0
+        self.list_container.selectItem(sel)
+        self.container_position = sel
+        self.current_listitem = self.list_container.getListItem(sel).getProperty(
+            "content_id"
+        )
+        # re-sync
+        self.onListScroll(self.getFocusId())
+
+    def _refresh_list_row(self, idx):
+        """Redraw the label and icon of list-row `idx` based on the current runtime_state."""
+        li = self.list_container.getListItem(idx)
+        cid = li.getProperty("content_id")
+        item_def = self.listitems[cid]
+        raw = item_def.get("label", "")
+        new_label = self._format_and_localize(item_def["mapping"], idx, raw)
+        li.setLabel(new_label)
+
+    def _move(self, delta):
+        """Move slot at current position forward or backward by a given delta."""
+        old = self.container_position
+        new = old + delta
+        if new < 0 or new >= self.list_container.size():
+            return
+        # swap in JSON
+        mk = self.listitems[self.current_listitem]["mapping"]
+        self.runtime_manager.swap_mapping_items(mk, old, new)
+
+        # swap two UI rows
+        self._refresh_list_row(old)
+        self._refresh_list_row(new)
+
+        # advance focus
+        self.container_position = new
+        li = self.list_container.getListItem(new)
+        self.list_container.selectItem(new)
+        self.current_listitem = li.getProperty("content_id")
+
+        # update the dynamic controls & bottom description for the new slot
+        for h in self.handlers.values():
+            h.update_value(self.current_listitem, self.container_position)
+            h.update_visibility(
+                self.current_listitem,
+                self.container_position,
+                self.getFocusId(),
+            )
+            
+        item = self.listitems[self.current_listitem]
+        desc = self._format_and_localize(
+            item["mapping"], self.container_position, item.get("description", "")
+        )
+        self.description_label.setText(desc or "")
+
+    def _on_move_up(self):
+        self._move(-1)
+
+    def _on_move_down(self):
+        self._move(+1)

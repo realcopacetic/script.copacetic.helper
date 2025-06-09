@@ -231,7 +231,9 @@ class BaseControlHandler:
         current_value = self._get_setting_value()
         mapping_key = self.control["mapping"]
         meta = (
-            self.runtime_manager.mappings[mapping_key].get("metadata", {}).get(current_value, {})
+            self.runtime_manager.mappings[mapping_key]
+            .get("metadata", {})
+            .get(current_value, {})
         )
         raw_label = link.get("label") or self.control.get("label", "")
         raw_label2 = (

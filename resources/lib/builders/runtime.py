@@ -22,71 +22,90 @@ class RuntimeStateManager:
 
     @property
     def mappings(self):
-        """return: All mapping definitions (BUILDER_MAPPINGS + custom_mappings)."""
+        """
+        Retrieve merged mapping definitions.
+
+        return: Dict of mapping configurations.
+        """
         return self._mappings
 
     @property
     def configs_data(self):
-        """return: Flat dict of all configs.json entries, keyed by setting_id."""
+        """
+        Get flattened configs.json entries.
+
+        return: Dict of setting_id → config data.
+        """
         return next(iter(self.configs_handler.data.values()), {})
 
     @property
     def runtime_state(self):
-        """return: Flat dict of current runtime JSON data."""
+        """
+        Load and return the current runtime state.
+
+        :return: Dict of mapping_key → list of state entries.
+        """
         self.runtime_state_handler.reload()
         return next(iter(self.runtime_state_handler.data.values()), {})
-    
+
     @property
     def exists(self):
         """
-        Returns True if the runtime_state.json already exists on disk.
+        Check if runtime_state.json exists on disk.
+
+        :return: True if file exists, False otherwise.
         """
         return self.runtime_state_handler.exists
 
+    def _build_default_entry(self, mapping_key, item):
+        """
+        Build the default entry for a single mapping_item.
+
+        :param mapping_key: The mapping group key.
+        :param item: The mapping_item identifier.
+        :return: Dict of default fields and metadata.
+        """
+        schema = self.mappings[mapping_key]["user_defined_schema"]
+        placeholders = self.mappings[mapping_key]["placeholders"]
+        return {
+            "mapping_item": item,
+            **{
+                field: self.configs_data.get(
+                    template.format(**{placeholders["key"]: item}), {}
+                ).get("default")
+                for field, template in schema.get("config_fields", {}).items()
+            },
+            **schema.get("metadata_fields", {}).get(item, {}),
+        }
+
     def initialize_runtime_state(self):
         """
-        Initializes runtime_state.json at build time based on user-defined schemas
-        in custom mapping files and defaults in configs.json.
+        Create runtime_state.json from defaults if not already present.
+
+        :return: None
         """
         if self.exists:
             return
 
         runtime_state = {
             mapping_key: [
-                {
-                    "mapping_item": item,
-                    **{
-                        field_name: self.configs_data.get(
-                            template.format(**{mapping["placeholders"]["key"]: item}),
-                            {},
-                        ).get("default")
-                        for field_name, template in user_schema.get(
-                            "config_fields", {}
-                        ).items()
-                    },
-                    **{
-                        meta_key: default
-                        for meta_key, default in user_schema.get("metadata_fields", {})
-                        .get(item, {})
-                        .items()
-                    },
-                }
+                self._build_default_entry(mapping_key, item)
                 for item in mapping.get("default_order", [])
             ]
             for mapping_key, mapping in self.mappings.items()
-            if (user_schema := mapping.get("user_defined_schema"))
+            if "user_defined_schema" in mapping
         }
 
         self.runtime_state_handler.write_json(runtime_state)
 
     def update_runtime_setting(self, mapping_key, index, setting_name, value):
         """
-        Updates a specific runtime setting within runtime_state.json.
+        Update a field in a runtime state entry.
 
-        :param mapping_key: The key identifying the mapping group.
-        :param index: The index of the setting instance to update.
-        :param setting_name: The name of the setting to update.
-        :param value: The new value for the setting.
+        :param mapping_key: The mapping group key.
+        :param index: Position in the state list.
+        :param setting_name: Field to update.
+        :param value: New value to set.
         """
         state = self.runtime_state
         mapping_list = state.setdefault(mapping_key, [])
@@ -101,12 +120,12 @@ class RuntimeStateManager:
 
     def get_runtime_setting(self, mapping_key, index, setting_name):
         """
-        Retrieves a specific runtime setting by index.
+        Retrieve a value from a runtime state entry.
 
-        :param mapping_key: The key identifying the mapping group.
-        :param index: The index of the setting instance to retrieve.
-        :param setting_name: The name of the setting to retrieve.
-        :returns: The value of the requested runtime setting.
+        :param mapping_key: The mapping group key.
+        :param index: Position in the state list.
+        :param setting_name: Field to retrieve.
+        :return: The stored value.
         """
         mapping_list = self.runtime_state.get(mapping_key, [])
 
@@ -125,8 +144,12 @@ class RuntimeStateManager:
 
     def format_metadata(self, mapping_key, index, template):
         """
-        If template contains “{…}”, look up the runtime_state[mapping_key][index].mapping_item
-        and then its metadata dict, and format the template. Otherwise return template.
+        Substitute metadata placeholders in a template string.
+
+        :param mapping_key: The mapping group key.
+        :param index: Position in the state list.
+        :param template: Template with placeholders.
+        :return: Formatted string or original template.
         """
         if not isinstance(template, str) or "{" not in template:
             return template
@@ -136,3 +159,43 @@ class RuntimeStateManager:
             return template.format(**meta)
         except Exception:
             return template
+
+    def insert_mapping_item(self, mapping_key, index, item):
+        """
+        Insert a new mapping_item at the given position.
+
+        :param mapping_key: The mapping group key.
+        :param index: Position to insert at.
+        :param item: The new mapping_item identifier.
+        """
+        state = self.runtime_state
+        lst = state.setdefault(mapping_key, [])
+        lst.insert(index, self._build_default_entry(mapping_key, item))
+        self.runtime_state_handler.write_json(state)
+
+    def delete_mapping_item(self, mapping_key, index):
+        """
+        Remove a mapping_item from the state list.
+
+        :param mapping_key: The mapping group key.
+        :param index: Position to remove.
+        :return: None
+        """
+        state = self.runtime_state
+        lst = state.get(mapping_key, [])
+        lst.pop(index)
+        self.runtime_state_handler.write_json(state)
+
+    def swap_mapping_items(self, mapping_key, a, b):
+        """
+        Swap two entries in the state list.
+
+        :param mapping_key: The mapping group key.
+        :param i: First index.
+        :param j: Second index.
+        :return: None
+        """
+        state = self.runtime_state
+        lst = state.get(mapping_key, [])
+        lst[a], lst[b] = lst[b], lst[a]
+        self.runtime_state_handler.write_json(state)
