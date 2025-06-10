@@ -339,40 +339,37 @@ class controlsBuilder(BaseBuilder):
         :param substitutions: List of substitution dictionaries
         :returns: Dict of {control_name: resolved_definition}
         """
-        id_start = data.get("id_start")
         id_fixed = data.get("id")
+        schema = self.mapping_values.get("user_defined_schema", {})
+        configs = schema.get("config_fields", {})
+        linked_cfg = data.get("dynamic_linking", {}).get("linked_config", "")
+        field_name = next(
+            (fname for fname, tmpl in configs.items() if tmpl == linked_cfg),
+            None,
+        )
 
-        # Dynamic controls with inner recursive expansion
+        if data.get("expansion") == "runtimejson":
+            return {
+                template_name: {
+                    "mapping": self.mapping_name,
+                    **({"field": field_name} if field_name else {}),
+                    **{k: v for k, v in data.items() if k != "id"},
+                    "id": id_fixed,
+                }
+            }
+
         if "dynamic_linking" in data:
             resolved_list = []
             seen = set()
-            is_runtime = data.get("expansion") == "runtimejson"
-            _exclude = {"label", "label2", "description"}
             for sub in substitutions:
                 resolved = {
-                    k: (
-                        v
-                        if ((is_runtime and k in _exclude) or not isinstance(v, str))
-                        else self.substitute(v, sub)
-                    )
+                    k: (v if (not isinstance(v, str)) else self.substitute(v, sub))
                     for k, v in data["dynamic_linking"].items()
                 }
                 key = tuple(sorted(resolved.items()))
                 if key not in seen:
                     seen.add(key)
                     resolved_list.append(resolved)
-
-            linked_config = data["dynamic_linking"].get("linked_config")
-            schema = self.mapping_values.get("user_defined_schema", {})
-            configs = schema.get("config_fields", {})
-            field_name = next(
-                (
-                    fname
-                    for fname, template in configs.items()
-                    if template == linked_config
-                ),
-                None,
-            )
 
             return {
                 template_name: {
@@ -387,7 +384,7 @@ class controlsBuilder(BaseBuilder):
                     "dynamic_linking": resolved_list,
                 }
             }
-        # Static controls with standard expansion
+        
         grouped = defaultdict(list)
         for sub in substitutions:
             key = template_name.format(**sub)
@@ -395,7 +392,7 @@ class controlsBuilder(BaseBuilder):
             self.group_map[key] = sub
 
         return {
-            key: self.resolve_values(subs[0], data, id_start, i)
+            key: self.resolve_values(subs[0], data, data.get("id_start"), i)
             for i, (key, subs) in enumerate(grouped.items())
         }
 

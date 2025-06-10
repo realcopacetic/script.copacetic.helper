@@ -158,11 +158,28 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object representing the user's input.
         """
-        from xbmcgui import ACTION_SELECT_ITEM
+        from xbmcgui import ACTION_SELECT_ITEM, ACTION_MOVE_UP, ACTION_MOVE_DOWN
 
         a_id = action.getId()
         current_focus = self.getFocusId()
         requested_focus_change = None
+
+        # Move Up/Down on management buttons
+        mgmt_ids = {
+            self.btn_add.getId(),
+            self.btn_delete.getId(),
+            self.btn_up.getId(),
+            self.btn_down.getId(),
+        }
+        if a_id in (ACTION_MOVE_UP, ACTION_MOVE_DOWN) and current_focus in mgmt_ids:
+            old = self.container_position
+            if a_id == ACTION_MOVE_UP:
+                new = max(0, old - 1)
+            else:
+                new = min(self.list_container.size() - 1, old + 1)
+            self.list_container.selectItem(new)
+            self.onListScroll(self.list_container.getId())
+            return
 
         # List or handler interactions
         if current_focus == self.list_container.getId():
@@ -263,20 +280,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         raw = item_def.get("label", "")
         new_label = self._format_and_localize(item_def["mapping"], idx, raw)
         li.setLabel(new_label)
-
-    def _rebuild_list(self):
-        """Clear+re-populate self.list_container from runtime_state."""
-        self.list_container.reset()
-        for idx, (cid, item_def) in enumerate(self.listitems.items()):
-            label = self._format_and_localize(
-                item_def["mapping"], idx, item_def.get("label", "")
-            )
-            li = xbmcgui.ListItem(label=label)
-            li.setProperty("content_id", cid)
-            icon = item_def.get("icon")
-            li.setArt({icon or "DefaultCopacetic.png": icon})
-            self.list_container.addItem(li)
-        self.list_container.selectItem(self.container_position)
 
     def _on_add(self):
         """Trigger the skinner-defined preset-picker, update runtime state, and add new item to UI."""
