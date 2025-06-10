@@ -66,21 +66,38 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         Populate control and skinsetting mappings from JSON definitions.
         Separates static and dynamic controls.
         """
-        filtered_controls = {
-            control_id: control
-            for controls_dict in self.controls_handler.data.values()
-            for control_id, control in controls_dict.items()
-            if any(w in self._xml_filename for w in control.get("window", []))
+        filtered = {
+            cid: ctrl
+            for controls in self.controls_handler.data.values()
+            for cid, ctrl in controls.items()
+            if any(w in self._xml_filename for w in ctrl.get("window", []))
         }
 
-        self.listitems = {}
-        self.dynamic_controls = {}
+        self.dynamic_controls = {
+            cid: ctrl for cid, ctrl in filtered.items() if "dynamic_linking" in ctrl
+        }
 
-        for cid, ctrl in filtered_controls.items():
-            if ctrl.get("control_type") == "listitem":
-                self.listitems[cid] = ctrl
-            elif "dynamic_linking" in ctrl:
-                self.dynamic_controls[cid] = ctrl
+        list_templates = [
+            (cid, ctrl)
+            for cid, ctrl in filtered.items()
+            if ctrl.get("control_type") == "listitem"
+        ]
+
+        if list_templates:
+            mapping_key = list_templates[0][1]["mapping"]
+            entries = self.runtime_manager.runtime_state.get(mapping_key, [])
+        else:
+            entries = []
+
+        self.listitems = {}
+        for idx, entry in enumerate(entries):
+            try:
+                cid, tpl = list_templates[idx]
+            except IndexError:
+                break
+            # merged dict: template provides label/description placeholders, entry provides mapping_item + metadata
+            merged = {**tpl, **entry}
+            self.listitems[cid] = merged
 
     def _format_and_localize(self, mapping_key, idx, raw):
         """
