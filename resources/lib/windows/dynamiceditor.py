@@ -126,9 +126,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self.list_container.addItem(li)
 
         self.list_container.selectItem(self.container_position)
-        self._resync_content()
+        self._refresh_ui()
 
-    def _resync_content(self):
+    def _refresh_ui(self):
         """
         Update all dynamic handlers and bottom description for current slot.
         """
@@ -291,14 +291,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.current_listitem = self.list_container.getListItem(idx).getProperty(
             "content_id"
         )
-        self._resync_content()
+        self._refresh_ui()
 
     def _on_mapping_item_changed(self):
         """
         Called when mapping_item is changed programmatically (add/delete/move).
         """
-        for handler in self.handlers.values():
-            handler.refresh_after_mapping_item_change(
+        for h in self.handlers.values():
+            h.refresh_after_mapping_item_change(
                 self.current_listitem, self.container_position, self.getFocusId()
             )
 
