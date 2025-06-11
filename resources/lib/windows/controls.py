@@ -344,7 +344,7 @@ class ButtonHandler(BaseControlHandler):
         if result is not None:
             self._set_setting_value(result)
             if "field" not in self.control:
-                self.parent.onMappingItemChanged()
+                self.parent._on_mapping_item_changed()
 
     def _build_cfg(self, onclick):
         """
