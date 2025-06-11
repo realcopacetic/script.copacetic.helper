@@ -120,6 +120,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 item["mapping"], idx, item.get("label", "")
             )
             li = xbmcgui.ListItem(label=label)
+            li.setProperty("pos", f"{idx}")
             li.setProperty("content_id", cid)
             icon = item.get("icon", "DefaultCopacetic.png")
             li.setArt({icon: icon})
@@ -172,7 +173,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.btn_delete = self.getControl(411)
         self.btn_up = self.getControl(412)
         self.btn_down = self.getControl(413)
-
         self.mgmt_ids = {
             b.getId()
             for b in (self.btn_add, self.btn_delete, self.btn_up, self.btn_down)
@@ -192,13 +192,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if self.listitems:
             self.container_position = 0
             self.current_listitem = next(iter(self.listitems))
-            self.list_container.selectItem(self.container_position)
-            execute(f"SetFocus({self.list_container.getId()})")
         else:
             return
-
-        self._refresh_list()
-        self._refresh_ui()
+        self.list_container.selectItem(self.container_position)
+        execute(f"SetFocus({self.list_container.getId()})")
 
         # Attach handlers to dynamic controls
         for control_id, control in self.dynamic_controls.items():
@@ -221,6 +218,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 log(
                     f"Warning: Control ID {id} ({control_id}) not found in XML layout: {e}"
                 )
+
+        # Refresh list and UI
+        self._refresh_list()
+        self._refresh_ui()
 
     def onAction(self, action):
         """
