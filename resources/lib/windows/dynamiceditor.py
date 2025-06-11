@@ -55,6 +55,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.handlers = {}
         self.control_instances = {}
         self.dynamic_controls = {}
+        self.container_position = -1
         self.current_listitem = None
 
     def _build_dicts(self):
@@ -203,11 +204,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Build listitems and refresh list
         self._build_dicts()
-        self.container_position = 0 if self.listitems else -1
-        if self.container_position == 0:
-            self.current_listitem = list(self.listitems.keys())[self.container_position]
-        else:
-            self.current_listitem = None
+        if self.listitems:
+            self.container_position = 0
+            self.current_listitem = list(self.listitems.keys())[0]
+            self.list_container.selectItem(self.container_position)  # Explicitly select visually
 
         self._refresh_list()
 
@@ -357,9 +357,20 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.runtime_manager.insert_mapping_item(mk, idx, mapping_item)
         self._build_dicts()
         self.container_position = idx + 1
-        self.current_listitem = list(self.listitems.keys())[self.container_position]
-        self._refresh_list()
+        new_runtime_id = list(self.listitems.keys())[self.container_position]
+        new_item = self.listitems[new_runtime_id]
+
+        label = self._format_and_localize(
+            new_item["mapping"], new_item["runtime_index"], new_item.get("label", "")
+        )
+        li = xbmcgui.ListItem(label=label)
+        li.setProperty("content_id", new_runtime_id)
+        icon = new_item.get("icon", "DefaultCopacetic.png")
+        li.setArt({icon: icon})
+
+        self.list_container.addItem(li)  # explicitly insert single item
         self.list_container.selectItem(self.container_position)
+        self.current_listitem = new_runtime_id
 
         preset = next(
             h
@@ -386,13 +397,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.runtime_manager.delete_mapping_item(mk, self.container_position)
         self._build_dicts()
 
+        if self.container_position >= (size_after_delete := len(self.listitems)):
+            self.container_position = size_after_delete - 1
+
+        self.list_container.selectItem(self.container_position)
+
         for idx in range(self.list_container.size()):
             runtime_id = list(self.listitems.keys())[idx]
             li = self.list_container.getListItem(idx)
             li.setProperty("content_id", runtime_id)
-
-        if self.container_position >= (size_after_delete := len(self.listitems)):
-            self.container_position = size_after_delete - 1
 
         if self.container_position >= 0:
             self.current_listitem = self.list_container.getListItem(
@@ -401,7 +414,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         else:
             self.current_listitem = None
 
-        self.list_container.selectItem(self.container_position)
         self._update_mgmt_buttons()
         self._refresh_ui()
 
