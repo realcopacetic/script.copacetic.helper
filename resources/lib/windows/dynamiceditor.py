@@ -72,22 +72,28 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             for cid, ctrl in controls.items()
             if any(w in self._xml_filename for w in ctrl.get("window", []))
         }
+        log(f'FUCK DEBUG filtered {filtered}')
 
         self.dynamic_controls = {
             cid: ctrl for cid, ctrl in filtered.items() if "dynamic_linking" in ctrl
         }
+        log(f"FUCK DEBUG self.dynamic_controls {self.dynamic_controls}")
 
         list_templates = [
             (cid, ctrl)
             for cid, ctrl in filtered.items()
             if ctrl.get("control_type") == "listitem"
         ]
+        log(f"FUCK DEBUG list_templates {list_templates}")
 
         if list_templates:
             mapping_key = list_templates[0][1]["mapping"]
+            log(f"FUCK DEBUG mapping_key {mapping_key}")
             entries = self.runtime_manager.runtime_state.get(mapping_key, [])
         else:
             entries = []
+
+        log(f"FUCK DEBUG entries {entries}")
 
         self.listitems = {}
         for idx, entry in enumerate(entries):
