@@ -54,10 +54,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self.handlers = {}
         self.control_instances = {}
-        self.container_position = 0
-        self.current_listitem = None
         self.dynamic_controls = {}
         self.listitems = {}
+        self.container_position = -1
+        self.current_listitem = None
 
     def _build_dicts(self):
         """
@@ -126,7 +126,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self.list_container.addItem(li)
 
         self.list_container.selectItem(self.container_position)
-        self._refresh_ui()
 
     def _refresh_ui(self):
         """
@@ -190,6 +189,16 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Build listitems and refresh UI
         self._build_dicts()
+        if self.listitems:
+            self.container_position = 0
+            self.current_listitem = next(iter(self.listitems))
+            self.list_container.selectItem(self.container_position)
+            execute(f"SetFocus({self.list_container.getId()})")
+        else:
+            return
+
+        self._refresh_list()
+        self._refresh_ui()
 
         # Attach handlers to dynamic controls
         for control_id, control in self.dynamic_controls.items():
@@ -213,21 +222,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     f"Warning: Control ID {id} ({control_id}) not found in XML layout: {e}"
                 )
 
-        if self.listitems:
-            current_focus = self.list_container.getId()
-            execute(f"SetFocus({current_focus})")
-            self.list_container.selectItem(self.container_position)
-            self.current_listitem = next(iter(self.listitems))
-        else:
-            return
-
-        self._refresh_list()
-
     def onAction(self, action):
         """
         Called by Kodi when the user performs an action.
         Routes interactions to list or control handlers and management buttons.
-        
+
         :param action: xbmcgui.Action object.
         """
         from xbmcgui import ACTION_SELECT_ITEM, ACTION_MOVE_UP, ACTION_MOVE_DOWN
@@ -236,10 +235,16 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         current_focus = self.getFocusId()
 
         # Move Up/Down on management buttons
-        if a_id in (ACTION_MOVE_UP, ACTION_MOVE_DOWN) and current_focus in self.mgmt_ids:
-            delta = -1 if a_id == ACTION_MOVE_UP else 1
+        if (
+            a_id in (ACTION_MOVE_UP, ACTION_MOVE_DOWN)
+            and current_focus in self.mgmt_ids
+        ):
             old = self.container_position
-            new = max(0, min(self.list_container.size() - 1, old + delta))
+            new = (
+                max(0, old - 1)
+                if a_id == ACTION_MOVE_UP
+                else min(self.list_container.size() - 1, old + 1)
+            )
             self.list_container.selectItem(new)
             self._on_list_scroll(self.list_container.getId())
             return
@@ -345,6 +350,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         )
 
         self._refresh_list()
+        self._refresh_ui()
 
     def _on_delete(self):
         """
@@ -359,7 +365,12 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         new_pos = min(self.container_position, self.list_container.size() - 1)
         self.container_position = max(0, new_pos)
+        self.current_listitem = self.list_container.getListItem(
+            self.container_position
+        ).getProperty("content_id")
+
         self._refresh_list()
+        self._refresh_ui()
 
     def _on_move(self, delta):
         """Move slot at current position forward or backward by a given delta."""
