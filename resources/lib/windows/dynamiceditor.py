@@ -54,8 +54,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self.handlers = {}
         self.control_instances = {}
+        self.container_position = 0
         self.current_listitem = None
-        self.container_position = -1
         self.dynamic_controls = {}
         self.listitems = {}
 
@@ -145,7 +145,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         )
         self.description_label.setText(desc or "")
 
-    def __refresh_list_row(self, idx):
+    def _refresh_list_row(self, idx):
         """
         Redraw the label and icon for row `idx` from runtime_state metadata.
 
@@ -190,7 +190,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Build listitems and refresh UI
         self._build_dicts()
-        self._refresh_list()
 
         # Attach handlers to dynamic controls
         for control_id, control in self.dynamic_controls.items():
@@ -213,6 +212,16 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 log(
                     f"Warning: Control ID {id} ({control_id}) not found in XML layout: {e}"
                 )
+
+        if self.listitems:
+            current_focus = self.list_container.getId()
+            execute(f"SetFocus({current_focus})")
+            self.list_container.selectItem(self.container_position)
+            self.current_listitem = next(iter(self.listitems))
+        else:
+            return
+
+        self._refresh_list()
 
     def onAction(self, action):
         """
@@ -366,8 +375,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         items[old], items[new] = items[new], items[old]
         self.listitems = dict(items)
 
-        self.__refresh_list_row(old)
-        self.__refresh_list_row(new)
+        self._refresh_list_row(old)
+        self._refresh_list_row(new)
 
         self.container_position = new
         self.list_container.selectItem(new)
