@@ -65,7 +65,7 @@ class BaseControlHandler:
 
             if linked_tpl := tpl.get("linked_config"):
                 return {"linked_config": linked_tpl.format(**sub_map)}
-            return {}
+            return tpl
 
         trigger = f"focused({self.current_listitem})"
         return next(
@@ -173,8 +173,8 @@ class BaseControlHandler:
 
     def _apply_metadata(self, template):
         """
-        If `template` contains “{…}”, look up the current
-        mapping_item’s metadata and do a .format(**meta), otherwise
+        If 'template' contains '{…}', look up the current
+        mapping_item's metadata and do a .format(**meta), otherwise
         return it unchanged.
         """
         return self.runtime_manager.format_metadata(

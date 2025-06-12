@@ -17,6 +17,7 @@ from resources.lib.shared.utilities import (
     log,
 )
 from resources.lib.windows.control_factory import DynamicControlFactory
+from resources.lib.windows.onclick_actions import OnClickActions
 
 
 class DynamicEditor(xbmcgui.WindowXMLDialog):
@@ -240,7 +241,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object.
         """
-        from xbmcgui import ACTION_SELECT_ITEM, ACTION_MOVE_UP, ACTION_MOVE_DOWN
+        from xbmcgui import ACTION_MOVE_DOWN, ACTION_MOVE_UP, ACTION_SELECT_ITEM
 
         a_id = action.getId()
         current_focus = self.getFocusId()
@@ -320,8 +321,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _on_mapping_item_changed(self):
         """
-        Called when mapping_item is changed programmatically (add/delete/move).
+        Called when the preset for a given entry in runtime_json is changed.
         """
+        self._build_dicts()
+
         for h in self.handlers.values():
             h.refresh_after_mapping_item_change(
                 self.current_listitem, self.container_position, self.getFocusId()
@@ -380,6 +383,23 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.current_listitem = new_id
         self.list_container.selectItem(target_pos)
 
+        preset = next(
+            h
+            for h in self.handlers.values()
+            if h.control.get("mapping") and "field" not in h.control
+        )
+        onclick = preset.control.get("onclick", {})
+        cfg = preset._build_cfg(onclick)
+        result = OnClickActions.select(cfg)
+        if result < 0:
+            return
+
+        chosen = cfg["items"][result]
+        mk = preset.control["mapping"]
+        self.runtime_manager.update_runtime_setting(
+            mk, self.container_position, "mapping_item", chosen  # e.g. "widgets"
+        )
+        self._on_mapping_item_changed()
         self._refresh_ui()
 
     def _on_delete(self):
