@@ -1,11 +1,14 @@
 # author: realcopacetic
 
+import uuid
+
 from resources.lib.shared.json import JSONHandler
 
 
 class RuntimeStateManager:
     """
     Manages initialization, retrieval, and updating of runtime settings stored in runtime_state.json.
+    Uses UUIDs for stable, position-independent item identifiers.de
     """
 
     def __init__(self, mappings, configs_path, runtime_state_path):
@@ -68,6 +71,7 @@ class RuntimeStateManager:
         schema = self.mappings[mapping_key]["user_defined_schema"]
         placeholders = self.mappings[mapping_key]["placeholders"]
         return {
+            "runtime_id": str(uuid.uuid4()),
             "mapping_item": item,
             **{
                 field: self.configs_data.get(
@@ -160,7 +164,7 @@ class RuntimeStateManager:
         except Exception:
             return template
 
-    def insert_mapping_item(self, mapping_key, index, item):
+    def insert_mapping_item(self, mapping_key, mapping_item, index=None):
         """
         Insert a new mapping_item at the given position.
 
@@ -170,8 +174,15 @@ class RuntimeStateManager:
         """
         state = self.runtime_state
         lst = state.setdefault(mapping_key, [])
-        lst.insert(index, self._build_default_entry(mapping_key, item))
+        new_entry = self._build_default_entry(mapping_key, mapping_item)
+
+        if index is None:
+            lst.append(new_entry)
+        else:
+            lst.insert(index, new_entry)
+
         self.runtime_state_handler.write_json(state)
+        return new_entry
 
     def delete_mapping_item(self, mapping_key, index):
         """

@@ -89,7 +89,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         mapping_key = tpl["mapping"]
         entries = self.runtime_manager.runtime_state.get(mapping_key, [])
         for idx, entry in enumerate(entries):
-            runtime_id = f"{entry['mapping_item']}_{idx}"
+            runtime_id = entry["runtime_id"]
             self.listitems[runtime_id] = {
                 **{
                     k: (
@@ -101,7 +101,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 },
                 **entry,
                 "runtime_index": idx,
-                "runtime_id": runtime_id,
             }
 
     def _format_and_localize(self, mapping_key, idx, raw):
@@ -121,10 +120,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         Rebuild the left-hand list from `self.listitems` and sync dynamic controls.
         """
         self.list_container.reset()
-        items_ordered = sorted(
-            self.listitems.items(), key=lambda item: item[1]["runtime_index"]
-        )
-        for runtime_id, item in items_ordered:
+        for runtime_id, item in self.listitems.items():
             label = self._format_and_localize(
                 item["mapping"], item["runtime_index"], item.get("label", "")
             )
@@ -207,7 +203,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if self.listitems:
             self.container_position = 0
             self.current_listitem = list(self.listitems.keys())[0]
-            self.list_container.selectItem(self.container_position)  # Explicitly select visually
+            self.list_container.selectItem(self.container_position)
 
         self._refresh_list()
 
@@ -350,36 +346,39 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         from xbmcgui import ACTION_SELECT_ITEM
 
-        item_def = self.listitems[self.current_listitem]
-        idx = self.container_position
-        mk = item_def["mapping"]
-        mapping_item = item_def["mapping_item"]
-        self.runtime_manager.insert_mapping_item(mk, idx, mapping_item)
-        self._build_dicts()
-        self.container_position = idx + 1
-        new_runtime_id = list(self.listitems.keys())[self.container_position]
-        new_item = self.listitems[new_runtime_id]
+        if not self.current_listitem:
+            return
 
+        idx = self.container_position
+        mk = self.listitems[self.current_listitem]["mapping"]
+        mapping_item = self.listitems[self.current_listitem]["mapping_item"]
+
+        new_entry = self.runtime_manager.insert_mapping_item(mk, mapping_item, None)
+        self._build_dicts()
+
+        new_id = new_entry["runtime_id"]
+        entry = self.listitems[new_id]
         label = self._format_and_localize(
-            new_item["mapping"], new_item["runtime_index"], new_item.get("label", "")
+            entry["mapping"], entry["runtime_index"], entry.get("label", "")
         )
         li = xbmcgui.ListItem(label=label)
-        li.setProperty("content_id", new_runtime_id)
-        icon = new_item.get("icon", "DefaultCopacetic.png")
+        li.setProperty("content_id", new_id)
+        icon = entry.get("icon", "DefaultCopacetic.png")
         li.setArt({icon: icon})
+        self.list_container.addItem(li)
 
-        self.list_container.addItem(li)  # explicitly insert single item
-        self.list_container.selectItem(self.container_position)
-        self.current_listitem = new_runtime_id
+        end_pos = self.list_container.size() - 1
+        self.container_position = end_pos
+        self.current_listitem = new_id
+        self.list_container.selectItem(end_pos)
 
-        preset = next(
-            h
-            for h in self.handlers.values()
-            if h.control.get("mapping") and "field" not in h.control
-        )
-        preset.handle_interaction(
-            self.current_listitem, idx, self.getFocusId(), ACTION_SELECT_ITEM
-        )
+        target_pos = idx + 1
+        while self.container_position > target_pos:
+            self._on_move(-1, skip_focus=True)
+
+        self.container_position = target_pos
+        self.current_listitem = new_id
+        self.list_container.selectItem(target_pos)
 
         self._refresh_ui()
 
@@ -402,22 +401,16 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self.list_container.selectItem(self.container_position)
 
-        for idx in range(self.list_container.size()):
-            runtime_id = list(self.listitems.keys())[idx]
-            li = self.list_container.getListItem(idx)
-            li.setProperty("content_id", runtime_id)
-
         if self.container_position >= 0:
-            self.current_listitem = self.list_container.getListItem(
-                self.container_position
-            ).getProperty("content_id")
+            li = self.list_container.getListItem(self.container_position)
+            self.current_listitem = li.getProperty("content_id")
         else:
             self.current_listitem = None
 
         self._update_mgmt_buttons()
         self._refresh_ui()
 
-    def _on_move(self, delta):
+    def _on_move(self, delta, skip_focus=False):
         """Move slot at current position forward or backward by a given delta."""
         old = self.container_position
         new = old + delta
@@ -427,9 +420,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         mk = self.listitems[self.current_listitem]["mapping"]
         self.runtime_manager.swap_mapping_items(mk, old, new)
         self._build_dicts()
+        self._refresh_list_row(old)
+        self._refresh_list_row(new)
 
         self.container_position = new
         self.current_listitem = list(self.listitems.keys())[new]
-        self._refresh_list_row(old)
-        self._refresh_list_row(new)
-        self.list_container.selectItem(new)
+        if not skip_focus:
+            self.list_container.selectItem(new)
