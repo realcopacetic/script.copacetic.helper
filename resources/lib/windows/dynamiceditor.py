@@ -56,15 +56,24 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.handlers = {}
         self.control_instances = {}
         self.dynamic_controls = {}
+        self.has_runtime = False
         self.container_position = -1
         self.current_listitem = None
+        self.mgmt_ids = set()
+        self.mgmt_map = {
+            "btn_add": 410,
+            "btn_delete": 411,
+            "btn_up": 412,
+            "btn_down": 413,
+        }
 
     def _build_dicts(self):
         """
         Populate listitem templates and dynamic controls from JSON definitions.
         Scans controls.json for this window, separates static controls/listitems and dynamic controls.
         """
-        self.listitems = {}
+        runtime_tpls = {}
+        static_tpls = {}
 
         filtered = {
             cid: ctrl
@@ -72,37 +81,46 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             for cid, ctrl in controls.items()
             if any(w in self._xml_filename for w in ctrl.get("window", []))
         }
-        self.dynamic_controls = {
-            cid: ctrl for cid, ctrl in filtered.items() if "dynamic_linking" in ctrl
-        }
-        tpl_entry = next(
-            (
-                (cid, ctrl)
-                for cid, ctrl in filtered.items()
-                if ctrl.get("control_type") == "listitem"
-            ),
-            None,
-        )
-        if not tpl_entry:
-            return
+        for cid, ctrl in filtered.items():
+            if ctrl.get("control_type") == "listitem":
+                bucket = (
+                    runtime_tpls
+                    if ctrl.get("expansion") == "runtimejson"
+                    else static_tpls
+                )
+                bucket[cid] = ctrl
 
-        _, tpl = tpl_entry
-        mapping_key = tpl["mapping"]
-        entries = self.runtime_manager.runtime_state.get(mapping_key, [])
-        for idx, entry in enumerate(entries):
-            runtime_id = entry["runtime_id"]
-            self.listitems[runtime_id] = {
-                **{
-                    k: (
-                        self._format_and_localize(mapping_key, idx, v)
-                        if isinstance(v, str)
-                        else v
-                    )
-                    for k, v in tpl.items()
-                },
-                **entry,
-                "runtime_index": idx,
-            }
+            if "dynamic_linking" in ctrl:
+                self.dynamic_controls[cid] = ctrl
+
+        self.listitems = {
+            **{
+                entry["runtime_id"]: {
+                    **{
+                        k: (
+                            self._format_and_localize(tpl["mapping"], idx, v)
+                            if isinstance(v, str)
+                            else v
+                        )
+                        for k, v in tpl.items()
+                    },
+                    **entry,
+                    "runtime_index": idx,
+                }
+                for tpl in runtime_tpls.values()
+                for idx, entry in enumerate(
+                    self.runtime_manager.runtime_state.get(tpl["mapping"], [])
+                )
+            },
+            **{
+                cid: {
+                    **tpl,
+                    "runtime_index": idx,
+                    "runtime_id": cid,
+                }
+                for idx, (cid, tpl) in enumerate(static_tpls.items())
+            },
+        }
 
     def _format_and_localize(self, mapping_key, idx, raw):
         """
@@ -128,14 +146,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             li = xbmcgui.ListItem(label=label)
             li.setProperty("content_id", runtime_id)
             icon = item.get("icon", "DefaultCopacetic.png")
-            li.setArt({icon: icon})
+            li.setArt({"icon": icon})
             self.list_container.addItem(li)
 
         self._update_mgmt_buttons()
 
     def _update_mgmt_buttons(self):
-        can_delete = len(self.listitems) > 1
-        self.btn_delete.setEnabled(can_delete)
+        if self.has_runtime:
+            can_delete = len(self.listitems) > 1
+            self.btn_delete.setEnabled(can_delete)
 
     def _refresh_ui(self):
         """
@@ -171,7 +190,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         )  # <-- fixed clearly here
         li.setLabel(new_lbl or "")
         icon = item_def.get("icon", "DefaultCopacetic.png")
-        li.setArt({icon: icon})
+        li.setArt({"icon": icon})
 
     def onInit(self):
         """
@@ -181,23 +200,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         self.description_label = self.getControl(6)
         self.list_container = self.getControl(100)
-        self.btn_add = self.getControl(410)
-        self.btn_delete = self.getControl(411)
-        self.btn_up = self.getControl(412)
-        self.btn_down = self.getControl(413)
-        self.mgmt_ids = {
-            b.getId()
-            for b in (self.btn_add, self.btn_delete, self.btn_up, self.btn_down)
-        }
-
-        # Show management buttons if a preset-picker exists
-        has_preset = any(
-            ctrl
-            for ctrl in self.dynamic_controls.values()
-            if ctrl.get("mapping") and "field" not in ctrl
-        )
-        for btn in (self.btn_add, self.btn_delete, self.btn_up, self.btn_down):
-            btn.setVisible(has_preset)
 
         # Build listitems and refresh list
         self._build_dicts()
@@ -207,6 +209,26 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self.list_container.selectItem(self.container_position)
 
         self._refresh_list()
+
+        # Initiate management buttons if runtime expansion
+        self.has_runtime = any(
+            ctrl
+            for ctrl in self.dynamic_controls.values()
+            if ctrl.get("mapping") and "field" not in ctrl
+        )
+        if self.has_runtime:
+            try:
+                self.mgmt_buttons = []
+                for name, cid in self.mgmt_map.items():
+                    btn = self.getControl(cid)
+                    setattr(self, name, btn)
+                    self.mgmt_buttons.append(btn)
+            except RuntimeError:
+                log("Management buttons not found; skipping.", force=True)
+            else:
+                for btn in self.mgmt_buttons:
+                    btn.setVisible(True)
+                self.mgmt_ids = {btn.getId() for btn in self.mgmt_buttons}
 
         # Attach handlers to dynamic controls
         for control_id, control in self.dynamic_controls.items():
@@ -347,8 +369,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         Clone the current slot, insert it, then invoke the preset-picker handler.
         """
-        from xbmcgui import ACTION_SELECT_ITEM
-
         if not self.current_listitem:
             return
 
@@ -367,7 +387,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         li = xbmcgui.ListItem(label=label)
         li.setProperty("content_id", new_id)
         icon = entry.get("icon", "DefaultCopacetic.png")
-        li.setArt({icon: icon})
+        li.setArt({"icon": icon})
         self.list_container.addItem(li)
 
         end_pos = self.list_container.size() - 1
