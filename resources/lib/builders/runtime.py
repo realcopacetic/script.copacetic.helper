@@ -158,9 +158,8 @@ class RuntimeStateManager:
         if not isinstance(template, str) or "{" not in template:
             return template
         try:
-            item = self.get_runtime_setting(mapping_key, index, "mapping_item")
-            meta = self.mappings[mapping_key].get("metadata", {}).get(item, {})
-            return template.format(**meta)
+            instance = self.runtime_state.get(mapping_key, [])[index]
+            return template.format(**instance)
         except Exception:
             return template
 

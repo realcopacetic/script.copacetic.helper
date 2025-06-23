@@ -42,10 +42,10 @@ class BaseBuilder:
         :param element_data: Data dict containing rules and item values.
         :returns: Generator yielding {name: value} dicts.
         """
-        expansion_type = element_data.get("expansion", "mapping")
+        mode = element_data.get("mode", "static")
 
         if (
-            expansion_type == "runtimejson"
+            mode == "dynamic"
             and self.runtime_manager is not None
             and (
                 runtime_items := self.runtime_manager.runtime_state.get(

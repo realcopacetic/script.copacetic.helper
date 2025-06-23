@@ -121,6 +121,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 for idx, (cid, tpl) in enumerate(static_tpls.items())
             },
         }
+        log(f'FUCK DEBUG self.listitems {self.listitems}')
+        log(f'FUCK DEBUG runtime_tpls.values() {runtime_tpls.values()}')
+        log(f"FUCK DEBUG static_tpls.items() {static_tpls.items()}")
+        log(f"FUCK DEBUG filtered.items() {filtered.items()}")
 
     def _format_and_localize(self, mapping_key, idx, raw):
         """
