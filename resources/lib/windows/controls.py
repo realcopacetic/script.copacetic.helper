@@ -48,11 +48,9 @@ class BaseControlHandler:
 
         :return: Matching dynamic_link dictionary, or empty dict if no match.
         """
-        if "dynamic_linking" not in self.control:
-            return {}
-
-        if self.control.get("expansion") == "runtimejson":
-            tpl = self.control["dynamic_linking"]
+        if self.control.get("mode") == "dynamic" and (
+            field := self.control.get("field")
+        ):
             mapping_key = self.control["mapping"]
             placeholders = self.runtime_manager.mappings[mapping_key].get(
                 "placeholders", {}
@@ -63,8 +61,13 @@ class BaseControlHandler:
             sub_map = {ph: current for ph in placeholders.values()}
             sub_map["index"] = self.container_position
 
-            if linked_tpl := tpl.get("linked_config"):
-                return {"linked_config": linked_tpl.format(**sub_map)}
+            if (
+                tpl := self.runtime_manager.mappings[mapping_key]
+                .get("user_defined_schema", {})
+                .get("config_fields", {})
+                .get(field)
+            ):
+                return {"linked_config": tpl.format(**sub_map)}
             return tpl
 
         trigger = f"focused({self.current_listitem})"
