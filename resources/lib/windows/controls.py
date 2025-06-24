@@ -37,48 +37,65 @@ class BaseControlHandler:
         self.control = control
         self.instance = instance
         self.runtime_manager = runtime_manager
-        self.description = control.get("description")
         self.rule_engine = RuleEngine()
+
+        self.mapping_key = control["mapping"]
+        self.description = control.get("description")
+        self.field = control.get("field")
+        self.placeholders = runtime_manager.mappings.get(self.mapping_key, {}).get(
+            "placeholders", {}
+        )
+        self._link_data_cache = None
+        self.is_dynamic_linked = control.get("mode") == "dynamic" and self.field
+        self.config_field_template = (
+            runtime_manager.mappings[self.mapping_key]
+            .get("user_defined_schema", {})
+            .get("config_fields", {})
+            .get(self.field)
+            if self.is_dynamic_linked else None
+        )
         self.current_listitem = None
         self.container_position = None
 
     def _get_active_link(self):
+        if self._link_data_cache is None:
+            self._link_data_cache = self._resolve_active_link()
+        return self._link_data_cache
+
+    def _resolve_active_link(self):
         """
-        Return the dynamic_linking entry that matches the currently focused static control.
+        Return the contextual_bindings entry that matches the currently focused static control.
 
         :return: Matching dynamic_link dictionary, or empty dict if no match.
         """
-        if self.control.get("mode") == "dynamic" and (
-            field := self.control.get("field")
-        ):
-            mapping_key = self.control["mapping"]
-            placeholders = self.runtime_manager.mappings[mapping_key].get(
-                "placeholders", {}
-            )
-            current = self.runtime_manager.get_runtime_setting(
-                mapping_key, self.container_position, "mapping_item"
-            )
-            sub_map = {ph: current for ph in placeholders.values()}
-            sub_map["index"] = self.container_position
+        if self.is_dynamic_linked:
+            if not self.config_field_template:
+                log(f"FUCK DEBUG Missing template for dynamic field: {self.field}", force=True)
 
-            if (
-                tpl := self.runtime_manager.mappings[mapping_key]
-                .get("user_defined_schema", {})
-                .get("config_fields", {})
-                .get(field)
-            ):
-                return {"linked_config": tpl.format(**sub_map)}
-            return tpl
+        if self.is_dynamic_linked and self.config_field_template:
+            try:
+                current = self.runtime_manager.get_runtime_setting(
+                    self.mapping_key, self.container_position, "mapping_item"
+                )
+                sub_map = {ph: current for ph in self.placeholders.values()}
+                sub_map["index"] = self.container_position
+                return {"linked_config": self.config_field_template.format(**sub_map)}
+            except Exception as e:
+                log(f"FUCK DEBUG Failed to resolve dynamic link: {e}", force=True)
 
         trigger = f"focused({self.current_listitem})"
-        return next(
-            (
-                link
-                for link in self.control.get("dynamic_linking", [])
-                if link.get("update_trigger") == trigger
-            ),
-            {},
-        )
+        try:
+            return next(
+                (
+                    link
+                    for link in self.control.get("contextual_bindings", [])
+                    if link.get("update_trigger") == trigger
+                ),
+                {},
+            )
+        except Exception as e:
+            log(f"FUCK DEBUG Fallback contextual_bindings failed: {e}", force=True)
+            return {}
 
     def _linked_config(self):
         """
@@ -94,10 +111,14 @@ class BaseControlHandler:
 
         :returns: List of approved string values.
         """
-        if config := self._linked_config():
-            return self.runtime_manager.configs_data.get(config, {}).get("items", [])
-        mapping_key = self.control["mapping"]
-        return self.runtime_manager.mappings.get(mapping_key, {}).get("items", [])
+        cfg = self._linked_config()
+        return (
+            self.runtime_manager.configs_data.get(cfg, {}).get("items", [])
+            if cfg
+            else self.runtime_manager.mappings.get(self.control["mapping"], {}).get(
+                "items", []
+            )
+        )
 
     def _get_setting_value(self):
         """
@@ -107,18 +128,15 @@ class BaseControlHandler:
         :returns: The current setting or mapping_item value, or None.
         """
         link = self._get_active_link()
-
         if cfg := link.get("linked_config"):
             cfg_data = self.runtime_manager.configs_data.get(cfg, {})
-            storage = cfg_data.get("storage", "skinstring")
+            mode = cfg_data.get("mode", "static")
             default = cfg_data.get("default", "")
 
-            if storage == "runtimejson":
-                mapping_key = self.control.get("mapping")
-                field_name = self.control.get("field")
+            if mode == "dynamic" and self.is_dynamic_linked:
                 try:
                     return self.runtime_manager.get_runtime_setting(
-                        mapping_key, self.container_position, field_name
+                        self.mapping_key, self.container_position, self.field
                     )
                 except (IndexError, KeyError):
                     return default
@@ -126,14 +144,13 @@ class BaseControlHandler:
             val = infolabel(f"Skin.String({cfg})").strip()
             return val or default
 
-        mapping_key = self.control["mapping"]
         try:
             return self.runtime_manager.get_runtime_setting(
-                mapping_key, self.container_position, "mapping_item"
+                self.mapping_key, self.container_position, "mapping_item"
             )
 
         except (IndexError, KeyError):
-            default_order = self.runtime_manager.mappings.get(mapping_key, {}).get(
+            default_order = self.runtime_manager.mappings.get(self.mapping_key, {}).get(
                 "default_order", []
             )
             if 0 <= self.container_position < len(default_order):
@@ -150,14 +167,12 @@ class BaseControlHandler:
         link = self._get_active_link()
         if cfg := link.get("linked_config"):
             cfg_data = self.runtime_manager.configs_data.get(cfg, {})
-            storage = cfg_data.get("storage", "skinstring")
+            mode = cfg_data.get("mode", "static")
 
-            if storage == "runtimejson":
-                mapping_key = self.control.get("mapping")
-                field_name = self.control.get("field")
+            if mode == "dynamic" and self.is_dynamic_linked:
                 try:
                     self.runtime_manager.update_runtime_setting(
-                        mapping_key, self.container_position, field_name, value
+                        self.mapping_key, self.container_position, self.field, value
                     )
                 except IndexError:
                     pass
@@ -165,10 +180,9 @@ class BaseControlHandler:
                 skin_string(cfg, value)
             return
 
-        mapping_key = self.control["mapping"]
         try:
             self.runtime_manager.update_runtime_setting(
-                mapping_key, self.container_position, "mapping_item", value
+                self.mapping_key, self.container_position, "mapping_item", value
             )
         except IndexError:
             pass
@@ -197,8 +211,9 @@ class BaseControlHandler:
         """
         self.current_listitem = current_listitem
         self.container_position = container_position
+        self._link_data_cache = None
 
-        if "field" not in self.control:
+        if not self.field:
             return
 
         val = self._get_setting_value()
@@ -226,9 +241,8 @@ class BaseControlHandler:
             instance = self.instance
         link = self._get_active_link()
         current_value = self._get_setting_value()
-        mapping_key = self.control["mapping"]
         meta = (
-            self.runtime_manager.mappings[mapping_key]
+            self.runtime_manager.mappings[self.mapping_key]
             .get("metadata", {})
             .get(current_value, {})
         )
@@ -242,7 +256,7 @@ class BaseControlHandler:
 
         label, label2 = (
             self.runtime_manager.format_metadata(
-                self.control["mapping"], self.container_position, txt
+                self.mapping_key, self.container_position, txt
             )
             for txt in (raw_label, raw_label2)
         )
@@ -257,6 +271,17 @@ class BaseControlHandler:
             label2 = f"[COLOR {c}]{label2}[/COLOR]"
 
         instance.setLabel(label=label or "", label2=label2 or "", **colors)
+
+    def update_value(self, current_listitem, container_position):
+        """
+        xxx
+
+        :param current_listitem: Named ID of the currently selected listitem.
+        :param container_position: Current index position in the runtime list.
+        """
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+        self._link_data_cache = None
 
     def update_visibility(
         self, current_listitem, container_position, focused_control_id
@@ -368,13 +393,12 @@ class ButtonHandler(BaseControlHandler):
 
         # Fetch items, then check for human-readable labels in metadata
         items = onclick.get("items") or self._allowed_items()
-        mapping_key = self.control["mapping"]
         display_items = [
             infolabel(lbl) if isinstance(lbl, str) and lbl.startswith("$") else lbl
             for item in items
             for lbl in [
                 (
-                    self.runtime_manager.mappings[mapping_key]
+                    self.runtime_manager.mappings[self.mapping_key]
                     .get("metadata", {})
                     .get(item, {})
                     .get("label")
@@ -389,17 +413,6 @@ class ButtonHandler(BaseControlHandler):
             "display_items": display_items,
             **{k: onclick[k] for k in optional if k in onclick},
         }
-
-    def update_value(self, current_listitem, container_position):
-        """
-        No-op stub to avoid breaking handler.update_value loop through all
-        controls in window class.
-
-        :param current_listitem: Named ID of the currently selected listitem.
-        :param container_position: Current index position in the runtime list.
-        """
-        self.current_listitem = current_listitem
-        self.container_position = container_position
 
     def update_visibility(
         self, current_listitem, container_position, focused_control_id
@@ -455,8 +468,7 @@ class RadioButtonHandler(BaseControlHandler):
         :param current_listitem: Named ID of the currently selected listitem.
         :param container_position: Current index position in the runtime list.
         """
-        self.current_listitem = current_listitem
-        self.container_position = container_position
+        super().update_value(current_listitem, container_position)
 
         allowed = self._allowed_items()
         current = self._get_setting_value()
@@ -524,8 +536,7 @@ class SliderHandler(BaseControlHandler):
         :param container_position: Current index position in the runtime list.
         :return: True if more than one values are available, otherwise False.
         """
-        self.current_listitem = current_listitem
-        self.container_position = container_position
+        super().update_value(current_listitem, container_position)
 
         if not self._linked_config():
             return False

@@ -85,12 +85,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             if ctrl.get("control_type") == "listitem":
                 bucket = (
                     runtime_tpls
-                    if ctrl.get("expansion") == "runtimejson"
+                    if ctrl.get("mode") == "dynamic"
                     else static_tpls
                 )
                 bucket[cid] = ctrl
-
-            if "dynamic_linking" in ctrl:
+            else:
                 self.dynamic_controls[cid] = ctrl
 
         self.listitems = {

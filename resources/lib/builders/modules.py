@@ -342,7 +342,7 @@ class controlsBuilder(BaseBuilder):
         id_fixed = data.get("id")
         schema = self.mapping_values.get("user_defined_schema", {})
         configs = schema.get("config_fields", {})
-        linked_cfg = data.get("dynamic_linking", {}).get("linked_config", "")
+        linked_cfg = data.get("contextual_bindings", {}).get("linked_config", "")
         field_name = next(
             (fname for fname, tmpl in configs.items() if tmpl == linked_cfg),
             None,
@@ -358,13 +358,13 @@ class controlsBuilder(BaseBuilder):
                 }
             }
 
-        if "dynamic_linking" in data:
+        if "contextual_bindings" in data:
             resolved_list = []
             seen = set()
             for sub in substitutions:
                 resolved = {
                     k: (v if (not isinstance(v, str)) else self.substitute(v, sub))
-                    for k, v in data["dynamic_linking"].items()
+                    for k, v in data["contextual_bindings"].items()
                 }
                 key = tuple(sorted(resolved.items()))
                 if key not in seen:
@@ -378,10 +378,10 @@ class controlsBuilder(BaseBuilder):
                     **{
                         k: v
                         for k, v in data.items()
-                        if k not in ("dynamic_linking", "id")
+                        if k not in ("contextual_bindings", "id")
                     },
                     "id": id_fixed,
-                    "dynamic_linking": resolved_list,
+                    "contextual_bindings": resolved_list,
                 }
             }
         
