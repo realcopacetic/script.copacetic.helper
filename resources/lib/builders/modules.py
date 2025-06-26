@@ -245,7 +245,7 @@ class configsBuilder(BaseBuilder):
         """
         defaults = {
             "items": [],
-            "storage": "runtimejson",
+            "mode": "dynamic",
             "filter_mode": "exclude",
             "rules": [],
         }
@@ -348,7 +348,7 @@ class controlsBuilder(BaseBuilder):
             None,
         )
 
-        if data.get("expansion") == "runtimejson":
+        if data.get("mode") == "dynamic":
             return {
                 template_name: {
                     "mapping": self.mapping_name,
@@ -406,7 +406,7 @@ class controlsBuilder(BaseBuilder):
         :param index: Index for control ID
         :returns: Resolved control dict
         """
-        is_runtime = data.get("expansion") == "runtimejson"
+        is_runtime = data.get("mode") == "dynamic"
         _exclude = {"label", "label2", "description"}
         resolved = {
             "mapping": self.mapping_name,

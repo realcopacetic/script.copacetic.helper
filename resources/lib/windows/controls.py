@@ -68,10 +68,6 @@ class BaseControlHandler:
 
         :return: Matching dynamic_link dictionary, or empty dict if no match.
         """
-        if self.is_dynamic_linked:
-            if not self.config_field_template:
-                log(f"FUCK DEBUG Missing template for dynamic field: {self.field}", force=True)
-
         if self.is_dynamic_linked and self.config_field_template:
             try:
                 current = self.runtime_manager.get_runtime_setting(
@@ -81,7 +77,7 @@ class BaseControlHandler:
                 sub_map["index"] = self.container_position
                 return {"linked_config": self.config_field_template.format(**sub_map)}
             except Exception as e:
-                log(f"FUCK DEBUG Failed to resolve dynamic link: {e}", force=True)
+                log(f"Failed to resolve dynamic link: {e}", force=True)
 
         trigger = f"focused({self.current_listitem})"
         try:
@@ -94,7 +90,7 @@ class BaseControlHandler:
                 {},
             )
         except Exception as e:
-            log(f"FUCK DEBUG Fallback contextual_bindings failed: {e}", force=True)
+            log(f"Fallback contextual_bindings failed: {e}", force=True)
             return {}
 
     def _linked_config(self):
