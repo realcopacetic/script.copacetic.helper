@@ -340,19 +340,10 @@ class controlsBuilder(BaseBuilder):
         :returns: Dict of {control_name: resolved_definition}
         """
         id_fixed = data.get("id")
-        schema = self.mapping_values.get("user_defined_schema", {})
-        configs = schema.get("config_fields", {})
-        linked_cfg = data.get("contextual_bindings", {}).get("linked_config", "")
-        field_name = next(
-            (fname for fname, tmpl in configs.items() if tmpl == linked_cfg),
-            None,
-        )
-
         if data.get("mode") == "dynamic":
             return {
                 template_name: {
                     "mapping": self.mapping_name,
-                    **({"field": field_name} if field_name else {}),
                     **{k: v for k, v in data.items() if k != "id"},
                     "id": id_fixed,
                 }
@@ -374,7 +365,6 @@ class controlsBuilder(BaseBuilder):
             return {
                 template_name: {
                     "mapping": self.mapping_name,
-                    **({"field": field_name} if field_name else {}),
                     **{
                         k: v
                         for k, v in data.items()
