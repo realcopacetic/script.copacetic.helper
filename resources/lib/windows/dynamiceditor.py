@@ -366,35 +366,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         idx = self.container_position
         mk = self.listitems[self.current_listitem]["mapping"]
-        mapping_item = self.listitems[self.current_listitem]["mapping_item"]
 
-        new_entry = self.runtime_manager.insert_mapping_item(mk, mapping_item, None)
-        self._build_dicts()
-
-        new_id = new_entry["runtime_id"]
-        entry = self.listitems[new_id]
-        label = self._format_and_localize(
-            entry["mapping"], entry["runtime_index"], entry.get("label", "")
-        )
-        li = xbmcgui.ListItem(label=label)
-        li.setProperty("content_id", new_id)
-        icon = entry.get("icon", "DefaultCopacetic.png")
-        li.setArt({"icon": icon})
-        self.list_container.addItem(li)
-
-        end_pos = self.list_container.size() - 1
-        self.container_position = end_pos
-        self.current_listitem = new_id
-        self.list_container.selectItem(end_pos)
-
-        target_pos = idx + 1
-        while self.container_position > target_pos:
-            self._on_move(-1, skip_focus=True)
-
-        self.container_position = target_pos
-        self.current_listitem = new_id
-        self.list_container.selectItem(target_pos)
-
+        # Ask user to select preset before modifying the UI
         preset = next(
             h
             for h in self.handlers.values()
@@ -407,10 +380,20 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             return
 
         chosen = cfg["items"][result]
-        mk = preset.control["mapping"]
-        self.runtime_manager.update_runtime_setting(
-            mk, self.container_position, "mapping_item", chosen  # e.g. "widgets"
-        )
+
+        # Insert entry using selected preset, then refresh list
+        insert_index = idx + 1
+        new_entry = self.runtime_manager.insert_mapping_item(mk, chosen, insert_index)
+        new_id = new_entry["runtime_id"]
+
+        # Rebuild and reselect at the new index
+        self._build_dicts()
+        self._refresh_list()
+
+        self.container_position = insert_index
+        self.current_listitem = new_id
+        self.list_container.selectItem(insert_index)
+
         self._on_mapping_item_changed()
         self._refresh_ui()
 
