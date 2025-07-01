@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import re
+from contextlib import contextmanager
 
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared.utilities import infolabel, log, skin_string
@@ -52,7 +53,8 @@ class BaseControlHandler:
             .get("user_defined_schema", {})
             .get("config_fields", {})
             .get(self.field)
-            if self.is_dynamic_linked else None
+            if self.is_dynamic_linked
+            else None
         )
         self.current_listitem = None
         self.container_position = None
@@ -116,7 +118,25 @@ class BaseControlHandler:
             )
         )
 
-    def _get_setting_value(self):
+    @contextmanager
+    def config_context(self, target_value):
+        """
+        Context manager to cache config data and skip update if value unchanged.
+
+        Yields: tuple (cfg, cfg_data) or (None, None) if no update required.
+        """
+        try:
+            current_value, cfg = self._get_setting_value(
+                cache_cfg_data=True, return_cfg=True
+            )
+            if current_value == target_value:
+                yield None, None
+            else:
+                yield cfg, getattr(self, "_cached_cfg_data", None)
+        finally:
+            self._cached_cfg_data = None
+
+    def _get_setting_value(self, cache_cfg_data=False, return_cfg=False):
         """
         Return the current value for this control at the given list index.
         First checks for linked_config then falls back to mapping items.
@@ -126,22 +146,26 @@ class BaseControlHandler:
         link = self._get_active_link()
         if cfg := link.get("linked_config"):
             cfg_data = self.runtime_manager.configs_data.get(cfg, {})
+            if cache_cfg_data:
+                self._cached_cfg_data = cfg_data
             mode = cfg_data.get("mode", "static")
             default = cfg_data.get("default", "")
 
             if mode == "dynamic" and self.is_dynamic_linked:
                 try:
-                    return self.runtime_manager.get_runtime_setting(
+                    value = self.runtime_manager.get_runtime_setting(
                         self.mapping_key, self.container_position, self.field
                     )
                 except (IndexError, KeyError):
-                    return default
+                    value = default
 
-            val = infolabel(f"Skin.String({cfg})").strip()
-            return val or default
+                return (value, cfg) if return_cfg else value
+
+            value = infolabel(f"Skin.String({cfg})").strip()
+            return (value, cfg) if return_cfg else value
 
         try:
-            return self.runtime_manager.get_runtime_setting(
+            value = self.runtime_manager.get_runtime_setting(
                 self.mapping_key, self.container_position, "mapping_item"
             )
 
@@ -150,9 +174,10 @@ class BaseControlHandler:
                 "default_order", []
             )
             if 0 <= self.container_position < len(default_order):
-                return default_order[self.container_position]
-
-        return None
+                value = default_order[self.container_position]
+            else:
+                value = None
+        return (value, None) if return_cfg else value
 
     def _set_setting_value(self, value):
         """
@@ -160,21 +185,19 @@ class BaseControlHandler:
 
         :param value: The new value to store.
         """
-        link = self._get_active_link()
-        if cfg := link.get("linked_config"):
-            cfg_data = self.runtime_manager.configs_data.get(cfg, {})
-            mode = cfg_data.get("mode", "static")
-
-            if mode == "dynamic" and self.is_dynamic_linked:
-                try:
-                    self.runtime_manager.update_runtime_setting(
-                        self.mapping_key, self.container_position, self.field, value
-                    )
-                except IndexError:
-                    pass
-            else:
-                skin_string(cfg, value)
-            return
+        with self.config_context(value) as (cfg, cfg_data):
+            if cfg_data:
+                mode = cfg_data.get("mode", "static")
+                if mode == "dynamic" and self.is_dynamic_linked:
+                    try:
+                        self.runtime_manager.update_runtime_setting(
+                            self.mapping_key, self.container_position, self.field, value
+                        )
+                    except IndexError:
+                        pass
+                else:
+                    skin_string(cfg, value)
+                return
 
         try:
             self.runtime_manager.update_runtime_setting(
@@ -182,7 +205,6 @@ class BaseControlHandler:
             )
         except IndexError:
             pass
-        return
 
     def _apply_metadata(self, template):
         """
@@ -342,7 +364,7 @@ class ButtonHandler(BaseControlHandler):
         if (
             focused_control_id != self.instance.getId()
             or a_id != ACTION_SELECT_ITEM
-            or not self._get_active_link()
+            or ("field" in self.control and not self._get_active_link())
         ):
             return
 
@@ -402,11 +424,18 @@ class ButtonHandler(BaseControlHandler):
                 )
             ]
         ]
+        current_value = self._get_setting_value()
+        try:
+            preselect = items.index(current_value)
+        except ValueError:
+            preselect = 0
+
         return {
             "heading": onclick.get("heading", ""),
             "action": onclick.get("action"),
             "items": items,
             "display_items": display_items,
+            "preselect": preselect,
             **{k: onclick[k] for k in optional if k in onclick},
         }
 

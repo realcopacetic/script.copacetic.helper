@@ -83,11 +83,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         }
         for cid, ctrl in filtered.items():
             if ctrl.get("control_type") == "listitem":
-                bucket = (
-                    runtime_tpls
-                    if ctrl.get("mode") == "dynamic"
-                    else static_tpls
-                )
+                bucket = runtime_tpls if ctrl.get("mode") == "dynamic" else static_tpls
                 bucket[cid] = ctrl
             else:
                 self.dynamic_controls[cid] = ctrl
@@ -95,14 +91,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.listitems = {
             **{
                 entry["runtime_id"]: {
-                    **{
-                        k: (
-                            self._format_and_localize(tpl["mapping"], idx, v)
-                            if isinstance(v, str)
-                            else v
-                        )
-                        for k, v in tpl.items()
-                    },
+                    **{k: v for k, v in tpl.items()},
                     **entry,
                     "runtime_index": idx,
                 }
@@ -120,21 +109,21 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 for idx, (cid, tpl) in enumerate(static_tpls.items())
             },
         }
-        log(f'FUCK DEBUG self.listitems {self.listitems}')
-        log(f'FUCK DEBUG runtime_tpls.values() {runtime_tpls.values()}')
-        log(f"FUCK DEBUG static_tpls.items() {static_tpls.items()}")
-        log(f"FUCK DEBUG filtered.items() {filtered.items()}")
 
     def _format_and_localize(self, mapping_key, idx, raw):
         """
-        Format placeholders in `raw` from metadata and translate Kodi $INFO labels.
+        Format placeholders in `raw` from metadata and translate Kodi infolabels.
 
         :param mapping_key: Mapping group key.
         :param idx: Index in the runtime list.
         :param raw: Template string containing {metadata} tokens.
         :returns: Localized, formatted string.
         """
-        formatted = self.runtime_manager.format_metadata(mapping_key, idx, raw)
+        formatted = (
+            raw
+            if "{" not in raw
+            else self.runtime_manager.format_metadata(mapping_key, idx, raw)
+        )
         return infolabel(formatted) if formatted.startswith("$") else formatted
 
     def _refresh_list(self):
@@ -148,8 +137,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             )
             li = xbmcgui.ListItem(label=label)
             li.setProperty("content_id", runtime_id)
-            icon = item.get("icon", "DefaultCopacetic.png")
-            li.setArt({"icon": icon})
+            if (icon := item.get("icon")):
+                li.setArt({"icon": icon})
             self.list_container.addItem(li)
 
         self._update_mgmt_buttons()
@@ -192,8 +181,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             item_def["mapping"], item_def["runtime_index"], raw
         )  # <-- fixed clearly here
         li.setLabel(new_lbl or "")
-        icon = item_def.get("icon", "DefaultCopacetic.png")
-        li.setArt({"icon": icon})
+        if (icon := item_def.get("icon")):
+            li.setArt({"icon": icon})
 
     def onInit(self):
         """

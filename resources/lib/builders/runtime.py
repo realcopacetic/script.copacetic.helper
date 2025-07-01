@@ -159,7 +159,9 @@ class RuntimeStateManager:
             return template
         try:
             instance = self.runtime_state.get(mapping_key, [])[index]
-            return template.format(**instance)
+            metadata_key = instance.get("mapping_item")
+            metadata = self.mappings.get(mapping_key, {}).get("metadata", {}).get(metadata_key, {})
+            return template.format(**metadata)
         except Exception:
             return template
 
