@@ -316,10 +316,12 @@ class BaseControlHandler:
         self.container_position = container_position
 
         link = self._get_active_link()
-        visible_condition = (
+        raw_condition = (
             link.get("visible", "") if link else self.control.get("visible", "")
         )
-
+        visible_condition = self.runtime_manager.format_metadata(
+            self.control["mapping"], self.container_position, raw_condition
+        )
         is_visible = (
             self.rule_engine.evaluate(visible_condition, runtime=True)
             if visible_condition
