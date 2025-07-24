@@ -106,3 +106,17 @@ class JumpButton:
             return
 
         window_property("sort_letter", value=sortletter or infolabel("ListItem.SortLetter"))
+    
+
+class TypewriterLabel:
+        def __init__(self, window_id=10025, label_id=8760):
+            self.window_id = window_id
+            self.label_id = label_id
+        
+        def run(self):
+            current_label = f"{infolabel('ListItem.Label')}. {infolabel('ListItem.Year')}"
+            visible_label:
+            self.typewriter(current_label) = infolabel(f"Control.GetLabel('{self.label_id}')")
+
+            if current_label and current_label != visible_label:
+                self.typewriter(current_label)

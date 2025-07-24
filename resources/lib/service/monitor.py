@@ -151,7 +151,10 @@ class Monitor(xbmc.Monitor):
 
     def poller(self):
         """Polling loop that runs background tasks for different windows."""
-        if condition("Window.IsVisible(home)"):
+        if condition("Window.IsVisible(videos)"):
+            # Typewriter label
+            ...
+        elif condition("Window.IsVisible(home)"):
             # Run slideshow whenever wait is 0
             if self.slideshow_wait == 0:
                 self.slideshow.background_slideshow(

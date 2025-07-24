@@ -102,6 +102,24 @@ class RuntimeStateManager:
 
         self.runtime_state_handler.write_json(runtime_state)
 
+    def reset_runtime_state_for(self, mapping_key):
+        """
+        Reset the runtime state for a single mapping group.
+
+        :param mapping_key: The group key to reset (e.g. 'widgets').
+        """
+        state = self.runtime_state
+        mapping = self.mappings.get(mapping_key)
+        if not mapping or "user_defined_schema" not in mapping:
+            return
+
+        default_order = mapping.get("default_order", [])
+        state[mapping_key] = [
+            self._build_default_entry(mapping_key, item)
+            for item in default_order
+        ]
+        self.runtime_state_handler.write_json(state)
+
     def update_runtime_setting(self, mapping_key, index, setting_name, value):
         """
         Update a field in a runtime state entry.

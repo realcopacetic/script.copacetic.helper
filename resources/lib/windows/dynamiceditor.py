@@ -65,6 +65,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             "btn_delete": 411,
             "btn_up": 412,
             "btn_down": 413,
+            "btn_reset": 414,
         }
 
     def _build_dicts(self):
@@ -315,6 +316,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             if current_focus == self.btn_down.getId():
                 return self._on_move(+1)
 
+            if current_focus == self.btn_reset.getId():
+                return self._on_reset()
+
         super().onAction(action)
 
     def _on_list_scroll(self, current_focus):
@@ -442,3 +446,22 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.current_listitem = list(self.listitems.keys())[new]
         if not skip_focus:
             self.list_container.selectItem(new)
+
+    def _on_reset(self):
+        confirmed = xbmcgui.Dialog().yesno(
+            "Reset to defaults",
+            "This will reset all entries.\n\nAre you sure you want to continue?",
+        )
+        if not confirmed:
+            return
+
+        mk = self.listitems[self.current_listitem]["mapping"]
+        self.runtime_manager.reset_runtime_state_for(mk)
+
+        self._build_dicts()
+        self.container_position = 0
+        self.current_listitem = list(self.listitems.keys())[0]
+        self.list_container.selectItem(0)
+        self._on_mapping_item_changed()
+        self._refresh_list()
+        self._refresh_ui()
