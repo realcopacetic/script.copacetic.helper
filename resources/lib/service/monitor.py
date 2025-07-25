@@ -9,6 +9,7 @@ from resources.lib.builders.build_elements import BuildElements
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
+from resources.lib.shared.controls import TypewriterLabelManager
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     ADDON,
@@ -49,6 +50,7 @@ class Monitor(xbmc.Monitor):
         self.slideshow = SlideshowMonitor(self.sqlite)
         self.slideshow_wait = 0
         self.slideshow_interval = self._get_slideshow_interval()
+        self.typewriter = TypewriterLabelManager()
         self.player_monitor = None
         # Run
         self._create()
@@ -152,8 +154,9 @@ class Monitor(xbmc.Monitor):
     def poller(self):
         """Polling loop that runs background tasks for different windows."""
         if condition("Window.IsVisible(videos)"):
-            # Typewriter label
-            ...
+            self.typewriter.update()
+            self.typewriter.step()
+            self.waitForAbort(self.typewriter.get_sleep_time())    
         elif condition("Window.IsVisible(home)"):
             # Run slideshow whenever wait is 0
             if self.slideshow_wait == 0:
@@ -167,6 +170,7 @@ class Monitor(xbmc.Monitor):
                 self.slideshow_wait = min(self.slideshow_wait, self.slideshow_interval)
             # Reset countdown if interval reached, otherwise increment
             self.slideshow_wait = (self.slideshow_wait + 1) % self.slideshow_interval
+            self.waitForAbort(1)
         elif condition("Window.IsVisible(skinsettings)"):
             if self.check_cache:
                 get_cache_size()
@@ -178,10 +182,11 @@ class Monitor(xbmc.Monitor):
                 self.settings.set_defaults()
                 self.check_settings = True
                 log_and_execute("Skin.ToggleSetting(set_skin_defaults)")
+            self.waitForAbort(1)
         else:
             self.check_cache = True
             self.check_settings = True
-        self.waitForAbort(1)
+            self.waitForAbort(1)
 
     @staticmethod
     def _get_skindir():
