@@ -1,8 +1,6 @@
 # author: realcopacetic
 
-import time
-
-from resources.lib.shared.utilities import Window, infolabel, log, window_property
+from resources.lib.shared.utilities import Window, infolabel, log, window_property, xbmc
 
 
 class ProgressIndicator:
@@ -112,82 +110,40 @@ class JumpButton:
 
 
 class TypewriterLabelManager:
-    def __init__(
-        self,
-        window_id=10025,
-        control_id=8760,
-        start_delay=0.5,
-        step_interval=0.025,
-        idle_interval=1.0,
-    ):
-        """
-        :param window_id: Kodi window ID containing the label control.
-        :param control_id: ID of the label control to animate.
-        :param start_delay: Time (in seconds) to wait before typing begins after a label change.
-        :param step_interval: Time between each character update during animation.
-        :param idle_interval: Time to wait when animation is idle or complete.
-        """
+    def __init__(self, window_id=10025, control_id=8760, step_time=0.025):
         self.window = Window(window_id)
         self.control_id = control_id
-        self.control = None
+        self.step_time = step_time
 
-        self.last_label = ""
-        self.target = ""
-        self.index = 0
-        self.start_time = 0
+    def start(self, label, year=""):
+        expected = f"{label}. {year}." if year else f"{label}."
+        log(f"TypewriterLabelManager: START animation: '{expected}'")
 
-        self.start_delay = start_delay
-        self.step_interval = step_interval
-        self.idle_interval = idle_interval
+        try:
+            control = self.window.getControl(self.control_id)
+        except Exception:
+            log(f"TypewriterLabelManager: Control {self.control_id} not found")
+            return
 
-        self.state = "IDLE"  # IDLE, WAITING_FOR_CONTROL, WAITING_TO_START, TYPING, DONE
+        control.setLabel("")
 
-    def update(self):
-        label = infolabel("ListItem.Label")
-        year = infolabel("ListItem.Year")
-        current_label = f"{label}. {year}." if year else f"{label}."
+        for i in range(1, len(expected) + 1):
+            # Abort if current focus changed to a different listitem
+            current_label = infolabel("ListItem.Label")
+            current_year = infolabel("ListItem.Year")
+            current_focus = f"{current_label}. {current_year}." if current_year else f"{current_label}."
 
-        if current_label and current_label != self.last_label:
-            self.last_label = current_label
-            self.target = current_label
-            self.index = 0
-            self.start_time = time.time() + self.start_delay
-            self.state = "WAITING_FOR_CONTROL"
+            if current_focus != expected:
+                log("TypewriterLabelManager: Aborted — user focus changed")
+                return
+            control.setLabel(expected[:i])
+            xbmc.sleep(int(self.step_time * 1000))
 
-    def step(self):
-        if self.state in ("IDLE", "DONE") or not self.target:
-            return False
+        log(f"TypewriterLabelManager: DONE animation: '{expected}'")
 
-        if self.state == "WAITING_FOR_CONTROL":
-            try:
-                self.control = self.window.getControl(self.control_id)
-                self.state = "WAITING_TO_START"
-            except Exception:
-                log(
-                    f"{self.__class__.__name__}: Control {self.control_id} not found, retrying..."
-                )
-                return True  # Try again next cycle
-            return True
-
-        if self.state == "WAITING_TO_START":
-            if time.time() >= self.start_time:
-                self.state = "TYPING"
-            return True
-
-        if self.state == "TYPING":
-            if self.control and self.index <= len(self.target):
-                self.control.setLabel(self.target[: self.index])
-                self.index += 1
-                return True
-            self.state = "DONE"
-            return False
-
-        return False
-
-    def get_sleep_time(self):
-        """
-        Returns the appropriate sleep duration based on current animation state.
-        """
-        if self.state in ("TYPING", "WAITING_TO_START", "WAITING_FOR_CONTROL"):
-            return self.step_interval
-        return self.idle_interval
+    def clear(self):
+        try:
+            control = self.window.getControl(self.control_id)
+            control.setLabel("")
+        except Exception:
+            log(f"TypewriterLabelManager → Control {self.control_id} not found (clear)")

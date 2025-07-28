@@ -1,12 +1,15 @@
 # author: realcopacetic, sualfred
 
 import concurrent.futures
-import time
 
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
-from resources.lib.shared.controls import JumpButton, ProgressIndicator
+from resources.lib.shared.controls import (
+    JumpButton,
+    ProgressIndicator,
+    TypewriterLabelManager,
+)
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     ADDON,
@@ -20,8 +23,7 @@ from resources.lib.shared.utilities import (
     split,
     split_random,
     url_encode,
-    window_property,
-    xbmc,
+    window_property
 )
 
 
@@ -83,13 +85,13 @@ class DataHandler:
         ]:
             if p.isdigit() and (resume := int(p)) > 0:
                 return resume, unwatched
-            
+
         if condition(
             f"String.IsEqual({self.listitem}.Overlay,OverlayWatched.png) | "
             f"Integer.IsGreater({self.listitem}.PlayCount,0)"
         ):
             return 100, ""
-        
+
         if "set" in self.dbtype:
             total = int(infolabel("Container(3100).NumItems") or 0)
             watched = sum(
@@ -101,7 +103,7 @@ class DataHandler:
             return ((total and watched / total or 0) * 100), (
                 total - watched
             )  # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
-        
+
         return 0, unwatched
 
     def _studio(self):
@@ -115,7 +117,7 @@ class DataHandler:
     def _multiart(self):
         if not (art_type := infolabel("Control.GetLabel(6400)")):
             return {}
-        
+
         return {
             f"multiart{pos if pos else ''}": art
             for pos in range(16)
@@ -129,6 +131,7 @@ class PluginContent(object):
     def __init__(self, params, li):
         self.sqlite = SQLiteHandler()
         self.image_processor = ImageEditor(self.sqlite).image_processor
+        self.typewriter = TypewriterLabelManager()
 
         self.title = params.get("title", "")
         self.dbtype = params.get("type", "")
@@ -140,6 +143,7 @@ class PluginContent(object):
         self.target = params.get("target", "ListItem")
         if self.target.isdigit():
             self.target = f"Container({self.target}).ListItem"
+        self.year = params.get("year")
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
         self.li = li
@@ -182,8 +186,12 @@ class PluginContent(object):
         jump_button = JumpButton()
         jump_button.update_position(self.sortletter)
 
+    def typewriterlabel(self):
+        self.typewriter.start(self.label, self.year)
+
     @log_duration
     def helper(self):
+        self.typewriter.clear
         images_to_process = {"clearlogo": "crop", "fanart": "blur"}
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future_data = executor.submit(
@@ -193,6 +201,14 @@ class PluginContent(object):
                 self.image_processor, self.dbid, self.target, images_to_process
             )
             data, processed_images = future_data.result(), future_images.result()
+        
+        current_label = infolabel(f"{self.target}.Label")
+        expected_label = data.infolabels.get("Label")  # from DataHandler
+
+        if current_label != expected_label:
+            log(f"PluginContent: Helper → ABORT: Current label '{current_label}' != expected '{expected_label}'")
+            return
+        
         if processed_images:
             data.fetched.setdefault("art", {}).update(processed_images)
         add_items(self.li, [data.fetched], "helper")

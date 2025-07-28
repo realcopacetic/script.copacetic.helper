@@ -152,12 +152,8 @@ class Monitor(xbmc.Monitor):
         self.idle = False
 
     def poller(self):
-        """Polling loop that runs background tasks for different windows."""
-        if condition("Window.IsVisible(videos)"):
-            self.typewriter.update()
-            self.typewriter.step()
-            self.waitForAbort(self.typewriter.get_sleep_time())    
-        elif condition("Window.IsVisible(home)"):
+        """Polling loop that runs background tasks for different windows."""   
+        if condition("Window.IsVisible(home)"):
             # Run slideshow whenever wait is 0
             if self.slideshow_wait == 0:
                 self.slideshow.background_slideshow(
