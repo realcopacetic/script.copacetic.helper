@@ -9,7 +9,6 @@ from resources.lib.builders.build_elements import BuildElements
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
-from resources.lib.shared.controls import TypewriterLabelManager
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     ADDON,
@@ -50,7 +49,6 @@ class Monitor(xbmc.Monitor):
         self.slideshow = SlideshowMonitor(self.sqlite)
         self.slideshow_wait = 0
         self.slideshow_interval = self._get_slideshow_interval()
-        self.typewriter = TypewriterLabelManager()
         self.player_monitor = None
         # Run
         self._create()

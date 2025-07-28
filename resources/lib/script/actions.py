@@ -98,7 +98,7 @@ def hex_contrast_check(**kwargs):
 
 def jump_button(**kwargs):
     """Updates the position of the jump scrollbar indicator."""
-    from resources.lib.shared.controls import JumpButton
+    from resources.lib.plugin.helpers import JumpButton
 
     jump_button = JumpButton()
     jump_button.update_position()
@@ -399,6 +399,14 @@ def toggle_addon(id, **kwargs):
             parent="toggle_addon",
         )
         DIALOG.notification(id, ADDON.getLocalizedString(32206))
+
+
+def typewriter_clear(**kwargs):
+    """Clears typewriter label"""
+    from resources.lib.plugin.helpers import TypewriterAnimation
+
+    typewriter = TypewriterAnimation()
+    typewriter.clear()
 
 
 def dynamic_settings_window(**kwargs):

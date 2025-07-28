@@ -1,14 +1,16 @@
 # author: realcopacetic, sualfred
 
 import concurrent.futures
+import time
 
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
-from resources.lib.shared.controls import (
+from resources.lib.plugin.helpers import (
+    DataHandler,
     JumpButton,
     ProgressIndicator,
-    TypewriterLabelManager,
+    TypewriterAnimation,
 )
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
@@ -18,120 +20,15 @@ from resources.lib.shared.utilities import (
     json_call,
     log,
     log_duration,
-    return_label,
     set_plugincontent,
-    split,
-    split_random,
-    url_encode,
-    window_property
 )
-
-
-class DataHandler:
-    def __init__(self, listitem, dbtype, dbid):
-        self.listitem = listitem
-        self.dbtype = dbtype
-        self.dbid = dbid
-        self.infolabels = self._get_infolabels(
-            [
-                "Label",
-                "Director",
-                "Writer",
-                "Genre",
-                "Studio",
-                "PercentPlayed",
-                "Property(WatchedEpisodePercent)",
-                "Property(WatchedProgress)",
-                "Property(UnwatchedEpisodes)",
-            ]
-        )
-        self.fetched = self.fetch_data()
-
-    def _get_infolabels(self, keys):
-        return {key: infolabel(f"{self.listitem}.{key}") for key in keys}
-
-    def fetch_data(self):
-        label = return_label(self.infolabels["Label"])
-        encoded_label = url_encode(label)
-        director = split_random(self.infolabels["Director"])
-        writer = split(self.infolabels["Writer"])
-        genre = split_random(self.infolabels["Genre"])
-        resume, unwatched = self._resumepoint()
-        studio = self._studio()
-        multiart = self._multiart()
-        if "3100" not in self.listitem:
-            window_property("url_encoded_label", value=encoded_label)
-            window_property("random_genre", value=genre)
-            window_property("random_director", value=director)
-        return {
-            "file": encoded_label,
-            "label": encoded_label,
-            "art": multiart,
-            "director": director,
-            "dbtype": self.dbtype,
-            "genre": genre,
-            "resume": {"position": resume, "total": 100},
-            "unwatchedepisodes": str(unwatched),
-            "studio": studio,
-            "writer": writer,
-        }
-
-    def _resumepoint(self):
-        unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
-        for p in [
-            self.infolabels["PercentPlayed"],
-            self.infolabels["Property(WatchedEpisodePercent)"],
-            self.infolabels["Property(WatchedProgress)"],
-        ]:
-            if p.isdigit() and (resume := int(p)) > 0:
-                return resume, unwatched
-
-        if condition(
-            f"String.IsEqual({self.listitem}.Overlay,OverlayWatched.png) | "
-            f"Integer.IsGreater({self.listitem}.PlayCount,0)"
-        ):
-            return 100, ""
-
-        if "set" in self.dbtype:
-            total = int(infolabel("Container(3100).NumItems") or 0)
-            watched = sum(
-                condition(
-                    f"Integer.IsGreater(Container(3100).ListItem({x}).PlayCount,0)"
-                )
-                for x in range(total)
-            )
-            return ((total and watched / total or 0) * 100), (
-                total - watched
-            )  # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
-
-        return 0, unwatched
-
-    def _studio(self):
-        studio = (
-            split(infolabel("Container(3100).ListItem(-1).Studio"))
-            if "set" in self.dbtype
-            else split(self.infolabels["Studio"])
-        )
-        return studio.replace("+", "") if studio else ""
-
-    def _multiart(self):
-        if not (art_type := infolabel("Control.GetLabel(6400)")):
-            return {}
-
-        return {
-            f"multiart{pos if pos else ''}": art
-            for pos in range(16)
-            if (
-                art := infolabel(f"{self.listitem}.Art({art_type}{pos if pos else ''})")
-            )
-        }
 
 
 class PluginContent(object):
     def __init__(self, params, li):
         self.sqlite = SQLiteHandler()
         self.image_processor = ImageEditor(self.sqlite).image_processor
-        self.typewriter = TypewriterLabelManager()
+        self.typewriter_animation = TypewriterAnimation()
 
         self.title = params.get("title", "")
         self.dbtype = params.get("type", "")
@@ -186,14 +83,19 @@ class PluginContent(object):
         jump_button = JumpButton()
         jump_button.update_position(self.sortletter)
 
-    def typewriterlabel(self):
-        self.typewriter.start(self.label, self.year)
+    def typewriter(self):
+        self.typewriter_animation.start(self.label, self.year)
 
     @log_duration
     def helper(self):
-        self.typewriter.clear
         images_to_process = {"clearlogo": "crop", "fanart": "blur"}
+
+        if (current_label := infolabel("ListItem.Label")) != self.label:
+            log(f"PluginContent → helper: ABORTED → '{self.label}' lost focus")
+            return
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
+            log(f"PluginContent → helper: START DataHandler / ImageProcessor → '{self.label}'")
             future_data = executor.submit(
                 DataHandler, self.target, self.dbtype, self.dbid
             )
@@ -201,18 +103,17 @@ class PluginContent(object):
                 self.image_processor, self.dbid, self.target, images_to_process
             )
             data, processed_images = future_data.result(), future_images.result()
-        
-        current_label = infolabel(f"{self.target}.Label")
-        expected_label = data.infolabels.get("Label")  # from DataHandler
 
-        if current_label != expected_label:
-            log(f"PluginContent: Helper → ABORT: Current label '{current_label}' != expected '{expected_label}'")
+        log(f"PluginContent → helper: DONE DataHandler / ImageProcessor → '{self.label}'")
+
+        if current_label != self.label:
+            log(f"PluginContent → helper: ABORTED → '{self.label}' lost focus")
             return
-        
+
         if processed_images:
             data.fetched.setdefault("art", {}).update(processed_images)
+
         add_items(self.li, [data.fetched], "helper")
-        # Check visibility condition before updating button position
         resume_data = data.fetched.get("resume", {})
         resume_position = resume_data.get("position", 0)  # Default to 0 if not found
         progress_indicator = ProgressIndicator()
@@ -231,7 +132,7 @@ class PluginContent(object):
             try:
                 json_query = json_query["result"]["movies"]
             except Exception:
-                log("Widget in_progress: No movies found.")
+                log("PluginContent → in_progress: No movies found.")
             else:
                 add_items(self.li, json_query, type="movie")
         if self.dbtype != "movie":
@@ -245,7 +146,7 @@ class PluginContent(object):
             try:
                 json_query = json_query["result"]["episodes"]
             except Exception:
-                log("Widget in_progress: No episodes found.")
+                log("PluginContent → in_progress: No episodes found.")
             else:
                 for episode in json_query:
                     tvshowid = episode.get("tvshowid")
@@ -259,7 +160,7 @@ class PluginContent(object):
                         tvshow_json_query = tvshow_json_query["result"]["tvshowdetails"]
                     except Exception:
                         log(
-                            f"Widget in_progress: Parent tv show not found → {tvshowid}"
+                            f"PluginContent → in_progress: Parent tv show not found → {tvshowid}"
                         )
                     else:
                         episode["studio"] = tvshow_json_query.get("studio")
@@ -280,7 +181,7 @@ class PluginContent(object):
         try:
             json_query = json_query["result"]["tvshows"]
         except Exception:
-            log("Widget next_up: No TV shows found")
+            log("PluginContent → next_up: No TV shows found")
             return
         for episode in json_query:
             use_last_played_season = True
@@ -347,7 +248,9 @@ class PluginContent(object):
                 episode_details[0]["studio"] = studio
                 episode_details[0]["mpaa"] = mpaa
             except Exception:
-                log(f"Widget next_up: No next episodes found for {episode['title']}")
+                log(
+                    f"PluginContent → next_up: No next episodes found for {episode['title']}"
+                )
             else:
                 add_items(self.li, episode_details, type="episode")
                 set_plugincontent(
@@ -368,7 +271,7 @@ class PluginContent(object):
         try:
             json_query = json_query["result"]["movies"]
         except Exception:
-            log("Widget director_credits: No movies found.")
+            log("PluginContent → director_credits: No movies found.")
         else:
             add_items(self.li, json_query, type="movie")
         json_query = json_call(
@@ -381,7 +284,7 @@ class PluginContent(object):
         try:
             json_query = json_query["result"]["musicvideos"]
         except Exception:
-            log("Widget director_credits: No music videos found.")
+            log("PluginContent → director_credits: No music videos found.")
         else:
             add_items(self.li, json_query, type="musicvideo")
         set_plugincontent(content="videos", category=ADDON.getLocalizedString(32602))
@@ -417,7 +320,7 @@ class PluginContent(object):
         try:
             movies_json_query = movies_json_query["result"]["movies"]
         except Exception:
-            log(f"Widget actor_credits: No movies found for {self.label}.")
+            log(f"PluginContent →  actor_credits: No movies found for {self.label}.")
         else:
             dict_to_remove = next(
                 (item for item in movies_json_query if item["label"] == current_item),
@@ -430,7 +333,7 @@ class PluginContent(object):
         try:
             tvshows_json_query = tvshows_json_query["result"]["tvshows"]
         except Exception:
-            log(f"Widget actor_credits: No tv shows found for {self.label}.")
+            log(f"PluginContent →  actor_credits: No tv shows found for {self.label}.")
         else:
             dict_to_remove = next(
                 (item for item in tvshows_json_query if item["label"] == current_item),
