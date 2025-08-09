@@ -89,6 +89,7 @@ class PluginContent(object):
     @log_duration
     def helper(self):
         images_to_process = {"clearlogo": "crop", "fanart": "blur"}
+        self.typewriter_animation.clear()
 
         if (current_label := infolabel("ListItem.Label")) != self.label:
             log(f"PluginContent → helper: ABORTED → '{self.label}' lost focus")

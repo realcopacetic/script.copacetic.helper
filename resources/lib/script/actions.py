@@ -401,14 +401,6 @@ def toggle_addon(id, **kwargs):
         DIALOG.notification(id, ADDON.getLocalizedString(32206))
 
 
-def typewriter_clear(**kwargs):
-    """Clears typewriter label"""
-    from resources.lib.plugin.helpers import TypewriterAnimation
-
-    typewriter = TypewriterAnimation()
-    typewriter.clear()
-
-
 def dynamic_settings_window(**kwargs):
     """
     Opens a dynamic settings window as a modal dialog and collects 
