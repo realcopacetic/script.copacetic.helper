@@ -303,7 +303,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     current_focus,
                 )
         # Management buttons
-        if a_id == ACTION_SELECT_ITEM:
+        if a_id == ACTION_SELECT_ITEM and self.mgmt_buttons:
             if current_focus == self.btn_add.getId():
                 return self._on_add()
 

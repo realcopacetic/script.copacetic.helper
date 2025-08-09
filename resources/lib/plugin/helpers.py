@@ -278,3 +278,94 @@ class TypewriterAnimation:
             log(
                 f"{self.__class__.__name__}: Control {self.control_id} not found (clear)"
             )
+
+class LabelTruncator:
+    def __init__(self, window_id=10025, control_id=8860, floor=0, ceiling=None):
+        """
+        :param window_id: Kodi window ID where the TextBox lives.
+        :param control_id: The ID of the TextBox control to truncate.
+        :param floor: Minimum number of characters to preserve.
+        :param ceiling: Optional upper bound (defaults to full label length).
+        """
+        self.window = Window(window_id)
+        self.control_id = control_id
+        self.floor = floor
+        self.ceiling = ceiling
+        self.ellipsis = "..."
+
+    def truncate(self, text):
+        """
+        Truncates text to fit inside a TextBox control using binary search.
+        Sets the truncated text directly on the control.
+
+        :param text: The original long string.
+        :return: The truncated string that was set.
+        """
+        try:
+            control = self.window.getControl(self.control_id)
+        except Exception:
+            xbmc.log(
+                f"{self.__class__.__name__}: Control {self.control_id} not found",
+                xbmc.LOGWARNING,
+            )
+            return text
+
+        max_len = self.ceiling or len(text)
+        control.setText(text)
+        xbmc.sleep(20)
+        if not xbmc.getCondVisibility(f"Container({self.control_id}).HasNext"):
+            return text
+
+        floor, ceiling = self.floor, max_len
+        best_fit = None
+
+        count=0
+        while floor < ceiling:
+            count += 1
+            log(f'FUCK DEBUG {count}')
+            mid = (floor + ceiling) // 2
+            slice_point = text.rfind(" ", 0, mid)
+            if slice_point == -1:
+                slice_point = mid
+            test = text[:slice_point] + self.ellipsis
+            control.setText(test)
+            xbmc.sleep(20)
+            if xbmc.getCondVisibility(f"Container({self.control_id}).HasNext"):
+                ceiling = mid
+            else:
+                best_fit = slice_point
+                floor = mid + 1
+
+        if best_fit is not None:
+            final = text[:best_fit] + self.ellipsis
+            log(f"FUCK DEBUG final length {len(final)}")
+            control.setText(final)
+            return final
+
+    def truncate_by_floor(self, text):
+        """
+        Truncate text at the nearest full word under the floor limit.
+        No UI overflow checks — purely character-based.
+
+        :param text: The input string to truncate.
+        :return: Truncated string ending at nearest word, with ellipsis.
+        """
+        try:
+            control = self.window.getControl(self.control_id)
+        except Exception:
+            xbmc.log(
+                f"{self.__class__.__name__}: Control {self.control_id} not found",
+                xbmc.LOGWARNING,
+            )
+            return text
+        
+        if len(text) <= self.floor:
+            return text
+
+        slice_point = text.rfind(" ", 0, self.floor)
+        if slice_point == -1:
+            slice_point = self.floor  # no space found, hard cut
+
+        final = text[:slice_point].rstrip() + self.ellipsis
+        control.setText(final)
+        return final
