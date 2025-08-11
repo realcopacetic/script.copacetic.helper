@@ -40,27 +40,18 @@ class DataHandler:
     def fetch_data(self):
         label = return_label(self.infolabels["Label"])
         encoded_label = url_encode(label)
-        director = split_random(self.infolabels["Director"])
-        writer = split(self.infolabels["Writer"])
-        genre = split_random(self.infolabels["Genre"])
         resume, unwatched = self._resumepoint()
-        studio = self._studio()
-        multiart = self._multiart()
-        if "3100" not in self.listitem:
-            window_property("url_encoded_label", value=encoded_label)
-            window_property("random_genre", value=genre)
-            window_property("random_director", value=director)
         return {
             "file": encoded_label,
             "label": encoded_label,
-            "art": multiart,
-            "director": director,
+            "art": self._multiart(),
+            "director": split_random(self.infolabels["Director"]),
             "dbtype": self.dbtype,
-            "genre": genre,
+            "genre": split_random(self.infolabels["Genre"]),
             "resume": {"position": resume, "total": 100},
             "unwatchedepisodes": str(unwatched),
-            "studio": studio,
-            "writer": writer,
+            "studio": self._studio(),
+            "writer": split(self.infolabels["Writer"]),
         }
 
     def _resumepoint(self):
@@ -279,6 +270,7 @@ class TypewriterAnimation:
                 f"{self.__class__.__name__}: Control {self.control_id} not found (clear)"
             )
 
+
 class LabelTruncator:
     def __init__(self, window_id=10025, control_id=8860, floor=0, ceiling=None):
         """
@@ -304,10 +296,7 @@ class LabelTruncator:
         try:
             control = self.window.getControl(self.control_id)
         except Exception:
-            xbmc.log(
-                f"{self.__class__.__name__}: Control {self.control_id} not found",
-                xbmc.LOGWARNING,
-            )
+            log(f"{self.__class__.__name__}: Control {self.control_id} not found")
             return text
 
         max_len = self.ceiling or len(text)
@@ -319,10 +308,9 @@ class LabelTruncator:
         floor, ceiling = self.floor, max_len
         best_fit = None
 
-        count=0
+        count = 0
         while floor < ceiling:
             count += 1
-            log(f'FUCK DEBUG {count}')
             mid = (floor + ceiling) // 2
             slice_point = text.rfind(" ", 0, mid)
             if slice_point == -1:
@@ -338,7 +326,6 @@ class LabelTruncator:
 
         if best_fit is not None:
             final = text[:best_fit] + self.ellipsis
-            log(f"FUCK DEBUG final length {len(final)}")
             control.setText(final)
             return final
 
@@ -358,7 +345,7 @@ class LabelTruncator:
                 xbmc.LOGWARNING,
             )
             return text
-        
+
         if len(text) <= self.floor:
             return text
 

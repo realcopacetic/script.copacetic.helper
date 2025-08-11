@@ -1,8 +1,5 @@
 # author: realcopacetic, sualfred
 
-import concurrent.futures
-import time
-
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
@@ -79,46 +76,49 @@ class PluginContent(object):
             "value": self.exclude_value,
         }
 
+    @log_duration
     def jumpbutton(self):
         jump_button = JumpButton()
         jump_button.update_position(self.sortletter)
 
+    @log_duration
     def typewriter(self):
         self.typewriter_animation.start(self.label, self.year)
 
     @log_duration
-    def helper(self):
-        images_to_process = {"clearlogo": "crop", "fanart": "blur"}
+    def metadata_helper(self):
         self.typewriter_animation.clear()
 
         if (current_label := infolabel("ListItem.Label")) != self.label:
-            log(f"PluginContent → helper: ABORTED → '{self.label}' lost focus")
+            log(f"PluginContent → metadata_helper: ABORTED → '{self.label}' lost focus")
             return
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            log(f"PluginContent → helper: START DataHandler / ImageProcessor → '{self.label}'")
-            future_data = executor.submit(
-                DataHandler, self.target, self.dbtype, self.dbid
-            )
-            future_images = executor.submit(
-                self.image_processor, self.dbid, self.target, images_to_process
-            )
-            data, processed_images = future_data.result(), future_images.result()
-
-        log(f"PluginContent → helper: DONE DataHandler / ImageProcessor → '{self.label}'")
+        data = DataHandler(self.target, self.dbtype, self.dbid)
 
         if current_label != self.label:
-            log(f"PluginContent → helper: ABORTED → '{self.label}' lost focus")
+            log(f"PluginContent → metadata_helper: ABORTED → '{self.label}' lost focus")
             return
 
-        if processed_images:
-            data.fetched.setdefault("art", {}).update(processed_images)
+        add_items(self.li, [data.fetched], "metadata")
 
-        add_items(self.li, [data.fetched], "helper")
-        resume_data = data.fetched.get("resume", {})
-        resume_position = resume_data.get("position", 0)  # Default to 0 if not found
-        progress_indicator = ProgressIndicator()
-        progress_indicator.update_position(resume_position)
+        # Progress UI update
+        resume = data.fetched.get("resume", {})
+        ProgressIndicator().update_position(resume.get("position", 0))
+
+    @log_duration
+    def artwork_helper(self):
+        if (current_label := infolabel("ListItem.Label")) != self.label:
+            log(f"PluginContent → artwork_helper: ABORTED → '{self.label}' lost focus")
+            return
+
+        processed = self.image_processor(self.dbid, self.target, {"clearlogo": "crop", "fanart": "blur"})
+
+        if current_label != self.label:
+            log(f"PluginContent → artwork_helper: ABORTED → '{self.label}' lost focus")
+            return
+
+        data = {"file": self.label, "art": dict(processed or {})}
+        add_items(self.li, [data], "artwork")
 
     def in_progress(self):
         filters = [self.filter_inprogress]
