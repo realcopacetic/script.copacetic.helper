@@ -87,8 +87,6 @@ class PluginContent(object):
 
     @log_duration
     def metadata_helper(self):
-        self.typewriter_animation.clear()
-
         if (current_label := infolabel("ListItem.Label")) != self.label:
             log(f"PluginContent → metadata_helper: ABORTED → '{self.label}' lost focus")
             return

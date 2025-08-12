@@ -225,19 +225,31 @@ class TypewriterAnimation:
         self.window = Window(window_id)
         self.control_id = control_id
         self.step_time = step_time
+        self.width = 450
+        self.height = 37
+        self.posx = 75
+        self.posy = 853
+        self.lineheight = 30
+        self.maxlines = 3
 
     def start(self, label, year=""):
         expected = f"{label}. {year}." if year else f"{label}."
         log(f"{self.__class__.__name__}: START → '{expected}'")
-
+        current_height = self.height
+        current_y = self.posy
         try:
             control = self.window.getControl(self.control_id)
         except Exception:
             log(f"{self.__class__.__name__}: Control {self.control_id} not found")
             return
 
-        timeout = 1000  # max wait 1000ms
-        interval = 50  # check every 50ms
+        control.setText("")
+        control.setWidth(self.width)
+        control.setHeight(current_height)
+        control.setPosition(self.posx, current_y)
+
+        timeout = 1000
+        interval = 50
         waited = 0
         while not control.isVisible() and waited < timeout:
             xbmc.sleep(interval)
@@ -255,7 +267,13 @@ class TypewriterAnimation:
                 log(f"{self.__class__.__name__}: ABORTED → '{expected}' lost focus")
                 return
 
-            control.setLabel(expected[:i])
+            if i > 1 and condition("Container(8760).HasNext") and current_height < (self.height * self.maxlines):
+                current_height += self.lineheight
+                current_y -= self.lineheight
+                control.setHeight(current_height)
+                control.setPosition(self.posx, current_y)
+
+            control.setText(expected[:i])
             xbmc.sleep(int(self.step_time * 1000))
 
         log(f"{self.__class__.__name__}: DONE → '{expected}'")
