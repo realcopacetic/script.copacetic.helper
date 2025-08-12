@@ -221,18 +221,21 @@ class JumpButton:
 
 
 class TypewriterAnimation:
-    def __init__(self, window_id=10025, control_id=8760, step_time=0.025):
+    def __init__(
+        self,
+        window_id=10025,
+        control_id=8760,
+        step_time=0.025,
+        line_height=30,
+        max_lines=3,
+    ):
         self.window = Window(window_id)
         self.control_id = control_id
         self.step_time = step_time
-        self.width = 450
-        self.height = 37
-        self.posx = 75
-        self.posy = 853
-        self.lineheight = 30
-        self.maxlines = 3
+        self.line_height = line_height
+        self.max_lines = max_lines
 
-    def start(self, label, year=""):
+    def start(self, label, year="", coordinates=""):
         expected = f"{label}. {year}." if year else f"{label}."
         log(f"{self.__class__.__name__}: START → '{expected}'")
 
@@ -243,15 +246,25 @@ class TypewriterAnimation:
             log(f"{self.__class__.__name__}: Control {self.control_id} not found")
             return
 
-        current_height = self.height
-        current_y = self.posy
-        control.setWidth(self.width)
-        control.setHeight(current_height)
-        control.setPosition(self.posx, current_y)
+        try:
+            posx, posy, width, height = map(int, coordinates.split(","))
+        except Exception as e:
+            log(f"{self.__class__.__name__}: Invalid coordinates '{coordinates}': {e}")
+            return
 
-        timeout = 1000
-        interval = 50
-        waited = 0
+        log(
+            f"{self.__class__.__name__}: Parsed coordinates → x:{posx} y:{posy} w:{width} h:{height}"
+        )
+
+        current_height = height
+        current_posy = posy
+        max_height = self.line_height * self.max_lines
+
+        control.setWidth(width)
+        control.setHeight(current_height)
+        control.setPosition(posx, current_posy)
+
+        timeout, interval, waited = 1000, 50, 0
         while not control.isVisible() and waited < timeout:
             xbmc.sleep(interval)
             waited += interval
@@ -268,11 +281,15 @@ class TypewriterAnimation:
                 log(f"{self.__class__.__name__}: ABORTED → '{expected}' lost focus")
                 return
 
-            if i > 1 and condition("Container(8760).HasNext") and current_height < (self.height * self.maxlines):
-                current_height += self.lineheight
-                current_y -= self.lineheight
+            if (
+                i > 1
+                and condition(f"Container({self.control_id}).HasNext")
+                and current_height < max_height
+            ):
+                current_height += self.line_height
+                current_posy -= self.line_height
                 control.setHeight(current_height)
-                control.setPosition(self.posx, current_y)
+                control.setPosition(posx, current_posy)
 
             control.setText(expected[:i])
             xbmc.sleep(int(self.step_time * 1000))

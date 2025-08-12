@@ -27,17 +27,13 @@ class PluginContent(object):
         self.image_processor = ImageEditor(self.sqlite).image_processor
         self.typewriter_animation = TypewriterAnimation()
 
-        self.title = params.get("title", "")
+        self.params = params
+        self.label = params.get("label", "")
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
-        self.label = params.get("label", "")
-        self.art_refresh = params.get("art_refresh", "")
-        self.set_refresh = params.get("set_refresh", "")
-        self.sortletter = params.get("sortletter", "")
         self.target = params.get("target", "ListItem")
         if self.target.isdigit():
             self.target = f"Container({self.target}).ListItem"
-        self.year = params.get("year")
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
         self.li = li
@@ -64,12 +60,6 @@ class PluginContent(object):
             "operator": "true",
             "value": "",
         }
-        self.filter_director = {
-            "field": "director",
-            "operator": "is",
-            "value": self.label,
-        }
-        self.filter_actor = {"field": "actor", "operator": "is", "value": self.label}
         self.filter_exclude = {
             "field": self.exclude_key,
             "operator": "isnot",
@@ -78,12 +68,15 @@ class PluginContent(object):
 
     @log_duration
     def jumpbutton(self):
+        sortletter = self.params.get("sortletter", "")
         jump_button = JumpButton()
-        jump_button.update_position(self.sortletter)
+        jump_button.update_position(sortletter)
 
     @log_duration
     def typewriter(self):
-        self.typewriter_animation.start(self.label, self.year)
+        year = self.params.get("year")
+        coordinates = self.params.get("coordinates")
+        self.typewriter_animation.start(self.label, year, coordinates)
 
     @log_duration
     def metadata_helper(self):
@@ -257,9 +250,14 @@ class PluginContent(object):
                 )
 
     def director_credits(self):
-        filters = [self.filter_director]
-        if self.filter_exclude:
-            filters.append(self.filter_exclude)
+        filters = [
+            {
+                "field": "director",
+                "operator": "is",
+                "value": self.label,
+            },
+            *([self.filter_exclude] if self.filter_exclude else []),
+        ]
         json_query = json_call(
             "VideoLibrary.GetMovies",
             properties=JSON_MAP["movie_properties"],
@@ -289,7 +287,13 @@ class PluginContent(object):
         set_plugincontent(content="videos", category=ADDON.getLocalizedString(32602))
 
     def actor_credits(self):
-        filters = [self.filter_actor]
+        filters = [
+            {
+                "field": "actor", 
+                "operator": "is", 
+                "value": self.label
+            }
+        ]
         # grab current movie or tvshow name
         if condition("String.IsEqual(ListItem.DBType,episode)"):
             current_item = infolabel("ListItem.TVShowTitle")
