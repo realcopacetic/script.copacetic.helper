@@ -235,15 +235,16 @@ class TypewriterAnimation:
     def start(self, label, year=""):
         expected = f"{label}. {year}." if year else f"{label}."
         log(f"{self.__class__.__name__}: START → '{expected}'")
-        current_height = self.height
-        current_y = self.posy
+
         try:
             control = self.window.getControl(self.control_id)
+            control.setText("")
         except Exception:
             log(f"{self.__class__.__name__}: Control {self.control_id} not found")
             return
 
-        control.setText("")
+        current_height = self.height
+        current_y = self.posy
         control.setWidth(self.width)
         control.setHeight(current_height)
         control.setPosition(self.posx, current_y)
