@@ -132,7 +132,7 @@ def set_bool(setting_id, debug=False):
 
     :param setting_id: The skin setting ID (e.g., "mysetting").
     """
-    execute(f'Skin.SetBool({setting_id})')
+    execute(f"Skin.SetBool({setting_id})")
     log(f"Skin Bool set: {setting_id}", force=debug)
 
 
@@ -147,7 +147,7 @@ def toggle_bool(setting_id, debug=False):
     """
     if condition(f"Skin.HasSetting({setting_id})"):
         reset_bool(setting_id)
-    else: 
+    else:
         set_bool(setting_id)
 
 

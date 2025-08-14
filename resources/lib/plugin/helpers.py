@@ -1,7 +1,7 @@
 # author: realcopacetic
+from xbmcgui import Window, getCurrentWindowId
 
 from resources.lib.shared.utilities import (
-    Window,
     condition,
     infolabel,
     log,
@@ -9,9 +9,68 @@ from resources.lib.shared.utilities import (
     split,
     split_random,
     url_encode,
-    window_property,
     xbmc,
 )
+
+DEFAULT_COORDS = {
+    "TypewriterAnimation": (0, 0, 1920, 1080),
+    "ProgressBarManager": (780, 1050, 360, 4),
+    "JumpButton:horizontal": (240, 1050, 1680, 4),
+    "JumpButton:vertical": (1890, 180, 4, 720),
+}
+
+
+def parse_coordinates(
+    coordinates, window, anchor_id=None, adjust_fn=None, caller_name=None
+):
+    """
+    Attempts to parse coordinates from string or fallback to anchor_id control.
+    Then optionally adjusts the result using a class-specific function.
+
+    :param coordinates: Comma-separated coordinates (x,y,w,h).
+    :param window: Kodi window object containing the controls.
+    :param anchor_id: ID of a parent control to query if coordinates are missing.
+    :param adjust_fn: Optional function to adjust the coordinate tuple.
+    :param caller_name: Optional string to prefix in log messages.
+    :return: A tuple of (x, y, width, height), or DEFAULT_COORDS on failure.
+    """
+    caller = caller_name or __name__
+
+    if coordinates:
+        try:
+            coords = tuple(map(int, coordinates.split(",")))
+            return coords
+        except Exception as e:
+            log(f"{caller}: Invalid coordinates '{coordinates}': {e}")
+
+    if anchor_id:
+        try:
+            a = window.getControl(anchor_id)
+            coords = (
+                a.getX(),
+                a.getY(),
+                a.getWidth(),
+                a.getHeight(),
+            )
+            return adjust_fn(coords) if adjust_fn else coords
+        except Exception as e:
+            log(f"{caller}: Failed to get parent ({anchor_id}) dimensions: {e}")
+
+    return DEFAULT_COORDS.get(caller, (0, 0, 0, 0))
+
+
+def to_int(value, default=None):
+    """
+    Safely convert a value to an integer, returning a default on failure.
+
+    :param value: The value to convert.
+    :param default: Value to return if conversion fails.
+    :return: The converted integer or the default value.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 class DataHandler:
@@ -96,64 +155,14 @@ class DataHandler:
         if not (art_type := infolabel("Control.GetLabel(6400)")):
             return {}
 
-        return {
+        multiart = {
             f"multiart{pos if pos else ''}": art
             for pos in range(16)
             if (
                 art := infolabel(f"{self.listitem}.Art({art_type}{pos if pos else ''})")
             )
         }
-
-
-class ProgressIndicator:
-    """
-    Displays a seek/resume progress marker on a horizontal bar.
-    Calculates X-position based on playback percentage and updates UI control.
-    """
-
-    def __init__(self, window_id=10025, parent_id=4030, button_id=4031):
-        """
-        Initializes the progress indicator control IDs and layout.
-
-        :param window_id: Kodi window ID where the controls exist.
-        :param parent_id: Control ID for the progress bar parent.
-        :param button_id: Control ID for the movable indicator.
-        """
-        self.window = Window(window_id)
-        self.parent_id = parent_id
-        self.button_id = button_id
-        self.button_width = 30
-
-    def update_position(self, resume_position):
-        """
-        Calculates the new X-position and updates the button to reflect progress.
-
-        :param resume_position: Float or int representing percent viewed.
-        """
-        try:
-            parent = self.window.getControl(self.parent_id)
-            button = self.window.getControl(self.button_id)
-        except RuntimeError:
-            log(
-                f"{self.__class__.__name__}: IDs {self.parent_id}, {self.button_id} not found in Window {self.window_id}"
-            )
-            return
-        parent_width = parent.getWidth()
-        self.minX = (parent_width / 2) - (
-            self.button_width / 2
-        )  # Min position when resume = 0%)
-        self.maxX = parent_width - (
-            self.button_width / 2
-        )  # Max position when resume = 100%
-        self.max_limit = (
-            parent_width - self.button_width
-        )  # Ensure button position does not exceed edge of parent control
-
-        positionX = int(self.minX + (resume_position / 100) * (self.maxX - self.minX))
-        positionX = min(positionX, self.max_limit)
-
-        current_y = button.getY()
-        button.setPosition(positionX, current_y)
+        return multiart
 
 
 class JumpButton:
@@ -162,7 +171,7 @@ class JumpButton:
     Used in alphabet-scrolling lists or fast-seekable UI containers.
     """
 
-    def __init__(self, window_id=10025, scrollbar_id=60, jump_button_id=62):
+    def __init__(self, scrollbar_id=60, jump_button_id=62, button_width=30):
         """
         Initializes the control IDs used for the scrollbar and indicator button.
 
@@ -170,10 +179,10 @@ class JumpButton:
         :param scrollbar_id: ID for the label-style scrollbar (e.g. "12/58").
         :param jump_button_id: ID for the jump button indicator.
         """
-        self.window = Window(window_id)
+        self.window = Window(getCurrentWindowId())
         self.scrollbar_id = scrollbar_id
         self.jump_button_id = jump_button_id
-        self.button_width = 30
+        self.button_width = button_width
 
     def update_position(self, sortletter=None):
         """
@@ -220,42 +229,143 @@ class JumpButton:
         log(f"{self.__class__.__name__}: UPDATED → '{current_letter}'")
 
 
+class ProgressBarManager:
+    """
+    Displays a seek/resume progress marker on a horizontal bar.
+    Calculates X-position based on playback percentage and updates UI control.
+    """
+
+    def __init__(self, base_id=4030, button_width=30):
+        self.window = Window(getCurrentWindowId())
+        self.base_id = base_id
+        self.button_width = button_width
+
+    @staticmethod
+    def _adjust_coordinates(coords):
+        """
+        Adjust control coordinates to inset and align progress bar controls.
+        """
+        x, y, w, h = coords
+        bar_w = 360 if w >= 360 else 240
+        center_x = x + (w // 2)
+        pos_x = int(center_x - (bar_w // 2))
+        return pos_x, 1050, bar_w, 4
+
+    def update(self, resume_position, base_id=None, anchor_id=None, coordinates=""):
+        """
+        Position and size the group based on explicit coordinates or a parent anchor.
+        """
+        base_id = to_int(base_id, self.base_id)
+        backing_id = base_id + 1
+        progress_id = base_id + 2
+        button_id = base_id + 3
+
+        try:
+            base = self.window.getControl(base_id)
+            backing = self.window.getControl(backing_id)
+            progress = self.window.getControl(progress_id)
+            button = self.window.getControl(button_id)
+        except RuntimeError:
+            log(
+                f"{self.__class__.__name__}: Controls {base_id}, {backing_id}, {progress_id} or {button_id} not found"
+            )
+            return
+
+        posx, posy, width, height = parse_coordinates(
+            coordinates=coordinates,
+            window=self.window,
+            anchor_id=to_int(anchor_id, None),
+            adjust_fn=self._adjust_coordinates,
+            caller_name=self.__class__.__name__,
+        )
+
+        base.setPosition(posx, posy)
+        for ctrl in (
+            base,
+            backing,
+            progress,
+        ):  # Width/height don't inherit from base group
+            ctrl.setWidth(width)
+            ctrl.setHeight(height)
+
+        min_x = (width / 2) - (self.button_width / 2)
+        max_x = width - (self.button_width / 2)
+        max_limit = width - self.button_width
+        button_posx = int(min_x + (resume_position / 100) * (max_x - min_x))
+        button_posx = min(button_posx, max_limit)
+        button_posy = int(0 - (self.button_width / 2) + (height / 2))
+        button.setPosition(button_posx, button_posy)
+
+
 class TypewriterAnimation:
+    """
+    Animates a text label within a Kodi control using a typewriter effect.
+    Progressively reveals given label character-by-character, expanding the
+    control's height to accomomdate multiple lines when needed. Will abort
+    automatically if focused listitem changes mid-animation.
+    """
+
     def __init__(
         self,
-        window_id=10025,
         control_id=8760,
         step_time=0.025,
         line_height=30,
         max_lines=3,
     ):
-        self.window = Window(window_id)
+        """
+        :param control_id: Default control ID to animate if none is provided at runtime.
+        :param step_time: Delay between adding each character, in seconds.
+        :param line_height: Height in pixels to add for each additional line.
+        :param max_lines: Maximum number of lines the animation can expand to.
+        """
+        self.window = Window(getCurrentWindowId())
         self.control_id = control_id
         self.step_time = step_time
         self.line_height = line_height
         self.max_lines = max_lines
 
-    def start(self, label, year="", coordinates=""):
+    @staticmethod
+    def _adjust_coordinates(coords):
+        """
+        Adjust control coordinates to inset and align the animated label.
+
+        :param coords: A tuple of (x, y, width, height) for the control area.
+        :return: Adjusted (x, y, width, height) values.
+        """
+        x, y, w, h = coords
+        adjusted_x = x + 15
+        adjusted_w = w - 30
+        adjusted_h = 37
+        adjusted_y = y + h - adjusted_h - 15
+        return adjusted_x, adjusted_y, adjusted_w, adjusted_h
+
+    def update(self, label, year="", label_id=None, anchor_id=None, coordinates=""):
+        """
+        Start the typewriter animation for a label.
+
+        :param label: The base label text to animate.
+        :param year: Optional year to append to the label.
+        :param id: Optional override for the control ID.
+        :param anchor_id: Optional ID of a parent control to inherit coordinates from.
+        :param coordinates: Optional comma-separated coordinates (x,y,w,h).
+        """
         expected = f"{label}. {year}." if year else f"{label}."
         log(f"{self.__class__.__name__}: START → '{expected}'")
-
+        control_id = to_int(label_id, self.control_id)
         try:
-            control = self.window.getControl(self.control_id)
+            control = self.window.getControl(control_id)
             control.setText("")
         except Exception:
-            log(f"{self.__class__.__name__}: Control {self.control_id} not found")
+            log(f"{self.__class__.__name__}: Control {control_id} not found")
             return
 
-        try:
-            posx, posy, width, height = map(int, coordinates.split(","))
-        except Exception as e:
-            log(f"{self.__class__.__name__}: Invalid coordinates '{coordinates}': {e}")
-            return
-
-        log(
-            f"{self.__class__.__name__}: Parsed coordinates → x:{posx} y:{posy} w:{width} h:{height}"
+        posx, posy, width, height = parse_coordinates(
+            coordinates=coordinates,
+            window=self.window,
+            anchor_id=to_int(anchor_id, None),
+            adjust_fn=self._adjust_coordinates,
+            caller_name=self.__class__.__name__,
         )
-
         current_height = height
         current_posy = posy
         max_height = self.line_height * self.max_lines
@@ -283,7 +393,7 @@ class TypewriterAnimation:
 
             if (
                 i > 1
-                and condition(f"Container({self.control_id}).HasNext")
+                and condition(f"Container({control_id}).HasNext")
                 and current_height < max_height
             ):
                 current_height += self.line_height
@@ -295,16 +405,6 @@ class TypewriterAnimation:
             xbmc.sleep(int(self.step_time * 1000))
 
         log(f"{self.__class__.__name__}: DONE → '{expected}'")
-
-    def clear(self):
-        try:
-            control = self.window.getControl(self.control_id)
-            control.setLabel("")
-            log(f"{self.__class__.__name__}: CLEARED")
-        except Exception:
-            log(
-                f"{self.__class__.__name__}: Control {self.control_id} not found (clear)"
-            )
 
 
 class LabelTruncator:

@@ -1,12 +1,14 @@
 # author: realcopacetic, sualfred
 
+from contextlib import contextmanager
+from functools import wraps
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
 from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
-    ProgressIndicator,
+    ProgressBarManager,
     TypewriterAnimation,
 )
 from resources.lib.shared.sqlite import SQLiteHandler
@@ -21,13 +23,48 @@ from resources.lib.shared.utilities import (
 )
 
 
+class _FocusGuard:
+    """Holds the expected item identity and lets you re-check later."""
+
+    __slots__ = ("expected", "who")
+
+    def __init__(self, expected, who):
+        self.expected = expected
+        self.who = who
+
+    def alive(self) -> bool:
+        """Re-check that focus hasn't changed."""
+        current = infolabel("ListItem.Label")
+        if current != self.expected:
+            log(f"PluginContent → {self.who}: ABORTED → '{self.expected}' lost focus")
+            return False
+        return True
+
+
+@contextmanager
+def focus_guard(expected_label: str, who: str):
+    """
+    Guard pattern for slow helpers:
+      1) pre-check focus
+      2) yield guard.alive() for post-check(s)
+    """
+    current = infolabel("ListItem.Label")
+    if current != expected_label:
+        log(f"PluginContent → {who}: ABORTED → '{expected_label}' lost focus")
+        yield None
+        return
+
+    guard = _FocusGuard(expected_label, who)
+    try:
+        yield guard
+    finally:
+        pass
+
+
 class PluginContent(object):
     def __init__(self, params, li):
-        self.sqlite = SQLiteHandler()
-        self.image_processor = ImageEditor(self.sqlite).image_processor
-        self.typewriter_animation = TypewriterAnimation()
-
         self.params = params
+        self.li = li
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
@@ -36,7 +73,6 @@ class PluginContent(object):
             self.target = f"Container({self.target}).ListItem"
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
-        self.li = li
 
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
@@ -74,42 +110,49 @@ class PluginContent(object):
 
     @log_duration
     def typewriter(self):
-        year = self.params.get("year")
+        """Launch the typewriter animation helper for the current list item."""
+        label_id = self.params.get("label_id")
+        anchor_id = self.params.get("anchor_id")
         coordinates = self.params.get("coordinates")
-        self.typewriter_animation.start(self.label, year, coordinates)
+        year = self.params.get("year")
+        typewriter = TypewriterAnimation()
+        typewriter.update(self.label, year, label_id, anchor_id, coordinates)
 
     @log_duration
     def metadata_helper(self):
-        if (current_label := infolabel("ListItem.Label")) != self.label:
-            log(f"PluginContent → metadata_helper: ABORTED → '{self.label}' lost focus")
-            return
+        with focus_guard(self.label, "metadata_helper") as guard:
+            if not guard:
+                return
 
-        data = DataHandler(self.target, self.dbtype, self.dbid)
+            data = DataHandler(self.target, self.dbtype, self.dbid)
 
-        if current_label != self.label:
-            log(f"PluginContent → metadata_helper: ABORTED → '{self.label}' lost focus")
-            return
+            if not guard.alive():
+                return
 
-        add_items(self.li, [data.fetched], "metadata")
-
-        # Progress UI update
-        resume = data.fetched.get("resume", {})
-        ProgressIndicator().update_position(resume.get("position", 0))
+            add_items(self.li, [data.fetched], "metadata")
+            
+            resume = data.fetched.get("resume", {})
+            progress_id = self.params.get("progress_id")
+            anchor_id = self.params.get("anchor_id")
+            coordinates = self.params.get("coordinates")
+            progress = ProgressBarManager()
+            progress.update(resume.get("position", 0), progress_id, anchor_id, coordinates)
 
     @log_duration
     def artwork_helper(self):
-        if (current_label := infolabel("ListItem.Label")) != self.label:
-            log(f"PluginContent → artwork_helper: ABORTED → '{self.label}' lost focus")
-            return
+        with focus_guard(self.label, "metadata_helper") as guard:
+            if not guard:
+                return
 
-        processed = self.image_processor(self.dbid, self.target, {"clearlogo": "crop", "fanart": "blur"})
+            sqlite = SQLiteHandler()
+            image_processor = ImageEditor(sqlite).image_processor
+            processed = image_processor(self.dbid, self.target, {"clearlogo": "crop", "fanart": "blur"})
 
-        if current_label != self.label:
-            log(f"PluginContent → artwork_helper: ABORTED → '{self.label}' lost focus")
-            return
+            if not guard.alive():
+                return
 
-        data = {"file": self.label, "art": dict(processed or {})}
-        add_items(self.li, [data], "artwork")
+            data = {"file": self.label, "art": dict(processed or {})}
+            add_items(self.li, [data], "artwork")
 
     def in_progress(self):
         filters = [self.filter_inprogress]
