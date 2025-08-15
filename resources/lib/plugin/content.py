@@ -105,18 +105,19 @@ class PluginContent(object):
     @log_duration
     def jumpbutton(self):
         sortletter = self.params.get("sortletter", "")
+        anchor_id = self.params.get("ancor_id", "")
         jump_button = JumpButton()
-        jump_button.update_position(sortletter)
+        jump_button.update(sortletter, anchor_id)
 
     @log_duration
     def typewriter(self):
         """Launch the typewriter animation helper for the current list item."""
         label_id = self.params.get("label_id")
         anchor_id = self.params.get("anchor_id")
-        coordinates = self.params.get("coordinates")
+        coords = self.params.get("coords")
         year = self.params.get("year")
         typewriter = TypewriterAnimation()
-        typewriter.update(self.label, year, label_id, anchor_id, coordinates)
+        typewriter.update(self.label, year, label_id, anchor_id, coords)
 
     @log_duration
     def metadata_helper(self):
@@ -130,13 +131,13 @@ class PluginContent(object):
                 return
 
             add_items(self.li, [data.fetched], "metadata")
-            
+
             resume = data.fetched.get("resume", {})
             progress_id = self.params.get("progress_id")
             anchor_id = self.params.get("anchor_id")
-            coordinates = self.params.get("coordinates")
+            coords = self.params.get("coords")
             progress = ProgressBarManager()
-            progress.update(resume.get("position", 0), progress_id, anchor_id, coordinates)
+            progress.update(resume.get("position", 0), progress_id, anchor_id, coords)
 
     @log_duration
     def artwork_helper(self):

@@ -15,33 +15,31 @@ from resources.lib.shared.utilities import (
 DEFAULT_COORDS = {
     "TypewriterAnimation": (0, 0, 1920, 1080),
     "ProgressBarManager": (780, 1050, 360, 4),
-    "JumpButton:horizontal": (240, 1050, 1680, 4),
-    "JumpButton:vertical": (1890, 180, 4, 720),
 }
 
 
-def parse_coordinates(
-    coordinates, window, anchor_id=None, adjust_fn=None, caller_name=None
+def parse_coords(
+    coords, window, anchor_id=None, adjust_fn=None, caller_name=None
 ):
     """
-    Attempts to parse coordinates from string or fallback to anchor_id control.
+    Attempts to parse coords from string or fallback to anchor_id control.
     Then optionally adjusts the result using a class-specific function.
 
-    :param coordinates: Comma-separated coordinates (x,y,w,h).
+    :param coords: Comma-separated coords (x,y,w,h).
     :param window: Kodi window object containing the controls.
-    :param anchor_id: ID of a parent control to query if coordinates are missing.
+    :param anchor_id: ID of a parent control to query if coords are missing.
     :param adjust_fn: Optional function to adjust the coordinate tuple.
     :param caller_name: Optional string to prefix in log messages.
     :return: A tuple of (x, y, width, height), or DEFAULT_COORDS on failure.
     """
     caller = caller_name or __name__
 
-    if coordinates:
+    if coords:
         try:
-            coords = tuple(map(int, coordinates.split(",")))
+            coords = tuple(map(int, coords.split(",")))
             return coords
         except Exception as e:
-            log(f"{caller}: Invalid coordinates '{coordinates}': {e}")
+            log(f"{caller}: Invalid coords '{coords}': {e}")
 
     if anchor_id:
         try:
@@ -176,57 +174,70 @@ class JumpButton:
         Initializes the control IDs used for the scrollbar and indicator button.
 
         :param window_id: Kodi window ID.
-        :param scrollbar_id: ID for the label-style scrollbar (e.g. "12/58").
+        :param scrollbar_id: ID for the scrollbar.
         :param jump_button_id: ID for the jump button indicator.
         """
         self.window = Window(getCurrentWindowId())
         self.scrollbar_id = scrollbar_id
-        self.jump_button_id = jump_button_id
+        self.button_id = jump_button_id
         self.button_width = button_width
 
-    def update_position(self, sortletter=None):
+    def update(self, sortletter=None, anchor_id=None):
         """
         Updates the position of the jump button based on scrollbar progress.
 
-        :param sortletter: Optional sort letter (e.g., "A", "B") to display.
+        :param sortletter: Optional letter passed as param to display.
+        :param coords: Optional 'x,y,w,h' override from plugin params.
         :returns: None
         """
-        current_letter = sortletter or infolabel("ListItem.SortLetter")
-        if current_letter != infolabel("ListItem.SortLetter"):
-            log(f"{self.__class__.__name__}: ABORTED → '{current_letter}' stale")
+        expected = sortletter or infolabel("ListItem.SortLetter")
+        if expected != infolabel("ListItem.SortLetter"):
+            log(f"{self.__class__.__name__}: ABORTED → '{expected}' stale")
+            return
+
+        if not (raw := infolabel(f"Control.GetLabel({self.scrollbar_id})")):
             return
 
         try:
-            jump_button = self.window.getControl(self.jump_button_id)
-            current_y = jump_button.getY()
-        except RuntimeError:
-            log(
-                f"{self.__class__.__name__}: ID {self.jump_button_id} not found in Window {self.window_id}"
-            )
-            return
-
-        scrollbar_width = 1680
-        scrollbar_value = infolabel(f"Control.GetLabel({self.scrollbar_id})")
-        if not scrollbar_value:
-            return
-
-        try:
-            current_item, total_items = map(int, scrollbar_value.split("/"))
+            current, total = map(int, raw.split("/"))
+            fraction = total and current / total or 0
         except ValueError as e:
             log(f"{self.__class__.__name__}: Error parsing scrollbar value → {e}")
             return
 
-        fraction = current_item / total_items if total_items else 0
-        positionX = int((fraction * scrollbar_width) - (self.button_width / 2))
-        newX = max(0, min(positionX, scrollbar_width - self.button_width))
+        posx, posy, width, height = parse_coords(
+            coords="",
+            window=self.window,
+            anchor_id=to_int(anchor_id, self.scrollbar_id),
+            caller_name="JumpButton",
+        )
 
-        if current_letter != infolabel("ListItem.SortLetter"):
-            log(f"{self.__class__.__name__}: ABORTED → '{current_letter}' stale")
+        try:
+            btn = self.window.getControl(self.button_id)
+        except RuntimeError:
+            log(
+                f"{self.__class__.__name__}: Jump button {self.button_id} not found."
+            )
             return
 
-        jump_button.setLabel(current_letter)
-        jump_button.setPosition(newX, current_y)
-        log(f"{self.__class__.__name__}: UPDATED → '{current_letter}'")
+        if expected != infolabel("ListItem.SortLetter"):
+            log(f"{self.__class__.__name__}: ABORTED → '{expected}' stale")
+            return
+
+        orientation = "horizontal" if (width >= height) else "vertical"
+        travel = max(
+            0, (width if orientation == "horizontal" else height) - self.button_width
+        )
+        if orientation == "horizontal":
+            btn_posx = posx + int(fraction * travel)
+            btn_posy = int(posy + (height / 2) - (self.button_width / 2))
+        else:
+            btn_posx = int(posx + (width / 2) - (self.button_width / 2))
+            btn_posy = posy + int(fraction * travel)
+
+        btn.setLabel(expected)
+        btn.setPosition(btn_posx, btn_posy)
+        log(f"{self.__class__.__name__}: UPDATED → '{expected}'")
 
 
 class ProgressBarManager:
@@ -241,9 +252,9 @@ class ProgressBarManager:
         self.button_width = button_width
 
     @staticmethod
-    def _adjust_coordinates(coords):
+    def _adjust_coords(coords):
         """
-        Adjust control coordinates to inset and align progress bar controls.
+        Adjust control coords to inset and align progress bar controls.
         """
         x, y, w, h = coords
         bar_w = 360 if w >= 360 else 240
@@ -251,9 +262,9 @@ class ProgressBarManager:
         pos_x = int(center_x - (bar_w // 2))
         return pos_x, 1050, bar_w, 4
 
-    def update(self, resume_position, base_id=None, anchor_id=None, coordinates=""):
+    def update(self, resume_position, base_id=None, anchor_id=None, coords=""):
         """
-        Position and size the group based on explicit coordinates or a parent anchor.
+        Position and size the group based on explicit coords or a parent anchor.
         """
         base_id = to_int(base_id, self.base_id)
         backing_id = base_id + 1
@@ -271,11 +282,11 @@ class ProgressBarManager:
             )
             return
 
-        posx, posy, width, height = parse_coordinates(
-            coordinates=coordinates,
+        posx, posy, width, height = parse_coords(
+            coords=coords,
             window=self.window,
             anchor_id=to_int(anchor_id, None),
-            adjust_fn=self._adjust_coordinates,
+            adjust_fn=self._adjust_coords,
             caller_name=self.__class__.__name__,
         )
 
@@ -325,9 +336,9 @@ class TypewriterAnimation:
         self.max_lines = max_lines
 
     @staticmethod
-    def _adjust_coordinates(coords):
+    def _adjust_coords(coords):
         """
-        Adjust control coordinates to inset and align the animated label.
+        Adjust control coords to inset and align the animated label.
 
         :param coords: A tuple of (x, y, width, height) for the control area.
         :return: Adjusted (x, y, width, height) values.
@@ -339,15 +350,15 @@ class TypewriterAnimation:
         adjusted_y = y + h - adjusted_h - 15
         return adjusted_x, adjusted_y, adjusted_w, adjusted_h
 
-    def update(self, label, year="", label_id=None, anchor_id=None, coordinates=""):
+    def update(self, label, year="", label_id=None, anchor_id=None, coords=""):
         """
         Start the typewriter animation for a label.
 
         :param label: The base label text to animate.
         :param year: Optional year to append to the label.
         :param id: Optional override for the control ID.
-        :param anchor_id: Optional ID of a parent control to inherit coordinates from.
-        :param coordinates: Optional comma-separated coordinates (x,y,w,h).
+        :param anchor_id: Optional ID of a parent control to inherit coords from.
+        :param coords: Optional comma-separated coords (x,y,w,h).
         """
         expected = f"{label}. {year}." if year else f"{label}."
         log(f"{self.__class__.__name__}: START → '{expected}'")
@@ -359,11 +370,11 @@ class TypewriterAnimation:
             log(f"{self.__class__.__name__}: Control {control_id} not found")
             return
 
-        posx, posy, width, height = parse_coordinates(
-            coordinates=coordinates,
+        posx, posy, width, height = parse_coords(
+            coords=coords,
             window=self.window,
             anchor_id=to_int(anchor_id, None),
-            adjust_fn=self._adjust_coordinates,
+            adjust_fn=self._adjust_coords,
             caller_name=self.__class__.__name__,
         )
         current_height = height

@@ -101,7 +101,7 @@ def jump_button(**kwargs):
     from resources.lib.plugin.helpers import JumpButton
 
     jump_button = JumpButton()
-    jump_button.update_position()
+    jump_button.update()
 
 
 def play_album(**kwargs):
