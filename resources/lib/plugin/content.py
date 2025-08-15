@@ -105,9 +105,11 @@ class PluginContent(object):
     @log_duration
     def jumpbutton(self):
         sortletter = self.params.get("sortletter", "")
-        anchor_id = self.params.get("ancor_id", "")
-        jump_button = JumpButton()
-        jump_button.update(sortletter, anchor_id)
+        scroll_id = self.params.get("scroll_id", "")
+        anchor_id = self.params.get("anchor_id", "")
+        coords = self.params.get("coords")
+        jump = JumpButton()
+        jump.update(sortletter, scroll_id, anchor_id, coords)
 
     @log_duration
     def typewriter(self):

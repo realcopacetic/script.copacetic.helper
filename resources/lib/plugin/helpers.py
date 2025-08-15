@@ -14,8 +14,28 @@ from resources.lib.shared.utilities import (
 
 DEFAULT_COORDS = {
     "TypewriterAnimation": (0, 0, 1920, 1080),
-    "ProgressBarManager": (780, 1050, 360, 4),
+    "ProgressBarManager": (780, 1048, 360, 4),
+    "JumpButton": (120, 1048, 1680, 4),
 }
+
+
+def to_int(value, default=None):
+    """
+    Safely convert a value to an integer, returning a default on failure.
+
+    :param value: The value to convert.
+    :param default: Value to return if conversion fails.
+    :return: The converted integer or the default value.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def clamp(value, low, high):
+    """Clamp value to [low, high]."""
+    return low if value < low else high if value > high else value
 
 
 def parse_coords(
@@ -55,20 +75,6 @@ def parse_coords(
             log(f"{caller}: Failed to get parent ({anchor_id}) dimensions: {e}")
 
     return DEFAULT_COORDS.get(caller, (0, 0, 0, 0))
-
-
-def to_int(value, default=None):
-    """
-    Safely convert a value to an integer, returning a default on failure.
-
-    :param value: The value to convert.
-    :param default: Value to return if conversion fails.
-    :return: The converted integer or the default value.
-    """
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
 
 
 class DataHandler:
@@ -169,20 +175,20 @@ class JumpButton:
     Used in alphabet-scrolling lists or fast-seekable UI containers.
     """
 
-    def __init__(self, scrollbar_id=60, jump_button_id=62, button_width=30):
+    def __init__(self, scroll_id=60, btn_id=62, btn_width=30):
         """
         Initializes the control IDs used for the scrollbar and indicator button.
 
         :param window_id: Kodi window ID.
-        :param scrollbar_id: ID for the scrollbar.
-        :param jump_button_id: ID for the jump button indicator.
+        :param scroll_id_id: ID for the scrollbar.
+        :param btn_id: ID for the jump button indicator.
         """
         self.window = Window(getCurrentWindowId())
-        self.scrollbar_id = scrollbar_id
-        self.button_id = jump_button_id
-        self.button_width = button_width
+        self.scroll_id = scroll_id
+        self.btn_id = btn_id
+        self.btn_width = btn_width
 
-    def update(self, sortletter=None, anchor_id=None):
+    def update(self, sortletter=None, scroll_id=None, anchor_id=None, coords=""):
         """
         Updates the position of the jump button based on scrollbar progress.
 
@@ -191,49 +197,57 @@ class JumpButton:
         :returns: None
         """
         expected = sortletter or infolabel("ListItem.SortLetter")
-        if expected != infolabel("ListItem.SortLetter"):
-            log(f"{self.__class__.__name__}: ABORTED → '{expected}' stale")
-            return
+        scroll_id = to_int(scroll_id, self.scroll_id)
 
-        if not (raw := infolabel(f"Control.GetLabel({self.scrollbar_id})")):
+        if not (raw := infolabel(f"Control.GetLabel({scroll_id})")):
             return
 
         try:
             current, total = map(int, raw.split("/"))
             fraction = total and current / total or 0
-        except ValueError as e:
+        except ValueError as e: 
             log(f"{self.__class__.__name__}: Error parsing scrollbar value → {e}")
             return
 
         posx, posy, width, height = parse_coords(
-            coords="",
+            coords=coords,
             window=self.window,
-            anchor_id=to_int(anchor_id, self.scrollbar_id),
+            anchor_id=to_int(anchor_id, None),
             caller_name="JumpButton",
         )
-
         try:
-            btn = self.window.getControl(self.button_id)
+            btn = self.window.getControl(self.btn_id)
         except RuntimeError:
             log(
-                f"{self.__class__.__name__}: Jump button {self.button_id} not found."
+                f"{self.__class__.__name__}: Jump button {self.btn_id} not found."
             )
             return
 
-        if expected != infolabel("ListItem.SortLetter"):
-            log(f"{self.__class__.__name__}: ABORTED → '{expected}' stale")
-            return
+        btn_w = btn.getWidth() or self.btn_width
+        btn_h = btn.getHeight() or self.btn_width
+        horizontal = width >= height
 
-        orientation = "horizontal" if (width >= height) else "vertical"
-        travel = max(
-            0, (width if orientation == "horizontal" else height) - self.button_width
-        )
-        if orientation == "horizontal":
-            btn_posx = posx + int(fraction * travel)
-            btn_posy = int(posy + (height / 2) - (self.button_width / 2))
-        else:
-            btn_posx = int(posx + (width / 2) - (self.button_width / 2))
-            btn_posy = posy + int(fraction * travel)
+        if coords: # Positioning relative to screen
+            if horizontal:
+                min_x = posx
+                max_x = max(posx, posx + width - btn_w)
+                btn_posx = int(min_x + fraction * (max_x - min_x))
+                btn_posy = int(posy + (height - btn_h) / 2)
+            else:
+                min_y = posy
+                max_y = max(posy, posy + height - btn_h)
+                btn_posy = int(min_y + fraction * (max_y - min_y))
+                btn_posx = int(posx + (width - btn_w) / 2)
+        else: # Positioning relative to anchor  
+            if horizontal:
+                travel = max(0, width - btn_w)
+                btn_posx = int(posx + fraction * travel)
+                btn_posy = btn.getY()  # keep current y
+            else:
+                travel = max(0, height - btn_h)
+                btn_posx = btn.getX()  # keep current x
+                btn_posy = int(posy + fraction * travel)
+        log(f'FUCK DEBUG {btn_posx}, {btn_posy}')
 
         btn.setLabel(expected)
         btn.setPosition(btn_posx, btn_posy)
@@ -246,10 +260,10 @@ class ProgressBarManager:
     Calculates X-position based on playback percentage and updates UI control.
     """
 
-    def __init__(self, base_id=4030, button_width=30):
+    def __init__(self, base_id=4030, btn_width=30):
         self.window = Window(getCurrentWindowId())
         self.base_id = base_id
-        self.button_width = button_width
+        self.btn_width = btn_width
 
     @staticmethod
     def _adjust_coords(coords):
@@ -257,10 +271,11 @@ class ProgressBarManager:
         Adjust control coords to inset and align progress bar controls.
         """
         x, y, w, h = coords
+        _, default_y, _, default_h = DEFAULT_COORDS["ProgressBarManager"]
         bar_w = 360 if w >= 360 else 240
         center_x = x + (w // 2)
         pos_x = int(center_x - (bar_w // 2))
-        return pos_x, 1050, bar_w, 4
+        return pos_x, default_y, bar_w, default_h
 
     def update(self, resume_position, base_id=None, anchor_id=None, coords=""):
         """
@@ -269,16 +284,16 @@ class ProgressBarManager:
         base_id = to_int(base_id, self.base_id)
         backing_id = base_id + 1
         progress_id = base_id + 2
-        button_id = base_id + 3
+        btn_id = base_id + 3
 
         try:
             base = self.window.getControl(base_id)
             backing = self.window.getControl(backing_id)
             progress = self.window.getControl(progress_id)
-            button = self.window.getControl(button_id)
+            button = self.window.getControl(btn_id)
         except RuntimeError:
             log(
-                f"{self.__class__.__name__}: Controls {base_id}, {backing_id}, {progress_id} or {button_id} not found"
+                f"{self.__class__.__name__}: Controls {base_id}, {backing_id}, {progress_id} or {btn_id} not found"
             )
             return
 
@@ -299,13 +314,14 @@ class ProgressBarManager:
             ctrl.setWidth(width)
             ctrl.setHeight(height)
 
-        min_x = (width / 2) - (self.button_width / 2)
-        max_x = width - (self.button_width / 2)
-        max_limit = width - self.button_width
-        button_posx = int(min_x + (resume_position / 100) * (max_x - min_x))
-        button_posx = min(button_posx, max_limit)
-        button_posy = int(0 - (self.button_width / 2) + (height / 2))
-        button.setPosition(button_posx, button_posy)
+        min_x = (width / 2) - (self.btn_width / 2)
+        max_x = width - (self.btn_width / 2)
+        max_limit = width - self.btn_width
+        btn_posx = min(
+            int(min_x + (resume_position / 100) * (max_x - min_x)), max_limit
+        )
+        btn_posy = int(0 - (self.btn_width / 2) + (height / 2))
+        button.setPosition(btn_posx, btn_posy)
 
 
 class TypewriterAnimation:

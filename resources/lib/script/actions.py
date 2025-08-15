@@ -96,12 +96,15 @@ def hex_contrast_check(**kwargs):
         xbmc.executebuiltin(f"Skin.SetString(Accent_Color_Contrast,{best_contrast})")
 
 
-def jump_button(**kwargs):
+def jumpbutton(**kwargs):
     """Updates the position of the jump scrollbar indicator."""
     from resources.lib.plugin.helpers import JumpButton
-
-    jump_button = JumpButton()
-    jump_button.update()
+    sort_letter = kwargs.get("sort_letter")
+    scroll_id = kwargs.get("scroll_id")
+    anchor_id = kwargs.get("anchor_id")
+    coords = kwargs.get("coords")
+    jump = JumpButton()
+    jump.update(sort_letter, scroll_id, anchor_id, coords)
 
 
 def play_album(**kwargs):
