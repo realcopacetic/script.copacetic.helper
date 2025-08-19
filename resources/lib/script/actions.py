@@ -98,7 +98,7 @@ def hex_contrast_check(**kwargs):
 
 def jumpbutton(**kwargs):
     """Updates the position of the jump scrollbar indicator."""
-    from resources.lib.plugin.helpers import JumpButton
+    from resources.lib.plugin.geometry import JumpButton
     sort_letter = kwargs.get("sort_letter")
     scroll_id = kwargs.get("scroll_id")
     anchor_id = kwargs.get("anchor_id")

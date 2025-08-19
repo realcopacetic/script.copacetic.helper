@@ -1,16 +1,17 @@
 # author: realcopacetic, sualfred
 
 from contextlib import contextmanager
-from functools import wraps
+
 from resources.lib.art.editor import ImageEditor
-from resources.lib.plugin.json_map import JSON_MAP
-from resources.lib.plugin.library import *
+from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
     ProgressBarManager,
     TypewriterAnimation,
 )
+from resources.lib.plugin.json_map import JSON_MAP
+from resources.lib.plugin.library import *
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     ADDON,
@@ -104,12 +105,12 @@ class PluginContent(object):
 
     @log_duration
     def jumpbutton(self):
-        sortletter = self.params.get("sortletter", "")
-        scroll_id = self.params.get("scroll_id", "")
-        anchor_id = self.params.get("anchor_id", "")
-        coords = self.params.get("coords")
         jump = JumpButton()
-        jump.update(sortletter, scroll_id, anchor_id, coords)
+        jump.update(
+            sortletter=self.params.get("sortletter", ""),
+            scroll_id=self.params.get("scroll_id", ""),
+            opts=PlacementOpts.from_params(self.params),
+        )
 
     @log_duration
     def typewriter(self):
@@ -149,7 +150,9 @@ class PluginContent(object):
 
             sqlite = SQLiteHandler()
             image_processor = ImageEditor(sqlite).image_processor
-            processed = image_processor(self.dbid, self.target, {"clearlogo": "crop", "fanart": "blur"})
+            processed = image_processor(
+                self.dbid, self.target, {"clearlogo": "crop", "fanart": "blur"}
+            )
 
             if not guard.alive():
                 return
@@ -333,13 +336,7 @@ class PluginContent(object):
         set_plugincontent(content="videos", category=ADDON.getLocalizedString(32602))
 
     def actor_credits(self):
-        filters = [
-            {
-                "field": "actor", 
-                "operator": "is", 
-                "value": self.label
-            }
-        ]
+        filters = [{"field": "actor", "operator": "is", "value": self.label}]
         # grab current movie or tvshow name
         if condition("String.IsEqual(ListItem.DBType,episode)"):
             current_item = infolabel("ListItem.TVShowTitle")

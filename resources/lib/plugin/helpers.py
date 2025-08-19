@@ -1,6 +1,18 @@
 # author: realcopacetic
+
 from xbmcgui import Window, getCurrentWindowId
 
+from resources.lib.plugin.geometry import (
+    PlacementOpts,
+    align_x,
+    align_y,
+    apply_inset,
+    axis_travel,
+    parse_bool,
+    parse_inset,
+    resolve_rect,
+    to_int,
+)
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -8,73 +20,10 @@ from resources.lib.shared.utilities import (
     return_label,
     split,
     split_random,
+    to_int,
     url_encode,
     xbmc,
 )
-
-DEFAULT_COORDS = {
-    "TypewriterAnimation": (0, 0, 1920, 1080),
-    "ProgressBarManager": (780, 1048, 360, 4),
-    "JumpButton": (120, 1048, 1680, 4),
-}
-
-
-def to_int(value, default=None):
-    """
-    Safely convert a value to an integer, returning a default on failure.
-
-    :param value: The value to convert.
-    :param default: Value to return if conversion fails.
-    :return: The converted integer or the default value.
-    """
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def clamp(value, low, high):
-    """Clamp value to [low, high]."""
-    return low if value < low else high if value > high else value
-
-
-def parse_coords(
-    coords, window, anchor_id=None, adjust_fn=None, caller_name=None
-):
-    """
-    Attempts to parse coords from string or fallback to anchor_id control.
-    Then optionally adjusts the result using a class-specific function.
-
-    :param coords: Comma-separated coords (x,y,w,h).
-    :param window: Kodi window object containing the controls.
-    :param anchor_id: ID of a parent control to query if coords are missing.
-    :param adjust_fn: Optional function to adjust the coordinate tuple.
-    :param caller_name: Optional string to prefix in log messages.
-    :return: A tuple of (x, y, width, height), or DEFAULT_COORDS on failure.
-    """
-    caller = caller_name or __name__
-
-    if coords:
-        try:
-            coords = tuple(map(int, coords.split(",")))
-            return coords
-        except Exception as e:
-            log(f"{caller}: Invalid coords '{coords}': {e}")
-
-    if anchor_id:
-        try:
-            a = window.getControl(anchor_id)
-            coords = (
-                a.getX(),
-                a.getY(),
-                a.getWidth(),
-                a.getHeight(),
-            )
-            return adjust_fn(coords) if adjust_fn else coords
-        except Exception as e:
-            log(f"{caller}: Failed to get parent ({anchor_id}) dimensions: {e}")
-
-    return DEFAULT_COORDS.get(caller, (0, 0, 0, 0))
 
 
 class DataHandler:
@@ -188,66 +137,54 @@ class JumpButton:
         self.btn_id = btn_id
         self.btn_width = btn_width
 
-    def update(self, sortletter=None, scroll_id=None, anchor_id=None, coords=""):
-        """
-        Updates the position of the jump button based on scrollbar progress.
-
-        :param sortletter: Optional letter passed as param to display.
-        :param coords: Optional 'x,y,w,h' override from plugin params.
-        :returns: None
-        """
-        expected = sortletter or infolabel("ListItem.SortLetter")
-        scroll_id = to_int(scroll_id, self.scroll_id)
-
-        if not (raw := infolabel(f"Control.GetLabel({scroll_id})")):
-            return
-
+    def _fraction_from_scrollbar(self, scroll_id: int) -> float:
+        """Compute 0..1 from scrollbar Control.GetLabel(id) formatted as 'cur/total'."""
+        raw = infolabel(f"Control.GetLabel({scroll_id})").strip()
+        if not raw or "/" not in raw:
+            return 0
         try:
-            current, total = map(int, raw.split("/"))
-            fraction = total and current / total or 0
-        except ValueError as e: 
-            log(f"{self.__class__.__name__}: Error parsing scrollbar value → {e}")
-            return
+            cur, total = map(int, raw.split("/"))
+            return (cur / total) if total else 0
+        except Exception:
+            return 0
 
-        posx, posy, width, height = parse_coords(
-            coords=coords,
+    def update(self, *, sortletter: str | None, scroll_id: int, opts: PlacementOpts):
+        expected = sortletter or infolabel("ListItem.SortLetter")
+        fraction = self._fraction_from_scrollbar(to_int(scroll_id, self.scroll_id))
+        posx, posy, width, height = resolve_rect(
+            coords=opts.coords,
             window=self.window,
-            anchor_id=to_int(anchor_id, None),
-            caller_name="JumpButton",
+            anchor_id=opts.anchor_id,
+            caller_name=self.__class__.__name__,
         )
+        posx, posy, width, height = apply_inset(
+            (posx, posy, width, height), parse_inset(opts.inset)
+        )
+
         try:
             btn = self.window.getControl(self.btn_id)
         except RuntimeError:
-            log(
-                f"{self.__class__.__name__}: Jump button {self.btn_id} not found."
-            )
+            log(f"{self.__class__.__name__}: Button {self.btn_id} not found.")
             return
 
         btn_w = btn.getWidth() or self.btn_width
         btn_h = btn.getHeight() or self.btn_width
         horizontal = width >= height
 
-        if coords: # Positioning relative to screen
-            if horizontal:
-                min_x = posx
-                max_x = max(posx, posx + width - btn_w)
-                btn_posx = int(min_x + fraction * (max_x - min_x))
-                btn_posy = int(posy + (height - btn_h) / 2)
-            else:
-                min_y = posy
-                max_y = max(posy, posy + height - btn_h)
-                btn_posy = int(min_y + fraction * (max_y - min_y))
-                btn_posx = int(posx + (width - btn_w) / 2)
-        else: # Positioning relative to anchor  
-            if horizontal:
-                travel = max(0, width - btn_w)
-                btn_posx = int(posx + fraction * travel)
-                btn_posy = btn.getY()  # keep current y
-            else:
-                travel = max(0, height - btn_h)
-                btn_posx = btn.getX()  # keep current x
-                btn_posy = int(posy + fraction * travel)
-        log(f'FUCK DEBUG {btn_posx}, {btn_posy}')
+        if horizontal:
+            btn_posx = axis_travel(posx, width, btn_w, fraction)
+            btn_posy = (
+                btn.getY()
+                if opts.relative
+                else align_y(posy, height, btn_h, opts.valign, opts.vpad)
+            )
+        else:
+            btn_posy = axis_travel(posy, height, btn_h, fraction)
+            btn_posx = (
+                btn.getX()
+                if opts.relative
+                else align_x(posx, width, btn_w, opts.halign, opts.hpad)
+            )
 
         btn.setLabel(expected)
         btn.setPosition(btn_posx, btn_posy)
@@ -265,19 +202,9 @@ class ProgressBarManager:
         self.base_id = base_id
         self.btn_width = btn_width
 
-    @staticmethod
-    def _adjust_coords(coords):
-        """
-        Adjust control coords to inset and align progress bar controls.
-        """
-        x, y, w, h = coords
-        _, default_y, _, default_h = DEFAULT_COORDS["ProgressBarManager"]
-        bar_w = 360 if w >= 360 else 240
-        center_x = x + (w // 2)
-        pos_x = int(center_x - (bar_w // 2))
-        return pos_x, default_y, bar_w, default_h
-
-    def update(self, resume_position, base_id=None, anchor_id=None, coords=""):
+    def update(
+        self, resume_position: int, *, opts: PlacementOpts, base_id: int | None = None
+    ):
         """
         Position and size the group based on explicit coords or a parent anchor.
         """
@@ -297,7 +224,7 @@ class ProgressBarManager:
             )
             return
 
-        posx, posy, width, height = parse_coords(
+        posx, posy, width, height = resolve_rect(
             coords=coords,
             window=self.window,
             anchor_id=to_int(anchor_id, None),
@@ -386,7 +313,7 @@ class TypewriterAnimation:
             log(f"{self.__class__.__name__}: Control {control_id} not found")
             return
 
-        posx, posy, width, height = parse_coords(
+        posx, posy, width, height = resolve_rect(
             coords=coords,
             window=self.window,
             anchor_id=to_int(anchor_id, None),

@@ -51,16 +51,7 @@ VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 
-"""HELPER CLASSES"""
-
-
-class AutoInitMixin:
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-
-"""KODI HELPERS"""
+"""KODI UTILS"""
 
 
 def clear_playlists():
@@ -170,7 +161,7 @@ def window_property(key, value=False, window_id=10000, debug=False):
         log(f"Window property: Clear, {window_id}, {key}", force=debug)
 
 
-"""FILE HELPERS & PATH UTILITIES"""
+"""FILE / PATH UTILS"""
 
 
 def create_dir(path):
@@ -478,3 +469,33 @@ def split_random(string, *, separator="/", **kwargs):
     subs = [s.strip() for s in primary.split("&")]
     picked = random.choice(subs)
     return return_label(picked)
+
+
+"""TYPE UTILS"""
+
+
+def to_int(value, default=None):
+    """
+    Safely convert a value to an integer, returning a default on failure.
+
+    :param value: The value to convert.
+    :param default: Value to return if conversion fails.
+    :return: The converted integer or the default value.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def clamp(value, low, high):
+    """Clamp value to [low, high]."""
+    return low if value < low else high if value > high else value
+
+
+def parse_bool(s, default=False):
+    if isinstance(s, bool):
+        return s
+    if s is None:
+        return default
+    return str(s).strip().lower() in {"1", "true", "yes", "on"}
