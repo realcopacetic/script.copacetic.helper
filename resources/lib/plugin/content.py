@@ -27,35 +27,34 @@ from resources.lib.shared.utilities import (
 class _FocusGuard:
     """Holds the expected item identity and lets you re-check later."""
 
-    __slots__ = ("expected", "who")
+    __slots__ = ("expected_identity", "caller_name", "current_supplier")
 
-    def __init__(self, expected, who):
-        self.expected = expected
-        self.who = who
+    def __init__(self, expected_identity, caller_name, current_supplier):
+        self.expected_identity = expected_identity
+        self.caller_name = caller_name
+        self._current_supplier = current_supplier
 
     def alive(self) -> bool:
         """Re-check that focus hasn't changed."""
-        current = infolabel("ListItem.Label")
-        if current != self.expected:
-            log(f"PluginContent → {self.who}: ABORTED → '{self.expected}' lost focus")
+        if self._current_supplier() != self.expected_identity:
+            log(f"PluginContent → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus")
             return False
         return True
 
 
 @contextmanager
-def focus_guard(expected_label: str, who: str):
+def focus_guard(expected_identity: str, caller_name: str, current_supplier: callable[[], str]):
     """
     Guard pattern for slow helpers:
       1) pre-check focus
       2) yield guard.alive() for post-check(s)
     """
-    current = infolabel("ListItem.Label")
-    if current != expected_label:
-        log(f"PluginContent → {who}: ABORTED → '{expected_label}' lost focus")
+    if current_supplier() != expected_identity:
+        log(f"PluginContent → {caller_name}: ABORTED → '{expected_identity}' lost focus")
         yield None
         return
 
-    guard = _FocusGuard(expected_label, who)
+    guard = _FocusGuard(expected_identity, caller_name)
     try:
         yield guard
     finally:
@@ -118,13 +117,13 @@ class PluginContent(object):
         label_id = self.params.get("label_id")
         anchor_id = self.params.get("anchor_id")
         coords = self.params.get("coords")
-        year = self.params.get("year")
         typewriter = TypewriterAnimation()
-        typewriter.update(self.label, year, label_id, anchor_id, coords)
+        typewriter.update(self.label, label_id, anchor_id, coords, infolabel('Container.CurrentItem'))
 
     @log_duration
     def metadata_helper(self):
-        with focus_guard(self.label, "metadata_helper") as guard:
+        current_supplier = lambda: infolabel("ListItem.Label")
+        with focus_guard(self.label, "metadata_helper", current_supplier) as guard:
             if not guard:
                 return
 
@@ -141,6 +140,7 @@ class PluginContent(object):
             coords = self.params.get("coords")
             progress = ProgressBarManager()
             progress.update(resume.get("position", 0), progress_id, anchor_id, coords)
+            log(f'FUCK DEBUG progress_id, anchor_id, coords: {progress_id}, {anchor_id}, {coords}')
 
     @log_duration
     def artwork_helper(self):

@@ -293,18 +293,16 @@ class TypewriterAnimation:
         adjusted_y = y + h - adjusted_h - 15
         return adjusted_x, adjusted_y, adjusted_w, adjusted_h
 
-    def update(self, label, year="", label_id=None, anchor_id=None, coords=""):
+    def update(self, label, label_id=None, anchor_id=None, coords="", abort_checker=None):
         """
         Start the typewriter animation for a label.
 
         :param label: The base label text to animate.
-        :param year: Optional year to append to the label.
         :param id: Optional override for the control ID.
         :param anchor_id: Optional ID of a parent control to inherit coords from.
         :param coords: Optional comma-separated coords (x,y,w,h).
         """
-        expected = f"{label}. {year}." if year else f"{label}."
-        log(f"{self.__class__.__name__}: START → '{expected}'")
+        log(f"{self.__class__.__name__}: START → '{label}'")
         control_id = to_int(label_id, self.control_id)
         try:
             control = self.window.getControl(control_id)
@@ -333,16 +331,9 @@ class TypewriterAnimation:
             xbmc.sleep(interval)
             waited += interval
 
-        for i in range(1, len(expected) + 1):
-            current_label = infolabel("ListItem.Label")
-            current_year = infolabel("ListItem.Year")
-            current_focus = (
-                f"{current_label}. {current_year}."
-                if current_year
-                else f"{current_label}."
-            )
-            if current_focus != expected:
-                log(f"{self.__class__.__name__}: ABORTED → '{expected}' lost focus")
+        for i in range(1, len(label) + 1):
+            if abort_checker != infolabel('Container.CurrentItem'):
+                log(f"{self.__class__.__name__}: ABORTED → '{label}' lost focus")
                 return
 
             if (
@@ -355,10 +346,10 @@ class TypewriterAnimation:
                 control.setHeight(current_height)
                 control.setPosition(posx, current_posy)
 
-            control.setText(expected[:i])
+            control.setText(label[:i])
             xbmc.sleep(int(self.step_time * 1000))
 
-        log(f"{self.__class__.__name__}: DONE → '{expected}'")
+        log(f"{self.__class__.__name__}: DONE → '{label}'")
 
 
 class LabelTruncator:

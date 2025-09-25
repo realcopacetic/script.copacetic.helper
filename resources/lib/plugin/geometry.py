@@ -10,6 +10,7 @@ DEFAULT_COORDS = {
     "JumpButton": (120, 1048, 1680, 4),
 }
 
+
 def parse_inset(s: str | None) -> Tuple[int, int, int, int]:
     if not s:
         return 0, 0, 0, 0
