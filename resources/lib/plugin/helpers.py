@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from typing import Callable, Dict, Iterable, Tuple
+from typing import Callable, Iterable
 
 from xbmcgui import Window, getCurrentWindowId
 
@@ -56,7 +56,7 @@ class DataHandler:
         )
         self.fetched = self.fetch_data()
 
-    def _get_infolabels(self, keys: Iterable[str]) -> Dict[str, str]:
+    def _get_infolabels(self, keys: Iterable[str]) -> dict[str, str]:
         """
         Fetch infolabels for the current listitem.
 
@@ -65,7 +65,7 @@ class DataHandler:
         """
         return {key: infolabel(f"{self.listitem}.{key}") for key in keys}
 
-    def fetch_data(self) -> Dict[str, object]:
+    def fetch_data(self) -> dict[str, object]:
         """
         Build a normalized metadata dictionary.
 
@@ -87,7 +87,7 @@ class DataHandler:
             "writer": split(self.infolabels["Writer"]),
         }
 
-    def _resumepoint(self) -> Tuple[int, str]:
+    def _resumepoint(self) -> tuple[int, str]:
         """
         Determine resume percent and unwatched episodes.
 
@@ -135,18 +135,22 @@ class DataHandler:
         )
         return studio.replace("+", "") if studio else ""
 
-    def _multiart(self):
+    def _multiart(self) -> dict[str, str]:
+        """
+        Collect multiart entries based on the active type from label 6400.
+
+        :return: Dict of keys like "fanart", "fanart1", … → art URLs.
+        """
         if not (art_type := infolabel("Control.GetLabel(6400)")):
             return {}
 
-        multiart = {
+        return {
             f"multiart{pos if pos else ''}": art
             for pos in range(16)
             if (
                 art := infolabel(f"{self.listitem}.Art({art_type}{pos if pos else ''})")
             )
         }
-        return multiart
 
 
 class JumpButton:
@@ -155,13 +159,13 @@ class JumpButton:
     Used in alphabet-scrolling lists or fast-seekable UI containers.
     """
 
-    def __init__(self, scroll_id=60, btn_id=62, btn_width=30):
+    def __init__(self, scroll_id: int = 60, btn_id: int = 62, btn_width: int = 30) -> None:
         """
         Initializes the control IDs used for the scrollbar and indicator button.
 
-        :param window_id: Kodi window ID.
-        :param scroll_id_id: ID for the scrollbar.
-        :param btn_id: ID for the jump button indicator.
+        :param scroll_id: Control ID of the scrollbar from which to read "cur/total", by default 60.
+        :param btn_id: Control ID of the indicator button to position, by default 62.
+        :param btn_width: Fallback button width/height if the control reports zero, by default 30.
         """
         self.window = Window(getCurrentWindowId())
         self.scroll_id = scroll_id
@@ -169,7 +173,12 @@ class JumpButton:
         self.btn_width = btn_width
 
     def _fraction_from_scrollbar(self, scroll_id: int) -> float:
-        """Compute 0..1 from scrollbar Control.GetLabel(id) formatted as 'cur/total'."""
+        """
+        Compute a 0..1 fraction from Control.GetLabel(scroll_id) formatted as "cur/total".
+
+        :param scroll_id: Scrollbar control ID.
+        :return: Fractional position in range [0.0, 1.0], or 0.0 if invalid.
+        """
         raw = infolabel(f"Control.GetLabel({scroll_id})").strip()
         if not raw or "/" not in raw:
             return 0
@@ -179,7 +188,14 @@ class JumpButton:
         except Exception:
             return 0
 
-    def update(self, *, sortletter: str | None, scroll_id: int, opts: PlacementOpts):
+    def update(self, *, sortletter: str | None, scroll_id: int, opts: PlacementOpts) -> None:
+        """
+        Update indicator position and label based on scrollbar progress.
+
+        :param sortletter: Label to display, or fallback to ListItem.SortLetter if None.
+        :param scroll_id: Scrollbar control ID override for this update.
+        :param opts: Placement options (coords, anchor_id, inset, alignment).
+        """
         expected = sortletter or infolabel("ListItem.SortLetter")
         fraction = self._fraction_from_scrollbar(to_int(scroll_id, self.scroll_id))
         posx, posy, width, height = resolve_rect(
