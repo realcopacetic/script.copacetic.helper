@@ -1,5 +1,7 @@
 # author: realcopacetic
 
+from typing import Callable, Dict, Iterable, Tuple
+
 from xbmcgui import Window, getCurrentWindowId
 
 from resources.lib.plugin.geometry import (
@@ -8,7 +10,6 @@ from resources.lib.plugin.geometry import (
     align_y,
     apply_inset,
     axis_travel,
-    parse_bool,
     parse_inset,
     resolve_rect,
     to_int,
@@ -27,7 +28,16 @@ from resources.lib.shared.utilities import (
 
 
 class DataHandler:
-    def __init__(self, listitem, dbtype, dbid):
+    """Extracts metadata for a Kodi ListItem and prepares a normalized dict."""
+
+    def __init__(self, listitem: str, dbtype: str, dbid: str) -> None:
+        """
+        Initialize the handler with listitem, dbtype and dbid.
+
+        :param listitem: Kodi info label prefix (e.g. "ListItem").
+        :param dbtype: Kodi database content type.
+        :param dbid: Kodi database ID for the item.
+        """
         self.listitem = listitem
         self.dbtype = dbtype
         self.dbid = dbid
@@ -46,10 +56,21 @@ class DataHandler:
         )
         self.fetched = self.fetch_data()
 
-    def _get_infolabels(self, keys):
+    def _get_infolabels(self, keys: Iterable[str]) -> Dict[str, str]:
+        """
+        Fetch infolabels for the current listitem.
+
+        :param keys: Iterable of label suffixes.
+        :return: Dict mapping suffix → value.
+        """
         return {key: infolabel(f"{self.listitem}.{key}") for key in keys}
 
-    def fetch_data(self):
+    def fetch_data(self) -> Dict[str, object]:
+        """
+        Build a normalized metadata dictionary.
+
+        :return: Dictionary with art, resume, contributors, etc.
+        """
         label = return_label(self.infolabels["Label"])
         encoded_label = url_encode(label)
         resume, unwatched = self._resumepoint()
@@ -66,7 +87,12 @@ class DataHandler:
             "writer": split(self.infolabels["Writer"]),
         }
 
-    def _resumepoint(self):
+    def _resumepoint(self) -> Tuple[int, str]:
+        """
+        Determine resume percent and unwatched episodes.
+
+        :return: Tuple of (percent, remaining unwatched).
+        """
         unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
         for p in [
             self.infolabels["PercentPlayed"],
@@ -96,7 +122,12 @@ class DataHandler:
 
         return 0, unwatched
 
-    def _studio(self):
+    def _studio(self) -> str:
+        """
+        Returns first studio name, cleaned of '+'.
+
+        :return: Studio string or empty string.
+        """
         studio = (
             split(infolabel("Container(3100).ListItem(-1).Studio"))
             if "set" in self.dbtype
@@ -253,24 +284,23 @@ class ProgressBarManager:
 
 class TypewriterAnimation:
     """
-    Animates a text label within a Kodi control using a typewriter effect.
-    Progressively reveals given label character-by-character, expanding the
-    control's height to accomomdate multiple lines when needed. Will abort
-    automatically if focused listitem changes mid-animation.
+    Animate a text label within a Kodi control using a typewriter effect.
+    Characters are revealed one-by-one and the control's height expands to
+    accommodate additional lines.
     """
 
     def __init__(
         self,
-        control_id=8760,
-        step_time=0.025,
-        line_height=30,
-        max_lines=3,
+        control_id: int = 8760,
+        step_time: float = 0.025,
+        line_height: int = 30,
+        max_lines: int = 3,
     ):
         """
-        :param control_id: Default control ID to animate if none is provided at runtime.
-        :param step_time: Delay between adding each character, in seconds.
-        :param line_height: Height in pixels to add for each additional line.
-        :param max_lines: Maximum number of lines the animation can expand to.
+        :param control_id: Default text control id to animate if none is passed.
+        :param step_time: Delay per character (seconds).
+        :param line_height: Pixels added per wrapped line.
+        :param max_lines: Max number of lines to expand to.
         """
         self.window = Window(getCurrentWindowId())
         self.control_id = control_id
@@ -279,11 +309,11 @@ class TypewriterAnimation:
         self.max_lines = max_lines
 
     @staticmethod
-    def _adjust_coords(coords):
+    def _adjust_coords(coords: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
         """
-        Adjust control coords to inset and align the animated label.
+        Inset/align the animated label within the given rect.
 
-        :param coords: A tuple of (x, y, width, height) for the control area.
+        :param coords: (x, y, w, h). :return: Adjusted (x, y, w, h).
         :return: Adjusted (x, y, width, height) values.
         """
         x, y, w, h = coords
@@ -293,17 +323,38 @@ class TypewriterAnimation:
         adjusted_y = y + h - adjusted_h - 15
         return adjusted_x, adjusted_y, adjusted_w, adjusted_h
 
-    def update(self, label, label_id=None, anchor_id=None, coords="", abort_checker=None):
+    def update(
+        self,
+        label: str,
+        label_id: int | None = None,
+        anchor_id: int | None = None,
+        coords: str = "",
+        expected_identity: str | None = None,
+        identity_getter: Callable[[], str] | None = None,
+    ):
         """
-        Start the typewriter animation for a label.
+        Animate label with a typewriter effect.
 
-        :param label: The base label text to animate.
-        :param id: Optional override for the control ID.
-        :param anchor_id: Optional ID of a parent control to inherit coords from.
-        :param coords: Optional comma-separated coords (x,y,w,h).
+        :param label: Text to animate. :param label_id: Override control id.
+        :param anchor_id: Parent control id for inherited coords.
+        :param coords: CSV rect "x,y,w,h" (overrides anchor).
+        :param expected_identity: Focus snapshot for guarding.
+        :param identity_getter: Returns current identity for guard checks.
         """
+
+        def alive() -> bool:
+            if identity_getter and expected_identity is not None:
+                if not (ok := identity_getter() == expected_identity):
+                    log(f"{self.__class__.__name__}: ABORTED → '{label}' lost focus")
+                return ok
+            return True
+
         log(f"{self.__class__.__name__}: START → '{label}'")
         control_id = to_int(label_id, self.control_id)
+
+        if not alive():
+            return
+
         try:
             control = self.window.getControl(control_id)
             control.setText("")
@@ -318,6 +369,7 @@ class TypewriterAnimation:
             adjust_fn=self._adjust_coords,
             caller_name=self.__class__.__name__,
         )
+
         current_height = height
         current_posy = posy
         max_height = self.line_height * self.max_lines
@@ -326,14 +378,16 @@ class TypewriterAnimation:
         control.setHeight(current_height)
         control.setPosition(posx, current_posy)
 
+        if not alive():
+            return
+
         timeout, interval, waited = 1000, 50, 0
         while not control.isVisible() and waited < timeout:
             xbmc.sleep(interval)
             waited += interval
 
         for i in range(1, len(label) + 1):
-            if abort_checker != infolabel('Container.CurrentItem'):
-                log(f"{self.__class__.__name__}: ABORTED → '{label}' lost focus")
+            if not alive():
                 return
 
             if (

@@ -1,6 +1,7 @@
 # author: realcopacetic, sualfred
 
 from contextlib import contextmanager
+from typing import Callable, Generator, Optional
 
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.geometry import PlacementOpts
@@ -27,34 +28,50 @@ from resources.lib.shared.utilities import (
 class _FocusGuard:
     """Holds the expected item identity and lets you re-check later."""
 
-    __slots__ = ("expected_identity", "caller_name", "current_supplier")
+    __slots__ = ("expected_identity", "caller_name", "identity_getter")
 
-    def __init__(self, expected_identity, caller_name, current_supplier):
+    def __init__(
+        self,
+        expected_identity: str,
+        caller_name: str,
+        identity_getter: Callable[[], str],
+    ):
         self.expected_identity = expected_identity
         self.caller_name = caller_name
-        self._current_supplier = current_supplier
+        self.identity_getter = identity_getter
 
     def alive(self) -> bool:
         """Re-check that focus hasn't changed."""
-        if self._current_supplier() != self.expected_identity:
-            log(f"PluginContent → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus")
+        if self.identity_getter() != self.expected_identity:
+            log(
+                f"PluginContent → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus"
+            )
             return False
         return True
 
 
 @contextmanager
-def focus_guard(expected_identity: str, caller_name: str, current_supplier: callable[[], str]):
+def focus_guard(
+    expected_identity: str, caller_name: str, identity_getter: Callable[[], str]
+) -> Generator[Optional[_FocusGuard], None, None]:
     """
-    Guard pattern for slow helpers:
+    Context guard for focus-sensitive helpers; yields guard or None if pre-check fails.
       1) pre-check focus
       2) yield guard.alive() for post-check(s)
+    
+    :param expected_identity: snapshot
+    :param caller_name: for logs
+    :param identity_getter: getter
+    :return: guard|None
     """
-    if current_supplier() != expected_identity:
-        log(f"PluginContent → {caller_name}: ABORTED → '{expected_identity}' lost focus")
+    if identity_getter() != expected_identity:
+        log(
+            f"PluginContent → {caller_name}: ABORTED → '{expected_identity}' lost focus"
+        )
         yield None
         return
 
-    guard = _FocusGuard(expected_identity, caller_name)
+    guard = _FocusGuard(expected_identity, caller_name, identity_getter)
     try:
         yield guard
     finally:
@@ -62,15 +79,23 @@ def focus_guard(expected_identity: str, caller_name: str, current_supplier: call
 
 
 class PluginContent(object):
-    def __init__(self, params, li):
+    """
+    High-level plugin actions (artwork, metadata, typewriter) with focus guarding.
+
+    :param params: plugin params dict
+    :param li: target listitem.
+    """
+
+    def __init__(self, params: dict, li) -> None:
         self.params = params
         self.li = li
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
-        self.target = params.get("target", "ListItem")
+        self.target = params.get("target", "Container")
         if self.target.isdigit():
-            self.target = f"Container({self.target}).ListItem"
+            self.target = f"Container({self.target})"
+        self.identity_getter = lambda: infolabel(f"{self.target}.CurrentItem")
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
 
@@ -103,7 +128,32 @@ class PluginContent(object):
         }
 
     @log_duration
-    def jumpbutton(self):
+    def artwork_helper(self) -> None:
+        """
+        Process/calculate artwork and attach to listitem; aborts if focus changes.
+        """
+        expected = self.identity_getter()
+        with focus_guard(expected, "artwork_helper", self.identity_getter) as guard:
+            if not guard:
+                return
+
+            sqlite = SQLiteHandler()
+            image_processor = ImageEditor(sqlite).image_processor
+            processed = image_processor(
+                self.dbid,
+                f"{self.target}.ListItem",
+                {"clearlogo": "crop", "fanart": "blur"},
+            )
+
+            if not guard.alive():
+                return
+
+            data = {"file": self.label, "art": dict(processed or {})}
+            add_items(self.li, [data], "artwork")
+
+    @log_duration
+    def jumpbutton(self) -> None:
+        """Update jump button overlay using params and placement options."""
         jump = JumpButton()
         jump.update(
             sortletter=self.params.get("sortletter", ""),
@@ -112,22 +162,14 @@ class PluginContent(object):
         )
 
     @log_duration
-    def typewriter(self):
-        """Launch the typewriter animation helper for the current list item."""
-        label_id = self.params.get("label_id")
-        anchor_id = self.params.get("anchor_id")
-        coords = self.params.get("coords")
-        typewriter = TypewriterAnimation()
-        typewriter.update(self.label, label_id, anchor_id, coords, infolabel('Container.CurrentItem'))
-
-    @log_duration
-    def metadata_helper(self):
-        current_supplier = lambda: infolabel("ListItem.Label")
-        with focus_guard(self.label, "metadata_helper", current_supplier) as guard:
+    def metadata_helper(self) -> None:
+        """Fetch/attach metadata to listitem; guarded against focus changes."""
+        expected = self.identity_getter()
+        with focus_guard(expected, "metadata_helper", self.identity_getter) as guard:
             if not guard:
                 return
 
-            data = DataHandler(self.target, self.dbtype, self.dbid)
+            data = DataHandler(f"{self.target}.ListItem", self.dbtype, self.dbid)
 
             if not guard.alive():
                 return
@@ -140,25 +182,28 @@ class PluginContent(object):
             coords = self.params.get("coords")
             progress = ProgressBarManager()
             progress.update(resume.get("position", 0), progress_id, anchor_id, coords)
-            log(f'FUCK DEBUG progress_id, anchor_id, coords: {progress_id}, {anchor_id}, {coords}')
 
     @log_duration
-    def artwork_helper(self):
-        with focus_guard(self.label, "metadata_helper") as guard:
+    def typewriter(self) -> None:
+        """Run typewriter animation for the current listitem; guarded against focus changes."""
+        label_id = self.params.get("label_id")
+        anchor_id = self.params.get("anchor_id")
+        coords = self.params.get("coords")
+
+        expected = self.identity_getter()
+        with focus_guard(expected, "typewriter", self.identity_getter) as guard:
             if not guard:
                 return
 
-            sqlite = SQLiteHandler()
-            image_processor = ImageEditor(sqlite).image_processor
-            processed = image_processor(
-                self.dbid, self.target, {"clearlogo": "crop", "fanart": "blur"}
+            t = TypewriterAnimation()
+            t.update(
+                label=self.label,
+                label_id=label_id,
+                anchor_id=anchor_id,
+                coords=coords,
+                expected_identity=expected,
+                identity_getter=self.identity_getter,  # checked inside the animation
             )
-
-            if not guard.alive():
-                return
-
-            data = {"file": self.label, "art": dict(processed or {})}
-            add_items(self.li, [data], "artwork")
 
     def in_progress(self):
         filters = [self.filter_inprogress]
