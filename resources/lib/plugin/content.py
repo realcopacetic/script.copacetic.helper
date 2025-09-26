@@ -22,6 +22,7 @@ from resources.lib.shared.utilities import (
     log,
     log_duration,
     set_plugincontent,
+    to_int,
 )
 
 
@@ -176,12 +177,12 @@ class PluginContent(object):
 
             add_items(self.li, [data.fetched], "metadata")
 
-            resume = data.fetched.get("resume", {})
-            progress_id = self.params.get("progress_id")
-            anchor_id = self.params.get("anchor_id")
-            coords = self.params.get("coords")
+            percent = int(data.fetched.get("resume", {}).get("position", 0))
             progress = ProgressBarManager()
-            progress.update(resume.get("position", 0), progress_id, anchor_id, coords)
+            opts = PlacementOpts.from_params(self.params)
+            progress.update(
+                percent, opts=opts, base_id=to_int(self.params.get("progress_id"), None)
+            )
 
     @log_duration
     def typewriter(self) -> None:

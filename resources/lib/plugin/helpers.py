@@ -12,7 +12,7 @@ from resources.lib.plugin.geometry import (
     axis_travel,
     parse_inset,
     resolve_rect,
-    to_int,
+    compute_rect,
 )
 from resources.lib.shared.utilities import (
     condition,
@@ -155,17 +155,19 @@ class DataHandler:
 
 class JumpButton:
     """
-    Displays a scrollbar thumb indicator and optional sort letter overlay.
-    Used in alphabet-scrolling lists or fast-seekable UI containers.
+    Scrollbar thumb indicator with optional sort letter.
+    Positioning is fully driven by compute_rect + PlacementOpts.
     """
 
-    def __init__(self, scroll_id: int = 60, btn_id: int = 62, btn_width: int = 30) -> None:
+    def __init__(
+        self, scroll_id: int = 60, btn_id: int = 62, btn_width: int = 30
+    ) -> None:
         """
         Initializes the control IDs used for the scrollbar and indicator button.
 
-        :param scroll_id: Control ID of the scrollbar from which to read "cur/total", by default 60.
-        :param btn_id: Control ID of the indicator button to position, by default 62.
-        :param btn_width: Fallback button width/height if the control reports zero, by default 30.
+        :param scroll_id: Scrollbar control ID to read "cur/total" from.
+        :param btn_id: Indicator button control ID to position.
+        :param btn_width: Fallback button width/height when control returns 0.
         """
         self.window = Window(getCurrentWindowId())
         self.scroll_id = scroll_id
@@ -188,24 +190,23 @@ class JumpButton:
         except Exception:
             return 0
 
-    def update(self, *, sortletter: str | None, scroll_id: int, opts: PlacementOpts) -> None:
+    def update(
+        self, *, sortletter: str | None, scroll_id: int, opts: PlacementOpts
+    ) -> None:
         """
-        Update indicator position and label based on scrollbar progress.
+        Update indicator label and position along the resolved track.
 
-        :param sortletter: Label to display, or fallback to ListItem.SortLetter if None.
+        :param sortletter: Custom label or fallback to ListItem.SortLetter if None.
         :param scroll_id: Scrollbar control ID override for this update.
-        :param opts: Placement options (coords, anchor_id, inset, alignment).
+        :param opts: Placement options (coords/anchor_id/inset/track_w/track_h/…).
+        :return: None
         """
         expected = sortletter or infolabel("ListItem.SortLetter")
         fraction = self._fraction_from_scrollbar(to_int(scroll_id, self.scroll_id))
-        posx, posy, width, height = resolve_rect(
-            coords=opts.coords,
+        posx, posy, width, height = compute_rect(
             window=self.window,
-            anchor_id=opts.anchor_id,
             caller_name=self.__class__.__name__,
-        )
-        posx, posy, width, height = apply_inset(
-            (posx, posy, width, height), parse_inset(opts.inset)
+            opts=opts,
         )
 
         try:
@@ -244,65 +245,115 @@ class ProgressBarManager:
     Calculates X-position based on playback percentage and updates UI control.
     """
 
-    def __init__(self, base_id=4030, btn_width=30):
+    def __init__(
+        self,
+        base_id: int = 4030,
+        btn_width: int = 30,
+    ) -> None:
+        """
+        Initialize default control IDs and sizing.
+
+        :param base_id: Base group ID that wraps the bar/btn.
+        :param btn_width: Fallback thumb size if control reports zero.
+        """
         self.window = Window(getCurrentWindowId())
         self.base_id = base_id
+        self.progress_id = base_id + 1
+        self.btn_id = base_id + 2
         self.btn_width = btn_width
 
-    def update(
-        self, resume_position: int, *, opts: PlacementOpts, base_id: int | None = None
-    ):
+    @staticmethod
+    def _adjust_coords(
+        rect: tuple[int, int, int, int], opts: PlacementOpts
+    ) -> tuple[int, int, int, int]:
         """
-        Position and size the group based on explicit coords or a parent anchor.
+        Optional inner-track sizing inside the resolved rect (before inset).
+        If opts.track_w / track_h are given, center the track accordingly.
+        """
+        x, y, w, h = rect
+        tw = min(opts.track_w or w, w)
+        th = min(opts.track_h or h, h)
+        if (tw, th) == (w, h):
+            return x, y, w, h
+
+        nx = x + (w - tw) // 2
+        ny = y + (h - th) // 2
+        return nx, ny, tw, th
+
+    def update(
+        self,
+        percent: int,
+        *,
+        opts: PlacementOpts,
+        base_id: int | None = None,
+        progress_id: int | None = None,
+        btn_id: int | None = None,
+    ) -> None:
+        """
+        Resolve rect, move/size controls, and position the thumb.
+
+        :param percent: Unified progress percentage (0–100).
+        :param opts: Placement options (coords/anchor/inset/track_w/track_h).
+        :param base_id: Optional override for base group ID.
+        :param progress_id: Optional override for progress bar ID.
+        :param btn_id: Optional override for thumb button ID.
         """
         base_id = to_int(base_id, self.base_id)
-        backing_id = base_id + 1
-        progress_id = base_id + 2
-        btn_id = base_id + 3
+        progress_id = to_int(progress_id, self.progress_id)
+        btn_id = to_int(btn_id, self.btn_id)
 
         try:
             base = self.window.getControl(base_id)
-            backing = self.window.getControl(backing_id)
             progress = self.window.getControl(progress_id)
-            button = self.window.getControl(btn_id)
         except RuntimeError:
+            log(f"{self.__class__.__name__}: base_id {base_id} or progress_id {progress_id} not found.")
+            return
+
+        # 1) resolve → 2) optional track size → 3) inset
+        posx, posy, width, height = resolve_rect(
+            coords=opts.coords,
+            window=self.window,
+            anchor_id=to_int(opts.anchor_id, base_id),
+            caller_name=self.__class__.__name__,
+        )
+        posx, posy, width, height = self._adjust_coords(
+            (posx, posy, width, height), opts
+        )
+        posx, posy, width, height = apply_inset(
+            (posx, posy, width, height), parse_inset(opts.inset)
+        )
+
+        if width <= 0 or height <= 0:
             log(
-                f"{self.__class__.__name__}: Controls {base_id}, {backing_id}, {progress_id} or {btn_id} not found"
+                f"{self.__class__.__name__}: Zero-size rect → ({posx},{posy},{width},{height}); aborting."
             )
             return
 
-        posx, posy, width, height = resolve_rect(
-            coords=coords,
-            window=self.window,
-            anchor_id=to_int(anchor_id, None),
-            adjust_fn=self._adjust_coords,
-            caller_name=self.__class__.__name__,
-        )
-
+        # Position/sizing
         base.setPosition(posx, posy)
-        for ctrl in (
-            base,
-            backing,
-            progress,
-        ):  # Width/height don't inherit from base group
+        for ctrl in (base, progress):
             ctrl.setWidth(width)
             ctrl.setHeight(height)
 
-        min_x = (width / 2) - (self.btn_width / 2)
-        max_x = width - (self.btn_width / 2)
-        max_limit = width - self.btn_width
-        btn_posx = min(
-            int(min_x + (resume_position / 100) * (max_x - min_x)), max_limit
-        )
-        btn_posy = int(0 - (self.btn_width / 2) + (height / 2))
-        button.setPosition(btn_posx, btn_posy)
+        try:
+            button = self.window.getControl(btn_id)
+        except RuntimeError:
+            button = None
+            log(f"{self.__class__.__name__}: Optional btn_id {btn_id} not found.")
+        else:
+            btn_w = button.getWidth() or self.btn_width
+            btn_h = button.getHeight() or self.btn_width
+            travel = max(0, width - btn_w)
+            fraction = max(0.0, min(1.0, (percent or 0) / 100.0))
+            btn_posx = int(posx + fraction * travel)
+            btn_posy = int(posy + (height - btn_h) / 2)
+            button.setPosition(btn_posx, btn_posy)
 
 
 class TypewriterAnimation:
     """
-    Animate a text label within a Kodi control using a typewriter effect.
-    Characters are revealed one-by-one and the control's height expands to
-    accommodate additional lines.
+    Typewriter text effect with PlacementOpts-driven positioning.
+    Height grows per line up to max_lines unless track_h is provided.
     """
 
     def __init__(
@@ -316,7 +367,7 @@ class TypewriterAnimation:
         :param control_id: Default text control id to animate if none is passed.
         :param step_time: Delay per character (seconds).
         :param line_height: Pixels added per wrapped line.
-        :param max_lines: Max number of lines to expand to.
+        :param max_lines: Max number of lines grown if track_h not set.
         """
         self.window = Window(getCurrentWindowId())
         self.control_id = control_id
@@ -324,40 +375,29 @@ class TypewriterAnimation:
         self.line_height = line_height
         self.max_lines = max_lines
 
-    @staticmethod
-    def _adjust_coords(coords: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
-        """
-        Inset/align the animated label within the given rect.
-
-        :param coords: (x, y, w, h). :return: Adjusted (x, y, w, h).
-        :return: Adjusted (x, y, width, height) values.
-        """
-        x, y, w, h = coords
-        adjusted_x = x + 15
-        adjusted_w = w - 30
-        adjusted_h = 37
-        adjusted_y = y + h - adjusted_h - 15
-        return adjusted_x, adjusted_y, adjusted_w, adjusted_h
-
     def update(
         self,
+        *,
         label: str,
+        opts: PlacementOpts,
         label_id: int | None = None,
         anchor_id: int | None = None,
         coords: str = "",
         expected_identity: str | None = None,
         identity_getter: Callable[[], str] | None = None,
-    ):
+    ) -> None:
         """
-        Animate label with a typewriter effect.
+        Animate label with a typewriter effect using compute_rect placement.
 
-        :param label: Text to animate. :param label_id: Override control id.
-        :param anchor_id: Parent control id for inherited coords.
-        :param coords: CSV rect "x,y,w,h" (overrides anchor).
+        :param label: Text to animate.
+        :param opts: Placement options (coords/anchor_id/inset/track_w/track_h/halign/valign/hpad/vpad).
+        :param label_id: Optional override control id.
+        :param anchor_id: Legacy anchor (ignored if opts.anchor_id set).
+        :param coords: Legacy "x,y,w,h" (ignored if opts.coords set).
         :param expected_identity: Focus snapshot for guarding.
         :param identity_getter: Returns current identity for guard checks.
+        :return: None
         """
-
         def alive() -> bool:
             if identity_getter and expected_identity is not None:
                 if not (ok := identity_getter() == expected_identity):
@@ -378,12 +418,13 @@ class TypewriterAnimation:
             log(f"{self.__class__.__name__}: Control {control_id} not found")
             return
 
-        posx, posy, width, height = resolve_rect(
-            coords=coords,
+        posx, posy, width, height = compute_rect(
             window=self.window,
-            anchor_id=to_int(anchor_id, None),
-            adjust_fn=self._adjust_coords,
             caller_name=self.__class__.__name__,
+            opts=opts,
+            legacy_coords=coords,
+            legacy_anchor_id=to_int(anchor_id, None),
+            content_h=(self.line_height * self.max_lines) if not opts.track_h else None,
         )
 
         current_height = height
@@ -402,6 +443,10 @@ class TypewriterAnimation:
             xbmc.sleep(interval)
             waited += interval
 
+        current_height = height
+        current_posy = posy
+        max_height = self.line_height * self.max_lines if not opts.track_h else height
+
         for i in range(1, len(label) + 1):
             if not alive():
                 return
@@ -412,7 +457,7 @@ class TypewriterAnimation:
                 and current_height < max_height
             ):
                 current_height += self.line_height
-                current_posy -= self.line_height
+                current_posy -= self.line_height  # keep bottom aligned
                 control.setHeight(current_height)
                 control.setPosition(posx, current_posy)
 
