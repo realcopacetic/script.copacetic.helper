@@ -59,7 +59,7 @@ def focus_guard(
     Context guard for focus-sensitive helpers; yields guard or None if pre-check fails.
       1) pre-check focus
       2) yield guard.alive() for post-check(s)
-    
+
     :param expected_identity: snapshot
     :param caller_name: for logs
     :param identity_getter: getter
@@ -91,14 +91,17 @@ class PluginContent(object):
         self.params = params
         self.li = li
         self.label = params.get("label", "")
+
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
         self.target = params.get("target", "Container")
         if self.target.isdigit():
             self.target = f"Container({self.target})"
-        self.identity_getter = lambda: infolabel(f"{self.target}.CurrentItem")
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
+
+        self.expected = params.get("focus_guard")
+        self.identity_getter = lambda: infolabel(f"{self.target}.CurrentItem")
 
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
@@ -133,8 +136,9 @@ class PluginContent(object):
         """
         Process/calculate artwork and attach to listitem; aborts if focus changes.
         """
-        expected = self.identity_getter()
-        with focus_guard(expected, "artwork_helper", self.identity_getter) as guard:
+        with focus_guard(
+            self.expected, "artwork_helper", self.identity_getter
+        ) as guard:
             if not guard:
                 return
 
@@ -165,8 +169,9 @@ class PluginContent(object):
     @log_duration
     def metadata_helper(self) -> None:
         """Fetch/attach metadata to listitem; guarded against focus changes."""
-        expected = self.identity_getter()
-        with focus_guard(expected, "metadata_helper", self.identity_getter) as guard:
+        with focus_guard(
+            self.expected, "metadata_helper", self.identity_getter
+        ) as guard:
             if not guard:
                 return
 
@@ -188,22 +193,21 @@ class PluginContent(object):
     def typewriter(self) -> None:
         """Run typewriter animation for the current listitem; guarded against focus changes."""
         label_id = self.params.get("label_id")
-        anchor_id = self.params.get("anchor_id")
-        coords = self.params.get("coords")
-
-        expected = self.identity_getter()
-        with focus_guard(expected, "typewriter", self.identity_getter) as guard:
+        line_step = self.params.get("line_step")
+        max_lines = to_int(self.params.get("max_lines"), None)
+        with focus_guard(self.expected, "typewriter", self.identity_getter) as guard:
             if not guard:
                 return
 
             t = TypewriterAnimation()
             t.update(
                 label=self.label,
+                opts=PlacementOpts.from_params(self.params),
                 label_id=label_id,
-                anchor_id=anchor_id,
-                coords=coords,
-                expected_identity=expected,
-                identity_getter=self.identity_getter,  # checked inside the animation
+                line_step=to_int(line_step, None),
+                max_lines=max_lines,
+                expected_identity=self.expected,
+                identity_getter=self.identity_getter,
             )
 
     def in_progress(self):

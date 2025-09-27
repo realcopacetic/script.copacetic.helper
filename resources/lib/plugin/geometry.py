@@ -230,8 +230,6 @@ def compute_rect(
     window,
     caller_name: str,
     opts: PlacementOpts,
-    legacy_coords: str = "",
-    legacy_anchor_id: int | None = None,
     content_w: int | None = None,
     content_h: int | None = None,
 ) -> tuple[int, int, int, int]:
@@ -241,20 +239,15 @@ def compute_rect(
     :param window: Kodi window object.
     :param caller_name: For DEFAULT_COORDS and logs.
     :param opts: Placement options container.
-    :param legacy_coords: Fallback CSV "x,y,w,h" if opts.coords empty.
-    :param legacy_anchor_id: Fallback anchor if opts.anchor_id None.
     :param content_w: Optional intrinsic content width.
     :param content_h: Optional intrinsic content height.
     :return: Final (x, y, w, h) rect.
     """
     # Resolve base rect
-    eff_coords = opts.coords or legacy_coords
-    eff_anchor = to_int(opts.anchor_id, to_int(legacy_anchor_id, None))
-
     posx, posy, width, height = resolve_rect(
-        coords=eff_coords,
+        coords=opts.coords,
         window=window,
-        anchor_id=eff_anchor,
+        anchor_id=opts.anchor_id,
         caller_name=caller_name,
     )
 
@@ -270,34 +263,33 @@ def compute_rect(
     target_w = opts.track_w or content_w or width
     target_h = opts.track_h or content_h or height
 
-    # Outside placement if requested and we had an anchor
-    mode = (opts.outside or "").lower() if opts.outside else ""
-    if mode and eff_anchor:
+    # Outside placement if requested
+    mode = (opts.outside or "").lower()
+    if mode and opts.anchor_id:
         if mode == "below":
-            out_w = target_w
-            out_h = target_h
-            out_x = align_x(anchor_x, anchor_w, out_w, align=opts.halign, pad=opts.hpad)
-            out_y = anchor_y + anchor_h + (opts.vpad or 0) - out_h
-            return out_x, out_y, out_w, out_h
+            out_x = align_x(
+                anchor_x, anchor_w, target_w, align=opts.halign, pad=opts.hpad
+            )
+            out_y = anchor_y + anchor_h + (opts.vpad or 0) - target_h
+            return out_x, out_y, target_w, target_h
         if mode == "above":
-            out_w = target_w
-            out_h = target_h
-            out_x = align_x(anchor_x, anchor_w, out_w, align=opts.halign, pad=opts.hpad)
-            out_y = anchor_y - (opts.vpad or 0) - out_h
-            return out_x, out_y, out_w, out_h
+            out_x = align_x(
+                anchor_x, anchor_w, target_w, align=opts.halign, pad=opts.hpad
+            )
+            out_y = anchor_y - (opts.vpad or 0) - target_h
+            return out_x, out_y, target_w, target_h
         if mode == "right":
-            out_w = target_w
-            out_h = target_h
             out_x = anchor_x + anchor_w + (opts.hpad or 0)
-            out_y = align_y(anchor_y, anchor_h, out_h, align=opts.valign, pad=opts.vpad)
-            return out_x, out_y, out_w, out_h
+            out_y = align_y(
+                anchor_y, anchor_h, target_h, align=opts.valign, pad=opts.vpad
+            )
+            return out_x, out_y, target_w, target_h
         if mode == "left":
-            out_w = target_w
-            out_h = target_h
-            out_x = anchor_x - (opts.hpad or 0) - out_w
-            out_y = align_y(anchor_y, anchor_h, out_h, align=opts.valign, pad=opts.vpad)
-            return out_x, out_y, out_w, out_h
-        # fall through to inside placement if unknown
+            out_x = anchor_x - (opts.hpad or 0) - target_w
+            out_y = align_y(
+                anchor_y, anchor_h, target_h, align=opts.valign, pad=opts.vpad
+            )
+            return out_x, out_y, target_w, target_h
 
     # Inside placement (default)
     if target_w < width:

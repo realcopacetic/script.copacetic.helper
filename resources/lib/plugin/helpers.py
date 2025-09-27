@@ -203,6 +203,7 @@ class JumpButton:
         """
         expected = sortletter or infolabel("ListItem.SortLetter")
         fraction = self._fraction_from_scrollbar(to_int(scroll_id, self.scroll_id))
+
         posx, posy, width, height = compute_rect(
             window=self.window,
             caller_name=self.__class__.__name__,
@@ -360,7 +361,7 @@ class TypewriterAnimation:
         self,
         control_id: int = 8760,
         step_time: float = 0.025,
-        line_height: int = 30,
+        default_line_step: int = 30,
         max_lines: int = 3,
     ):
         """
@@ -372,7 +373,7 @@ class TypewriterAnimation:
         self.window = Window(getCurrentWindowId())
         self.control_id = control_id
         self.step_time = step_time
-        self.line_height = line_height
+        self.default_line_step = default_line_step
         self.max_lines = max_lines
 
     def update(
@@ -381,8 +382,8 @@ class TypewriterAnimation:
         label: str,
         opts: PlacementOpts,
         label_id: int | None = None,
-        anchor_id: int | None = None,
-        coords: str = "",
+        line_step: int | None = None,
+        max_lines: int | None = None,
         expected_identity: str | None = None,
         identity_getter: Callable[[], str] | None = None,
     ) -> None:
@@ -392,8 +393,8 @@ class TypewriterAnimation:
         :param label: Text to animate.
         :param opts: Placement options (coords/anchor_id/inset/track_w/track_h/halign/valign/hpad/vpad).
         :param label_id: Optional override control id.
-        :param anchor_id: Legacy anchor (ignored if opts.anchor_id set).
-        :param coords: Legacy "x,y,w,h" (ignored if opts.coords set).
+        :param line_step: Pixels added per wrapped line (defaults to default_line_step).
+        :param max_lines: Optional cap for number of lines (overrides default).
         :param expected_identity: Focus snapshot for guarding.
         :param identity_getter: Returns current identity for guard checks.
         :return: None
@@ -422,20 +423,27 @@ class TypewriterAnimation:
             window=self.window,
             caller_name=self.__class__.__name__,
             opts=opts,
-            legacy_coords=coords,
-            legacy_anchor_id=to_int(anchor_id, None),
             content_h=(self.line_height * self.max_lines) if not opts.track_h else None,
         )
 
-        current_height = height
-        current_posy = posy
-        max_height = self.line_height * self.max_lines
+        step_h = max(1, int(line_step or self.default_line_step))
+        base_h = max(1, int(opts.track_h or step_h))
 
-        control.setWidth(width)
-        control.setHeight(current_height)
-        control.setPosition(posx, current_posy)
+        # Bottom-align a one-line box inside the rect (or top/center as requested).
+        posy_aligned = align_y(posy, height, base_h, align=opts.valign, pad=opts.vpad)
+        posx_final, posy_final, width_final, height_final = (
+            posx,
+            posy_aligned,
+            width,
+            base_h,
+        )
+
+        control.setWidth(width_final)
+        control.setHeight(height_final)
+        control.setPosition(posx_final, posy_final)
 
         if not alive():
+            control.setText("")
             return
 
         timeout, interval, waited = 1000, 50, 0
@@ -443,26 +451,44 @@ class TypewriterAnimation:
             xbmc.sleep(interval)
             waited += interval
 
-        current_height = height
-        current_posy = posy
-        max_height = self.line_height * self.max_lines if not opts.track_h else height
+        if not alive():
+            control.setText("")
+            return
+
+        # Animate: add step_h per wrap, up to max_lines
+        max_lines_eff = max_lines or self.max_lines
+        max_height = base_h + (max_lines_eff - 1) * step_h
+        current_height = base_h
+        current_posy = posy_final
 
         for i in range(1, len(label) + 1):
             if not alive():
+                control.setText("")
                 return
 
+            sub = label[:i]
+            control.setText(sub)
+            xbmc.sleep(int(self.step_time * 1000))
             if (
                 i > 1
                 and condition(f"Container({control_id}).HasNext")
                 and current_height < max_height
             ):
-                current_height += self.line_height
-                current_posy -= self.line_height  # keep bottom aligned
-                control.setHeight(current_height)
-                control.setPosition(posx, current_posy)
+                next_h = min(current_height + step_h, max_height)
+                dy = next_h - current_height
+                current_height = next_h
 
-            control.setText(label[:i])
-            xbmc.sleep(int(self.step_time * 1000))
+                # Only shift Y to keep the bottom fixed when valign=bottom.
+                if (opts.valign or "center").lower() == "bottom":
+                    current_posy -= dy
+
+                control.setHeight(current_height)
+                control.setPosition(posx_final, current_posy)
+
+                # Reflow nudge: temporarily append a zero-width space, then revert
+                control.setText(sub + "\u200b")
+                xbmc.sleep(1)
+                control.setText(sub)
 
         log(f"{self.__class__.__name__}: DONE → '{label}'")
 
