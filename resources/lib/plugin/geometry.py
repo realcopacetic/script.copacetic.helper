@@ -270,7 +270,7 @@ def compute_rect(
             out_x = align_x(
                 anchor_x, anchor_w, target_w, align=opts.halign, pad=opts.hpad
             )
-            out_y = anchor_y + anchor_h + (opts.vpad or 0) - target_h
+            out_y = anchor_y + anchor_h + (opts.vpad or 0)
             return out_x, out_y, target_w, target_h
         if mode == "above":
             out_x = align_x(

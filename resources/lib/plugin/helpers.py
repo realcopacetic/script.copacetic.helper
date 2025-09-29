@@ -263,24 +263,6 @@ class ProgressBarManager:
         self.btn_id = base_id + 2
         self.btn_width = btn_width
 
-    @staticmethod
-    def _adjust_coords(
-        rect: tuple[int, int, int, int], opts: PlacementOpts
-    ) -> tuple[int, int, int, int]:
-        """
-        Optional inner-track sizing inside the resolved rect (before inset).
-        If opts.track_w / track_h are given, center the track accordingly.
-        """
-        x, y, w, h = rect
-        tw = min(opts.track_w or w, w)
-        th = min(opts.track_h or h, h)
-        if (tw, th) == (w, h):
-            return x, y, w, h
-
-        nx = x + (w - tw) // 2
-        ny = y + (h - th) // 2
-        return nx, ny, tw, th
-
     def update(
         self,
         percent: int,
@@ -293,7 +275,7 @@ class ProgressBarManager:
         """
         Resolve rect, move/size controls, and position the thumb.
 
-        :param percent: Unified progress percentage (0–100).
+        :param percent: Unified progress percentage (0-100).
         :param opts: Placement options (coords/anchor/inset/track_w/track_h).
         :param base_id: Optional override for base group ID.
         :param progress_id: Optional override for progress bar ID.
@@ -310,18 +292,10 @@ class ProgressBarManager:
             log(f"{self.__class__.__name__}: base_id {base_id} or progress_id {progress_id} not found.")
             return
 
-        # 1) resolve → 2) optional track size → 3) inset
-        posx, posy, width, height = resolve_rect(
-            coords=opts.coords,
+        posx, posy, width, height = compute_rect(
             window=self.window,
-            anchor_id=to_int(opts.anchor_id, base_id),
             caller_name=self.__class__.__name__,
-        )
-        posx, posy, width, height = self._adjust_coords(
-            (posx, posy, width, height), opts
-        )
-        posx, posy, width, height = apply_inset(
-            (posx, posy, width, height), parse_inset(opts.inset)
+            opts=opts,
         )
 
         if width <= 0 or height <= 0:
@@ -332,9 +306,18 @@ class ProgressBarManager:
 
         # Position/sizing
         base.setPosition(posx, posy)
-        for ctrl in (base, progress):
-            ctrl.setWidth(width)
-            ctrl.setHeight(height)
+        progress.setWidth(width)
+        progress.setHeight(height)
+
+        try:
+            cur_w, cur_h = base.getWidth(), base.getHeight()
+        except Exception:
+            cur_w = cur_h = 0
+        new_w = max(cur_w or 0, width)
+        new_h = max(cur_h or 0, height)
+        if new_w != (cur_w or 0) or new_h != (cur_h or 0):
+            base.setWidth(new_w)
+            base.setHeight(new_h)
 
         try:
             button = self.window.getControl(btn_id)

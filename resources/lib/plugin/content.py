@@ -182,12 +182,14 @@ class PluginContent(object):
 
             add_items(self.li, [data.fetched], "metadata")
 
-            percent = int(data.fetched.get("resume", {}).get("position", 0))
-            progress = ProgressBarManager()
-            opts = PlacementOpts.from_params(self.params)
-            progress.update(
-                percent, opts=opts, base_id=to_int(self.params.get("progress_id"), None)
-            )
+    @log_duration
+    def progressbar(self) -> None:
+        """Standalone progress bar endpoint (no need to route via metadata_helper)."""
+        percent = to_int(self.params.get("percent"), 0)
+        base_id = to_int(self.params.get("progress_id"), None)
+        opts = PlacementOpts.from_params(self.params)
+        pb = ProgressBarManager()
+        pb.update(percent, opts=opts, base_id=base_id)
 
     @log_duration
     def typewriter(self) -> None:
