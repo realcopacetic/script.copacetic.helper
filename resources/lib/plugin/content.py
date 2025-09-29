@@ -132,12 +132,12 @@ class PluginContent(object):
         }
 
     @log_duration
-    def artwork_helper(self) -> None:
+    def artwork(self) -> None:
         """
         Process/calculate artwork and attach to listitem; aborts if focus changes.
         """
         with focus_guard(
-            self.expected, "artwork_helper", self.identity_getter
+            self.expected, "artwork", self.identity_getter
         ) as guard:
             if not guard:
                 return
@@ -167,10 +167,10 @@ class PluginContent(object):
         )
 
     @log_duration
-    def metadata_helper(self) -> None:
+    def metadata(self) -> None:
         """Fetch/attach metadata to listitem; guarded against focus changes."""
         with focus_guard(
-            self.expected, "metadata_helper", self.identity_getter
+            self.expected, "metadata", self.identity_getter
         ) as guard:
             if not guard:
                 return
@@ -184,12 +184,48 @@ class PluginContent(object):
 
     @log_duration
     def progressbar(self) -> None:
-        """Standalone progress bar endpoint (no need to route via metadata_helper)."""
-        percent = to_int(self.params.get("percent"), 0)
-        base_id = to_int(self.params.get("progress_id"), None)
-        opts = PlacementOpts.from_params(self.params)
-        pb = ProgressBarManager()
-        pb.update(percent, opts=opts, base_id=base_id)
+        """
+        Standalone progress bar endpoint to calculate progress percentage across
+        media content types (playable, sets, shows, seasons), provide an unwatched
+        label (for sets, shows, seasons) and update/position a progress bar in UI.
+        """
+        with focus_guard(self.expected, "progressbar", self.identity_getter) as guard:
+            if not guard:
+                return
+
+            target = f"{self.target}.ListItem"
+            set_target = self.params.get("set_target", None)
+            pb = ProgressBarManager()
+            resume, unwatched = pb.calculate(target=target, set_target=set_target)
+            add_items(
+                self.li,
+                [
+                    {
+                        "file": str(resume),
+                        "label": str(resume),
+                        "resume": {"position": resume, "total": 100},
+                        "unwatchedepisodes": str(unwatched),
+                    }
+                ],
+                "progressbar",
+            )
+
+            if not guard.alive():
+                return
+
+            opts = PlacementOpts.from_params(self.params)
+            base_id = to_int(self.params.get("base_id"), None)
+            backing_id = to_int(self.params.get("backing_id"), None)
+            progress_id = to_int(self.params.get("progress_id"), None)
+            btn_id = to_int(self.params.get("btn_id"), None)
+            pb.update(
+                percent=int(resume),
+                opts=opts,
+                base_id=base_id,
+                backing_id=backing_id,
+                progress_id=progress_id,
+                btn_id=btn_id,
+            )
 
     @log_duration
     def typewriter(self) -> None:
@@ -197,6 +233,7 @@ class PluginContent(object):
         label_id = self.params.get("label_id")
         line_step = self.params.get("line_step")
         max_lines = to_int(self.params.get("max_lines"), None)
+
         with focus_guard(self.expected, "typewriter", self.identity_getter) as guard:
             if not guard:
                 return

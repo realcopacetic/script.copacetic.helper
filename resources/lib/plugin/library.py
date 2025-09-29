@@ -17,6 +17,7 @@ def add_items(li, items, media_type="metadata"):
     """
     type_mapping = {
         "metadata": set_metadata,
+        "progressbar": set_progressbar,
         "artwork": set_artwork,
         "movie": set_movie,
         "tvshow": set_tvshow,
@@ -106,6 +107,21 @@ def videoinfotag_setter(media_type, info_mapping, stream_fields=None):
     },
 )
 def set_metadata(item):
+    """
+    Builds a Kodi ListItem for helper service using mapped metadata and artwork.
+
+    :param item: Dictionary containing item metadata.
+    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    """
+    return create_li_item(
+        item,
+        item.get("label"),
+        "DefaultVideo.png",
+    )
+
+
+@videoinfotag_setter("", {})
+def set_progressbar(item):
     """
     Builds a Kodi ListItem for helper service using mapped metadata and artwork.
 

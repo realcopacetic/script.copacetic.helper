@@ -8,10 +8,7 @@ from resources.lib.plugin.geometry import (
     PlacementOpts,
     align_x,
     align_y,
-    apply_inset,
     axis_travel,
-    parse_inset,
-    resolve_rect,
     compute_rect,
 )
 from resources.lib.shared.utilities import (
@@ -26,11 +23,21 @@ from resources.lib.shared.utilities import (
     xbmc,
 )
 
+def get_infolabels(target: str, keys: Iterable[str]) -> dict[str, str]:
+        """
+        Fetch infolabels for the current targeted listitem.
+
+        :param target: 
+        :param keys: Iterable of label suffixes.
+        :return: Dict mapping suffix → value.
+        """
+        return {key: infolabel(f"{target}.{key}") for key in keys}
+
 
 class DataHandler:
     """Extracts metadata for a Kodi ListItem and prepares a normalized dict."""
 
-    def __init__(self, listitem: str, dbtype: str, dbid: str) -> None:
+    def __init__(self, target: str, dbtype: str, dbid: str) -> None:
         """
         Initialize the handler with listitem, dbtype and dbid.
 
@@ -38,20 +45,16 @@ class DataHandler:
         :param dbtype: Kodi database content type.
         :param dbid: Kodi database ID for the item.
         """
-        self.listitem = listitem
+        self.target = target
         self.dbtype = dbtype
         self.dbid = dbid
-        self.infolabels = self._get_infolabels(
+        self.infolabels = get_infolabels(self.target,
             [
                 "Label",
                 "Director",
                 "Writer",
                 "Genre",
                 "Studio",
-                "PercentPlayed",
-                "Property(WatchedEpisodePercent)",
-                "Property(WatchedProgress)",
-                "Property(UnwatchedEpisodes)",
             ]
         )
         self.fetched = self.fetch_data()
@@ -63,7 +66,7 @@ class DataHandler:
         :param keys: Iterable of label suffixes.
         :return: Dict mapping suffix → value.
         """
-        return {key: infolabel(f"{self.listitem}.{key}") for key in keys}
+        return {key: infolabel(f"{self.target}.{key}") for key in keys}
 
     def fetch_data(self) -> dict[str, object]:
         """
@@ -73,54 +76,17 @@ class DataHandler:
         """
         label = return_label(self.infolabels["Label"])
         encoded_label = url_encode(label)
-        resume, unwatched = self._resumepoint()
-        return {
+        dict = {
             "file": encoded_label,
             "label": encoded_label,
             "art": self._multiart(),
             "director": split_random(self.infolabels["Director"]),
             "dbtype": self.dbtype,
             "genre": split_random(self.infolabels["Genre"]),
-            "resume": {"position": resume, "total": 100},
-            "unwatchedepisodes": str(unwatched),
             "studio": self._studio(),
             "writer": split(self.infolabels["Writer"]),
         }
-
-    def _resumepoint(self) -> tuple[int, str]:
-        """
-        Determine resume percent and unwatched episodes.
-
-        :return: Tuple of (percent, remaining unwatched).
-        """
-        unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
-        for p in [
-            self.infolabels["PercentPlayed"],
-            self.infolabels["Property(WatchedEpisodePercent)"],
-            self.infolabels["Property(WatchedProgress)"],
-        ]:
-            if p.isdigit() and (resume := int(p)) > 0:
-                return resume, unwatched
-
-        if condition(
-            f"String.IsEqual({self.listitem}.Overlay,OverlayWatched.png) | "
-            f"Integer.IsGreater({self.listitem}.PlayCount,0)"
-        ):
-            return 100, ""
-
-        if "set" in self.dbtype:
-            total = int(infolabel("Container(3100).NumItems") or 0)
-            watched = sum(
-                condition(
-                    f"Integer.IsGreater(Container(3100).ListItem({x}).PlayCount,0)"
-                )
-                for x in range(total)
-            )
-            return ((total and watched / total or 0) * 100), (
-                total - watched
-            )  # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
-
-        return 0, unwatched
+        return dict
 
     def _studio(self) -> str:
         """
@@ -148,7 +114,7 @@ class DataHandler:
             f"multiart{pos if pos else ''}": art
             for pos in range(16)
             if (
-                art := infolabel(f"{self.listitem}.Art({art_type}{pos if pos else ''})")
+                art := infolabel(f"{self.target}.Art({art_type}{pos if pos else ''})")
             )
         }
 
@@ -259,9 +225,50 @@ class ProgressBarManager:
         """
         self.window = Window(getCurrentWindowId())
         self.base_id = base_id
-        self.progress_id = base_id + 1
-        self.btn_id = base_id + 2
+        self.backing_id = base_id + 1
+        self.progress_id = base_id + 2
+        self.btn_id = base_id + 3
         self.btn_width = btn_width
+
+    def calculate(self, target: str, set_target: str | None = None) -> tuple[int, str]:
+        infolabels = get_infolabels(
+            target,
+            [
+                "DBType",
+                "PercentPlayed",
+                "Property(WatchedEpisodePercent)",
+                "Property(WatchedProgress)",
+                "Property(UnwatchedEpisodes)",
+            ],
+        )
+        unwatched = infolabels["Property(UnwatchedEpisodes)"]
+        for p in [
+            infolabels["PercentPlayed"],
+            infolabels["Property(WatchedEpisodePercent)"],
+            infolabels["Property(WatchedProgress)"],
+        ]:
+            if p.isdigit() and (resume := int(p)) > 0:
+                return resume, unwatched
+
+        if condition(
+            f"String.IsEqual({target}.Overlay,OverlayWatched.png) | "
+            f"Integer.IsGreater({target}.PlayCount,0)"
+        ):
+            return 100, ""
+
+        if set_target and "set" in infolabels["DBType"]:
+            total = int(infolabel(f"Container({set_target}).NumItems") or 0)
+            watched = sum(
+                condition(
+                    f"Integer.IsGreater(Container({set_target}).ListItem({x}).PlayCount,0)"
+                )
+                for x in range(total)
+            )
+            return ((total and watched / total or 0) * 100), (
+                total - watched
+            )  # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
+
+        return 0, unwatched
 
     def update(
         self,
@@ -269,6 +276,7 @@ class ProgressBarManager:
         *,
         opts: PlacementOpts,
         base_id: int | None = None,
+        backing_id: int | None = None,
         progress_id: int | None = None,
         btn_id: int | None = None,
     ) -> None:
@@ -278,10 +286,12 @@ class ProgressBarManager:
         :param percent: Unified progress percentage (0-100).
         :param opts: Placement options (coords/anchor/inset/track_w/track_h).
         :param base_id: Optional override for base group ID.
+        :param backing_id: Optional override for backing texture ID.
         :param progress_id: Optional override for progress bar ID.
         :param btn_id: Optional override for thumb button ID.
         """
         base_id = to_int(base_id, self.base_id)
+        backing_id = to_int(backing_id, self.backing_id)
         progress_id = to_int(progress_id, self.progress_id)
         btn_id = to_int(btn_id, self.btn_id)
 
@@ -310,6 +320,15 @@ class ProgressBarManager:
         progress.setHeight(height)
 
         try:
+            backing = self.window.getControl(backing_id)
+        except RuntimeError:
+            backing = None
+            log(f"{self.__class__.__name__}: Optional backing_id {backing_id} not found.")
+        else:
+            backing.setWidth(width)
+            backing.setHeight(height)
+
+        try:
             cur_w, cur_h = base.getWidth(), base.getHeight()
         except Exception:
             cur_w = cur_h = 0
@@ -329,8 +348,8 @@ class ProgressBarManager:
             btn_h = button.getHeight() or self.btn_width
             travel = max(0, width - btn_w)
             fraction = max(0.0, min(1.0, (percent or 0) / 100.0))
-            btn_posx = int(posx + fraction * travel)
-            btn_posy = int(posy + (height - btn_h) / 2)
+            btn_posx = int(fraction * travel)
+            btn_posy = int((height - btn_h) / 2)
             button.setPosition(btn_posx, btn_posy)
 
 
@@ -429,21 +448,13 @@ class TypewriterAnimation:
             control.setText("")
             return
 
-        timeout, interval, waited = 1000, 50, 0
-        while not control.isVisible() and waited < timeout:
-            xbmc.sleep(interval)
-            waited += interval
-
-        if not alive():
-            control.setText("")
-            return
-
         # Animate: add step_h per wrap, up to max_lines
         max_lines_eff = max_lines or self.max_lines
         max_height = base_h + (max_lines_eff - 1) * step_h
         current_height = base_h
         current_posy = posy_final
 
+        control.setVisible(True)
         for i in range(1, len(label) + 1):
             if not alive():
                 control.setText("")
