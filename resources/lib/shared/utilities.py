@@ -6,16 +6,13 @@ import time
 import urllib.parse as urllib
 from functools import wraps
 from pathlib import Path
+from typing import Any, Callable
 
 import xbmc
 import xbmcvfs
 from xbmcaddon import Addon
 from xbmcgui import Dialog, Window
-from xbmcplugin import (
-    addSortMethod,
-    setContent,
-    setPluginCategory,
-)
+from xbmcplugin import addSortMethod, setContent, setPluginCategory
 
 THUMB_DB = xbmcvfs.translatePath("special://profile/Thumbnails")
 
@@ -53,14 +50,14 @@ MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 """KODI UTILS"""
 
 
-def clear_playlists():
+def clear_playlists() -> None:
     log("Clear playlists")
     VIDEOPLAYLIST.clear()
     MUSICPLAYLIST.clear()
     MUSICPLAYLIST.unshuffle()
 
 
-def condition(condition):
+def condition(condition: str) -> bool:
     """
     Evaluates a Kodi visibility condition.
 
@@ -70,7 +67,7 @@ def condition(condition):
     return xbmc.getCondVisibility(condition)
 
 
-def execute(action):
+def execute(action: str) -> None:
     """
     Executes a Kodi built-in function.
 
@@ -79,7 +76,7 @@ def execute(action):
     xbmc.executebuiltin(action)
 
 
-def infolabel(infolabel):
+def infolabel(infolabel: str) -> str:
     """
     Retrieves the value of a Kodi InfoLabel expression.
 
@@ -89,7 +86,7 @@ def infolabel(infolabel):
     return xbmc.getInfoLabel(infolabel)
 
 
-def skin_string(key, value=False, debug=False):
+def skin_string(key: str, value: str | bool = False, debug: bool = False) -> None:
     """
     Sets or clears a Kodi skin string with optional logging.
     If `value` is a value, it sets the string. If it's False or empty, it clears it.
@@ -106,7 +103,7 @@ def skin_string(key, value=False, debug=False):
         log(f"Skin string: Clear, {key}", force=debug)
 
 
-def reset_bool(setting_id, debug=False):
+def reset_bool(setting_id: str, debug: bool = False) -> None:
     """
     Resets (clears) a boolean skin setting with optional logging.
 
@@ -116,7 +113,7 @@ def reset_bool(setting_id, debug=False):
     log(f"Skin Bool reset: {setting_id}", force=debug)
 
 
-def set_bool(setting_id, debug=False):
+def set_bool(setting_id: str, debug: bool = False) -> None:
     """
     Sets a boolean skin setting to True with optional logging.
 
@@ -126,7 +123,7 @@ def set_bool(setting_id, debug=False):
     log(f"Skin Bool set: {setting_id}", force=debug)
 
 
-def toggle_bool(setting_id, debug=False):
+def toggle_bool(setting_id: str, debug: bool = False):
     """
     Toggles a boolean skin setting using Kodi built-in functions.
 
@@ -137,11 +134,15 @@ def toggle_bool(setting_id, debug=False):
     """
     if condition(f"Skin.HasSetting({setting_id})"):
         reset_bool(setting_id)
+        log(f"Skin Bool reset: {setting_id}", force=debug)
     else:
         set_bool(setting_id)
+        log(f"Skin Bool set: {setting_id}", force=debug)
 
 
-def window_property(key, value=False, window_id=10000, debug=False):
+def window_property(
+    key: str, value: str | bool = False, window_id: int = 10000, debug: bool = False
+) -> None:
     """
     Sets or clears a window property for a specific Kodi window with optional logging.
     If `value` is a value, it sets the prop. If it's False or empty, it clears it.
@@ -163,7 +164,7 @@ def window_property(key, value=False, window_id=10000, debug=False):
 """FILE / PATH UTILS"""
 
 
-def create_dir(path):
+def create_dir(path: str) -> None:
     """
     Creates a directory if it doesn't already exist.
 
@@ -176,7 +177,7 @@ def create_dir(path):
         return
 
 
-def clear_cache(**kwargs):
+def clear_cache(**kwargs: str) -> None:
     """
     Clears all temporary artwork processing data and resets the artwork lookup database.
     Resets the cache size display, and posts a notification with the amount of space saved.
@@ -199,7 +200,7 @@ def clear_cache(**kwargs):
     get_cache_size()
 
 
-def get_cache_size(precision=1):
+def get_cache_size(precision: int = 1) -> str:
     """
     Computes the combined size of temp and crop folders and sets it as a window property.
     Credit Doug Latornell for bitshift method
@@ -220,7 +221,7 @@ def get_cache_size(precision=1):
     return readable
 
 
-def get_total_size(path):
+def get_total_size(path: str | Path) -> int:
     """
     Calculates the total size of a file or all files in a folder (recursively).
 
@@ -235,17 +236,17 @@ def get_total_size(path):
     return 0
 
 
-def url_encode(string):
+def url_encode(value: str) -> str:
     """
-    Encodes a string for safe URL usage.
+    URL-encode a string for safe use in query parameters.
 
-    :param string: Input string.
-    :returns: URL-encoded string.
+    :param value: Raw string to encode.
+    :returns: Encoded string.
     """
-    return urllib.quote(string)
+    return urllib.quote_plus(value)
 
 
-def url_decode_path(path):
+def url_decode_path(path: str) -> str:
     """
     Decodes a Kodi image:// path into a usable file path.
 
@@ -255,7 +256,7 @@ def url_decode_path(path):
     return urllib.unquote(path.replace("image://", "").rstrip("/"))
 
 
-def validate_path(path):
+def validate_path(path: str) -> bool:
     """
     Checks if a given path exists on the filesystem.
 
@@ -269,17 +270,17 @@ def validate_path(path):
 
 
 def json_call(
-    method,
-    properties=None,
-    sort=None,
-    query_filter=None,
-    limit=None,
-    params=None,
-    item=None,
-    options=None,
-    parent=None,
-    debug=False,
-):
+    method: str,
+    properties: list[str] | None = None,
+    sort: dict[str, Any] | None = None,
+    query_filter: dict[str, Any] | None = None,
+    limit: int | None = None,
+    params: dict[str, Any] | None = None,
+    item: dict[str, Any] | None = None,
+    options: dict[str, Any] | None = None,
+    parent: str | None = None,
+    debug: bool = False,
+) -> dict[str, Any]:
     """
     Builds and sends a JSON-RPC request to Kodi with optional debug logging.
 
@@ -330,36 +331,36 @@ def json_call(
     return result
 
 
-def pretty_print(string):
+def pretty_print(obj: object) -> str:
     """
     Converts a Python object into a formatted JSON string.
 
-    :param string: JSON-serializable object.
+    :param obj: JSON-serializable object.
     :returns: Pretty-printed JSON string.
     """
-    return json.dumps(string, sort_keys=True, indent=4, separators=(",", ": "))
+    return json.dumps(obj, sort_keys=True, indent=4, separators=(",", ": "))
 
 
 """LOGGING"""
 
 
-def log(message, loglevel=DEBUG, force=False):
+def log(message: str, level: int = DEBUG, force: bool = False):
     """
     Logs a message with addon prefix, respecting log level and debug settings.
 
     :param message: Message string.
-    :param loglevel: Kodi log level constant.
+    :param level: Kodi log level constant.
     :param force: If True, logs regardless of settings.
     """
-    if (ADDON.getSettingBool("debug_logging") or force) and loglevel not in [
+    if (ADDON.getSettingBool("debug_logging") or force) and level not in [
         WARNING,
         ERROR,
     ]:
-        loglevel = INFO
-    xbmc.log(f"{ADDON_ID} → {message}", loglevel)
+        level = INFO
+    xbmc.log(f"{ADDON_ID} → {message}", level)
 
 
-def log_and_execute(action):
+def log_and_execute(action: str) -> None:
     """
     Logs and executes a built-in Kodi command.
 
@@ -369,7 +370,7 @@ def log_and_execute(action):
     xbmc.executebuiltin(action)
 
 
-def log_duration(func):
+def log_duration(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator that logs the execution time of a method.
 
@@ -378,12 +379,12 @@ def log_duration(func):
     """
 
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         cls_name = args[0].__class__.__name__ if args else "UnknownClass"
         start = time.time()
         result = func(*args, **kwargs)
         duration = time.time() - start
-        log(f"{cls_name}.{func.__name__} took {duration:.4f} seconds")
+        log(f"{cls_name} → {func.__name__} took {duration:.4f} seconds")
         return result
 
     return wrapper
@@ -420,9 +421,7 @@ def parse_params(argv: list[str]) -> dict[str, str]:
                 stitched.append(seg if "=" in seg else stitched.pop() + "&" + seg)
         return {
             k: urllib.unquote_plus(v)
-            for k, v in urllib.parse_qsl(
-                "&".join(stitched), keep_blank_values=True
-            )
+            for k, v in urllib.parse_qsl("&".join(stitched), keep_blank_values=True)
         }
 
     # --- Script style: sys.argv[1:] is a list of 'k=v' segments ---
@@ -449,8 +448,20 @@ def parse_params(argv: list[str]) -> dict[str, str]:
 """PLUGINS"""
 
 
-def set_plugincontent(content=None, category=None, sort_method=None):
-    handle = int(sys.argv[1])
+def set_plugincontent(
+    content: str | None = None,
+    category: str | None = None,
+    sort_method: int | None = None,
+) -> None:
+    """
+    Set directory-level metadata (category/content) and optional sort method.
+    This wraps xbmcplugin calls and pulls the handle from sys.argv[1].
+
+    :param content: e.g. "videos", "movies", "tvshows", "episodes".
+    :param category: Displayed category label in the UI.
+    :param sort_method: xbmcplugin.SORT_METHOD_* constant to add sorting.
+    """
+    handle = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     if category:
         setPluginCategory(handle, category)
     if content:
@@ -462,7 +473,7 @@ def set_plugincontent(content=None, category=None, sort_method=None):
 """STRINGS"""
 
 
-def expand_index(index_obj):
+def expand_index(index_obj: dict[str, Any]) -> list[str]:
     """
     Expands a dict with start/end/step into a list of string indices.
 
@@ -481,7 +492,13 @@ def expand_index(index_obj):
         return []
 
 
-def return_label(label=infolabel("ListItem.Label"), *, find=".", replace=" ", **kwargs):
+def return_label(
+    label: str = infolabel("ListItem.Label"),
+    *,
+    find: str = ".",
+    replace: str = " ",
+    **kwargs: object,
+) -> str:
     """
     Replaces a specific character in a label with another character.
 
@@ -495,7 +512,9 @@ def return_label(label=infolabel("ListItem.Label"), *, find=".", replace=" ", **
     return label.replace(find, replace, label.count(find))
 
 
-def split(string, *, separator=" / ", number=0, **kwargs):
+def split(
+    string: str, *, separator: str = " / ", number: int = 0, **kwargs: object
+) -> str:
     """
     Returns the Nth element from a split string using a given separator.
 
@@ -508,7 +527,7 @@ def split(string, *, separator=" / ", number=0, **kwargs):
     return parts[number] if 0 <= number < len(parts) else parts[0]
 
 
-def split_random(string, *, separator="/", **kwargs):
+def split_random(string: str, *, separator: str = "/", **kwargs: object) -> str:
     """
     Randomly selects and cleans a genre substring from a compound string.
     Handles edge case "Hip-Hop" → "Hip Hop"
@@ -531,7 +550,7 @@ def split_random(string, *, separator="/", **kwargs):
 """TYPE UTILS"""
 
 
-def to_int(value, default=None):
+def to_int(value: object, default: int = 0) -> int:
     """
     Safely convert a value to an integer, returning a default on failure.
 
@@ -545,12 +564,26 @@ def to_int(value, default=None):
         return default
 
 
-def clamp(value, low, high):
-    """Clamp value to [low, high]."""
+def clamp(value: int | float, low: int | float, high: int | float) -> int | float:
+    """
+    Clamp a numeric value to the inclusive range [low, high].
+
+    :param value: Input number.
+    :param low: Minimum allowed value.
+    :param high: Maximum allowed value.
+    :returns: Value constrained within the range.
+    """
     return low if value < low else high if value > high else value
 
 
-def parse_bool(s, default=False):
+def parse_bool(s: object, default: bool = False) -> bool:
+    """
+    Convert a value to bool using common truthy strings.
+
+    :param s: Input value (str, bool, int, None, etc.).
+    :param default: Fallback if input is None or not parseable.
+    :returns: Parsed boolean value.
+    """
     if isinstance(s, bool):
         return s
     if s is None:

@@ -3,6 +3,8 @@
 from contextlib import contextmanager
 from typing import Callable, Generator, Optional
 
+from xbmcplugin import SORT_METHOD_LASTPLAYED
+
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
@@ -266,8 +268,6 @@ class PluginContent(object):
             )
 
     def in_progress(self):
-        from xbmcplugin import SORT_METHOD_LASTPLAYED
-
         filters = [self.filter_inprogress]
         if self.dbtype != "tvshow":
             json_query = json_call(
