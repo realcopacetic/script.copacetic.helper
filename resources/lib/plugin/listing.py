@@ -19,7 +19,7 @@ class PluginListing(object):
     Used to expose widget routes via plugin content listing.
     """
 
-    def __init__(self, params: dict, li: list) -> None:
+    def __init__(self, params: dict[str, str]) -> None:
         """
         Initializes the PluginListing and adds ListItems immediately.
 
@@ -27,20 +27,22 @@ class PluginListing(object):
         :param li: List container to append ListItems to.
         :returns: None
         """
-        self.li = li
-        self.list_widgets()
+        self.params = params
 
-    def list_widgets(self) -> None:
-        """
-        Builds widget items for each category in the LISTING dictionary.
-
-        :returns: None
-        """
+    def build(self) -> list:
+        """Return (url, ListItem, isFolder) tuples for the top-level directory."""
+        items = []
         for category, widgets in LISTING.items():
             for item in widgets:
                 url = self._encode_url(info=item.get("info"), type=category)
-                self.plugin_category = item["name"]
-                self._add_item(item["name"], url)
+                items.append(self._make_item(item["name"], url))
+
+        handle = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+        set_plugincontent(
+            handle, ADDON.getLocalizedString(32604) or "Copacetic"
+        )
+        xbmcplugin.setContent(handle, "videos") 
+        return items
 
     def _encode_url(self, **kwargs: str) -> str:
         """
