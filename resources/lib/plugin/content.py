@@ -193,10 +193,8 @@ class PluginContent(object):
             if not guard:
                 return
 
-            target = f"{self.target}.ListItem"
-            set_target = self.params.get("set_target", None)
-            pb = ProgressBarManager()
-            resume, unwatched = pb.calculate(target=target, set_target=set_target)
+            pb = ProgressBarManager(target=f"{self.target}.ListItem")
+            resume, unwatched = pb.calculate(set_target=self.params.get("set_target", None))
             add_items(
                 self.li,
                 [
@@ -219,7 +217,7 @@ class PluginContent(object):
             progress_id = to_int(self.params.get("progress_id"), None)
             btn_id = to_int(self.params.get("btn_id"), None)
             pb.update(
-                percent=int(resume),
+                percent=resume,
                 opts=opts,
                 base_id=base_id,
                 backing_id=backing_id,

@@ -24,14 +24,14 @@ from resources.lib.shared.utilities import (
 )
 
 def get_infolabels(target: str, keys: Iterable[str]) -> dict[str, str]:
-        """
-        Fetch infolabels for the current targeted listitem.
+    """
+    Fetch multiple infolabels for the targeted listitem.
 
-        :param target: 
-        :param keys: Iterable of label suffixes.
-        :return: Dict mapping suffix → value.
-        """
-        return {key: infolabel(f"{target}.{key}") for key in keys}
+    :param target: Container/listitem prefix indicating where to read from.
+    :param keys: Iterable of infolabel suffixes.
+    :return: Dict mapping suffix → value.
+    """
+    return {key: infolabel(f"{target}.{key}") for key in keys}
 
 
 class DataHandler:
@@ -41,9 +41,9 @@ class DataHandler:
         """
         Initialize the handler with listitem, dbtype and dbid.
 
-        :param listitem: Kodi info label prefix (e.g. "ListItem").
-        :param dbtype: Kodi database content type.
-        :param dbid: Kodi database ID for the item.
+        :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
+        :param dbtype: Database content type (e.g. video or tvshow).
+        :param dbid: Database ID for the given item.
         """
         self.target = target
         self.dbtype = dbtype
@@ -58,15 +58,6 @@ class DataHandler:
             ]
         )
         self.fetched = self.fetch_data()
-
-    def _get_infolabels(self, keys: Iterable[str]) -> dict[str, str]:
-        """
-        Fetch infolabels for the current listitem.
-
-        :param keys: Iterable of label suffixes.
-        :return: Dict mapping suffix → value.
-        """
-        return {key: infolabel(f"{self.target}.{key}") for key in keys}
 
     def fetch_data(self) -> dict[str, object]:
         """
@@ -208,31 +199,32 @@ class JumpButton:
 
 class ProgressBarManager:
     """
-    Displays a seek/resume progress marker on a horizontal bar.
-    Calculates X-position based on playback percentage and updates UI control.
+    Calculates playback or set progress for a focused item and
+    positions the corresponding progress bar UI elements.
     """
 
     def __init__(
         self,
+        target: str,
         base_id: int = 4030,
         btn_width: int = 30,
     ) -> None:
         """
         Initialize default control IDs and sizing.
 
+        :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
         :param base_id: Base group ID that wraps the bar/btn.
         :param btn_width: Fallback thumb size if control reports zero.
         """
         self.window = Window(getCurrentWindowId())
+        self.target = target
         self.base_id = base_id
         self.backing_id = base_id + 1
         self.progress_id = base_id + 2
         self.btn_id = base_id + 3
         self.btn_width = btn_width
-
-    def calculate(self, target: str, set_target: str | None = None) -> tuple[int, str]:
-        infolabels = get_infolabels(
-            target,
+        self.infolabels = get_infolabels(
+            self.target,
             [
                 "DBType",
                 "PercentPlayed",
@@ -241,22 +233,31 @@ class ProgressBarManager:
                 "Property(UnwatchedEpisodes)",
             ],
         )
-        unwatched = infolabels["Property(UnwatchedEpisodes)"]
+
+    def calculate(self, set_target: str | None = None) -> tuple[int, str]:
+        """
+        Compute percent and unwatched label for the item referenced by ``target``.
+
+        :param set_target: Container id string holding movie set, or None.
+        :return: (percent float [0-100], unwatched label as string)
+        """
+
+        unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
         for p in [
-            infolabels["PercentPlayed"],
-            infolabels["Property(WatchedEpisodePercent)"],
-            infolabels["Property(WatchedProgress)"],
+            self.infolabels["PercentPlayed"],
+            self.infolabels["Property(WatchedEpisodePercent)"],
+            self.infolabels["Property(WatchedProgress)"],
         ]:
             if p.isdigit() and (resume := int(p)) > 0:
                 return resume, unwatched
 
         if condition(
-            f"String.IsEqual({target}.Overlay,OverlayWatched.png) | "
-            f"Integer.IsGreater({target}.PlayCount,0)"
+            f"String.IsEqual({self.target}.Overlay,OverlayWatched.png) | "
+            f"Integer.IsGreater({self.target}.PlayCount,0)"
         ):
             return 100, ""
 
-        if set_target and "set" in infolabels["DBType"]:
+        if set_target and "set" in self.infolabels["DBType"]:
             total = int(infolabel(f"Container({set_target}).NumItems") or 0)
             watched = sum(
                 condition(
@@ -272,7 +273,7 @@ class ProgressBarManager:
 
     def update(
         self,
-        percent: int,
+        percent: float,
         *,
         opts: PlacementOpts,
         base_id: int | None = None,

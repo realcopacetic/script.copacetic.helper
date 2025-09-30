@@ -108,7 +108,7 @@ def videoinfotag_setter(media_type, info_mapping, stream_fields=None):
 )
 def set_metadata(item):
     """
-    Builds a Kodi ListItem for helper service using mapped metadata and artwork.
+    Builds a Kodi ListItem for helper service using mapped metadata.
 
     :param item: Dictionary containing item metadata.
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
@@ -123,7 +123,7 @@ def set_metadata(item):
 @videoinfotag_setter("", {})
 def set_progressbar(item):
     """
-    Builds a Kodi ListItem for helper service using mapped metadata and artwork.
+    Builds a Kodi ListItem for progressbar helper using mapped metadata.
 
     :param item: Dictionary containing item metadata.
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
@@ -138,7 +138,7 @@ def set_progressbar(item):
 
 def set_artwork(item):
     """
-    Builds a Kodi ListItem for helper service using mapped metadata and artwork.
+    Builds a Kodi ListItem for artwork helper service using mapped artwork.
 
     :param item: Dictionary containing item metadata.
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
