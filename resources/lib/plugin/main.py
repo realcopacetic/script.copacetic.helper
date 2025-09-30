@@ -37,6 +37,7 @@ class Main:
         if action not in ALLOWED_ACTIONS:
             log(f"Ignoring unknown action: {self.info}")
             return
+        
         items = PluginContent(self.params).build(action)
         self._additems(items)
 

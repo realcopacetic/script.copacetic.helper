@@ -3,7 +3,7 @@
 import sys
 from urllib.parse import urlencode
 
-import xbmcgui
+from xbmcgui import ListItem
 
 from resources.lib.shared.utilities import ADDON, ADDON_ID, set_plugincontent
 
@@ -15,21 +15,19 @@ LISTING = {
 
 class PluginListing(object):
     """
-    Generates and adds plugin-based ListItems for widget browsing categories.
+    Generates and returns plugin-based ListItems for widget browsing categories.
     Used to expose widget routes via plugin content listing.
     """
 
     def __init__(self, params: dict[str, str]) -> None:
         """
-        Initializes the PluginListing and adds ListItems immediately.
-
         :param params: Dictionary of plugin parameters (unused).
         :param li: List container to append ListItems to.
         :returns: None
         """
         self.params = params
 
-    def build(self) -> list:
+    def build(self) -> list[tuple]:
         """Return (url, ListItem, isFolder) tuples for the top-level directory."""
         items = []
         for category, widgets in LISTING.items():
@@ -53,16 +51,16 @@ class PluginListing(object):
         filtered = {k: v for k, v in kwargs.items() if v}
         return f"{sys.argv[0]}?{urlencode(filtered)}"
 
-    def _make_item(self, label: str, url: str) -> None:
+    def _make_item(self, label: str, url: str) -> tuple[str, ListItem, bool]:
         """
-        Creates and appends a ListItem to the directory with proper art and info tags.
+        Creates and returns a ListItem tuple to the directory with proper art and info tags.
 
         :param label: Display label for the ListItem.
         :param url: Plugin URL this item will trigger.
         :returns: None
         """
         icon = f"special://home/addons/{ADDON_ID}/resources/icon.png"
-        li_item = xbmcgui.ListItem(label=label, offscreen=True)
+        li_item = ListItem(label=label, offscreen=True)
         video_info = li_item.getVideoInfoTag()
         video_info.setTitle(label)
         video_info.setMediaType("video")

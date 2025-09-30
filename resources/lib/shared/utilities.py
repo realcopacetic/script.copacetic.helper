@@ -12,7 +12,6 @@ import xbmcvfs
 from xbmcaddon import Addon
 from xbmcgui import Dialog, Window
 from xbmcplugin import (
-    SORT_METHOD_LASTPLAYED,
     addSortMethod,
     setContent,
     setPluginCategory,
@@ -450,13 +449,14 @@ def parse_params(argv: list[str]) -> dict[str, str]:
 """PLUGINS"""
 
 
-def set_plugincontent(content=None, category=None):
+def set_plugincontent(content=None, category=None, sort_method=None):
+    handle = int(sys.argv[1])
     if category:
-        setPluginCategory(int(sys.argv[1]), category)
+        setPluginCategory(handle, category)
     if content:
-        setContent(int(sys.argv[1]), content)
-    if category == ADDON.getLocalizedString(32601):
-        addSortMethod(int(sys.argv[1]), SORT_METHOD_LASTPLAYED)
+        setContent(handle, content)
+    if sort_method is not None:
+        addSortMethod(handle, sort_method)
 
 
 """STRINGS"""

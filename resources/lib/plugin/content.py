@@ -99,24 +99,25 @@ class PluginContent(object):
     :param li: target listitem.
     """
 
-    def __init__(self, params: dict, li) -> None:
+    def __init__(self, params: dict[str, str]) -> None:
         self.params = params
-        self.li = li
-        self.label = params.get("label", "")
+        self.li = []
 
+        self.label = params.get("label", "")
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
         self.target = params.get("target", "Container")
         if self.target.isdigit():
             self.target = f"Container({self.target})"
+
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
-
         self.expected = params.get("focus_guard")
         self.identity_getter = lambda: infolabel(f"{self.target}.CurrentItem")
 
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
+
         self.filter_unwatched = {
             "field": "playcount",
             "operator": "lessthan",
@@ -216,7 +217,7 @@ class PluginContent(object):
                 self.li,
                 [
                     {
-                        "file": str(resume),
+                        "file": "progress",
                         "label": str(resume),
                         "resume": {"position": resume, "total": 100},
                         "unwatchedepisodes": str(unwatched),
@@ -265,6 +266,8 @@ class PluginContent(object):
             )
 
     def in_progress(self):
+        from xbmcplugin import SORT_METHOD_LASTPLAYED
+
         filters = [self.filter_inprogress]
         if self.dbtype != "tvshow":
             json_query = json_call(
@@ -311,7 +314,11 @@ class PluginContent(object):
                         episode["studio"] = tvshow_json_query.get("studio")
                         episode["mpaa"] = tvshow_json_query.get("mpaa")
                 add_items(self.li, json_query, media_type="episode")
-        set_plugincontent(content="movies", category=ADDON.getLocalizedString(32601))
+        set_plugincontent(
+            content="movies",
+            category=ADDON.getLocalizedString(32601),
+            sort_method=SORT_METHOD_LASTPLAYED,
+        )
 
     def next_up(self):
         filters = [self.filter_inprogress]
