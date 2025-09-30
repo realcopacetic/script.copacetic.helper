@@ -143,6 +143,17 @@ class PluginContent(object):
             "value": self.exclude_value,
         }
 
+    def build(self, action: str) -> list[tuple]:
+        """Execute a whitelisted action and return the collected directory tuples."""
+        name = action.lower()
+        if name not in ALLOWED_ACTIONS or not hasattr(self, name):
+            log(f"PluginContent → Ignoring unknown action: {action}")
+            return []
+
+        self.li.clear()
+        getattr(self, name)()
+        return self.li
+
     @log_duration
     def artwork(self) -> None:
         """
@@ -164,7 +175,7 @@ class PluginContent(object):
                 return
 
             data = {"file": self.label, "art": dict(processed or {})}
-            add_items(self.li, [data], "artwork")
+            add_items(self.li, [data], media_type="artwork")
 
     @log_duration
     def jumpbutton(self) -> None:
@@ -178,7 +189,7 @@ class PluginContent(object):
 
     @log_duration
     def metadata(self) -> None:
-        """Fetch/attach metadata to listitem; guarded against focus changes."""
+        """Fetch/attach cleaned metadata to a helper list item; aborts if focus changes."""
         with focus_guard(self.expected, "metadata", self.identity_getter) as guard:
             if not guard:
                 return
@@ -188,15 +199,11 @@ class PluginContent(object):
             if not guard.alive():
                 return
 
-            add_items(self.li, [data.fetched], "metadata")
+            add_items(self.li, [data.fetched], media_type="metadata")
 
     @log_duration
     def progressbar(self) -> None:
-        """
-        Standalone progress bar endpoint to calculate progress percentage across
-        media content types (playable, sets, shows, seasons), provide an unwatched
-        label (for sets, shows, seasons) and update/position a progress bar in UI.
-        """
+        """Compute percent/unwatched and position the progress UI; also exposes values via helper list."""
         with focus_guard(self.expected, "progressbar", self.identity_getter) as guard:
             if not guard:
                 return
@@ -215,7 +222,7 @@ class PluginContent(object):
                         "unwatchedepisodes": str(unwatched),
                     }
                 ],
-                "progressbar",
+                media_type="progressbar",
             )
 
             if not guard.alive():
@@ -272,7 +279,7 @@ class PluginContent(object):
             except Exception:
                 log("PluginContent → in_progress: No movies found.")
             else:
-                add_items(self.li, json_query, type="movie")
+                add_items(self.li, json_query, media_type="movie")
         if self.dbtype != "movie":
             json_query = json_call(
                 "VideoLibrary.GetEpisodes",
@@ -303,7 +310,7 @@ class PluginContent(object):
                     else:
                         episode["studio"] = tvshow_json_query.get("studio")
                         episode["mpaa"] = tvshow_json_query.get("mpaa")
-                add_items(self.li, json_query, type="episode")
+                add_items(self.li, json_query, media_type="episode")
         set_plugincontent(content="movies", category=ADDON.getLocalizedString(32601))
 
     def next_up(self):
@@ -390,7 +397,7 @@ class PluginContent(object):
                     f"PluginContent → next_up: No next episodes found for {episode['title']}"
                 )
             else:
-                add_items(self.li, episode_details, type="episode")
+                add_items(self.li, episode_details, media_type="episode")
                 set_plugincontent(
                     content="episodes", category=ADDON.getLocalizedString(32600)
                 )
@@ -416,7 +423,7 @@ class PluginContent(object):
         except Exception:
             log("PluginContent → director_credits: No movies found.")
         else:
-            add_items(self.li, json_query, type="movie")
+            add_items(self.li, json_query, media_type="movie")
         json_query = json_call(
             "VideoLibrary.GetMusicVideos",
             properties=JSON_MAP["musicvideo_properties"],
@@ -429,7 +436,7 @@ class PluginContent(object):
         except Exception:
             log("PluginContent → director_credits: No music videos found.")
         else:
-            add_items(self.li, json_query, type="musicvideo")
+            add_items(self.li, json_query, media_type="musicvideo")
         set_plugincontent(content="videos", category=ADDON.getLocalizedString(32602))
 
     def actor_credits(self):
@@ -471,7 +478,7 @@ class PluginContent(object):
             )
             if dict_to_remove and total_items > 1:
                 movies_json_query.remove(dict_to_remove)
-            add_items(self.li, movies_json_query, type="movie")
+            add_items(self.li, movies_json_query, media_type="movie")
         # If there are tvshow results, remove the current item if it is in the list, then add the remaining to the plugin directory
         try:
             tvshows_json_query = tvshows_json_query["result"]["tvshows"]
@@ -487,5 +494,5 @@ class PluginContent(object):
                 if dict_to_remove is not None and total_items > 1
                 else None
             )
-            add_items(self.li, tvshows_json_query, type="tvshow")
+            add_items(self.li, tvshows_json_query, media_type="tvshow")
         set_plugincontent(content="videos", category=ADDON.getLocalizedString(32603))
