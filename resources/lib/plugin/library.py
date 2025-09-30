@@ -1,12 +1,13 @@
 # author: realcopacetic
 
 from functools import wraps
+from typing import Callable
 
 import xbmc
 from xbmcgui import ListItem
 
 
-def add_items(li, items, media_type="metadata"):
+def add_items(li: list[tuple], items: list[dict], media_type: str = "metadata") -> None:
     """
     Appends a list of file-based ListItems to a Kodi list container.
 
@@ -30,7 +31,9 @@ def add_items(li, items, media_type="metadata"):
         li.append((item["file"], li_item, False))
 
 
-def create_li_item(item, label, default_icon, properties=None):
+def create_li_item(
+    item: dict, label: str | None, default_icon: str, properties: dict | None = None
+) -> ListItem:
     """
     Creates a Kodi ListItem with basic art and optional properties.
 
@@ -50,7 +53,9 @@ def create_li_item(item, label, default_icon, properties=None):
     return li_item
 
 
-def videoinfotag_setter(media_type, info_mapping, stream_fields=None):
+def videoinfotag_setter(
+    media_type: str, info_mapping: dict, stream_fields: dict | None = None
+) -> Callable:
     """
     Decorator that injects video metadata and stream details into ListItem.
 
@@ -59,6 +64,7 @@ def videoinfotag_setter(media_type, info_mapping, stream_fields=None):
     :param stream_fields: Dict mapping stream types to setter functions.
     :returns: Decorator wrapping a ListItem creation function.
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(item):
@@ -106,7 +112,7 @@ def videoinfotag_setter(media_type, info_mapping, stream_fields=None):
         "writer": "Writers",
     },
 )
-def set_metadata(item):
+def set_metadata(item: dict) -> ListItem:
     """
     Builds a Kodi ListItem for helper service using mapped metadata.
 
@@ -121,7 +127,7 @@ def set_metadata(item):
 
 
 @videoinfotag_setter("", {})
-def set_progressbar(item):
+def set_progressbar(item: dict) -> ListItem:
     """
     Builds a Kodi ListItem for progressbar helper using mapped metadata.
 
@@ -136,7 +142,7 @@ def set_progressbar(item):
     )
 
 
-def set_artwork(item):
+def set_artwork(item: dict) -> ListItem:
     """
     Builds a Kodi ListItem for artwork helper service using mapped artwork.
 
@@ -170,7 +176,7 @@ def set_artwork(item):
     },
     stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
 )
-def set_movie(item):
+def set_movie(item: dict) -> ListItem:
     """
     Builds a Kodi ListItem for a movie using mapped metadata and artwork.
 
@@ -192,7 +198,7 @@ def set_movie(item):
         "year": "Year",
     },
 )
-def set_tvshow(item):
+def set_tvshow(item: dict) -> ListItem:
     """
     Builds a Kodi ListItem for a tv show using mapped metadata and artwork.
 
@@ -237,7 +243,7 @@ def set_tvshow(item):
     },
     stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
 )
-def set_episode(item):
+def set_episode(item: dict) -> ListItem:
     """
     Builds a Kodi ListItem for an episode using mapped metadata and artwork.
 
@@ -264,7 +270,7 @@ def set_episode(item):
     },
     stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
 )
-def set_musicvideo(item):
+def set_musicvideo(item: dict) -> ListItem:
     """
     Builds a Kodi ListItem for a music video using mapped metadata and artwork.
 

@@ -25,6 +25,18 @@ from resources.lib.shared.utilities import (
     to_int,
 )
 
+ALLOWED_ACTIONS = {
+    "artwork",
+    "jumpbutton",
+    "metadata",
+    "progressbar",
+    "typewriter",
+    "in_progress",
+    "next_up",
+    "director_credits",
+    "actor_credits",
+}
+
 
 class _FocusGuard:
     """Holds the expected item identity and lets you re-check later."""
@@ -136,9 +148,7 @@ class PluginContent(object):
         """
         Process/calculate artwork and attach to listitem; aborts if focus changes.
         """
-        with focus_guard(
-            self.expected, "artwork", self.identity_getter
-        ) as guard:
+        with focus_guard(self.expected, "artwork", self.identity_getter) as guard:
             if not guard:
                 return
 
@@ -169,9 +179,7 @@ class PluginContent(object):
     @log_duration
     def metadata(self) -> None:
         """Fetch/attach metadata to listitem; guarded against focus changes."""
-        with focus_guard(
-            self.expected, "metadata", self.identity_getter
-        ) as guard:
+        with focus_guard(self.expected, "metadata", self.identity_getter) as guard:
             if not guard:
                 return
 
@@ -194,7 +202,9 @@ class PluginContent(object):
                 return
 
             pb = ProgressBarManager(target=f"{self.target}.ListItem")
-            resume, unwatched = pb.calculate(set_target=self.params.get("set_target", None))
+            resume, unwatched = pb.calculate(
+                set_target=self.params.get("set_target", None)
+            )
             add_items(
                 self.li,
                 [

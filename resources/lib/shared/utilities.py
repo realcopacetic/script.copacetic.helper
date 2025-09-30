@@ -390,6 +390,63 @@ def log_duration(func):
     return wrapper
 
 
+"""PARSING"""
+
+
+def parse_params(argv: list[str]) -> dict[str, str]:
+    """
+    Unified, lenient param parser for Kodi plugin & script entrypoints.
+
+    - Plugin: argv[2] is a query string (e.g. '?a=1&label=AC/DC & Friends').
+      Tolerates stray '&' in values by stitching segments without '='
+      back onto the previous value before normal parse_qsl decoding.
+
+    - Script: argv[1:] is a list of 'k=v' segments (e.g. ['a=1','label=AC/DC, Live & Loud']).
+      Joins on ',' (RunScript convention), then stitches segments without '='
+      back onto the previous value (tolerates commas/& in values).
+
+    Always returns: dict[str, str] with percent-decoded values (unquote_plus).
+    """
+    # --- Plugin style: sys.argv[2] is a single query string ---
+    if len(argv) >= 3 and ("?" in argv[2] or "=" in argv[2]):
+        qs = argv[2][1:] if argv[2].startswith("?") else argv[2]
+        qs = (
+            qs.replace("&amp;", "&") if "&amp;" in qs else qs
+        )  # normalize XML entity if present
+        stitched: list[str] = []
+        for seg in qs.split("&"):
+            if not stitched:
+                stitched.append(seg if "=" in seg else f"{seg}=")
+            else:
+                stitched.append(seg if "=" in seg else stitched.pop() + "&" + seg)
+        return {
+            k: urllib.unquote_plus(v)
+            for k, v in urllib.parse_qsl(
+                "&".join(stitched), keep_blank_values=True
+            )
+        }
+
+    # --- Script style: sys.argv[1:] is a list of 'k=v' segments ---
+    raw = ",".join(argv[1:])
+    stitched: list[str] = []
+    for seg in raw.split(","):
+        if not stitched:
+            stitched.append(seg if "=" in seg else f"{seg}=")
+        else:
+            stitched.append(seg if "=" in seg else stitched.pop() + "," + seg)
+
+    out: dict[str, str] = {}
+    for seg in stitched:
+        if not seg:
+            continue
+        if "=" not in seg:
+            out[seg] = ""
+            continue
+        k, v = seg.split("=", 1)
+        out[k] = urllib.unquote_plus(v)
+    return out
+
+
 """PLUGINS"""
 
 

@@ -19,7 +19,7 @@ class PluginListing(object):
     Used to expose widget routes via plugin content listing.
     """
 
-    def __init__(self, params, li):
+    def __init__(self, params: dict, li: list) -> None:
         """
         Initializes the PluginListing and adds ListItems immediately.
 
@@ -30,7 +30,7 @@ class PluginListing(object):
         self.li = li
         self.list_widgets()
 
-    def list_widgets(self):
+    def list_widgets(self) -> None:
         """
         Builds widget items for each category in the LISTING dictionary.
 
@@ -42,7 +42,7 @@ class PluginListing(object):
                 self.plugin_category = item["name"]
                 self._add_item(item["name"], url)
 
-    def _encode_url(self, **kwargs):
+    def _encode_url(self, **kwargs: str) -> str:
         """
         Encodes parameters into a plugin-compatible URL.
 
@@ -52,7 +52,7 @@ class PluginListing(object):
         kwargs = {key: value for key, value in kwargs.items() if value}
         return f"{sys.argv[0]}?{urlencode(kwargs)}"
 
-    def _add_item(self, label, url):
+    def _add_item(self, label: str, url: str) -> None:
         """
         Creates and appends a ListItem to the directory with proper art and info tags.
 

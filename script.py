@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 from resources.lib.script.actions import *
-from resources.lib.shared.utilities import sys
+from resources.lib.shared.utilities import parse_params, sys
 
 
 class Main:
@@ -14,16 +14,13 @@ class Main:
         function = eval(self.params["action"])
         function(**self.params)
 
-    def _parse_params(self):
+    def _parse_argv(self) -> None:
         try:
-            for key, value in self.params.items():
-                if ("'\"" and "\"'") in value:
-                    start_pos = value.find("'\"")
-                    end_pos = value.find("\"'")
-                    clean_title = value[start_pos + 2 : end_pos]
-                    self.params[key] = clean_title
-        except Exception:
+            self.params = parse_params(sys.argv)
+        except Exception as e:
+            log(f"_parse_argv error: {e}")
             self.params = {}
+        log(f"Script initialized with params: {self.params}")
 
 
 if __name__ == "__main__":
