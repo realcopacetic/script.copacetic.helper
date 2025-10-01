@@ -67,17 +67,15 @@ class DataHandler:
         """
         label = return_label(self.infolabels["Label"])
         encoded_label = url_encode(label)
-        dict = {
+        return {
             "file": encoded_label,
             "label": encoded_label,
-            "art": self._multiart(),
             "director": split_random(self.infolabels["Director"]),
             "dbtype": self.dbtype,
             "genre": split_random(self.infolabels["Genre"]),
             "studio": self._studio(),
             "writer": split(self.infolabels["Writer"]),
         }
-        return dict
 
     def _studio(self) -> str:
         """
@@ -91,23 +89,6 @@ class DataHandler:
             else split(self.infolabels["Studio"])
         )
         return studio.replace("+", "") if studio else ""
-
-    def _multiart(self) -> dict[str, str]:
-        """
-        Collect multiart entries based on the active type from label 6400.
-
-        :return: Dict of keys like "fanart", "fanart1", … → art URLs.
-        """
-        if not (art_type := infolabel("Control.GetLabel(6400)")):
-            return {}
-
-        return {
-            f"multiart{pos if pos else ''}": art
-            for pos in range(16)
-            if (
-                art := infolabel(f"{self.target}.Art({art_type}{pos if pos else ''})")
-            )
-        }
 
 
 class JumpButton:

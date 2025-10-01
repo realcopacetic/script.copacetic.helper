@@ -67,7 +67,7 @@ class _FocusGuard:
 
 @contextmanager
 def focus_guard(
-    expected_identity: str, caller_name: str, identity_getter: Callable[[], str]
+    expected_identity: str | None, caller_name: str | None, identity_getter: Callable[[], str]
 ) -> Generator[Optional[_FocusGuard], None, None]:
     """
     Context guard for focus-sensitive helpers; yields guard or None if pre-check fails.
@@ -79,6 +79,10 @@ def focus_guard(
     :param identity_getter: getter
     :return: guard|None
     """
+    if expected_identity is None:
+        yield True  # always alive
+        return
+    
     if identity_getter() != expected_identity:
         log(
             f"PluginContent → {caller_name}: ABORTED → '{expected_identity}' lost focus"
