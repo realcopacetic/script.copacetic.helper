@@ -1,8 +1,5 @@
 # author: realcopacetic
 
-import time
-
-import xbmc
 import xbmcvfs
 from PIL import Image
 
@@ -14,10 +11,8 @@ from resources.lib.shared.utilities import (
     BLURS,
     CROPS,
     TEMPS,
-    condition,
     infolabel,
     log,
-    window_property,
 )
 
 

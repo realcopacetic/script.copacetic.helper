@@ -14,6 +14,7 @@ from resources.lib.plugin.helpers import (
     TypewriterAnimation,
 )
 from resources.lib.plugin.json_map import JSON_MAP
+from resources.lib.art.multiart import collect_multiart
 from resources.lib.plugin.library import *
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
@@ -43,17 +44,19 @@ ALLOWED_ACTIONS = {
 class _FocusGuard:
     """Holds the expected item identity and lets you re-check later."""
 
-    __slots__ = ("expected_identity", "caller_name", "identity_getter")
+    __slots__ = ("expected_identity", "caller_name", "identity_getter", "focus_check")
 
     def __init__(
         self,
         expected_identity: str,
         caller_name: str,
         identity_getter: Callable[[], str],
+        focus_check: Optional[Callable[[], bool]] = None,
     ):
         self.expected_identity = expected_identity
         self.caller_name = caller_name
         self.identity_getter = identity_getter
+        self.focus_check = focus_check
 
     def alive(self) -> bool:
         """Re-check that focus hasn't changed."""
@@ -62,12 +65,20 @@ class _FocusGuard:
                 f"PluginContent → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus"
             )
             return False
+        if self.focus_check is not None and not self.focus_check():
+            log(
+                f"PluginContent → {self.caller_name}: ABORTED → Container lost focus"
+            )
+            return False
         return True
 
 
 @contextmanager
 def focus_guard(
-    expected_identity: str | None, caller_name: str | None, identity_getter: Callable[[], str]
+    expected_identity: str | None,
+    caller_name: str | None,
+    identity_getter: Callable[[], str],
+    target: int | None = None,
 ) -> Generator[Optional[_FocusGuard], None, None]:
     """
     Context guard for focus-sensitive helpers; yields guard or None if pre-check fails.
@@ -77,12 +88,15 @@ def focus_guard(
     :param expected_identity: snapshot
     :param caller_name: for logs
     :param identity_getter: getter
+    :param target: container/control id to enforce Control.HasFocus(id); None to skip
     :return: guard|None
     """
+    focus_check = (lambda: condition(f"Control.HasFocus({target})")) if target is not None else None
+
     if expected_identity is None:
         yield True  # always alive
         return
-    
+
     if identity_getter() != expected_identity:
         log(
             f"PluginContent → {caller_name}: ABORTED → '{expected_identity}' lost focus"
@@ -90,7 +104,14 @@ def focus_guard(
         yield None
         return
 
-    guard = _FocusGuard(expected_identity, caller_name, identity_getter)
+    if focus_check is not None and not focus_check():
+        log(
+            f"PluginContent → {caller_name}: ABORTED → Container {target} lost focus"
+        )
+        yield None
+        return
+
+    guard = _FocusGuard(expected_identity, caller_name, identity_getter, focus_check)
     try:
         yield guard
     finally:
@@ -112,14 +133,13 @@ class PluginContent(object):
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
-        self.target = params.get("target", "Container")
-        if self.target.isdigit():
-            self.target = f"Container({self.target})"
+        self.target = params.get("target")
+        self.container = f"Container({self.target})" if self.target and self.target.isdigit() else "Container"
 
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
         self.expected = params.get("focus_guard")
-        self.identity_getter = lambda: infolabel(f"{self.target}.CurrentItem")
+        self.identity_getter = lambda: infolabel(f"{self.container}.CurrentItem")
 
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
@@ -174,14 +194,24 @@ class PluginContent(object):
             image_processor = ImageEditor(sqlite).image_processor
             processed = image_processor(
                 self.dbid,
-                f"{self.target}.ListItem",
+                f"{self.container}.ListItem",
                 {"clearlogo": "crop", "fanart": "blur"},
             )
 
             if not guard.alive():
                 return
 
-            data = {"file": self.label, "art": dict(processed or {})}
+            art = dict(processed or {})
+            art |= collect_multiart(
+                target=f"{self.container}.ListItem",
+                art_type=self.params.get("multiart"),
+                max_items=self.params.get("multiart_max"),
+            )
+
+            if not guard.alive():
+                return
+
+            data = {"file": self.dbid, "art": art}
             add_items(self.li, [data], media_type="artwork")
 
     @log_duration
@@ -201,7 +231,7 @@ class PluginContent(object):
             if not guard:
                 return
 
-            data = DataHandler(f"{self.target}.ListItem", self.dbtype, self.dbid)
+            data = DataHandler(f"{self.container}.ListItem", self.dbtype, self.dbid)
 
             if not guard.alive():
                 return
@@ -215,7 +245,7 @@ class PluginContent(object):
             if not guard:
                 return
 
-            pb = ProgressBarManager(target=f"{self.target}.ListItem")
+            pb = ProgressBarManager(target=f"{self.container}.ListItem")
             resume, unwatched = pb.calculate(
                 set_target=self.params.get("set_target", None)
             )
@@ -255,8 +285,9 @@ class PluginContent(object):
         label_id = self.params.get("label_id")
         line_step = self.params.get("line_step")
         max_lines = to_int(self.params.get("max_lines"), None)
+        target_id = to_int(self.target, None)
 
-        with focus_guard(self.expected, "typewriter", self.identity_getter) as guard:
+        with focus_guard(self.expected, "typewriter", self.identity_getter, target_id) as guard:
             if not guard:
                 return
 

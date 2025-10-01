@@ -37,7 +37,7 @@ def create_li_item(
     """
     Creates a Kodi ListItem with basic art and optional properties.
 
-    :param item: Dictionary containing artwork and other metadata.
+    :param item: Dictionary containing metadata.
     :param label: Display label for the item.
     :param default_icon: Fallback icon if artwork is missing.
     :param properties: Optional dictionary of ListItem properties.

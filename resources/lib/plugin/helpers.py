@@ -500,7 +500,7 @@ class LabelTruncator:
         max_len = self.ceiling or len(text)
         control.setText(text)
         xbmc.sleep(20)
-        if not xbmc.getCondVisibility(f"Container({self.control_id}).HasNext"):
+        if not condition(f"Container({self.control_id}).HasNext"):
             return text
 
         floor, ceiling = self.floor, max_len
@@ -516,7 +516,7 @@ class LabelTruncator:
             test = text[:slice_point] + self.ellipsis
             control.setText(test)
             xbmc.sleep(20)
-            if xbmc.getCondVisibility(f"Container({self.control_id}).HasNext"):
+            if condition(f"Container({self.control_id}).HasNext"):
                 ceiling = mid
             else:
                 best_fit = slice_point
@@ -538,10 +538,7 @@ class LabelTruncator:
         try:
             control = self.window.getControl(self.control_id)
         except Exception:
-            xbmc.log(
-                f"{self.__class__.__name__}: Control {self.control_id} not found",
-                xbmc.LOGWARNING,
-            )
+            log(f"{self.__class__.__name__}: Control {self.control_id} not found")
             return text
 
         if len(text) <= self.floor:
