@@ -391,42 +391,6 @@ def log_duration(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-"""PARSING"""
-# extract k=v pairs where value is everything up to next &KEY= (or end)
-_PLUGIN_KV = re.compile(r"([A-Za-z0-9_.%-]+)=(.*?)(?=&[A-Za-z0-9_.%-]+=|$)")
-# extract k=v pairs where value is everything up to next ,KEY= (or end)
-_SCRIPT_KV = re.compile(r"([A-Za-z0-9_.%-]+)=(.*?)(?=,[A-Za-z0-9_.%-]+=|$)")
-
-def parse_params(argv: list[str]) -> dict[str, str]:
-    """
-    Unified param parser for Kodi plugin and script entrypoints.
-
-    Plugin mode:
-      - argv[2] is a query string (e.g. '?info=x&label=Lilo & Stitch').
-      - Extracts pairs even when values contain raw '&'.
-      - '+' remains literal (we use urllib.unquote, not unquote_plus).
-
-    Script mode (RunScript):
-      - argv[1:] are 'k=v' segments joined by commas.
-      - Extracts pairs even when values contain raw commas.
-
-    Returns: dict[str, str] (percent-decoded values).
-    """
-    # plugin argv[2]
-    if len(argv) >= 3 and ("?" in argv[2] or "=" in argv[2]):
-        q = argv[2][1:] if argv[2].startswith("?") else argv[2]
-        q = q.replace("&amp;", "&")  # normalize just in case
-
-        return {k: urllib.unquote(v) for k, v in _PLUGIN_KV.findall(q)}
-
-    # script argv[1:]
-    raw = ",".join(argv[1:]) if len(argv) > 1 else ""
-    if not raw:
-        return {}
-
-    return {k: urllib.unquote(v) for k, v in _SCRIPT_KV.findall(raw)}
-
-
 """PLUGINS"""
 
 

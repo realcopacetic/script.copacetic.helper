@@ -1,9 +1,10 @@
 # author: realcopacetic
 
+import sys
 from typing import Callable
 
-from resources.lib.script.actions import *
-from resources.lib.shared.utilities import parse_params, sys
+from resources.lib.shared.parser import parse_params
+from resources.lib.shared.utilities import log
 
 
 class Main:
@@ -16,7 +17,7 @@ class Main:
         if not action:
             log("No 'action' provided; aborting.")
             return
-        
+
         if (fn := self._dispatch(action)) is None:
             log(f"Unknown action: {fn}")
             return
@@ -25,6 +26,8 @@ class Main:
         try:
             fn(**kwargs)
             log(f"Script ran action '{action}' with params: {kwargs}")
+        except TypeError as e:
+            log(f"Action '{action}' arg mismatch: {e}")
         except Exception as e:
             log(f"Action '{action}' raised: {e}")
 
@@ -34,9 +37,7 @@ class Main:
         preserves literal '+', tolerates raw '&' and commas in values, and percent-decodes.
         """
         try:
-            self.params = parse_params(sys.argv)
-        except TypeError as e:
-            log(f"Action '{action}' arg mismatch: {e}")
+            self.params = parse_params(sys.argv, mode="script")
         except Exception as e:
             log(f"_parse_argv error: {e}")
             self.params = {}
@@ -47,4 +48,4 @@ class Main:
 
         Returns None if the action is not registered.
         """
-        return self._registry[action]
+        return self._registry.get(action)

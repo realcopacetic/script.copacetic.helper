@@ -1,10 +1,13 @@
 # author: realcopacetic
 
+import sys
+
 import xbmcplugin
 
-from resources.lib.plugin.content import PluginContent, ALLOWED_ACTIONS
-from resources.lib.shared.utilities import log, sys, parse_params
+from resources.lib.plugin.content import ALLOWED_ACTIONS, PluginContent
 from resources.lib.plugin.listing import PluginListing
+from resources.lib.shared.parser import parse_params
+from resources.lib.shared.utilities import log
 
 
 class Main:
@@ -27,7 +30,7 @@ class Main:
     def _parse_argv(self) -> None:
         """Parse argv using parser (handles both plugin/script styles)."""
         try:
-            self.params = parse_params(sys.argv)
+            self.params = parse_params(sys.argv, mode="plugin")
         except Exception as e:
             log(f"_parse_argv error: {e}")
             self.params = {}
