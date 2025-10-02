@@ -28,7 +28,16 @@ from resources.lib.shared.utilities import (
     to_int,
 )
 
-ALLOWED_ACTIONS = {
+PLUGIN_REGISTRY = {}
+
+
+def info(fn):
+    """Decorator to auto-register actions to whitelist"""
+    PLUGIN_REGISTRY[fn.__name__] = fn
+    return fn
+
+
+ALLOWED_INFO = {
     "artwork",
     "jumpbutton",
     "metadata",

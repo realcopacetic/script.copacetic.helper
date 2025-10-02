@@ -4,7 +4,7 @@ import sys
 
 import xbmcplugin
 
-from resources.lib.plugin.content import ALLOWED_ACTIONS, PluginContent
+from resources.lib.plugin.content import ALLOWED_INFO, PluginContent
 from resources.lib.plugin.listing import PluginListing
 from resources.lib.shared.parser import parse_params
 from resources.lib.shared.utilities import log
@@ -13,7 +13,7 @@ from resources.lib.shared.utilities import log
 class Main:
     """Entry point for plugins.
 
-    Parses argv, dispatches actions via `info`, and writes directory items
+    Parses argv, dispatches content via `info`, and writes directory items
     back to Kodi using xbmcplugin.
     """
 
@@ -36,13 +36,13 @@ class Main:
             self.params = {}
 
     def run_plugin(self) -> None:
-        """Dispatch a plugin action (from ?info=...) and emit its items."""
-        action = (self.info or "").lower()
-        if action not in ALLOWED_ACTIONS:
-            log(f"Ignoring unknown action: {self.info}")
+        """Dispatch a plugin info source (from ?info=...) and emit its items."""
+        info = (self.info or "").lower()
+        if info not in ALLOWED_INFO:
+            log(f"Ignoring unknown info: {self.info}")
             return
 
-        items = PluginContent(self.params).build(action)
+        items = PluginContent(self.params).build(info)
         self._additems(items)
 
     def run_listing(self) -> None:
