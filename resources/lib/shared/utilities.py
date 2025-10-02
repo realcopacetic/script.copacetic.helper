@@ -407,41 +407,57 @@ def parse_params(argv: list[str]) -> dict[str, str]:
 
     Always returns: dict[str, str] with percent-decoded values (unquote_plus).
     """
-    # --- Plugin style: sys.argv[2] is a single query string ---
+    def _percent_decode(s: str) -> str:
+        # Only percent-decode; do NOT treat '+' as space.
+        return urllib.unquote(s)
+
+    # --- Plugin style ---
     if len(argv) >= 3 and ("?" in argv[2] or "=" in argv[2]):
         qs = argv[2][1:] if argv[2].startswith("?") else argv[2]
-        qs = (
-            qs.replace("&amp;", "&") if "&amp;" in qs else qs
-        )  # normalize XML entity if present
+        qs = qs.replace("&amp;", "&")
+
         stitched: list[str] = []
         for seg in qs.split("&"):
             if not stitched:
                 stitched.append(seg if "=" in seg else f"{seg}=")
+                continue
+            if "=" in seg:
+                stitched.append(seg)
             else:
-                stitched.append(seg if "=" in seg else stitched.pop() + "&" + seg)
-        return {
-            k: urllib.unquote_plus(v)
-            for k, v in urllib.parse_qsl("&".join(stitched), keep_blank_values=True)
-        }
+                stitched[-1] = stitched[-1] + "&" + seg
 
-    # --- Script style: sys.argv[1:] is a list of 'k=v' segments ---
+        out: dict[str, str] = {}
+        for kv in stitched:
+            if not kv:
+                continue
+            if "=" in kv:
+                k, v = kv.split("=", 1)
+            else:
+                k, v = kv, ""
+            out[k] = _percent_decode(v)
+        return out
+
+    # --- Script style ---
     raw = ",".join(argv[1:])
     stitched: list[str] = []
     for seg in raw.split(","):
         if not stitched:
             stitched.append(seg if "=" in seg else f"{seg}=")
+            continue
+        if "=" in seg:
+            stitched.append(seg)
         else:
-            stitched.append(seg if "=" in seg else stitched.pop() + "," + seg)
+            stitched[-1] = stitched[-1] + "," + seg
 
     out: dict[str, str] = {}
-    for seg in stitched:
-        if not seg:
+    for kv in stitched:
+        if not kv:
             continue
-        if "=" not in seg:
-            out[seg] = ""
-            continue
-        k, v = seg.split("=", 1)
-        out[k] = urllib.unquote_plus(v)
+        if "=" in kv:
+            k, v = kv.split("=", 1)
+        else:
+            k, v = kv, ""
+        out[k] = _percent_decode(v)
     return out
 
 
