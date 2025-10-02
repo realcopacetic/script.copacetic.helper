@@ -15,7 +15,16 @@ from resources.lib.shared.utilities import (
     xbmc,
 )
 
+REGISTRY = {}
 
+
+def action(fn):
+    """Decorator to auto-register actions to whitelist"""
+    REGISTRY[fn.__name__] = fn
+    return fn
+
+
+@action
 def clean_filename(label=False, **kwargs):
     """
     Cleans a filename by removing extensions and formatting characters.
@@ -38,6 +47,7 @@ def clean_filename(label=False, **kwargs):
     window_property("Return_Label", value=label)
 
 
+@action
 def dialog_yesno(heading, message, **kwargs):
     """
     Opens a yes/no dialog and runs a set of Kodi actions based on the result.
@@ -58,6 +68,7 @@ def dialog_yesno(heading, message, **kwargs):
             log_and_execute(action)
 
 
+@action
 def globalsearch_input(**kwargs):
     """
     Prompts the user for a global search query and activates the search window.
@@ -73,6 +84,7 @@ def globalsearch_input(**kwargs):
         xbmc.executebuiltin("ActivateWindow(1180)")
 
 
+@action
 def hex_contrast_check(**kwargs):
     """
     Calculates contrast for a hex color and sets Skin.String(Accent_Color_Contrast).
@@ -96,6 +108,7 @@ def hex_contrast_check(**kwargs):
         xbmc.executebuiltin(f"Skin.SetString(Accent_Color_Contrast,{best_contrast})")
 
 
+@action
 def jumpbutton(**kwargs):
     """Updates the position of the jump scrollbar indicator."""
     from resources.lib.plugin.helpers import JumpButton
@@ -109,6 +122,7 @@ def jumpbutton(**kwargs):
     )
 
 
+@action
 def play_album(**kwargs):
     """
     Starts playback of an album by ID.
@@ -127,6 +141,7 @@ def play_album(**kwargs):
         )
 
 
+@action
 def play_album_from_track(**kwargs):
     """
     Plays an album starting from a specific track.
@@ -160,6 +175,7 @@ def play_album_from_track(**kwargs):
         json_call("Player.GoTo", params={"playerid": 0, "to": track})
 
 
+@action
 def play_items(id, **kwargs):
     """
     Plays all media items in a container by index.
@@ -222,6 +238,7 @@ def play_items(id, **kwargs):
     )
 
 
+@action
 def play_radio(**kwargs):
     """
     Builds a randomized genre-based playlist based on current song ID.
@@ -279,6 +296,7 @@ def play_radio(**kwargs):
         )
 
 
+@action
 def rate_song(**kwargs):
     """
     Sets the user rating for a song and updates skin string for MusicPlayer.
@@ -318,6 +336,7 @@ def rate_song(**kwargs):
         """
 
 
+@action
 def set_edit(id, **kwargs):
     """
     Focuses a Kodi control, sends text, and confirms it.
@@ -332,6 +351,7 @@ def set_edit(id, **kwargs):
     json_call("Input.SendText", params={"text": text, "done": True}, parent="set_edit")
 
 
+@action
 def shuffle_artist(**kwargs):
     """
     Starts shuffled playback for a given artist.
@@ -349,6 +369,7 @@ def shuffle_artist(**kwargs):
     )
 
 
+@action
 def subtitle_limiter(lang, user_trigger=True, **kwargs):
     """
     Switches to preferred subtitle stream or toggles through them.
@@ -384,6 +405,7 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
         log("Subtitle Limiter: Error - Playing video has no subtitles", force=True)
 
 
+@action
 def toggle_addon(id, **kwargs):
     """
     Enables or disables an addon and shows a notification.
@@ -406,6 +428,7 @@ def toggle_addon(id, **kwargs):
         DIALOG.notification(id, ADDON.getLocalizedString(32206))
 
 
+@action
 def dynamic_settings_window(**kwargs):
     """
     Opens a dynamic settings window as a modal dialog and collects 
@@ -416,7 +439,7 @@ def dynamic_settings_window(**kwargs):
 
     name = kwargs.get("name", "dynamic_window")
     window_property(name, value="true")
-    
+
     myWindow = DynamicEditor(
         f"{name}.xml", SKINXML, "Default", ""
     )
@@ -424,6 +447,7 @@ def dynamic_settings_window(**kwargs):
     del myWindow
 
 
+@action
 def update_views(**kwargs):
     """
     
@@ -434,6 +458,7 @@ def update_views(**kwargs):
     log_and_execute("ReloadSkin()")
 
 
+@action
 def widget_move(posa, posb, **kwargs):
     """
     Swaps widget configuration between two slots (A ↔ B).

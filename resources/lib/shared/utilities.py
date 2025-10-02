@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import json
+import re
 import sys
 import time
 import urllib.parse as urllib
@@ -391,74 +392,39 @@ def log_duration(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 """PARSING"""
-
+# extract k=v pairs where value is everything up to next &KEY= (or end)
+_PLUGIN_KV = re.compile(r"([A-Za-z0-9_.%-]+)=(.*?)(?=&[A-Za-z0-9_.%-]+=|$)")
+# extract k=v pairs where value is everything up to next ,KEY= (or end)
+_SCRIPT_KV = re.compile(r"([A-Za-z0-9_.%-]+)=(.*?)(?=,[A-Za-z0-9_.%-]+=|$)")
 
 def parse_params(argv: list[str]) -> dict[str, str]:
     """
-    Unified, lenient param parser for Kodi plugin & script entrypoints.
+    Unified param parser for Kodi plugin and script entrypoints.
 
-    - Plugin: argv[2] is a query string (e.g. '?a=1&label=AC/DC & Friends').
-      Tolerates stray '&' in values by stitching segments without '='
-      back onto the previous value before normal parse_qsl decoding.
+    Plugin mode:
+      - argv[2] is a query string (e.g. '?info=x&label=Lilo & Stitch').
+      - Extracts pairs even when values contain raw '&'.
+      - '+' remains literal (we use urllib.unquote, not unquote_plus).
 
-    - Script: argv[1:] is a list of 'k=v' segments (e.g. ['a=1','label=AC/DC, Live & Loud']).
-      Joins on ',' (RunScript convention), then stitches segments without '='
-      back onto the previous value (tolerates commas/& in values).
+    Script mode (RunScript):
+      - argv[1:] are 'k=v' segments joined by commas.
+      - Extracts pairs even when values contain raw commas.
 
-    Always returns: dict[str, str] with percent-decoded values (unquote_plus).
+    Returns: dict[str, str] (percent-decoded values).
     """
-    def _percent_decode(s: str) -> str:
-        # Only percent-decode; do NOT treat '+' as space.
-        return urllib.unquote(s)
-
-    # --- Plugin style ---
+    # plugin argv[2]
     if len(argv) >= 3 and ("?" in argv[2] or "=" in argv[2]):
-        qs = argv[2][1:] if argv[2].startswith("?") else argv[2]
-        qs = qs.replace("&amp;", "&")
+        q = argv[2][1:] if argv[2].startswith("?") else argv[2]
+        q = q.replace("&amp;", "&")  # normalize just in case
 
-        stitched: list[str] = []
-        for seg in qs.split("&"):
-            if not stitched:
-                stitched.append(seg if "=" in seg else f"{seg}=")
-                continue
-            if "=" in seg:
-                stitched.append(seg)
-            else:
-                stitched[-1] = stitched[-1] + "&" + seg
+        return {k: urllib.unquote(v) for k, v in _PLUGIN_KV.findall(q)}
 
-        out: dict[str, str] = {}
-        for kv in stitched:
-            if not kv:
-                continue
-            if "=" in kv:
-                k, v = kv.split("=", 1)
-            else:
-                k, v = kv, ""
-            out[k] = _percent_decode(v)
-        return out
+    # script argv[1:]
+    raw = ",".join(argv[1:]) if len(argv) > 1 else ""
+    if not raw:
+        return {}
 
-    # --- Script style ---
-    raw = ",".join(argv[1:])
-    stitched: list[str] = []
-    for seg in raw.split(","):
-        if not stitched:
-            stitched.append(seg if "=" in seg else f"{seg}=")
-            continue
-        if "=" in seg:
-            stitched.append(seg)
-        else:
-            stitched[-1] = stitched[-1] + "," + seg
-
-    out: dict[str, str] = {}
-    for kv in stitched:
-        if not kv:
-            continue
-        if "=" in kv:
-            k, v = kv.split("=", 1)
-        else:
-            k, v = kv, ""
-        out[k] = _percent_decode(v)
-    return out
+    return {k: urllib.unquote(v) for k, v in _SCRIPT_KV.findall(raw)}
 
 
 """PLUGINS"""

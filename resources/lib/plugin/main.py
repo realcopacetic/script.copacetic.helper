@@ -8,7 +8,7 @@ from resources.lib.plugin.listing import PluginListing
 
 
 class Main:
-    """Entry point for the helper plugin.
+    """Entry point for plugins.
 
     Parses argv, dispatches actions via `info`, and writes directory items
     back to Kodi using xbmcplugin.
@@ -19,8 +19,10 @@ class Main:
         self.info = self.params.get("info")
         if self.info:
             self.run_plugin()
+            log(f"PluginContent initialized with params: {self.params}")
         else:
             self.run_listing()
+            log(f"PluginListing initialized with params: {self.params}")
 
     def _parse_argv(self) -> None:
         """Parse argv using parser (handles both plugin/script styles)."""
@@ -29,7 +31,6 @@ class Main:
         except Exception as e:
             log(f"_parse_argv error: {e}")
             self.params = {}
-        log(f"PluginContent initialized with params: {self.params}")
 
     def run_plugin(self) -> None:
         """Dispatch a plugin action (from ?info=...) and emit its items."""
@@ -37,7 +38,7 @@ class Main:
         if action not in ALLOWED_ACTIONS:
             log(f"Ignoring unknown action: {self.info}")
             return
-        
+
         items = PluginContent(self.params).build(action)
         self._additems(items)
 
