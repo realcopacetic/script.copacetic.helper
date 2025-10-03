@@ -7,15 +7,16 @@ import xbmc
 from xbmcgui import ListItem
 
 
-def add_items(li: list[tuple], items: list[dict], media_type: str = "metadata") -> None:
+def add_items(items: list[dict], media_type: str = "metadata") -> list[tuple]:
     """
-    Appends a list of file-based ListItems to a Kodi list container.
+    Convert a list of item dicts into Kodi directory items.
+    Each dict must include a "file" key and relevant metadata.
 
-    :param li: The Kodi list container (e.g., a directory).
-    :param items: List of item dictionaries with metadata.
-    :param media_type: Media type used to determine handler function.
-    :returns: None
+    :param items: List of item dicts with at least a "file" key.
+    :param media_type: Handler type for setting ListItem properties.
+    :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
     """
+    li: list[tuple] = []
     type_mapping = {
         "metadata": set_metadata,
         "progressbar": set_progressbar,
@@ -29,7 +30,7 @@ def add_items(li: list[tuple], items: list[dict], media_type: str = "metadata") 
     for item in items:
         li_item = handler(item)
         li.append((item["file"], li_item, False))
-
+    return li
 
 def create_li_item(
     item: dict, label: str | None, default_icon: str, properties: dict | None = None

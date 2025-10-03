@@ -45,8 +45,9 @@ class Main:
         if not fn:
             log(f"Ignoring unknown info: {self.info}")
             return
-        items = fn(**self.params)
-        self._additems(items)
+        items = fn()
+        if items:
+            self._additems(items)
 
     def run_listing(self) -> None:
         """Emit the default plugin directory (top-level categories)."""
