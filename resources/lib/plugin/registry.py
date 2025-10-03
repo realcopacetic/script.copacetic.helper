@@ -37,9 +37,9 @@ class PluginInfoRegistry(type):
 
 def collect_info_handlers(inst: object) -> dict[str, Callable]:
     """
-    Collect bound info handlers from a PluginContent instance.
+    Collect bound info handlers from a PluginHandlers instance.
 
-    :param inst: PluginContent instance.
+    :param inst: PluginHandlers instance.
     :returns: Mapping of info name to bound method.
     """
     return {

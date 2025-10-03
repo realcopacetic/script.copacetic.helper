@@ -6,6 +6,32 @@ from typing import Callable
 import xbmc
 from xbmcgui import ListItem
 
+_LIST_ATTRS: set[str] = {
+    "Directors",
+    "Genres",
+    "Studios",
+    "Writers",
+    "Artists",
+    "Countries",
+    "ShowLinks",
+}
+_INT_ATTRS: set[str] = {
+    "DbId",
+    "Playcount",
+    "Duration",
+    "Year",
+    "Episode",
+    "Season",
+    "Top250",
+    "TrackNumber",
+}
+
+
+def _as_list(value) -> list[str]:
+    if isinstance(value, (list, tuple, set)):
+        return [str(v) for v in value if v not in (None, "")]
+    return [str(value)] if value not in (None, "") else []
+
 
 def add_items(items: list[dict], media_type: str = "metadata") -> list[tuple]:
     """
@@ -45,7 +71,7 @@ def create_li_item(
     :returns: xbmcgui.ListItem instance
     """
     li_item = ListItem(label, offscreen=True)
-    li_item.setArt({**item.get("art", {}), "icon": default_icon})
+    li_item.setArt({**item.get("art", {}), "icon": default_icon, "thumb": default_icon})
 
     if properties:
         for key, value in properties.items():
@@ -70,32 +96,52 @@ def videoinfotag_setter(
         @wraps(func)
         def wrapper(item):
             li_item = func(item)
-            video_info = li_item.getVideoInfoTag()
-            video_info.setMediaType(media_type or item.get("dbtype"))
+            tag = li_item.getVideoInfoTag()
+            tag.setMediaType(media_type or item.get("dbtype"))
 
             for key, attr in info_mapping.items():
-                if value := item.get(key):
-                    getattr(video_info, f"set{attr}")(
-                        value if isinstance(value, list) else [value]
-                    )
+                if key not in item:
+                    continue
+                value = item[key]
+                if value in (None, ""):
+                    continue
+                setter = getattr(tag, f"set{attr}", None)
+                if not setter:
+                    continue
+                if attr in _LIST_ATTRS:
+                    seq = _as_list(value)
+                    if seq:
+                        setter(seq)
+                elif attr in _INT_ATTRS:
+                    try:
+                        setter(int(value))
+                    except (TypeError, ValueError):
+                        pass
+                else:
+                    setter(str(value))
 
-            if resume := item.get("resume", {}):
-                video_info.setResumePoint(
+            if isinstance((resume := item.get("resume")), dict):
+                tag.setResumePoint(
                     resume.get("position", 0), resume.get("total", 0)
                 )
 
             if stream_fields and "streamdetails" in item:
-                for key, streams in item["streamdetails"].items():
-                    for stream in streams:
-                        method = getattr(
-                            video_info, f"add{stream_fields.get(key)}", None
-                        )
-                        if method:
-                            method(
-                                xbmc.VideoStreamDetail(**stream)
-                                if key == "video"
-                                else xbmc.AudioStreamDetail(*stream.values())
-                            )
+                for kind, streams in item["streamdetails"].items():
+                    if not streams:
+                        continue
+                    add_method_name = f"add{stream_fields.get(kind, '')}"
+                    add = getattr(tag, add_method_name, None)
+                    if not add:
+                        continue
+                    for s in streams:
+                        if not isinstance(s, dict):
+                            continue
+                        if kind == "video":
+                            add(xbmc.VideoStreamDetail(**s))
+                        elif kind == "audio":
+                            add(xbmc.AudioStreamDetail(**s))
+                        elif kind == "subtitle":
+                            add(xbmc.SubtitleStreamDetail(**s))
 
             return li_item
 
@@ -174,7 +220,7 @@ def set_artwork(item: dict) -> ListItem:
         "trailer": "Trailer",
         "year": "Year",
     },
-    stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
+    stream_fields={"video": "VideoStream", "audio": "AudioStream"},
 )
 def set_movie(item: dict) -> ListItem:
     """
@@ -241,7 +287,7 @@ def set_tvshow(item: dict) -> ListItem:
         "studio": "Studios",
         "title": "Title",
     },
-    stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
+    stream_fields={"video": "VideoStream", "audio": "AudioStream"},
 )
 def set_episode(item: dict) -> ListItem:
     """
@@ -268,7 +314,7 @@ def set_episode(item: dict) -> ListItem:
         "title": "Title",
         "year": "Year",
     },
-    stream_fields={"video": "VideoStreamDetail", "audio": "AudioStreamDetail"},
+    stream_fields={"video": "VideoStream", "audio": "AudioStream"},
 )
 def set_musicvideo(item: dict) -> ListItem:
     """

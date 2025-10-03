@@ -51,11 +51,11 @@ class _FocusGuard:
         """Re-check that focus hasn't changed."""
         if self.identity_getter() != self.expected_identity:
             log(
-                f"PluginContent → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus"
+                f"PluginHandlers → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus"
             )
             return False
         if self.focus_check is not None and not self.focus_check():
-            log(f"PluginContent → {self.caller_name}: ABORTED → Container lost focus")
+            log(f"PluginHandlers → {self.caller_name}: ABORTED → Container lost focus")
             return False
         return True
 
@@ -90,13 +90,13 @@ def focus_guard(
 
     if identity_getter() != expected_identity:
         log(
-            f"PluginContent → {caller_name}: ABORTED → '{expected_identity}' lost focus"
+            f"PluginHandlers → {caller_name}: ABORTED → '{expected_identity}' lost focus"
         )
         yield None
         return
 
     if focus_check is not None and not focus_check():
-        log(f"PluginContent → {caller_name}: ABORTED → Container {target} lost focus")
+        log(f"PluginHandlers → {caller_name}: ABORTED → Container {target} lost focus")
         yield None
         return
 
@@ -107,7 +107,7 @@ def focus_guard(
         pass
 
 
-class PluginContent(metaclass=PluginInfoRegistry):
+class PluginHandlers(metaclass=PluginInfoRegistry):
     """
     High-level plugin actions (artwork, metadata, typewriter) with focus guarding.
     """
@@ -368,7 +368,7 @@ class PluginContent(metaclass=PluginInfoRegistry):
         )
         shows = q.get("result", {}).get("tvshows", [])
         if not shows:
-            log("PluginContent → next_up: No TV shows found.")
+            log("PluginHandlers → next_up: No TV shows found.")
             return
 
         for show in shows:
@@ -430,7 +430,7 @@ class PluginContent(metaclass=PluginInfoRegistry):
             eps = ep_query.get("result", {}).get("episodes", [])
             if not eps:
                 log(
-                    f"PluginContent → next_up: No next episode found for {show['title']}"
+                    f"PluginHandlers → next_up: No next episode found for {show['title']}"
                 )
                 continue
             eps[0]["studio"] = studio
@@ -511,7 +511,7 @@ class PluginContent(metaclass=PluginInfoRegistry):
             items = src.get("result", {}).get(f"{media_type}s", [])
             if not items:
                 log(
-                    f"PluginContent → actor_credits: No {media_type}s found for {self.label}."
+                    f"PluginHandlers → actor_credits: No {media_type}s found for {self.label}."
                 )
                 continue
             items = self._remove_current(items, current_item, total)
@@ -550,7 +550,7 @@ class PluginContent(metaclass=PluginInfoRegistry):
         )
         items = q.get("result", {}).get(f"{media_type}s", [])
         if not items:
-            log(f"PluginContent → {parent}: No {media_type}s found.")
+            log(f"PluginHandlers → {parent}: No {media_type}s found.")
             return []
 
         if postprocess:

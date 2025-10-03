@@ -4,7 +4,7 @@ import sys
 
 import xbmcplugin
 
-from resources.lib.plugin.content import PluginContent
+from resources.lib.plugin.handlers import PluginHandlers
 from resources.lib.plugin.listing import PluginListing
 from resources.lib.plugin.registry import collect_info_handlers
 from resources.lib.shared.parser import parse_params
@@ -22,7 +22,7 @@ class Main:
         self._parse_argv()
         self.info = self.params.get("info")
         if self.info:
-            self.run_plugin()
+            self.run_handler()
         else:
             self.run_listing()
 
@@ -34,17 +34,17 @@ class Main:
             log(f"_parse_argv error: {e}")
             self.params = {}
 
-    def run_plugin(self) -> None:
-        """Dispatch a plugin info source (from ?info=...) and emit its items."""
+    def run_handler(self) -> None:
+        """Dispatch a plugin handler (from ?info=...) and emit its items."""
         info = (self.info or "").strip().lower()
-        pc = PluginContent(self.params)
-        handlers = collect_info_handlers(pc)
+        ph = PluginHandlers(self.params)
+        handlers = collect_info_handlers(ph)
         fn = handlers.get(info)
         if not fn:
             log(f"Ignoring unknown info: {self.info}")
             return
         
-        log(f"PluginContent initialized with params: {self.params}")
+        log(f"PluginHandlers initialized with params: {self.params}")
         items = fn()
         if not isinstance(items, (list, tuple)):
             items = []

@@ -36,7 +36,7 @@ class PluginListing(object):
                 items.append(self._make_item(item["name"], url))
 
         set_plugincontent(
-            content="videos",
+            content="plugins",
             category=ADDON.getLocalizedString(32604) or "Copacetic",
         )
         return items
@@ -61,8 +61,8 @@ class PluginListing(object):
         """
         icon = f"special://home/addons/{ADDON_ID}/resources/icon.png"
         li_item = ListItem(label=label, offscreen=True)
-        video_info = li_item.getVideoInfoTag()
-        video_info.setTitle(label)
-        video_info.setMediaType("video")
+        tag = li_item.getVideoInfoTag()
+        tag.setTitle(label)
+        tag.setMediaType("video")
         li_item.setArt({"icon": "DefaultAddonVideo.png", "thumb": icon})
         return (url, li_item, True)
