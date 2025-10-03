@@ -1,11 +1,12 @@
-# author: realcopacetic, sualfred
+# author: realcopacetic
 
 from contextlib import contextmanager
-from typing import Callable, Generator, Optional
+from typing import Any, Callable, Generator, Optional
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.art.editor import ImageEditor
+from resources.lib.art.multiart import collect_multiart
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
@@ -14,8 +15,8 @@ from resources.lib.plugin.helpers import (
     TypewriterAnimation,
 )
 from resources.lib.plugin.json_map import JSON_MAP
-from resources.lib.art.multiart import collect_multiart
 from resources.lib.plugin.library import *
+from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     ADDON,
@@ -27,27 +28,6 @@ from resources.lib.shared.utilities import (
     set_plugincontent,
     to_int,
 )
-
-PLUGIN_REGISTRY = {}
-
-
-def info(fn):
-    """Decorator to auto-register actions to whitelist"""
-    PLUGIN_REGISTRY[fn.__name__] = fn
-    return fn
-
-
-ALLOWED_INFO = {
-    "artwork",
-    "jumpbutton",
-    "metadata",
-    "progressbar",
-    "typewriter",
-    "in_progress",
-    "next_up",
-    "director_credits",
-    "actor_credits",
-}
 
 
 class _FocusGuard:
@@ -75,9 +55,7 @@ class _FocusGuard:
             )
             return False
         if self.focus_check is not None and not self.focus_check():
-            log(
-                f"PluginContent → {self.caller_name}: ABORTED → Container lost focus"
-            )
+            log(f"PluginContent → {self.caller_name}: ABORTED → Container lost focus")
             return False
         return True
 
@@ -100,7 +78,11 @@ def focus_guard(
     :param target: container/control id to enforce Control.HasFocus(id); None to skip
     :return: guard|None
     """
-    focus_check = (lambda: condition(f"Control.HasFocus({target})")) if target is not None else None
+    focus_check = (
+        (lambda: condition(f"Control.HasFocus({target})"))
+        if target is not None
+        else None
+    )
 
     if expected_identity is None:
         yield True  # always alive
@@ -114,9 +96,7 @@ def focus_guard(
         return
 
     if focus_check is not None and not focus_check():
-        log(
-            f"PluginContent → {caller_name}: ABORTED → Container {target} lost focus"
-        )
+        log(f"PluginContent → {caller_name}: ABORTED → Container {target} lost focus")
         yield None
         return
 
@@ -127,7 +107,7 @@ def focus_guard(
         pass
 
 
-class PluginContent(object):
+class PluginContent(metaclass=PluginInfoRegistry):
     """
     High-level plugin actions (artwork, metadata, typewriter) with focus guarding.
 
@@ -143,7 +123,11 @@ class PluginContent(object):
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
         self.target = params.get("target")
-        self.container = f"Container({self.target})" if self.target and self.target.isdigit() else "Container"
+        self.container = (
+            f"Container({self.target})"
+            if self.target and self.target.isdigit()
+            else "Container"
+        )
 
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
@@ -178,17 +162,6 @@ class PluginContent(object):
             "operator": "isnot",
             "value": self.exclude_value,
         }
-
-    def build(self, action: str) -> list[tuple]:
-        """Execute a whitelisted action and return the collected directory tuples."""
-        name = action.lower()
-        if name not in ALLOWED_ACTIONS or not hasattr(self, name):
-            log(f"PluginContent → Ignoring unknown action: {action}")
-            return []
-
-        self.li.clear()
-        getattr(self, name)()
-        return self.li
 
     @log_duration
     def artwork(self) -> None:
@@ -296,7 +269,9 @@ class PluginContent(object):
         max_lines = to_int(self.params.get("max_lines"), None)
         target_id = to_int(self.target, None)
 
-        with focus_guard(self.expected, "typewriter", self.identity_getter, target_id) as guard:
+        with focus_guard(
+            self.expected, "typewriter", self.identity_getter, target_id
+        ) as guard:
             if not guard:
                 return
 
@@ -311,62 +286,48 @@ class PluginContent(object):
                 identity_getter=self.identity_getter,
             )
 
-    def in_progress(self):
+    def in_progress(self) -> None:
+        """
+        Build a container of in-progress movies and episodes.
+
+        :returns: None, items are added via ``add_items`` and content is set.
+        """
         filters = [self.filter_inprogress]
         if self.dbtype != "tvshow":
-            json_query = json_call(
+            self._fetch_and_add(
                 "VideoLibrary.GetMovies",
-                properties=JSON_MAP["movie_properties"],
+                JSON_MAP["movie_properties"],
+                filters,
+                media_type="movie",
                 sort=self.sort_lastplayed,
-                query_filter={"and": filters},
                 parent="in_progress",
             )
-            try:
-                json_query = json_query["result"]["movies"]
-            except Exception:
-                log("PluginContent → in_progress: No movies found.")
-            else:
-                add_items(self.li, json_query, media_type="movie")
+
         if self.dbtype != "movie":
-            json_query = json_call(
+            self._fetch_and_add(
                 "VideoLibrary.GetEpisodes",
-                properties=JSON_MAP["episode_properties"],
+                JSON_MAP["episode_properties"],
+                filters,
+                media_type="episode",
                 sort=self.sort_lastplayed,
-                query_filter={"and": filters},
                 parent="in_progress",
+                postprocess=self._enrich_with_tvshow,
             )
-            try:
-                json_query = json_query["result"]["episodes"]
-            except Exception:
-                log("PluginContent → in_progress: No episodes found.")
-            else:
-                for episode in json_query:
-                    tvshowid = episode.get("tvshowid")
-                    tvshow_json_query = json_call(
-                        "VideoLibrary.GetTVShowDetails",
-                        params={"tvshowid": tvshowid},
-                        properties=["studio", "mpaa"],
-                        parent="in_progress",
-                    )
-                    try:
-                        tvshow_json_query = tvshow_json_query["result"]["tvshowdetails"]
-                    except Exception:
-                        log(
-                            f"PluginContent → in_progress: Parent tv show not found → {tvshowid}"
-                        )
-                    else:
-                        episode["studio"] = tvshow_json_query.get("studio")
-                        episode["mpaa"] = tvshow_json_query.get("mpaa")
-                add_items(self.li, json_query, media_type="episode")
+
         set_plugincontent(
             content="movies",
             category=ADDON.getLocalizedString(32601),
             sort_method=SORT_METHOD_LASTPLAYED,
         )
 
-    def next_up(self):
+    def next_up(self) -> None:
+        """
+        Build a container of "next up" TV episodes.
+
+        :returns: None, items are added via ``add_items`` and content is set.
+        """
         filters = [self.filter_inprogress]
-        json_query = json_call(
+        q = json_call(
             "VideoLibrary.GetTVShows",
             properties=["title", "lastplayed", "studio", "mpaa"],
             sort=self.sort_lastplayed,
@@ -374,16 +335,17 @@ class PluginContent(object):
             query_filter={"and": filters},
             parent="next_up",
         )
-        try:
-            json_query = json_query["result"]["tvshows"]
-        except Exception:
-            log("PluginContent → next_up: No TV shows found")
+        shows = q.get("result", {}).get("tvshows", [])
+        if not shows:
+            log("PluginContent → next_up: No TV shows found.")
             return
-        for episode in json_query:
+
+        for show in shows:
+            studio = show.get("studio", "")
+            mpaa = show.get("mpaa", "")
             use_last_played_season = True
-            studio = episode.get("studio", "")
-            mpaa = episode.get("mpaa", "")
-            last_played_query = json_call(
+
+            last_played = json_call(
                 "VideoLibrary.GetEpisodes",
                 properties=["seasonid", "season"],
                 sort={"order": "descending", "method": "lastplayed"},
@@ -394,14 +356,16 @@ class PluginContent(object):
                         self.filter_no_specials,
                     ]
                 },
-                params={"tvshowid": int(episode["tvshowid"])},
+                params={"tvshowid": int(show["tvshowid"])},
                 parent="next_up",
             )
-            if last_played_query["result"]["limits"]["total"] < 1:
+            if last_played.get("result", {}).get("limits", {}).get("total", 0) < 1:
                 use_last_played_season = False
+
             # Return the next episode of last played season
             if use_last_played_season:
-                episode_query = json_call(
+                season = last_played["result"]["episodes"][0].get("season")
+                ep_query = json_call(
                     "VideoLibrary.GetEpisodes",
                     properties=JSON_MAP["episode_properties"],
                     sort={"order": "ascending", "method": "episode"},
@@ -409,26 +373,18 @@ class PluginContent(object):
                     query_filter={
                         "and": [
                             self.filter_unwatched,
-                            {
-                                "field": "season",
-                                "operator": "is",
-                                "value": str(
-                                    last_played_query["result"]["episodes"][0].get(
-                                        "season"
-                                    )
-                                ),
-                            },
+                            {"field": "season", "operator": "is", "value": str(season)},
                         ]
                     },
-                    params={"tvshowid": int(episode["tvshowid"])},
+                    params={"tvshowid": int(show["tvshowid"])},
                     parent="next_up",
                 )
-
-                if episode_query["result"]["limits"]["total"] < 1:
+                if ep_query.get("result", {}).get("limits", {}).get("total", 0) < 1:
                     use_last_played_season = False
+
             # If no episode is left of the last played season, fall back to the very first unwatched episode
             if not use_last_played_season:
-                episode_query = json_call(
+                ep_query = json_call(
                     "VideoLibrary.GetEpisodes",
                     properties=JSON_MAP["episode_properties"],
                     sort={"order": "ascending", "method": "episode"},
@@ -436,114 +392,162 @@ class PluginContent(object):
                     query_filter={
                         "and": [self.filter_unwatched, self.filter_no_specials]
                     },
-                    params={"tvshowid": int(episode["tvshowid"])},
+                    params={"tvshowid": int(show["tvshowid"])},
                     parent="next_up",
                 )
-            try:
-                episode_details = episode_query["result"]["episodes"]
-                episode_details[0]["studio"] = studio
-                episode_details[0]["mpaa"] = mpaa
-            except Exception:
-                log(
-                    f"PluginContent → next_up: No next episodes found for {episode['title']}"
-                )
-            else:
-                add_items(self.li, episode_details, media_type="episode")
-                set_plugincontent(
-                    content="episodes", category=ADDON.getLocalizedString(32600)
-                )
 
-    def director_credits(self):
-        filters = [
-            {
-                "field": "director",
-                "operator": "is",
-                "value": self.label,
-            },
-            *([self.filter_exclude] if self.filter_exclude else []),
-        ]
-        json_query = json_call(
-            "VideoLibrary.GetMovies",
-            properties=JSON_MAP["movie_properties"],
-            sort=self.sort_year,
-            query_filter={"and": filters},
-            parent="director_credits",
-        )
-        try:
-            json_query = json_query["result"]["movies"]
-        except Exception:
-            log("PluginContent → director_credits: No movies found.")
-        else:
-            add_items(self.li, json_query, media_type="movie")
-        json_query = json_call(
-            "VideoLibrary.GetMusicVideos",
-            properties=JSON_MAP["musicvideo_properties"],
-            sort=self.sort_year,
-            query_filter={"and": filters},
-            parent="director_credits",
-        )
-        try:
-            json_query = json_query["result"]["musicvideos"]
-        except Exception:
-            log("PluginContent → director_credits: No music videos found.")
-        else:
-            add_items(self.li, json_query, media_type="musicvideo")
+            eps = ep_query.get("result", {}).get("episodes", [])
+            if not eps:
+                log(
+                    f"PluginContent → next_up: No next episode found for {show['title']}"
+                )
+                continue
+            eps[0]["studio"] = studio
+            eps[0]["mpaa"] = mpaa
+            add_items(self.li, eps, media_type="episode")
+        set_plugincontent(content="episodes", category=ADDON.getLocalizedString(32600))
+
+    def director_credits(self) -> None:
+        """
+        Build a container of movies and music videos directed by ``self.label``.
+
+        :returns: None, items are added via ``add_items`` and content is set.
+        """
+        filters = [{"field": "director", "operator": "is", "value": self.label}]
+        if self.filter_exclude:
+            filters.append(self.filter_exclude)
+
+        for method, props, media_type in [
+            ("VideoLibrary.GetMovies", JSON_MAP["movie_properties"], "movie"),
+            (
+                "VideoLibrary.GetMusicVideos",
+                JSON_MAP["musicvideo_properties"],
+                "musicvideo",
+            ),
+        ]:
+            self._fetch_and_add(
+                method,
+                props,
+                filters,
+                media_type,
+                sort=self.sort_year,
+                parent="director_credits",
+            )
+
         set_plugincontent(content="videos", category=ADDON.getLocalizedString(32602))
 
     def actor_credits(self):
+        """
+        Build a container of movies and TV shows featuring ``self.label``.
+
+        :returns: None, items are added via ``add_items`` and content is set.
+        """
         filters = [{"field": "actor", "operator": "is", "value": self.label}]
-        # grab current movie or tvshow name
-        if condition("String.IsEqual(ListItem.DBType,episode)"):
-            current_item = infolabel("ListItem.TVShowTitle")
-        else:
-            current_item = infolabel("ListItem.Label")
-        # json lookup for movies and tvshows by given actor
-        movies_json_query = json_call(
+        current_item = (
+            infolabel("ListItem.TVShowTitle")
+            if condition("String.IsEqual(ListItem.DBType,episode)")
+            else infolabel("ListItem.Label")
+        )
+        movies = json_call(
             "VideoLibrary.GetMovies",
             properties=JSON_MAP["movie_properties"],
             sort=self.sort_year,
             query_filter={"and": filters},
             parent="actor_credits",
         )
-
-        tvshows_json_query = json_call(
+        tvshows = json_call(
             "VideoLibrary.GetTVShows",
             properties=JSON_MAP["tvshow_properties"],
             sort=self.sort_year,
             query_filter={"and": filters},
             parent="actor_credits",
         )
-        # Work out combined number of movie/tvshow credits
-        total_items = int(movies_json_query["result"]["limits"]["total"]) + int(
-            tvshows_json_query["result"]["limits"]["total"]
+        total = int(movies.get("result", {}).get("limits", {}).get("total", 0)) + int(
+            tvshows.get("result", {}).get("limits", {}).get("total", 0)
         )
-        # If there are movie results, remove the current item if it is in the list, then add the remaining to the plugin directory
-        try:
-            movies_json_query = movies_json_query["result"]["movies"]
-        except Exception:
-            log(f"PluginContent →  actor_credits: No movies found for {self.label}.")
-        else:
-            dict_to_remove = next(
-                (item for item in movies_json_query if item["label"] == current_item),
-                None,
-            )
-            if dict_to_remove and total_items > 1:
-                movies_json_query.remove(dict_to_remove)
-            add_items(self.li, movies_json_query, media_type="movie")
-        # If there are tvshow results, remove the current item if it is in the list, then add the remaining to the plugin directory
-        try:
-            tvshows_json_query = tvshows_json_query["result"]["tvshows"]
-        except Exception:
-            log(f"PluginContent →  actor_credits: No tv shows found for {self.label}.")
-        else:
-            dict_to_remove = next(
-                (item for item in tvshows_json_query if item["label"] == current_item),
-                None,
-            )
-            (
-                tvshows_json_query.remove(dict_to_remove)
-                if dict_to_remove is not None and total_items > 1
-                else None
-            )
-            add_items(self.li, tvshows_json_query, media_type="tvshow")
+
+        for src, media_type in [(movies, "movie"), (tvshows, "tvshow")]: 
+            items = src.get("result", {}).get(f"{media_type}s", [])
+            if not items:
+                log(
+                    f"PluginContent → actor_credits: No {media_type}s found for {self.label}."
+                )
+                continue
+            items = self._remove_current(items, current_item, total)
+            add_items(self.li, items, media_type=media_type)
+
         set_plugincontent(content="videos", category=ADDON.getLocalizedString(32603))
+
+    def _fetch_and_add(
+        self,
+        method: str,
+        props: list[str],
+        filters: list[dict[str, Any]],
+        media_type: str,
+        sort: dict[str, Any],
+        parent: str,
+        postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
+    ) -> None:
+        """
+        Generic helper to fetch JSON items, optionally postprocess, and append.
+
+        :param method: JSON-RPC method (e.g. "VideoLibrary.GetMovies").
+        :param props: List of property names to request.
+        :param filters: List of filter dicts for query_filter.
+        :param media_type: Media type for add_items (e.g. "movie").
+        :param sort: Sort specification for JSON-RPC.
+        :param parent: Parent name for logging.
+        :param postprocess: Optional function to transform/enrich the items.
+        :returns: None
+        """
+        q = json_call(
+            method,
+            properties=props,
+            sort=sort,
+            query_filter={"and": filters},
+            parent=parent,
+        )
+        items = q.get("result", {}).get(f"{media_type}s", [])
+        if not items:
+            log(f"PluginContent → {parent}: No {media_type}s found.")
+            return
+        if postprocess:
+            postprocess(items)
+        add_items(self.li, items, media_type=media_type)
+
+    def _enrich_with_tvshow(self, episodes: list[dict[str, Any]]) -> None:
+        """
+        Postprocess episodes to add studio/mpaa from parent TV show.
+
+        :param episodes: List of episode dicts to enrich.
+        :returns: None, modifies episodes in place.
+        """
+        for ep in episodes:
+            tvshowid = ep.get("tvshowid")
+            if not tvshowid:
+                continue
+            details = json_call(
+                "VideoLibrary.GetTVShowDetails",
+                params={"tvshowid": tvshowid},
+                properties=["studio", "mpaa"],
+                parent="in_progress",
+            )
+            tvshow = details.get("result", {}).get("tvshowdetails", {})
+            ep["studio"] = tvshow.get("studio")
+            ep["mpaa"] = tvshow.get("mpaa")
+
+    def _remove_current(
+        self, items: list[dict[str, Any]], current_label: str, total: int
+    ) -> list[dict[str, Any]]:
+        """
+        Remove the current item from a list of items if present.
+
+        :param items: List of item dicts.
+        :param current_label: Label of the current playing item.
+        :param total: Combined total of credits.
+        :returns: Filtered list of items.
+        """
+        match = next((i for i in items if i.get("label") == current_label), None)
+        if match and total > 1:
+            items.remove(match)
+        return items
