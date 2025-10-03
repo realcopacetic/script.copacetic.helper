@@ -23,10 +23,8 @@ class Main:
         self.info = self.params.get("info")
         if self.info:
             self.run_plugin()
-            log(f"PluginContent initialized with params: {self.params}")
         else:
             self.run_listing()
-            log(f"PluginListing initialized with params: {self.params}")
 
     def _parse_argv(self) -> None:
         """Parse argv using parser (handles both plugin/script styles)."""
@@ -45,12 +43,17 @@ class Main:
         if not fn:
             log(f"Ignoring unknown info: {self.info}")
             return
+        
+        log(f"PluginContent initialized with params: {self.params}")
         items = fn()
-        if items:
-            self._additems(items)
+        if not isinstance(items, (list, tuple)):
+            items = []
+        
+        self._additems(items)
 
     def run_listing(self) -> None:
         """Emit the default plugin directory (top-level categories)."""
+        log(f"PluginListing initialized with params: {self.params}")
         items = PluginListing(self.params).build()
         self._additems(items)
 

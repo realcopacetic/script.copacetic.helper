@@ -229,32 +229,36 @@ class PluginContent(metaclass=PluginInfoRegistry):
     @log_duration
     def progressbar(self) -> None:
         """
-        Compute percent/unwatched and position the progress UI; also exposes values via helper list.
+        Compute resume/unwatched values and expose a helper item for the list.
+        If focus changes mid-flight, skip UI update but still return the item.
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
         with focus_guard(self.expected, "progressbar", self.identity_getter) as guard:
+            result = []
             if not guard:
-                return
+                return result
 
             pb = ProgressBarManager(target=f"{self.container}.ListItem")
             resume, unwatched = pb.calculate(
                 set_target=self.params.get("set_target", None)
             )
-            add_items(
-                [
-                    {
-                        "file": "progress",
-                        "label": str(resume),
-                        "resume": {"position": resume, "total": 100},
-                        "unwatchedepisodes": str(unwatched),
-                    }
-                ],
-                media_type="progressbar",
+            result.extend(
+                add_items(
+                    [
+                        {
+                            "file": "progress",
+                            "label": str(resume),
+                            "resume": {"position": resume, "total": 100},
+                            "unwatchedepisodes": str(unwatched),
+                        }
+                    ],
+                    media_type="progressbar",
+                )
             )
 
             if not guard.alive():
-                return
+                return result
 
             opts = PlacementOpts.from_params(self.params)
             base_id = to_int(self.params.get("base_id"), None)
@@ -269,6 +273,7 @@ class PluginContent(metaclass=PluginInfoRegistry):
                 progress_id=progress_id,
                 btn_id=btn_id,
             )
+            return result
 
     @log_duration
     def typewriter(self) -> None:

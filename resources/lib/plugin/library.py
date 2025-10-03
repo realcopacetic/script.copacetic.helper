@@ -154,7 +154,6 @@ def set_artwork(item: dict) -> ListItem:
         item,
         item.get("label"),
         "DefaultVideo.png",
-        properties={"unwatchedepisodes": item.get("unwatchedepisodes", "0")},
     )
 
 
