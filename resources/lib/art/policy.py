@@ -17,26 +17,22 @@ class ArtChoice:
     path: str  # resolved VFS path ("" if none found)
 
 
-def resolve_fanart(art: dict, dbtype: str | None = None) -> ArtChoice:
+def resolve_fanart(art: dict) -> ArtChoice:
     """
-    Return the first existing 'fanart-equivalent' image path.
     Return the first existing 'fanart-equivalent' image path.
 
-     :param art: Kodi-style art dict (may include scoped keys like 'tvshow.fanart')
-    :param dbtype: Optional Kodi DBType (e.g., 'episode', 'movie', ...)
-     :returns: ArtChoice(key, path) — both empty if nothing valid found.
+    :param art: Kodi-style art dict (may include scoped keys like 'tvshow.fanart')
+    :returns: ArtChoice(key, path) — both empty if nothing valid found.
     """
-    db = (dbtype or "")
-    if db == "episode" and (v := art.get("thumb")):
-        return ArtChoice("thumb", v)
+    thumb = art.get("thumb")
+    fanart = art.get("fanart")
+    tv_fanart = art.get("tvshow.fanart")
+    if thumb and (not fanart or (tv_fanart and fanart == tv_fanart)):
+        return ArtChoice("thumb", thumb)
 
     for key in FANART_KEYS:
-        if v := art.get(key):
-            return ArtChoice(key, v)
-
+        value = art.get(key)
+        if value:
+            return ArtChoice(key, value)
+        
     return ArtChoice("", "")
-
-
-def supports_clearlogo(dbtype: str | None) -> bool:
-    """True if this dbtype should have a clearlogo in library data."""
-    return (dbtype or "") in CLEARLOGO_TYPES

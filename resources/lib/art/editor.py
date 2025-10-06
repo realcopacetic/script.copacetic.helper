@@ -4,7 +4,7 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import FANART_KEYS, resolve_fanart, supports_clearlogo
+from resources.lib.art.policy import FANART_KEYS, resolve_fanart
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
@@ -148,13 +148,15 @@ class ImageEditor:
         :returns: Dict with {art_type: url} or {}] if not found.
         """
         if art_type == "fanart":
-            art = {}
+            candidates = {}
             for key in FANART_KEYS:
-                v = infolabel(f"{source}.Art({key})")
-                if v:
-                    art[key] = v
-            choice = resolve_fanart(art)
+                if (v := infolabel(f"{source}.Art({key})")):
+                    candidates[key] = v
+            choice = resolve_fanart(candidates)
             return {choice.key: choice.path} if choice.path else {}
+
+        v = infolabel(f"{source}.Art({art_type})")
+        return {art_type: v} if v else {}
 
     def _image_open(self, url):
         """

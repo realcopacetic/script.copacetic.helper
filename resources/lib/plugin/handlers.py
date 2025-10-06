@@ -182,6 +182,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             art = dict(processed or {})
+            log(f'FUCK DEBUG art {art}')
             art |= collect_multiart(
                 target=f"{self.container}.ListItem",
                 art_type=self.params.get("multiart"),
