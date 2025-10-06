@@ -43,7 +43,10 @@ class ArtworkCacheManager:
         self.cached_image_path = (
             Path(THUMB_DB) / self.cached_thumb[0] / self.cached_thumb
         )
-        self.cached_file_hash = self.hash_manager.compute_hash(self.cached_image_path)
+        if validate_path(self.cached_image_path):
+            self.cached_file_hash = self.hash_manager.compute_hash(
+                self.cached_image_path
+            )
 
     def get_cached_thumb(self, url, suffix):
         """
@@ -82,13 +85,29 @@ class ArtworkCacheManager:
         :param url: Original image URL.
         :returns: Dict of cached metadata or None.
         """
-        entry = self.sqlite.get_entry(url)
-        if (
-            entry
-            and entry.get("cached_file_hash") == self.cached_file_hash
-            and validate_path(entry.get("processed"))
-        ):
+        if not (entry := self.sqlite.get_entry(url)):
+            return None
+
+        processed = entry.get("processed")
+        if not validate_path(processed):
+            return None
+
+        # If no hash computed yet (first-touch), trust the processed file
+        if not self.cached_file_hash:
             return entry
+
+        db_hash = entry.get("cached_file_hash")
+
+        # If both have hashes, require match
+        if db_hash and db_hash == self.cached_file_hash:
+            return entry
+
+        # If DB hash empty but we have one now, backfill without reprocessing
+        if not db_hash and self.cached_file_hash:
+            self.sqlite.update_field(url, "cached_file_hash", self.cached_file_hash)
+            return entry
+
+        # Hash mismatch and both populated → stale entry
         return None
 
     def write_lookup(self, art_type, metadata):

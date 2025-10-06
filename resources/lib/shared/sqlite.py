@@ -10,6 +10,15 @@ class SQLiteHandler:
     Manages artwork metadata using a lightweight SQLite database.
     Provides methods for adding and retrieving processed image entries.
     """
+    _ALLOWED_UPDATE_COLS = {
+        "category",
+        "url",
+        "processed",
+        "cached_file_hash",
+        "color",
+        "contrast",
+        "luminosity",
+    }
 
     def __init__(self):
         """Initializes the database handler and ensures required tables exist."""
@@ -91,7 +100,7 @@ class SQLiteHandler:
                 "processed": row[3],
                 "cached_file_hash": row[4],
                 "color": row[5],
-                "color": row[6],
+                "contrast": row[6],
                 "luminosity": row[7],
             }
         return None
@@ -106,3 +115,28 @@ class SQLiteHandler:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM artwork")
             conn.commit()
+    
+    def update_fields(self, url: str, **fields) -> int:
+        """
+        Update one or more columns for a single row identified by original URL.
+        Returns number of affected rows.
+        """
+        if not fields:
+            return 0
+        # Filter to allowed, non-None values
+        safe_items = [(k, v) for k, v in fields.items() if k in self._ALLOWED_UPDATE_COLS]
+        if not safe_items:
+            return 0
+        cols, vals = zip(*safe_items)
+        sets = ", ".join([f"{c} = ?" for c in cols])
+        try:
+            cur = self.conn.cursor()
+            cur.execute(f"UPDATE lookup SET {sets} WHERE url = ?", (*vals, url))
+            self.conn.commit()
+            return cur.rowcount or 0
+        except Exception:
+            return 0
+    
+    def update_field(self, url: str, column: str, value) -> int:
+        """Thin wrapper for single-column updates."""
+        return self.update_fields(url, **{column: value})
