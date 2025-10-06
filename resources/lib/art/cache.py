@@ -29,7 +29,7 @@ class ArtworkCacheManager:
         self.decoded_url = None
         self.cached_thumb = None
         self.cached_image_path = None
-        self.cached_file_hash = None
+        self.cached_file_hash = ""
 
     def prepare_cache(self, url, suffix):
         """
@@ -88,8 +88,8 @@ class ArtworkCacheManager:
         if not (entry := self.sqlite.get_entry(url)):
             return None
 
-        processed = entry.get("processed")
-        if not validate_path(processed):
+        processed = validate_path(entry.get("processed"))
+        if not processed:
             return None
 
         # If no hash computed yet (first-touch), trust the processed file

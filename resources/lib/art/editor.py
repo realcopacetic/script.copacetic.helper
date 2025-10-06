@@ -93,8 +93,13 @@ class ImageEditor:
         extension = self.PROCESS_CONFIG.get(process)["extension"]
         self.cache_manager.prepare_cache(original_url, extension)
 
-        attributes = self.cache_manager.read_lookup(original_url) or self._run_processor(process, art)
+        if not (
+            attributes := self.cache_manager.read_lookup(original_url)
+            or self._run_processor(process, art)
+        ):
+            return None
 
+        attributes["category"] = art_type
         self.cache_manager.write_lookup(art_type, attributes)
         return attributes
 
@@ -106,7 +111,7 @@ class ImageEditor:
         if not process_method:
             return None
 
-        category, url = next(iter(art.items()), (None, None))
+        source_key, url = next(iter(art.items()), (None, None))
         folder = self.PROCESS_CONFIG.get(process)["folder"]
         source, destination = self.cache_manager.get_image_paths(folder)
         if not source:
@@ -132,7 +137,7 @@ class ImageEditor:
                 pass
 
         return {
-            "category": category,
+            "category": source_key ,
             "url": url,
             "processed": destination,
             "cached_file_hash": self.cache_manager.cached_file_hash,
@@ -145,12 +150,12 @@ class ImageEditor:
         """
         Retrieves artwork URL from a Kodi infolabel.
 
-        :returns: Dict with {art_type: url} or {}] if not found.
+        :returns: Dict with {art_type: url} or {} if not found.
         """
         if art_type == "fanart":
             candidates = {}
             for key in FANART_KEYS:
-                if (v := infolabel(f"{source}.Art({key})")):
+                if v := infolabel(f"{source}.Art({key})"):
                     candidates[key] = v
             choice = resolve_fanart(candidates)
             return {choice.key: choice.path} if choice.path else {}

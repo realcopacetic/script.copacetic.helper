@@ -130,10 +130,11 @@ class SQLiteHandler:
         cols, vals = zip(*safe_items)
         sets = ", ".join([f"{c} = ?" for c in cols])
         try:
-            cur = self.conn.cursor()
-            cur.execute(f"UPDATE lookup SET {sets} WHERE url = ?", (*vals, url))
-            self.conn.commit()
-            return cur.rowcount or 0
+            with sqlite3.connect(self.db_path, timeout=5) as conn:
+                cur = conn.cursor()
+                cur.execute(f"UPDATE artwork SET {sets} WHERE original_url = ?", (*vals, url))
+                conn.commit()
+                return cur.rowcount or 0
         except Exception:
             return 0
     
