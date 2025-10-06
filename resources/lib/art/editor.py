@@ -4,16 +4,11 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
+from resources.lib.art.policy import FANART_KEYS, resolve_fanart, supports_clearlogo
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (
-    BLURS,
-    CROPS,
-    TEMPS,
-    infolabel,
-    log,
-)
+from resources.lib.shared.utilities import BLURS, CROPS, infolabel, log
 
 
 class ImageEditor:
@@ -31,7 +26,7 @@ class ImageEditor:
         self.sqlite = sqlite_handler or SQLiteHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.processor = ImageProcessor()
-        self.temp_folder = TEMPS
+        self.temp_folder = self.cache_manager.temp_folder
 
     def image_processor(self, dbid=None, source=None, processes=None, url=None):
         """
@@ -87,18 +82,18 @@ class ImageEditor:
 
         :returns: Metadata dict or None.
         """
-        if not (
-            art := {art_type: url} if url else self._fetch_art_url(source, art_type)
-        ):
+        art = {art_type: url} if url else self._fetch_art_url(source, art_type)
+        if not art:
             return None
 
         original_url = next(iter(art.values()))
+        if not original_url:
+            return None
+
         extension = self.PROCESS_CONFIG.get(process)["extension"]
         self.cache_manager.prepare_cache(original_url, extension)
 
-        attributes = self.cache_manager.read_lookup(
-            original_url
-        ) or self._run_processor(process, art)
+        attributes = self.cache_manager.read_lookup(original_url) or self._run_processor(process, art)
 
         self.cache_manager.write_lookup(art_type, attributes)
         return attributes
@@ -114,6 +109,8 @@ class ImageEditor:
         category, url = next(iter(art.items()), (None, None))
         folder = self.PROCESS_CONFIG.get(process)["folder"]
         source, destination = self.cache_manager.get_image_paths(folder)
+        if not source:
+            return None
 
         image = self._image_open(source)
         if not image:
@@ -128,8 +125,11 @@ class ImageEditor:
             log(f"{self.__class__.__name__}: File processed: {url} → {destination}")
 
         if self.temp_folder in source:
-            xbmcvfs.delete(source)
-            log(f"{self.__class__.__name__}: Temp file deleted → {source}")
+            try:
+                xbmcvfs.delete(source)
+                log(f"{self.__class__.__name__}: Temp file deleted → {source}")
+            except Exception:
+                pass
 
         return {
             "category": category,
@@ -145,9 +145,16 @@ class ImageEditor:
         """
         Retrieves artwork URL from a Kodi infolabel.
 
-        :returns: Dict with {art_type: url} or False if not found.
+        :returns: Dict with {art_type: url} or {}] if not found.
         """
-        return {art_type: infolabel(f"{source}.Art({art_type})")}
+        if art_type == "fanart":
+            art = {}
+            for key in FANART_KEYS:
+                v = infolabel(f"{source}.Art({key})")
+                if v:
+                    art[key] = v
+            choice = resolve_fanart(art)
+            return {choice.key: choice.path} if choice.path else {}
 
     def _image_open(self, url):
         """

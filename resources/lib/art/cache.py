@@ -5,11 +5,10 @@ from pathlib import Path
 import xbmc
 import xbmcvfs
 
-from resources.lib.shared.hash import HashManager
-from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     TEMPS,
     THUMB_DB,
+    log,
     url_decode_path,
     validate_path,
 )
@@ -72,10 +71,9 @@ class ArtworkCacheManager:
 
         temp_path = str(Path(self.temp_folder) / self.cached_thumb)
         if not validate_path(temp_path) and xbmcvfs.copy(self.decoded_url, temp_path):
-            from resources.lib.shared.utilities import log
-
             log(f"{self.__class__.__name__}: Temporary file created → {temp_path}")
-        return temp_path, destination_path
+            return temp_path, destination_path
+        return None, destination_path
 
     def read_lookup(self, url):
         """
