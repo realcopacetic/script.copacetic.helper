@@ -3,6 +3,8 @@
 import colorsys
 from PIL import Image
 
+RGB = tuple[int, int, int]
+HLS = tuple[float, float, float]
 
 class ColorAnalyzer:
     """
@@ -10,12 +12,12 @@ class ColorAnalyzer:
     Provides helpers for hex conversion and HLS/RGB transforms.
     """
 
-    def extract_dominant_color(self, image: Image.Image) -> tuple[int, int, int]:
+    def extract_dominant_color(self, image: Image.Image) -> RGB:
         """
         Return the most common opaque RGB color in the image (fallback (0,0,0)).
 
         :param image: PIL Image (any mode).
-        :returns: (r, g, b) tuple in 0–255.
+        :returns: (r, g, b) tuple in 0-255.
         """
         try:
             pixeldata = image.getcolors(image.width * image.height)
@@ -42,7 +44,7 @@ class ColorAnalyzer:
         except Exception:
             return (0, 0, 0)
 
-    def get_luminosity(self, rgb: tuple[int, int, int]) -> float:
+    def get_luminosity(self, rgb: RGB) -> float:
         """
         Compute perceived brightness from an RGB color (0-1).
 
@@ -57,7 +59,7 @@ class ColorAnalyzer:
         r, g, b = map(linearize, rgb)
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-    def to_hex(self, rgb: tuple[int, int, int]) -> float:
+    def to_hex(self, rgb: RGB) -> float:
         """
         Convert RGB to ARGB hex string with full opacity.
 
@@ -67,43 +69,45 @@ class ColorAnalyzer:
         r, g, b = rgb
         return f"ff{r:02x}{g:02x}{b:02x}"
 
-    def from_hex(self, hex_str: str) -> tuple[int, int, int]:
+    def from_hex(self, hex_str: str) -> RGB:
         """
         Convert ARGB/RGB hex string to an RGB tuple.
 
         :param hex_str: Hex like "#ff336699", "ff336699", or "336699".
-        :returns: (r, g, b) tuple in 0–255.
+        :returns: (r, g, b) tuple in 0-255.
         """
         hex_str = hex_str.lstrip("#")
         if len(hex_str) == 8:
             hex_str = hex_str[2:]
         return tuple(int(hex_str[i : i + 2], 16) for i in (0, 2, 4))
 
-    def rgb_to_hls(self, rgb):
+    def rgb_to_hls(self, rgb: RGB) -> HLS:
         """
-        Converts RGB to HLS using colorsys.
-        :param rgb: Tuple of (r, g, b).
-        :returns: Tuple of (h, l, s) with values 0–1.
+        Convert RGB (0-255) to HLS (0-1).
+
+        :param rgb: (r, g, b) tuple in 0-255.
+        :returns: (h, l, s) tuple in 0-1.
         """
         r, g, b = [c / 255.0 for c in rgb]
         return colorsys.rgb_to_hls(r, g, b)
 
-    def hls_to_rgb(self, hls):
+    def hls_to_rgb(self, hls: HLS) -> RGB:
         """
-        Converts HLS back to RGB.
-        :param hls: Tuple of (h, l, s) with values 0–1.
-        :returns: Tuple of (r, g, b).
+        Convert HLS (0-1) back to RGB (0-255).
+
+        :param hls: (h, l, s) tuple in 0-1.
+        :returns: (r, g, b) tuple in 0-255.
         """
         r, g, b = colorsys.hls_to_rgb(*hls)
         return tuple(int(c * 255) for c in (r, g, b))
 
-    def get_contrasting_color(self, rgb, shift=0.4):
+    def get_contrasting_color(self, rgb: RGB, shift: float = 0.4) -> RGB:
         """
-        Shifts lightness to generate a contrast color.
+        Adjust lightness to produce a contrasting color.
 
-        :param rgb: Original RGB tuple.
-        :param shift: Amount to adjust L in HLS.
-        :returns: Adjusted RGB color with contrast.
+        :param rgb: Source (r, g, b) in 0-255.
+        :param shift: Lightness delta to apply in HLS.
+        :returns: Adjusted (r, g, b) in 0-255.
         """
         h, l, s = self.rgb_to_hls(rgb)
         if l < 0.5:
@@ -112,13 +116,13 @@ class ColorAnalyzer:
             l = max(0.0, l - shift)
         return self.hls_to_rgb((h, l, s))
 
-    def analyze(self, image, shift=0.4):
+    def analyze(self, image: Image.Image, shift: float = 0.4) -> dict[str, float | str]:
         """
-        Extracts dominant color, computes luminosity, and generates a contrast color.
+        Extract dominant color, luminosity, and a contrasting color (as hex).
 
-        :param image: PIL Image (resized/cropped externally).
-        :param shift: Lightness delta for contrast color.
-        :returns: Dict with hex, luminosity, and contrast_hex.
+        :param image: PIL Image (ideally pre-cropped/resized).
+        :param shift: Lightness delta used to compute contrast.
+        :returns: Dict with "hex", "luminosity" (0–1), and "contrast_hex".
         """
         rgb = self.extract_dominant_color(image)
         contrast_rgb = self.get_contrasting_color(rgb, shift=shift)

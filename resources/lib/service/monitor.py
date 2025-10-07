@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from pathlib import Path
+import sys
 
 import xbmc
 
@@ -10,19 +10,10 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (
-    ADDON,
-    BLURS,
-    CROPS,
-    TEMPS,
-    condition,
-    create_dir,
-    get_cache_size,
-    infolabel,
-    log,
-    log_and_execute,
-    validate_path,
-)
+from resources.lib.shared.utilities import (ADDON, BLURS, CROPS, TEMPS,
+                                            condition, create_dir,
+                                            get_cache_size, infolabel, log,
+                                            log_and_execute, validate_path)
 
 
 class Monitor(xbmc.Monitor):
@@ -53,6 +44,7 @@ class Monitor(xbmc.Monitor):
         # Run
         self._create()
         self._on_start()
+        log(f"{self.__class__.__name__} → Python version: {sys.version}")
 
     def _get_slideshow_interval(self):
         """
