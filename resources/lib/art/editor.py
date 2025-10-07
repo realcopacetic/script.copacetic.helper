@@ -66,7 +66,7 @@ class ImageEditor:
             ): attr[key]
             for attr in attributes
             if attr
-            for key in ["processed", "color", "contrast", "luminosity"]
+            for key in ["processed_path", "color", "contrast", "luminosity"]
             if attr.get(key) is not None
         }
 
@@ -137,8 +137,8 @@ class ImageEditor:
                 pass
 
         return {
-            "url": url,
-            "processed": destination,
+            "original_url": url,
+            "processed_path": destination,
             "cached_file_hash": self.cache_manager.cached_file_hash,
             "color": result["metadata"]["color"],
             "contrast": result["metadata"]["contrast"],

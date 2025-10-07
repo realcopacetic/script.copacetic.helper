@@ -12,8 +12,8 @@ class SQLiteHandler:
     """
     _ALLOWED_UPDATE_COLS = {
         "category",
-        "url",
-        "processed",
+        "original_url",
+        "processed_path",
         "cached_file_hash",
         "color",
         "contrast",
@@ -69,8 +69,8 @@ class SQLiteHandler:
                 """,
                 (
                     category,
-                    attributes.get("url"),
-                    attributes.get("processed"),
+                    attributes.get("original_url"),
+                    attributes.get("processed_path"),
                     attributes.get("cached_file_hash"),
                     attributes.get("color"),
                     attributes.get("contrast"),
@@ -96,8 +96,8 @@ class SQLiteHandler:
             return {
                 "id": row[0],
                 "category": row[1],
-                "url": row[2],
-                "processed": row[3],
+                "original_url": row[2],
+                "processed_path": row[3],
                 "cached_file_hash": row[4],
                 "color": row[5],
                 "contrast": row[6],
