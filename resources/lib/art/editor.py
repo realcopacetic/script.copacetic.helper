@@ -4,7 +4,7 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import FANART_KEYS, resolve_fanart
+from resources.lib.art.policy import ART_KEYS, resolve_art_type
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
@@ -98,7 +98,7 @@ class ImageEditor:
             or self._run_processor(process, art)
         ):
             return None
-
+        
         attributes["category"] = art_type
         self.cache_manager.write_lookup(art_type, attributes)
         return attributes
@@ -137,7 +137,6 @@ class ImageEditor:
                 pass
 
         return {
-            "category": source_key ,
             "url": url,
             "processed": destination,
             "cached_file_hash": self.cache_manager.cached_file_hash,
@@ -152,16 +151,13 @@ class ImageEditor:
 
         :returns: Dict with {art_type: url} or {} if not found.
         """
-        if art_type == "fanart":
-            candidates = {}
-            for key in FANART_KEYS:
-                if v := infolabel(f"{source}.Art({key})"):
-                    candidates[key] = v
-            choice = resolve_fanart(candidates)
-            return {choice.key: choice.path} if choice.path else {}
-
-        v = infolabel(f"{source}.Art({art_type})")
-        return {art_type: v} if v else {}
+        candidates = {
+            key: infolabel(f"{source}.Art({key})")
+            for key in ART_KEYS.get(art_type, (art_type,))
+            if infolabel(f"{source}.Art({key})")
+        }
+        choice = resolve_art_type(candidates, art_type)
+        return {choice.target_key: choice.path} if choice.path else {}
 
     def _image_open(self, url):
         """

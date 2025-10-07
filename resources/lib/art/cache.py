@@ -29,7 +29,7 @@ class ArtworkCacheManager:
         self.decoded_url = None
         self.cached_thumb = None
         self.cached_image_path = None
-        self.cached_file_hash = ""
+        self.cached_file_hash = None
 
     def prepare_cache(self, url, suffix):
         """
@@ -43,6 +43,7 @@ class ArtworkCacheManager:
         self.cached_image_path = (
             Path(THUMB_DB) / self.cached_thumb[0] / self.cached_thumb
         )
+        self.cached_file_hash = ""
         if validate_path(self.cached_image_path):
             self.cached_file_hash = self.hash_manager.compute_hash(
                 self.cached_image_path
