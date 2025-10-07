@@ -1,5 +1,7 @@
 # author: realcopacetic
 
+from typing import Any
+
 from PIL import Image, ImageFilter
 
 from resources.lib.art.analyzer import ColorAnalyzer
@@ -8,23 +10,22 @@ from resources.lib.shared.utilities import log, log_duration
 
 class ImageProcessor:
     """
-    Performs artwork transformations like crop and blur,
-    and extracts color metadata using ColorAnalyzer.
+    Performs artwork transforms (crop/blur) and extracts color metadata.
+    Uses ColorAnalyzer for hex/contrast/luminosity.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the processor with a color analyzer."""
         self.color_analyzer = ColorAnalyzer()
 
     @log_duration
-    def crop(self, image):
+    def crop(self, image: Image.Image) -> dict[str, Any] | None:
         """
-        Crops and resizes clearlogos, and extracts color metadata.
-        :param image: PIL Image object.
-        :returns: Dict with processed image, format, and metadata.
-        """
-        if image.mode != "RGBA":
-            image = image.convert("RGBA")
+        Crop/resize clearlogos, normalize mode for PNG, extract color metadata.
 
+        :param image: Input PIL Image.
+        :returns: Dict with {"image", "format", "metadata"} or None on failure.
+        """
         pre_resize_max = (1840, 713)
         if image.width > pre_resize_max[0] or image.height > pre_resize_max[1]:
             image.thumbnail(pre_resize_max, Image.LANCZOS)
@@ -39,6 +40,13 @@ class ImageProcessor:
         if image.width > final_max[0] or image.height > final_max[1]:
             image.thumbnail(final_max, Image.LANCZOS)
 
+        if image.mode == "P":
+            image = image.convert("RGBA")
+        elif image.mode in ("LA",):
+            image = image.convert("RGBA")
+        elif image.mode not in ("RGB", "RGBA"):
+            image = image.convert("RGBA")
+
         analysis = self.color_analyzer.analyze(image)
 
         return {
@@ -52,15 +60,25 @@ class ImageProcessor:
         }
 
     @log_duration
-    def blur(self, image):
+    def blur(self, image: Image.Image) -> dict[str, Any] | None:
         """
-        Applies Gaussian blur and resizes fanart. Also extracts color metadata.
-        :param image: PIL Image object.
-        :returns: Dict with processed image, format, and metadata.
+        Resize fanart, apply Gaussian blur, coerce JPEG-safe mode, extract colors.
+
+        :param image: Input PIL Image.
+        :returns: Dict with {"image", "format", "metadata"}.
         """
         target_size = (480, 270)
-        image.thumbnail(target_size, Image.LANCZOS)
-        image = image.filter(ImageFilter.GaussianBlur(radius=50))
+        try:
+            image.thumbnail(target_size, Image.LANCZOS)
+            image = image.filter(ImageFilter.GaussianBlur(radius=50))
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: Error blurring image → {exc}", force=True)
+            return None
+
+        if image.mode in ("RGBA", "LA", "P"):
+            image = image.convert("RGBA").convert("RGB")
+        elif image.mode != "RGB":
+            image = image.convert("RGB")
 
         analysis = self.color_analyzer.analyze(image)
 

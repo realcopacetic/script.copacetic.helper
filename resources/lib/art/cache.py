@@ -1,10 +1,13 @@
 # author: realcopacetic
 
 from pathlib import Path
+from typing import Any
 
 import xbmc
 import xbmcvfs
 
+from resources.lib.shared.hash import HashManager
+from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     TEMPS,
     THUMB_DB,
@@ -20,7 +23,15 @@ class ArtworkCacheManager:
     for processed artwork files using file hash verification and SQLite.
     """
 
-    def __init__(self, sqlite_handler, hash_manager):
+    def __init__(
+        self, sqlite_handler: SQLiteHandler, hash_manager: HashManager
+    ) -> None:
+        """
+        Initialize managers and working state.
+
+        :param sqlite_handler: SQLite handler with get_entry/add_entry/update_field.
+        :param hash_manager: Hash manager with compute_hash(path) -> str.
+        """
         self.sqlite = sqlite_handler
         self.hash_manager = hash_manager
         self.temp_folder = TEMPS
@@ -31,12 +42,12 @@ class ArtworkCacheManager:
         self.cached_image_path = None
         self.cached_file_hash = None
 
-    def prepare_cache(self, url, suffix):
+    def prepare_cache(self, url: str, suffix: str) -> None:
         """
-        Prepares cached file path and computes hash for given artwork URL.
+        Decode URL, compute cache filename, locate cached image, and file hash.
 
         :param url: Original artwork URL.
-        :param suffix: File extension (e.g., '.jpg', '.png').
+        :param suffix: File extension (e.g., ".jpg", ".png").
         """
         self.decoded_url = url_decode_path(url)
         self.cached_thumb = self.get_cached_thumb(self.decoded_url, suffix)
@@ -49,23 +60,22 @@ class ArtworkCacheManager:
                 self.cached_image_path
             )
 
-    def get_cached_thumb(self, url, suffix):
+    def get_cached_thumb(self, url: str, suffix: str) -> str:
         """
-        Returns thumbnail-safe filename for the given URL and suffix.
+        Build a cache-safe filename for the given URL and target suffix.
 
-        :param url: Artwork URL.
-        :param suffix: Desired file extension.
-        :returns: Cache-friendly filename string.
+        :param url: Artwork URL (decoded/encoded accepted).
+        :param suffix: Desired file extension (e.g., ".jpg", ".png").
+        :returns: Cache-friendly filename string (no directories).
         """
         return xbmc.getCacheThumbName(url).replace(".tbn", f"{suffix}")
 
-    def get_image_paths(self, folder):
+    def get_image_paths(self, folder: str) -> tuple[str | None, str]:
         """
-        Gets source and destination file paths for processing.
-        Falls back to a temp copy if the cached path doesn't exist.
+        Resolve source and destination paths for processing; copy to temp if needed.
 
-        :param folder: Target destination folder for processed images.
-        :returns: Tuple (source_path, destination_path)
+        :param folder: Destination folder for processed images.
+        :returns: (source_path or None, destination_path).
         """
         source_path = str(self.cached_image_path)
         destination_path = str(Path(folder) / self.cached_thumb)
@@ -79,12 +89,12 @@ class ArtworkCacheManager:
             return temp_path, destination_path
         return None, destination_path
 
-    def read_lookup(self, url):
+    def read_lookup(self, url: str) -> dict[str, Any] | None:
         """
-        Reads cached lookup metadata for the given URL.
+        Read cached metadata for URL and validate against current file hash.
 
-        :param url: Original image URL.
-        :returns: Dict of cached metadata or None.
+        :param url: Original image URL (lookup key).
+        :returns: Cached metadata dict if valid, else None.
         """
         if not (entry := self.sqlite.get_entry(url)):
             return None
@@ -111,12 +121,12 @@ class ArtworkCacheManager:
         # Hash mismatch and both populated → stale entry
         return None
 
-    def write_lookup(self, art_type, metadata):
+    def write_lookup(self, art_type: str, metadata: dict[str, Any]) -> None:
         """
-        Writes metadata to the cache lookup database.
+        Persist processed metadata to SQLite lookup.
 
-        :param art_type: Type of artwork (e.g., 'clearlogo').
-        :param metadata: Dictionary of attributes to store.
+        :param art_type: Artwork type for categorization (e.g., "clearlogo").
+        :param metadata: Processed attributes including paths, colors, and hashes.
         """
         if metadata:
             category = "clearlogo" if "clearlogo" in art_type else art_type

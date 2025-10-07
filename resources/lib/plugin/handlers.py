@@ -173,9 +173,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             sqlite = SQLiteHandler()
             image_processor = ImageEditor(sqlite).image_processor
             processed = image_processor(
-                self.dbid,
-                f"{self.container}.ListItem",
-                {"clearlogo": "crop", "fanart": "blur"},
+                processes={"clearlogo": "crop", "fanart": "blur"},
+                source=f"{self.container}.ListItem",
             )
 
             if not guard.alive():

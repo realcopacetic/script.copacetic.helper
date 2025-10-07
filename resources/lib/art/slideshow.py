@@ -246,7 +246,6 @@ class SlideshowMonitor:
                 return None
 
             processed = self.image_processor(
-                url=url_decode_path(clearlogo),
                 processes={
                     (
                         "clearlogo-billboard"
@@ -254,6 +253,7 @@ class SlideshowMonitor:
                         else "clearlogo"
                     ): "crop"
                 },
+                url=url_decode_path(clearlogo),
             )
             return (
                 processed.get("clearlogo-billboard") or processed.get("clearlogo")

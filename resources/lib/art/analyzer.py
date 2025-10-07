@@ -6,15 +6,16 @@ from PIL import Image
 
 class ColorAnalyzer:
     """
-    Analyzes image colors and provides utilities for color conversion and contrast.
+    Extracts a dominant color and computes derived values like luminosity/contrast.
+    Provides helpers for hex conversion and HLS/RGB transforms.
     """
 
-    def extract_dominant_color(self, image):
+    def extract_dominant_color(self, image: Image.Image) -> tuple[int, int, int]:
         """
-        Extracts the most common opaque color from the image.
+        Return the most common opaque RGB color in the image (fallback (0,0,0)).
 
-        :param image: PIL Image object.
-        :returns: RGB tuple of the dominant color.
+        :param image: PIL Image (any mode).
+        :returns: (r, g, b) tuple in 0–255.
         """
         try:
             pixeldata = image.getcolors(image.width * image.height)
@@ -41,12 +42,12 @@ class ColorAnalyzer:
         except Exception:
             return (0, 0, 0)
 
-    def get_luminosity(self, rgb):
+    def get_luminosity(self, rgb: tuple[int, int, int]) -> float:
         """
-        Calculates perceived brightness of an RGB color.
+        Compute perceived brightness from an RGB color (0-1).
 
-        :param rgb: Tuple of (r, g, b).
-        :returns: Float between 0 and 1.
+        :param rgb: (r, g, b) tuple in 0-255.
+        :returns: Relative luminance per sRGB/Rec.709.
         """
 
         def linearize(channel):
@@ -56,22 +57,22 @@ class ColorAnalyzer:
         r, g, b = map(linearize, rgb)
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-    def to_hex(self, rgb):
+    def to_hex(self, rgb: tuple[int, int, int]) -> float:
         """
-        Converts RGB to ARGB hex with full opacity.
+        Convert RGB to ARGB hex string with full opacity.
 
-        :param rgb: Tuple of (r, g, b).
-        :returns: Hex string like "ff336699".
+        :param rgb: (r, g, b) tuple in 0-255.
+        :returns: Hex like "ff336699".
         """
         r, g, b = rgb
         return f"ff{r:02x}{g:02x}{b:02x}"
 
-    def from_hex(self, hex_str):
+    def from_hex(self, hex_str: str) -> tuple[int, int, int]:
         """
-        Converts ARGB hex string to RGB tuple.
+        Convert ARGB/RGB hex string to an RGB tuple.
 
-        :param hex_str: Hex string like "#ff336699" or "336699".
-        :returns: Tuple of (r, g, b).
+        :param hex_str: Hex like "#ff336699", "ff336699", or "336699".
+        :returns: (r, g, b) tuple in 0–255.
         """
         hex_str = hex_str.lstrip("#")
         if len(hex_str) == 8:

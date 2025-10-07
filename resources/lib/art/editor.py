@@ -1,5 +1,7 @@
 # author: realcopacetic
 
+from typing import Any
+
 import xbmcvfs
 from PIL import Image
 
@@ -22,32 +24,50 @@ class ImageEditor:
         "crop": {"folder": CROPS, "extension": ".png"},
     }
 
-    def __init__(self, sqlite_handler=None):
+    def __init__(self, sqlite_handler: SQLiteHandler | None = None) -> None:
+        """
+        Initialize caches, processors, and database/session dependencies.
+
+        :param sqlite_handler: Optional SQLite handler instance, defaults to a new one.
+        """
         self.sqlite = sqlite_handler or SQLiteHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.processor = ImageProcessor()
         self.temp_folder = self.cache_manager.temp_folder
 
-    def image_processor(self, dbid=None, source=None, processes=None, url=None):
+    def image_processor(
+        self,
+        processes: dict[str, str],
+        source: str | None = None,
+        url: str | None = None,
+    ):
         """
-        Processes one or more image types and returns processed paths and metadata.
+        Process one or more artwork types and return output paths and color metadata.
 
-        :param dbid: Optional database ID.
-        :param source: Kodi container or source item.
-        :param processes: Dict of {art_type: "crop" or "blur"}.
-        :param url: Optional manual URL override.
-        :returns: Dict of results per art_type.
+        :param processes: Mapping of {art_type: "crop"|"blur"} to run.
+        :param source: Kodi infolabel source prefix. Required if no URL is provided.
+        :param url: Explicit image path. Required if no source is provided.
+        :returns: Flat dict merging processed paths and color metadata by art_type.
         """
         if not processes:
+            log(
+                f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}."
+            )
+            return {}
+
+        if not source and not url:
+            log(
+                f"{self.__class__.__name__}: Missing both source and URL; nothing to process."
+            )
             return {}
 
         try:
             attributes = [
                 self._handle_image(
-                    source=source,
-                    url=url,
                     art_type=art_type,
                     process=process,
+                    source=source,
+                    url=url,
                 )
                 for art_type, process in processes.items()
             ]
@@ -72,17 +92,25 @@ class ImageEditor:
 
     def _handle_image(
         self,
-        source="Container.ListItem",
-        url=False,
-        art_type="clearlogo",
-        process="crop",
-    ):
+        art_type: str,
+        process: str,
+        source: str = "Container.ListItem",
+        url: str | None = None,
+    ) -> dict[str, Any] | None:
         """
-        Retrieves or processes a single image and writes it to the lookup table.
+        Resolve source URL, process/cache the image, and persist metadata.
 
-        :returns: Metadata dict or None.
+        :param art_type: Artwork key (e.g. "clearlogo", "fanart").
+        :param process: Processor name ("crop" or "blur").
+        :param source: Optional Kodi infolabel source prefix for Art() lookups.
+        :param url: Optional explicit URL to process for this art_type.
+        :returns: Metadata dict including processed path and colors, or None.
         """
-        art = {art_type: url} if url else self._fetch_art_url(source, art_type)
+        art = (
+            {art_type: url}
+            if url
+            else self._fetch_art_url(art_type, source) if source else None
+        )
         if not art:
             return None
 
@@ -98,26 +126,32 @@ class ImageEditor:
             or self._run_processor(process, art)
         ):
             return None
-        
+
         attributes["category"] = art_type
         self.cache_manager.write_lookup(art_type, attributes)
         return attributes
 
-    def _run_processor(self, process, art):
+    def _run_processor(
+        self, process: str, art: dict[str, str]
+    ) -> dict[str, Any] | None:
         """
-        Executes the processor and returns metadata.
+        Execute a processor for a single image and write the processed file.
+
+        :param process: Processor name ("crop" or "blur").
+        :param art: Mapping of {resolved_key: url} for the selected artwork.
+        :returns: Dict with file paths and color metadata, or None on failure.
         """
         process_method = getattr(self.processor, process, None)
         if not process_method:
             return None
 
-        source_key, url = next(iter(art.items()), (None, None))
+        _source_key, url = next(iter(art.items()), (None, None))
         folder = self.PROCESS_CONFIG.get(process)["folder"]
-        source, destination = self.cache_manager.get_image_paths(folder)
-        if not source:
+        source_path, destination_path = self.cache_manager.get_image_paths(folder)
+        if not source_path:
             return None
 
-        image = self._image_open(source)
+        image = self._image_open(source_path)
         if not image:
             return None
 
@@ -125,44 +159,64 @@ class ImageEditor:
         if not result or "image" not in result:
             return None
 
-        with xbmcvfs.File(destination, "wb") as f:
-            result["image"].save(f, result.get("format", "PNG"))
-            log(f"{self.__class__.__name__}: File processed: {url} → {destination}")
+        fmt = result.get("format", "PNG")
+        if fmt == "JPEG" and result["image"].mode != "RGB":
+            img = result["image"]
+            result["image"] = (
+                img.convert("RGBA").convert("RGB")
+                if img.mode in ("RGBA", "LA", "P")
+                else img.convert("RGB")
+            )
 
-        if self.temp_folder in source:
+        with xbmcvfs.File(destination_path, "wb") as f:
+            result["image"].save(f, result.get("format", "PNG"))
+            log(
+                f"{self.__class__.__name__}: File processed: {url} → {destination_path}"
+            )
+
+        if self.temp_folder in source_path:
             try:
-                xbmcvfs.delete(source)
-                log(f"{self.__class__.__name__}: Temp file deleted → {source}")
+                xbmcvfs.delete(source_path)
+                log(f"{self.__class__.__name__}: Temp file deleted → {source_path}")
             except Exception:
                 pass
 
         return {
             "original_url": url,
-            "processed_path": destination,
+            "processed_path": destination_path,
             "cached_file_hash": self.cache_manager.cached_file_hash,
             "color": result["metadata"]["color"],
             "contrast": result["metadata"]["contrast"],
             "luminosity": result["metadata"]["luminosity"],
         }
 
-    def _fetch_art_url(self, source, art_type):
+    def _fetch_art_url(self, art_type: str, source: str):
         """
-        Retrieves artwork URL from a Kodi infolabel.
+        Read artwork paths from Kodi infolabels and select the best candidate.
 
-        :returns: Dict with {art_type: url} or {} if not found.
+        :param art_type: Target artwork type to resolve (e.g. "clearlogo", "fanart").
+        :param source: Kodi info label source prefix (e.g. "ListItem" or "Container.ListItem").
+        :returns: Dict {chosen_key: path} if found, else {}.
         """
         candidates = {
-            key: infolabel(f"{source}.Art({key})")
+            key: path
             for key in ART_KEYS.get(art_type, (art_type,))
-            if infolabel(f"{source}.Art({key})")
+            if (path := infolabel(f"{source}.Art({key})"))
         }
         choice = resolve_art_type(candidates, art_type)
         return {choice.target_key: choice.path} if choice.path else {}
 
-    def _image_open(self, url):
+    def _image_open(self, url: str) -> Image.Image | None:
         """
-        Opens a Kodi VFS image path using PIL.
+        Open an image from Kodi VFS via Pillow; skips unsupported formats.
+
+        :param url: Kodi VFS or URL-like path to the image resource.
+        :returns: PIL Image or None if missing/unsupported/unreadable.
         """
+        if url.lower().endswith(".svg"):
+            log(f"{self.__class__.__name__}: Skipping unsupported SVG → {url}")
+            return None
+
         try:
             return Image.open(xbmcvfs.translatePath(url))
         except (FileNotFoundError, OSError) as error:

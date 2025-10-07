@@ -21,7 +21,7 @@ def collect_multiart(
     """
     if not art_type:
         return {}
-    
+
     limit = int(clamp(to_int(max_items, DEFAULT_SLOTS), 0, MAX_SLOTS))
     name_keys = ["multiart"] + [f"multiart{i}" for i in range(1, limit + 1)]
     art_keys = [f"Art({art_type})"] + [

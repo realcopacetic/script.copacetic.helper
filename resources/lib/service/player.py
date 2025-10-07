@@ -24,7 +24,7 @@ class PlayerMonitor(Player):
             "String.IsEmpty(Window(home).Property(Trailer_Autoplay))"
         ):
             # Crop clearlogo for use on fullscreen info or pause
-            self.image_processor(source="VideoPlayer", processes={"clearlogo": "crop"})
+            self.image_processor(processes={"clearlogo": "crop"}, source="VideoPlayer")
             # Clean filename
             item = self.getPlayingItem()
             label = item.getLabel()
