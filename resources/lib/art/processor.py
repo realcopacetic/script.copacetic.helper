@@ -19,6 +19,13 @@ class ImageProcessor:
         """Initialize the processor with a color analyzer."""
         self.color_analyzer = ColorAnalyzer(AnalyzerConfig)
 
+    @staticmethod
+    def _ensure_mode(image: Image.Image, target: str) -> Image.Image:
+        """
+        Normalize image mode once.
+        """
+        return image if image.mode == target else image.convert(target)
+
     @log_duration
     def crop(self, image: Image.Image) -> dict[str, Any] | None:
         """
@@ -41,13 +48,7 @@ class ImageProcessor:
         if image.width > final_max[0] or image.height > final_max[1]:
             image.thumbnail(final_max, Image.LANCZOS)
 
-        if image.mode == "P":
-            image = image.convert("RGBA")
-        elif image.mode in ("LA",):
-            image = image.convert("RGBA")
-        elif image.mode not in ("RGB", "RGBA"):
-            image = image.convert("RGBA")
-
+        image = self._ensure_mode(image, "RGBA")
         analysis = self.color_analyzer.analyze(image)
 
         return {
@@ -72,18 +73,14 @@ class ImageProcessor:
             log(f"{self.__class__.__name__}: Error blurring image → {exc}", force=True)
             return None
 
-        if image.mode in ("RGBA", "LA", "P"):
-            image = image.convert("RGBA").convert("RGB")
-        elif image.mode != "RGB":
-            image = image.convert("RGB")
-
+        image = self._ensure_mode(image, "RGB")
         analysis = self.color_analyzer.analyze(image)
 
         # Fanart readability — minimal darken% needed for overlay text
         try:
             darken = self.color_analyzer.compute_darken_percent(
                 image,
-                rect=self.text_overlay_rect,
+                rect=None,
                 text_rgb=None,
             )
         except Exception as exc:

@@ -182,12 +182,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             art = flatten_art_attributes(processed)
-            log(f'FUCK DEBUG art {art}')
             art |= collect_multiart(
                 target=f"{self.container}.ListItem",
                 art_type=self.params.get("multiart"),
                 max_items=self.params.get("multiart_max"),
             )
+            log(f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}")
 
             if not guard.alive():
                 return

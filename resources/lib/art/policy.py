@@ -96,6 +96,9 @@ class AnalyzerConfig:
     # Overlay text colour used for readability checks (ARGB hex)
     text_overlay_colour: str = "ffd1cece"
 
+    # (x, y, w, h) Overlay region to analyze
+    text_overlay_rect: tuple[int, int, int, int] = (120,660,1680,360)
+
     # Required WCAG contrast ratio for text (4.5 normal, 3.0 large)
     target_contrast_ratio: float = 4.5
 

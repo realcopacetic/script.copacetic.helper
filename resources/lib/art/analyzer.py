@@ -4,9 +4,11 @@ import colorsys
 from PIL import Image
 
 from resources.lib.art.policy import AnalyzerConfig
+from resources.lib.shared.utilities import log_duration
 
 RGB = tuple[int, int, int]
 HLS = tuple[float, float, float]
+
 
 class ColorAnalyzer:
     """
@@ -18,6 +20,7 @@ class ColorAnalyzer:
         self.cfg = cfg
 
     # ---------- public summary ----------
+    @log_duration
     def analyze(self, image: Image.Image) -> dict[str, float | str]:
         """Extract dominant + accent; compute luminosity and a contrast colour (hex)."""
         dominant = self.extract_dominant_color(image)
@@ -139,7 +142,7 @@ class ColorAnalyzer:
     def compute_darken_percent(
         self,
         image: Image.Image,
-        rect: tuple[int, int, int, int],
+        rect: tuple[int, int, int, int] | None = None,
         text_rgb: RGB | None = None,
     ) -> int:
         """
@@ -157,6 +160,7 @@ class ColorAnalyzer:
             if text_rgb is None
             else text_rgb
         )
+        rect = self.cfg.text_overlay_rect if rect is None else rect
         x, y, w, h = rect
         crop = image.crop((x, y, x + w, y + h))
         bg_rgb = self._avg_rgb(crop)

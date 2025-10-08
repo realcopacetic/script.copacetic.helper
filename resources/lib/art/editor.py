@@ -135,7 +135,7 @@ class ImageEditor:
         if not process_method:
             return None
 
-        _source_key, url = next(iter(art.items()), (None, None))
+        category, url = next(iter(art.items()), (None, None))
         folder = self.PROCESS_CONFIG.get(process)["folder"]
         source_path, destination_path = self.cache_manager.get_image_paths(folder)
         if not source_path:
@@ -150,13 +150,6 @@ class ImageEditor:
             return None
 
         fmt = result.get("format", "PNG")
-        if fmt == "JPEG" and result["image"].mode != "RGB":
-            img = result["image"]
-            result["image"] = (
-                img.convert("RGBA").convert("RGB")
-                if img.mode in ("RGBA", "LA", "P")
-                else img.convert("RGB")
-            )
 
         with xbmcvfs.File(destination_path, "wb") as f:
             result["image"].save(f, result.get("format", "PNG"))
@@ -170,13 +163,13 @@ class ImageEditor:
                 log(f"{self.__class__.__name__}: Temp file deleted → {source_path}")
             except Exception:
                 pass
-            
+
         return ArtMeta.from_values(
-            category=art["category"],
+            category=category,
             original_url=url,
             processed_path=destination_path,
             cached_file_hash=self.cache_manager.cached_file_hash,
-            values=result.get("values", {}),
+            values=result.get("metadata", {}),
         ).to_dict()
 
     def _fetch_art_url(self, art_type: str, source: str):
