@@ -3,7 +3,7 @@
 import colorsys
 from PIL import Image
 
-from lib.art.policy import AnalyzerConfig
+from resources.lib.art.policy import AnalyzerConfig
 
 RGB = tuple[int, int, int]
 HLS = tuple[float, float, float]
@@ -26,9 +26,9 @@ class ColorAnalyzer:
             dominant, shift=self.cfg.contrast_shift
         )
         return {
-            "hex": self.to_hex(dominant),
-            "accent_hex": self.to_hex(accent),
-            "contrast_hex": self.to_hex(contrast_rgb),
+            "color": self.to_hex(dominant),
+            "accent": self.to_hex(accent),
+            "contrast": self.to_hex(contrast_rgb),
             "luminosity": int(self.get_luminosity(dominant) * 1000),
         }
 

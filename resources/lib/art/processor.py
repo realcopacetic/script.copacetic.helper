@@ -53,11 +53,7 @@ class ImageProcessor:
         return {
             "image": image,
             "format": "PNG",
-            "values": {
-                "color": analysis["hex"],
-                "accent": analysis.get("accent_hex"),
-                "contrast": analysis["contrast_hex"],
-            },
+            "metadata": analysis,
         }
 
     @log_duration
@@ -97,11 +93,5 @@ class ImageProcessor:
         return {
             "image": image,
             "format": "JPEG",
-            "metadata": {
-                "color": analysis["hex"],
-                "accent": analysis["accent"],
-                "contrast": analysis["contrast_hex"],
-                "luminosity": analysis["luminosity"],
-                "darken": darken,
-            },
+            "metadata": {**analysis, "darken": darken},
         }

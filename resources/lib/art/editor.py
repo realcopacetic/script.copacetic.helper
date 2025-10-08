@@ -40,7 +40,7 @@ class ImageEditor:
         processes: dict[str, str],
         source: str | None = None,
         url: str | None = None,
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """
         Process one or more artwork types and return structured per-item metadata.
 
@@ -170,13 +170,13 @@ class ImageEditor:
                 log(f"{self.__class__.__name__}: Temp file deleted → {source_path}")
             except Exception:
                 pass
-        values = result.get("values", {})
+            
         return ArtMeta.from_values(
             category=art["category"],
             original_url=url,
             processed_path=destination_path,
             cached_file_hash=self.cache_manager.cached_file_hash,
-            values=values,
+            values=result.get("values", {}),
         ).to_dict()
 
     def _fetch_art_url(self, art_type: str, source: str):
