@@ -191,7 +191,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            data = {"file": self.dbid, "art": art}
+            data = {"file": "artwork", "art": art}
             return add_items([data], media_type="artwork")
 
     @log_duration

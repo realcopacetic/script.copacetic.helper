@@ -4,7 +4,7 @@ from typing import Any
 
 from PIL import Image, ImageFilter
 
-from resources.lib.art.analyzer import ColorAnalyzer
+from resources.lib.art.analyzer import ColorAnalyzer, AnalyzerConfig
 from resources.lib.shared.utilities import log, log_duration
 
 
@@ -16,7 +16,7 @@ class ImageProcessor:
 
     def __init__(self) -> None:
         """Initialize the processor with a color analyzer."""
-        self.color_analyzer = ColorAnalyzer()
+        self.color_analyzer = ColorAnalyzer(AnalyzerConfig)
 
     @log_duration
     def crop(self, image: Image.Image) -> dict[str, Any] | None:
@@ -54,6 +54,7 @@ class ImageProcessor:
             "format": "PNG",
             "metadata": {
                 "color": analysis["hex"],
+                "accent": analysis["accent"],
                 "contrast": analysis["contrast_hex"],
                 "luminosity": int(analysis["luminosity"] * 1000),
             },
@@ -82,12 +83,25 @@ class ImageProcessor:
 
         analysis = self.color_analyzer.analyze(image)
 
+        # Fanart readability — minimal darken% needed for overlay text
+        try:
+            darken = self.color_analyzer.compute_darken_percent(
+                image,
+                rect=self.text_overlay_rect,
+                text_rgb=None,
+            )
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: darken calc failed → {exc}", force=True)
+            darken = 0
+
         return {
             "image": image,
             "format": "JPEG",
             "metadata": {
                 "color": analysis["hex"],
+                "accent": analysis["accent"],
                 "contrast": analysis["contrast_hex"],
                 "luminosity": int(analysis["luminosity"] * 1000),
+                "darken": int(darken),
             },
         }

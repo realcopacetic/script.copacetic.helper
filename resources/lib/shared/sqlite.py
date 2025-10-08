@@ -16,8 +16,10 @@ class SQLiteHandler:
         "processed_path",
         "cached_file_hash",
         "color",
+        "accent",
         "contrast",
         "luminosity",
+        "darken",
     }
 
     def __init__(self):
@@ -42,8 +44,10 @@ class SQLiteHandler:
                 processed_path TEXT,
                 cached_file_hash TEXT,
                 color TEXT,
+                accent TEXT,
                 contrast TEXT,
-                luminosity INTEGER
+                luminosity INTEGER,
+                darken INTEGER
             )
             """
         )
@@ -64,8 +68,8 @@ class SQLiteHandler:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO artwork (category, original_url, processed_path, cached_file_hash, color, contrast, luminosity)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO artwork (category, original_url, processed_path, cached_file_hash, color, accent, contrast, luminosity, darken)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     category,
@@ -73,8 +77,10 @@ class SQLiteHandler:
                     attributes.get("processed_path"),
                     attributes.get("cached_file_hash"),
                     attributes.get("color"),
+                    attributes.get("accent"),
                     attributes.get("contrast"),
                     attributes.get("luminosity"),
+                    attributes.get("darken"),
                 ),
             )
             conn.commit()
@@ -100,8 +106,10 @@ class SQLiteHandler:
                 "processed_path": row[3],
                 "cached_file_hash": row[4],
                 "color": row[5],
-                "contrast": row[6],
-                "luminosity": row[7],
+                "accent": row[6],
+                "contrast": row[7],
+                "luminosity": row[8],
+                "darken": row[9],
             }
         return None
 
@@ -115,7 +123,7 @@ class SQLiteHandler:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM artwork")
             conn.commit()
-    
+
     def update_fields(self, url: str, **fields) -> int:
         """
         Update one or more columns for a single row identified by original URL.
@@ -137,7 +145,7 @@ class SQLiteHandler:
                 return cur.rowcount or 0
         except Exception:
             return 0
-    
+
     def update_field(self, url: str, column: str, value) -> int:
         """Thin wrapper for single-column updates."""
         return self.update_fields(url, **{column: value})

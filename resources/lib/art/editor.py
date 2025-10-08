@@ -81,12 +81,12 @@ class ImageEditor:
         return {
             (
                 f"{attr['category']}_{key}"
-                if key in ["color", "contrast", "luminosity"]
+                if key in ["color", "accent", "contrast", "luminosity", "darken"]
                 else attr["category"]
             ): attr[key]
             for attr in attributes
             if attr
-            for key in ["processed_path", "color", "contrast", "luminosity"]
+            for key in ["processed_path", "color", "accent", "contrast", "luminosity", "darken"]
             if attr.get(key) is not None
         }
 
