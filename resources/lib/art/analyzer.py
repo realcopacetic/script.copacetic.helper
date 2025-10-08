@@ -160,18 +160,36 @@ class ColorAnalyzer:
             if text_rgb is None
             else text_rgb
         )
-        rect = self.cfg.text_overlay_rect if rect is None else rect
-        x, y, w, h = rect
-        crop = image.crop((x, y, x + w, y + h))
+        base_rect = self.cfg.text_overlay_rect if rect is None else rect
+
+        # 1) scale from 1920x1080 to current image size
+        bx, by, bw, bh = base_rect
+        sx = image.width / 1920.0
+        sy = image.height / 1080.0
+        x = int(round(bx * sx))
+        y = int(round(by * sy))
+        w = int(round(bw * sx))
+        h = int(round(bh * sy))
+
+        # 2) clamp to image bounds (avoid out-of-bounds black padding), then crop
+        x0 = max(0, x)
+        y0 = max(0, y)
+        x1 = min(image.width, x + w)
+        y1 = min(image.height, y + h)
+        if x1 <= x0 or y1 <= y0:
+            return 0  # empty region; nothing to darken
+        crop = image.crop((x0, y0, x1, y1))
+
+        # 2) luminances
         bg_rgb = self._avg_rgb(crop)
         L_text = self.get_luminosity(text_rgb)
         L_bg = self.get_luminosity(bg_rgb)
 
-        # If already sufficient contrast, return 0
+        # 4) early exit if already sufficient contrast
         if (L_text + 0.05) / (L_bg + 0.05) >= self.cfg.target_contrast_ratio:
             return 0
 
-        # Solve for minimal k such that (L_text+0.05)/(k*L_bg+0.05) >= target_contrast_ratio
+        # 5) solve for k in L_bg' = k * L_bg such that contrast meets target
         numerator = (L_text + 0.05) / self.cfg.target_contrast_ratio - 0.05
         if L_bg <= 1e-9 or numerator <= 0:
             return 100  # clamp: fully black
