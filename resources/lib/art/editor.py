@@ -6,7 +6,7 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import ART_KEYS, resolve_art_type
+from resources.lib.art.policy import ART_KEYS, ArtMeta, resolve_art_type
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
@@ -40,26 +40,26 @@ class ImageEditor:
         processes: dict[str, str],
         source: str | None = None,
         url: str | None = None,
-    ):
+    ) -> list[dict[str, str]]:
         """
-        Process one or more artwork types and return output paths and color metadata.
+        Process one or more artwork types and return structured per-item metadata.
 
         :param processes: Mapping of {art_type: "crop"|"blur"} to run.
         :param source: Kodi infolabel source prefix. Required if no URL is provided.
         :param url: Explicit image path. Required if no source is provided.
-        :returns: Flat dict merging processed paths and color metadata by art_type.
+        :returns: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
         """
         if not processes:
             log(
                 f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}."
             )
-            return {}
+            return []
 
         if not source and not url:
             log(
                 f"{self.__class__.__name__}: Missing both source and URL; nothing to process."
             )
-            return {}
+            return []
 
         try:
             attributes = [
@@ -76,19 +76,9 @@ class ImageEditor:
                 f"{self.__class__.__name__}: Error during image processing → {error}",
                 force=True,
             )
-            return {}
+            return []
 
-        return {
-            (
-                f"{attr['category']}_{key}"
-                if key in ["color", "accent", "contrast", "luminosity", "darken"]
-                else attr["category"]
-            ): attr[key]
-            for attr in attributes
-            if attr
-            for key in ["processed_path", "color", "accent", "contrast", "luminosity", "darken"]
-            if attr.get(key) is not None
-        }
+        return [a for a in attributes if a]
 
     def _handle_image(
         self,
@@ -180,15 +170,14 @@ class ImageEditor:
                 log(f"{self.__class__.__name__}: Temp file deleted → {source_path}")
             except Exception:
                 pass
-
-        return {
-            "original_url": url,
-            "processed_path": destination_path,
-            "cached_file_hash": self.cache_manager.cached_file_hash,
-            "color": result["metadata"]["color"],
-            "contrast": result["metadata"]["contrast"],
-            "luminosity": result["metadata"]["luminosity"],
-        }
+        values = result.get("values", {})
+        return ArtMeta.from_values(
+            category=art["category"],
+            original_url=url,
+            processed_path=destination_path,
+            cached_file_hash=self.cache_manager.cached_file_hash,
+            values=values,
+        ).to_dict()
 
     def _fetch_art_url(self, art_type: str, source: str):
         """

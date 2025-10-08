@@ -7,6 +7,7 @@ from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import collect_multiart
+from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
@@ -180,7 +181,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            art = dict(processed or {})
+            art = flatten_art_attributes(processed)
             log(f'FUCK DEBUG art {art}')
             art |= collect_multiart(
                 target=f"{self.container}.ListItem",

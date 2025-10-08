@@ -4,7 +4,8 @@ from typing import Any
 
 from PIL import Image, ImageFilter
 
-from resources.lib.art.analyzer import ColorAnalyzer, AnalyzerConfig
+from resources.lib.art.analyzer import ColorAnalyzer
+from resources.lib.art.policy import AnalyzerConfig
 from resources.lib.shared.utilities import log, log_duration
 
 
@@ -52,11 +53,10 @@ class ImageProcessor:
         return {
             "image": image,
             "format": "PNG",
-            "metadata": {
+            "values": {
                 "color": analysis["hex"],
-                "accent": analysis["accent"],
+                "accent": analysis.get("accent_hex"),
                 "contrast": analysis["contrast_hex"],
-                "luminosity": int(analysis["luminosity"] * 1000),
             },
         }
 
@@ -102,6 +102,6 @@ class ImageProcessor:
                 "accent": analysis["accent"],
                 "contrast": analysis["contrast_hex"],
                 "luminosity": int(analysis["luminosity"] * 1000),
-                "darken": int(darken),
+                "darken": darken,
             },
         }

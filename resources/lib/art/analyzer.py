@@ -2,88 +2,11 @@
 
 import colorsys
 from PIL import Image
-from dataclasses import dataclass, field
+
+from lib.art.policy import AnalyzerConfig
 
 RGB = tuple[int, int, int]
 HLS = tuple[float, float, float]
-
-
-@dataclass
-class AnalyzerConfig:
-    from dataclasses import dataclass, field
-
-
-@dataclass
-class AnalyzerConfig:
-    """Tunable parameters for colour analysis, contrast, and readability."""
-
-    # --- Sampling & Palette ---
-    # Number of colours in adaptive palette (lower = faster, smoother clusters)
-    palette_size: int = 8
-
-    # Downsample size for palette sampling (square SxS)
-    sample_size: int = 64
-
-    # Downsample size used when averaging RGB for luminance
-    avg_downsample: int = 32
-
-    # --- Filtering thresholds ---
-    # Ignore near-white swatches unless overwhelmingly dominant
-    skip_whites: bool = True
-
-    # Ignore near-black swatches unless overwhelmingly dominant
-    skip_blacks: bool = True
-
-    # Allow skipped extremes (white/black) if they cover ≥70 % of sampled pixels
-    dominance_allow_threshold: float = 0.70
-
-    # Treat alpha channel as binary if True; use alpha_opaque_min as cutoff
-    alpha_thresholded_mask: bool = False
-
-    # Alpha cutoff (0–255) for treating pixels as opaque when thresholding
-    alpha_opaque_min: int = 65
-
-    # Per-channel threshold for considering a swatch “near white”
-    near_white: int = 245
-
-    # Per-channel threshold for considering a swatch “near black”
-    near_black: int = 10
-
-    # --- Accent extraction ---
-    # Normalization factor for RGB distance in accent scoring (Δ/255)
-    freq_distance_norm: float = 255.0
-
-    # Weights for accent scoring: frequency, saturation, distance
-    accent_weight: dict[str, float] = field(
-        default_factory=lambda: {"freq": 0.5, "sat": 0.3, "dist": 0.2}
-    )
-
-    # Gamma (γ) exponent applied to frequency to flatten dominance (0.5 = sqrt)
-    accent_freq_exponent: float = 0.5
-
-    # Minimum RGB Euclidean distance from dominant to consider as accent
-    accent_min_dist: int = 20
-
-    # --- Contrast & Lightness ---
-    # Default lightness delta for opposite contrast colour (0.3–0.5 typical)
-    contrast_shift: float = 0.3
-
-    # HLS lightness pivot; lighten if L < pivot else darken
-    contrast_midpoint: float = 0.5
-
-    # Lower clamp for HLS lightness when adjusting contrast
-    min_lightness: float = 0.0
-
-    # Upper clamp for HLS lightness when adjusting contrast
-    max_lightness: float = 1.0
-
-    # --- Readability (text overlay) ---
-    # Overlay text colour used for readability checks (ARGB hex)
-    text_overlay_colour: str = "ffd1cece"
-
-    # Required WCAG contrast ratio for text (4.5 normal, 3.0 large)
-    target_contrast_ratio: float = 4.5
-
 
 class ColorAnalyzer:
     """
