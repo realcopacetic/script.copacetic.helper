@@ -29,7 +29,7 @@ class ColorAnalyzer:
             "hex": self.to_hex(dominant),
             "accent_hex": self.to_hex(accent),
             "contrast_hex": self.to_hex(contrast_rgb),
-            "luminosity": self.get_luminosity(dominant),
+            "luminosity": int(self.get_luminosity(dominant) * 1000),
         }
 
     # ---------- public methods ----------

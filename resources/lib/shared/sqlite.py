@@ -2,6 +2,7 @@
 
 import sqlite3
 
+from resources.lib.art.policy import ART_DB_COLUMNS
 from resources.lib.shared.utilities import LOOKUPS
 
 
@@ -10,17 +11,7 @@ class SQLiteHandler:
     Manages artwork metadata using a lightweight SQLite database.
     Provides methods for adding and retrieving processed image entries.
     """
-    _ALLOWED_UPDATE_COLS = {
-        "category",
-        "original_url",
-        "processed_path",
-        "cached_file_hash",
-        "color",
-        "accent",
-        "contrast",
-        "luminosity",
-        "darken",
-    }
+    _ALLOWED_UPDATE_COLS = set(ART_DB_COLUMNS)
 
     def __init__(self):
         """Initializes the database handler and ensures required tables exist."""
@@ -66,23 +57,13 @@ class SQLiteHandler:
         """
         with sqlite3.connect(self.db_path, timeout=5) as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO artwork (category, original_url, processed_path, cached_file_hash, color, accent, contrast, luminosity, darken)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    category,
-                    attributes.get("original_url"),
-                    attributes.get("processed_path"),
-                    attributes.get("cached_file_hash"),
-                    attributes.get("color"),
-                    attributes.get("accent"),
-                    attributes.get("contrast"),
-                    attributes.get("luminosity"),
-                    attributes.get("darken"),
-                ),
+            cols = ", ".join(ART_DB_COLUMNS)
+            placeholders = ", ".join(["?"] * len(ART_DB_COLUMNS))
+            row = tuple(
+                (category if k == "category" else attributes.get(k))
+                for k in ART_DB_COLUMNS
             )
+            cursor.execute(f"INSERT OR REPLACE INTO artwork ({cols}) VALUES ({placeholders})", row)
             conn.commit()
 
     def get_entry(self, original_url):

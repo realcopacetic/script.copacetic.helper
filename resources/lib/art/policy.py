@@ -3,6 +3,7 @@
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Mapping
 
+# Fields produced by analysis/processing that we want to persist/export
 ART_VALUE_FIELDS: tuple[str, ...] = (
     "color",
     "accent",
@@ -10,22 +11,21 @@ ART_VALUE_FIELDS: tuple[str, ...] = (
     "luminosity",
     "darken",
 )
-ART_EXPORT_KEYS: tuple[str, ...] = ("processed_path",) + ART_VALUE_FIELDS
-ART_KEYS: dict[str, tuple[str, ...]] = {
+
+ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
     "clearlogo": ("clearlogo", "clearlogo-alt", "clearlogo-billboard"),
 }
-DB_COLUMNS: tuple[str, ...] = (
+
+# Keys exported to ListItem.Art: processed_path maps to "{category}"; others map to "{category}_{key}"
+ART_LISTITEM_EXPORT_KEYS: tuple[str, ...] = ("processed_path",) + ART_VALUE_FIELDS
+
+# DB column order for inserts/updates (tuple order matters)
+ART_DB_COLUMNS: tuple[str, ...] = (
     "category",
     "original_url",
-    "processed_path",
     "cached_file_hash",
-    "color",
-    "accent",
-    "contrast",
-    "luminosity",
-    "darken",
-)
+) + ART_LISTITEM_EXPORT_KEYS
 
 
 @dataclass
@@ -122,9 +122,9 @@ class ArtMeta:
         return asdict(self)
 
     def to_db_row(self) -> tuple[Any, ...]:
-        """Tuple in DB column order (DB_COLUMNS)."""
+        """Tuple in DB column order (ART_DB_COLUMNS)."""
         d = self.to_dict()
-        return tuple(d.get(k) for k in DB_COLUMNS)
+        return tuple(d.get(k) for k in ART_DB_COLUMNS)
 
     @classmethod
     def from_values(
@@ -140,7 +140,9 @@ class ArtMeta:
         """
         values = values or {}
         payload = {
-            k: values.get(k) for k in ART_VALUE_FIELDS if values.get(k) is not None
+            k: values.get(k)
+            for k in ART_LISTITEM_EXPORT_KEYS
+            if values.get(k) is not None
         }
         payload.update(extras)  # original_url, processed_path, cached_file_hash, etc.
         return cls(category=category, **payload)
@@ -154,7 +156,7 @@ class ArtChoice:
 
 def resolve_art_type(art: dict, art_type: str) -> ArtChoice:
     """
-    Choose the best artwork path for a target art_type using ART_KEYS priority,
+    Choose the best artwork path for a target art_type using ART_SOURCE_KEYS priority,
     with special episode-friendly fanart heuristic.
 
     :param art: Kodi-style dict of available art {key: path}
@@ -162,7 +164,7 @@ def resolve_art_type(art: dict, art_type: str) -> ArtChoice:
     :return: ArtChoice(target_key=art_type, path=...,)
              Empty path if nothing suitable found.
     """
-    keys = ART_KEYS.get(art_type, (art_type,))
+    keys = ART_SOURCE_KEYS.get(art_type, (art_type,))
 
     # Episode-friendly heuristic: prefer thumb if fanart mirrors tvshow.fanart
     if art_type == "fanart":
@@ -194,7 +196,7 @@ def flatten_art_attributes(
         cat = d.get("category")
         if not cat:
             continue
-        for key in ART_EXPORT_KEYS:
+        for key in ART_LISTITEM_EXPORT_KEYS:
             val = d.get(key)
             if val is None:
                 continue

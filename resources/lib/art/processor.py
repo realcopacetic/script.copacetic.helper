@@ -101,7 +101,7 @@ class ImageProcessor:
                 "color": analysis["hex"],
                 "accent": analysis["accent"],
                 "contrast": analysis["contrast_hex"],
-                "luminosity": int(analysis["luminosity"] * 1000),
+                "luminosity": analysis["luminosity"],
                 "darken": darken,
             },
         }

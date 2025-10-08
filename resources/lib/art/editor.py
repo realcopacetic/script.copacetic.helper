@@ -6,7 +6,7 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import ART_KEYS, ArtMeta, resolve_art_type
+from resources.lib.art.policy import ART_SOURCE_KEYS, ArtMeta, resolve_art_type
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
@@ -189,7 +189,7 @@ class ImageEditor:
         """
         candidates = {
             key: path
-            for key in ART_KEYS.get(art_type, (art_type,))
+            for key in ART_SOURCE_KEYS.get(art_type, (art_type,))
             if (path := infolabel(f"{source}.Art({key})"))
         }
         choice = resolve_art_type(candidates, art_type)
