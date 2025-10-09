@@ -102,12 +102,11 @@ class ColorAnalyzer:
                 w = self.cfg.accent_weight
                 return w["freq"] * f + w["sat"] * s + w["dist"] * d
 
-            candidates = [
-                c
-                for c in count_map
-                if self._rgb_dist(c, dominant_rgb) > self.cfg.accent_min_dist
-            ]
-            return max(candidates or [dominant_rgb], key=score)
+            candidates = [c for c in count_map if self._rgb_dist(c, dominant_rgb) > self.accent_min_dist]
+            if not candidates:
+                # Palette effectively mono → synthesize a contrasting accent
+                return self.get_contrasting_color(dominant_rgb, shift=self.contrast_shift)
+            return max(candidates, key=score)
         except Exception:
             return dominant_rgb
 
@@ -185,10 +184,15 @@ class ColorAnalyzer:
         L_text = self.get_luminosity(text_rgb)
         L_bg = self.get_luminosity(bg_rgb)
 
-        log(f'FUCK DEBUG: luminances bg_rgb: {bg_rgb} / L_text: {L_text} / L_bg: {L_bg}')
+        # 4) if already sufficient contrast, return 0
+        if (max(L_text, L_bg) + 0.05) / (
+            min(L_text, L_bg) + 0.05
+        ) >= self.cfg.target_contrast_ratio:
+            return 0
 
-        # 4) early exit if already sufficient contrast
-        if (L_text + 0.05) / (L_bg + 0.05) >= self.cfg.target_contrast_ratio:
+        # 5) # dark text on lighter bg → multiply can't help; leave as-is
+        if L_text <= L_bg:
+
             return 0
 
         # 5) solve for k in L_bg' = k * L_bg such that contrast meets target
@@ -232,16 +236,23 @@ class ColorAnalyzer:
         return im.resize((self.cfg.sample_size, self.cfg.sample_size), Image.BOX)
 
     def _opaque_rgb(self, im_small: Image.Image) -> Image.Image | None:
-        """Return an RGB image with transparent pixels discarded; None if fully transparent."""
+        """
+        Build an RGB image containing **only** pixels with alpha >= alpha_opaque_min.
+        This avoids black-matting transparent regions (common for clearlogos).
+        Returns a tiny 1*N strip; None if no opaque pixels.
+        """
         if im_small.mode == "RGBA":
-            rgb, alpha = im_small.convert("RGB"), im_small.getchannel("A")
-            if self.cfg.alpha_thresholded_mask:
-                a = alpha.point(lambda v: 255 if v >= self.cfg.alpha_opaque_min else 0)
-            else:
-                a = alpha
-            if not a.getbbox():
+            rgb = im_small.convert("RGB")
+            a = im_small.getchannel("A")
+            thresh = self.cfg.alpha_opaque_min
+            pixels = rgb.getdata()
+            alphas = a.getdata()
+            opaque = [p for p, av in zip(pixels, alphas) if av >= thresh]
+            if not opaque:
                 return None
-            return Image.composite(rgb, Image.new("RGB", rgb.size, (0, 0, 0)), a)
+            out = Image.new("RGB", (len(opaque), 1))
+            out.putdata(opaque)
+            return out
         return im_small.convert("RGB")
 
     def _quantize_palette(

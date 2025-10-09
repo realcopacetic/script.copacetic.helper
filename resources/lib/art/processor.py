@@ -87,10 +87,6 @@ class ImageProcessor:
         elif src:
             text_rgb = self.color_analyzer.from_hex(src)
 
-        log(f"FUCK DEBUG: text_hex {session.get('clearlogo_color')}")
-        log(f'FUCK DEBUG: text_rgb {text_rgb}')
-        log(f'FUCK DEBUG: rect {kwargs.get("overlay_rect")}')
-
         try:
             darken = self.color_analyzer.compute_darken_percent(
                 image,
