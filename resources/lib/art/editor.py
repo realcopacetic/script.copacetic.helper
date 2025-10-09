@@ -53,7 +53,6 @@ class ImageEditor:
 
         :returns: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
         """
-        self._session.clear()
         if not processes:
             log(
                 f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}."
@@ -70,8 +69,6 @@ class ImageEditor:
             processes.items(),
             key=lambda kv: (not kv[0].startswith("clearlogo"), kv[0]),
         )
-        log(f'FUCK DEBUG processes {processes}')
-        log(f"FUCK DEBUG items {items}")
         try:
             attributes = [
                 self._handle_image(
@@ -79,6 +76,7 @@ class ImageEditor:
                     process=process,
                     source=source,
                     url=url,
+                    session=self._session,
                     **proc_kwargs,
                 )
                 for art_type, process in items

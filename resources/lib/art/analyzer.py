@@ -4,7 +4,7 @@ import colorsys
 from PIL import Image
 
 from resources.lib.art.policy import AnalyzerConfig
-from resources.lib.shared.utilities import log_duration
+from resources.lib.shared.utilities import log, log_duration
 
 RGB = tuple[int, int, int]
 HLS = tuple[float, float, float]
@@ -184,6 +184,8 @@ class ColorAnalyzer:
         bg_rgb = self._avg_rgb(crop)
         L_text = self.get_luminosity(text_rgb)
         L_bg = self.get_luminosity(bg_rgb)
+
+        log(f'FUCK DEBUG: luminances bg_rgb: {bg_rgb} / L_text: {L_text} / L_bg: {L_bg}')
 
         # 4) early exit if already sufficient contrast
         if (L_text + 0.05) / (L_bg + 0.05) >= self.cfg.target_contrast_ratio:
