@@ -173,9 +173,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             sqlite = SQLiteHandler()
             image_processor = ImageEditor(sqlite).image_processor
+            try:
+                x, y, w, h = [int(v) for v in self.params.get("overlay_rect").replace(" ", "").split(",")]
+                overlay_rect = (x, y, w, h)
+            except Exception:
+                overlay_rect = None
+
             processed = image_processor(
                 processes={"clearlogo": "crop", "fanart": "blur"},
                 source=f"{self.container}.ListItem",
+                overlay_source=self.params.get("overlay.source"),
+                overlay_rect = overlay_rect
             )
 
             if not guard.alive():

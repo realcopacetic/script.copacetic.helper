@@ -40,6 +40,7 @@ class ImageEditor:
         processes: dict[str, str],
         source: str | None = None,
         url: str | None = None,
+        **proc_kwargs: Any,
     ) -> list[dict[str, Any]]:
         """
         Process one or more artwork types and return structured per-item metadata.
@@ -47,6 +48,8 @@ class ImageEditor:
         :param processes: Mapping of {art_type: "crop"|"blur"} to run.
         :param source: Kodi infolabel source prefix. Required if no URL is provided.
         :param url: Explicit image path. Required if no source is provided.
+        :param proc_kwargs: Extra keyword arguments forwarded to processor methods
+
         :returns: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
         """
         if not processes:
@@ -61,6 +64,12 @@ class ImageEditor:
             )
             return []
 
+        items = dict(
+            sorted(
+                processes.items(),
+                key=lambda kv: (not kv[0].startswith("clearlogo"), kv[0]),
+            )
+        )
         try:
             attributes = [
                 self._handle_image(
@@ -68,8 +77,9 @@ class ImageEditor:
                     process=process,
                     source=source,
                     url=url,
+                    **proc_kwargs,
                 )
-                for art_type, process in processes.items()
+                for art_type, process in items.items()
             ]
         except Exception as error:
             log(
@@ -86,6 +96,7 @@ class ImageEditor:
         process: str,
         source: str = "Container.ListItem",
         url: str | None = None,
+        **proc_kwargs: Any,
     ) -> dict[str, Any] | None:
         """
         Resolve source URL, process/cache the image, and persist metadata.
@@ -94,6 +105,7 @@ class ImageEditor:
         :param process: Processor name ("crop" or "blur").
         :param source: Optional Kodi infolabel source prefix for Art() lookups.
         :param url: Optional explicit URL to process for this art_type.
+        :param proc_kwargs: Extra keyword arguments forwarded to processor methods
         :returns: Metadata dict including processed path and colors, or None.
         """
         art = (
@@ -113,7 +125,7 @@ class ImageEditor:
 
         if not (
             attributes := self.cache_manager.read_lookup(original_url)
-            or self._run_processor(process, art)
+            or self._run_processor(process, art, **proc_kwargs)
         ):
             return None
 
@@ -122,13 +134,17 @@ class ImageEditor:
         return attributes
 
     def _run_processor(
-        self, process: str, art: dict[str, str]
+        self,
+        process: str,
+        art: dict[str, str],
+        **proc_kwargs: Any,
     ) -> dict[str, Any] | None:
         """
         Execute a processor for a single image and write the processed file.
 
         :param process: Processor name ("crop" or "blur").
         :param art: Mapping of {resolved_key: url} for the selected artwork.
+        :param proc_kwargs: Extra keyword arguments forwarded to processor methods
         :returns: Dict with file paths and color metadata, or None on failure.
         """
         process_method = getattr(self.processor, process, None)
@@ -145,11 +161,9 @@ class ImageEditor:
         if not image:
             return None
 
-        result = process_method(image)
+        result = process_method(image, **proc_kwargs)
         if not result or "image" not in result:
             return None
-
-        fmt = result.get("format", "PNG")
 
         with xbmcvfs.File(destination_path, "wb") as f:
             result["image"].save(f, result.get("format", "PNG"))

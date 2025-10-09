@@ -27,7 +27,7 @@ class ImageProcessor:
         return image if image.mode == target else image.convert(target)
 
     @log_duration
-    def crop(self, image: Image.Image) -> dict[str, Any] | None:
+    def crop(self, image: Image.Image, **_: Any) -> dict[str, Any] | None:
         """
         Crop/resize clearlogos, normalize mode for PNG, extract color metadata.
 
@@ -58,11 +58,12 @@ class ImageProcessor:
         }
 
     @log_duration
-    def blur(self, image: Image.Image) -> dict[str, Any] | None:
+    def blur(self, image: Image.Image, **kwargs: Any) -> dict[str, Any] | None:
         """
         Resize fanart, apply Gaussian blur, coerce JPEG-safe mode, extract colors.
 
         :param image: Input PIL Image.
+        :param kwargs: Optional overlay parameters (e.g. overlay_source, overlay_rect).
         :returns: Dict with {"image", "format", "metadata"}.
         """
         target_size = (480, 270)
@@ -80,8 +81,8 @@ class ImageProcessor:
         try:
             darken = self.color_analyzer.compute_darken_percent(
                 image,
-                rect=None,
-                text_rgb=None,
+                rect=kwargs.get("overlay_rect"),
+                text_rgb=kwargs.get("overlay_source"),
             )
         except Exception as exc:
             log(f"{self.__class__.__name__}: darken calc failed → {exc}", force=True)
