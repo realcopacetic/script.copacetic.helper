@@ -34,6 +34,7 @@ class ImageEditor:
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.processor = ImageProcessor()
         self.temp_folder = self.cache_manager.temp_folder
+        self._session: dict[str, Any] = {}
 
     def image_processor(
         self,
@@ -52,6 +53,7 @@ class ImageEditor:
 
         :returns: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
         """
+        self._session.clear()
         if not processes:
             log(
                 f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}."
@@ -64,12 +66,12 @@ class ImageEditor:
             )
             return []
 
-        items = dict(
-            sorted(
-                processes.items(),
-                key=lambda kv: (not kv[0].startswith("clearlogo"), kv[0]),
-            )
+        items = sorted(
+            processes.items(),
+            key=lambda kv: (not kv[0].startswith("clearlogo"), kv[0]),
         )
+        log(f'FUCK DEBUG processes {processes}')
+        log(f"FUCK DEBUG items {items}")
         try:
             attributes = [
                 self._handle_image(
@@ -79,7 +81,7 @@ class ImageEditor:
                     url=url,
                     **proc_kwargs,
                 )
-                for art_type, process in items.items()
+                for art_type, process in items
             ]
         except Exception as error:
             log(
@@ -131,6 +133,11 @@ class ImageEditor:
 
         attributes["category"] = art_type
         self.cache_manager.write_lookup(art_type, attributes)
+
+        # Capture per-run session data (for dependent processors like fanart)
+        if art_type.startswith("clearlogo") and (color := attributes.get("color")):
+            self._session["clearlogo_color"] = color
+
         return attributes
 
     def _run_processor(

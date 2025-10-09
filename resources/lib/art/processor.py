@@ -78,11 +78,20 @@ class ImageProcessor:
         analysis = self.color_analyzer.analyze(image)
 
         # Fanart readability — minimal darken% needed for overlay text
+        src = kwargs.get("overlay_source", "").lower()
+        if src == "clearlogo":
+            hexc = getattr(self, "_session", {}).get("clearlogo_color")
+            if hexc:
+                log(f'FUCK DEBUG hexc {hexc}')
+                text_rgb = self.color_analyzer.from_hex(hexc)
+        elif src:
+            text_rgb = self.color_analyzer.from_hex(src)
+
         try:
             darken = self.color_analyzer.compute_darken_percent(
                 image,
                 rect=kwargs.get("overlay_rect"),
-                text_rgb=kwargs.get("overlay_source"),
+                text_rgb=text_rgb,
             )
         except Exception as exc:
             log(f"{self.__class__.__name__}: darken calc failed → {exc}", force=True)
