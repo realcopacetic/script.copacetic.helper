@@ -94,6 +94,7 @@ class ColorAnalyzer:
                 return dominant_rgb
             swatches, counts = self._quantize_palette(rgb_small)
             count_map = {swatches[idx]: c for c, idx in counts if idx < len(swatches)}
+            total = float(sum(count_map.values()) or 1)
 
             def score(rgb: RGB) -> float:
                 f = count_map.get(rgb, 0) ** self.cfg.accent_freq_exponent
@@ -102,11 +103,18 @@ class ColorAnalyzer:
                 w = self.cfg.accent_weight
                 return w["freq"] * f + w["sat"] * s + w["dist"] * d
 
-            candidates = [c for c in count_map if self._rgb_dist(c, dominant_rgb) > self.accent_min_dist]
-            if not candidates:
-                # Palette effectively mono → synthesize a contrasting accent
-                return self.get_contrasting_color(dominant_rgb, shift=self.contrast_shift)
-            return max(candidates, key=score)
+            # filter: not dominant, far enough, saturated enough, not micro-noise
+            candidates = [
+                c for c in count_map
+                if c != dominant_rgb
+                and self._rgb_dist(c, dominant_rgb) > self.cfg.accent_min_dist
+                and self._saturation(c) >= self.cfg.accent_min_sat
+                and (count_map[c] / total) >= self.cfg.accent_min_share
+            ]
+            if candidates:
+                return max(candidates, key=score)
+            # fallback: push a contrasting tint of dominant if no distinct accent found
+            return self.get_contrasting_color(dominant_rgb, shift=self.cfg.contrast_shift)
         except Exception:
             return dominant_rgb
 
