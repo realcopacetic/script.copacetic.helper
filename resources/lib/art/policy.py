@@ -11,6 +11,8 @@ ART_VALUE_FIELDS: tuple[str, ...] = (
     "luminosity",
     "darken",
 )
+ART_FIELD_PROCESSED: str = "processed_path"
+ART_FIELD_HASH: str = "cached_file_hash"
 
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
@@ -18,13 +20,13 @@ ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
 }
 
 # Keys exported to ListItem.Art: processed_path maps to "{category}"; others map to "{category}_{key}"
-ART_LISTITEM_EXPORT_KEYS: tuple[str, ...] = ("processed_path",) + ART_VALUE_FIELDS
+ART_LISTITEM_EXPORT_KEYS: tuple[str, ...] = (ART_FIELD_PROCESSED,) + ART_VALUE_FIELDS
 
 # DB column order for inserts/updates (tuple order matters)
 ART_DB_COLUMNS: tuple[str, ...] = (
     "category",
     "original_url",
-    "cached_file_hash",
+    ART_FIELD_HASH,
 ) + ART_LISTITEM_EXPORT_KEYS
 
 
@@ -33,77 +35,54 @@ class AnalyzerConfig:
     """Tunable parameters for colour analysis, contrast, and readability."""
 
     # --- Sampling & Palette ---
-    # Number of colours in adaptive palette (lower = faster, smoother clusters)
-    palette_size: int = 8
-
-    # Downsample size for palette sampling (square SxS)
-    sample_size: int = 64
-
-    # Downsample size used when averaging RGB for luminance
-    avg_downsample: int = 32
+    palette_size: int = 8  # no. colours in adaptive palette (lower = faster, smoother)
+    sample_size: int = 64  # downsample size for palette sampling (square SxS)
+    avg_downsample: int = 32  # downsample size used when averaging RGB for luminance
 
     # --- Filtering thresholds ---
-    # Ignore near-white swatches unless overwhelmingly dominant
-    skip_whites: bool = True
-
-    # Ignore near-black swatches unless overwhelmingly dominant
-    skip_blacks: bool = True
-
-    # Allow skipped extremes (white/black) if they cover ≥70 % of sampled pixels
-    dominance_allow_threshold: float = 0.70
-
-    # Treat alpha channel as binary if True; use alpha_opaque_min as cutoff
-    alpha_thresholded_mask: bool = True
-
-    # Alpha cutoff (0–255) for treating pixels as opaque when thresholding
-    alpha_opaque_min: int = 65
-
-    # Per-channel threshold for considering a swatch “near white”
-    near_white: int = 245
-
-    # Per-channel threshold for considering a swatch “near black”
-    near_black: int = 10
+    skip_whites: bool = True  # ignore white-ish swatches unless overwhelmingly dominant
+    skip_blacks: bool = True  # ignore black-ish swatches unless overwhelmingly dominant
+    dominance_allow_threshold: float = 0.70  # allow skipped extremes if ≥70% of pixels
+    alpha_thresholded_mask: bool = True  # binary alpha; uses alpha_opaque_min as cutoff
+    alpha_opaque_min: int = 65  # alpha cutoff (0–255) for treating pixels as opaque
+    near_white: int = 245  # per-channel threshold for considering a swatch “near white”
+    near_black: int = 10  # per-channel threshold for considering a swatch “near black”
 
     # --- Accent extraction ---
-    # Normalization factor for RGB distance in accent scoring (Δ/255)
-    freq_distance_norm: float = 255.0
-
-    # Weights for accent scoring: frequency, saturation, distance
-    accent_weight: dict[str, float] = field(
-        default_factory=lambda: {"freq": 0.5, "sat": 0.3, "dist": 0.2}
+    freq_distance_norm: float = 255.0  # normalization factor for RGB distance (Δ/255)
+    accent_weight: dict[str, float] = (
+        field(  # weights for accent scoring: freq, sat, dist
+            default_factory=lambda: {"freq": 0.5, "sat": 0.3, "dist": 0.2}
+        )
     )
-
-    # Gamma (γ) exponent applied to frequency to flatten dominance (0.5 = sqrt)
-    accent_freq_exponent: float = 0.5
-
-    # Ignore swatches contributing <6% of counts)
-    accent_freq_floor: float = 0.06
-
-    # Minimum RGB Euclidean distance from dominant to consider as accent
-    accent_min_dist: int = 28
+    accent_freq_exponent: float = 0.5  # gamma exponent to flatten dominance (0.5=sqrt)
+    accent_freq_floor: float = 0.06  # ignore swatches contributing <6% of counts
+    accent_min_dist: int = 28  # min RGB Euclidean distance from dominant for accent
 
     # --- Contrast & Lightness ---
-    # Default lightness delta for opposite contrast colour (0.3–0.5 typical)
-    contrast_shift: float = 0.3
-
-    # HLS lightness pivot; lighten if L < pivot else darken
-    contrast_midpoint: float = 0.5
-
-    # Lower clamp for HLS lightness when adjusting contrast
-    min_lightness: float = 0.0
-
-    # Upper clamp for HLS lightness when adjusting contrast
-    max_lightness: float = 1.0
+    contrast_shift: float = 0.3  # lightness delta for contrast colour (0.3–0.5 typical)
+    contrast_midpoint: float = 0.5  # HLS pivot; lighten if L < pivot else darken
+    min_lightness: float = 0.0  # lower clamp for HLS lightness when adjusting contrast
+    max_lightness: float = 1.0  # upper clamp for HLS lightness when adjusting contrast
 
     # --- Readability (text overlay) ---
-    # Overlay text colour used for readability checks (ARGB hex)
-    text_overlay_colour: str = "ffd1cece"
+    text_overlay_colour: str = "ffd1cece"  # colour for readability checks (ARGB hex)
+    text_overlay_rect: tuple[int, int, int, int] = (
+        120,
+        660,
+        1680,
+        360,
+    )  # (x, y, w, h) region
+    target_contrast_ratio: float = 4.5  # WCAG target (4.5 normal, 3.0 large)
 
-    # (x, y, w, h) Overlay region to analyze
-    text_overlay_rect: tuple[int, int, int, int] = (120,660,1680,360)
-
-    # Required WCAG contrast ratio for text (4.5 normal, 3.0 large)
-    target_contrast_ratio: float = 4.5
+    # --- Red leniency / guard rails ---
+    red_relax_enable: bool = True  # enable hue-aware leniency for reds on dark bg
+    red_hue_center: float = 0.0  # 0.0 == red hue in [0..1] (colorsys)
+    red_hue_window: float = 0.06  # ± hue window around red (~±22°)
+    red_min_target: float = 2.7  # never demand higher ratio when red rule applies
+    red_relax_cap: float = 3.0  # max target when relaxing reds on dark bg
+    red_bg_floor: float = 0.06  # if L_bg below this, treat as “already dark”
+    max_darken_cap: int = 85  # cap darken percent to avoid over-darkening
 
 
 @dataclass

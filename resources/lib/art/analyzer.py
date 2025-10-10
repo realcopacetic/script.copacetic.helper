@@ -179,52 +179,68 @@ class ColorAnalyzer:
         :param target_ratio: WCAG contrast target override (4.5 for body text, 3.0 for large/logo)
         :returns: Darken percent 0-100 for fadediffuse mapping.
         """
-
+        # --- defaults ---
         text_rgb = text_rgb or self.from_hex(self.cfg.text_overlay_colour)
         base_rect = rect or self.cfg.text_overlay_rect
         target = (
             self.cfg.target_contrast_ratio if target_ratio is None else target_ratio
         )  # 0.0 falsey so explicit None check
 
-        # 1) scale from 1920x1080 to current image size
+        # --- scale from 1920x1080 to current image size ---
         bx, by, bw, bh = base_rect
-        sx = image.width / 1920.0
-        sy = image.height / 1080.0
-        x = int(round(bx * sx))
-        y = int(round(by * sy))
-        w = int(round(bw * sx))
-        h = int(round(bh * sy))
+        sx, sy = image.width / 1920.0, image.height / 1080.0
+        x, y, w, h = map(int, (round(bx * sx), round(by * sy), round(bw * sx), round(bh * sy)))
 
-        # 2) clamp to image bounds (avoid out-of-bounds black padding), then crop
-        x0 = max(0, x)
-        y0 = max(0, y)
-        x1 = min(image.width, x + w)
-        y1 = min(image.height, y + h)
+        # --- clamp to image bounds (avoid out-of-bounds black padding), then crop ---
+        x0, y0 = max(0, x), max(0, y)
+        x1, y1 = min(image.width, x + w), min(image.height, y + h)
         if x1 <= x0 or y1 <= y0:
-            return 0  # empty region; nothing to darken
+            return 0
         crop = image.crop((x0, y0, x1, y1))
 
-        # 2) luminances
+        # --- luminances ---
         bg_rgb = self._avg_rgb(crop)
         L_text = self.get_luminosity(text_rgb)
         L_bg = self.get_luminosity(bg_rgb)
 
-        # 4) if already sufficient contrast, return 0
-        if (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05) >= target:
+        contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
+        log(
+            f"{self.__class__.__name__}: darken → "
+            f"bg_rgb={bg_rgb}, text_rgb={text_rgb}, "
+            f"L_bg={L_bg:.4f}, L_text={L_text:.4f}, "
+            f"contrast={contrast:.3f}, target={target}, "
+            f"diff={(contrast - target):+.3f}",
+        )
+
+        # --- hue-aware relaxation for reds on dark backgrounds ---
+        if self.cfg.red_relax_enable:
+            h, _, _ = self.rgb_to_hls(text_rgb)
+            # angular distance to "red" in [0..1]
+            d = min(abs(h - self.cfg.red_hue_center), 1.0 - abs(h - self.cfg.red_hue_center))
+            if d <= self.cfg.red_hue_window and (L_bg <= self.cfg.red_bg_floor):
+                # Clamp target to [red_min_target, red_relax_cap]
+                lo = getattr(self.cfg, "red_min_target", 2.7)
+                hi = getattr(self.cfg, "red_relax_cap", 3.0)
+                # keep the user/default target, but not stricter than 'hi' nor looser than 'lo'
+                target = max(lo, min(target, hi))
+
+        # --- already sufficient? (epsilon to avoid edge oscillation) ---
+        eps = 1e-9
+        if (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05) >= (target - eps):
             return 0
 
-        # 5) # dark text on lighter bg → multiply can't help; leave as-is
+        # --- dark text on lighter bg → multiply can't help; leave as-is ---
         if L_text <= L_bg:
-
             return 0
 
-        # 5) solve for k in L_bg' = k * L_bg such that contrast meets target
+        # --- solve for k in L_bg' = k * L_bg such that contrast meets target ---
         numerator = (L_text + 0.05) / target - 0.05
         if L_bg <= 1e-9 or numerator <= 0:
-            return 100  # clamp: fully black
+            return self.cfg.max_darken_cap  # respect cap instead of hard 100
         k = max(0.0, min(1.0, numerator / L_bg))
         darken = int(round((1.0 - k) * 100))
-        return max(0, min(100, darken))
+
+        return max(0, min(self.cfg.max_darken_cap, darken))
 
     # ---------- public helper methods ----------
     @staticmethod

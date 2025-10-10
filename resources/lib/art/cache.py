@@ -6,6 +6,7 @@ from typing import Any
 import xbmc
 import xbmcvfs
 
+from resources.lib.art.policy import ART_FIELD_PROCESSED, ART_FIELD_HASH
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
@@ -99,7 +100,7 @@ class ArtworkCacheManager:
         if not (entry := self.sqlite.get_entry(url)):
             return None
 
-        processed = validate_path(entry.get("processed"))
+        processed = validate_path(entry.get(ART_FIELD_PROCESSED))
         if not processed:
             return None
 
@@ -107,7 +108,7 @@ class ArtworkCacheManager:
         if not self.cached_file_hash:
             return entry
 
-        db_hash = entry.get("cached_file_hash")
+        db_hash = entry.get(ART_FIELD_HASH)
 
         # If both have hashes, require match
         if db_hash and db_hash == self.cached_file_hash:
@@ -115,7 +116,7 @@ class ArtworkCacheManager:
 
         # If DB hash empty but we have one now, backfill without reprocessing
         if not db_hash and self.cached_file_hash:
-            self.sqlite.update_field(url, "cached_file_hash", self.cached_file_hash)
+            self.sqlite.update_field(url, ART_FIELD_HASH, self.cached_file_hash)
             return entry
 
         # Hash mismatch and both populated → stale entry

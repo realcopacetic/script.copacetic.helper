@@ -17,7 +17,7 @@ class ImageProcessor:
 
     def __init__(self) -> None:
         """Initialize the processor with a color analyzer."""
-        self.color_analyzer = ColorAnalyzer(AnalyzerConfig)
+        self.color_analyzer = ColorAnalyzer(AnalyzerConfig())
 
     @staticmethod
     def _ensure_mode(image: Image.Image, target: str) -> Image.Image:
@@ -92,7 +92,7 @@ class ImageProcessor:
                 image,
                 rect=kwargs.get("overlay_rect"),
                 text_rgb=text_rgb,
-                target_ratio=kwargs.get("overlay_target_ratio")
+                target_ratio=kwargs.get("overlay_target")
             )
         except Exception as exc:
             log(f"{self.__class__.__name__}: darken calc failed → {exc}", force=True)
