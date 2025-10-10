@@ -208,7 +208,7 @@ class ColorAnalyzer:
             f"{self.__class__.__name__}: darken → "
             f"bg_rgb={bg_rgb}, text_rgb={text_rgb}, "
             f"L_bg={L_bg:.4f}, L_text={L_text:.4f}, "
-            f"contrast={contrast:.3f}, target={target}, "
+            f"contrast={contrast:.3f}, target={target:.2f}, "
             f"diff={(contrast - target):+.3f}",
         )
 
