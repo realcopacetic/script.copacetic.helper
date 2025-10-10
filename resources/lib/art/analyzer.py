@@ -80,42 +80,57 @@ class ColorAnalyzer:
 
     def extract_accent_color(self, image: Image.Image, dominant_rgb: RGB) -> RGB:
         """
-        Accent colour distinct from dominant using freq^γ, saturation, and distance.
-        Scores palette swatches by w_freq*freq^γ + w_sat*s + w_dist*Δ, skipping near-duplicates.
+        Pick a secondary hue distinct from the dominant color.
 
-        :param image: Input PIL image (any mode).
-        :param dominant_rgb: Dominant colour used as the reference.
-        :returns: Accent colour as (r, g, b).
+        :param image: Input image to analyze.
+        :param dominant_rgb: The primary (dominant) RGB color.
+        :returns: Accent RGB tuple, or dominant_rgb on failure.
         """
+        # --- Step 1: Safe preprocessing ---
         try:
             im_small = self._sample_image(image)
             rgb_small = self._opaque_rgb(im_small)
             if rgb_small is None:
                 return dominant_rgb
+        except Exception as exc:
+            log(f"ColorAnalyzer: accent preproc failed → {exc}", force=True)
+            return dominant_rgb
+
+        # --- Step 2: Quantize palette ---
+        try:
             swatches, counts = self._quantize_palette(rgb_small)
-            count_map = {swatches[idx]: c for c, idx in counts if idx < len(swatches)}
-            total = float(sum(count_map.values()) or 1)
+            count_map: dict[RGB, int] = {
+                swatches[idx]: c for c, idx in counts if idx < len(swatches)
+            }
+            if not count_map:
+                return dominant_rgb
+        except Exception as exc:
+            log(f"ColorAnalyzer: accent quantize failed → {exc}", force=True)
+            return dominant_rgb
 
-            def score(rgb: RGB) -> float:
-                f = count_map.get(rgb, 0) ** self.cfg.accent_freq_exponent
-                s = self._saturation(rgb)
-                d = self._rgb_dist(rgb, dominant_rgb) / self.cfg.freq_distance_norm
-                w = self.cfg.accent_weight
-                return w["freq"] * f + w["sat"] * s + w["dist"] * d
+        # --- Step 3: Score swatches ---
+        total = sum(count_map.values()) or 1
+        w = self.cfg.accent_weight
+        min_dist = self.cfg.accent_min_dist
+        dist_norm = float(self.cfg.freq_distance_norm or 255.0)
+        freq_floor = float(self.cfg.accent_freq_floor)
 
-            # filter: not dominant, far enough, saturated enough, not micro-noise
+        def score(rgb: RGB) -> float:
+            f = count_map.get(rgb, 0) / total
+            if f < freq_floor:
+                return -1.0
+            f = f**self.cfg.accent_freq_exponent
+            s = self._saturation(rgb)
+            d = self._rgb_dist(rgb, dominant_rgb) / dist_norm
+            return w["freq"] * f + w["sat"] * s + w["dist"] * d
+
+        try:
             candidates = [
-                c for c in count_map
-                if c != dominant_rgb
-                and self._rgb_dist(c, dominant_rgb) > self.cfg.accent_min_dist
-                and self._saturation(c) >= self.cfg.accent_min_sat
-                and (count_map[c] / total) >= self.cfg.accent_min_share
+                c for c in count_map if self._rgb_dist(c, dominant_rgb) > min_dist
             ]
-            if candidates:
-                return max(candidates, key=score)
-            # fallback: push a contrasting tint of dominant if no distinct accent found
-            return self.get_contrasting_color(dominant_rgb, shift=self.cfg.contrast_shift)
-        except Exception:
+            return max(candidates or [dominant_rgb], key=score)
+        except Exception as exc:
+            log(f"ColorAnalyzer: accent scoring failed → {exc}", force=True)
             return dominant_rgb
 
     def get_luminosity(self, rgb: RGB) -> float:
@@ -151,6 +166,7 @@ class ColorAnalyzer:
         image: Image.Image,
         rect: tuple[int, int, int, int] | None = None,
         text_rgb: RGB | None = None,
+        target_ratio: float | None = None,
     ) -> int:
         """
         Minimal darken% so text meets target contrast over a rect (WCAG 2.1).
@@ -160,14 +176,15 @@ class ColorAnalyzer:
         :param image: Source image (as displayed).
         :param rect: (x, y, w, h) overlay region to analyze.
         :param text_rgb: Text colour (defaults to configured overlay colour).
+        :param target_ratio: WCAG contrast target override (4.5 for body text, 3.0 for large/logo)
         :returns: Darken percent 0-100 for fadediffuse mapping.
         """
-        text_rgb = (
-            self.from_hex(self.cfg.text_overlay_colour)
-            if text_rgb is None
-            else text_rgb
-        )
-        base_rect = self.cfg.text_overlay_rect if rect is None else rect
+
+        text_rgb = text_rgb or self.from_hex(self.cfg.text_overlay_colour)
+        base_rect = rect or self.cfg.text_overlay_rect
+        target = (
+            self.cfg.target_contrast_ratio if target_ratio is None else target_ratio
+        )  # 0.0 falsey so explicit None check
 
         # 1) scale from 1920x1080 to current image size
         bx, by, bw, bh = base_rect
@@ -193,9 +210,7 @@ class ColorAnalyzer:
         L_bg = self.get_luminosity(bg_rgb)
 
         # 4) if already sufficient contrast, return 0
-        if (max(L_text, L_bg) + 0.05) / (
-            min(L_text, L_bg) + 0.05
-        ) >= self.cfg.target_contrast_ratio:
+        if (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05) >= target:
             return 0
 
         # 5) # dark text on lighter bg → multiply can't help; leave as-is
@@ -204,7 +219,7 @@ class ColorAnalyzer:
             return 0
 
         # 5) solve for k in L_bg' = k * L_bg such that contrast meets target
-        numerator = (L_text + 0.05) / self.cfg.target_contrast_ratio - 0.05
+        numerator = (L_text + 0.05) / target - 0.05
         if L_bg <= 1e-9 or numerator <= 0:
             return 100  # clamp: fully black
         k = max(0.0, min(1.0, numerator / L_bg))

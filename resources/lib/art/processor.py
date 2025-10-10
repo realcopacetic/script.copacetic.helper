@@ -92,6 +92,7 @@ class ImageProcessor:
                 image,
                 rect=kwargs.get("overlay_rect"),
                 text_rgb=text_rgb,
+                target_ratio=kwargs.get("overlay_target_ratio")
             )
         except Exception as exc:
             log(f"{self.__class__.__name__}: darken calc failed → {exc}", force=True)

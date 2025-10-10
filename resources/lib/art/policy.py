@@ -53,7 +53,7 @@ class AnalyzerConfig:
     dominance_allow_threshold: float = 0.70
 
     # Treat alpha channel as binary if True; use alpha_opaque_min as cutoff
-    alpha_thresholded_mask: bool = False
+    alpha_thresholded_mask: bool = True
 
     # Alpha cutoff (0–255) for treating pixels as opaque when thresholding
     alpha_opaque_min: int = 65
@@ -76,8 +76,11 @@ class AnalyzerConfig:
     # Gamma (γ) exponent applied to frequency to flatten dominance (0.5 = sqrt)
     accent_freq_exponent: float = 0.5
 
+    # Ignore swatches contributing <6% of counts)
+    accent_freq_floor: float = 0.06
+
     # Minimum RGB Euclidean distance from dominant to consider as accent
-    accent_min_dist: int = 20
+    accent_min_dist: int = 28
 
     # --- Contrast & Lightness ---
     # Default lightness delta for opposite contrast colour (0.3–0.5 typical)
