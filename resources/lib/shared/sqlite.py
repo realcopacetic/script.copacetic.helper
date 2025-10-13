@@ -37,8 +37,7 @@ class SQLiteHandler:
                 color TEXT,
                 accent TEXT,
                 contrast TEXT,
-                luminosity INTEGER,
-                darken INTEGER
+                luminosity INTEGER
             )
             """
         )
@@ -90,7 +89,6 @@ class SQLiteHandler:
                 "accent": row[6],
                 "contrast": row[7],
                 "luminosity": row[8],
-                "darken": row[9],
             }
         return None
 

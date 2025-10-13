@@ -76,7 +76,6 @@ class ImageEditor:
                     process=process,
                     source=source,
                     url=url,
-                    session=self._session,
                     **proc_kwargs,
                 )
                 for art_type, process in items
@@ -132,11 +131,32 @@ class ImageEditor:
         attributes["category"] = art_type
         self.cache_manager.write_lookup(art_type, attributes)
 
-        # Capture per-run session data (for dependent processors like fanart)
-        if art_type.startswith("clearlogo") and (color := attributes.get("color")):
-            self._session["clearlogo_color"] = color
+        # stash clearlogo color for downstream fanart (overlay_source=clearlogo)
+        if art_type.startswith("clearlogo"):
+            col = attributes.get("color")
+            if col:
+                self._session["clearlogo_color"] = col
+
+        # runtime-only enrichments (e.g., darken)
+        self._apply_runtime_enrichments(attributes, art_type, **proc_kwargs)
 
         return attributes
+
+    def _fetch_art_url(self, art_type: str, source: str):
+        """
+        Read artwork paths from Kodi infolabels and select the best candidate.
+
+        :param art_type: Target artwork type to resolve (e.g. "clearlogo", "fanart").
+        :param source: Kodi info label source prefix (e.g. "ListItem" or "Container.ListItem").
+        :returns: Dict {chosen_key: path} if found, else {}.
+        """
+        candidates = {
+            key: path
+            for key in ART_SOURCE_KEYS.get(art_type, (art_type,))
+            if (path := infolabel(f"{source}.Art({key})"))
+        }
+        choice = resolve_art_type(candidates, art_type)
+        return {choice.target_key: choice.path} if choice.path else {}
 
     def _run_processor(
         self,
@@ -191,22 +211,6 @@ class ImageEditor:
             values=result.get("metadata", {}),
         ).to_dict()
 
-    def _fetch_art_url(self, art_type: str, source: str):
-        """
-        Read artwork paths from Kodi infolabels and select the best candidate.
-
-        :param art_type: Target artwork type to resolve (e.g. "clearlogo", "fanart").
-        :param source: Kodi info label source prefix (e.g. "ListItem" or "Container.ListItem").
-        :returns: Dict {chosen_key: path} if found, else {}.
-        """
-        candidates = {
-            key: path
-            for key in ART_SOURCE_KEYS.get(art_type, (art_type,))
-            if (path := infolabel(f"{source}.Art({key})"))
-        }
-        choice = resolve_art_type(candidates, art_type)
-        return {choice.target_key: choice.path} if choice.path else {}
-
     def _image_open(self, url: str) -> Image.Image | None:
         """
         Open an image from Kodi VFS via Pillow; skips unsupported formats.
@@ -225,4 +229,71 @@ class ImageEditor:
                 f"{self.__class__.__name__}: Error opening image {url} → {error}",
                 force=True,
             )
+            return None
+
+    def _apply_runtime_enrichments(
+        self,
+        attributes: dict,
+        art_type: str,
+        **proc_kwargs: Any,
+    ) -> None:
+        """
+        Inject per-run values like 'darken' without persisting to DB.
+        Requires 'processed_path' to be present in attributes.
+        """
+        processed_path = attributes.get("processed_path")
+        if not processed_path:
+            return
+
+        enable, rect, target, text_rgb = self._resolve_overlay_params(**proc_kwargs)
+        if not enable or art_type != "fanart":
+            return
+
+        darken = self._compute_darken_for_path(processed_path, rect, text_rgb, target)
+        if darken is not None:
+            attributes["darken"] = int(darken)
+
+    def _resolve_overlay_params(self, **proc_kwargs):
+        """Parse overlay_* kwargs and resolve text_rgb (supports 'clearlogo' source)."""
+        enable = str(proc_kwargs.get("overlay_enable", "")).lower() == "true"
+        rect = proc_kwargs.get("overlay_rect")
+        target = proc_kwargs.get("overlay_target")
+        if isinstance(target, str):
+            try:
+                target = float(target)
+            except Exception:
+                target = None
+
+        text_rgb = None
+        src = (proc_kwargs.get("overlay_source") or "").strip().lower()
+        if src == "clearlogo":
+            log(f"FUCK DEBUG CRAP src {src}")
+            hexc = self._session.get("clearlogo_color")
+            log(f"FUCK DEBUG hexc {hexc}")
+            if hexc:
+                text_rgb = self.processor.color_analyzer.from_hex(hexc)
+                log(f"FUCK DEBUG text_rgb {text_rgb}")
+        elif src:
+            text_rgb = self.processor.color_analyzer.from_hex(src)
+
+        return enable, rect, target, text_rgb
+
+    def _compute_darken_for_path(
+        self,
+        path: str,
+        rect,
+        text_rgb,
+        target_ratio,
+    ) -> int | None:
+        """Open processed image and compute darken; returns int or None on failure."""
+        log(f'FUCK DEBUG path {path}; rect {rect}; text_rgb {text_rgb}; target_ratio {target_ratio}')
+        try:
+            img = self._image_open(path)
+            if not img:
+                return None
+            log(f'FUCK DEBUG NOOo')
+            return self.processor.color_analyzer.compute_darken_percent(
+                img, rect=rect, text_rgb=text_rgb, target_ratio=target_ratio
+            )
+        except Exception:
             return None

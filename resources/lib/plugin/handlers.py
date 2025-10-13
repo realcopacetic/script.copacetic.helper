@@ -173,7 +173,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             sqlite = SQLiteHandler()
             image_processor = ImageEditor(sqlite).image_processor
-            
+
             rect_param = self.params.get("overlay_rect")
             if rect_param:
                 try:
@@ -195,6 +195,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             processed = image_processor(
                 processes={"clearlogo": "crop", "fanart": "blur"},
                 source=f"{self.container}.ListItem",
+                overlay_enable=self.params.get("overlay_enable"),
                 overlay_source=self.params.get("overlay_source"),
                 overlay_rect=overlay_rect,
                 overlay_target=overlay_target,
