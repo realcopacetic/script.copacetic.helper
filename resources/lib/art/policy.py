@@ -3,6 +3,8 @@
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Mapping
 
+from resources.lib.shared.utilities import log
+
 # Fields produced by analysis/processing that we want to persist/export
 ART_FIELD_PROCESSED: str = "processed_path"
 ART_FIELD_HASH: str = "cached_file_hash"
@@ -23,7 +25,7 @@ ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
 
 # Keys exported to ListItem.Art: processed_path maps to "{category}"; others map to "{category}_{key}"
 ART_LISTITEM_EXPORT_KEYS: tuple[str, ...] = (
-    (ART_FIELD_PROCESSED,) + ART_VALUE_FIELDS + (ART_RUNTIME_FIELDS,)
+    (ART_FIELD_PROCESSED,) + ART_VALUE_FIELDS + ART_RUNTIME_FIELDS
 )
 
 # DB column order for inserts/updates (tuple order matters)

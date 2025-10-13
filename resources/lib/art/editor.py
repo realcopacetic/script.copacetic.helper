@@ -242,11 +242,11 @@ class ImageEditor:
         Requires 'processed_path' to be present in attributes.
         """
         processed_path = attributes.get("processed_path")
-        if not processed_path:
+        if not processed_path or art_type != "fanart":
             return
 
         enable, rect, target, text_rgb = self._resolve_overlay_params(**proc_kwargs)
-        if not enable or art_type != "fanart":
+        if not enable:
             return
 
         darken = self._compute_darken_for_path(processed_path, rect, text_rgb, target)
@@ -267,12 +267,9 @@ class ImageEditor:
         text_rgb = None
         src = (proc_kwargs.get("overlay_source") or "").strip().lower()
         if src == "clearlogo":
-            log(f"FUCK DEBUG CRAP src {src}")
             hexc = self._session.get("clearlogo_color")
-            log(f"FUCK DEBUG hexc {hexc}")
             if hexc:
                 text_rgb = self.processor.color_analyzer.from_hex(hexc)
-                log(f"FUCK DEBUG text_rgb {text_rgb}")
         elif src:
             text_rgb = self.processor.color_analyzer.from_hex(src)
 
@@ -286,12 +283,10 @@ class ImageEditor:
         target_ratio,
     ) -> int | None:
         """Open processed image and compute darken; returns int or None on failure."""
-        log(f'FUCK DEBUG path {path}; rect {rect}; text_rgb {text_rgb}; target_ratio {target_ratio}')
         try:
             img = self._image_open(path)
             if not img:
                 return None
-            log(f'FUCK DEBUG NOOo')
             return self.processor.color_analyzer.compute_darken_percent(
                 img, rect=rect, text_rgb=text_rgb, target_ratio=target_ratio
             )
