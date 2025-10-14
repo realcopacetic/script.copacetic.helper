@@ -14,9 +14,7 @@ ART_VALUE_FIELDS: tuple[str, ...] = (
     "contrast",
     "luminosity",
 )
-ART_RUNTIME_FIELDS: tuple[str, ...] = (
-    "darken",
-)
+ART_RUNTIME_FIELDS: tuple[str, ...] = ("darken",)
 
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
@@ -48,6 +46,7 @@ class AnalyzerConfig:
     palette_size: int = 8  # no. colours in adaptive palette (lower = faster, smoother)
     sample_size: int = 64  # downsample size for palette sampling (square SxS)
     avg_downsample: int = 32  # downsample size used when averaging RGB for luminance
+    avg_grid: int = 6  # Resolution (GxG) used to locate brightest cell before averaging
 
     # --- Filtering thresholds ---
     skip_whites: bool = True  # ignore white-ish swatches unless overwhelmingly dominant
