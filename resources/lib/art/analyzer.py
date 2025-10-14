@@ -324,21 +324,87 @@ class ColorAnalyzer:
         """
         c = channel_0_255 / 255.0
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    
+    @staticmethod
+    def _luma709(r: int, g: int, b: int) -> float:
+        """Per-pixel relative luminance using Rec.709 coefficients (sRGB primaries)."""
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-    def _avg_rgb(self, im: Image.Image) -> RGB:
+    def _brightest_patch_rgb(self, im: Image.Image, *, grid: int, pass2: int) -> RGB:
         """
-        Mean RGB on a small BOX-resampled image for robust luminance.
+        Find the brightest grid cell (by luminance) and return its average RGB.
 
-        :param im: Input PIL image.
-        :returns: Average (r, g, b).
+        Pass 1: resize to (grid x grid) with BOX to cheaply locate the brightest cell.
+        Pass 2: crop that cell in the original image and compute its mean RGB by
+                resizing to (pass2 x pass2) with BOX, then averaging pixels.
+
+        :param im: Input PIL image (any mode).
+        :param grid: Grid resolution (GxG) to locate brightest cell.
+        :param pass2: Downsample size used for mean on the winning patch.
+        :returns: Average (r, g, b) of the brightest cell.
         """
         if im.mode != "RGB":
             im = im.convert("RGB")
-        small = im.resize((self.cfg.avg_downsample, self.cfg.avg_downsample), Image.BOX)
+
+        # --- Pass 1: locate brightest cell cheaply (each pixel ≈ cell average) ---
+        small = im.resize((grid, grid), Image.BOX)
+
+        max_idx = 0
+        max_y = -1.0
+        for idx, (r, g, b) in enumerate(small.getdata()):
+            y = self._luma709(r, g, b)
+            if y > max_y:
+                max_y = y
+                max_idx = idx
+
+        cx, cy = (max_idx % grid), (max_idx // grid)
+
+        # --- Map the winning cell back to original coordinates and crop ----------
+        W, H = im.size
+        cell_w = W / grid
+        cell_h = H / grid
+        left = int(round(cx * cell_w))
+        top = int(round(cy * cell_h))
+        right = int(round((cx + 1) * cell_w))
+        bottom = int(round((cy + 1) * cell_h))
+        patch = im.crop((left, top, right, bottom))
+
+        # --- Pass 2: precise average on the chosen patch -------------------------
+        tiny = patch.resize((pass2, pass2), Image.BOX)
         r = g = b = 0
-        n = small.size[0] * small.size[1]
-        for pr, pg, pb in small.getdata():
+        n = pass2 * pass2
+        for pr, pg, pb in tiny.getdata():
             r += pr
             g += pg
             b += pb
         return (r // n, g // n, b // n)
+
+    def _avg_rgb(self, im: Image.Image) -> RGB:
+        """
+        Brightest-patch mean: locate the brightest grid cell by luminance,
+        then return the mean RGB of that cell.
+
+        :param im: Input PIL image.
+        :returns: Average (r, g, b) of the brightest patch.
+        """
+        return self._brightest_patch_rgb(
+            im, grid=self.cfg.avg_grid, pass2=self.cfg.avg_downsample
+        )
+
+    # def _avg_rgb(self, im: Image.Image) -> RGB:
+    #     """
+    #     Mean RGB on a small BOX-resampled image for robust luminance.
+
+    #     :param im: Input PIL image.
+    #     :returns: Average (r, g, b).
+    #     """
+    #     if im.mode != "RGB":
+    #         im = im.convert("RGB")
+    #     small = im.resize((self.cfg.avg_downsample, self.cfg.avg_downsample), Image.BOX)
+    #     r = g = b = 0
+    #     n = small.size[0] * small.size[1]
+    #     for pr, pg, pb in small.getdata():
+    #         r += pr
+    #         g += pg
+    #         b += pb
+    #     return (r // n, g // n, b // n)
