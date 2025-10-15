@@ -36,7 +36,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 | `target` | int | Kodi control id | Bind helper to a specific container (pairs with `focus_guard`). |  |
 | `focus_guard` | str | any | Early-abort if focus moved (usually `Container(id).CurrentItem`). |  |
 
-> **Important:** To compute `fanart_darken` with `overlay_source=clearlogo`, include **both** `logo_crop=true` and `bg_blur=true` in the same call so the helper can analyse the fresh clearlogo colour *and* the blurred fanart in the overlay rectangle.
+> **Important:** To compute `fanart_darken` with `overlay_source=clearlogo`, include **both** `logo_crop=true` and `bg_blur=true` in the same call so the helper can analyse the fresh clearlogo colour *and* the fanart in the overlay rectangle.
 
 ---
 
