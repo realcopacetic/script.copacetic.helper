@@ -15,9 +15,10 @@ class ImageProcessor:
     Uses ColorAnalyzer for hex/contrast/luminosity.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, cfg: AnalyzerConfig) -> None:
         """Initialize the processor with a color analyzer."""
-        self.color_analyzer = ColorAnalyzer(AnalyzerConfig())
+        self.cfg = cfg
+        self.color_analyzer = ColorAnalyzer(self.cfg)
 
     @staticmethod
     def _ensure_mode(image: Image.Image, target: str) -> Image.Image:
@@ -34,7 +35,7 @@ class ImageProcessor:
         :param image: Input PIL Image.
         :returns: Dict with {"image", "format", "metadata"} or None on failure.
         """
-        pre_resize_max = (1840, 713)
+        pre_resize_max = self.cfg.logo_presize_max
         if image.width > pre_resize_max[0] or image.height > pre_resize_max[1]:
             image.thumbnail(pre_resize_max, Image.LANCZOS)
 
@@ -44,7 +45,7 @@ class ImageProcessor:
             log(f"{self.__class__.__name__}: Error cropping image → {e}", force=True)
             return None
 
-        final_max = (1600, 620)
+        final_max = self.cfg.logo
         if image.width > final_max[0] or image.height > final_max[1]:
             image.thumbnail(final_max, Image.LANCZOS)
 
@@ -66,7 +67,7 @@ class ImageProcessor:
         :param kwargs: Optional overlay parameters (e.g. overlay_source, overlay_rect).
         :returns: Dict with {"image", "format", "metadata"}.
         """
-        target_size = (480, 270)
+        target_size = self.cfg.fanart_target_size
         try:
             image.thumbnail(target_size, Image.LANCZOS)
             image = image.filter(ImageFilter.GaussianBlur(radius=50))

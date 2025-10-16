@@ -6,7 +6,7 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import ART_SOURCE_KEYS, ArtMeta, resolve_art_type
+from resources.lib.art.policy import ART_SOURCE_KEYS, AnalyzerConfig, ArtMeta, resolve_art_type
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
@@ -32,7 +32,8 @@ class ImageEditor:
         """
         self.sqlite = sqlite_handler or SQLiteHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
-        self.processor = ImageProcessor()
+        self.cfg = AnalyzerConfig()
+        self.processor = ImageProcessor(self.cfg)
         self.temp_folder = self.cache_manager.temp_folder
         self._session: dict[str, Any] = {}
 
@@ -241,15 +242,15 @@ class ImageEditor:
         Inject per-run values like 'darken' without persisting to DB.
         Requires 'processed_path' to be present in attributes.
         """
-        processed_path = attributes.get("processed_path")
-        if not processed_path or art_type != "fanart":
+        original_url = attributes.get("original_url")
+        if not original_url or art_type != "fanart":
             return
 
         enable, rect, target, text_rgb = self._resolve_overlay_params(**proc_kwargs)
         if not enable:
             return
 
-        darken = self._compute_darken_for_path(processed_path, rect, text_rgb, target)
+        darken = self._compute_darken_for_path(original_url, rect, text_rgb, target)
         if darken is not None:
             attributes["darken"] = int(darken)
 
@@ -285,10 +286,17 @@ class ImageEditor:
         """Open processed image and compute darken; returns int or None on failure."""
         try:
             img = self._image_open(path)
-            if not img:
-                return None
+        except Exception:
+            return None
+        
+        if not img:
+            return None
+        target_size = self.cfg.fanart_target_size
+        try:
+            img.thumbnail(target_size, Image.LANCZOS)
             return self.processor.color_analyzer.compute_darken_percent(
                 img, rect=rect, text_rgb=text_rgb, target_ratio=target_ratio
             )
         except Exception:
             return None
+
