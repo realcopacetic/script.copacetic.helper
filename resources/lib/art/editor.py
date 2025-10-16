@@ -291,6 +291,7 @@ class ImageEditor:
         
         if not img:
             return None
+        
         target_size = self.cfg.fanart_target_size
         try:
             img.thumbnail(target_size, Image.LANCZOS)
