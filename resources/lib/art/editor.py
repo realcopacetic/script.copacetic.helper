@@ -32,9 +32,9 @@ class ImageEditor:
         """
         self.sqlite = sqlite_handler or SQLiteHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
+        self.temp_folder = self.cache_manager.temp_folder
         self.cfg = AnalyzerConfig()
         self.processor = ImageProcessor(self.cfg)
-        self.temp_folder = self.cache_manager.temp_folder
         self._session: dict[str, Any] = {}
 
     def image_processor(
@@ -288,10 +288,10 @@ class ImageEditor:
             img = self._image_open(path)
         except Exception:
             return None
-        
+
         if not img:
             return None
-        
+
         target_size = self.cfg.fanart_target_size
         try:
             img.thumbnail(target_size, Image.LANCZOS)
@@ -300,4 +300,3 @@ class ImageEditor:
             )
         except Exception:
             return None
-
