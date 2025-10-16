@@ -6,11 +6,25 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import ART_SOURCE_KEYS, AnalyzerConfig, ArtMeta, resolve_art_type
+from resources.lib.art.policy import (
+    ART_SOURCE_KEYS,
+    AnalyzerConfig,
+    ArtMeta,
+    resolve_art_type,
+)
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import BLURS, CROPS, infolabel, log
+from resources.lib.shared.utilities import (
+    BLURS,
+    CROPS,
+    infolabel,
+    log,
+    url_decode_path,
+    validate_path,
+)
+
+RGB = tuple[int, int, int]
 
 
 class ImageEditor:
@@ -204,13 +218,20 @@ class ImageEditor:
             except Exception:
                 pass
 
-        return ArtMeta.from_values(
-            category=category,
-            original_url=url,
-            processed_path=destination_path,
-            cached_file_hash=self.cache_manager.cached_file_hash,
-            values=result.get("metadata", {}),
-        ).to_dict()
+        return {
+            **ArtMeta.from_values(
+                category=category,
+                original_url=url,
+                processed_path=destination_path,
+                cached_file_hash=self.cache_manager.cached_file_hash,
+                values=result.get("metadata", {}),
+            ).to_dict(),
+            **(
+                {"_sample_frame": result["sample_frame"]}
+                if "sample_frame" in result
+                else {}
+            ),
+        }
 
     def _image_open(self, url: str) -> Image.Image | None:
         """
@@ -242,27 +263,50 @@ class ImageEditor:
         Inject per-run values like 'darken' without persisting to DB.
         Requires 'processed_path' to be present in attributes.
         """
-        original_url = attributes.get("original_url")
-        if not original_url or art_type != "fanart":
+        if art_type != "fanart":
             return
 
         enable, rect, target, text_rgb = self._resolve_overlay_params(**proc_kwargs)
         if not enable:
             return
 
-        darken = self._compute_darken_for_path(original_url, rect, text_rgb, target)
+        img = self._resolve_runtime_img(attributes)
+
+        if img is None:
+            return
+
+        target_size = self.cfg.fanart_target_size
+        if img.size != target_size:
+            try:
+                img = img.resize(target_size, Image.LANCZOS)
+            except Exception:
+                return
+
+        try:
+            darken = self.processor.color_analyzer.compute_darken_percent(
+                img, rect=rect, text_rgb=text_rgb, target_ratio=target
+            )
+        except Exception:
+            return
+
         if darken is not None:
             attributes["darken"] = int(darken)
 
-    def _resolve_overlay_params(self, **proc_kwargs):
-        """Parse overlay_* kwargs and resolve text_rgb (supports 'clearlogo' source)."""
+    def _resolve_overlay_params(
+        self, **proc_kwargs
+    ) -> tuple[bool, str | None, float | None, RGB | None]:
+        """Parse overlay_* kwargs and resolve text_rgb (supports 'clearlogo' source).
+
+        :param proc_kwargs: Arbitrary keyword arguments from the artwork plugin call.
+        :returns: Tuple of params needed for runtime image processing
+        """
         enable = str(proc_kwargs.get("overlay_enable", "")).lower() == "true"
         rect = proc_kwargs.get("overlay_rect")
         target = proc_kwargs.get("overlay_target")
         if isinstance(target, str):
             try:
                 target = float(target)
-            except Exception:
+            except ValueError:
                 target = None
 
         text_rgb = None
@@ -276,27 +320,29 @@ class ImageEditor:
 
         return enable, rect, target, text_rgb
 
-    def _compute_darken_for_path(
-        self,
-        path: str,
-        rect,
-        text_rgb,
-        target_ratio,
-    ) -> int | None:
-        """Open processed image and compute darken; returns int or None on failure."""
-        try:
-            img = self._image_open(path)
-        except Exception:
-            return None
+    def _resolve_runtime_img(self, attrs: dict) -> Image.Image | None:
+        """
+        Resolve the best available image for runtime-only analysis (e.g., darken).
 
-        if not img:
-            return None
+        :param attrs: Metadata attributes containing potential image sources.
+        :returns: A PIL Image object ready for analysis, or None if all sources fail.
+        """
+        # prefer in-memory `_sample_frame` from this run
+        img = attrs.pop("_sample_frame", None)
+        if img is not None:
+            return img
 
-        target_size = self.cfg.fanart_target_size
-        try:
-            img.thumbnail(target_size, Image.LANCZOS)
-            return self.processor.color_analyzer.compute_darken_percent(
-                img, rect=rect, text_rgb=text_rgb, target_ratio=target_ratio
-            )
-        except Exception:
-            return None
+        # local Kodi texture-cache path for original
+        cache_local = str(self.cache_manager.cached_image_path)
+        if cache_local and validate_path(cache_local):
+            im = self._image_open(cache_local)
+            if im:
+                return im
+
+        # fallback: processed (blurred) image
+        if cache_blur := attrs.get("processed_path"):
+            im = self._image_open(url_decode_path(cache_blur))
+            if im:
+                return im
+
+        return None

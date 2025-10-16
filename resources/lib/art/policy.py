@@ -47,9 +47,10 @@ class AnalyzerConfig:
     sample_size: int = 64  # downsample size for palette sampling (square SxS)
     avg_downsample: int = 32  # downsample size used when averaging RGB for luminance
     avg_grid: int = 6  # Resolution (GxG) used to locate brightest cell before averaging
-    logo_presize_max: set = (1840, 713)
-    logo_final_max: set = (1600, 620)
-    fanart_target_size: set = (480, 270)
+    logo_presize_max: set = (1840, 713)  # Max bounding size for cropping clearlogos
+    logo_final_max: set = (1600, 620)  # Final post-crop scaling target for clearlogos
+    fanart_target_size: set = (480, 270)  # Downsample resolution for fanart blur    
+    blur_radius: int = 50  # Guassian blur strength (in pixels) for fanart blur
 
     # --- Filtering thresholds ---
     skip_whites: bool = True  # ignore white-ish swatches unless overwhelmingly dominant

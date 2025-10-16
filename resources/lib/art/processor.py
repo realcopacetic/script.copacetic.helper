@@ -67,10 +67,10 @@ class ImageProcessor:
         :param kwargs: Optional overlay parameters (e.g. overlay_source, overlay_rect).
         :returns: Dict with {"image", "format", "metadata"}.
         """
-        target_size = self.cfg.fanart_target_size
         try:
-            image.thumbnail(target_size, Image.LANCZOS)
-            image = image.filter(ImageFilter.GaussianBlur(radius=50))
+            image.thumbnail(self.cfg.fanart_target_size, Image.LANCZOS)
+            sample_frame = image.copy()
+            image = image.filter(ImageFilter.GaussianBlur(radius=self.cfg.blur_radius))
         except Exception as exc:
             log(f"{self.__class__.__name__}: Error blurring image → {exc}", force=True)
             return None
@@ -82,4 +82,5 @@ class ImageProcessor:
             "image": image,
             "format": "JPEG",
             "metadata": analysis,
+            "sample_frame": sample_frame,
         }

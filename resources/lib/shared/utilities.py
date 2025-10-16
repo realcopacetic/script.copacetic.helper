@@ -257,7 +257,7 @@ def url_decode_path(path: str) -> str:
     return urllib.unquote(path.replace("image://", "").rstrip("/"))
 
 
-def validate_path(path: str) -> bool:
+def validate_path(path: str | Path) -> bool:
     """
     Checks if a given path exists on the filesystem.
 
