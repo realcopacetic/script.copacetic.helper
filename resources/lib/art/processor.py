@@ -45,7 +45,7 @@ class ImageProcessor:
             log(f"{self.__class__.__name__}: Error cropping image → {e}", force=True)
             return None
 
-        final_max = self.cfg.logo
+        final_max = self.cfg.logo_final_max
         if image.width > final_max[0] or image.height > final_max[1]:
             image.thumbnail(final_max, Image.LANCZOS)
 
