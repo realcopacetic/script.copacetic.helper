@@ -256,7 +256,7 @@ class ColorAnalyzer:
             return 0
 
         # --- dark text on lighter bg → multiply can't help; leave as-is ---
-        if L_text <= L_bg:
+        if L_text < L_bg:
             return 0
 
         # --- solve for k in L_bg' = k * L_bg such that contrast meets target ---
