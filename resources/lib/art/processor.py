@@ -68,7 +68,7 @@ class ImageProcessor:
         :returns: Dict with {"image", "format", "metadata"}.
         """
         try:
-            image.thumbnail(self.cfg.fanart_target_size, Image.LANCZOS)
+            image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
             sample_frame = image.copy()
             image = image.filter(ImageFilter.GaussianBlur(radius=self.cfg.blur_radius))
         except Exception as exc:

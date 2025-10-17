@@ -278,7 +278,7 @@ class ImageEditor:
         target_size = self.cfg.fanart_target_size
         if img.size != target_size:
             try:
-                img = img.resize(target_size, Image.LANCZOS)
+                img = img.resize(target_size, Image.BOX)
             except Exception:
                 return
 
@@ -333,15 +333,16 @@ class ImageEditor:
             return img
 
         # local Kodi texture-cache path for original
-        cache_local = str(self.cache_manager.cached_image_path)
-        if cache_local and validate_path(cache_local):
+        if (cache_local := str(self.cache_manager.cached_image_path)) and validate_path(
+            cache_local
+        ):
             im = self._image_open(cache_local)
             if im:
                 return im
 
         # fallback: processed (blurred) image
         if cache_blur := attrs.get("processed_path"):
-            im = self._image_open(url_decode_path(cache_blur))
+            im = self._image_open(cache_blur)
             if im:
                 return im
 
