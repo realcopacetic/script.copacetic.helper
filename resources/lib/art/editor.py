@@ -206,7 +206,21 @@ class ImageEditor:
             return None
 
         with xbmcvfs.File(destination_path, "wb") as f:
-            result["image"].save(f, result.get("format", "PNG"))
+            fmt = result.get("format", "PNG")
+            if fmt == "JPEG":
+                result["image"].save(
+                    f, "JPEG",
+                    quality=self.cfg.jpeg_quality,
+                    optimize=self.cfg.jpeg_optimize,
+                    progressive=self.cfg.jpeg_progressive,
+                    subsampling=self.cfg.jpeg_subsampling,
+                )
+            elif fmt == "PNG":
+                result["image"].save(
+                    f, "PNG",
+                    optimize=self.cfg.png_optimize,
+                    compress_level=self.cfg.png_compress_level
+                )
             log(
                 f"{self.__class__.__name__}: File processed: {url} → {destination_path}"
             )

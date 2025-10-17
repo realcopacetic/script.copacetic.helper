@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 import colorsys
-from PIL import Image
+from PIL import Image, ImageStat
 
 from resources.lib.art.policy import AnalyzerConfig
 from resources.lib.shared.utilities import log, log_duration
@@ -36,6 +36,7 @@ class ColorAnalyzer:
         }
 
     # ---------- public methods ----------
+    @log_duration
     def extract_dominant_color(self, image: Image.Image) -> RGB:
         """
         Dominant colour via downsample + adaptive palette; ignores transparent pixels.
@@ -78,6 +79,7 @@ class ColorAnalyzer:
         except Exception:
             return (0, 0, 0)
 
+    @log_duration
     def extract_accent_color(self, image: Image.Image, dominant_rgb: RGB) -> RGB:
         """
         Pick a secondary hue distinct from the dominant color.
@@ -86,6 +88,15 @@ class ColorAnalyzer:
         :param dominant_rgb: The primary (dominant) RGB color.
         :returns: Accent RGB tuple, or dominant_rgb on failure.
         """
+        # --- Step 0: Early uniformity check ---
+        try:
+            im_small = self._sample_image(image)
+            stat = ImageStat.Stat(im_small.convert("RGB"))
+            if max((v ** 0.5 for v in stat.var)) < self.cfg.accent_stdev_floor:
+                return dominant_rgb
+        except Exception:
+            pass
+
         # --- Step 1: Safe preprocessing ---
         try:
             im_small = self._sample_image(image)
@@ -107,6 +118,18 @@ class ColorAnalyzer:
         except Exception as exc:
             log(f"ColorAnalyzer: accent quantize failed → {exc}", force=True)
             return dominant_rgb
+        
+        # --- Step 2.5: Dominant-share early exit ---
+        try:
+            total = float(sum(count_map.values()) or 1)
+            # Find the cluster closest to dominant so we measure its actual share
+            nearest = min(count_map, key=lambda c: self._rgb_dist(c, dominant_rgb))
+            dominant_share = count_map.get(nearest, 0) / total
+            if dominant_share >= self.cfg.accent_dom_share_cutoff:
+                return dominant_rgb
+        except Exception:
+            # Non-fatal; continue to normal scoring
+            pass
 
         # --- Step 3: Score swatches ---
         total = sum(count_map.values()) or 1
@@ -133,6 +156,7 @@ class ColorAnalyzer:
             log(f"ColorAnalyzer: accent scoring failed → {exc}", force=True)
             return dominant_rgb
 
+    @log_duration
     def get_luminosity(self, rgb: RGB) -> float:
         """
         Relative luminance per sRGB/Rec.709 with WCAG transfer curve.
@@ -144,6 +168,7 @@ class ColorAnalyzer:
         r, g, b = self._linearize(r), self._linearize(g), self._linearize(b)
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
+    @log_duration
     def get_contrasting_color(self, rgb: RGB, shift: float) -> RGB:
         """
         Opposite contrast colour by shifting HLS lightness around a pivot.
@@ -161,6 +186,7 @@ class ColorAnalyzer:
         )
         return self.hls_to_rgb((h, l, s))
 
+    @log_duration
     def compute_darken_percent(
         self,
         image: Image.Image,
@@ -324,7 +350,7 @@ class ColorAnalyzer:
         """
         c = channel_0_255 / 255.0
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    
+
     @staticmethod
     def _luma709(r: int, g: int, b: int) -> float:
         """Per-pixel relative luminance using Rec.709 coefficients (sRGB primaries)."""

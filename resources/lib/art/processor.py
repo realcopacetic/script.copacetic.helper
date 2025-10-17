@@ -37,10 +37,16 @@ class ImageProcessor:
         """
         pre_resize_max = self.cfg.logo_presize_max
         if image.width > pre_resize_max[0] or image.height > pre_resize_max[1]:
-            image.thumbnail(pre_resize_max, Image.LANCZOS)
+            image.thumbnail(pre_resize_max, Image.BOX)
 
         try:
-            image = image.crop(image.getbbox())
+            image = self._ensure_mode(image, "RGBA")
+            alpha = image.getchannel("A")
+            box = alpha.getbbox()
+            if box:
+                image = image.crop(box)
+            else:
+                image = image.crop(image.getbbox())
         except Exception as e:
             log(f"{self.__class__.__name__}: Error cropping image → {e}", force=True)
             return None

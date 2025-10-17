@@ -49,7 +49,7 @@ class AnalyzerConfig:
     avg_grid: int = 6  # Resolution (GxG) used to locate brightest cell before averaging
     logo_presize_max: set = (1840, 713)  # Max bounding size for cropping clearlogos
     logo_final_max: set = (1600, 620)  # Final post-crop scaling target for clearlogos
-    fanart_target_size: set = (480, 270)  # Downsample resolution for fanart blur    
+    fanart_target_size: set = (480, 270)  # Downsample resolution for fanart blur
     blur_radius: int = 50  # Guassian blur strength (in pixels) for fanart blur
 
     # --- Filtering thresholds ---
@@ -71,6 +71,8 @@ class AnalyzerConfig:
     accent_freq_exponent: float = 0.5  # gamma exponent to flatten dominance (0.5=sqrt)
     accent_freq_floor: float = 0.06  # ignore swatches contributing <6% of counts
     accent_min_dist: int = 28  # min RGB Euclidean distance from dominant for accent
+    accent_stdev_floor: float = 3.0  # px stdev threshold: lower, quicker early exit
+    accent_dom_share_cutoff: float = 0.85  # skip accent if dom color covers ≥85% px
 
     # --- Contrast & Lightness ---
     contrast_shift: float = 0.3  # lightness delta for contrast colour (0.3–0.5 typical)
@@ -96,6 +98,16 @@ class AnalyzerConfig:
     red_relax_cap: float = 3.0  # max target when relaxing reds on dark bg
     red_bg_floor: float = 0.06  # if L_bg below this, treat as “already dark”
     max_darken_cap: int = 85  # cap darken percent to avoid over-darkening
+
+    # --- Save settings ---
+    jpeg_quality: int = 80  # quality (1–95); higher = better, slower
+    jpeg_optimize: bool = False  # smaller files, slower saves
+    jpeg_progressive: bool = False  # progressive encoding; slower
+    jpeg_subsampling: str = "4:2:0"  # color detail vs size ("4:4:4" = best)
+
+    # PNG save knobs
+    png_optimize: bool = False  # smaller files, slower saves
+    png_compress_level: int = 3  # 0–9 (0 fastest, 9 smallest)
 
 
 @dataclass
