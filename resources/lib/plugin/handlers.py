@@ -183,6 +183,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     overlay_rect = (x, y, w, h)
                 except Exception:
                     overlay_rect = None
+            else:
+                overlay_rect = None
 
             overlay_target = self.params.get("overlay_target")
             try:

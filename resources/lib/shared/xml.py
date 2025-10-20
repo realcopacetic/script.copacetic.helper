@@ -8,6 +8,27 @@ from pathlib import Path
 from resources.lib.shared.utilities import log
 
 
+def sort_outer_keys(func):
+    """
+    Decorator: sorts only the top-level keys of the input dict alphabetically
+    (case-insensitive) before passing it to the wrapped function.
+    """
+
+    @wraps(func)
+    def wrapper(data_dict: dict, **kwargs):
+        if not isinstance(data_dict, dict):
+            # In case someone passes a non-dict, just forward as-is
+            return func(data_dict, **kwargs)
+
+        # Case-insensitive alphabetical order for top-level keys only
+        sorted_keys = sorted(data_dict.keys(), key=str.casefold)
+        sorted_data = {k: data_dict[k] for k in sorted_keys}
+
+        return func(sorted_data, **kwargs)
+
+    return wrapper
+
+
 def xml_functions(func):
     """
     Decorator to handle common XML transformation arguments.

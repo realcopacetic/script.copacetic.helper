@@ -213,27 +213,27 @@ Multiart scans the current item’s artwork fields for a family (e.g. `fanart`, 
 ```xml
 <variable name="multiart_type_videos">
     <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(thumb1)) + [String.IsEqual(Container(3100).ListItem.DBType,episode) | String.IsEqual(Container(3100).ListItem.DBType,album) | String.IsEqual(Container(3100).ListItem.DBType,song)]">thumb</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(keyart1)) + $EXP[layouts_poster_videos_visible] + $EXP[art_keyart_visible]">keyart</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(poster1)) + $EXP[layouts_poster_videos_visible] + [!$EXP[art_keyart_visible] | String.IsEmpty(Container(3100).ListItem.Art(keyart))]">poster</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.keyart1)) + $EXP[layouts_poster_videos_visible] + $EXP[art_keyart_visible]">tvshow.keyart</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.poster1)) + $EXP[layouts_poster_videos_visible] + [!$EXP[art_keyart_visible] | String.IsEmpty(Container(3100).ListItem.Art(tvshow.keyart))]">tvshow.poster</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(landscape1)) + $EXP[layouts_fanart_videos_visible] + $EXP[art_landscape_visible]">landscape</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(fanart1)) + $EXP[layouts_fanart_videos_visible] + [!$EXP[art_landscape_visible] | String.IsEmpty(Container(3100).ListItem.Art(landscape))]">fanart</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.landscape1)) + $EXP[layouts_fanart_videos_visible] + $EXP[art_landscape_visible]">tvshow.landscape</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.fanart1)) + $EXP[layouts_fanart_videos_visible] + [!$EXP[art_landscape_visible] | String.IsEmpty(Container(3100).ListItem.Art(landscape))]">tvshow.fanart</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(square1)) + $EXP[layouts_square_videos_visible]">square</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.square1)) + $EXP[layouts_square_videos_visible]">tvshow.square</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(keyart1)) + $EXP[videos_layouts_visible_poster] + $EXP[art_keyart_visible]">keyart</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(poster1)) + $EXP[videos_layouts_visible_poster] + [!$EXP[art_keyart_visible] | String.IsEmpty(Container(3100).ListItem.Art(keyart))]">poster</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.keyart1)) + $EXP[videos_layouts_visible_poster] + $EXP[art_keyart_visible]">tvshow.keyart</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.poster1)) + $EXP[videos_layouts_visible_poster] + [!$EXP[art_keyart_visible] | String.IsEmpty(Container(3100).ListItem.Art(tvshow.keyart))]">tvshow.poster</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(landscape1)) + $EXP[videos_layouts_visible_fanart] + $EXP[art_landscape_visible]">landscape</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(fanart1)) + $EXP[videos_layouts_visible_fanart] + [!$EXP[art_landscape_visible] | String.IsEmpty(Container(3100).ListItem.Art(landscape))]">fanart</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.landscape1)) + $EXP[videos_layouts_visible_fanart] + $EXP[art_landscape_visible]">tvshow.landscape</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.fanart1)) + $EXP[videos_layouts_visible_fanart] + [!$EXP[art_landscape_visible] | String.IsEmpty(Container(3100).ListItem.Art(landscape))]">tvshow.fanart</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(square1)) + $EXP[videos_layouts_visible_square]">square</value>
+    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.square1)) + $EXP[videos_layouts_visible_square]">tvshow.square</value>
     <value condition="!String.IsEmpty(ListItem.Art(thumb1)) + [String.IsEqual(ListItem.DBType,episode) | String.IsEqual(ListItem.DBType,album) | String.IsEqual(ListItem.DBType,song)]">thumb</value>
-    <value condition="!String.IsEmpty(ListItem.Art(keyart1)) + $EXP[layouts_poster_videos_visible] + $EXP[art_keyart_visible]">keyart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(poster1)) + $EXP[layouts_poster_videos_visible] + [!$EXP[art_keyart_visible] | String.IsEmpty(ListItem.Art(keyart))]">poster</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.keyart1)) + $EXP[layouts_poster_videos_visible] + $EXP[art_keyart_visible]">tvshow.keyart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.poster1)) + $EXP[layouts_poster_videos_visible] + [!$EXP[art_keyart_visible] | String.IsEmpty(ListItem.Art(tvshow.keyart))]">tvshow.poster</value>
-    <value condition="!String.IsEmpty(ListItem.Art(landscape1)) + $EXP[layouts_fanart_videos_visible] + $EXP[art_landscape_visible]">landscape</value>
-    <value condition="!String.IsEmpty(ListItem.Art(fanart1)) + $EXP[layouts_fanart_videos_visible] + [!$EXP[art_landscape_visible] | String.IsEmpty(ListItem.Art(landscape))]">fanart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.landscape1)) + $EXP[layouts_fanart_videos_visible] + $EXP[art_landscape_visible]">tvshow.landscape</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart1)) + $EXP[layouts_fanart_videos_visible] + [!$EXP[art_landscape_visible] | String.IsEmpty(ListItem.Art(landscape))]">tvshow.fanart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(square1)) + $EXP[layouts_square_videos_visible]">square</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.square1)) + $EXP[layouts_square_videos_visible]">tvshow.square</value>
+    <value condition="!String.IsEmpty(ListItem.Art(keyart1)) + $EXP[videos_layouts_visible_poster] + $EXP[art_keyart_visible]">keyart</value>
+    <value condition="!String.IsEmpty(ListItem.Art(poster1)) + $EXP[videos_layouts_visible_poster] + [!$EXP[art_keyart_visible] | String.IsEmpty(ListItem.Art(keyart))]">poster</value>
+    <value condition="!String.IsEmpty(ListItem.Art(tvshow.keyart1)) + $EXP[videos_layouts_visible_poster] + $EXP[art_keyart_visible]">tvshow.keyart</value>
+    <value condition="!String.IsEmpty(ListItem.Art(tvshow.poster1)) + $EXP[videos_layouts_visible_poster] + [!$EXP[art_keyart_visible] | String.IsEmpty(ListItem.Art(tvshow.keyart))]">tvshow.poster</value>
+    <value condition="!String.IsEmpty(ListItem.Art(landscape1)) + $EXP[videos_layouts_visible_fanart] + $EXP[art_landscape_visible]">landscape</value>
+    <value condition="!String.IsEmpty(ListItem.Art(fanart1)) + $EXP[videos_layouts_visible_fanart] + [!$EXP[art_landscape_visible] | String.IsEmpty(ListItem.Art(landscape))]">fanart</value>
+    <value condition="!String.IsEmpty(ListItem.Art(tvshow.landscape1)) + $EXP[videos_layouts_visible_fanart] + $EXP[art_landscape_visible]">tvshow.landscape</value>
+    <value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart1)) + $EXP[videos_layouts_visible_fanart] + [!$EXP[art_landscape_visible] | String.IsEmpty(ListItem.Art(landscape))]">tvshow.fanart</value>
+    <value condition="!String.IsEmpty(ListItem.Art(square1)) + $EXP[videos_layouts_visible_square]">square</value>
+    <value condition="!String.IsEmpty(ListItem.Art(tvshow.square1)) + $EXP[videos_layouts_visible_square]">tvshow.square</value>
 </variable>
 ```
 

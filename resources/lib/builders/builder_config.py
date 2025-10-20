@@ -15,7 +15,7 @@ from resources.lib.shared.utilities import (
     INCLUDES,
     VARIABLES,
 )
-from resources.lib.shared.xml import XMLHandler
+from resources.lib.shared.xml import XMLHandler, sort_outer_keys
 
 BUILDER_CONFIG = {
     "configs": {
@@ -74,7 +74,7 @@ BUILDER_CONFIG = {
         "write_kwargs": {
             "root_tag": "includes",
             "element_tag": "expression",
-            "transform_func": XMLHandler._simple_dict_to_xml,
+            "transform_func": sort_outer_keys(XMLHandler._simple_dict_to_xml),
         },
     },
 }

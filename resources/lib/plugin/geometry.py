@@ -58,9 +58,6 @@ def resolve_rect(
     window,
     coords: str | None,
     anchor_id: int | None,
-    adjust_fn: Optional[
-        Callable[[tuple[int, int, int, int]], tuple[int, int, int, int]]
-    ] = None,
     caller_name: str | None = None,
 ) -> tuple[int, int, int, int]:
     """
@@ -77,7 +74,7 @@ def resolve_rect(
 
     if coords:
         try:
-            rect = tuple(map(int, coords.split(",")))
+            return tuple(map(int, coords.split(",")))
             return adjust_fn(rect) if adjust_fn else rect
         except Exception as exc:
             log(f"{name}: Invalid coords '{coords}': {exc}")
@@ -85,13 +82,14 @@ def resolve_rect(
     if anchor_id:
         try:
             a = window.getControl(int(anchor_id))
-            rect = (a.getX(), a.getY(), a.getWidth(), a.getHeight())
-            return adjust_fn(rect) if adjust_fn else rect
+            log(
+                f"FUCK DEBUG coords: {a.getX()}, {a.getY()}, {a.getWidth()}, {a.getHeight()}"
+            )
+            return (a.getX(), a.getY(), a.getWidth(), a.getHeight())
         except Exception as exc:
             log(f"{name}: Failed to read anchor {anchor_id}: {exc}")
 
-    rect = DEFAULT_COORDS.get(name, (0, 0, 0, 0))
-    return adjust_fn(rect) if adjust_fn else rect
+    return DEFAULT_COORDS.get(name, (0, 0, 0, 0))
 
 
 def axis_travel(start: int, span: int, item_size: int, fraction: float) -> int:
