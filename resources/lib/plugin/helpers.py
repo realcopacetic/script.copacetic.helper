@@ -199,7 +199,7 @@ class ProgressBarManager:
         """
         self.window = Window(getCurrentWindowId())
         self.target = target
-        self.base_id = base_id
+        self.base_id = int(base_id)
         self.backing_id = base_id + 1
         self.progress_id = base_id + 2
         self.btn_id = base_id + 3
@@ -355,7 +355,7 @@ class TypewriterAnimation:
         :param max_lines: Max number of lines grown if track_h not set.
         """
         self.window = Window(getCurrentWindowId())
-        self.control_id = control_id
+        self.control_id = int(control_id)
         self.step_time = step_time
         self.default_line_step = default_line_step
         self.max_lines = max_lines
@@ -469,85 +469,82 @@ class TypewriterAnimation:
         log(f"{self.__class__.__name__}: DONE → '{label}'")
 
 
-class LabelTruncator:
-    def __init__(self, window_id=10025, control_id=8860, floor=0, ceiling=None):
+class TextboxTruncator:
+    """
+    Truncate textbox label using binary search until it stops overflowing.
+    Reads live label from control, cuts on nearest space then appends '…'.
+    """
+
+    def __init__(
+        self,
+        control_id: int,
+        ellipsis: str = "...",
+        sleep_ms: int = 16,
+        max_iters: int = 24,
+    ) -> None:
+        self.window = Window(getCurrentWindowId())
+        self.control_id = int(control_id)
+        self.ellipsis = ellipsis
+        self.sleep_ms = max(0, int(sleep_ms))
+        self.max_iters = max_iters
+
+    @staticmethod
+    def _slice_with_ellipsis(s: str, upto: int, ellipsis: str) -> str:
+        if upto >= len(s):
+            return s
+        cut = s.rfind(" ", 0, max(1, upto))
+        if cut == -1:
+            cut = upto
+        return s[:cut].rstrip() + ellipsis
+
+    def truncate_current(self) -> str:
         """
-        :param window_id: Kodi window ID where the TextBox lives.
-        :param control_id: The ID of the TextBox control to truncate.
-        :param floor: Minimum number of characters to preserve.
-        :param ceiling: Optional upper bound (defaults to full label length).
-        """
-        self.window = Window(window_id)
-        self.control_id = control_id
-        self.floor = floor
-        self.ceiling = ceiling
-        self.ellipsis = "..."
-
-    def truncate(self, text):
-        """
-        Truncates text to fit inside a TextBox control using binary search.
-        Sets the truncated text directly on the control.
-
-        :param text: The original long string.
-        :return: The truncated string that was set.
-        """
-        try:
-            control = self.window.getControl(self.control_id)
-        except Exception:
-            log(f"{self.__class__.__name__}: Control {self.control_id} not found")
-            return text
-
-        max_len = self.ceiling or len(text)
-        control.setText(text)
-        xbmc.sleep(20)
-        if not condition(f"Container({self.control_id}).HasNext"):
-            return text
-
-        floor, ceiling = self.floor, max_len
-        best_fit = None
-
-        count = 0
-        while floor < ceiling:
-            count += 1
-            mid = (floor + ceiling) // 2
-            slice_point = text.rfind(" ", 0, mid)
-            if slice_point == -1:
-                slice_point = mid
-            test = text[:slice_point] + self.ellipsis
-            control.setText(test)
-            xbmc.sleep(20)
-            if condition(f"Container({self.control_id}).HasNext"):
-                ceiling = mid
-            else:
-                best_fit = slice_point
-                floor = mid + 1
-
-        if best_fit is not None:
-            final = text[:best_fit] + self.ellipsis
-            control.setText(final)
-            return final
-
-    def truncate_by_floor(self, text):
-        """
-        Truncate text at the nearest full word under the floor limit.
-        No UI overflow checks — purely character-based.
-
-        :param text: The input string to truncate.
-        :return: Truncated string ending at nearest word, with ellipsis.
+        Truncate the control's *current* text in-place until no overflow.
+        :return: Final text set on the control (or original if it already fit).
         """
         try:
-            control = self.window.getControl(self.control_id)
+            c = self.window.getControl(self.control_id)
         except Exception:
             log(f"{self.__class__.__name__}: Control {self.control_id} not found")
+            return ""
+
+        # Read current text (TextBox usually has getText; fall back to getLabel).
+        text = getattr(c, "getText", getattr(c, "getLabel", lambda: ""))() or ""
+        cond_str = f"Container({self.control_id}).HasNext"
+
+        # If empty or already fits, done.
+        c.setText(text)
+        if self.sleep_ms:
+            xbmc.sleep(self.sleep_ms)
+        if not condition(cond_str):
             return text
 
-        if len(text) <= self.floor:
-            return text
+        # Avoid doubling ellipsis during retries.
+        base = text.rstrip()
+        if base.endswith(self.ellipsis):
+            base = base[: -len(self.ellipsis)].rstrip()
 
-        slice_point = text.rfind(" ", 0, self.floor)
-        if slice_point == -1:
-            slice_point = self.floor  # no space found, hard cut
+        # Binary search on character count (O(log N))
+        lo, hi = 0, len(base)
+        best = ""
+        iters = 0
 
-        final = text[:slice_point].rstrip() + self.ellipsis
-        control.setText(final)
-        return final
+        while lo < hi and iters < self.max_iters:
+            iters += 1
+            mid = (lo + hi) // 2
+            cand = self._slice_with_ellipsis(base, mid, self.ellipsis)
+            c.setText(cand)
+            if self.sleep_ms:
+                xbmc.sleep(self.sleep_ms)
+
+            if condition(cond_str):  # still overflows → shrink
+                hi = mid
+            else:  # fits → try to grow
+                best = cand
+                lo = mid + 1
+
+        if not best:
+            best = self._slice_with_ellipsis(base, 1, self.ellipsis)
+
+        c.setText(best)
+        return best
