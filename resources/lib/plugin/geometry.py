@@ -75,17 +75,15 @@ def resolve_rect(
     if coords:
         try:
             return tuple(map(int, coords.split(",")))
-            return adjust_fn(rect) if adjust_fn else rect
+            
         except Exception as exc:
             log(f"{name}: Invalid coords '{coords}': {exc}")
 
     if anchor_id:
         try:
             a = window.getControl(int(anchor_id))
-            log(
-                f"FUCK DEBUG coords: {a.getX()}, {a.getY()}, {a.getWidth()}, {a.getHeight()}"
-            )
             return (a.getX(), a.getY(), a.getWidth(), a.getHeight())
+        
         except Exception as exc:
             log(f"{name}: Failed to read anchor {anchor_id}: {exc}")
 

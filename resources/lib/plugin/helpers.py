@@ -469,82 +469,27 @@ class TypewriterAnimation:
         log(f"{self.__class__.__name__}: DONE → '{label}'")
 
 
-class TextboxTruncator:
-    """
-    Truncate textbox label using binary search until it stops overflowing.
-    Reads live label from control, cuts on nearest space then appends '…'.
-    """
-
-    def __init__(
-        self,
-        control_id: int,
-        ellipsis: str = "...",
-        sleep_ms: int = 16,
-        max_iters: int = 24,
-    ) -> None:
+class Truncator:
+    def __init__(self) -> None:
         self.window = Window(getCurrentWindowId())
-        self.control_id = int(control_id)
-        self.ellipsis = ellipsis
-        self.sleep_ms = max(0, int(sleep_ms))
-        self.max_iters = max_iters
+        self._ellipsis = "..."
 
     @staticmethod
-    def _slice_with_ellipsis(s: str, upto: int, ellipsis: str) -> str:
-        if upto >= len(s):
+    def _word_cut(s: str, limit: int, ellipsis: str) -> str:
+        if len(s) <= limit:
             return s
-        cut = s.rfind(" ", 0, max(1, upto))
+        cut = s.rfind(" ", 0, max(1, limit))
         if cut == -1:
-            cut = upto
+            cut = limit
         return s[:cut].rstrip() + ellipsis
 
-    def truncate_current(self) -> str:
-        """
-        Truncate the control's *current* text in-place until no overflow.
-        :return: Final text set on the control (or original if it already fit).
-        """
+    def update(self, *, control_id: int, label: str, limit: int) -> str:
         try:
-            c = self.window.getControl(self.control_id)
+            c = self.window.getControl(int(control_id))
         except Exception:
-            log(f"{self.__class__.__name__}: Control {self.control_id} not found")
+            log(f"{self.__class__.__name__}: Control {control_id} not found")
             return ""
-
-        # Read current text (TextBox usually has getText; fall back to getLabel).
-        text = getattr(c, "getText", getattr(c, "getLabel", lambda: ""))() or ""
-        cond_str = f"Container({self.control_id}).HasNext"
-
-        # If empty or already fits, done.
-        c.setText(text)
-        if self.sleep_ms:
-            xbmc.sleep(self.sleep_ms)
-        if not condition(cond_str):
-            return text
-
-        # Avoid doubling ellipsis during retries.
-        base = text.rstrip()
-        if base.endswith(self.ellipsis):
-            base = base[: -len(self.ellipsis)].rstrip()
-
-        # Binary search on character count (O(log N))
-        lo, hi = 0, len(base)
-        best = ""
-        iters = 0
-
-        while lo < hi and iters < self.max_iters:
-            iters += 1
-            mid = (lo + hi) // 2
-            cand = self._slice_with_ellipsis(base, mid, self.ellipsis)
-            c.setText(cand)
-            if self.sleep_ms:
-                xbmc.sleep(self.sleep_ms)
-
-            if condition(cond_str):  # still overflows → shrink
-                hi = mid
-            else:  # fits → try to grow
-                best = cand
-                lo = mid + 1
-
-        if not best:
-            best = self._slice_with_ellipsis(base, 1, self.ellipsis)
-
-        c.setText(best)
-        return best
+        text = infolabel(label) or ""
+        final = self._word_cut(text, limit, self._ellipsis)
+        c.setText(final)
+        return final

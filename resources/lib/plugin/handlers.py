@@ -13,6 +13,7 @@ from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
     ProgressBarManager,
+    Truncator,
     TypewriterAnimation,
 )
 from resources.lib.plugin.json_map import JSON_MAP
@@ -244,7 +245,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         with focus_guard(self.expected, "metadata", self.identity_getter) as guard:
             if not guard:
                 return
-
             data = DataHandler(f"{self.container}.ListItem", self.dbtype, self.dbid)
 
             if not guard.alive():
