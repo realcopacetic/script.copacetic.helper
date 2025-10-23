@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 from typing import Callable, Iterable
+import math
 
 from xbmcgui import Window, getCurrentWindowId
 
@@ -20,7 +21,7 @@ from resources.lib.shared.utilities import (
     split_random,
     to_int,
     url_encode,
-    word_cut,
+    window_property,
     xbmc,
 )
 
@@ -39,7 +40,14 @@ def get_infolabels(target: str, keys: Iterable[str]) -> dict[str, str]:
 class DataHandler:
     """Extracts metadata for a Kodi ListItem and prepares a normalized dict."""
 
-    def __init__(self, target: str, dbtype: str, dbid: str, truncate_plot: int = 0) -> None:
+    def __init__(
+        self,
+        target: str,
+        dbtype: str,
+        dbid: str,
+        truncate_label: str | None = None,
+        truncate_id: int | None = None,
+    ) -> None:
         """
         Initialize the handler with listitem, dbtype and dbid.
 
@@ -50,7 +58,8 @@ class DataHandler:
         self.target = target
         self.dbtype = dbtype
         self.dbid = dbid
-        self.truncate_plot = int(truncate_plot or 0)
+        self.truncate_label = truncate_label
+        self.truncate_id = truncate_id or 0
         self.infolabels = get_infolabels(
             self.target,
             [
@@ -59,7 +68,6 @@ class DataHandler:
                 "Writer",
                 "Genre",
                 "Studio",
-                "Plot",
             ],
         )
         self.fetched = self.fetch_data()
@@ -72,19 +80,115 @@ class DataHandler:
         """
         label = return_label(self.infolabels["Label"])
         encoded_label = url_encode(label)
-        plot = self.infolabels.get("Plot", "")
-        if self.truncate_plot > 0:
-            plot = word_cut(plot, self.truncate_plot, "...")
         return {
             "file": encoded_label,
             "label": encoded_label,
+            "label2": label,
             "director": split_random(self.infolabels["Director"]),
             "dbtype": self.dbtype,
             "genre": split_random(self.infolabels["Genre"]),
-            "plot": plot,
             "studio": self._studio(),
+            "truncated_label": self._binary_truncate_on_control(
+                        measure_ctrl_id=self.truncate_id,
+                        text=self.truncate_label,
+                        ellipsis="...",
+                    ), 
             "writer": split(self.infolabels["Writer"]),
         }
+
+    @staticmethod
+    def _binary_truncate_on_control(
+        measure_ctrl_id: int,
+        text: str,
+        sleep_ms: int = 8,
+        confirm_ms: int = 4,
+        max_iters: int | None = None,
+        ellipsis: str = "...",
+        safety_chars: int = 3,
+    ) -> str:
+        if not text or not measure_ctrl_id:
+            return ""
+
+        win = Window(getCurrentWindowId())
+        try:
+            ctrl = win.getControl(int(measure_ctrl_id))
+        except Exception:
+            log(f"binary_truncate: measure control {measure_ctrl_id} not found")
+            return text
+
+        prop_key = f"trunc.last.{measure_ctrl_id}"  # seed cache
+        cond_str = f"Container({measure_ctrl_id}).HasNext"
+
+        def fits() -> bool:
+            """Return True if it fits (no overflow), with one quick confirm on 'fits'."""
+            xbmc.sleep(sleep_ms)
+            ok = not condition(cond_str)
+            if ok:
+                xbmc.sleep(confirm_ms)  # quick confirm on 'fits'
+                ok = not condition(cond_str)
+            return ok
+
+        def slice_with_ellipsis(src: str, upto: int) -> str:
+            upto = max(0, upto - safety_chars)
+            if upto >= len(src):
+                return src
+
+            cut = src.rfind(" ", 0, max(1, upto))  # prefer word boundary
+            if cut == -1:
+                cut = upto
+
+            stem = src[:cut].rstrip()
+            stem = stem.rstrip(".,;:!?…-–—")  # trim terminal punctuation
+            stem = stem.rstrip("\"')]}»”’")  # trim dangling closers
+            return stem + ellipsis
+
+        ctrl.setText(text)  # quick path: whole text fits
+        if fits():
+            win.setProperty(prop_key, str(len(text)))
+            return text
+
+        base = text.rstrip()
+        if base.endswith(ellipsis):
+            base = base[: -len(ellipsis)].rstrip()
+
+        if max_iters is None:  # adaptive iteration bound
+            max_iters = min(16, math.ceil(math.log2(max(2, len(base)))) + 2)
+
+        # Seed lo/hi around last accepted length (if any)
+        try:
+            guess = int(win.getProperty(prop_key) or 0)
+        except ValueError:
+            guess = 0
+
+        lo = 0
+        hi = len(base)
+
+        if guess > 0:
+            # Start near last success; widen if needed during search
+            lo = max(0, guess - 64)
+            hi = min(len(base), guess + 256)
+
+        best = ""
+        iters = 0
+        while lo < hi and iters < max_iters:
+            iters += 1
+            mid = (lo + hi) // 2
+            cand = slice_with_ellipsis(base, mid)
+            ctrl.setText(cand)
+            if fits():  # trust only confirmed 'fits'
+                best = cand
+                lo = mid + 1
+            else:
+                hi = mid
+
+        if not best:
+            best = slice_with_ellipsis(base, 1)
+
+        # remember the rough character count (sans ellipsis) for next items
+        sans = best[: -len(ellipsis)] if best.endswith(ellipsis) else best
+        win.setProperty(prop_key, str(len(sans)))
+
+        return best
 
     def _studio(self) -> str:
         """

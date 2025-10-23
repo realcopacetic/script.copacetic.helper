@@ -2,6 +2,7 @@
 
 from functools import wraps
 from typing import Callable
+from resources.lib.shared.utilities import log
 
 import xbmc
 from xbmcgui import ListItem
@@ -58,8 +59,13 @@ def add_items(items: list[dict], media_type: str = "metadata") -> list[tuple]:
         li.append((item["file"], li_item, False))
     return li
 
+
 def create_li_item(
-    item: dict, label: str | None, default_icon: str, properties: dict | None = None
+    item: dict,
+    label: str | None,
+    label2: str | None,
+    default_icon: str,
+    properties: dict | None = None,
 ) -> ListItem:
     """
     Creates a Kodi ListItem with basic art and optional properties.
@@ -70,7 +76,7 @@ def create_li_item(
     :param properties: Optional dictionary of ListItem properties.
     :returns: xbmcgui.ListItem instance
     """
-    li_item = ListItem(label, offscreen=True)
+    li_item = ListItem(label, label2, offscreen=True)
     li_item.setArt({**item.get("art", {}), "icon": default_icon, "thumb": default_icon})
 
     if properties:
@@ -121,9 +127,7 @@ def videoinfotag_setter(
                     setter(str(value))
 
             if isinstance((resume := item.get("resume")), dict):
-                tag.setResumePoint(
-                    resume.get("position", 0), resume.get("total", 0)
-                )
+                tag.setResumePoint(resume.get("position", 0), resume.get("total", 0))
 
             if stream_fields and "streamdetails" in item:
                 for kind, streams in item["streamdetails"].items():
@@ -170,7 +174,9 @@ def set_metadata(item: dict) -> ListItem:
     return create_li_item(
         item,
         item.get("label"),
+        item.get("label2"),
         "DefaultVideo.png",
+        properties={"truncated_label": item.get("truncated_label", "")},
     )
 
 

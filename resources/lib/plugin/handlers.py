@@ -244,12 +244,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         with focus_guard(self.expected, "metadata", self.identity_getter) as guard:
             if not guard:
                 return
-            
+
             data = DataHandler(
                 target=f"{self.container}.ListItem",
                 dbtype=self.dbtype,
                 dbid=self.dbid,
-                truncate_plot=to_int(self.params.get("truncate_plot", 0)),
+                truncate_label=self.params.get("truncate_label"),
+                truncate_id=to_int(self.params.get("truncate_id", 0)),
             )
 
             if not guard.alive():
