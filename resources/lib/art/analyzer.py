@@ -416,21 +416,3 @@ class ColorAnalyzer:
         return self._brightest_patch_rgb(
             im, grid=self.cfg.avg_grid, pass2=self.cfg.avg_downsample
         )
-
-    # def _avg_rgb(self, im: Image.Image) -> RGB:
-    #     """
-    #     Mean RGB on a small BOX-resampled image for robust luminance.
-
-    #     :param im: Input PIL image.
-    #     :returns: Average (r, g, b).
-    #     """
-    #     if im.mode != "RGB":
-    #         im = im.convert("RGB")
-    #     small = im.resize((self.cfg.avg_downsample, self.cfg.avg_downsample), Image.BOX)
-    #     r = g = b = 0
-    #     n = small.size[0] * small.size[1]
-    #     for pr, pg, pb in small.getdata():
-    #         r += pr
-    #         g += pg
-    #         b += pb
-    #     return (r // n, g // n, b // n)

@@ -20,8 +20,10 @@ from resources.lib.shared.utilities import (
     split_random,
     to_int,
     url_encode,
+    word_cut,
     xbmc,
 )
+
 
 def get_infolabels(target: str, keys: Iterable[str]) -> dict[str, str]:
     """
@@ -37,7 +39,7 @@ def get_infolabels(target: str, keys: Iterable[str]) -> dict[str, str]:
 class DataHandler:
     """Extracts metadata for a Kodi ListItem and prepares a normalized dict."""
 
-    def __init__(self, target: str, dbtype: str, dbid: str) -> None:
+    def __init__(self, target: str, dbtype: str, dbid: str, truncate_plot: int = 0) -> None:
         """
         Initialize the handler with listitem, dbtype and dbid.
 
@@ -48,14 +50,17 @@ class DataHandler:
         self.target = target
         self.dbtype = dbtype
         self.dbid = dbid
-        self.infolabels = get_infolabels(self.target,
+        self.truncate_plot = int(truncate_plot or 0)
+        self.infolabels = get_infolabels(
+            self.target,
             [
                 "Label",
                 "Director",
                 "Writer",
                 "Genre",
                 "Studio",
-            ]
+                "Plot",
+            ],
         )
         self.fetched = self.fetch_data()
 
@@ -67,12 +72,16 @@ class DataHandler:
         """
         label = return_label(self.infolabels["Label"])
         encoded_label = url_encode(label)
+        plot = self.infolabels.get("Plot", "")
+        if self.truncate_plot > 0:
+            plot = word_cut(plot, self.truncate_plot, "...")
         return {
             "file": encoded_label,
             "label": encoded_label,
             "director": split_random(self.infolabels["Director"]),
             "dbtype": self.dbtype,
             "genre": split_random(self.infolabels["Genre"]),
+            "plot": plot,
             "studio": self._studio(),
             "writer": split(self.infolabels["Writer"]),
         }
@@ -281,7 +290,9 @@ class ProgressBarManager:
             base = self.window.getControl(base_id)
             progress = self.window.getControl(progress_id)
         except RuntimeError:
-            log(f"{self.__class__.__name__}: base_id {base_id} or progress_id {progress_id} not found.")
+            log(
+                f"{self.__class__.__name__}: base_id {base_id} or progress_id {progress_id} not found."
+            )
             return
 
         posx, posy, width, height = compute_rect(
@@ -305,7 +316,9 @@ class ProgressBarManager:
             backing = self.window.getControl(backing_id)
         except RuntimeError:
             backing = None
-            log(f"{self.__class__.__name__}: Optional backing_id {backing_id} not found.")
+            log(
+                f"{self.__class__.__name__}: Optional backing_id {backing_id} not found."
+            )
         else:
             backing.setWidth(width)
             backing.setHeight(height)
@@ -383,6 +396,7 @@ class TypewriterAnimation:
         :param identity_getter: Returns current identity for guard checks.
         :return: None
         """
+
         def alive() -> bool:
             if identity_getter and expected_identity is not None:
                 if not (ok := identity_getter() == expected_identity):
@@ -467,29 +481,3 @@ class TypewriterAnimation:
                 control.setText(sub)
 
         log(f"{self.__class__.__name__}: DONE → '{label}'")
-
-
-class Truncator:
-    def __init__(self) -> None:
-        self.window = Window(getCurrentWindowId())
-        self._ellipsis = "..."
-
-    @staticmethod
-    def _word_cut(s: str, limit: int, ellipsis: str) -> str:
-        if len(s) <= limit:
-            return s
-        cut = s.rfind(" ", 0, max(1, limit))
-        if cut == -1:
-            cut = limit
-        return s[:cut].rstrip() + ellipsis
-
-    def update(self, *, control_id: int, label: str, limit: int) -> str:
-        try:
-            c = self.window.getControl(int(control_id))
-        except Exception:
-            log(f"{self.__class__.__name__}: Control {control_id} not found")
-            return ""
-        text = infolabel(label) or ""
-        final = self._word_cut(text, limit, self._ellipsis)
-        c.setText(final)
-        return final

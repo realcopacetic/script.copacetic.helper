@@ -155,6 +155,7 @@ def videoinfotag_setter(
     {
         "director": "Directors",
         "genre": "Genres",
+        "plot": "Plot",
         "studio": "Studios",
         "writer": "Writers",
     },
