@@ -2,6 +2,7 @@
 
 from typing import Callable, Iterable
 import math
+import re
 
 from xbmcgui import Window, getCurrentWindowId
 
@@ -450,6 +451,225 @@ class ProgressBarManager:
             btn_posx = int(fraction * travel)
             btn_posy = int((height - btn_h) / 2)
             button.setPosition(btn_posx, btn_posy)
+
+
+class TextTruncator:
+    """
+    Measure-on-control truncator.
+
+    - Uses Container(<measure_ctrl_id>).HasNext to detect overflow on a hidden TextBox.
+    - If min_safe is given → fast coarse-step refine around that seed.
+    - Else → bounded binary search with adaptive cap.
+    - Optional smart_cap trims to the last full sentence (with abbrev guards).
+    """
+
+    _ABBREV = {
+        "mr",
+        "mrs",
+        "ms",
+        "dr",
+        "prof",
+        "sr",
+        "jr",
+        "st",
+        "mt",
+        "ft",
+        "rd",
+        "ave",
+        "blvd",
+        "vs",
+        "etc",
+        "ie",
+        "eg",
+        # Regions/initialisms
+        "u",
+        "us",
+        "uk",
+        "eu",
+        "u.s",
+        "u.k",
+    }
+
+    # single pass regex to find sentence boundaries while guarding abbreviations:
+    # split on ". " or "? " or "! " only when the token before the period
+    # isn't in abbreviation list. Post-filter too.
+    _BOUNDARY_RE = re.compile(r"([.?!])\s+")
+
+    def __init__(
+        self,
+        measure_ctrl_id: int,
+        sleep_ms: int = 8,
+        confirm_ms: int = 4,
+        safety_chars: int = 3,
+        ellipsis: str = "...",
+    ) -> None:
+        self.measure_ctrl_id = int(measure_ctrl_id or 0)
+        self.window = Window(getCurrentWindowId())
+        self.sleep_ms = int(sleep_ms)
+        self.confirm_ms = int(confirm_ms)
+        self.safety_chars = int(safety_chars)
+        self.ellipsis = ellipsis
+
+    def truncate(
+        self,
+        text: str,
+        min_safe: int | None = None,
+        smart_cap: bool = False,
+    ) -> str:
+        """
+        Return a truncated version of `text` that fits in measure_ctrl_id.
+        Never returns None; returns "" if input/ctrl invalid.
+
+        :param text: Text to fit.
+        :param min_safe: Optional seed (e.g. 192) for coarse refine.
+        :param smart_cap: If True, cap final result to last full sentence.
+        """
+        if not text or not self.measure_ctrl_id:
+            return ""
+
+        ctrl = self._get_ctrl()
+        if ctrl is None:
+            return text
+
+        cond_str = f"Container({self.measure_ctrl_id}).HasNext"
+
+        # Quick path: full text fits
+        ctrl.setText(text)
+        if self._fits(cond_str):
+            out = text
+            return self._smart_sentence_cap(out) if smart_cap else out
+
+        base = text.rstrip()
+        if base.endswith(self.ellipsis):
+            base = base[: -len(self.ellipsis)].rstrip()
+        n = len(base)
+
+        if min_safe and min_safe > 0:
+            out = self._refine_coarse(ctrl, cond_str, base, min_safe=min_safe, n=n)
+        else:
+            out = self._search_bounded(ctrl, cond_str, base, n=n)
+
+        return self._smart_sentence_cap(out) if smart_cap else out
+
+    def _get_ctrl(self):
+        try:
+            return self.window.getControl(self.measure_ctrl_id)
+        except Exception:
+            log(
+                f"{self.__class__.__name__}: measure control {self.measure_ctrl_id} not found"
+            )
+            return None
+
+    def _fits(self, cond_str: str) -> bool:
+        # "double-check on fits" to avoid stale false negatives
+        xbmc.sleep(self.sleep_ms)
+        ok = not condition(cond_str)
+        if ok:
+            xbmc.sleep(self.confirm_ms)
+            ok = not condition(cond_str)
+        return ok
+
+    def _slice(self, src: str, upto: int) -> str:
+        upto = max(0, upto - self.safety_chars)
+        if upto >= len(src):
+            return src
+        cut = src.rfind(" ", 0, max(1, upto))  # prefer word boundary
+        if cut == -1:
+            cut = upto
+        stem = src[:cut].rstrip()
+        # tidy trailing punctuation → avoid ", …" or "….", etc.
+        stem = stem.rstrip(".,;:!?…-–—")
+        stem = stem.rstrip("\"')]}»”’")
+        return stem + self.ellipsis
+
+    def _refine_coarse(
+        self, ctrl, cond_str: str, base: str, *, min_safe: int, n: int
+    ) -> str:
+        guess = max(1, min(min_safe, n))
+        steps = (24, 12, 6)
+
+        cand = self._slice(base, guess)
+        ctrl.setText(cand)
+        if self._fits(cond_str):
+            best, cur = cand, guess
+            # grow ladder
+            for step in steps:
+                while True:
+                    nxt = min(n, cur + step)
+                    if nxt == cur:
+                        break
+                    cand = self._slice(base, nxt)
+                    ctrl.setText(cand)
+                    if self._fits(cond_str):
+                        best, cur = cand, nxt
+                    else:
+                        break
+            return best
+
+        # shrink ladder
+        best, cur = "", guess
+        for step in steps:
+            while True:
+                nxt = max(1, cur - step)
+                if nxt == cur:
+                    break
+                cand = self._slice(base, nxt)
+                ctrl.setText(cand)
+                if self._fits(cond_str):
+                    best, cur = cand, nxt
+                    break
+                cur = nxt
+        return best or self._slice(base, max(1, guess // 2))
+
+    def _search_bounded(self, ctrl, cond_str: str, base: str, *, n: int) -> str:
+        max_iters = min(16, math.ceil(math.log2(max(2, n))) + 2)
+        lo, hi, best, iters = 0, n, "", 0
+        while lo < hi and iters < max_iters:
+            iters += 1
+            mid = (lo + hi) // 2
+            cand = self._slice(base, mid)
+            ctrl.setText(cand)
+            if self._fits(cond_str):
+                best, lo = cand, mid + 1
+            else:
+                hi = mid
+        return best or self._slice(base, 1)
+
+    def _smart_sentence_cap(self, s: str) -> str:
+        """
+        Prefer ending at the last complete sentence within s.
+        Heuristic, ~99%: avoid treating known abbreviations as sentence boundaries.
+        If no earlier clean boundary is found, return s unchanged.
+        """
+        # If there's no ellipsis or string is short, leave it alone
+        if len(s) < 80:
+            return s
+
+        # We only try to cap when we already truncated (ends with ellipsis)
+        truncated = s.endswith(self.ellipsis)
+        core = s[: -len(self.ellipsis)].rstrip() if truncated else s
+
+        parts = []
+        start = 0
+        for m in self._BOUNDARY_RE.finditer(core):
+            end = m.end(1)  # position of the punctuation mark
+            token = core[:end].rstrip()
+            # word before the punctuation
+            prev = token.rsplit(" ", 1)[-1].strip(" \"')]}»”’").lower().rstrip(".")
+            if prev in self._ABBREV:
+                continue  # skip abbreviation as boundary
+            parts.append(core[start:end])  # include the punctuation
+            start = m.end()  # after the space
+
+        if not parts:
+            return s  # no safe earlier boundary detected
+
+        capped = " ".join(p.strip() for p in parts).rstrip()
+        # Ensure final punctuation
+        if capped and capped[-1] not in ".!?":
+            capped = capped.rstrip(". ") + "."
+
+        return capped if not truncated else (capped + " " + self.ellipsis).strip()
 
 
 class TypewriterAnimation:

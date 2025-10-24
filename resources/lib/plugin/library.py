@@ -62,16 +62,17 @@ def add_items(items: list[dict], media_type: str = "metadata") -> list[tuple]:
 
 def create_li_item(
     item: dict,
-    label: str | None,
-    label2: str | None,
-    default_icon: str,
+    label: str = "",
+    label2: str = "",
+    default_icon: str = "DefaultCopacetic.png",
     properties: dict | None = None,
 ) -> ListItem:
     """
     Creates a Kodi ListItem with basic art and optional properties.
 
     :param item: Dictionary containing metadata.
-    :param label: Display label for the item.
+    :param label: Display label for item.
+    :param label2: Right display label for item.
     :param default_icon: Fallback icon if artwork is missing.
     :param properties: Optional dictionary of ListItem properties.
     :returns: xbmcgui.ListItem instance
@@ -172,10 +173,10 @@ def set_metadata(item: dict) -> ListItem:
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
-        item,
-        item.get("label"),
-        item.get("label2"),
-        "DefaultVideo.png",
+        item=item,
+        label=item.get("label"),
+        label2=item.get("label2"),
+        default_icon="DefaultVideo.png",
         properties={"truncated_label": item.get("truncated_label", "")},
     )
 
@@ -189,9 +190,9 @@ def set_progressbar(item: dict) -> ListItem:
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
-        item,
-        item.get("label"),
-        "DefaultVideo.png",
+        item=item,
+        label=item.get("label"),
+        default_icon="DefaultVideo.png",
         properties={"unwatchedepisodes": item.get("unwatchedepisodes", "0")},
     )
 
@@ -204,9 +205,9 @@ def set_artwork(item: dict) -> ListItem:
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
-        item,
-        item.get("label"),
-        "DefaultVideo.png",
+        item=item,
+        label=item.get("label"),
+        default_icon="DefaultVideo.png",
     )
 
 
@@ -236,7 +237,9 @@ def set_movie(item: dict) -> ListItem:
     :param item: Dictionary containing movie metadata.
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
     """
-    return create_li_item(item, item.get("title"), "DefaultMovies.png")
+    return create_li_item(
+        item=item, label=item.get("title"), default_icon="DefaultMovies.png"
+    )
 
 
 @videoinfotag_setter(
@@ -263,9 +266,9 @@ def set_tvshow(item: dict) -> ListItem:
     season = item.get("season", 0)
 
     return create_li_item(
-        item,
-        item.get("title"),
-        "DefaultTVShows.png",
+        item=item,
+        label=item.get("title"),
+        default_icon="DefaultTVShows.png",
         properties={
             "totalseasons": season,
             "totalepisodes": episode,
@@ -304,9 +307,9 @@ def set_episode(item: dict) -> ListItem:
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
-        item,
-        f"{item.get('season', 0)}x{item.get('episode', 0):02}",
-        "DefaultTVShows.png",
+        item=item,
+        label=f"{item.get('season', 0)}x{item.get('episode', 0):02}",
+        default_icon="DefaultTVShows.png",
     )
 
 
@@ -330,4 +333,6 @@ def set_musicvideo(item: dict) -> ListItem:
     :param item: Dictionary containing music video metadata.
     :returns: xbmcgui.ListItem with enriched VideoInfoTag.
     """
-    return create_li_item(item, item.get("title"), "DefaultVideo.png")
+    return create_li_item(
+        item=item, label=item.get("title"), default_item="DefaultVideo.png"
+    )
