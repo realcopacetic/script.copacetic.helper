@@ -13,6 +13,7 @@ from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
     ProgressBarManager,
+    TextTruncator,
     TypewriterAnimation,
 )
 from resources.lib.plugin.json_map import JSON_MAP
@@ -249,14 +250,26 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 target=f"{self.container}.ListItem",
                 dbtype=self.dbtype,
                 dbid=self.dbid,
-                truncate_label=self.params.get("truncate_label"),
-                truncate_id=to_int(self.params.get("truncate_id", 0)),
-            )
+            ).fetch_data()
 
             if not guard.alive():
                 return
 
-            return add_items([data.fetched], media_type="metadata")
+            truncate_label = self.params.get("truncate_label")
+            truncate_id = to_int(self.params.get("truncate_id", 0))
+            if truncate_label and truncate_id > 0:
+                trunc = TextTruncator(
+                    measure_ctrl_id=truncate_id,
+                )
+                truncated = trunc.truncate(
+                    text=truncate_label,
+                    min_safe=to_int(self.params.get("truncate_min_safe", 0)),
+                    smart_cap=self.params.get("truncate_smart_cap", "").lower()
+                    == "true",
+                )
+            return add_items(
+                [data | {"truncated_label": truncated}], media_type="metadata"
+            )
 
     @log_duration
     def progressbar(self) -> None:

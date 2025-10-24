@@ -17,12 +17,12 @@ from resources.lib.shared.utilities import (
     condition,
     infolabel,
     log,
+    log_duration,
     return_label,
     split,
     split_random,
     to_int,
     url_encode,
-    window_property,
     xbmc,
 )
 
@@ -46,8 +46,6 @@ class DataHandler:
         target: str,
         dbtype: str,
         dbid: str,
-        truncate_label: str | None = None,
-        truncate_id: int | None = None,
     ) -> None:
         """
         Initialize the handler with listitem, dbtype and dbid.
@@ -59,8 +57,6 @@ class DataHandler:
         self.target = target
         self.dbtype = dbtype
         self.dbid = dbid
-        self.truncate_label = truncate_label
-        self.truncate_id = truncate_id or 0
         self.infolabels = get_infolabels(
             self.target,
             [
@@ -71,7 +67,6 @@ class DataHandler:
                 "Studio",
             ],
         )
-        self.fetched = self.fetch_data()
 
     def fetch_data(self) -> dict[str, object]:
         """
@@ -89,107 +84,8 @@ class DataHandler:
             "dbtype": self.dbtype,
             "genre": split_random(self.infolabels["Genre"]),
             "studio": self._studio(),
-            "truncated_label": self._binary_truncate_on_control(
-                        measure_ctrl_id=self.truncate_id,
-                        text=self.truncate_label,
-                        ellipsis="...",
-                    ), 
             "writer": split(self.infolabels["Writer"]),
         }
-
-    @staticmethod
-    def _binary_truncate_on_control(
-        measure_ctrl_id: int,
-        text: str,
-        sleep_ms: int = 8,
-        confirm_ms: int = 4,
-        max_iters: int | None = None,
-        ellipsis: str = "...",
-        safety_chars: int = 3,
-    ) -> str:
-        if not text or not measure_ctrl_id:
-            return ""
-
-        win = Window(getCurrentWindowId())
-        try:
-            ctrl = win.getControl(int(measure_ctrl_id))
-        except Exception:
-            log(f"binary_truncate: measure control {measure_ctrl_id} not found")
-            return text
-
-        prop_key = f"trunc.last.{measure_ctrl_id}"  # seed cache
-        cond_str = f"Container({measure_ctrl_id}).HasNext"
-
-        def fits() -> bool:
-            """Return True if it fits (no overflow), with one quick confirm on 'fits'."""
-            xbmc.sleep(sleep_ms)
-            ok = not condition(cond_str)
-            if ok:
-                xbmc.sleep(confirm_ms)  # quick confirm on 'fits'
-                ok = not condition(cond_str)
-            return ok
-
-        def slice_with_ellipsis(src: str, upto: int) -> str:
-            upto = max(0, upto - safety_chars)
-            if upto >= len(src):
-                return src
-
-            cut = src.rfind(" ", 0, max(1, upto))  # prefer word boundary
-            if cut == -1:
-                cut = upto
-
-            stem = src[:cut].rstrip()
-            stem = stem.rstrip(".,;:!?…-–—")  # trim terminal punctuation
-            stem = stem.rstrip("\"')]}»”’")  # trim dangling closers
-            return stem + ellipsis
-
-        ctrl.setText(text)  # quick path: whole text fits
-        if fits():
-            win.setProperty(prop_key, str(len(text)))
-            return text
-
-        base = text.rstrip()
-        if base.endswith(ellipsis):
-            base = base[: -len(ellipsis)].rstrip()
-
-        if max_iters is None:  # adaptive iteration bound
-            max_iters = min(16, math.ceil(math.log2(max(2, len(base)))) + 2)
-
-        # Seed lo/hi around last accepted length (if any)
-        try:
-            guess = int(win.getProperty(prop_key) or 0)
-        except ValueError:
-            guess = 0
-
-        lo = 0
-        hi = len(base)
-
-        if guess > 0:
-            # Start near last success; widen if needed during search
-            lo = max(0, guess - 64)
-            hi = min(len(base), guess + 256)
-
-        best = ""
-        iters = 0
-        while lo < hi and iters < max_iters:
-            iters += 1
-            mid = (lo + hi) // 2
-            cand = slice_with_ellipsis(base, mid)
-            ctrl.setText(cand)
-            if fits():  # trust only confirmed 'fits'
-                best = cand
-                lo = mid + 1
-            else:
-                hi = mid
-
-        if not best:
-            best = slice_with_ellipsis(base, 1)
-
-        # remember the rough character count (sans ellipsis) for next items
-        sans = best[: -len(ellipsis)] if best.endswith(ellipsis) else best
-        win.setProperty(prop_key, str(len(sans)))
-
-        return best
 
     def _studio(self) -> str:
         """
@@ -198,7 +94,7 @@ class DataHandler:
         :return: Studio string or empty string.
         """
         studio = (
-            split(infolabel("Container(3100).ListItem(-1).Studio"))
+            split(infolabel(f"Container({self.target}).ListItem(-1).Studio"))
             if "set" in self.dbtype
             else split(self.infolabels["Studio"])
         )
@@ -454,16 +350,7 @@ class ProgressBarManager:
 
 
 class TextTruncator:
-    """
-    Measure-on-control truncator.
-
-    - Uses Container(<measure_ctrl_id>).HasNext to detect overflow on a hidden TextBox.
-    - If min_safe is given → fast coarse-step refine around that seed.
-    - Else → bounded binary search with adaptive cap.
-    - Optional smart_cap trims to the last full sentence (with abbrev guards).
-    """
-
-    _ABBREV = {
+    _ABBREV_EN = {
         "mr",
         "mrs",
         "ms",
@@ -481,7 +368,9 @@ class TextTruncator:
         "etc",
         "ie",
         "eg",
-        # Regions/initialisms
+        "inc",
+        "ltd",
+        "dept",
         "u",
         "us",
         "uk",
@@ -490,18 +379,14 @@ class TextTruncator:
         "u.k",
     }
 
-    # single pass regex to find sentence boundaries while guarding abbreviations:
-    # split on ". " or "? " or "! " only when the token before the period
-    # isn't in abbreviation list. Post-filter too.
-    _BOUNDARY_RE = re.compile(r"([.?!])\s+")
-
     def __init__(
         self,
         measure_ctrl_id: int,
-        sleep_ms: int = 8,
-        confirm_ms: int = 4,
+        sleep_ms: int = 6,
+        confirm_ms: int = 3,
         safety_chars: int = 3,
         ellipsis: str = "...",
+        abbrev_set: set[str] | None = None,
     ) -> None:
         self.measure_ctrl_id = int(measure_ctrl_id or 0)
         self.window = Window(getCurrentWindowId())
@@ -509,35 +394,25 @@ class TextTruncator:
         self.confirm_ms = int(confirm_ms)
         self.safety_chars = int(safety_chars)
         self.ellipsis = ellipsis
+        self.abbrev = abbrev_set or self._ABBREV_EN
+        self._last_len = 0
 
     def truncate(
-        self,
-        text: str,
-        min_safe: int | None = None,
-        smart_cap: bool = False,
+        self, text: str, min_safe: int | None = None, smart_cap: bool = False
     ) -> str:
-        """
-        Return a truncated version of `text` that fits in measure_ctrl_id.
-        Never returns None; returns "" if input/ctrl invalid.
-
-        :param text: Text to fit.
-        :param min_safe: Optional seed (e.g. 192) for coarse refine.
-        :param smart_cap: If True, cap final result to last full sentence.
-        """
         if not text or not self.measure_ctrl_id:
             return ""
-
         ctrl = self._get_ctrl()
         if ctrl is None:
             return text
 
+        self._probes = 0
         cond_str = f"Container({self.measure_ctrl_id}).HasNext"
 
-        # Quick path: full text fits
-        ctrl.setText(text)
+        # quick path: whole text fits
+        self._set_and_probe(ctrl, text)
         if self._fits(cond_str):
-            out = text
-            return self._smart_sentence_cap(out) if smart_cap else out
+            return text
 
         base = text.rstrip()
         if base.endswith(self.ellipsis):
@@ -549,7 +424,21 @@ class TextTruncator:
         else:
             out = self._search_bounded(ctrl, cond_str, base, n=n)
 
-        return self._smart_sentence_cap(out) if smart_cap else out
+        mode = "coarse" if (min_safe and min_safe > 0) else "binary"
+        log(
+            f"Trunc: probes={self._probes} "
+            f"mode={mode} "
+            f"min_safe={min_safe or 0} "
+            f"final_len={self._last_len} "
+            f"delta={self._last_len - (min_safe or 0)}"
+        )
+
+        return self._smart_sentence_cap(out, min_safe) if smart_cap else out
+
+    def _set_and_probe(self, ctrl, text: str) -> None:
+        ctrl.setText(text)
+        # count each UI measurement attempt
+        self._probes += 1
 
     def _get_ctrl(self):
         try:
@@ -582,14 +471,15 @@ class TextTruncator:
         stem = stem.rstrip("\"')]}»”’")
         return stem + self.ellipsis
 
+    @log_duration
     def _refine_coarse(
         self, ctrl, cond_str: str, base: str, *, min_safe: int, n: int
     ) -> str:
         guess = max(1, min(min_safe, n))
-        steps = (24, 12, 6)
+        steps = (30, 12, 6)
 
         cand = self._slice(base, guess)
-        ctrl.setText(cand)
+        self._set_and_probe(ctrl, cand)
         if self._fits(cond_str):
             best, cur = cand, guess
             # grow ladder
@@ -599,11 +489,12 @@ class TextTruncator:
                     if nxt == cur:
                         break
                     cand = self._slice(base, nxt)
-                    ctrl.setText(cand)
+                    self._set_and_probe(ctrl, cand)
                     if self._fits(cond_str):
                         best, cur = cand, nxt
                     else:
                         break
+            self._last_len = len(best)
             return best
 
         # shrink ladder
@@ -614,62 +505,83 @@ class TextTruncator:
                 if nxt == cur:
                     break
                 cand = self._slice(base, nxt)
-                ctrl.setText(cand)
+                self._set_and_probe(ctrl, cand)
                 if self._fits(cond_str):
                     best, cur = cand, nxt
                     break
                 cur = nxt
         return best or self._slice(base, max(1, guess // 2))
 
+    @log_duration
     def _search_bounded(self, ctrl, cond_str: str, base: str, *, n: int) -> str:
-        max_iters = min(16, math.ceil(math.log2(max(2, n))) + 2)
+        max_iters = min(15, math.ceil(math.log2(max(2, n))) + 1)
         lo, hi, best, iters = 0, n, "", 0
         while lo < hi and iters < max_iters:
             iters += 1
             mid = (lo + hi) // 2
             cand = self._slice(base, mid)
-            ctrl.setText(cand)
+            self._set_and_probe(ctrl, cand)
             if self._fits(cond_str):
                 best, lo = cand, mid + 1
             else:
                 hi = mid
-        return best or self._slice(base, 1)
+        best = self._slice(base, max(1, guess // 2))
+        self._last_len = len(best)
+        return best
 
-    def _smart_sentence_cap(self, s: str) -> str:
+    def _smart_sentence_cap(self, s: str, min_safe: int | None = None) -> str:
         """
         Prefer ending at the last complete sentence within s.
-        Heuristic, ~99%: avoid treating known abbreviations as sentence boundaries.
-        If no earlier clean boundary is found, return s unchanged.
+        Guards:
+          - honor a small abbreviation list (dotless)
+          - require next-token capitalization when present
+        Only activates for reasonably long strings.
         """
-        # If there's no ellipsis or string is short, leave it alone
-        if len(s) < 80:
+        if len(s) < max(60, (min_safe // 2) if min_safe else 0):
             return s
 
-        # We only try to cap when we already truncated (ends with ellipsis)
-        truncated = s.endswith(self.ellipsis)
-        core = s[: -len(self.ellipsis)].rstrip() if truncated else s
+        # Work on the core without ellipsis; we’ll re-append later.
+        core = s[: -len(self.ellipsis)].rstrip() if s.endswith(self.ellipsis) else s
 
-        parts = []
-        start = 0
-        for m in self._BOUNDARY_RE.finditer(core):
-            end = m.end(1)  # position of the punctuation mark
-            token = core[:end].rstrip()
-            # word before the punctuation
-            prev = token.rsplit(" ", 1)[-1].strip(" \"')]}»”’").lower().rstrip(".")
-            if prev in self._ABBREV:
-                continue  # skip abbreviation as boundary
-            parts.append(core[start:end])  # include the punctuation
-            start = m.end()  # after the space
+        # Scan for sentence-ending punctuation.
+        # We'll examine matches of [.!?]\s+ and post-validate.
+        boundaries = []
+        i = 0
+        while i < len(core):
+            ch = core[i]
+            if ch in ".!?":
+                # look ahead over spaces/quotes to the next visible char
+                j = i + 1
+                while j < len(core) and core[j] in " \t\n\r\"'»”’)]}":
+                    j += 1
 
-        if not parts:
-            return s  # no safe earlier boundary detected
+                # prev token (before punctuation), normalized
+                token = core[:i].rstrip()
+                prev = token.rsplit(" ", 1)[-1].strip(" \"')]}»”’").lower().rstrip(".")
 
-        capped = " ".join(p.strip() for p in parts).rstrip()
-        # Ensure final punctuation
+                if len(prev) == 1 and prev.isalpha():
+                    i += 1
+                    continue
+
+                # heuristic: not an abbreviation AND next char is uppercase (if any)
+                next_ok = (j >= len(core)) or core[j].isupper()
+                if prev not in self.abbrev and next_ok:
+                    boundaries.append(i)  # accept this as a sentence boundary
+            i += 1
+
+        if not boundaries:
+            return s  # no safe earlier boundary
+
+        # take the last acceptable boundary
+        end = boundaries[-1] + 1  # include the punctuation
+        capped = core[:end].rstrip()
+
         if capped and capped[-1] not in ".!?":
-            capped = capped.rstrip(". ") + "."
-
-        return capped if not truncated else (capped + " " + self.ellipsis).strip()
+            # partial phrase — keep ellipsis
+            return (capped + " " + self.ellipsis).strip()
+        else:
+            # full sentence — no ellipsis
+            return capped.strip()
 
 
 class TypewriterAnimation:
