@@ -493,15 +493,6 @@ def split_random(string: str, *, separator: str = "/", **kwargs: object) -> str:
     return return_label(picked)
 
 
-def word_cut(s: str, limit: int, ellipsis: str = "...") -> str:
-    if not s or not limit or limit <= 0 or len(s) <= limit:
-        return s
-    cut = s.rfind(" ", 0, max(1, limit))
-    if cut == -1:
-        cut = limit
-    return s[:cut].rstrip() + ellipsis
-
-
 """TYPE UTILS"""
 
 
