@@ -1,0 +1,226 @@
+# author: realcopacetic
+
+from typing import Iterable
+
+from PIL import Image
+
+from resources.lib.art.analyzer import ColorAnalyzer
+
+RGB = tuple[int, int, int]
+Rect = tuple[int, int, int, int]
+
+
+class ColorDarken:
+    """
+    Multi-rect darken computation using ColorAnalyzer helpers.
+    Finds the brightest sampled cell across provided rects, then solves WCAG darken%.
+    """
+
+    def __init__(self, color_analyzer: ColorAnalyzer) -> None:
+        """
+        Inject shared colour utilities and configuration.
+        Stores a reference to ColorAnalyzer to reuse its helpers and cfg.
+
+        :param color_analyzer: ColorAnalyzer instance providing helpers and ColorConfig.
+        """
+        self.color = color_analyzer
+
+    def compute_darken_percent(
+        self,
+        image: Image.Image,
+        overlay_rects: str,  # "x,y,w,h; x,y,w,h"
+        text_rgb: RGB | None = None,
+        target_ratio: float | None = None,
+    ) -> int:
+        """
+        Compute minimal darken% so overlay text meets a WCAG 2.1 contrast target.
+        Uses contrast = (L_text+0.05)/(L_bg+0.05) with sRGB linearization (Rec.709).
+        https://www.w3.org/TR/WCAG21/#contrast-minimum
+
+        :param image: Source image (as displayed).
+        :param overlay_rects: Semicolon-separated rects "x,y,w,h; x,y,w,h" in a 1920x1080 reference frame.
+        :param text_rgb: Optional text RGB override (defaults to cfg.text_overlay_colour).
+        :param target_ratio: Optional WCAG contrast target override (e.g. 4.5 body, 3.0 large/logo).
+        :returns: Darken percent 0–cfg.max_darken_cap for fade/diffuse mapping.
+        """
+        cfg = self.color.cfg
+
+        rects = self.parse_overlay_rects(overlay_rects)
+        if not rects:
+            # Fall back to default full-frame rect in config
+            bx, by, bw, bh = cfg.text_overlay_rect
+            rects = [(bx, by, bw, bh)]
+
+        scaled = self._scale_rects(
+            rects, image.width, image.height, ref_w=1920, ref_h=1080
+        )
+
+        # Brightest cell across all rects, then precise mean RGB
+        bg_rgb = self._brightest_patch_rgb_multi(
+            image, scaled, grid=cfg.avg_grid, pass2=cfg.avg_downsample
+        )
+
+        target = cfg.target_contrast_ratio if target_ratio is None else target_ratio
+        text_rgb = text_rgb or self.color.from_hex(cfg.text_overlay_colour)
+
+        return self._solve_darken(bg_rgb, text_rgb, target)
+
+    @staticmethod
+    def parse_overlay_rects(param: str) -> list[Rect]:
+        """
+        Parse a canonical rects string into a list of integer tuples.
+        Accepts "x,y,w,h; x,y,w,h; ..." and ignores malformed or zero-area rects.
+
+        :param param: Semicolon-separated rects string.
+        :returns: Rect list as [(x, y, w, h), ...].
+        """
+        if not param:
+            return []
+        rects = []
+        for tok in param.split(";"):
+            tok = tok.strip()
+            if not tok:
+                continue
+            try:
+                x_s, y_s, w_s, h_s = (s.strip() for s in tok.split(","))
+                x, y, w, h = int(x_s), int(y_s), int(w_s), int(h_s)
+                if w > 0 and h > 0:
+                    rects.append((x, y, w, h))
+            except Exception:
+                continue
+        return rects
+
+    @staticmethod
+    def _scale_rects(
+        rects: Iterable[Rect],
+        img_w: int,
+        img_h: int,
+        ref_w: int,
+        ref_h: int,
+    ) -> list[Rect]:
+        """
+        Scale rects from a reference frame to image coordinates and clamp.
+        Drops degenerate rects after scaling/clamping to image bounds.
+
+        :param rects: Rects in the reference frame.
+        :param img_w: Image width in pixels.
+        :param img_h: Image height in pixels.
+        :param ref_w: Reference width the rects are defined against.
+        :param ref_h: Reference height the rects are defined against.
+        :returns: Scaled, clamped rects in image coordinates.
+        """
+        sx = img_w / float(ref_w or 1)
+        sy = img_h / float(ref_h or 1)
+
+        out = []
+        for bx, by, bw, bh in rects:
+            x = int(round(bx * sx))
+            y = int(round(by * sy))
+            w = int(round(bw * sx))
+            h = int(round(bh * sy))
+
+            x0, y0 = max(0, x), max(0, y)
+            x1, y1 = min(img_w, x + w), min(img_h, y + h)
+            if x1 <= x0 or y1 <= y0:
+                continue
+            out.append((x0, y0, x1 - x0, y1 - y0))
+        return out
+
+    def _brightest_patch_rgb_multi(
+        self,
+        im: Image.Image,
+        rects: Iterable[Rect],
+        grid: int,
+        pass2: int,
+    ) -> RGB:
+        """
+        Return mean RGB of the brightest grid cell across all rects.
+        Center-samples each cell for speed, then averages the winning cell precisely.
+
+        :param im: Source image; converted to RGB if needed.
+        :param rects: Image-space rects to sample.
+        :param grid: Grid resolution per rect for cell search.
+        :param pass2: Downsample size for precise mean on winning cell.
+        :returns: Mean (r, g, b) of the brightest cell.
+        """
+        if im.mode != "RGB":
+            im = im.convert("RGB")
+
+        W, H = im.size
+        px = im.load()
+
+        best_luma = -1.0
+        best_box = None
+
+        for rx, ry, rw, rh in rects:
+            # Clamp grid for tiny rects
+            gx = max(1, min(grid, rw))
+            gy = max(1, min(grid, rh))
+
+            cell_w = rw / gx
+            cell_h = rh / gy
+
+            for iy in range(gy):
+                for ix in range(gx):
+                    left = int(round(rx + ix * cell_w))
+                    top = int(round(ry + iy * cell_h))
+                    right = int(round(rx + (ix + 1) * cell_w))
+                    bottom = int(round(ry + (iy + 1) * cell_h))
+
+                    cx = min(max(0, (left + right) // 2), W - 1)
+                    cy = min(max(0, (top + bottom) // 2), H - 1)
+
+                    r, g, b = px[cx, cy]
+                    # Fast luma; you already have _luma709 if you prefer to call it
+                    y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+                    if y > best_luma:
+                        best_luma = y
+                        best_box = (left, top, right, bottom)
+
+        if best_box is None:
+            # Fallback: whole-image bright patch mean (unlikely)
+            tiny = im.resize((pass2, pass2), Image.BOX)
+            return self.color.mean_rgb(tiny)
+
+        left, top, right, bottom = best_box
+        patch = im.crop((left, top, right, bottom))
+        tiny = patch.resize((pass2, pass2), Image.BOX)
+        return self.color.mean_rgb(tiny)
+
+    def _solve_darken(self, bg_rgb: RGB, text_rgb: RGB, target: float) -> int:
+        """
+        Solve multiplicative darken on background luminance to reach target.
+        Applies optional red leniency, then clamps to cfg.max_darken_cap.
+
+        :param bg_rgb: Mean background RGB of the brightest sampled cell.
+        :param text_rgb: Overlay text RGB for contrast calculation.
+        :param target: Desired WCAG contrast ratio (WCAG 2.1).
+        :returns: Darken percentage clamped to [0, cfg.max_darken_cap].
+        """
+        cfg = self.color.cfg
+
+        # Optional red relax (same semantics as your analyzer)
+        if cfg.red_relax_enable:
+            h, _, _ = self.color.rgb_to_hls(text_rgb)
+            d = min(abs(h - cfg.red_hue_center), 1.0 - abs(h - cfg.red_hue_center))
+            # Use linearized background luminance via analyzer
+            if d <= cfg.red_hue_window and (
+                self.color.get_luminosity(bg_rgb) <= cfg.red_bg_floor
+            ):
+                target = max(cfg.red_min_target, min(target, cfg.red_relax_cap))
+
+        L_text = self.color.get_luminosity(text_rgb)
+        L_bg = self.color.get_luminosity(bg_rgb)
+
+        contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
+        if contrast >= (target - 1e-9):
+            return 0
+
+        numerator = (L_text + 0.05) / target - 0.05
+        if L_bg <= 1e-9 or numerator <= 0:
+            return cfg.max_darken_cap
+
+        k = max(0.0, min(1.0, numerator / L_bg))  # L_bg' = k * L_bg
+        darken = int(round((1.0 - k) * 100))
+        return max(0, min(cfg.max_darken_cap, darken))

@@ -388,6 +388,18 @@ class TextTruncator:
         ellipsis: str = "...",
         abbrev_set: set[str] | None = None,
     ) -> None:
+        """
+        Configure a truncator that probes a hidden measuring TextBox.
+        Timing, punctuation safety and abbreviation rules are customizable.
+
+        :param measure_ctrl_id: ID of the TextBox control used to detect overflow.
+        :param sleep_ms: Delay (ms) before each overflow check to let layout settle.
+        :param confirm_ms: Extra delay (ms) for a second "fits" confirmation.
+        :param safety_chars: Conservative backoff (chars) from the probe index.
+        :param ellipsis: Ellipsis string to append to truncated output.
+        :param abbrev_set: Lowercased abbreviations to suppress sentence caps.
+        :return: None
+        """
         self.measure_ctrl_id = int(measure_ctrl_id or 0)
         self.window = Window(getCurrentWindowId())
         self.sleep_ms = int(sleep_ms)
@@ -400,6 +412,15 @@ class TextTruncator:
     def truncate(
         self, text: str, min_safe: int | None = None, smart_cap: bool = False
     ) -> str:
+        """
+        Return the longest prefix that fits the measuring control.
+        Uses coarse refinement around min_safe or bounded binary search.
+
+        :param text: Full input string to measure and truncate.
+        :param min_safe: Seed character count known to usually fit (optional).
+        :param smart_cap: If True, prefer ending at a full sentence boundary.
+        :return: Truncated string (or original if already fits).
+        """
         if not text or not self.measure_ctrl_id:
             return ""
         ctrl = self._get_ctrl()
@@ -436,11 +457,24 @@ class TextTruncator:
         return self._smart_sentence_cap(out, min_safe) if smart_cap else out
 
     def _set_and_probe(self, ctrl, text: str) -> None:
+        """
+        Set TextBox text and count it as a measurement probe.
+        Used to track UI roundtrips for diagnostics.
+
+        :param ctrl: Measuring TextBox control instance.
+        :param text: Candidate string to set into the control.
+        :return: None
+        """
         ctrl.setText(text)
-        # count each UI measurement attempt
         self._probes += 1
 
     def _get_ctrl(self):
+        """
+        Fetch and return the measuring TextBox control.
+        Handles failures gracefully with a log.
+
+        :return: Control instance or None if not found.
+        """
         try:
             return self.window.getControl(self.measure_ctrl_id)
         except Exception:
@@ -450,6 +484,13 @@ class TextTruncator:
             return None
 
     def _fits(self, cond_str: str) -> bool:
+        """
+        Check if the current TextBox content fits (no overflow).
+        Applies a short sleep and a confirm pass to avoid stale reads.
+
+        :param cond_str: Boolean condition string (e.g. "Container(id).HasNext").
+        :return: True if fits, False if overflowing.
+        """
         # "double-check on fits" to avoid stale false negatives
         xbmc.sleep(self.sleep_ms)
         ok = not condition(cond_str)
@@ -459,6 +500,14 @@ class TextTruncator:
         return ok
 
     def _slice(self, src: str, upto: int) -> str:
+        """
+        Produce a safe ellipsized slice near 'upto'.
+        Prefers word boundary, trims trailing punctuation, then appends ellipsis.
+
+        :param src: Source text to slice from.
+        :param upto: Target cut index before safety backoff is applied.
+        :return: Candidate string with ellipsis (or original if short).
+        """
         upto = max(0, upto - self.safety_chars)
         if upto >= len(src):
             return src
@@ -475,6 +524,17 @@ class TextTruncator:
     def _refine_coarse(
         self, ctrl, cond_str: str, base: str, *, min_safe: int, n: int
     ) -> str:
+        """
+        Refine around a known-safe seed length using ladder steps.
+        Grows then shrinks in coarse steps to converge quickly.
+
+        :param ctrl: Measuring TextBox control instance.
+        :param cond_str: Boolean condition string for overflow checks.
+        :param base: Preprocessed text (no trailing ellipsis/whitespace).
+        :param min_safe: Seed length assumed to be close to the limit.
+        :param n: Total length of the base string.
+        :return: Best-fitting candidate discovered near the seed.
+        """
         guess = max(1, min(min_safe, n))
         steps = (30, 12, 6)
 
@@ -514,6 +574,16 @@ class TextTruncator:
 
     @log_duration
     def _search_bounded(self, ctrl, cond_str: str, base: str, *, n: int) -> str:
+        """
+        Find the fit point with a bounded binary search.
+        Searches [0..n) with conservative iteration caps.
+
+        :param ctrl: Measuring TextBox control instance.
+        :param cond_str: Boolean condition string for overflow checks.
+        :param base: Preprocessed text (no trailing ellipsis/whitespace).
+        :param n: Total length of the base string.
+        :return: Best-fitting candidate or a minimal fallback.
+        """
         max_iters = min(15, math.ceil(math.log2(max(2, n))) + 1)
         lo, hi, best, iters = 0, n, "", 0
         while lo < hi and iters < max_iters:
@@ -525,17 +595,19 @@ class TextTruncator:
                 best, lo = cand, mid + 1
             else:
                 hi = mid
-        best = self._slice(base, max(1, guess // 2))
+        if not best:
+            best = self._slice(base, 1)
         self._last_len = len(best)
         return best
 
     def _smart_sentence_cap(self, s: str, min_safe: int | None = None) -> str:
         """
-        Prefer ending at the last complete sentence within s.
-        Guards:
-          - honor a small abbreviation list (dotless)
-          - require next-token capitalization when present
-        Only activates for reasonably long strings.
+        Prefer cutting at the last full sentence within the candidate.
+        Skips common abbreviations and requires next-token capitalization.
+
+        :param s: Candidate result (possibly ending with an ellipsis).
+        :param min_safe: Optional seed used to gate very short strings.
+        :return: Sentence-capped string (with/without ellipsis as appropriate).
         """
         if len(s) < max(60, (min_safe // 2) if min_safe else 0):
             return s

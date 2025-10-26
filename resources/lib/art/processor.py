@@ -5,7 +5,7 @@ from typing import Any
 from PIL import Image, ImageFilter
 
 from resources.lib.art.analyzer import ColorAnalyzer
-from resources.lib.art.policy import AnalyzerConfig
+from resources.lib.art.policy import ColorConfig
 from resources.lib.shared.utilities import log, log_duration
 
 
@@ -15,7 +15,7 @@ class ImageProcessor:
     Uses ColorAnalyzer for hex/contrast/luminosity.
     """
 
-    def __init__(self, cfg: AnalyzerConfig) -> None:
+    def __init__(self, cfg: ColorConfig) -> None:
         """Initialize the processor with a color analyzer."""
         self.cfg = cfg
         self.color_analyzer = ColorAnalyzer(self.cfg)

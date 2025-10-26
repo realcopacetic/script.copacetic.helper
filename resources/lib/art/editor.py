@@ -8,7 +8,7 @@ from PIL import Image
 from resources.lib.art.cache import ArtworkCacheManager
 from resources.lib.art.policy import (
     ART_SOURCE_KEYS,
-    AnalyzerConfig,
+    ColorConfig,
     ArtMeta,
     resolve_art_type,
 )
@@ -20,7 +20,6 @@ from resources.lib.shared.utilities import (
     CROPS,
     infolabel,
     log,
-    url_decode_path,
     validate_path,
 )
 
@@ -47,7 +46,7 @@ class ImageEditor:
         self.sqlite = sqlite_handler or SQLiteHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.temp_folder = self.cache_manager.temp_folder
-        self.cfg = AnalyzerConfig()
+        self.cfg = ColorConfig()
         self.processor = ImageProcessor(self.cfg)
         self._session: dict[str, Any] = {}
 

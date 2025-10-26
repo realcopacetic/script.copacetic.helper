@@ -3,7 +3,8 @@
 import colorsys
 from PIL import Image, ImageStat
 
-from resources.lib.art.policy import AnalyzerConfig
+from resources.lib.art.policy import ColorConfig
+from resources.lib.art.darken import ColorDarken
 from resources.lib.shared.utilities import log, log_duration
 
 RGB = tuple[int, int, int]
@@ -16,10 +17,10 @@ class ColorAnalyzer:
     Provides helpers for hex conversion and HLS/RGB transforms.
     """
 
-    def __init__(self, cfg: AnalyzerConfig):
+    def __init__(self, cfg: ColorConfig):
         self.cfg = cfg
+        self.darken(ColorDarken(self))
 
-    # ---------- public summary ----------
     @log_duration
     def analyze(self, image: Image.Image) -> dict[str, float | str]:
         """Extract dominant + accent; compute luminosity and a contrast colour (hex)."""
@@ -35,7 +36,21 @@ class ColorAnalyzer:
             "luminosity": int(self.get_luminosity(dominant) * 1000),
         }
 
-    # ---------- public methods ----------
+    def compute_darken_percent(
+        self,
+        image: Image.Image,
+        overlay_rects: str,
+        text_rgb: RGB | None = None,
+        target_ratio: float | None = None,
+    ) -> int:
+        """Forward to ColorDarken for convenience."""
+        return self.darken.compute_darken_percent(
+            image=image,
+            overlay_rects=overlay_rects,
+            text_rgb=text_rgb,
+            target_ratio=target_ratio,
+        )
+
     @log_duration
     def extract_dominant_color(self, image: Image.Image) -> RGB:
         """
@@ -118,7 +133,7 @@ class ColorAnalyzer:
         except Exception as exc:
             log(f"ColorAnalyzer: accent quantize failed → {exc}", force=True)
             return dominant_rgb
-        
+
         # --- Step 2.5: Dominant-share early exit ---
         try:
             total = float(sum(count_map.values()) or 1)
@@ -186,89 +201,19 @@ class ColorAnalyzer:
         )
         return self.hls_to_rgb((h, l, s))
 
-    @log_duration
-    def compute_darken_percent(
-        self,
-        image: Image.Image,
-        rect: tuple[int, int, int, int] | None = None,
-        text_rgb: RGB | None = None,
-        target_ratio: float | None = None,
-    ) -> int:
+    # ---------- public helper methods ----------
+    def mean_rgb(self, im: Image.Image) -> RGB:
         """
-        Minimal darken% so text meets target contrast over a rect (WCAG 2.1).
-        Uses contrast=(L_text+0.05)/(L_bg+0.05) with sRGB linearization (Rec.709).
-        https://www.w3.org/TR/WCAG21/#contrast-minimum
+        Brightest-patch mean: locate the brightest grid cell by luminance,
+        then return the mean RGB of that cell.
 
-        :param image: Source image (as displayed).
-        :param rect: (x, y, w, h) overlay region to analyze.
-        :param text_rgb: Text colour (defaults to configured overlay colour).
-        :param target_ratio: WCAG contrast target override (4.5 for body text, 3.0 for large/logo)
-        :returns: Darken percent 0-100 for fadediffuse mapping.
+        :param im: Input PIL image.
+        :returns: Average (r, g, b) of the brightest patch.
         """
-        # --- defaults ---
-        text_rgb = text_rgb or self.from_hex(self.cfg.text_overlay_colour)
-        base_rect = rect or self.cfg.text_overlay_rect
-        target = (
-            self.cfg.target_contrast_ratio if target_ratio is None else target_ratio
-        )  # 0.0 falsey so explicit None check
-
-        # --- scale from 1920x1080 to current image size ---
-        bx, by, bw, bh = base_rect
-        sx, sy = image.width / 1920.0, image.height / 1080.0
-        x, y, w, h = map(int, (round(bx * sx), round(by * sy), round(bw * sx), round(bh * sy)))
-
-        # --- clamp to image bounds (avoid out-of-bounds black padding), then crop ---
-        x0, y0 = max(0, x), max(0, y)
-        x1, y1 = min(image.width, x + w), min(image.height, y + h)
-        if x1 <= x0 or y1 <= y0:
-            return 0
-        crop = image.crop((x0, y0, x1, y1))
-
-        # --- luminances ---
-        bg_rgb = self._avg_rgb(crop)
-        L_text = self.get_luminosity(text_rgb)
-        L_bg = self.get_luminosity(bg_rgb)
-
-        contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
-        log(
-            f"{self.__class__.__name__}: darken → "
-            f"bg_rgb={bg_rgb}, text_rgb={text_rgb}, "
-            f"L_bg={L_bg:.4f}, L_text={L_text:.4f}, "
-            f"contrast={contrast:.3f}, target={target:.2f}, "
-            f"diff={(contrast - target):+.3f}",
+        return self._brightest_patch_rgb(
+            im, grid=self.cfg.avg_grid, pass2=self.cfg.avg_downsample
         )
 
-        # --- hue-aware relaxation for reds on dark backgrounds ---
-        if self.cfg.red_relax_enable:
-            h, _, _ = self.rgb_to_hls(text_rgb)
-            # angular distance to "red" in [0..1]
-            d = min(abs(h - self.cfg.red_hue_center), 1.0 - abs(h - self.cfg.red_hue_center))
-            if d <= self.cfg.red_hue_window and (L_bg <= self.cfg.red_bg_floor):
-                # Clamp target to [red_min_target, red_relax_cap]
-                lo = getattr(self.cfg, "red_min_target", 2.7)
-                hi = getattr(self.cfg, "red_relax_cap", 3.0)
-                # keep the user/default target, but not stricter than 'hi' nor looser than 'lo'
-                target = max(lo, min(target, hi))
-
-        # --- already sufficient? (epsilon to avoid edge oscillation) ---
-        eps = 1e-9
-        if (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05) >= (target - eps):
-            return 0
-
-        # --- dark text on lighter bg → multiply can't help; leave as-is ---
-        # if L_text < L_bg:
-        #     return 0
-
-        # --- solve for k in L_bg' = k * L_bg such that contrast meets target ---
-        numerator = (L_text + 0.05) / target - 0.05
-        if L_bg <= 1e-9 or numerator <= 0:
-            return self.cfg.max_darken_cap  # respect cap instead of hard 100
-        k = max(0.0, min(1.0, numerator / L_bg))
-        darken = int(round((1.0 - k) * 100))
-
-        return max(0, min(self.cfg.max_darken_cap, darken))
-
-    # ---------- public helper methods ----------
     @staticmethod
     def to_hex(rgb: RGB) -> str:
         """Convert RGB to ARGB hex with full opacity."""
@@ -404,15 +349,3 @@ class ColorAnalyzer:
             g += pg
             b += pb
         return (r // n, g // n, b // n)
-
-    def _avg_rgb(self, im: Image.Image) -> RGB:
-        """
-        Brightest-patch mean: locate the brightest grid cell by luminance,
-        then return the mean RGB of that cell.
-
-        :param im: Input PIL image.
-        :returns: Average (r, g, b) of the brightest patch.
-        """
-        return self._brightest_patch_rgb(
-            im, grid=self.cfg.avg_grid, pass2=self.cfg.avg_downsample
-        )

@@ -39,7 +39,7 @@ ART_DB_COLUMNS: tuple[str, ...] = (
 
 
 @dataclass
-class AnalyzerConfig:
+class ColorConfig:
     """Tunable parameters for colour analysis, contrast, and readability."""
 
     # --- Sampling & Palette ---
