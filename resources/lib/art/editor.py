@@ -208,7 +208,8 @@ class ImageEditor:
             fmt = result.get("format", "PNG")
             if fmt == "JPEG":
                 result["image"].save(
-                    f, "JPEG",
+                    f,
+                    "JPEG",
                     quality=self.cfg.jpeg_quality,
                     optimize=self.cfg.jpeg_optimize,
                     progressive=self.cfg.jpeg_progressive,
@@ -216,9 +217,10 @@ class ImageEditor:
                 )
             elif fmt == "PNG":
                 result["image"].save(
-                    f, "PNG",
+                    f,
+                    "PNG",
                     optimize=self.cfg.png_optimize,
-                    compress_level=self.cfg.png_compress_level
+                    compress_level=self.cfg.png_compress_level,
                 )
             log(
                 f"{self.__class__.__name__}: File processed: {url} → {destination_path}"
@@ -266,6 +268,10 @@ class ImageEditor:
             )
             return None
 
+    def compute_darken_percent(self, *a, **kw) -> int:
+        """Forward to ColorDarken for convenience."""
+        return self.color_analyzer.compute_darken_percent(*a, **kw)
+
     def _apply_runtime_enrichments(
         self,
         attributes: dict,
@@ -279,12 +285,11 @@ class ImageEditor:
         if art_type != "fanart":
             return
 
-        enable, rect, target, text_rgb = self._resolve_overlay_params(**proc_kwargs)
+        enable, rects, target, text_rgb = self._resolve_overlay_params(**proc_kwargs)
         if not enable:
             return
 
         img = self._resolve_runtime_img(attributes)
-
         if img is None:
             return
 
@@ -296,10 +301,11 @@ class ImageEditor:
                 return
 
         try:
-            darken = self.processor.color_analyzer.compute_darken_percent(
-                img, rect=rect, text_rgb=text_rgb, target_ratio=target
+            darken = self.compute_darken_percent(
+                img=img, overlay_rects=rects, text_rgb=text_rgb, target_ratio=target
             )
-        except Exception:
+        except Exception as exc:
+            log(f"ColorDarken: compute failed: {exc}", force=True)
             return
 
         if darken is not None:
@@ -314,7 +320,7 @@ class ImageEditor:
         :returns: Tuple of params needed for runtime image processing
         """
         enable = str(proc_kwargs.get("overlay_enable", "")).lower() == "true"
-        rect = proc_kwargs.get("overlay_rect")
+        rects = proc_kwargs.get("overlay_rects")
         target = proc_kwargs.get("overlay_target")
         if isinstance(target, str):
             try:
@@ -331,7 +337,7 @@ class ImageEditor:
         elif src:
             text_rgb = self.processor.color_analyzer.from_hex(src)
 
-        return enable, rect, target, text_rgb
+        return enable, rects, target, text_rgb
 
     def _resolve_runtime_img(self, attrs: dict) -> Image.Image | None:
         """

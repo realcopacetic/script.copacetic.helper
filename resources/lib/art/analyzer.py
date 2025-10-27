@@ -19,7 +19,7 @@ class ColorAnalyzer:
 
     def __init__(self, cfg: ColorConfig):
         self.cfg = cfg
-        self.darken(ColorDarken(self))
+        self.darken = ColorDarken(self)
 
     @log_duration
     def analyze(self, image: Image.Image) -> dict[str, float | str]:

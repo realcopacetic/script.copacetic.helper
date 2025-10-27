@@ -4,7 +4,7 @@ from typing import Iterable
 
 from PIL import Image
 
-from resources.lib.art.analyzer import ColorAnalyzer
+from resources.lib.shared.utilities import log
 
 RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
@@ -16,7 +16,7 @@ class ColorDarken:
     Finds the brightest sampled cell across provided rects, then solves WCAG darken%.
     """
 
-    def __init__(self, color_analyzer: ColorAnalyzer) -> None:
+    def __init__(self, color_analyzer: object) -> None:
         """
         Inject shared colour utilities and configuration.
         Stores a reference to ColorAnalyzer to reuse its helpers and cfg.
@@ -41,7 +41,7 @@ class ColorDarken:
         :param overlay_rects: Semicolon-separated rects "x,y,w,h; x,y,w,h" in a 1920x1080 reference frame.
         :param text_rgb: Optional text RGB override (defaults to cfg.text_overlay_colour).
         :param target_ratio: Optional WCAG contrast target override (e.g. 4.5 body, 3.0 large/logo).
-        :returns: Darken percent 0–cfg.max_darken_cap for fade/diffuse mapping.
+        :returns: Darken percent 0-cfg.max_darken_cap for fade/diffuse mapping.
         """
         cfg = self.color.cfg
 
@@ -191,11 +191,11 @@ class ColorDarken:
     def _solve_darken(self, bg_rgb: RGB, text_rgb: RGB, target: float) -> int:
         """
         Solve multiplicative darken on background luminance to reach target.
-        Applies optional red leniency, then clamps to cfg.max_darken_cap.
+        Applies optional red leniency, then computes darken% capped by configuration.
 
         :param bg_rgb: Mean background RGB of the brightest sampled cell.
         :param text_rgb: Overlay text RGB for contrast calculation.
-        :param target: Desired WCAG contrast ratio (WCAG 2.1).
+        :param target: Desired WCAG contrast ratio.
         :returns: Darken percentage clamped to [0, cfg.max_darken_cap].
         """
         cfg = self.color.cfg
@@ -214,6 +214,13 @@ class ColorDarken:
         L_bg = self.color.get_luminosity(bg_rgb)
 
         contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
+        log(
+            f"{self.__class__.__name__}: darken → "
+            f"bg_rgb={bg_rgb}, text_rgb={text_rgb}, "
+            f"L_bg={L_bg:.4f}, L_text={L_text:.4f}, "
+            f"contrast={contrast:.3f}, target={target:.2f}, "
+            f"diff={(contrast - target):+.3f}",
+        )
         if contrast >= (target - 1e-9):
             return 0
 
