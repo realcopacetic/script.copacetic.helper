@@ -36,20 +36,9 @@ class ColorAnalyzer:
             "luminosity": int(self.get_luminosity(dominant) * 1000),
         }
 
-    def compute_darken_percent(
-        self,
-        image: Image.Image,
-        overlay_rects: str,
-        text_rgb: RGB | None = None,
-        target_ratio: float | None = None,
-    ) -> int:
+    def compute_darken_percent(self, *a, **kw) -> int:
         """Forward to ColorDarken for convenience."""
-        return self.darken.compute_darken_percent(
-            image=image,
-            overlay_rects=overlay_rects,
-            text_rgb=text_rgb,
-            target_ratio=target_ratio,
-        )
+        return self.darken.compute_darken_percent(*a, **kw)
 
     @log_duration
     def extract_dominant_color(self, image: Image.Image) -> RGB:
@@ -107,7 +96,7 @@ class ColorAnalyzer:
         try:
             im_small = self._sample_image(image)
             stat = ImageStat.Stat(im_small.convert("RGB"))
-            if max((v ** 0.5 for v in stat.var)) < self.cfg.accent_stdev_floor:
+            if max((v**0.5 for v in stat.var)) < self.cfg.accent_stdev_floor:
                 return dominant_rgb
         except Exception:
             pass
@@ -171,7 +160,6 @@ class ColorAnalyzer:
             log(f"ColorAnalyzer: accent scoring failed → {exc}", force=True)
             return dominant_rgb
 
-    @log_duration
     def get_luminosity(self, rgb: RGB) -> float:
         """
         Relative luminance per sRGB/Rec.709 with WCAG transfer curve.

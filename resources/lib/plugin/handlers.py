@@ -174,19 +174,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             sqlite = SQLiteHandler()
             image_processor = ImageEditor(sqlite).image_processor
-
-            rect_param = self.params.get("overlay_rect")
-            if rect_param:
-                try:
-                    x, y, w, h = [
-                        int(v) for v in rect_param.replace(" ", "").split(",")
-                    ]
-                    overlay_rect = (x, y, w, h)
-                except Exception:
-                    overlay_rect = None
-            else:
-                overlay_rect = None
-
             overlay_target = self.params.get("overlay_target")
             try:
                 overlay_target = (
@@ -200,7 +187,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 source=f"{self.container}.ListItem",
                 overlay_enable=self.params.get("overlay_enable"),
                 overlay_source=self.params.get("overlay_source"),
-                overlay_rect=overlay_rect,
+                overlay_rects=self.params.get("overlay_rects"),
                 overlay_target=overlay_target,
             )
 

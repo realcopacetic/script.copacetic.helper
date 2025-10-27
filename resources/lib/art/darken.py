@@ -4,7 +4,7 @@ from typing import Iterable
 
 from PIL import Image
 
-from resources.lib.shared.utilities import log
+from resources.lib.shared.utilities import log, log_duration
 
 RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
@@ -25,10 +25,11 @@ class ColorDarken:
         """
         self.color = color_analyzer
 
+    @log_duration
     def compute_darken_percent(
         self,
         image: Image.Image,
-        overlay_rects: str,  # "x,y,w,h; x,y,w,h"
+        overlay_rects: str,  # "(x,y,w,h),(x,y,w,h)"
         text_rgb: RGB | None = None,
         target_ratio: float | None = None,
     ) -> int:
@@ -38,7 +39,7 @@ class ColorDarken:
         https://www.w3.org/TR/WCAG21/#contrast-minimum
 
         :param image: Source image (as displayed).
-        :param overlay_rects: Semicolon-separated rects "x,y,w,h; x,y,w,h" in a 1920x1080 reference frame.
+        :param overlay_rects: Rects separated by parenthises "(x,y,w,h),(x,y,w,h)" in a 1920x1080 reference frame.
         :param text_rgb: Optional text RGB override (defaults to cfg.text_overlay_colour).
         :param target_ratio: Optional WCAG contrast target override (e.g. 4.5 body, 3.0 large/logo).
         :returns: Darken percent 0-cfg.max_darken_cap for fade/diffuse mapping.
@@ -68,27 +69,29 @@ class ColorDarken:
     @staticmethod
     def parse_overlay_rects(param: str) -> list[Rect]:
         """
-        Parse a canonical rects string into a list of integer tuples.
-        Accepts "x,y,w,h; x,y,w,h; ..." and ignores malformed or zero-area rects.
+        Parse overlay rects into a list of (x, y, w, h) tuples. Accepts single
+        rect "x,y,w,h" or multiple wrapped in parenthises "(x,y,w,h),(x,y,w,h),..."
 
-        :param param: Semicolon-separated rects string.
+        :param param: Rects string from Kodi .
         :returns: Rect list as [(x, y, w, h), ...].
         """
-        if not param:
+        if not (value := (param or "").strip()):
             return []
-        rects = []
-        for tok in param.split(";"):
-            tok = tok.strip()
-            if not tok:
-                continue
-            try:
-                x_s, y_s, w_s, h_s = (s.strip() for s in tok.split(","))
-                x, y, w, h = int(x_s), int(y_s), int(w_s), int(h_s)
-                if w > 0 and h > 0:
-                    rects.append((x, y, w, h))
-            except Exception:
-                continue
-        return rects
+
+        value = value.replace(" ", "")
+        rect_strings = (
+            [part.strip("()") for part in value.split("),(")]
+            if "(" in value and ")" in value
+            else [value]
+        )
+        return [
+            (x, y, w, h)
+            for rect_str in rect_strings
+            for parts in [rect_str.split(",")]
+            if len(parts) == 4
+            for x, y, w, h in [tuple(map(int, parts))]
+            if w > 0 and h > 0
+        ]
 
     @staticmethod
     def _scale_rects(

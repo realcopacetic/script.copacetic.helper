@@ -268,10 +268,6 @@ class ImageEditor:
             )
             return None
 
-    def compute_darken_percent(self, *a, **kw) -> int:
-        """Forward to ColorDarken for convenience."""
-        return self.color_analyzer.compute_darken_percent(*a, **kw)
-
     def _apply_runtime_enrichments(
         self,
         attributes: dict,
@@ -301,8 +297,8 @@ class ImageEditor:
                 return
 
         try:
-            darken = self.compute_darken_percent(
-                img=img, overlay_rects=rects, text_rgb=text_rgb, target_ratio=target
+            darken = self._compute_darken_percent(
+                image=img, overlay_rects=rects, text_rgb=text_rgb, target_ratio=target
             )
         except Exception as exc:
             log(f"ColorDarken: compute failed: {exc}", force=True)
@@ -366,3 +362,7 @@ class ImageEditor:
                 return im
 
         return None
+
+    def _compute_darken_percent(self, *a, **kw) -> int:
+        """Forward to ColorDarken for convenience."""
+        return self.processor.color_analyzer.compute_darken_percent(*a, **kw)
