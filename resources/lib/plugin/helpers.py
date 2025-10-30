@@ -2,7 +2,6 @@
 
 from typing import Callable, Iterable
 import math
-import re
 
 from xbmcgui import Window, getCurrentWindowId
 
@@ -16,6 +15,7 @@ from resources.lib.plugin.geometry import (
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
+    json_call,
     log,
     log_duration,
     return_label,
@@ -225,7 +225,7 @@ class ProgressBarManager:
             ],
         )
 
-    def calculate(self, set_target: str | None = None) -> tuple[int, str]:
+    def calculate(self) -> tuple[int, str]:
         """
         Compute percent and unwatched label for the item referenced by ``target``.
 
@@ -248,14 +248,27 @@ class ProgressBarManager:
         ):
             return 100, ""
 
-        if set_target and "set" in self.infolabels["DBType"]:
-            total = int(infolabel(f"Container({set_target}).NumItems") or 0)
-            watched = sum(
-                condition(
-                    f"Integer.IsGreater(Container({set_target}).ListItem({x}).PlayCount,0)"
-                )
-                for x in range(total)
+        if "set" in self.infolabels["DBType"]:
+            set_id = int(infolabel("ListItem.DBID") or 0)
+            if not set_id:
+                return 0, ""
+
+            response = json_call(
+                method="VideoLibrary.GetMovieSetDetails",
+                params={"setid": int(set_id), "movies": {"properties": ["playcount"], "limits": {"start": 0}}},
+                parent={self.__class__.__name__},
             )
+            movies = (
+                response.get("result", {})
+                .get("setdetails", {})
+                .get("movies", [])
+            )
+
+            total = len(movies)
+            if not total:
+                return 0, ""
+
+            watched = sum(1 for m in movies if m.get("playcount"))
             return ((total and watched / total or 0) * 100), (
                 total - watched
             )  # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError

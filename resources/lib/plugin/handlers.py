@@ -272,9 +272,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return result
 
             pb = ProgressBarManager(target=f"{self.container}.ListItem")
-            resume, unwatched = pb.calculate(
-                set_target=self.params.get("set_target", None)
-            )
+            resume, unwatched = pb.calculate()
             result.extend(
                 add_items(
                     [

@@ -81,7 +81,7 @@ class ColorConfig:
     max_lightness: float = 1.0  # upper clamp for HLS lightness when adjusting contrast
 
     # --- Readability (text overlay) ---
-    text_overlay_colour: str = "ffd1cece"  # colour for readability checks (ARGB hex)
+    text_overlay_colour: str = "fff0efef"  # colour for readability checks (ARGB hex)
     text_overlay_rect: tuple[int, int, int, int] = (
         120,
         660,
