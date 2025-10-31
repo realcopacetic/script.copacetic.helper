@@ -172,8 +172,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard:
                 return
 
-            sqlite = SQLiteHandler()
-            image_processor = ImageEditor(sqlite).image_processor
+            image_processor = ImageEditor(SQLiteHandler()).image_processor
             overlay_target = self.params.get("overlay_target")
             try:
                 overlay_target = (
@@ -207,6 +206,39 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             data = {"file": "artwork", "art": art}
             return add_items([data], media_type="artwork")
+
+    @log_duration
+    def darken(self) -> list[tuple]:
+        """
+        On-demand darken for a single fanart path. Acts as a lightweight
+        alternative entry point for darkening without invoking artwork handler.
+        """
+        with focus_guard(self.expected, "darken", self.identity_getter) as guard:
+            if not guard:
+                return
+
+            url = self.params.get("fanart") or ""
+            if not url:
+                return
+
+            val = ImageEditor(SQLiteHandler()).compute_darken_runtime(
+                url=url,
+                overlay_enable=self.params.get("overlay_enable", "true"),
+                overlay_source=self.params.get("overlay_source"),
+                overlay_rects=self.params.get("overlay_rects"),
+                overlay_target=self.params.get("overlay_target"),
+            )
+            if not guard.alive() or val is None:
+                return
+
+            return add_items(
+                {
+                    "file": "darken",
+                    "label": str(val),
+                    "properties": {"fanart_darken": str(val)},
+                },
+                media_type="darken",
+            )
 
     @log_duration
     def jumpbutton(self) -> None:
@@ -254,9 +286,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     smart_cap=self.params.get("truncate_smart_cap", "").lower()
                     == "true",
                 )
-            return add_items(
-                [data | {"truncated_label": truncated}], media_type="metadata"
-            )
+                data |= {"truncated_label": truncated}
+
+            return add_items([data], media_type="metadata")
 
     @log_duration
     def progressbar(self) -> None:

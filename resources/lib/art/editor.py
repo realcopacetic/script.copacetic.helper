@@ -1,27 +1,18 @@
 # author: realcopacetic
 
-from typing import Any
+from typing import Any, Callable
 
 import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import (
-    ART_SOURCE_KEYS,
-    ColorConfig,
-    ArtMeta,
-    resolve_art_type,
-)
+from resources.lib.art.policy import (ART_SOURCE_KEYS, ArtMeta, ColorConfig,
+                                      resolve_art_type)
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (
-    BLURS,
-    CROPS,
-    infolabel,
-    log,
-    validate_path,
-)
+from resources.lib.shared.utilities import (BLURS, CROPS, infolabel, log,
+                                            validate_path)
 
 RGB = tuple[int, int, int]
 
@@ -37,6 +28,7 @@ class ImageEditor:
         "crop": {"folder": CROPS, "extension": ".png"},
     }
 
+    # --- Public methods ---
     def __init__(self, sqlite_handler: SQLiteHandler | None = None) -> None:
         """
         Initialize caches, processors, and database/session dependencies.
@@ -103,6 +95,24 @@ class ImageEditor:
 
         return [a for a in attributes if a]
 
+    def compute_darken_runtime(
+        self,
+        url: str,
+        overlay_enable: str | bool = "true",
+        overlay_source: str | None = None,
+        overlay_rects: str | None = None,
+        overlay_target: float | str | None = None,
+    ) -> int | None:
+        """Pure one-shot darken (0..100) for a single URL; no DB writes."""
+        return self._darken_core(
+            lambda: self._image_open(url),
+            overlay_enable=overlay_enable,
+            overlay_source=overlay_source,
+            overlay_rects=overlay_rects,
+            overlay_target=overlay_target,
+        )
+
+    # --- Private methods ---
     def _handle_image(
         self,
         art_type: str,
@@ -151,8 +161,18 @@ class ImageEditor:
             if col:
                 self._session["clearlogo_color"] = col
 
-        # runtime-only enrichments (e.g., darken)
-        self._apply_runtime_enrichments(attributes, art_type, **proc_kwargs)
+        if art_type == "fanart":
+            def _runtime_img():
+                return self._resolve_runtime_img(attributes)
+            val = self._darken_core(
+                _runtime_img,
+                overlay_enable=proc_kwargs.get("overlay_enable", ""),
+                overlay_source=proc_kwargs.get("overlay_source"),
+                overlay_rects=proc_kwargs.get("overlay_rects"),
+                overlay_target=proc_kwargs.get("overlay_target"),
+            )
+            if val is not None:
+                attributes["darken"] = val
 
         return attributes
 
@@ -268,44 +288,47 @@ class ImageEditor:
             )
             return None
 
-    def _apply_runtime_enrichments(
+    def _darken_core(
         self,
-        attributes: dict,
-        art_type: str,
-        **proc_kwargs: Any,
-    ) -> None:
-        """
-        Inject per-run values like 'darken' without persisting to DB.
-        Requires 'processed_path' to be present in attributes.
-        """
-        if art_type != "fanart":
-            return
-
-        enable, rects, target, text_rgb = self._resolve_overlay_params(**proc_kwargs)
+        get_image: Callable[[], Image.Image | None],
+        *,
+        overlay_enable: str | bool = "true",
+        overlay_source: str | None = None,
+        overlay_rects: str | None = None,
+        overlay_target: float | str | None = None,
+    ) -> int | None:
+        enable, rects, target, text_rgb = self._resolve_overlay_params(
+            overlay_enable=overlay_enable,
+            overlay_rects=overlay_rects,
+            overlay_target=overlay_target,
+            overlay_source=overlay_source,
+        )
         if not enable:
-            return
+            return None
 
-        img = self._resolve_runtime_img(attributes)
+        img = get_image()
         if img is None:
-            return
+            return None
 
         target_size = self.cfg.fanart_target_size
         if img.size != target_size:
             try:
                 img = img.resize(target_size, Image.BOX)
             except Exception:
-                return
+                return None
 
         try:
-            darken = self._compute_darken_percent(
-                image=img, overlay_rects=rects, text_rgb=text_rgb, target_ratio=target
+            return int(
+                self._compute_darken_percent(
+                    image=img,
+                    overlay_rects=rects,
+                    text_rgb=text_rgb,
+                    target_ratio=target,
+                )
             )
         except Exception as exc:
             log(f"ColorDarken: compute failed: {exc}", force=True)
-            return
-
-        if darken is not None:
-            attributes["darken"] = int(darken)
+            return None
 
     def _resolve_overlay_params(
         self, **proc_kwargs
