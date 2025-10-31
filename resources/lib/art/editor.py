@@ -6,13 +6,16 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import (ART_SOURCE_KEYS, ArtMeta, ColorConfig,
-                                      resolve_art_type)
+from resources.lib.art.policy import (
+    ART_SOURCE_KEYS,
+    ArtMeta,
+    ColorConfig,
+    resolve_art_type,
+)
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (BLURS, CROPS, infolabel, log,
-                                            validate_path)
+from resources.lib.shared.utilities import BLURS, CROPS, infolabel, log, validate_path
 
 RGB = tuple[int, int, int]
 
@@ -103,9 +106,19 @@ class ImageEditor:
         overlay_rects: str | None = None,
         overlay_target: float | str | None = None,
     ) -> int | None:
-        """Pure one-shot darken (0..100) for a single URL; no DB writes."""
+        """
+        Compute a runtime darken value (0..100) for a single image using the cache-only resolver.
+        Mirrors the in-pipeline path for consistent results; performs no DB writes.
+
+        :param url: Kodi VFS/URL of the fanart to analyze (used only to locate local cache).
+        :param overlay_enable: Bool-ish flag; returns None if not truthy.
+        :param overlay_source: Hex text colour (e.g. 'fff0efef') or 'clearlogo' to use stashed colour.
+        :param overlay_rects: Overlay sampling rects, e.g. "x,y,w,h" or "(x,y,w,h),(x,y,w,h)" in 1920x1080 space.
+        :param overlay_target: Desired contrast target (float) or str convertible to float.
+        :return: Darken percentage 0..100, or None if disabled/unavailable.
+        """
         return self._darken_core(
-            lambda: self._image_open(url),
+            lambda: self._get_runtime_image(url=url),
             overlay_enable=overlay_enable,
             overlay_source=overlay_source,
             overlay_rects=overlay_rects,
@@ -162,10 +175,8 @@ class ImageEditor:
                 self._session["clearlogo_color"] = col
 
         if art_type == "fanart":
-            def _runtime_img():
-                return self._resolve_runtime_img(attributes)
             val = self._darken_core(
-                _runtime_img,
+                lambda: self._get_runtime_image(attrs=attributes),
                 overlay_enable=proc_kwargs.get("overlay_enable", ""),
                 overlay_source=proc_kwargs.get("overlay_source"),
                 overlay_rects=proc_kwargs.get("overlay_rects"),
@@ -297,6 +308,17 @@ class ImageEditor:
         overlay_rects: str | None = None,
         overlay_target: float | str | None = None,
     ) -> int | None:
+        """
+        Unified darken pipeline: parse params, obtain image via provider, resize to target, compute 0..100.
+        Used by both the in-pipeline enrichment and the on-demand runtime helper.
+
+        :param get_image: Zero-arg callable that returns a PIL Image or None (no network I/O inside core).
+        :param overlay_enable: Bool-ish flag; short-circuits if not truthy.
+        :param overlay_source: Hex text colour or 'clearlogo' to resolve from session.
+        :param overlay_rects: Sampling rects in 1920x1080 reference space.
+        :param overlay_target: Desired contrast target (float) or str convertible to float.
+        :return: Darken percentage 0..100, or None if image/params are invalid.
+        """
         enable, rects, target, text_rgb = self._resolve_overlay_params(
             overlay_enable=overlay_enable,
             overlay_rects=overlay_rects,
@@ -358,30 +380,37 @@ class ImageEditor:
 
         return enable, rects, target, text_rgb
 
-    def _resolve_runtime_img(self, attrs: dict) -> Image.Image | None:
+    def _get_runtime_image(
+        self, attrs: dict | None = None, url: str | None = None
+    ) -> Image.Image | None:
         """
-        Resolve the best available image for runtime-only analysis (e.g., darken).
+        Resolve a PIL Image for runtime analysis from local sources only (no network/VFS reads).
+        Priority: in-memory sample → texture-cache local path → processed blur (from attrs).
 
-        :param attrs: Metadata attributes containing potential image sources.
-        :returns: A PIL Image object ready for analysis, or None if all sources fail.
+        :param attrs: Optional metadata dict that may contain '_sample_frame' and/or 'processed_path'.
+        :param url: Optional art URL used only to prime/locate the texture-cache path.
+        :return: PIL Image ready for analysis, or None if no local source is available.
         """
         # prefer in-memory `_sample_frame` from this run
-        img = attrs.pop("_sample_frame", None)
-        if img is not None:
+        if attrs and (img := attrs.pop("_sample_frame", None)):
             return img
 
         # local Kodi texture-cache path for original
-        if (cache_local := str(self.cache_manager.cached_image_path)) and validate_path(
-            cache_local
-        ):
-            im = self._image_open(cache_local)
-            if im:
+        cache_local = str(self.cache_manager.cached_image_path or "")
+        if not cache_local and url:
+            try:
+                self.cache_manager.prepare_cache(url, ".jpg")
+                cache_local = str(self.cache_manager.cached_image_path or "")
+            except Exception:
+                cache_local = ""
+
+        if cache_local and validate_path(cache_local):
+            if im := self._image_open(cache_local):
                 return im
 
         # fallback: processed (blurred) image
-        if cache_blur := attrs.get("processed_path"):
-            im = self._image_open(cache_blur)
-            if im:
+        if attrs and (cache_blur := attrs.get("processed_path")):
+            if im := self._image_open(cache_blur):
                 return im
 
         return None

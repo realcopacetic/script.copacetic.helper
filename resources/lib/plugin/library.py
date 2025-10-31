@@ -46,9 +46,9 @@ def add_items(items: list[dict], media_type: str = "metadata") -> list[tuple]:
     li: list[tuple] = []
     type_mapping = {
         "metadata": set_metadata,
-        "progressbar": set_progressbar,
         "artwork": set_artwork,
         "darken": set_darken,
+        "progressbar": set_progressbar,
         "movie": set_movie,
         "tvshow": set_tvshow,
         "episode": set_episode,
@@ -178,23 +178,7 @@ def set_metadata(item: dict) -> ListItem:
         label=item.get("label"),
         label2=item.get("label2"),
         default_icon="DefaultVideo.png",
-        properties={"truncated_label": item.get("truncated_label", "")},
-    )
-
-
-@videoinfotag_setter("", {})
-def set_progressbar(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for progressbar helper using mapped metadata.
-
-    :param item: Dictionary containing item metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item,
-        label=item.get("label"),
-        default_icon="DefaultVideo.png",
-        properties={"unwatchedepisodes": item.get("unwatchedepisodes", "0")},
+        properties=item.get("properties", {}),
     )
 
 
@@ -211,6 +195,7 @@ def set_artwork(item: dict) -> ListItem:
         default_icon="DefaultVideo.png",
     )
 
+
 def set_darken(item: dict) -> ListItem:
     """
     Builds a Kodi ListItem for darken helper using mapped metadata.
@@ -222,8 +207,25 @@ def set_darken(item: dict) -> ListItem:
         item=item,
         label=item.get("label"),
         default_icon="DefaultVideo.png",
-        properties={"fanart_darken": item.get("fanart_darken", "0")}
+        properties=item.get("properties", {}),
     )
+
+
+@videoinfotag_setter("", {})
+def set_progressbar(item: dict) -> ListItem:
+    """
+    Builds a Kodi ListItem for progressbar helper using mapped metadata.
+
+    :param item: Dictionary containing item metadata.
+    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    """
+    return create_li_item(
+        item=item,
+        label=item.get("label"),
+        default_icon="DefaultVideo.png",
+        properties=item.get("properties", {}),
+    )
+
 
 @videoinfotag_setter(
     "movie",

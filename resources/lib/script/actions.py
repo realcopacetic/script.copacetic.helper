@@ -11,6 +11,7 @@ from resources.lib.shared.utilities import (
     log,
     log_and_execute,
     skin_string,
+    to_int,
     window_property,
     xbmc,
 )
@@ -45,6 +46,23 @@ def clean_filename(label=False, **kwargs):
     label = label.replace(".", " ", count).replace("_", " ").strip()
 
     window_property("Return_Label", value=label)
+
+
+@action
+def clear_label(id):
+    from xbmcgui import Window, getCurrentWindowId
+
+    if not (ctrl_id := to_int(id, None)) > 0:
+        return
+
+    window = Window(getCurrentWindowId())
+    try:
+        ctrl = window.getControl(ctrl_id)
+        ctrl.reset()
+        ctrl.addLabel("")
+    except RuntimeError:
+        log(f"clear_label: Label id {id} not found.")
+        return
 
 
 @action
@@ -431,7 +449,7 @@ def toggle_addon(id, **kwargs):
 @action
 def dynamic_settings_window(**kwargs):
     """
-    Opens a dynamic settings window as a modal dialog and collects 
+    Opens a dynamic settings window as a modal dialog and collects
     any static and dynamic controls that have been expanded from
     skinner templates and tagged with this window's name.
     """
@@ -440,18 +458,14 @@ def dynamic_settings_window(**kwargs):
     name = kwargs.get("name", "dynamic_window")
     window_property(name, value="true")
 
-    myWindow = DynamicEditor(
-        f"{name}.xml", SKINXML, "Default", ""
-    )
+    myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
     myWindow.doModal()
     del myWindow
 
 
 @action
 def update_views(**kwargs):
-    """
-    
-    """
+    """ """
     from resources.lib.builders.build_elements import BuildElements
 
     builder = BuildElements(run_context="runtime")
@@ -464,7 +478,7 @@ def widget_move(posa, posb, **kwargs):
     Swaps widget configuration between two slots (A ↔ B).
 
     Preserves all known skin settings: content type, view style, scroll, logos, etc.
-    
+
     :param posa: First widget position index (int).
     :param posb: Second widget position index (int).
     """

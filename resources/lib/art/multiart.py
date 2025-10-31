@@ -1,7 +1,11 @@
 # author: realcopacetic
 
-from resources.lib.shared.utilities import to_int, clamp
+import random
+
+from xbmcgui import Window, getCurrentWindowId
+
 from resources.lib.plugin.helpers import get_infolabels
+from resources.lib.shared.utilities import clamp, to_int, log
 
 DEFAULT_SLOTS = 15
 MAX_SLOTS = 50
@@ -29,3 +33,41 @@ def collect_multiart(
     ]
     labels = get_infolabels(target, art_keys)
     return {name: labels[k] for name, k in zip(name_keys, art_keys) if labels.get(k)}
+
+
+def set_multiart_fadelabel(
+    fadelabel_id: int | str,
+    art: dict[str, str],
+    *,
+    randomize: bool = True,
+    keep_main_first: bool = True,
+) -> bool:
+    """
+    Seed a FadeLabel control with a multiart sequence: main art followed by shuffled extras.
+
+    :param fadelabel_id: Control id of the FadeLabel to populate.
+    :param art: Mapping that may include "multiart" and "multiart1..N" keys with URLs.
+    :param randomize: If True, shuffle extras; otherwise keep original order.
+    :param keep_main_first: If True, place 'multiart' (if present) before extras.
+    :returns: True if labels were set successfully, else False.
+    """
+    try:
+        win = Window(getCurrentWindowId())
+        ctrl = win.getControl(to_int(fadelabel_id))
+        ctrl.setVisible(True)
+        ctrl.reset()
+        main = art.get("multiart")
+        extras = [
+            v
+            for k, v in art.items()
+            if k.startswith("multiart") and k != "multiart" and v
+        ]
+        if randomize:
+            random.shuffle(extras)
+
+        ordered = ([main] if keep_main_first and main else []) + extras
+        for label in filter(None, ordered):
+            ctrl.addLabel(label)
+
+    except Exception as e:
+        log(f"set_multiart_fadelabel: Failed to set labels → {e}")

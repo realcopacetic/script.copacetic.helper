@@ -6,7 +6,7 @@ from typing import Any, Callable, Generator, Optional
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.art.editor import ImageEditor
-from resources.lib.art.multiart import collect_multiart
+from resources.lib.art.multiart import collect_multiart, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
@@ -204,8 +204,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            data = {"file": "artwork", "art": art}
-            return add_items([data], media_type="artwork")
+            fadelabel_id = self.params.get("multiart_fadelabel")
+            if fadelabel_id and art:
+                set_multiart_fadelabel(
+                    fadelabel_id=fadelabel_id,
+                    art=art,
+                    randomize=True,
+                    keep_main_first=True,
+                )
+
+            return add_items([{"file": "artwork", "art": art}], media_type="artwork")
 
     @log_duration
     def darken(self) -> list[tuple]:
@@ -232,11 +240,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             return add_items(
-                {
-                    "file": "darken",
-                    "label": str(val),
-                    "properties": {"fanart_darken": str(val)},
-                },
+                [
+                    {
+                        "file": "darken",
+                        "label": str(val),
+                        "properties": {"fanart_darken": str(val)},
+                    }
+                ],
                 media_type="darken",
             )
 
@@ -286,7 +296,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     smart_cap=self.params.get("truncate_smart_cap", "").lower()
                     == "true",
                 )
-                data |= {"truncated_label": truncated}
+                data |= {"properties": {"truncated_label": truncated}}
 
             return add_items([data], media_type="metadata")
 
@@ -312,7 +322,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                             "file": "progress",
                             "label": str(resume),
                             "resume": {"position": resume, "total": 100},
-                            "unwatchedepisodes": str(unwatched),
+                            "properties": {"unwatchedepisodes": str(unwatched)},
                         }
                     ],
                     media_type="progressbar",

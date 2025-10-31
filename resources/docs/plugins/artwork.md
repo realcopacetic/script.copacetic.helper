@@ -84,7 +84,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
     <content>plugin://script.copacetic.helper/?info=artwork&amp;logo_crop=true&amp;bg_blur=true&amp;overlay_enable=true&amp;overlay_source=ffd1cece&amp;overlay_rect=120,660,1680,360</content>
   </control>
 
-	<include name="darken_artwork_under_text_animation">
+	<include name="fanart_darken">
 		<animation effect="fadediffuse" end="ffe6e6e6" time="360" condition="Integer.IsGreaterOrEqual(Container(9997).ListItem.Art(fanart_darken),10) + Integer.IsLess(Container(9997).ListItem.Art(fanart_darken),20)">Conditional</animation>
 		<animation effect="fadediffuse" end="ffd1d1d1" time="360" condition="Integer.IsGreaterOrEqual(Container(9997).ListItem.Art(fanart_darken),20) + Integer.IsLess(Container(9997).ListItem.Art(fanart_darken),30)">Conditional</animation>
 		<animation effect="fadediffuse" end="ffbcbcbc" time="360" condition="Integer.IsGreaterOrEqual(Container(9997).ListItem.Art(fanart_darken),30) + Integer.IsLess(Container(9997).ListItem.Art(fanart_darken),40)">Conditional</animation>
@@ -98,7 +98,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 	</include>
 
   <control type="image">
-    <include content="darken_artwork_under_text_animation" />
+    <include content="fanart_darken" />
     <texture>$INFO[ListItem.Art(fanart)]</>
 
 ```
