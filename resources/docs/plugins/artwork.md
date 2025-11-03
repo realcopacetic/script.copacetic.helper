@@ -98,7 +98,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 	</include>
 
   <control type="image">
-    <include content="fanart_darken" />
+    <include content="fanart_darken_animation" />
     <texture>$INFO[ListItem.Art(fanart)]</>
 
 ```

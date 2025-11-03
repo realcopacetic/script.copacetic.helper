@@ -192,7 +192,9 @@ def set_artwork(item: dict) -> ListItem:
     return create_li_item(
         item=item,
         label=item.get("label"),
+        label2=item.get("label2"),
         default_icon="DefaultVideo.png",
+        properties=item.get("properties", {}),
     )
 
 

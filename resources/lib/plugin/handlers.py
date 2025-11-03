@@ -212,8 +212,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     randomize=True,
                     keep_main_first=True,
                 )
-
-            return add_items([{"file": "artwork", "art": art}], media_type="artwork")
+            current_position = to_int(self.expected, 0)
+            return add_items(
+                [
+                    {
+                        "file": "artwork",
+                        "art": art,
+                        "properties": {
+                            "previous": current_position - 1,
+                            "next": current_position + 1,
+                        },
+                    }
+                ],
+                media_type="artwork",
+            )
 
     @log_duration
     def darken(self) -> list[tuple]:

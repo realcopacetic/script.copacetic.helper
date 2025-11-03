@@ -78,7 +78,7 @@ class DataHandler:
         encoded_label = url_encode(label)
         return {
             "file": encoded_label,
-            "label": encoded_label,
+            "label": label,
             "label2": label,
             "director": split_random(self.infolabels["Director"]),
             "dbtype": self.dbtype,
