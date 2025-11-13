@@ -17,7 +17,7 @@ msgstr ""
 #: Contents
 
 #: SETTINGS           320XX
-#: SETTINGS HEL       321XX
+#: SETTINGS HELP      321XX
 #: SERVICE            322XX
 #: SCRIPT             324XX
 #: PLUGIN             326XX
@@ -86,6 +86,22 @@ msgstr ""
 msgctxt "#32107"
 msgid "This will force all skin builder files to be rebuilt every time Kodi starts."
 msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32007"
+msgid "API"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32008"
+msgid "TMDB access token"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32108"
+msgid "Paste either your TMDb v3 API Key or your v4 API Read Access Token. Copacetic supports both. Only one is required."
+msgstr ""
+
 
 
 
