@@ -59,7 +59,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32004"
-msgid "- Include json call/response logs"
+msgid "Include json call/response logs"
 msgstr ""
 
 #: /resources/settings.xml
@@ -88,18 +88,33 @@ msgid "This will force all skin builder files to be rebuilt every time Kodi star
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32007"
+msgctxt "#32008"
 msgid "API"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32008"
+msgctxt "#32009"
+msgid "Enable access to TMDb API"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32109"
+msgid "Used to enrich certain views with additional metadata not available natively in Kodi's library."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32010"
 msgid "TMDB access token"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32108"
+msgctxt "#32110"
 msgid "Paste either your TMDb v3 API Key or your v4 API Read Access Token. Copacetic supports both. Only one is required."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32011"
+msgid "Enter a TMDb v3 API Key or v4 API Read Access Token"
 msgstr ""
 
 
