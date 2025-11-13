@@ -3,8 +3,9 @@
 import json
 import urllib.request
 import urllib.parse
+from urllib.error import HTTPError, URLError
 
-from resources.lib.shared.utilities import ADDON, ERROR, log
+from resources.lib.shared.utilities import ADDON, DEBUG, ERROR, log
 
 TMDB_API_BASE = "https://api.themoviedb.org/3"
 
@@ -18,11 +19,22 @@ def _get_tmdb_config():
     return True, token
 
 
+def get_tmdb_client(language: str = "en-US") -> TmdbClient | None:
+    enabled = ADDON.getSetting("tmdb_access") == "true"
+    token = (ADDON.getSetting("tmdb_access_token") or "").strip()
+    if not enabled or not token:
+        log("TMDb disabled or missing token.", level=2)
+        return None
+    # You can memoize the client if you want, but keep it simple first
+    return TmdbClient(token=token, language=language)
+
+
 class TmdbClient:
     def __init__(self, token: str, language: str = "en-US"):
         self.token = token.strip()
         self.language = language
         self.is_v4 = self.token.startswith("eyJ")  # JWT → v4 read token
+        log(f"TmdbClient → using {'v4' if self.is_v4 else 'v3'} auth", level=DEBUG)
 
     def _build_request(
         self, path: str, params: dict | None = None
@@ -53,6 +65,9 @@ class TmdbClient:
             with urllib.request.urlopen(request, timeout=10) as resp:
                 data = resp.read().decode("utf-8")
                 return json.loads(data)
-        except Exception as exc:  # tighten later if you like
-            log(f"TMDb error for {path}: {exc}", level=ERROR)
-            return {}
+        except HTTPError as exc:
+            log(f"TMDb HTTPError {exc.code} for {path}: {exc.reason}", level=ERROR)
+        except URLError as exc:
+            log(f"TMDb URLError for {path}: {exc.reason}", level=ERROR)
+        except Exception as exc:
+            log(f"TMDb unexpected error for {path}: {exc}", level=ERROR)
