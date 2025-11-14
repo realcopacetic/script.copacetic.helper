@@ -12,8 +12,6 @@ from xbmcaddon import Addon
 from xbmcgui import Dialog, Window
 from xbmcplugin import addSortMethod, setContent, setPluginCategory
 
-from resources.lib.shared import logger as log
-
 THUMB_DB = xbmcvfs.translatePath("special://profile/Thumbnails")
 
 ADDON = Addon()
@@ -41,6 +39,7 @@ DIALOG = Dialog()
 VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
+from resources.lib.shared import logger as log
 
 """KODI UTILS"""
 
