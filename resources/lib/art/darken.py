@@ -4,7 +4,7 @@ from typing import Iterable
 
 from PIL import Image
 
-from resources.lib.shared.utilities import log, log_duration
+from resources.lib.shared import logger as log
 
 RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
@@ -25,7 +25,7 @@ class ColorDarken:
         """
         self.color = color_analyzer
 
-    @log_duration
+    @log.duration
     def compute_darken_percent(
         self,
         image: Image.Image,

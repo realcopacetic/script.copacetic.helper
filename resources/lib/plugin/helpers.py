@@ -16,8 +16,6 @@ from resources.lib.shared.utilities import (
     condition,
     infolabel,
     json_call,
-    log,
-    log_duration,
     return_label,
     split,
     split_random,
@@ -25,6 +23,7 @@ from resources.lib.shared.utilities import (
     url_encode,
     xbmc,
 )
+from resources.lib.shared import logger as log
 
 
 def get_infolabels(target: str, keys: Iterable[str]) -> dict[str, str]:
@@ -533,7 +532,7 @@ class TextTruncator:
         stem = stem.rstrip("\"')]}»”’")
         return stem + self.ellipsis
 
-    @log_duration
+    @log.duration
     def _refine_coarse(
         self, ctrl, cond_str: str, base: str, *, min_safe: int, n: int
     ) -> str:
@@ -585,7 +584,7 @@ class TextTruncator:
                 cur = nxt
         return best or self._slice(base, max(1, guess // 2))
 
-    @log_duration
+    @log.duration
     def _search_bounded(self, ctrl, cond_str: str, base: str, *, n: int) -> str:
         """
         Find the fit point with a bounded binary search.

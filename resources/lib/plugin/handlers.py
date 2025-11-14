@@ -9,27 +9,17 @@ from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import collect_multiart, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
-from resources.lib.plugin.helpers import (
-    DataHandler,
-    JumpButton,
-    ProgressBarManager,
-    TextTruncator,
-    TypewriterAnimation,
-)
+from resources.lib.plugin.helpers import (DataHandler, JumpButton,
+                                          ProgressBarManager, TextTruncator,
+                                          TypewriterAnimation)
 from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
 from resources.lib.plugin.registry import PluginInfoRegistry
+from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (
-    ADDON,
-    condition,
-    infolabel,
-    json_call,
-    log,
-    log_duration,
-    set_plugincontent,
-    to_int,
-)
+from resources.lib.shared.utilities import (ADDON, condition, infolabel,
+                                            json_call, set_plugincontent,
+                                            to_int)
 
 
 class _FocusGuard:
@@ -161,7 +151,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "value": self.exclude_value,
         }
 
-    @log_duration
+    @log.duration
     def artwork(self) -> list[tuple]:
         """
         Process/calculate artwork and attach to listitem; aborts if focus changes.
@@ -227,7 +217,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 media_type="artwork",
             )
 
-    @log_duration
+    @log.duration
     def darken(self) -> list[tuple]:
         """
         On-demand darken for a single fanart path. Acts as a lightweight
@@ -262,7 +252,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 media_type="darken",
             )
 
-    @log_duration
+    @log.duration
     def jumpbutton(self) -> None:
         """
         Update jump button overlay using params and placement options.
@@ -276,7 +266,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             opts=PlacementOpts.from_params(self.params),
         )
 
-    @log_duration
+    @log.duration
     def metadata(self) -> None:
         """
         Fetch/attach cleaned metadata to a helper list item; aborts if focus changes.
@@ -312,7 +302,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             return add_items([data], media_type="metadata")
 
-    @log_duration
+    @log.duration
     def progressbar(self) -> None:
         """
         Compute resume/unwatched values and expose a helper item for the list.
@@ -359,7 +349,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             return result
 
-    @log_duration
+    @log.duration
     def typewriter(self) -> None:
         """
         Run typewriter animation for the current listitem; guarded against focus changes.

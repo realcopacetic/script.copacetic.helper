@@ -6,7 +6,7 @@ from PIL import Image, ImageFilter
 
 from resources.lib.art.analyzer import ColorAnalyzer
 from resources.lib.art.policy import ColorConfig
-from resources.lib.shared.utilities import log, log_duration
+from resources.lib.shared import logger as log
 
 
 class ImageProcessor:
@@ -27,7 +27,7 @@ class ImageProcessor:
         """
         return image if image.mode == target else image.convert(target)
 
-    @log_duration
+    @log.duration
     def crop(self, image: Image.Image, **_: Any) -> dict[str, Any] | None:
         """
         Crop/resize clearlogos, normalize mode for PNG, extract color metadata.
@@ -48,7 +48,7 @@ class ImageProcessor:
             else:
                 image = image.crop(image.getbbox())
         except Exception as e:
-            log(f"{self.__class__.__name__}: Error cropping image → {e}", force=True)
+            log(f"{self.__class__.__name__}: Unable to crop image → {e}", level=ERROR)
             return None
 
         final_max = self.cfg.logo_final_max
@@ -64,7 +64,7 @@ class ImageProcessor:
             "metadata": analysis,
         }
 
-    @log_duration
+    @log.duration
     def blur(self, image: Image.Image, **kwargs: Any) -> dict[str, Any] | None:
         """
         Resize fanart, apply Gaussian blur, coerce JPEG-safe mode, extract colors.

@@ -15,7 +15,14 @@ from resources.lib.art.policy import (
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import BLURS, CROPS, infolabel, log, validate_path
+from resources.lib.shared.utilities import (
+    BLURS,
+    CROPS,
+    ERROR,
+    infolabel,
+    log,
+    validate_path,
+)
 
 RGB = tuple[int, int, int]
 
@@ -64,7 +71,8 @@ class ImageEditor:
         """
         if not processes:
             log(
-                f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}."
+                f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}.",
+                level=WARNING
             )
             return []
 
@@ -92,7 +100,7 @@ class ImageEditor:
         except Exception as error:
             log(
                 f"{self.__class__.__name__}: Error during image processing → {error}",
-                force=True,
+                level=ERROR,
             )
             return []
 
@@ -294,8 +302,8 @@ class ImageEditor:
             return Image.open(xbmcvfs.translatePath(url))
         except (FileNotFoundError, OSError) as error:
             log(
-                f"{self.__class__.__name__}: Error opening image {url} → {error}",
-                force=True,
+                f"{self.__class__.__name__}: Unable to open image {url} → {error}",
+                level=ERROR,
             )
             return None
 
@@ -349,7 +357,7 @@ class ImageEditor:
                 )
             )
         except Exception as exc:
-            log(f"ColorDarken: compute failed: {exc}", force=True)
+            log(f"ColorDarken: compute failed: {exc}", level=ERROR)
             return None
 
     def _resolve_overlay_params(

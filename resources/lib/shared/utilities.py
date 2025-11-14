@@ -1,13 +1,9 @@
 # author: realcopacetic
 
 import json
-import re
 import sys
-import time
 import urllib.parse as urllib
-from functools import wraps
 from pathlib import Path
-from typing import Any, Callable
 
 import xbmc
 import xbmcvfs
@@ -340,55 +336,6 @@ def pretty_print(obj: object) -> str:
     :returns: Pretty-printed JSON string.
     """
     return json.dumps(obj, sort_keys=True, indent=4, separators=(",", ": "))
-
-
-"""LOGGING"""
-
-
-def log(message: str, level: int = DEBUG, force: bool = False):
-    """
-    Logs a message with addon prefix, respecting log level and debug settings.
-
-    :param message: Message string.
-    :param level: Kodi log level constant.
-    :param force: If True, logs regardless of settings.
-    """
-    if (ADDON.getSettingBool("debug_logging") or force) and level not in [
-        WARNING,
-        ERROR,
-    ]:
-        level = INFO
-    xbmc.log(f"{ADDON_ID} → {message}", level)
-
-
-def log_and_execute(action: str) -> None:
-    """
-    Logs and executes a built-in Kodi command.
-
-    :param action: Built-in Kodi command string.
-    """
-    log(f"Execute: {action}", DEBUG)
-    xbmc.executebuiltin(action)
-
-
-def log_duration(func: Callable[..., Any]) -> Callable[..., Any]:
-    """
-    Decorator that logs the execution time of a method.
-
-    :param func: The method to wrap.
-    :returns: Wrapped method with timing log.
-    """
-
-    @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        cls_name = args[0].__class__.__name__ if args else "UnknownClass"
-        start = time.time()
-        result = func(*args, **kwargs)
-        duration = time.time() - start
-        log(f"{cls_name} → {func.__name__} took {duration:.4f} seconds")
-        return result
-
-    return wrapper
 
 
 """PLUGINS"""

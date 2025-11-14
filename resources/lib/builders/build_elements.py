@@ -2,18 +2,13 @@
 
 from pathlib import Path
 
-from resources.lib.builders.builder_config import BUILDER_CONFIG, BUILDER_MAPPINGS
+from resources.lib.builders.builder_config import (BUILDER_CONFIG,
+                                                   BUILDER_MAPPINGS)
 from resources.lib.builders.runtime import RuntimeStateManager
+from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler, JSONMerger
-from resources.lib.shared.utilities import (
-    CONFIGS,
-    RUNTIME_STATE,
-    SKINEXTRAS,
-    condition,
-    log,
-    log_duration,
-    skin_string,
-)
+from resources.lib.shared.utilities import (CONFIGS, RUNTIME_STATE, SKINEXTRAS,
+                                            condition, skin_string)
 from resources.lib.shared.xml import XMLDictConverter, XMLMerger
 
 
@@ -96,7 +91,7 @@ class BuildElements:
                 for mapping_name, xml_root in self.merged_xml
             )
 
-    @log_duration
+    @log.duration
     def process(self):
         """
         Runs all eligible builders matching the given run context.

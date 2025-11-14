@@ -1,16 +1,18 @@
 # author: realcopacetic
 
+from __future__ import annotations
+
 import json
-import urllib.request
 import urllib.parse
+import urllib.request
 from urllib.error import HTTPError, URLError
 
-from resources.lib.shared.utilities import ADDON, DEBUG, ERROR, log
+from resources.lib.shared.utilities import ADDON, ERROR, WARNING, log
 
 TMDB_API_BASE = "https://api.themoviedb.org/3"
 
 
-def _get_tmdb_config():
+def _get_tmdb_config() -> tuple[bool, str]:
     """Return (enabled, token) from addon settings."""
     enabled = ADDON.getSetting("tmdb_access") == "true"
     token = (ADDON.getSetting("tmdb_access_token") or "").strip()
@@ -23,7 +25,7 @@ def get_tmdb_client(language: str = "en-US") -> TmdbClient | None:
     enabled = ADDON.getSetting("tmdb_access") == "true"
     token = (ADDON.getSetting("tmdb_access_token") or "").strip()
     if not enabled or not token:
-        log("TMDb disabled or missing token.", level=2)
+        log("TMDb disabled or missing token.", level=WARNING)
         return None
     # You can memoize the client if you want, but keep it simple first
     return TmdbClient(token=token, language=language)
@@ -34,7 +36,7 @@ class TmdbClient:
         self.token = token.strip()
         self.language = language
         self.is_v4 = self.token.startswith("eyJ")  # JWT → v4 read token
-        log(f"TmdbClient → using {'v4' if self.is_v4 else 'v3'} auth", level=DEBUG)
+        log(f"{self.__class__.__name__} → using {'v4' if self.is_v4 else 'v3'} auth")
 
     def _build_request(
         self, path: str, params: dict | None = None
@@ -66,8 +68,17 @@ class TmdbClient:
                 data = resp.read().decode("utf-8")
                 return json.loads(data)
         except HTTPError as exc:
-            log(f"TMDb HTTPError {exc.code} for {path}: {exc.reason}", level=ERROR)
+            log(
+                f"{self.__class__.__name__}: TMDb HTTPError {exc.code} for {path}: {exc.reason}",
+                level=ERROR,
+            )
         except URLError as exc:
-            log(f"TMDb URLError for {path}: {exc.reason}", level=ERROR)
+            log(
+                f"{self.__class__.__name__}: TMDb URLError for {path}: {exc.reason}",
+                level=ERROR,
+            )
         except Exception as exc:
-            log(f"TMDb unexpected error for {path}: {exc}", level=ERROR)
+            log(
+                f"{self.__class__.__name__}: TMDb unexpected error for {path}: {exc}",
+                level=ERROR,
+            )

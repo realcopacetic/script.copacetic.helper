@@ -1,11 +1,12 @@
 # author: realcopacetic
 
 import colorsys
+
 from PIL import Image, ImageStat
 
-from resources.lib.art.policy import ColorConfig
 from resources.lib.art.darken import ColorDarken
-from resources.lib.shared.utilities import log, log_duration
+from resources.lib.art.policy import ColorConfig
+from resources.lib.shared import logger as log
 
 RGB = tuple[int, int, int]
 HLS = tuple[float, float, float]
@@ -21,7 +22,7 @@ class ColorAnalyzer:
         self.cfg = cfg
         self.darken = ColorDarken(self)
 
-    @log_duration
+    @log.duration
     def analyze(self, image: Image.Image) -> dict[str, float | str]:
         """Extract dominant + accent; compute luminosity and a contrast colour (hex)."""
         dominant = self.extract_dominant_color(image)
@@ -40,7 +41,7 @@ class ColorAnalyzer:
         """Forward to ColorDarken for convenience."""
         return self.darken.compute_darken_percent(*a, **kw)
 
-    @log_duration
+    @log.duration
     def extract_dominant_color(self, image: Image.Image) -> RGB:
         """
         Dominant colour via downsample + adaptive palette; ignores transparent pixels.
@@ -83,7 +84,7 @@ class ColorAnalyzer:
         except Exception:
             return (0, 0, 0)
 
-    @log_duration
+    @log.duration
     def extract_accent_color(self, image: Image.Image, dominant_rgb: RGB) -> RGB:
         """
         Pick a secondary hue distinct from the dominant color.
@@ -108,7 +109,10 @@ class ColorAnalyzer:
             if rgb_small is None:
                 return dominant_rgb
         except Exception as exc:
-            log(f"ColorAnalyzer: accent preproc failed → {exc}", force=True)
+            log(
+                f"{self.__class__.__name__}: accent preproc failed → {exc}",
+                level=WARNING,
+            )
             return dominant_rgb
 
         # --- Step 2: Quantize palette ---
@@ -120,7 +124,10 @@ class ColorAnalyzer:
             if not count_map:
                 return dominant_rgb
         except Exception as exc:
-            log(f"ColorAnalyzer: accent quantize failed → {exc}", force=True)
+            log(
+                f"{self.__class__.__name__}: accent quantize failed → {exc}",
+                level=WARNING,
+            )
             return dominant_rgb
 
         # --- Step 2.5: Dominant-share early exit ---
@@ -157,7 +164,10 @@ class ColorAnalyzer:
             ]
             return max(candidates or [dominant_rgb], key=score)
         except Exception as exc:
-            log(f"ColorAnalyzer: accent scoring failed → {exc}", force=True)
+            log(
+                f"{self.__class__.__name__}: accent scoring failed → {exc}",
+                log=WARNING,
+            )
             return dominant_rgb
 
     def get_luminosity(self, rgb: RGB) -> float:
@@ -171,7 +181,7 @@ class ColorAnalyzer:
         r, g, b = self._linearize(r), self._linearize(g), self._linearize(b)
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-    @log_duration
+    @log.duration
     def get_contrasting_color(self, rgb: RGB, shift: float) -> RGB:
         """
         Opposite contrast colour by shifting HLS lightness around a pivot.

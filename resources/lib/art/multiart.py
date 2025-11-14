@@ -5,7 +5,7 @@ import random
 from xbmcgui import Window, getCurrentWindowId
 
 from resources.lib.plugin.helpers import get_infolabels
-from resources.lib.shared.utilities import clamp, to_int, log
+from resources.lib.shared.utilities import WARNING, clamp, log, to_int
 
 DEFAULT_SLOTS = 15
 MAX_SLOTS = 50
@@ -70,4 +70,4 @@ def set_multiart_fadelabel(
             ctrl.addLabel(label)
 
     except Exception as e:
-        log(f"set_multiart_fadelabel: Failed to set labels → {e}")
+        log(f"Unable to set multiart fadelabel → {e}", level=WARNING)
