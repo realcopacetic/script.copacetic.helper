@@ -33,19 +33,19 @@ def log(message: str, level: int = DEBUG, force: bool = False):
 
 
 def debug(message: str, force: bool = False):
-    log(message, loglevel=DEBUG, force=force)
+    log(message, leveo=DEBUG, force=force)
 
 
 def info(message: str):
-    log(message, loglevel=INFO)
+    log(message, leveo=INFO)
 
 
-def warn(message: str):
-    log(message, loglevel=WARNING)
+def warning(message: str):
+    log(message, leveo=WARNING)
 
 
 def error(message: str):
-    log(message, loglevel=ERROR)
+    log(message, leveo=ERROR)
 
 
 def execute(action: str) -> None:

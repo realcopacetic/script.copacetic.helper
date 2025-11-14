@@ -109,7 +109,7 @@ class ColorAnalyzer:
             if rgb_small is None:
                 return dominant_rgb
         except Exception as exc:
-            log.warn(
+            log.debug(
                 f"{self.__class__.__name__}: accent preproc failed → {exc}",
             )
             return dominant_rgb
@@ -123,7 +123,7 @@ class ColorAnalyzer:
             if not count_map:
                 return dominant_rgb
         except Exception as exc:
-            log.warn(
+            log.debug(
                 f"{self.__class__.__name__}: accent quantize failed → {exc}",
             )
             return dominant_rgb
@@ -162,7 +162,7 @@ class ColorAnalyzer:
             ]
             return max(candidates or [dominant_rgb], key=score)
         except Exception as exc:
-            log.warn(
+            log.debug(
                 f"{self.__class__.__name__}: accent scoring failed → {exc}",
             )
             return dominant_rgb

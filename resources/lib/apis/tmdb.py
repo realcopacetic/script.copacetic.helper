@@ -26,7 +26,7 @@ def get_tmdb_client(language: str = "en-US") -> TmdbClient | None:
     enabled = ADDON.getSetting("tmdb_access") == "true"
     token = (ADDON.getSetting("tmdb_access_token") or "").strip()
     if not enabled or not token:
-        log.warn("TMDb disabled or missing token.")
+        log.warning("TMDb disabled or missing token.")
         return None
     # You can memoize the client if you want, but keep it simple first
     return TmdbClient(token=token, language=language)

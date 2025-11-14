@@ -78,7 +78,7 @@ def resolve_rect(
             return tuple(map(int, coords.split(",")))
 
         except Exception as exc:
-            log.error(f"{name}: Invalid coords '{coords}': {exc}")
+            log.debug(f"{name}: Invalid coords '{coords}': {exc}")
 
     if anchor_id:
         try:
@@ -86,7 +86,7 @@ def resolve_rect(
             return (a.getX(), a.getY(), a.getWidth(), a.getHeight())
 
         except Exception as exc:
-            log.error(f"{name}: Failed to read anchor {anchor_id}: {exc}")
+            log.warning(f"{name}: Failed to read anchor {anchor_id}: {exc}")
 
     return DEFAULT_COORDS.get(name, (0, 0, 0, 0))
 

@@ -405,21 +405,15 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
             try:
                 index = subtitles.index(lang)
             except ValueError as error:
-                log.debug(
-                    f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",
-                    force=True,
-                )
+                log.debug(f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",)
                 log.execute("Action(NextSubtitle)")
             else:
                 player.setSubtitleStream(index)
-                log.debug(
-                    f"subtitle_limiter: Switching to subtitle stream {index} in preferred language: {lang}",
-                    force=True,
-                )
+                log.debug(f"subtitle_limiter: Switching to subtitle stream {index} in preferred language: {lang}")
         elif condition("VideoPlayer.SubtitlesEnabled") and user_trigger:
             log.execute("Action(ShowSubtitles)")
     else:
-        log.debug("subtitle_limiter: Error - Playing video has no subtitles", force=True)
+        log.debug("subtitle_limiter: Error - Playing video has no subtitles")
 
 
 @action

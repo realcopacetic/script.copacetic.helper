@@ -100,12 +100,12 @@ class Monitor(xbmc.Monitor):
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""
         if self.start:
-            log.info(f"{self.__class__.__name__}: Started", force=True)
+            log.info(f"{self.__class__.__name__}: Started")
             self.start = False
             self.player_monitor = PlayerMonitor(self.sqlite)
         else:
             (
-                log.info(f"{self.__class__.__name__}: Resumed", force=True)
+                log.info(f"{self.__class__.__name__}: Resumed")
                 if self._conditions_met()
                 else None
             )
@@ -123,7 +123,7 @@ class Monitor(xbmc.Monitor):
 
     def _on_stop(self):
         """Called when monitor loop exits. Waits for restart or exits cleanly."""
-        log.info(f"{self.__class__.__name__}: Idle, waiting...", force=True)
+        log.info(f"{self.__class__.__name__}: Idle, waiting...")
         while not self.abortRequested() and not self._conditions_met():
             self.waitForAbort(2)
         if not self.abortRequested():
@@ -132,7 +132,7 @@ class Monitor(xbmc.Monitor):
             del self.player_monitor
             del self.settings
             del self.slideshow
-            log.info(f"{self.__class__.__name__}: Stopped", force=True)
+            log.info(f"{self.__class__.__name__}: Stopped")
 
     def onScreensaverActivated(self):
         """Kodi event hook: Pause monitoring when screensaver starts."""

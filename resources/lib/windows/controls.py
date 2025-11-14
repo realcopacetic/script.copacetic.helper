@@ -80,7 +80,7 @@ class BaseControlHandler:
                 sub_map["index"] = self.container_position
                 return {"linked_config": self.config_field_template.format(**sub_map)}
             except Exception as e:
-                log.debug(f"Failed to resolve dynamic link: {e}", force=True)
+                log.debug(f"Failed to resolve dynamic link: {e}")
 
         trigger = f"focused({self.current_listitem})"
         try:
@@ -93,7 +93,7 @@ class BaseControlHandler:
                 {},
             )
         except Exception as e:
-            log.debug(f"Fallback contextual_bindings failed: {e}", force=True)
+            log.debug(f"Fallback contextual_bindings failed: {e}")
             return {}
 
     def _linked_config(self):

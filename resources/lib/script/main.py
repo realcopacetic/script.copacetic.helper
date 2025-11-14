@@ -19,7 +19,7 @@ class Main:
             return
 
         if (fn := self._dispatch(action)) is None:
-            log.info(f"Unknown action: {fn}")
+            log.warning(f"Unknown action: {action}")
             return
 
         kwargs = {k: v for k, v in self.params.items() if not k.startswith("_")}
@@ -29,7 +29,7 @@ class Main:
         except TypeError as e:
             log.warning(f"Action '{action}' arg mismatch: {e}")
         except Exception as e:
-            log.warning(f"Action '{action}' raised: {e}")
+            log.error(f"Action '{action}' raised: {e}")
 
     def _parse_argv(self) -> dict[str, str]:
         """

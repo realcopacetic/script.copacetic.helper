@@ -73,10 +73,7 @@ class JSONHandler:
                 content = json.load(file)
                 data[file_path] = content  # Store JSON content under its filename
             except json.JSONDecodeError as e:
-                log.warning(
-                    f"{self.__class__.__name__}: Error parsing {file_path}: {e}",
-                    force=True,
-                )
+                log.warning(f"{self.__class__.__name__}: Error parsing {file_path}: {e}")
         return
 
     def reload(self):
@@ -95,11 +92,11 @@ class JSONHandler:
             with open(self.path, "w", encoding="utf-8") as file:
                 json.dump(content, file, indent=4)
         except IOError as e:
-            log.warning(
+            log.error(
                 f"{self.__class__.__name__}: Error updating JSON file '{self.path}' --> {e}",
             )
         else:
-            log.warning(
+            log.info(
                 f"{self.__class__.__name__}: JSON file '{self.path}' updated successfully."
             )
 

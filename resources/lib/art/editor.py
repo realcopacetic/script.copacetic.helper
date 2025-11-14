@@ -61,7 +61,7 @@ class ImageEditor:
         :return: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
         """
         if not processes:
-            log.info(
+            log.warning(
                 f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}.",
             )
             return []

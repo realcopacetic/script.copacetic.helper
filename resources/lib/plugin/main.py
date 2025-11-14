@@ -31,7 +31,7 @@ class Main:
         try:
             self.params = parse_params(sys.argv, mode="plugin")
         except Exception as e:
-            log.info(f"_parse_argv error: {e}")
+            log.warning(f"_parse_argv error: {e}")
             self.params = {}
 
     def run_handler(self) -> None:
@@ -41,7 +41,7 @@ class Main:
         handlers = collect_info_handlers(ph)
         fn = handlers.get(info)
         if not fn:
-            log.info(f"Ignoring unknown info: {self.info}")
+            log.debug(f"Ignoring unknown info: {self.info}")
             return
         
         log.debug(f"PluginHandlers initialized with params: {self.params}")

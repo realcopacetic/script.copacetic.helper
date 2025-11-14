@@ -284,7 +284,6 @@ def json_call(
     :param item: Single "item" object for certain queries.
     :param options: Dictionary of additional JSON-RPC options.
     :param parent: Name of caller (used in log output).
-    :param debug: If True, logs full request and result.
     :return: Parsed response as a Python dictionary.
     """
     json_string = {

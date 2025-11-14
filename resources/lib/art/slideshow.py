@@ -166,7 +166,7 @@ class SlideshowMonitor:
                 f"{self.__class__.__name__}: Total artwork found: {len(self.art)}"
             )
         else:
-            log.warning(f"{self.__class__.__name__}: No artwork was found!")
+            log.debug(f"{self.__class__.__name__}: No artwork was found!")
 
     def _get_plugin_art(self):
         """Fetches artwork directly from plugin containers (e.g., widgets)."""

@@ -48,7 +48,7 @@ class ImageProcessor:
             else:
                 image = image.crop(image.getbbox())
         except Exception as e:
-            log.errro(f"{self.__class__.__name__}: Unable to crop image → {e}")
+            log.error(f"{self.__class__.__name__}: Unable to crop image → {e}")
             return None
 
         final_max = self.cfg.logo_final_max

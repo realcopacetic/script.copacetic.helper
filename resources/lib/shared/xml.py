@@ -44,9 +44,7 @@ def xml_functions(func):
         transform_func = kwargs.get("transform_func")
 
         if not transform_func:
-            log.warning(
-                f"{self.__class__.__name__}: No transform function provided!",
-            )
+            log.warning(f"{self.__class__.__name__}: No transform function provided!")
             return
 
         # Inject the retrieved parameters into kwargs before calling the original function
@@ -103,7 +101,7 @@ class XMLHandler:
             tree = ET.ElementTree(kwargs["transform_func"](data_dict, **kwargs))
             self._save_xml(tree)
         except Exception as e:
-            log.warning(f"{self.__class__.__name__}: Unable to write XML --> {e}")
+            log.error(f"{self.__class__.__name__}: Unable to write XML --> {e}")
 
     @xml_functions
     def update_xml(self, updates, **kwargs):
@@ -116,10 +114,7 @@ class XMLHandler:
         try:
             tree = self._read_xml()
             if tree is None:
-                log.info(
-                    f"XML file '{self.path}' not found, creating a new one.",
-                    force=True,
-                )
+                log.info(f"XML file '{self.path}' not found, creating a new one.")
                 self.write_xml(updates, **kwargs)
                 return
 
@@ -147,9 +142,7 @@ class XMLHandler:
 
             self._save_xml(tree)
         except Exception as e:
-            log.warning(
-                f"{self.__class__.__name__}: Unable to updateXML --> {e}", force=True
-            )
+            log.error(f"{self.__class__.__name__}: Unable to update XML --> {e}")
 
     def _read_xml(self):
         """
@@ -183,7 +176,7 @@ class XMLHandler:
         """
         if not file_path.exists():
             log.warning(
-                f"{self.__class__.__name__}: File '{file_path}' does not exist.",
+                f"{self.__class__.__name__}: File '{file_path}' does not exist."
             )
             return None
 
@@ -192,7 +185,7 @@ class XMLHandler:
                 return ET.parse(file)
         except (ET.ParseError, IOError) as e:
             log.error(
-                f"{self.__class__.__name__}: Error parsing XML file '{file_path}' --> {e}",
+                f"{self.__class__.__name__}: Error parsing XML file '{file_path}' --> {e}"
             )
             return None
 
@@ -230,10 +223,7 @@ class XMLHandler:
                 ET.indent(tree, space="  ")  # Ensures properly formatted XML
                 tree.write(file, encoding="utf-8", xml_declaration=True)
         except IOError as e:
-            log.error(
-                f"{self.__class__.__name__}: Error updating XML file --> {e}",
-                force=True,
-            )
+            log.error(f"{self.__class__.__name__}: Error updating XML file --> {e}")
         else:
             log.debug(
                 f"{self.__class__.__name__}: XML file '{self.path}' updated successfully."
@@ -271,8 +261,7 @@ class XMLHandler:
                             sub_elem.set(attr, val)
             else:
                 log.debug(
-                    f"XMLHandler: Unsupported data type for '{outer_key}': {type(outer_value)}",
-                    force=True,
+                    f"XMLHandler: Unsupported data type for '{outer_key}': {type(outer_value)}"
                 )
 
         return root
@@ -416,9 +405,8 @@ class XMLDictConverter:
 
         container = self.root.find(self.container_tag)
         if container is None:
-            log.info(
-                f"{self.__class__.__name__}: Missing container tag <{self.container_tag}>.",
-                force=True,
+            log.warning(
+                f"{self.__class__.__name__}: Missing container tag <{self.container_tag}>."
             )
             return output_dict
 
@@ -448,8 +436,7 @@ class XMLDictConverter:
             include_elem = element.find(self.sub_element_tag)
             if include_elem is None or "name" not in include_elem.attrib:
                 log.debug(
-                    f"{self.__class__.__name__}: Missing or invalid {self.sub_element_tag} tag in element.",
-                    force=True,
+                    f"{self.__class__.__name__}: Missing or invalid {self.sub_element_tag} tag in element."
                 )
                 continue
 
@@ -466,7 +453,7 @@ class XMLDictConverter:
 
             except Exception as e:
                 log.debug(
-                    f"{self.__class__.__name__}: Error processing element '{template_key}' → {e}",
+                    f"{self.__class__.__name__}: Error processing element '{template_key}' → {e}"
                 )
                 continue
 

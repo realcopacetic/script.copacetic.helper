@@ -211,7 +211,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     setattr(self, name, btn)
                     self.mgmt_buttons.append(btn)
             except RuntimeError:
-                log.debug("Management buttons not found; skipping.", force=True)
+                log.debug("Management buttons not found; skipping.")
             else:
                 for btn in self.mgmt_buttons:
                     btn.setVisible(True)
@@ -235,7 +235,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     handler.parent = self
                     self.handlers[control_id] = handler
             except RuntimeError as e:
-                log(
+                log.warn(
                     f"Warning: Control ID {id} ({control_id}) not found in XML layout: {e}"
                 )
 
