@@ -1,7 +1,8 @@
 # author: realcopacetic
 
+import inspect
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, Optional
+from typing import Any, Callable, Iterator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
@@ -9,90 +10,113 @@ from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import collect_multiart, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
-from resources.lib.plugin.helpers import (DataHandler, JumpButton,
-                                          ProgressBarManager, TextTruncator,
-                                          TypewriterAnimation)
+from resources.lib.plugin.helpers import (
+    DataHandler,
+    JumpButton,
+    ProgressBarManager,
+    TextTruncator,
+    TypewriterAnimation,
+)
 from resources.lib.plugin.json_map import JSON_MAP
 from resources.lib.plugin.library import *
 from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (ADDON, condition, infolabel,
-                                            json_call, set_plugincontent,
-                                            to_int)
+from resources.lib.shared.utilities import (
+    ADDON,
+    condition,
+    infolabel,
+    json_call,
+    set_plugincontent,
+    to_int,
+)
 
 
 class _FocusGuard:
-    """Holds the expected item identity and lets you re-check later."""
+    """
+    Lazy focus/identity guard for plugin operations.
+    Evaluates container focus and item identity on demand.
+    """
 
-    __slots__ = ("expected_identity", "caller_name", "identity_getter", "focus_check")
+    __slots__ = (
+        "caller_name",
+        "focus_check",
+        "expected_identity",
+        "identity_getter",
+    )
 
     def __init__(
         self,
-        expected_identity: str,
         caller_name: str,
+        focus_check: Callable[[], bool] | None,
+        expected_identity: str | None,
         identity_getter: Callable[[], str],
-        focus_check: Optional[Callable[[], bool]] = None,
     ):
-        self.expected_identity = expected_identity
+        """
+        Create a guard that checks container focus and item identity.
+
+        :param caller_name: Name of the calling handler, used for logging.
+        :param focus_check: Callable evaluating Control.HasFocus; None to skip.
+        :param expected_identity: Snapshot identity for the focused item; None to disable identity guarding.
+        :param identity_getter: Callable returning current item identity.
+        """
         self.caller_name = caller_name
-        self.identity_getter = identity_getter
         self.focus_check = focus_check
+        self.expected_identity = expected_identity
+        self.identity_getter = identity_getter
 
     def alive(self) -> bool:
-        """Re-check that focus hasn't changed."""
-        if self.identity_getter() != self.expected_identity:
-            log(
+        """
+        Validate current focus and item identity.
+
+        :return: True if guard conditions still hold, otherwise False.
+        """
+        if self.focus_check is None and self.expected_identity is None:
+            return True
+
+        if self.focus_check is not None and not self.focus_check():
+            log.debug(
+                f"PluginHandlers → {self.caller_name}: ABORTED → Container lost focus"
+            )
+            return False
+
+        if (
+            self.expected_identity is not None
+            and self.expected_identity != self.identity_getter()
+        ):
+            log.debug(
                 f"PluginHandlers → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus"
             )
             return False
-        if self.focus_check is not None and not self.focus_check():
-            log(f"PluginHandlers → {self.caller_name}: ABORTED → Container lost focus")
-            return False
+
         return True
 
 
 @contextmanager
 def focus_guard(
+    caller_name: str,
+    target: int | None,
+    container: str,
     expected_identity: str | None,
-    caller_name: str | None,
-    identity_getter: Callable[[], str],
-    target: int | None = None,
-) -> Generator[Optional[_FocusGuard], None, None]:
+) -> Iterator[_FocusGuard]:
     """
-    Context guard for focus-sensitive helpers; yields guard or None if pre-check fails.
-      1) pre-check focus
-      2) yield guard.alive() for post-check(s)
+    Build a focus/identity guard for a plugin operation.
+    Returns a guard object whose ``alive()`` enforces stability checks.
 
-    :param expected_identity: snapshot
-    :param caller_name: for logs
-    :param identity_getter: getter
-    :param target: container/control id to enforce Control.HasFocus(id); None to skip
-    :return: guard|None
+    :param caller_name: Name of the calling handler, used for logging.
+    :param target: Container/control id for Control.HasFocus; None to disable focus guarding.
+    :param container: Container path used to read CurrentItem.
+    :param expected_identity: Snapshot identity of focused item; None to disable identity guarding.
+    :return: A ``_FocusGuard`` instance for lazy focus/identity validation.
     """
     focus_check = (
         (lambda: condition(f"Control.HasFocus({target})"))
         if target is not None
         else None
     )
+    identity_getter = lambda: infolabel(f"{container}.CurrentItem")
 
-    if expected_identity is None:
-        yield True  # always alive
-        return
-
-    if identity_getter() != expected_identity:
-        log(
-            f"PluginHandlers → {caller_name}: ABORTED → '{expected_identity}' lost focus"
-        )
-        yield None
-        return
-
-    if focus_check is not None and not focus_check():
-        log(f"PluginHandlers → {caller_name}: ABORTED → Container {target} lost focus")
-        yield None
-        return
-
-    guard = _FocusGuard(expected_identity, caller_name, identity_getter, focus_check)
+    guard = _FocusGuard(caller_name, focus_check, expected_identity, identity_getter)
     try:
         yield guard
     finally:
@@ -110,21 +134,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "")
         self.dbid = params.get("id", "")
-        self.target = params.get("target")
-        self.container = (
-            f"Container({self.target})"
-            if self.target and self.target.isdigit()
-            else "Container"
-        )
-
-        self.exclude_key = params.get("exclude_key", "title")
-        self.exclude_value = params.get("exclude_value", "")
+        self.target = to_int(params.get("target"), None)
         self.expected = params.get("focus_guard")
-        self.identity_getter = lambda: infolabel(f"{self.container}.CurrentItem")
+        self.container = (
+            f"Container({self.target})" if self.target is not None else "Container"
+        )
 
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
 
+        self.exclude_key = params.get("exclude_key", "title")
+        self.exclude_value = params.get("exclude_value", "")
         self.filter_unwatched = {
             "field": "playcount",
             "operator": "lessthan",
@@ -150,6 +170,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "operator": "isnot",
             "value": self.exclude_value,
         }
+    
+    def focus(self):
+        """
+        Return a pre-filled focus guard for the calling handler.
+        Auto-detects the handler name using inspect.
+        """
+        caller = inspect.stack()[1].function
+        return focus_guard(
+            caller_name=caller,
+            target=self.target,
+            container=self.container,
+            expected_identity=self.expected,
+        )
 
     @log.duration
     def artwork(self) -> list[tuple]:
@@ -158,8 +191,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        with focus_guard(self.expected, "artwork", self.identity_getter) as guard:
-            if not guard:
+        with self.focus() as guard:
+            if not guard.alive():
                 return
 
             image_processor = ImageEditor(SQLiteHandler()).image_processor
@@ -189,7 +222,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 art_type=self.params.get("multiart"),
                 max_items=self.params.get("multiart_max"),
             )
-            log(f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}")
+            log.debug(
+                f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
+            )
 
             if not guard.alive():
                 return
@@ -223,8 +258,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         On-demand darken for a single fanart path. Acts as a lightweight
         alternative entry point for darkening without invoking artwork handler.
         """
-        with focus_guard(self.expected, "darken", self.identity_getter) as guard:
-            if not guard:
+        with self.focus() as guard:
+            if not guard.alive():
                 return
 
             url = self.params.get("fanart") or ""
@@ -257,7 +292,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Update jump button overlay using params and placement options.
 
-        return: None (no directory items created)
+        :return: None (no directory items created)
         """
         jump = JumpButton()
         jump.update(
@@ -273,8 +308,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        with focus_guard(self.expected, "metadata", self.identity_getter) as guard:
-            if not guard:
+        with self.focus() as guard:
+            if not guard.alive():
                 return
 
             data = DataHandler(
@@ -303,16 +338,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return add_items([data], media_type="metadata")
 
     @log.duration
-    def progressbar(self) -> None:
+    def progressbar(self) -> list[tuple]:
         """
         Compute resume/unwatched values and expose a helper item for the list.
         If focus changes mid-flight, skip UI update but still return the item.
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        with focus_guard(self.expected, "progressbar", self.identity_getter) as guard:
+        with self.focus() as guard:
             result = []
-            if not guard:
+            if not guard.alive():
                 return result
 
             pb = ProgressBarManager(target=f"{self.container}.ListItem")
@@ -356,26 +391,22 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: None (no directory items created)
         """
-        label_id = self.params.get("label_id")
-        line_step = self.params.get("line_step")
-        max_lines = to_int(self.params.get("max_lines"), None)
-        target_id = to_int(self.target, None)
-
-        with focus_guard(
-            self.expected, "typewriter", self.identity_getter, target_id
-        ) as guard:
-            if not guard:
+        with self.focus() as guard:
+            if not guard.alive():
                 return
+
+            label_id = to_int(self.params.get("label_id"), None)
+            line_step = to_int(self.params.get("line_step"), None)
+            max_lines = to_int(self.params.get("max_lines"), None)
 
             t = TypewriterAnimation()
             t.update(
                 label=self.label,
                 opts=PlacementOpts.from_params(self.params),
                 label_id=label_id,
-                line_step=to_int(line_step, None),
+                line_step=line_step,
                 max_lines=max_lines,
-                expected_identity=self.expected,
-                identity_getter=self.identity_getter,
+                alive=guard.alive,
             )
 
     def in_progress(self) -> None:
@@ -442,7 +473,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         shows = q.get("result", {}).get("tvshows", [])
         if not shows:
-            log("PluginHandlers → next_up: No TV shows found.")
+            log.debug(f"{self.__class__.__name__} → next_up: No TV shows found.")
             return
 
         for show in shows:
@@ -503,7 +534,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             eps = ep_query.get("result", {}).get("episodes", [])
             if not eps:
-                log(
+                log.debug(
                     f"PluginHandlers → next_up: No next episode found for {show['title']}"
                 )
                 continue
@@ -545,7 +576,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     parent="director_credits",
                 )
             )
-        return results or ModuleNotFoundError
+        return results or None
 
     def actor_credits(self) -> None:
         """
@@ -584,7 +615,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         for src, media_type in [(movies, "movie"), (tvshows, "tvshow")]:
             items = src.get("result", {}).get(f"{media_type}s", [])
             if not items:
-                log(
+                log.debug(
                     f"PluginHandlers → actor_credits: No {media_type}s found for {self.label}."
                 )
                 continue
@@ -624,7 +655,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         items = q.get("result", {}).get(f"{media_type}s", [])
         if not items:
-            log(f"PluginHandlers → {parent}: No {media_type}s found.")
+            log.debug(f"PluginHandlers → {parent}: No {media_type}s found.")
             return []
 
         if postprocess:
@@ -637,7 +668,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :param episodes: Episode dicts to enrich (in place).
         :param parent: Parent name for logging.
-        :returns: None
+        :return: None
         """
         cache = {}
         for ep in episodes:
@@ -655,7 +686,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 meta = details.get("result", {}).get("tvshowdetails", {}) or {}
                 cache[tvshowid] = meta
             ep["studio"] = meta.get("studio")
-        ep["mpaa"] = meta.get("mpaa")
+            ep["mpaa"] = meta.get("mpaa")
 
     def _remove_current(
         self, items: list[dict[str, Any]], current_label: str, total: int
@@ -666,7 +697,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param items: List of item dicts.
         :param current_label: Label of the current playing item.
         :param total: Combined total of credits.
-        :returns: Filtered list of items.
+        :return: Filtered list of items.
         """
         match = next((i for i in items if i.get("label") == current_label), None)
         if match and total > 1:

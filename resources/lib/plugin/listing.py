@@ -23,7 +23,7 @@ class PluginListing(object):
         """
         :param params: Dictionary of plugin parameters (unused).
         :param li: List container to append ListItems to.
-        :returns: None
+        :return: None
         """
         self.params = params
 
@@ -46,7 +46,7 @@ class PluginListing(object):
         Encodes parameters into a plugin-compatible URL.
 
         :param kwargs: Arbitrary keyword arguments to include in the query string.
-        :returns: URL string with encoded parameters.
+        :return: URL string with encoded parameters.
         """
         filtered = {k: v for k, v in kwargs.items() if v}
         return f"{sys.argv[0]}?{urlencode(filtered)}"
@@ -57,7 +57,7 @@ class PluginListing(object):
 
         :param label: Display label for the ListItem.
         :param url: Plugin URL this item will trigger.
-        :returns: None
+        :return: None
         """
         icon = f"special://home/addons/{ADDON_ID}/resources/icon.png"
         li_item = ListItem(label=label, offscreen=True)

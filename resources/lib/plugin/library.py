@@ -76,7 +76,7 @@ def create_li_item(
     :param label2: Right display label for item.
     :param default_icon: Fallback icon if artwork is missing.
     :param properties: Optional dictionary of ListItem properties.
-    :returns: xbmcgui.ListItem instance
+    :return: xbmcgui.ListItem instance
     """
     li_item = ListItem(label, label2, offscreen=True)
     li_item.setArt({**item.get("art", {}), "icon": default_icon, "thumb": default_icon})
@@ -97,7 +97,7 @@ def videoinfotag_setter(
     :param media_type: Default media type string, or dynamic fallback.
     :param info_mapping: Dict mapping input keys to VideoInfoTag setters.
     :param stream_fields: Dict mapping stream types to setter functions.
-    :returns: Decorator wrapping a ListItem creation function.
+    :return: Decorator wrapping a ListItem creation function.
     """
 
     def decorator(func):
@@ -171,7 +171,7 @@ def set_metadata(item: dict) -> ListItem:
     Builds a Kodi ListItem for metadata helper using mapped metadata.
 
     :param item: Dictionary containing item metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
         item=item,
@@ -187,7 +187,7 @@ def set_artwork(item: dict) -> ListItem:
     Builds a Kodi ListItem for artwork helper service using mapped artwork.
 
     :param item: Dictionary containing item metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
         item=item,
@@ -203,7 +203,7 @@ def set_darken(item: dict) -> ListItem:
     Builds a Kodi ListItem for darken helper using mapped metadata.
 
     :param item: Dictionary containing item metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
         item=item,
@@ -219,7 +219,7 @@ def set_progressbar(item: dict) -> ListItem:
     Builds a Kodi ListItem for progressbar helper using mapped metadata.
 
     :param item: Dictionary containing item metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
         item=item,
@@ -253,7 +253,7 @@ def set_movie(item: dict) -> ListItem:
     Builds a Kodi ListItem for a movie using mapped metadata and artwork.
 
     :param item: Dictionary containing movie metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
         item=item, label=item.get("title"), default_icon="DefaultMovies.png"
@@ -277,7 +277,7 @@ def set_tvshow(item: dict) -> ListItem:
     Builds a Kodi ListItem for a tv show using mapped metadata and artwork.
 
     :param item: Dictionary containing tv show metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     episode = item.get("episode", 0)
     watched_episodes = item.get("watchedepisodes", 0)
@@ -322,7 +322,7 @@ def set_episode(item: dict) -> ListItem:
     Builds a Kodi ListItem for an episode using mapped metadata and artwork.
 
     :param item: Dictionary containing episode metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
         item=item,
@@ -349,7 +349,7 @@ def set_musicvideo(item: dict) -> ListItem:
     Builds a Kodi ListItem for a music video using mapped metadata and artwork.
 
     :param item: Dictionary containing music video metadata.
-    :returns: xbmcgui.ListItem with enriched VideoInfoTag.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
     """
     return create_li_item(
         item=item, label=item.get("title"), default_item="DefaultVideo.png"

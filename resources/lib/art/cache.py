@@ -67,7 +67,7 @@ class ArtworkCacheManager:
 
         :param url: Artwork URL (decoded/encoded accepted).
         :param suffix: Desired file extension (e.g., ".jpg", ".png").
-        :returns: Cache-friendly filename string (no directories).
+        :return: Cache-friendly filename string (no directories).
         """
         return xbmc.getCacheThumbName(url).replace(".tbn", f"{suffix}")
 
@@ -76,7 +76,7 @@ class ArtworkCacheManager:
         Resolve source and destination paths for processing; copy to temp if needed.
 
         :param folder: Destination folder for processed images.
-        :returns: (source_path or None, destination_path).
+        :return: (source_path or None, destination_path).
         """
         source_path = str(self.cached_image_path)
         destination_path = str(Path(folder) / self.cached_thumb)
@@ -86,7 +86,7 @@ class ArtworkCacheManager:
 
         temp_path = str(Path(self.temp_folder) / self.cached_thumb)
         if not validate_path(temp_path) and xbmcvfs.copy(self.decoded_url, temp_path):
-            log(f"{self.__class__.__name__}: Temporary file created → {temp_path}")
+            log.debug(f"{self.__class__.__name__}: Temporary file created → {temp_path}")
             return temp_path, destination_path
         return None, destination_path
 
@@ -95,7 +95,7 @@ class ArtworkCacheManager:
         Read cached metadata for URL and validate against current file hash.
 
         :param url: Original image URL (lookup key).
-        :returns: Cached metadata dict if valid, else None.
+        :return: Cached metadata dict if valid, else None.
         """
         if not (entry := self.sqlite.get_entry(url)):
             return None

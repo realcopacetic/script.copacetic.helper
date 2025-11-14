@@ -5,7 +5,7 @@ from collections import defaultdict
 from functools import cached_property, wraps
 from pathlib import Path
 
-from resources.lib.shared.utilities import log
+from resources.lib.shared import logger as log
 
 
 def sort_outer_keys(func):
@@ -44,9 +44,8 @@ def xml_functions(func):
         transform_func = kwargs.get("transform_func")
 
         if not transform_func:
-            log(
-                f"{self.__class__.__name__}: ERROR - No transform function provided!",
-                force=True,
+            log.warning(
+                f"{self.__class__.__name__}: No transform function provided!",
             )
             return
 
@@ -86,7 +85,7 @@ class XMLHandler:
         """
         Lazily loads and returns data from the specified path.
 
-        :returns: Dictionary of {Path: content}.
+        :return: Dictionary of {Path: content}.
         """
         if self._data is None:
             self._data = self._read_xml()
@@ -101,12 +100,10 @@ class XMLHandler:
         :param kwargs: Configuration arguments, including `transform_func`, `root_tag`, etc.
         """
         try:
-            tree = ET.ElementTree(
-                kwargs["transform_func"](data_dict, **kwargs)
-            )
+            tree = ET.ElementTree(kwargs["transform_func"](data_dict, **kwargs))
             self._save_xml(tree)
         except Exception as e:
-            log(f"{self.__class__.__name__}: ERROR writing XML --> {e}", force=True)
+            log.warning(f"{self.__class__.__name__}: Unable to write XML --> {e}")
 
     @xml_functions
     def update_xml(self, updates, **kwargs):
@@ -119,7 +116,7 @@ class XMLHandler:
         try:
             tree = self._read_xml()
             if tree is None:
-                log(
+                log.info(
                     f"XML file '{self.path}' not found, creating a new one.",
                     force=True,
                 )
@@ -131,7 +128,7 @@ class XMLHandler:
             # Find or create the correct root tag
             target_root = root.find(kwargs["root_tag"])
             if target_root is None:
-                log(
+                log.debug(
                     f"{self.__class__.__name__}: Creating missing root tag '{kwargs['root_tag']}'."
                 )
                 target_root = ET.SubElement(root, kwargs["root_tag"])
@@ -150,14 +147,16 @@ class XMLHandler:
 
             self._save_xml(tree)
         except Exception as e:
-            log(f"{self.__class__.__name__}: ERROR updating XML --> {e}", force=True)
+            log.warning(
+                f"{self.__class__.__name__}: Unable to updateXML --> {e}", force=True
+            )
 
     def _read_xml(self):
         """
         Reads and returns the XML data. If the file path is a directory,
         merges XML files into a single tree, or returns a dictionary of trees if merging isn't possible.
 
-        :returns: Dictionary of {file_name: ElementTree} if a folder,
+        :return: Dictionary of {file_name: ElementTree} if a folder,
                   or a single ElementTree if it's a file.
         """
         if not self.path.exists():
@@ -180,12 +179,11 @@ class XMLHandler:
         Parse a single XML file and return its ElementTree.
 
         :param file_path: Path to the XML file.
-        :returns: ElementTree instance or None if the file doesn't exist or there is an error.
+        :return: ElementTree instance or None if the file doesn't exist or there is an error.
         """
         if not file_path.exists():
-            log(
+            log.warning(
                 f"{self.__class__.__name__}: File '{file_path}' does not exist.",
-                force=True,
             )
             return None
 
@@ -193,9 +191,8 @@ class XMLHandler:
             with open(file_path, "rb") as file:
                 return ET.parse(file)
         except (ET.ParseError, IOError) as e:
-            log(
+            log.error(
                 f"{self.__class__.__name__}: Error parsing XML file '{file_path}' --> {e}",
-                force=True,
             )
             return None
 
@@ -206,7 +203,7 @@ class XMLHandler:
         :param root_tag: Root element tag name.
         :param element_tag: Child tag name for each item in the structure.
         :param default_structure: Optional dictionary of name → text value.
-        :returns: ElementTree instance.
+        :return: ElementTree instance.
         """
         root = ET.Element(root_tag)
         default_structure = default_structure or {}
@@ -216,7 +213,7 @@ class XMLHandler:
 
         tree = ET.ElementTree(root)
         self._save_xml(tree)
-        log(
+        log.info(
             f"{self.__class__.__name__}: Created new XML file '{self.path}' with root '{root_tag}'."
         )
         return tree
@@ -226,19 +223,19 @@ class XMLHandler:
         Saves an ElementTree to disk with indentation and UTF-8 encoding.
 
         :param tree: XML ElementTree to write.
-        :returns: None
+        :return: None
         """
         try:
             with open(self.path, "wb") as file:
                 ET.indent(tree, space="  ")  # Ensures properly formatted XML
                 tree.write(file, encoding="utf-8", xml_declaration=True)
         except IOError as e:
-            log(
+            log.error(
                 f"{self.__class__.__name__}: Error updating XML file --> {e}",
                 force=True,
             )
         else:
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: XML file '{self.path}' updated successfully."
             )
 
@@ -249,7 +246,7 @@ class XMLHandler:
 
         :param data_dict: Dictionary containing flat or nested data structures.
         :param kwargs: Includes optional `root_tag`, `element_tag`, and `sub_element_tag`.
-        :returns: XML root Element built from dictionary data.
+        :return: XML root Element built from dictionary data.
         """
         root_tag = kwargs.get("root_tag", "includes")
         element_tag = kwargs.get("element_tag", "variable")
@@ -273,7 +270,7 @@ class XMLHandler:
                         else:
                             sub_elem.set(attr, val)
             else:
-                log(
+                log.debug(
                     f"XMLHandler: Unsupported data type for '{outer_key}': {type(outer_value)}",
                     force=True,
                 )
@@ -287,7 +284,7 @@ class XMLHandler:
 
         :param data_dict: Structured dictionary to convert back to XML.
         :param kwargs: Optional XML configuration arguments (e.g., `root_tag`).
-        :returns: XML root Element representing structured dictionary data.
+        :return: XML root Element representing structured dictionary data.
         """
         converter = XMLDictConverter(None, **kwargs)
         return converter.dict_to_xml(data_dict)
@@ -327,7 +324,9 @@ class XMLMerger:
             mapping_name = root.findtext("mapping", "none").strip()
             container = root.find(self.container_tag)
             if container is None:
-                log(f"{self.__class__.__name__}: No container <{self.container_tag}> in {file_path}. Skipping file.")
+                log.debug(
+                    f"{self.__class__.__name__}: No container <{self.container_tag}> in {file_path}. Skipping file."
+                )
                 continue
             elements = container.findall(self.element_tag)
             yield mapping_name, elements
@@ -342,7 +341,9 @@ class XMLMerger:
         for subfolder in self.subfolders:
             folder_path = self.base_folder / subfolder
             if not folder_path.exists():
-                log(f"{self.__class__.__name__}: Folder {folder_path} does not exist. Skipping.")
+                log.debug(
+                    f"{self.__class__.__name__}: Folder {folder_path} does not exist. Skipping."
+                )
                 continue
             for mapping_name, elements in self._merge_xml_files(folder_path):
                 mappings[mapping_name].extend(elements)
@@ -356,7 +357,7 @@ class XMLMerger:
 
         :param mapping: The mapping name for the XML elements.
         :param elements: List of ET.Elements to merge.
-        :returns: Merged ET.Element.
+        :return: Merged ET.Element.
         """
         merged_root = ET.Element(self.root_tag)
         merged_mapping = ET.SubElement(merged_root, "mapping")
@@ -371,7 +372,7 @@ class XMLMerger:
         Eagerly loads and caches all XML mappings as a dictionary.
         Useful for random access or repeated lookups.
 
-        :returns: Dictionary of {mapping_key: content}
+        :return: Dictionary of {mapping_key: content}
         """
         return dict(self.yield_merged_data())
 
@@ -404,16 +405,18 @@ class XMLDictConverter:
         """
         Converts an XML tree into a structured dictionary.
 
-        :returns: Structured dictionary representation of the XML.
+        :return: Structured dictionary representation of the XML.
         """
         output_dict = {
-            self.mapping_tag: self.root.findtext(self.mapping_tag, default="none").lower(),
+            self.mapping_tag: self.root.findtext(
+                self.mapping_tag, default="none"
+            ).lower(),
             self.container_tag: {},
         }
 
         container = self.root.find(self.container_tag)
         if container is None:
-            log(
+            log.info(
                 f"{self.__class__.__name__}: Missing container tag <{self.container_tag}>.",
                 force=True,
             )
@@ -434,7 +437,9 @@ class XMLDictConverter:
                     f"{self.ATTR_PREFIX}start": index_elem.get("start", "1")
                 }
                 if index_elem.get("end"):
-                    template_dict["index"][f"{self.ATTR_PREFIX}end"] = index_elem.get("end")
+                    template_dict["index"][f"{self.ATTR_PREFIX}end"] = index_elem.get(
+                        "end"
+                    )
 
             if items_elem is not None:
                 items = [item.strip() for item in items_elem.text.split(",")]
@@ -442,7 +447,7 @@ class XMLDictConverter:
 
             include_elem = element.find(self.sub_element_tag)
             if include_elem is None or "name" not in include_elem.attrib:
-                log(
+                log.debug(
                     f"{self.__class__.__name__}: Missing or invalid {self.sub_element_tag} tag in element.",
                     force=True,
                 )
@@ -453,14 +458,15 @@ class XMLDictConverter:
             try:
                 include_dict = self.element_to_dict(include_elem)
                 template_dict[self.sub_element_tag] = include_dict[self.sub_element_tag]
-                template_dict[self.sub_element_tag][f"{self.ATTR_PREFIX}name"] = template_key
+                template_dict[self.sub_element_tag][
+                    f"{self.ATTR_PREFIX}name"
+                ] = template_key
 
                 output_dict[self.container_tag][template_key] = template_dict
 
             except Exception as e:
-                log(
+                log.debug(
                     f"{self.__class__.__name__}: Error processing element '{template_key}' → {e}",
-                    force=True,
                 )
                 continue
 
@@ -471,7 +477,7 @@ class XMLDictConverter:
         Recursively converts an XML element into a dictionary.
 
         :param element: XML element to convert.
-        :returns: Dictionary representation of the element.
+        :return: Dictionary representation of the element.
         """
         node_dict = {element.tag: {} if element.attrib or list(element) else ""}
 
@@ -514,7 +520,7 @@ class XMLDictConverter:
 
         :param data_dict: Structured dictionary to convert.
         :param root_tag: Tag name for the root XML element.
-        :returns: XML Element representing the structured dictionary.
+        :return: XML Element representing the structured dictionary.
         """
         root_elem = ET.Element(self.root_tag)
 
@@ -539,9 +545,7 @@ class XMLDictConverter:
                     root_elem.append(child_elem)
 
             except Exception as e:
-                log(
-                    f"{self.__class__.__name__}: Error converting '{key}' → {e}", force=True
-                )
+                log.debug(f"{self.__class__.__name__}: Error converting '{key}' → {e}")
 
         return root_elem
 
@@ -552,7 +556,7 @@ class XMLDictConverter:
 
         :param data: Dictionary to convert into XML.
         :param parent_tag: Optional parent XML tag.
-        :returns: XML Element representing the dictionary entry.
+        :return: XML Element representing the dictionary entry.
         """
         if not isinstance(data, dict):
             elem = ET.Element(parent_tag or "item")
@@ -567,7 +571,7 @@ class XMLDictConverter:
         if isinstance(elem_data, dict):
             for k, v in elem_data.items():
                 if k.startswith(self.ATTR_PREFIX):
-                    elem.set(k[len(self.ATTR_PREFIX):], v)
+                    elem.set(k[len(self.ATTR_PREFIX) :], v)
                 elif k == self.TEXT_KEY:
                     elem.text = v
                 elif isinstance(v, list):

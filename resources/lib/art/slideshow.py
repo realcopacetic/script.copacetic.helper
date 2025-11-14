@@ -4,12 +4,12 @@ import random
 import time
 
 from resources.lib.art.editor import ImageEditor
+from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
     json_call,
-    log,
     url_decode_path,
     window_property,
 )
@@ -83,7 +83,7 @@ class SlideshowMonitor:
             or new_source != self.slideshow_source
         ):
             self.slideshow_path, self.slideshow_source = new_path, new_source
-            log(f"{self.__class__.__name__}: Fetching background art")
+            log.debug(f"{self.__class__.__name__}: Fetching background art")
             self._get_art()
 
         self.fetch_count = (self.fetch_count + 1) % self.MAX_FETCH_COUNT
@@ -92,7 +92,7 @@ class SlideshowMonitor:
     def _get_art(self):
         """Fetches new artwork based on content type and source."""
         if not self.art_types:
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: No slideshow artwork available, skipping fetch"
             )
             return
@@ -101,7 +101,7 @@ class SlideshowMonitor:
 
         if "custom" in self.art_type:
             if not self.slideshow_path:
-                log(
+                log.debug(
                     f"{self.__class__.__name__}: No custom slideshow path found, skipping fetch"
                 )
                 return
@@ -110,12 +110,12 @@ class SlideshowMonitor:
             if "library" not in self.slideshow_source and condition(
                 "Integer.IsGreater(Container(3300).NumItems,0)"
             ):
-                log(f"{self.__class__.__name__}: Fetching plugin art")
+                log.debug(f"{self.__class__.__name__}: Fetching plugin art")
                 self._get_plugin_art()
                 return
 
             # Fetch custom library art
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: Fetching library art from {self.slideshow_path}"
             )
             query = json_call(
@@ -143,7 +143,7 @@ class SlideshowMonitor:
 
         # Fetch predefined library art
         else:
-            log(f"{self.__class__.__name__}: Fetching predefined library artwork")
+            log.debug(f"{self.__class__.__name__}: Fetching predefined library artwork")
             for art_type in self.art_types:
                 dbtype = "Video" if art_type != "artists" else "Audio"
                 query = json_call(
@@ -161,14 +161,12 @@ class SlideshowMonitor:
 
         if len(self.art) > self.MAX_FETCH_COUNT:
             self.art = random.sample(self.art, self.MAX_FETCH_COUNT)
-        log(
-            (
+        if self.art:
+            log.debug(
                 f"{self.__class__.__name__}: Total artwork found: {len(self.art)}"
-                if self.art
-                else f"{self.__class__.__name__}: WARNING - No artwork was found!"
-            ),
-            force=not self.art,
-        )
+            )
+        else:
+            log.warning(f"{self.__class__.__name__}: No artwork was found!")
 
     def _get_plugin_art(self):
         """Fetches artwork directly from plugin containers (e.g., widgets)."""
@@ -191,7 +189,7 @@ class SlideshowMonitor:
         """
         Determines the correct slideshow path based on time of day.
 
-        :returns: String path from skin setting.
+        :return: String path from skin setting.
         """
         current_hour = time.localtime().tm_hour
         start = int(infolabel("Skin.String(slideshow_start)") or 6)
@@ -208,7 +206,7 @@ class SlideshowMonitor:
         """
         Identifies whether slideshow source is a folder, plugin, or library.
 
-        :returns: Source type string.
+        :return: Source type string.
         """
         if "plugin://" in self.slideshow_path:
             return "plugin"
@@ -227,9 +225,8 @@ class SlideshowMonitor:
         writing these values to window properties for use within Kodi.
         """
         if not self.art:
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: No art available, waiting for next fetch",
-                force=True,
             )
             return
 

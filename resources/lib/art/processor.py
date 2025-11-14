@@ -15,7 +15,7 @@ class ImageProcessor:
     Uses ColorAnalyzer for hex/contrast/luminosity.
     """
 
-    def __init__(self, cfg: ColorConfig) -> None:
+    def __init__(self, cfg: ColorConfig) -> ColorConfig:
         """Initialize the processor with a color analyzer."""
         self.cfg = cfg
         self.color_analyzer = ColorAnalyzer(self.cfg)
@@ -33,7 +33,7 @@ class ImageProcessor:
         Crop/resize clearlogos, normalize mode for PNG, extract color metadata.
 
         :param image: Input PIL Image.
-        :returns: Dict with {"image", "format", "metadata"} or None on failure.
+        :return: Dict with {"image", "format", "metadata"} or None on failure.
         """
         pre_resize_max = self.cfg.logo_presize_max
         if image.width > pre_resize_max[0] or image.height > pre_resize_max[1]:
@@ -48,7 +48,7 @@ class ImageProcessor:
             else:
                 image = image.crop(image.getbbox())
         except Exception as e:
-            log(f"{self.__class__.__name__}: Unable to crop image → {e}", level=ERROR)
+            log.errro(f"{self.__class__.__name__}: Unable to crop image → {e}")
             return None
 
         final_max = self.cfg.logo_final_max
@@ -71,14 +71,14 @@ class ImageProcessor:
 
         :param image: Input PIL Image.
         :param kwargs: Optional overlay parameters (e.g. overlay_source, overlay_rect).
-        :returns: Dict with {"image", "format", "metadata"}.
+        :return: Dict with {"image", "format", "metadata"}.
         """
         try:
             image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
             sample_frame = image.copy()
             image = image.filter(ImageFilter.GaussianBlur(radius=self.cfg.blur_radius))
         except Exception as exc:
-            log(f"{self.__class__.__name__}: Error blurring image → {exc}", force=True)
+            log.error(f"{self.__class__.__name__}: Unable to blur image → {exc}")
             return None
 
         image = self._ensure_mode(image, "RGB")

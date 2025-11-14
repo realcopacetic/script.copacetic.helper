@@ -4,7 +4,8 @@ import re
 from contextlib import contextmanager
 
 from resources.lib.builders.logic import RuleEngine
-from resources.lib.shared.utilities import infolabel, log, skin_string
+from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import infolabel, skin_string
 from resources.lib.windows.onclick_actions import OnClickActions
 
 COLOR_KEYS = {
@@ -79,7 +80,7 @@ class BaseControlHandler:
                 sub_map["index"] = self.container_position
                 return {"linked_config": self.config_field_template.format(**sub_map)}
             except Exception as e:
-                log(f"Failed to resolve dynamic link: {e}", force=True)
+                log.debug(f"Failed to resolve dynamic link: {e}", force=True)
 
         trigger = f"focused({self.current_listitem})"
         try:
@@ -92,7 +93,7 @@ class BaseControlHandler:
                 {},
             )
         except Exception as e:
-            log(f"Fallback contextual_bindings failed: {e}", force=True)
+            log.debug(f"Fallback contextual_bindings failed: {e}", force=True)
             return {}
 
     def _linked_config(self):
@@ -107,7 +108,7 @@ class BaseControlHandler:
         """
         Return the list of values this control may choose from:
 
-        :returns: List of approved string values.
+        :return: List of approved string values.
         """
         cfg = self._linked_config()
         return (
@@ -141,7 +142,7 @@ class BaseControlHandler:
         Return the current value for this control at the given list index.
         First checks for linked_config then falls back to mapping items.
 
-        :returns: The current setting or mapping_item value, or None.
+        :return: The current setting or mapping_item value, or None.
         """
         link = self._get_active_link()
         if cfg := link.get("linked_config"):

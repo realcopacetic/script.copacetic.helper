@@ -12,7 +12,7 @@ def no_info(fn: Callable) -> Callable:
     Decorator to opt a method out of being an info handler.
 
     :param fn: Method to mark as excluded.
-    :returns: Same method, tagged as no-info.
+    :return: Same method, tagged as no-info.
     """
     setattr(fn, _NOINFO_TAG, True)
     return fn
@@ -40,7 +40,7 @@ def collect_info_handlers(inst: object) -> dict[str, Callable]:
     Collect bound info handlers from a PluginHandlers instance.
 
     :param inst: PluginHandlers instance.
-    :returns: Mapping of info name to bound method.
+    :return: Mapping of info name to bound method.
     """
     return {
         getattr(fn, _INFO_TAG): fn

@@ -70,7 +70,7 @@ class SQLiteHandler:
         Retrieves an artwork entry by original URL.
 
         :param original_url: The URL used to identify the artwork in the DB.
-        :returns: Dictionary of entry data if found, otherwise None.
+        :return: Dictionary of entry data if found, otherwise None.
         """
         with sqlite3.connect(self.db_path, timeout=5) as conn:
             cursor = conn.cursor()
@@ -96,7 +96,7 @@ class SQLiteHandler:
         """
         Deletes all entries from the artwork database.
 
-        :returns: None
+        :return: None
         """
         with sqlite3.connect(self.db_path, timeout=5) as conn:
             cursor = conn.cursor()

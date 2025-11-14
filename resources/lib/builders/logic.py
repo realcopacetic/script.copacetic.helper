@@ -37,7 +37,7 @@ class RuleEngine:
 
         :param condition: The condition string to evaluate.
         :param runtime: If True, disables result caching.
-        :returns: Boolean result of the evaluated condition.
+        :return: Boolean result of the evaluated condition.
         """
         if not runtime and condition in self.condition_cache:
             return self.condition_cache[condition]
@@ -54,7 +54,7 @@ class RuleEngine:
         Parses and evaluates a condition string using regex and evaluators.
 
         :param condition_str: The full condition string to evaluate.
-        :returns: True if the condition evaluates successfully, else False.
+        :return: True if the condition evaluates successfully, else False.
         """
         # Simple "true" / "false" strings
         if condition_str == "true":
@@ -96,7 +96,7 @@ class RuleEngine:
         Builds a Kodi boolean inversion expression from a dictionary of values.
 
         :param values_dict: Dictionary of expression values to invert.
-        :returns: A Kodi-formatted inversion expression string.
+        :return: A Kodi-formatted inversion expression string.
         """
         values = [v for v in values_dict.values() if v and v != "false" and v != "true"]
 

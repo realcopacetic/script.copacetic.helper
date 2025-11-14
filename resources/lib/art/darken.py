@@ -42,7 +42,7 @@ class ColorDarken:
         :param overlay_rects: Rects separated by parenthises "(x,y,w,h),(x,y,w,h)" in a 1920x1080 reference frame.
         :param text_rgb: Optional text RGB override (defaults to cfg.text_overlay_colour).
         :param target_ratio: Optional WCAG contrast target override (e.g. 4.5 body, 3.0 large/logo).
-        :returns: Darken percent 0-cfg.max_darken_cap for fade/diffuse mapping.
+        :return: Darken percent 0-cfg.max_darken_cap for fade/diffuse mapping.
         """
         cfg = self.color.cfg
 
@@ -73,7 +73,7 @@ class ColorDarken:
         rect "x,y,w,h" or multiple wrapped in parenthises "(x,y,w,h),(x,y,w,h),..."
 
         :param param: Rects string from Kodi .
-        :returns: Rect list as [(x, y, w, h), ...].
+        :return: Rect list as [(x, y, w, h), ...].
         """
         if not (value := (param or "").strip()):
             return []
@@ -110,7 +110,7 @@ class ColorDarken:
         :param img_h: Image height in pixels.
         :param ref_w: Reference width the rects are defined against.
         :param ref_h: Reference height the rects are defined against.
-        :returns: Scaled, clamped rects in image coordinates.
+        :return: Scaled, clamped rects in image coordinates.
         """
         sx = img_w / float(ref_w or 1)
         sy = img_h / float(ref_h or 1)
@@ -144,7 +144,7 @@ class ColorDarken:
         :param rects: Image-space rects to sample.
         :param grid: Grid resolution per rect for cell search.
         :param pass2: Downsample size for precise mean on winning cell.
-        :returns: Mean (r, g, b) of the brightest cell.
+        :return: Mean (r, g, b) of the brightest cell.
         """
         if im.mode != "RGB":
             im = im.convert("RGB")
@@ -199,7 +199,7 @@ class ColorDarken:
         :param bg_rgb: Mean background RGB of the brightest sampled cell.
         :param text_rgb: Overlay text RGB for contrast calculation.
         :param target: Desired WCAG contrast ratio.
-        :returns: Darken percentage clamped to [0, cfg.max_darken_cap].
+        :return: Darken percentage clamped to [0, cfg.max_darken_cap].
         """
         cfg = self.color.cfg
 
@@ -217,7 +217,7 @@ class ColorDarken:
         L_bg = self.color.get_luminosity(bg_rgb)
 
         contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
-        log(
+        log.debug(
             f"{self.__class__.__name__}: darken → "
             f"bg_rgb={bg_rgb}, text_rgb={text_rgb}, "
             f"L_bg={L_bg:.4f}, L_text={L_text:.4f}, "

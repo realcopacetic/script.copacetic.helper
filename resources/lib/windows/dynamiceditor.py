@@ -6,16 +6,10 @@ import xbmcgui
 
 from resources.lib.builders.builder_config import BUILDER_MAPPINGS
 from resources.lib.builders.runtime import RuntimeStateManager
+from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler, JSONMerger
-from resources.lib.shared.utilities import (
-    CONFIGS,
-    CONTROLS,
-    RUNTIME_STATE,
-    SKINEXTRAS,
-    execute,
-    infolabel,
-    log,
-)
+from resources.lib.shared.utilities import (CONFIGS, CONTROLS, RUNTIME_STATE,
+                                            SKINEXTRAS, execute, infolabel)
 from resources.lib.windows.control_factory import DynamicControlFactory
 from resources.lib.windows.onclick_actions import OnClickActions
 
@@ -118,7 +112,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         :param mapping_key: Mapping group key.
         :param idx: Index in the runtime list.
         :param raw: Template string containing {metadata} tokens.
-        :returns: Localized, formatted string.
+        :return: Localized, formatted string.
         """
         formatted = (
             raw
@@ -217,7 +211,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     setattr(self, name, btn)
                     self.mgmt_buttons.append(btn)
             except RuntimeError:
-                log("Management buttons not found; skipping.", force=True)
+                log.debug("Management buttons not found; skipping.", force=True)
             else:
                 for btn in self.mgmt_buttons:
                     btn.setVisible(True)
@@ -227,7 +221,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         for control_id, control in self.dynamic_controls.items():
             cid = control.get("id")
             if cid is None:
-                log(f"Skipping dynamic control {control_id}: missing 'id'")
+                log.debug(f"Skipping dynamic control {control_id}: missing 'id'")
                 continue
             try:
                 instance = self.getControl(cid)
@@ -256,7 +250,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object.
         """
-        from xbmcgui import ACTION_MOVE_DOWN, ACTION_MOVE_UP, ACTION_SELECT_ITEM
+        from xbmcgui import (ACTION_MOVE_DOWN, ACTION_MOVE_UP,
+                             ACTION_SELECT_ITEM)
 
         a_id = action.getId()
         current_focus = self.getFocusId()

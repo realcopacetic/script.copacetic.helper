@@ -48,7 +48,7 @@ class ColorAnalyzer:
         Uses Pillow's ADAPTIVE palette on a small sample for speed/stability.
 
         :param image: Input PIL image (any mode).
-        :returns: Dominant colour as (r, g, b).
+        :return: Dominant colour as (r, g, b).
         """
         try:
             im_small = self._sample_image(image)
@@ -91,7 +91,7 @@ class ColorAnalyzer:
 
         :param image: Input image to analyze.
         :param dominant_rgb: The primary (dominant) RGB color.
-        :returns: Accent RGB tuple, or dominant_rgb on failure.
+        :return: Accent RGB tuple, or dominant_rgb on failure.
         """
         # --- Step 0: Early uniformity check ---
         try:
@@ -109,9 +109,8 @@ class ColorAnalyzer:
             if rgb_small is None:
                 return dominant_rgb
         except Exception as exc:
-            log(
+            log.warn(
                 f"{self.__class__.__name__}: accent preproc failed → {exc}",
-                level=WARNING,
             )
             return dominant_rgb
 
@@ -124,9 +123,8 @@ class ColorAnalyzer:
             if not count_map:
                 return dominant_rgb
         except Exception as exc:
-            log(
+            log.warn(
                 f"{self.__class__.__name__}: accent quantize failed → {exc}",
-                level=WARNING,
             )
             return dominant_rgb
 
@@ -164,9 +162,8 @@ class ColorAnalyzer:
             ]
             return max(candidates or [dominant_rgb], key=score)
         except Exception as exc:
-            log(
+            log.warn(
                 f"{self.__class__.__name__}: accent scoring failed → {exc}",
-                log=WARNING,
             )
             return dominant_rgb
 
@@ -175,7 +172,7 @@ class ColorAnalyzer:
         Relative luminance per sRGB/Rec.709 with WCAG transfer curve.
         https://www.w3.org/TR/WCAG21/#dfn-relative-luminance
         :param rgb: (r, g, b) in 0-255.
-        :returns: L in 0-1.
+        :return: L in 0-1.
         """
         r, g, b = rgb
         r, g, b = self._linearize(r), self._linearize(g), self._linearize(b)
@@ -189,7 +186,7 @@ class ColorAnalyzer:
 
         :param rgb: Base colour (r, g, b).
         :param shift: Lightness delta (0-1) to apply.
-        :returns: Contrasting (r, g, b).
+        :return: Contrasting (r, g, b).
         """
         h, l, s = self.rgb_to_hls(rgb)
         l = (
@@ -206,7 +203,7 @@ class ColorAnalyzer:
         then return the mean RGB of that cell.
 
         :param im: Input PIL image.
-        :returns: Average (r, g, b) of the brightest patch.
+        :return: Average (r, g, b) of the brightest patch.
         """
         return self._brightest_patch_rgb(
             im, grid=self.cfg.avg_grid, pass2=self.cfg.avg_downsample
@@ -289,7 +286,7 @@ class ColorAnalyzer:
         https://www.w3.org/TR/WCAG21/relative-luminance.html
 
         :param channel_0_255: 8-bit sRGB channel.
-        :returns: Linearized channel in 0-1.
+        :return: Linearized channel in 0-1.
         """
         c = channel_0_255 / 255.0
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
@@ -310,7 +307,7 @@ class ColorAnalyzer:
         :param im: Input PIL image (any mode).
         :param grid: Grid resolution (GxG) to locate brightest cell.
         :param pass2: Downsample size used for mean on the winning patch.
-        :returns: Average (r, g, b) of the brightest cell.
+        :return: Average (r, g, b) of the brightest cell.
         """
         if im.mode != "RGB":
             im = im.convert("RGB")

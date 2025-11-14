@@ -7,7 +7,8 @@ from itertools import product
 from urllib.parse import quote
 
 from resources.lib.builders.logic import RuleEngine
-from resources.lib.shared.utilities import expand_index, log
+from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import expand_index
 
 PLACEHOLDER_PATTERN = re.compile(r"{(.*?)}")
 
@@ -40,7 +41,7 @@ class BaseBuilder:
 
         :param element_name: The name of the expression/template.
         :param element_data: Data dict containing rules and item values.
-        :returns: Generator yielding {name: value} dicts.
+        :return: Generator yielding {name: value} dicts.
         """
         mode = element_data.get("mode", "static")
 
@@ -84,7 +85,7 @@ class BaseBuilder:
 
         :param runtime_items: List of runtime state items for this mapping.
         :param index_start: Starting index value (default 1).
-        :returns: List of substitution dictionaries for template expansion.
+        :return: List of substitution dictionaries for template expansion.
         """
         key_placeholder = self.placeholders.get("key")
         return [
@@ -105,7 +106,7 @@ class BaseBuilder:
 
         :param items: List of items to loop over.
         :param dynamic_key: Optional substitution key used in json/xml templates (either "item" or "index")
-        :returns: List of substitution dictionaries.
+        :return: List of substitution dictionaries.
         """
         key_name = self.placeholders.get("key")
         value_name = self.placeholders.get("value")
@@ -175,7 +176,7 @@ class BaseBuilder:
 
         :param object: Template string with placeholders.
         :param substitutions: Dict of key-value substitutions.
-        :returns: Fully formatted string.
+        :return: Fully formatted string.
         """
         if isinstance(object, str):
             if not substitutions or ("{" not in object):
@@ -221,7 +222,7 @@ class configsBuilder(BaseBuilder):
         :param template_name: Template name for setting key.
         :param data: Rule and items data.
         :param substitutions: List of dicts for placeholder substitution.
-        :returns: Dictionary of setting key → {items: [...]}
+        :return: Dictionary of setting key → {items: [...]}
         """
         grouped = defaultdict(list)
         for sub in substitutions:
@@ -241,7 +242,7 @@ class configsBuilder(BaseBuilder):
 
         :param subs: List of substitutions for a single setting group.
         :param data: Full setting definition, including filter_mode and rules.
-        :returns: Dict of final filtered items.
+        :return: Dict of final filtered items.
         """
         defaults = {
             "items": [],
@@ -279,7 +280,7 @@ class configsBuilder(BaseBuilder):
 
         :param resolved: Dict of resolved configs.
         :param setting_data: The full config definition including defaults.
-        :returns: Updated resolved settings dict with defaults applied.
+        :return: Updated resolved settings dict with defaults applied.
         """
         default_entry = next(
             ((k, v) for k, v in setting_data.items() if k.startswith("defaults_per_")),
@@ -312,12 +313,12 @@ class configsBuilder(BaseBuilder):
                     fallback_default = allowed_items[0]
                     resolved[setting_name]["default"] = fallback_default
 
-                    log(
+                    log.debug(
                         f"{self.__class__.__name__}: [Default override] {setting_name} default '{default_value}' invalid; using '{fallback_default}' instead (group: {group_key})"
                     )
                 else:  # default_value allowed
                     resolved[setting_name]["default"] = default_value
-                    log(
+                    log.debug(
                         f"{self.__class__.__name__}: [Default applied] {setting_name} default = {default_value} (group: {group_key})",
                     )
 
@@ -337,7 +338,7 @@ class controlsBuilder(BaseBuilder):
         :param template_name: Control name template
         :param data: Control definition template
         :param substitutions: List of substitution dictionaries
-        :returns: Dict of {control_name: resolved_definition}
+        :return: Dict of {control_name: resolved_definition}
         """
         id_fixed = data.get("id")
         if data.get("mode") == "dynamic":
@@ -374,7 +375,7 @@ class controlsBuilder(BaseBuilder):
                     "contextual_bindings": resolved_list,
                 }
             }
-        
+
         grouped = defaultdict(list)
         for sub in substitutions:
             key = template_name.format(**sub)
@@ -394,7 +395,7 @@ class controlsBuilder(BaseBuilder):
         :param data: Control template
         :param id_start: Optional starting ID
         :param index: Index for control ID
-        :returns: Resolved control dict
+        :return: Resolved control dict
         """
         is_runtime = data.get("mode") == "dynamic"
         _exclude = {"label", "label2", "description"}
@@ -429,7 +430,7 @@ class expressionsBuilder(BaseBuilder):
 
         :param element_name: Expression name template.
         :param element_data: Dictionary of rule definitions and items.
-        :returns: Generator yielding final expression dict.
+        :return: Generator yielding final expression dict.
         """
         resolved = {}
         for d in super().process_elements(element_name, element_data):
@@ -444,7 +445,7 @@ class expressionsBuilder(BaseBuilder):
         :param template_name: Expression key pattern with placeholders.
         :param data: Raw template and rule data.
         :param substitutions: List of substitution dicts.
-        :returns: Dictionary of {expression_key: expression_value}.
+        :return: Dictionary of {expression_key: expression_value}.
         """
         grouped = defaultdict(list)
         for sub in substitutions:
@@ -464,7 +465,7 @@ class expressionsBuilder(BaseBuilder):
 
         :param subs: List of substitution dictionaries for one group.
         :param data: Template rule data.
-        :returns: List of expression values (or "false" fallback).
+        :return: List of expression values (or "false" fallback).
         """
         resolved = []
         rules = data.get("rules", [])
@@ -494,7 +495,7 @@ class expressionsBuilder(BaseBuilder):
 
         :param resolved: Dict of resolved expressions.
         :param expr_data: The expression's full rule definition.
-        :returns: Updated resolved expression dict with fallbacks applied.
+        :return: Updated resolved expression dict with fallbacks applied.
         """
         fallback_entry = next(
             ((k, v) for k, v in expr_data.items() if k.startswith("fallback_per_")),
@@ -532,7 +533,7 @@ class expressionsBuilder(BaseBuilder):
             )
 
             if not target_expr:
-                log(
+                log.debug(
                     f"{self.__class__.__name__}: [Fallback skipped] No match for fallback_item '{fallback_item}' in group '{group_key}'",
                 )
                 continue
@@ -550,7 +551,7 @@ class expressionsBuilder(BaseBuilder):
                 else fallback_value
             ) or "true"
 
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: [Fallback applied] {target_expr} = {resolved[target_expr]} (group: {group_key}, others: {list(others.keys())})",
             )
 
@@ -683,7 +684,7 @@ class variablesBuilder(BaseBuilder):
         :param template_name: Template for variable name.
         :param data: Rule and value definitions for the variable.
         :param substitutions: List of substitution dicts.
-        :returns: Dictionary of variable name → value list.
+        :return: Dictionary of variable name → value list.
         """
         grouped = defaultdict(list)
 
@@ -705,7 +706,7 @@ class variablesBuilder(BaseBuilder):
         :param template_name: Name pattern of variable.
         :param subs: Substitution set for this group.
         :param data: Variable definition including values and index.
-        :returns: List of variable dicts with name and condition/value pairs.
+        :return: List of variable dicts with name and condition/value pairs.
         """
         values = data.get("values", [])
         index_range = expand_index(data.get("index"))
@@ -730,7 +731,7 @@ class variablesBuilder(BaseBuilder):
         :param name: Fully formatted variable name.
         :param values: List of condition/value template pairs.
         :param subs: Substitution dictionary for formatting.
-        :returns: Dict with 'name' and resolved 'values' list.
+        :return: Dict with 'name' and resolved 'values' list.
         """
         return {
             "name": name,

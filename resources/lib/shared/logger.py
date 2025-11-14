@@ -48,15 +48,13 @@ def error(message: str):
     log(message, loglevel=ERROR)
 
 
-def execute;
-
-(action: str) -> None:
+def execute(action: str) -> None:
     """
     Logs and executes a built-in Kodi command.
 
     :param action: Built-in Kodi command string.
     """
-    log(f"Execute: {action}", DEBUG)
+    log(f"Executed action: {action}", DEBUG)
     xbmc.executebuiltin(action)
 
 
@@ -65,7 +63,7 @@ def duration(func: Callable[..., Any]) -> Callable[..., Any]:
     Decorator that logs the execution time of a method.
 
     :param func: The method to wrap.
-    :returns: Wrapped method with timing log.
+    :return: Wrapped method with timing log.
     """
 
     @wraps(func)
@@ -74,7 +72,7 @@ def duration(func: Callable[..., Any]) -> Callable[..., Any]:
         start = time.time()
         result = func(*args, **kwargs)
         duration = time.time() - start
-        log(f"{cls_name} → {func.__name__} took {duration:.4f} seconds")
+        log(f"{cls_name} → {func.__name__} took {duration:.4f} seconds", DEBUG)
         return result
 
     return wrapper

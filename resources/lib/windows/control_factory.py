@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from resources.lib.shared.utilities import log
+from resources.lib.shared import logger as log
 from resources.lib.windows.controls import (
     ButtonHandler,
     RadioButtonHandler,
@@ -31,7 +31,7 @@ class DynamicControlFactory:
                     control, slider_instance, button_instance, runtime_manager
                 )
             except RuntimeError as e:
-                log(
+                log.warning(
                     f"SliderExHandler skipped: missing slider ({control['id']}) or button ({button_id})"
                 )
                 return None

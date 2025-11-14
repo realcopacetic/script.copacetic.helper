@@ -9,11 +9,12 @@ from resources.lib.builders.build_elements import BuildElements
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
+from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (ADDON, BLURS, CROPS, TEMPS,
                                             condition, create_dir,
-                                            get_cache_size, infolabel, log,
-                                            log_and_execute, validate_path)
+                                            get_cache_size, infolabel,
+                                            validate_path)
 
 
 class Monitor(xbmc.Monitor):
@@ -44,13 +45,13 @@ class Monitor(xbmc.Monitor):
         # Run
         self._create()
         self._on_start()
-        log(f"{self.__class__.__name__} → Python version: {sys.version}")
+        log.info(f"{self.__class__.__name__} → Python version: {sys.version}")
 
     def _get_slideshow_interval(self):
         """
         Gets the slideshow interval from skin settings or defaults to 10.
 
-        :returns: Integer value in seconds.
+        :return: Integer value in seconds.
         """
         return int(
             infolabel("Skin.String(slideshow_interval)")
@@ -99,12 +100,12 @@ class Monitor(xbmc.Monitor):
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""
         if self.start:
-            log(f"{self.__class__.__name__}: Started", force=True)
+            log.info(f"{self.__class__.__name__}: Started", force=True)
             self.start = False
             self.player_monitor = PlayerMonitor(self.sqlite)
         else:
             (
-                log(f"{self.__class__.__name__}: Resumed", force=True)
+                log.info(f"{self.__class__.__name__}: Resumed", force=True)
                 if self._conditions_met()
                 else None
             )
@@ -116,13 +117,13 @@ class Monitor(xbmc.Monitor):
         """
         Checks whether polling should continue (not idle + valid skin).
 
-        :returns: Boolean
+        :return: Boolean
         """
         return self._get_skindir() and not self.idle
 
     def _on_stop(self):
         """Called when monitor loop exits. Waits for restart or exits cleanly."""
-        log(f"{self.__class__.__name__}: Idle, waiting...", force=True)
+        log.info(f"{self.__class__.__name__}: Idle, waiting...", force=True)
         while not self.abortRequested() and not self._conditions_met():
             self.waitForAbort(2)
         if not self.abortRequested():
@@ -131,7 +132,7 @@ class Monitor(xbmc.Monitor):
             del self.player_monitor
             del self.settings
             del self.slideshow
-            log(f"{self.__class__.__name__}: Stopped", force=True)
+            log.info(f"{self.__class__.__name__}: Stopped", force=True)
 
     def onScreensaverActivated(self):
         """Kodi event hook: Pause monitoring when screensaver starts."""
@@ -167,7 +168,7 @@ class Monitor(xbmc.Monitor):
             if condition("Skin.HasSetting(set_skin_defaults)"):
                 self.settings.set_defaults()
                 self.check_settings = True
-                log_and_execute("Skin.ToggleSetting(set_skin_defaults)")
+                log.execute("Skin.ToggleSetting(set_skin_defaults)")
             self.waitForAbort(1)
         else:
             self.check_cache = True
@@ -179,6 +180,6 @@ class Monitor(xbmc.Monitor):
         """
         Validates that the active skin is part of the Copacetic skin family.
 
-        :returns: True if active skin matches expected ID, else False.
+        :return: True if active skin matches expected ID, else False.
         """
         return "skin.copacetic" in xbmc.getSkinDir()

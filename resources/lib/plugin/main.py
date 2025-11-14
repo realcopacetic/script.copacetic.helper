@@ -8,7 +8,7 @@ from resources.lib.plugin.handlers import PluginHandlers
 from resources.lib.plugin.listing import PluginListing
 from resources.lib.plugin.registry import collect_info_handlers
 from resources.lib.shared.parser import parse_params
-from resources.lib.shared.utilities import log
+from resources.lib.shared import logger as log
 
 
 class Main:
@@ -31,7 +31,7 @@ class Main:
         try:
             self.params = parse_params(sys.argv, mode="plugin")
         except Exception as e:
-            log(f"_parse_argv error: {e}")
+            log.info(f"_parse_argv error: {e}")
             self.params = {}
 
     def run_handler(self) -> None:
@@ -41,10 +41,10 @@ class Main:
         handlers = collect_info_handlers(ph)
         fn = handlers.get(info)
         if not fn:
-            log(f"Ignoring unknown info: {self.info}")
+            log.info(f"Ignoring unknown info: {self.info}")
             return
         
-        log(f"PluginHandlers initialized with params: {self.params}")
+        log.debug(f"PluginHandlers initialized with params: {self.params}")
         items = fn()
         if not isinstance(items, (list, tuple)):
             items = []
@@ -53,7 +53,7 @@ class Main:
 
     def run_listing(self) -> None:
         """Emit the default plugin directory (top-level categories)."""
-        log(f"PluginListing initialized with params: {self.params}")
+        log.debug(f"PluginListing initialized with params: {self.params}")
         items = PluginListing(self.params).build()
         self._additems(items)
 

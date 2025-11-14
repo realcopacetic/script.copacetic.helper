@@ -79,7 +79,7 @@ class BuildElements:
         Lazily combines JSON and XML data into one generator, yielding
         only the relevant content (JSON or XML) for each builder.
 
-        :returns: Generator that yields combined data lazily, based on available data (JSON or XML).
+        :return: Generator that yields combined data lazily, based on available data (JSON or XML).
         """
         yield from self.merged_json
         if self.merged_xml:
@@ -96,7 +96,7 @@ class BuildElements:
         """
         Runs all eligible builders matching the given run context.
 
-        :returns: Dictionary of processed builder output if file write is not required.
+        :return: Dictionary of processed builder output if file write is not required.
         """
         values_to_write = {}
         values_to_return = {}
@@ -154,7 +154,7 @@ class BuildElements:
 
         :param processed_data: Dictionary containing processed builder output.
         :param builder_name: Builder identifier used to look up file details.
-        :returns: None
+        :return: None
         """
         builder_info = BUILDER_CONFIG.get(builder_name, {})
 
@@ -173,7 +173,7 @@ class BuildElements:
 
             if method:
                 method(processed_data, **write_kwargs)
-                log(
+                log.info(
                     f"{builder_name.capitalize()} saved to {write_type.upper()} file: {write_path}"
                 )
 
@@ -186,9 +186,8 @@ class BuildElements:
         configs_data = next(iter(json_handler.data.values()), {})
 
         if not configs_data:
-            log(
+            log.warning(
                 f"{self.__class__.__name__}: Configs file missing or empty at {CONFIGS}",
-                force=True,
             )
             return
 
@@ -201,6 +200,6 @@ class BuildElements:
 
             if not condition(f"Skin.String({setting_key})"):
                 skin_string(setting_key, default_value)
-                log(
+                log.debug(
                     f"{self.__class__.__name__}: Default skinstring '{setting_key}' initialized to '{default_value}'."
                 )

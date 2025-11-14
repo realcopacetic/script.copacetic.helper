@@ -8,13 +8,12 @@ from resources.lib.shared.utilities import (
     condition,
     infolabel,
     json_call,
-    log,
-    log_and_execute,
     skin_string,
     to_int,
     window_property,
     xbmc,
 )
+from resources.lib.shared import logger as log
 
 REGISTRY = {}
 
@@ -31,7 +30,7 @@ def clean_filename(label=False, **kwargs):
     Cleans a filename by removing extensions and formatting characters.
 
     :param label: Optional input string. If not provided, uses ListItem.Label.
-    :returns: Sets the result to "Return_Label" window property.
+    :return: Sets the result to "Return_Label" window property.
     """
     json_response = json_call(
         "Settings.GetSettingValue",
@@ -61,7 +60,7 @@ def clear_label(id):
         ctrl.reset()
         ctrl.addLabel("")
     except RuntimeError:
-        log(f"clear_label: Label id {id} not found.")
+        log.debug(f"clear_label: Label id {id} not found.")
         return
 
 
@@ -80,10 +79,10 @@ def dialog_yesno(heading, message, **kwargs):
 
     if DIALOG.yesno(heading, message):
         for action in yes_actions:
-            log_and_execute(action)
+            log.execute(action)
     else:
         for action in no_actions:
-            log_and_execute(action)
+            log.execute(action)
 
 
 @action
@@ -108,7 +107,7 @@ def hex_contrast_check(**kwargs):
     Calculates contrast for a hex color and sets Skin.String(Accent_Color_Contrast).
 
     :param hex: Hex string (e.g., "#ffffff" or "ffffffff").
-    :returns: "light" or "dark" contrast hint.
+    :return: "light" or "dark" contrast hint.
     """
     from resources.lib.art.editor import ImageEditor
 
@@ -364,7 +363,7 @@ def set_edit(id, **kwargs):
     :param text: Text to send.
     """
     text = str(kwargs.get("text", ""))
-    log_and_execute(f"SetFocus({id})")
+    log.execute(f"SetFocus({id})")
     xbmc.Monitor().waitForAbort(0.05)
     json_call("Input.SendText", params={"text": text, "done": True}, parent="set_edit")
 
@@ -406,21 +405,21 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
             try:
                 index = subtitles.index(lang)
             except ValueError as error:
-                log(
-                    f"Subtitle Limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",
+                log.debug(
+                    f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",
                     force=True,
                 )
-                log_and_execute("Action(NextSubtitle)")
+                log.execute("Action(NextSubtitle)")
             else:
                 player.setSubtitleStream(index)
-                log(
-                    f"Subtitle Limiter: Switching to subtitle stream {index} in preferred language: {lang}",
+                log.debug(
+                    f"subtitle_limiter: Switching to subtitle stream {index} in preferred language: {lang}",
                     force=True,
                 )
         elif condition("VideoPlayer.SubtitlesEnabled") and user_trigger:
-            log_and_execute("Action(ShowSubtitles)")
+            log.execute("Action(ShowSubtitles)")
     else:
-        log("Subtitle Limiter: Error - Playing video has no subtitles", force=True)
+        log.debug("subtitle_limiter: Error - Playing video has no subtitles", force=True)
 
 
 @action
@@ -469,7 +468,7 @@ def update_views(**kwargs):
     from resources.lib.builders.build_elements import BuildElements
 
     builder = BuildElements(run_context="runtime")
-    log_and_execute("ReloadSkin()")
+    log.execute("ReloadSkin()")
 
 
 @action

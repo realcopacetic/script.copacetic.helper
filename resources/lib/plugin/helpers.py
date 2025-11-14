@@ -160,7 +160,7 @@ class JumpButton:
         try:
             btn = self.window.getControl(self.btn_id)
         except RuntimeError:
-            log(f"{self.__class__.__name__}: Button {self.btn_id} not found.")
+            log.debug(f"{self.__class__.__name__}: Button {self.btn_id} not found.")
             return
 
         btn_w = btn.getWidth() or self.btn_width
@@ -184,7 +184,7 @@ class JumpButton:
 
         btn.setLabel(expected)
         btn.setPosition(btn_posx, btn_posy)
-        log(f"{self.__class__.__name__}: UPDATED → '{expected}'")
+        log.debug(f"{self.__class__.__name__}: UPDATED → '{expected}'")
 
 
 class ProgressBarManager:
@@ -303,7 +303,7 @@ class ProgressBarManager:
             base = self.window.getControl(base_id)
             progress = self.window.getControl(progress_id)
         except RuntimeError:
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: base_id {base_id} or progress_id {progress_id} not found."
             )
             return
@@ -315,7 +315,7 @@ class ProgressBarManager:
         )
 
         if width <= 0 or height <= 0:
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: Zero-size rect → ({posx},{posy},{width},{height}); aborting."
             )
             return
@@ -329,7 +329,7 @@ class ProgressBarManager:
             backing = self.window.getControl(backing_id)
         except RuntimeError:
             backing = None
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: Optional backing_id {backing_id} not found."
             )
         else:
@@ -350,7 +350,7 @@ class ProgressBarManager:
             button = self.window.getControl(btn_id)
         except RuntimeError:
             button = None
-            log(f"{self.__class__.__name__}: Optional btn_id {btn_id} not found.")
+            log.debug(f"{self.__class__.__name__}: Optional btn_id {btn_id} not found.")
         else:
             btn_w = button.getWidth() or self.btn_width
             btn_h = button.getHeight() or self.btn_width
@@ -458,7 +458,7 @@ class TextTruncator:
             out = self._search_bounded(ctrl, cond_str, base, n=n)
 
         mode = "coarse" if (min_safe and min_safe > 0) else "binary"
-        log(
+        log.debug(
             f"Trunc: probes={self._probes} "
             f"mode={mode} "
             f"min_safe={min_safe or 0} "
@@ -490,7 +490,7 @@ class TextTruncator:
         try:
             return self.window.getControl(self.measure_ctrl_id)
         except Exception:
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: measure control {self.measure_ctrl_id} not found"
             )
             return None
@@ -701,8 +701,7 @@ class TypewriterAnimation:
         label_id: int | None = None,
         line_step: int | None = None,
         max_lines: int | None = None,
-        expected_identity: str | None = None,
-        identity_getter: Callable[[], str] | None = None,
+        alive: Callable[[], bool] | None = None,
     ) -> None:
         """
         Animate label with a typewriter effect using compute_rect placement.
@@ -713,28 +712,31 @@ class TypewriterAnimation:
         :param line_step: Pixels added per wrapped line (defaults to default_line_step).
         :param max_lines: Optional cap for number of lines (overrides default).
         :param expected_identity: Focus snapshot for guarding.
-        :param identity_getter: Returns current identity for guard checks.
+        :param alive: Optional guard callable; return False to abort animation.
         :return: None
         """
 
-        def alive() -> bool:
-            if identity_getter and expected_identity is not None:
-                if not (ok := identity_getter() == expected_identity):
-                    log(f"{self.__class__.__name__}: ABORTED → '{label}' lost focus")
+        def _alive() -> bool:
+            if alive is not None:
+                ok = alive()
+                if not ok:
+                    log.debug(
+                        f"{self.__class__.__name__}: ABORTED → '{label}' lost focus"
+                    )
                 return ok
             return True
 
-        log(f"{self.__class__.__name__}: START → '{label}'")
+        log.debug(f"{self.__class__.__name__}: START → '{label}'")
         control_id = to_int(label_id, self.control_id)
 
-        if not alive():
+        if not _alive():
             return
 
         try:
             control = self.window.getControl(control_id)
             control.setText("")
         except Exception:
-            log(f"{self.__class__.__name__}: Control {control_id} not found")
+            log.debug(f"{self.__class__.__name__}: Control {control_id} not found")
             return
 
         posx, posy, width, height = compute_rect(
@@ -760,7 +762,7 @@ class TypewriterAnimation:
         control.setHeight(height_final)
         control.setPosition(posx_final, posy_final)
 
-        if not alive():
+        if not _alive():
             control.setText("")
             return
 
@@ -772,7 +774,7 @@ class TypewriterAnimation:
 
         control.setVisible(True)
         for i in range(1, len(label) + 1):
-            if not alive():
+            if not _alive():
                 control.setText("")
                 return
 
@@ -800,4 +802,4 @@ class TypewriterAnimation:
                 xbmc.sleep(1)
                 control.setText(sub)
 
-        log(f"{self.__class__.__name__}: DONE → '{label}'")
+        log.debug(f"{self.__class__.__name__}: DONE → '{label}'")

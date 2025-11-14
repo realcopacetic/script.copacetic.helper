@@ -4,12 +4,15 @@ import json
 import sys
 import urllib.parse as urllib
 from pathlib import Path
+from typing import Any
 
 import xbmc
 import xbmcvfs
 from xbmcaddon import Addon
 from xbmcgui import Dialog, Window
 from xbmcplugin import addSortMethod, setContent, setPluginCategory
+
+from resources.lib.shared import logger as log
 
 THUMB_DB = xbmcvfs.translatePath("special://profile/Thumbnails")
 
@@ -34,11 +37,6 @@ VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
 INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_includes.xml")
 
-DEBUG = xbmc.LOGDEBUG
-INFO = xbmc.LOGINFO
-WARNING = xbmc.LOGWARNING
-ERROR = xbmc.LOGERROR
-
 DIALOG = Dialog()
 VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
@@ -48,7 +46,7 @@ MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 
 def clear_playlists() -> None:
-    log("Clear playlists")
+    log.debug("Clear playlists")
     VIDEOPLAYLIST.clear()
     MUSICPLAYLIST.clear()
     MUSICPLAYLIST.unshuffle()
@@ -59,7 +57,7 @@ def condition(condition: str) -> bool:
     Evaluates a Kodi visibility condition.
 
     :param condition: String condition (e.g., "Skin.HasSetting(x)").
-    :returns: Boolean result.
+    :return: Boolean result.
     """
     return xbmc.getCondVisibility(condition)
 
@@ -78,49 +76,48 @@ def infolabel(infolabel: str) -> str:
     Retrieves the value of a Kodi InfoLabel expression.
 
     :param infolabel: The InfoLabel string.
-    :returns: Evaluated string value.
+    :return: Evaluated string value.
     """
     return xbmc.getInfoLabel(infolabel)
 
 
-def skin_string(key: str, value: str | bool = False, debug: bool = False) -> None:
+def skin_string(key: str, value: str | bool = False) -> None:
     """
     Sets or clears a Kodi skin string with optional logging.
     If `value` is a value, it sets the string. If it's False or empty, it clears it.
 
     :param key: Skin string key.
     :param value: Value to assign.
-    :param debug: If True, forces debug log.
     """
     if value:
         execute(f"Skin.SetString({key}, {value})")
-        log(f"Skin string: Set, {key}, {value}", force=debug)
+        log.debug(f"Skin string: Set, {key}, {value}")
     else:
         execute(f"Skin.SetString({key},)")
-        log(f"Skin string: Clear, {key}", force=debug)
+        log.debug(f"Skin string: Clear, {key}")
 
 
-def reset_bool(setting_id: str, debug: bool = False) -> None:
+def reset_bool(setting_id: str) -> None:
     """
     Resets (clears) a boolean skin setting with optional logging.
 
     :param setting_id: The skin setting ID (e.g., "mysetting").
     """
     execute(f"Skin.Reset({setting_id})")
-    log(f"Skin Bool reset: {setting_id}", force=debug)
+    log.debug(f"Skin Bool reset: {setting_id}")
 
 
-def set_bool(setting_id: str, debug: bool = False) -> None:
+def set_bool(setting_id: str) -> None:
     """
     Sets a boolean skin setting to True with optional logging.
 
     :param setting_id: The skin setting ID (e.g., "mysetting").
     """
     execute(f"Skin.SetBool({setting_id})")
-    log(f"Skin Bool set: {setting_id}", force=debug)
+    log.debug(f"Skin Bool set: {setting_id}")
 
 
-def toggle_bool(setting_id: str, debug: bool = False):
+def toggle_bool(setting_id: str):
     """
     Toggles a boolean skin setting using Kodi built-in functions.
 
@@ -129,16 +126,15 @@ def toggle_bool(setting_id: str, debug: bool = False):
 
     :param setting_id: The skin setting ID (e.g., "mysetting").
     """
-    if condition(f"Skin.HasSetting({setting_id})"):
+    (
         reset_bool(setting_id)
-        log(f"Skin Bool reset: {setting_id}", force=debug)
-    else:
-        set_bool(setting_id)
-        log(f"Skin Bool set: {setting_id}", force=debug)
+        if condition(f"Skin.HasSetting({setting_id})")
+        else set_bool(setting_id)
+    )
 
 
 def window_property(
-    key: str, value: str | bool = False, window_id: int = 10000, debug: bool = False
+    key: str, value: str | bool = False, window_id: int = 10000
 ) -> None:
     """
     Sets or clears a window property for a specific Kodi window with optional logging.
@@ -147,15 +143,14 @@ def window_property(
     :param key: Property name.
     :param value: Value to assign.
     :param window_id: ID of the Kodi window, defaults to 10000 for home
-    :param debug: If True, forces debug log.
     """
     window = Window(window_id)
     if value:
         window.setProperty(key, f"{value}")
-        log(f"Window property: Set, {window_id}, {key}, {value}", force=debug)
+        log.debug(f"Window property: Set, {window_id}, {key}, {value}")
     else:
         window.clearProperty(key)
-        log(f"Window property: Clear, {window_id}, {key}", force=debug)
+        log.debug(f"Window property: Clear, {window_id}, {key}")
 
 
 """FILE / PATH UTILS"""
@@ -166,7 +161,7 @@ def create_dir(path: str) -> None:
     Creates a directory if it doesn't already exist.
 
     :param path: Directory path.
-    :returns: None
+    :return: None
     """
     try:  # Try makedir to avoid race conditions
         xbmcvfs.mkdirs(path)
@@ -190,7 +185,7 @@ def clear_cache(**kwargs: str) -> None:
 
     SQLiteHandler().clear_all()
 
-    log(f"Artwork cache cleared by user. {readable_size} saved.")
+    log.info(f"Artwork cache cleared by user. {readable_size} saved.")
     message = f"{ADDON.getLocalizedString(32201)}, {readable_size} {ADDON.getLocalizedString(32202)}."
     DIALOG.notification(ADDON_ID, message)
 
@@ -204,7 +199,7 @@ def get_cache_size(precision: int = 1) -> str:
     https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
 
     :param precision: Decimal precision for human-readable output.
-    :returns: Formatted size string (e.g., "1.2 MB").
+    :return: Formatted size string (e.g., "1.2 MB").
     """
     size = get_total_size(ADDONDATA)
     abbrevs = ((1 << 30, "GB"), (1 << 20, "MB"), (1 << 10, "KB"), (1, "bytes"))
@@ -223,7 +218,7 @@ def get_total_size(path: str | Path) -> int:
     Calculates the total size of a file or all files in a folder (recursively).
 
     :param path: Path to a file or directory.
-    :returns: Total size in bytes.
+    :return: Total size in bytes.
     """
     path = Path(path)
     if path.is_file():
@@ -238,7 +233,7 @@ def url_encode(value: str) -> str:
     URL-encode a string for safe use in query parameters.
 
     :param value: Raw string to encode.
-    :returns: Encoded string.
+    :return: Encoded string.
     """
     return urllib.quote_plus(value)
 
@@ -248,7 +243,7 @@ def url_decode_path(path: str) -> str:
     Decodes a Kodi image:// path into a usable file path.
 
     :param path: Encoded image path.
-    :returns: Decoded file path.
+    :return: Decoded file path.
     """
     return urllib.unquote(path.replace("image://", "").rstrip("/"))
 
@@ -258,7 +253,7 @@ def validate_path(path: str | Path) -> bool:
     Checks if a given path exists on the filesystem.
 
     :param path: File or folder path.
-    :returns: True if path exists.
+    :return: True if path exists.
     """
     return xbmcvfs.exists(str(path))
 
@@ -276,7 +271,6 @@ def json_call(
     item: dict[str, Any] | None = None,
     options: dict[str, Any] | None = None,
     parent: str | None = None,
-    debug: bool = False,
 ) -> dict[str, Any]:
     """
     Builds and sends a JSON-RPC request to Kodi with optional debug logging.
@@ -291,7 +285,7 @@ def json_call(
     :param options: Dictionary of additional JSON-RPC options.
     :param parent: Name of caller (used in log output).
     :param debug: If True, logs full request and result.
-    :returns: Parsed response as a Python dictionary.
+    :return: Parsed response as a Python dictionary.
     """
     json_string = {
         "jsonrpc": "2.0",
@@ -319,11 +313,9 @@ def json_call(
     jsonrpc_call = json.dumps(json_string, ensure_ascii=False)
     result = json.loads(xbmc.executeJSONRPC(jsonrpc_call))
 
-    if ADDON.getSettingBool("json_logging") or debug:
-        log(
-            f"JSON call for function {parent} " + pretty_print(json_string), force=debug
-        )
-        log(f"JSON result for function {parent} " + pretty_print(result), force=debug)
+    if ADDON.getSettingBool("json_logging"):
+        log.debug(f"JSON call for function {parent} " + pretty_print(json_string))
+        log.debug(f"JSON result for function {parent} " + pretty_print(result))
 
     return result
 
@@ -333,7 +325,7 @@ def pretty_print(obj: object) -> str:
     Converts a Python object into a formatted JSON string.
 
     :param obj: JSON-serializable object.
-    :returns: Pretty-printed JSON string.
+    :return: Pretty-printed JSON string.
     """
     return json.dumps(obj, sort_keys=True, indent=4, separators=(",", ": "))
 
@@ -371,7 +363,7 @@ def expand_index(index_obj: dict[str, Any]) -> list[str]:
     Expands a dict with start/end/step into a list of string indices.
 
     :param index_obj: Dictionary with "start", "end", and optional "step".
-    :returns: List of stringified index values.
+    :return: List of stringified index values.
     """
     if not index_obj:
         return []
@@ -398,7 +390,7 @@ def return_label(
     :param label: Input string (defaults to ListItem.Label).
     :param find: Character to replace.
     :param replace: Replacement character.
-    :returns: Cleaned-up label.
+    :return: Cleaned-up label.
     """
     find = urllib.unquote(find)
     replace = urllib.unquote(replace)
@@ -414,7 +406,7 @@ def split(
     :param string: The input string.
     :param separator: Separator to split on (default: " / ").
     :param number: Index of element to return.
-    :returns: Selected substring.
+    :return: Selected substring.
     """
     parts = string.split(separator)
     return parts[number] if 0 <= number < len(parts) else parts[0]
@@ -427,7 +419,7 @@ def split_random(string: str, *, separator: str = "/", **kwargs: object) -> str:
 
     :param string: Genre string (e.g., "Action / Hip-Hop & R&B").
     :param separator: Delimiter used to split top-level genres (default: "/").
-    :returns: Cleaned and formatted random genre."
+    :return: Cleaned and formatted random genre."
     """
     import random
 
@@ -464,7 +456,7 @@ def clamp(value: int | float, low: int | float, high: int | float) -> int | floa
     :param value: Input number.
     :param low: Minimum allowed value.
     :param high: Maximum allowed value.
-    :returns: Value constrained within the range.
+    :return: Value constrained within the range.
     """
     return low if value < low else high if value > high else value
 
@@ -475,7 +467,7 @@ def parse_bool(s: object, default: bool = False) -> bool:
 
     :param s: Input value (str, bool, int, None, etc.).
     :param default: Fallback if input is None or not parseable.
-    :returns: Parsed boolean value.
+    :return: Parsed boolean value.
     """
     if isinstance(s, bool):
         return s

@@ -1,9 +1,10 @@
 # author: realcopacetic
+
 from dataclasses import dataclass
-from typing import Callable, Mapping, Optional
+from typing import Mapping, Optional
 
-from resources.lib.shared.utilities import clamp, log, parse_bool, to_int
-
+from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import clamp, parse_bool, to_int
 
 DEFAULT_COORDS: dict[str, tuple[int, int, int, int]] = {
     "TypewriterAnimation": (0, 0, 1920, 1080),
@@ -75,17 +76,17 @@ def resolve_rect(
     if coords:
         try:
             return tuple(map(int, coords.split(",")))
-            
+
         except Exception as exc:
-            log(f"{name}: Invalid coords '{coords}': {exc}")
+            log.error(f"{name}: Invalid coords '{coords}': {exc}")
 
     if anchor_id:
         try:
             a = window.getControl(int(anchor_id))
             return (a.getX(), a.getY(), a.getWidth(), a.getHeight())
-        
+
         except Exception as exc:
-            log(f"{name}: Failed to read anchor {anchor_id}: {exc}")
+            log.error(f"{name}: Failed to read anchor {anchor_id}: {exc}")
 
     return DEFAULT_COORDS.get(name, (0, 0, 0, 0))
 

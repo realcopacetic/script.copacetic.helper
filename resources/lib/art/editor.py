@@ -6,23 +6,14 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import (
-    ART_SOURCE_KEYS,
-    ArtMeta,
-    ColorConfig,
-    resolve_art_type,
-)
+from resources.lib.art.policy import (ART_SOURCE_KEYS, ArtMeta, ColorConfig,
+                                      resolve_art_type)
 from resources.lib.art.processor import ImageProcessor
+from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (
-    BLURS,
-    CROPS,
-    ERROR,
-    infolabel,
-    log,
-    validate_path,
-)
+from resources.lib.shared.utilities import (BLURS, CROPS, infolabel,
+                                            validate_path)
 
 RGB = tuple[int, int, int]
 
@@ -67,17 +58,16 @@ class ImageEditor:
         :param url: Explicit image path. Required if no source is provided.
         :param proc_kwargs: Extra keyword arguments forwarded to processor methods
 
-        :returns: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
+        :return: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
         """
         if not processes:
-            log(
+            log.info(
                 f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}.",
-                level=WARNING
             )
             return []
 
         if not source and not url:
-            log(
+            log.warning(
                 f"{self.__class__.__name__}: Missing both source and URL; nothing to process."
             )
             return []
@@ -98,9 +88,8 @@ class ImageEditor:
                 for art_type, process in items
             ]
         except Exception as error:
-            log(
+            log.error(
                 f"{self.__class__.__name__}: Error during image processing → {error}",
-                level=ERROR,
             )
             return []
 
@@ -150,7 +139,7 @@ class ImageEditor:
         :param source: Optional Kodi infolabel source prefix for Art() lookups.
         :param url: Optional explicit URL to process for this art_type.
         :param proc_kwargs: Extra keyword arguments forwarded to processor methods
-        :returns: Metadata dict including processed path and colors, or None.
+        :return: Metadata dict including processed path and colors, or None.
         """
         art = (
             {art_type: url}
@@ -201,7 +190,7 @@ class ImageEditor:
 
         :param art_type: Target artwork type to resolve (e.g. "clearlogo", "fanart").
         :param source: Kodi info label source prefix (e.g. "ListItem" or "Container.ListItem").
-        :returns: Dict {chosen_key: path} if found, else {}.
+        :return: Dict {chosen_key: path} if found, else {}.
         """
         candidates = {
             key: path
@@ -223,7 +212,7 @@ class ImageEditor:
         :param process: Processor name ("crop" or "blur").
         :param art: Mapping of {resolved_key: url} for the selected artwork.
         :param proc_kwargs: Extra keyword arguments forwarded to processor methods
-        :returns: Dict with file paths and color metadata, or None on failure.
+        :return: Dict with file paths and color metadata, or None on failure.
         """
         process_method = getattr(self.processor, process, None)
         if not process_method:
@@ -261,14 +250,14 @@ class ImageEditor:
                     optimize=self.cfg.png_optimize,
                     compress_level=self.cfg.png_compress_level,
                 )
-            log(
+            log.debug(
                 f"{self.__class__.__name__}: File processed: {url} → {destination_path}"
             )
 
         if self.temp_folder in source_path:
             try:
                 xbmcvfs.delete(source_path)
-                log(f"{self.__class__.__name__}: Temp file deleted → {source_path}")
+                log.debug(f"{self.__class__.__name__}: Temp file deleted → {source_path}")
             except Exception:
                 pass
 
@@ -292,18 +281,17 @@ class ImageEditor:
         Open an image from Kodi VFS via Pillow; skips unsupported formats.
 
         :param url: Kodi VFS or URL-like path to the image resource.
-        :returns: PIL Image or None if missing/unsupported/unreadable.
+        :return: PIL Image or None if missing/unsupported/unreadable.
         """
         if url.lower().endswith(".svg"):
-            log(f"{self.__class__.__name__}: Skipping unsupported SVG → {url}")
+            log.debug(f"{self.__class__.__name__}: Skipping unsupported SVG → {url}")
             return None
 
         try:
             return Image.open(xbmcvfs.translatePath(url))
         except (FileNotFoundError, OSError) as error:
-            log(
+            log.error(
                 f"{self.__class__.__name__}: Unable to open image {url} → {error}",
-                level=ERROR,
             )
             return None
 
@@ -357,7 +345,7 @@ class ImageEditor:
                 )
             )
         except Exception as exc:
-            log(f"ColorDarken: compute failed: {exc}", level=ERROR)
+            log.error(f"ColorDarken: compute failed: {exc}")
             return None
 
     def _resolve_overlay_params(
@@ -366,7 +354,7 @@ class ImageEditor:
         """Parse overlay_* kwargs and resolve text_rgb (supports 'clearlogo' source).
 
         :param proc_kwargs: Arbitrary keyword arguments from the artwork plugin call.
-        :returns: Tuple of params needed for runtime image processing
+        :return: Tuple of params needed for runtime image processing
         """
         enable = str(proc_kwargs.get("overlay_enable", "")).lower() == "true"
         rects = proc_kwargs.get("overlay_rects")
