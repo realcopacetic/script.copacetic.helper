@@ -49,6 +49,7 @@ def add_items(items: list[dict], media_type: str = "metadata") -> list[tuple]:
         "artwork": set_artwork,
         "darken": set_darken,
         "progressbar": set_progressbar,
+        "tmdb": set_tmdb,
         "movie": set_movie,
         "tvshow": set_tvshow,
         "episode": set_episode,
@@ -224,6 +225,28 @@ def set_progressbar(item: dict) -> ListItem:
     return create_li_item(
         item=item,
         label=item.get("label"),
+        default_icon="DefaultVideo.png",
+        properties=item.get("properties", {}),
+    )
+
+
+@videoinfotag_setter(
+    "",
+    {
+        "tagline": "TagLine",
+    },
+)
+def set_tmdb(item: dict) -> ListItem:
+    """
+    Builds a Kodi ListItem for tmdb helper using mapped metadata.
+
+    :param item: Dictionary containing item metadata.
+    :return: xbmcgui.ListItem with enriched VideoInfoTag.
+    """
+    return create_li_item(
+        item=item,
+        label=item.get("label"),
+        label2=item.get("label2"),
         default_icon="DefaultVideo.png",
         properties=item.get("properties", {}),
     )

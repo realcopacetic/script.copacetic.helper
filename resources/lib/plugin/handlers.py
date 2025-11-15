@@ -170,7 +170,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "operator": "isnot",
             "value": self.exclude_value,
         }
-    
+
     def focus(self):
         """
         Return a pre-filled focus guard for the calling handler.
@@ -385,30 +385,36 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return result
 
     @log.duration
-    def tmdb_test(self) -> None:
-        """Debug helper: fetch a TMDb field and log it.
+    def tmdb(self) -> list[tuple]:
 
-        Called from skin like:
-        RunPlugin(plugin://script.copacetic.helper/?info=tmdb_test&kind=tvshow&tmdb_id=1399)
-        """
         from resources.lib.apis.tmdb.client import fetch_tmdb_fields
 
-        kind = (self.params.get("kind") or "tvshow").lower()
-        tmdb_id = to_int(self.params.get("tmdb_id"), 0)
+        with self.focus() as guard:
+            if not guard.alive():
+                return
 
-        if not tmdb_id:
-            log.error(
-                f"{self.__class__.__name__} → tmdb_test: missing or invalid tmdb_id "
-                f"({self.params.get('tmdb_id')!r})"
+            kind = (self.params.get("kind") or "tvshow").lower()
+            tmdb_id = to_int(self.params.get("tmdb_id"), 0)
+
+            if tmdb_id <= 0:
+                log.debug(
+                    f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
+                    f"({self.params.get('tmdb_id')!r})"
+                )
+                return
+
+            tagline = fetch_tmdb_fields(kind, tmdb_id, fields=["tagline"])
+            data = {"file": "tmdb"}
+            data |= tagline
+            log.debug(f'FUCK DEBUG data {data}')
+
+            if not guard.alive():
+                return
+
+            return add_items(
+                [data],
+                media_type="tmdb",
             )
-            return
-
-        extra = fetch_tmdb_fields(kind, tmdb_id, fields=["tagline"])
-        log.debug(
-            f"{self.__class__.__name__} → tmdb_test(kind={kind!r}, tmdb_id={tmdb_id}) "
-            f"→ {extra!r}"
-        )
-        return
 
     @log.duration
     def typewriter(self) -> None:
