@@ -1,5 +1,8 @@
 # author: realcopacetic
 
+
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Mapping, Optional
 
@@ -200,7 +203,7 @@ class PlacementOpts:
     outside: Optional[str] = None  # "below"|"above"|"left"|"right"
 
     @classmethod
-    def from_params(cls, params: Mapping[str, str]) -> "PlacementOpts":
+    def from_params(cls, params: Mapping[str, str]) -> PlacementOpts:
         """
         Build PlacementOpts from plugin params.
 

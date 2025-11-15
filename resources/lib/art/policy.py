@@ -1,5 +1,7 @@
 # author: realcopacetic
 
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Mapping
 
@@ -142,7 +144,7 @@ class ArtMeta:
         category: str,
         values: Mapping[str, Any] | None = None,
         **extras: Any,
-    ) -> "ArtMeta":
+    ) -> ArtMeta:
         """
         Build an ArtMeta by filtering only known value fields from `values`
         and merging with editor-level extras (paths, url, hashes).
@@ -197,7 +199,7 @@ def flatten_art_attributes(
     Flatten canonical records into ListItem.Art-style keys.
 
     processed_path -> "{category}"
-    others        -> "{category}_{key}"
+    others         -> "{category}_{key}"
     """
     out: dict[str, Any] = {}
     for rec in records or ():
