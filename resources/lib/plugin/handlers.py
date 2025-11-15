@@ -391,7 +391,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Called from skin like:
         RunPlugin(plugin://script.copacetic.helper/?info=tmdb_test&kind=tvshow&tmdb_id=1399)
         """
-        from resources.lib.apis.tmdb.tmdb import fetch_tmdb_fields
+        from resources.lib.apis.tmdb.client import fetch_tmdb_fields
 
         kind = (self.params.get("kind") or "tvshow").lower()
         tmdb_id = to_int(self.params.get("tmdb_id"), 0)
