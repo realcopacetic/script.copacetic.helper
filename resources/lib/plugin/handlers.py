@@ -17,7 +17,7 @@ from resources.lib.plugin.helpers import (
     TextTruncator,
     TypewriterAnimation,
 )
-from resources.lib.plugin.json_map import JSON_MAP
+from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.setter import *
 from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.shared import logger as log
@@ -491,7 +491,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
         set_plugincontent(content="episodes", category=ADDON.getLocalizedString(32600))
-
         filters = [self.filter_inprogress]
         results = []
 
@@ -509,6 +508,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         for show in shows:
+            tvshow_id = to_int(show.get("tvshowid"), 00)
+            if tvshow_id <= 0:
+                continue
+
             studio = show.get("studio", "")
             mpaa = show.get("mpaa", "")
             use_last_played_season = True
@@ -524,7 +527,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         self.filter_no_specials,
                     ]
                 },
-                params={"tvshowid": int(show["tvshowid"])},
+                params={"tvshowid": tvshow_id},
                 parent="next_up",
             )
             if last_played.get("result", {}).get("limits", {}).get("total", 0) < 1:
@@ -535,7 +538,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 season = last_played["result"]["episodes"][0].get("season")
                 ep_query = json_call(
                     "VideoLibrary.GetEpisodes",
-                    properties=JSON_MAP["episode_properties"],
+                    properties=JSON_PROPERTIES["episode"],
                     sort={"order": "ascending", "method": "episode"},
                     limit=1,
                     query_filter={
@@ -554,7 +557,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not use_last_played_season:
                 ep_query = json_call(
                     "VideoLibrary.GetEpisodes",
-                    properties=JSON_MAP["episode_properties"],
+                    properties=JSON_PROPERTIES["episode"],
                     sort={"order": "ascending", "method": "episode"},
                     limit=1,
                     query_filter={
@@ -570,9 +573,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     f"PluginHandlers → next_up: No next episode found for {show['title']}"
                 )
                 continue
-            eps[0]["studio"] = studio
-            eps[0]["mpaa"] = mpaa
-            results.extend(set_items(eps, media_type="episode"))
+            raw_ep = eps[0]
+            raw_ep["studio"] = studio
+            raw_ep["mpaa"] = mpaa
+
+            canonical = json_to_canonical(raw_ep, "episode")
+            results.extend(
+                set_items(
+                    [canonical],
+                    media_type="episode",
+                    tag_applier=apply_videoinfotag,
+                )
+            )
 
         return results or None
 

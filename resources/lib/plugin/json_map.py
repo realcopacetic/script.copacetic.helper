@@ -230,13 +230,16 @@ def json_to_canonical(
     :param raw: Raw dictionary returned by VideoLibrary.*.
     :param content_type: Logical type (``"movie"``, ``"tvshow"``, ``"episode"``, ...).
     :param allowed: Optional whitelist of canonical tag names.
-    :return: Canonical metadata dictionary ready for ``add_items()``.
+    :return: Canonical metadata dictionary ready for ``set_items()``.
     """
     item: dict[str, str | int | list] = {
         "file": raw.get("file", ""),
         "art": raw.get("art", {}) or {},
         "properties": {},
     }
+
+    item["label"] = raw.get("label", "")
+    item["label2"] = raw.get("label2", "")
 
     if isinstance(raw.get("resume"), dict):
         item["resume"] = raw["resume"]
