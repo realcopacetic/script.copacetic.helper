@@ -64,12 +64,10 @@ def set_items(
     tag_applier: TagApplier | None = None,
 ) -> list[tuple]:
     """
-    Build Kodi directory items from canonical metadata dictionaries.
-    Each dictionary must include a ``file`` key and may include artwork,
-    ListItem properties, VideoInfoTag fields, resume data, and streamdetails.
+    Build directory items from canonical metadata dictionaries.
 
     :param items: Iterable of canonical item dictionaries.
-    :param media_type: Logical media type used for tag assignment.
+    :param media_type: Logical media type used for VideoInfoTag assignment.
     :param tag_applier: Optional function to apply VideoInfoTag fields.
     :return: List of ``(file, ListItem, is_folder)`` tuples.
     """
@@ -90,12 +88,10 @@ def build_listitem(
 ) -> ListItem:
     """
     Construct a ListItem from a canonical metadata dictionary.
-    Artwork and properties are applied directly. InfoTag handling is
-    delegated to an optional tag applier function.
 
     :param item: Canonical metadata dictionary for the item.
-    :param media_type: Logical media type to annotate the InfoTag.
-    :param tag_applier: Optional function to apply InfoTag fields.
+    :param media_type: Logical media type to annotate the VideoInfoTag.
+    :param tag_applier: Optional function to apply VideoInfoTag fields.
     :return: Fully configured ``xbmcgui.ListItem`` instance.
     """
     li = ListItem(
@@ -124,13 +120,11 @@ def apply_videoinfotag(
     media_type: str | None,
 ) -> None:
     """
-    Apply VideoInfoTag fields to a ListItem based on canonical metadata.
-    Fields must use the canonical tag names defined in ``TAG_TYPES`` and will
-    be coerced to the appropriate Kodi type before calling the matching setter.
+    Apply VideoInfoTag fields to a ListItem from canonical metadata.
 
     :param li_item: ListItem to update.
-    :param item: Canonical metadata dictionary.
-    :param media_type: Logical media type to annotate the tag.
+    :param item: Canonical metadata dictionary keyed by tag names.
+    :param media_type: Logical media type to annotate the VideoInfoTag.
     :return: ``None``.
     """
     tag = li_item.getVideoInfoTag()

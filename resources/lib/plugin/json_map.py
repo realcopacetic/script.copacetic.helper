@@ -227,10 +227,6 @@ def json_to_canonical(
     """
     Convert a raw Kodi JSON-RPC VideoLibrary item into a canonical metadata dict.
 
-    Structural fields (file, art, resume, streamdetails) are copied directly.
-    JSON fields are mapped to canonical tag names using JSON_FIELD_MAP and
-    filtered against TAG_TYPES and an optional allowed set.
-
     :param raw: Raw dictionary returned by VideoLibrary.*.
     :param content_type: Logical type (``"movie"``, ``"tvshow"``, ``"episode"``, ...).
     :param allowed: Optional whitelist of canonical tag names.
