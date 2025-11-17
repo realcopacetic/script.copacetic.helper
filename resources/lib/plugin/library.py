@@ -1,379 +1,184 @@
 # author: realcopacetic
 
-from functools import wraps
-from typing import Callable
-from resources.lib.shared.utilities import log
+from typing import Any, Callable, Iterable
 
 import xbmc
 from xbmcgui import ListItem
 
-_LIST_ATTRS: set[str] = {
-    "Directors",
-    "Genres",
-    "Studios",
-    "Writers",
-    "Artists",
-    "Countries",
-    "ShowLinks",
+TagApplier = Callable[[ListItem, dict, str | None], None]
+
+_DEFAULT_ICONS: dict[str, str] = {
+    "movie": "DefaultMovies.png",
+    "tvshow": "DefaultTVShows.png",
+    "episode": "DefaultTVShows.png",
+    "musicvideo": "DefaultVideo.png",
 }
-_INT_ATTRS: set[str] = {
-    "DbId",
-    "Playcount",
-    "Duration",
-    "Year",
-    "Episode",
-    "Season",
-    "Top250",
-    "TrackNumber",
+
+_STREAM_DETAIL_MAP = {
+    "video": ("VideoStream", xbmc.VideoStreamDetail),
+    "audio": ("AudioStream", xbmc.AudioStreamDetail),
+    "subtitle": ("SubtitleStream", xbmc.SubtitleStreamDetail),
+}
+
+TAG_TYPES: dict[str, str] = {
+    "Artists": "list",
+    "DbId": "int",
+    "Directors": "list",
+    "Duration": "int",
+    "Episode": "int",
+    "Genres": "list",
+    "LastPlayed": "str",
+    "Mpaa": "str",
+    "Playcount": "int",
+    "Plot": "str",
+    "PlotOutline": "str",
+    "Premiered": "str",
+    "Season": "int",
+    "Studios": "list",
+    "TagLine": "str",
+    "Title": "str",
+    "Top250": "int",
+    "TrackNumber": "int",
+    "Trailer": "str",
+    "TvShowTitle": "str",
+    "Writers": "list",
+    "Year": "int",
 }
 
 
-def _as_list(value) -> list[str]:
+def _as_list(value: Any) -> list[str]:
+    """
+    Normalise a value into a list of non-empty strings.
+
+    :param value: Input value that may be scalar or sequence.
+    :return: List of non-empty string values.
+    """
     if isinstance(value, (list, tuple, set)):
         return [str(v) for v in value if v not in (None, "")]
     return [str(value)] if value not in (None, "") else []
 
 
-def add_items(items: list[dict], media_type: str = "metadata") -> list[tuple]:
+def add_items(
+    items: Iterable[dict],
+    media_type: str | None = None,
+    tag_applier: TagApplier | None = None,
+) -> list[tuple]:
     """
-    Convert a list of item dicts into Kodi directory items.
-    Each dict must include a "file" key and relevant metadata.
+    Build Kodi directory items from canonical metadata dictionaries.
+    Each dictionary must include a ``file`` key and may include artwork,
+    ListItem properties, VideoInfoTag fields, resume data, and streamdetails.
 
-    :param items: List of item dicts with at least a "file" key.
-    :param media_type: Handler type for setting ListItem properties.
-    :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
+    :param items: Iterable of canonical item dictionaries.
+    :param media_type: Logical media type used for tag assignment.
+    :param tag_applier: Optional function to apply VideoInfoTag fields.
+    :return: List of ``(file, ListItem, is_folder)`` tuples.
     """
-    li: list[tuple] = []
-    type_mapping = {
-        "metadata": set_metadata,
-        "artwork": set_artwork,
-        "darken": set_darken,
-        "progressbar": set_progressbar,
-        "tmdb": set_tmdb,
-        "movie": set_movie,
-        "tvshow": set_tvshow,
-        "episode": set_episode,
-        "musicvideo": set_musicvideo,
-    }
-    handler = type_mapping.get(media_type, set_metadata)
-    for item in items:
-        li_item = handler(item)
-        li.append((item["file"], li_item, False))
+    return [
+        (
+            item["file"],
+            build_listitem(item, media_type=media_type, tag_applier=tag_applier),
+            False,
+        )
+        for item in items
+    ]
+
+
+def build_listitem(
+    item: dict,
+    media_type: str | None,
+    tag_applier: TagApplier | None = None,
+) -> ListItem:
+    """
+    Construct a ListItem from a canonical metadata dictionary.
+    Artwork and properties are applied directly. InfoTag handling is
+    delegated to an optional tag applier function.
+
+    :param item: Canonical metadata dictionary for the item.
+    :param media_type: Logical media type to annotate the InfoTag.
+    :param tag_applier: Optional function to apply InfoTag fields.
+    :return: Fully configured ``xbmcgui.ListItem`` instance.
+    """
+    li = ListItem(
+        label=item.get("label", ""),
+        label2=item.get("label2", ""),
+        offscreen=True,
+    )
+    art = dict(item.get("art", {}))
+    fallback = _DEFAULT_ICONS.get(media_type or "", "DefaultCopacetic.png")
+    art.setdefault("icon", fallback)
+    art.setdefault("thumb", fallback)
+    li.setArt(art)
+
+    for key, value in (item.get("properties") or {}).items():
+        li.setProperty(key, str(value))
+
+    if tag_applier is not None:
+        tag_applier(li, item, media_type)
+
     return li
 
 
-def create_li_item(
+def apply_videoinfotag(
+    li_item: ListItem,
     item: dict,
-    label: str = "",
-    label2: str = "",
-    default_icon: str = "DefaultCopacetic.png",
-    properties: dict | None = None,
-) -> ListItem:
+    media_type: str | None,
+) -> None:
     """
-    Creates a Kodi ListItem with basic art and optional properties.
+    Apply VideoInfoTag fields to a ListItem based on canonical metadata.
+    Fields must use the canonical tag names defined in ``TAG_TYPES`` and will
+    be coerced to the appropriate Kodi type before calling the matching setter.
 
-    :param item: Dictionary containing metadata.
-    :param label: Display label for item.
-    :param label2: Right display label for item.
-    :param default_icon: Fallback icon if artwork is missing.
-    :param properties: Optional dictionary of ListItem properties.
-    :return: xbmcgui.ListItem instance
+    :param li_item: ListItem to update.
+    :param item: Canonical metadata dictionary.
+    :param media_type: Logical media type to annotate the tag.
+    :return: ``None``.
     """
-    li_item = ListItem(label, label2, offscreen=True)
-    li_item.setArt({**item.get("art", {}), "icon": default_icon, "thumb": default_icon})
+    tag = li_item.getVideoInfoTag()
+    tag.setMediaType(str(media_type or item.get("DbType") or ""))
 
-    if properties:
-        for key, value in properties.items():
-            li_item.setProperty(key, str(value))
+    for key, value in item.items():
+        coerce_type = TAG_TYPES.get(key)
+        if not coerce_type:
+            continue
 
-    return li_item
+        setter = getattr(tag, f"set{key}", None)
+        if not setter or value in (None, ""):
+            continue
 
+        try:
+            if coerce_type == "int":
+                setter(int(value))
+            elif coerce_type == "list":
+                setter(_as_list(value))
+            else:
+                setter(str(value))
+        except Exception:
+            continue
 
-def videoinfotag_setter(
-    media_type: str, info_mapping: dict, stream_fields: dict | None = None
-) -> Callable:
-    """
-    Decorator that injects video metadata and stream details into ListItem.
+    resume = item.get("resume")
+    if isinstance(resume, dict):
+        tag.setResumePoint(resume.get("position", 0), resume.get("total", 0))
 
-    :param media_type: Default media type string, or dynamic fallback.
-    :param info_mapping: Dict mapping input keys to VideoInfoTag setters.
-    :param stream_fields: Dict mapping stream types to setter functions.
-    :return: Decorator wrapping a ListItem creation function.
-    """
+    streamdetails = item.get("streamdetails")
+    if not isinstance(streamdetails, dict):
+        return
 
-    def decorator(func):
-        @wraps(func)
-        def wrapper(item):
-            li_item = func(item)
-            tag = li_item.getVideoInfoTag()
-            tag.setMediaType(media_type or item.get("dbtype"))
+    for kind, streams in streamdetails.items():
+        if not streams:
+            continue
 
-            for key, attr in info_mapping.items():
-                if key not in item:
-                    continue
-                value = item[key]
-                if value in (None, ""):
-                    continue
-                setter = getattr(tag, f"set{attr}", None)
-                if not setter:
-                    continue
-                if attr in _LIST_ATTRS:
-                    seq = _as_list(value)
-                    if seq:
-                        setter(seq)
-                elif attr in _INT_ATTRS:
-                    try:
-                        setter(int(value))
-                    except (TypeError, ValueError):
-                        pass
-                else:
-                    setter(str(value))
+        method_suffix, detail_cls = _STREAM_DETAIL_MAP.get(kind, (None, None))
+        if not method_suffix:
+            continue
 
-            if isinstance((resume := item.get("resume")), dict):
-                tag.setResumePoint(resume.get("position", 0), resume.get("total", 0))
+        add_method = getattr(tag, f"add{method_suffix}", None)
+        if not add_method:
+            continue
 
-            if stream_fields and "streamdetails" in item:
-                for kind, streams in item["streamdetails"].items():
-                    if not streams:
-                        continue
-                    add_method_name = f"add{stream_fields.get(kind, '')}"
-                    add = getattr(tag, add_method_name, None)
-                    if not add:
-                        continue
-                    for s in streams:
-                        if not isinstance(s, dict):
-                            continue
-                        if kind == "video":
-                            add(xbmc.VideoStreamDetail(**s))
-                        elif kind == "audio":
-                            add(xbmc.AudioStreamDetail(**s))
-                        elif kind == "subtitle":
-                            add(xbmc.SubtitleStreamDetail(**s))
-
-            return li_item
-
-        return wrapper
-
-    return decorator
-
-
-@videoinfotag_setter(
-    "",
-    {
-        "director": "Directors",
-        "genre": "Genres",
-        "plot": "Plot",
-        "studio": "Studios",
-        "writer": "Writers",
-    },
-)
-def set_metadata(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for metadata helper using mapped metadata.
-
-    :param item: Dictionary containing item metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item,
-        label=item.get("label"),
-        label2=item.get("label2"),
-        default_icon="DefaultVideo.png",
-        properties=item.get("properties", {}),
-    )
-
-
-def set_artwork(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for artwork helper service using mapped artwork.
-
-    :param item: Dictionary containing item metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item,
-        label=item.get("label"),
-        label2=item.get("label2"),
-        default_icon="DefaultVideo.png",
-        properties=item.get("properties", {}),
-    )
-
-
-def set_darken(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for darken helper using mapped metadata.
-
-    :param item: Dictionary containing item metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item,
-        label=item.get("label"),
-        default_icon="DefaultVideo.png",
-        properties=item.get("properties", {}),
-    )
-
-
-@videoinfotag_setter("", {})
-def set_progressbar(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for progressbar helper using mapped metadata.
-
-    :param item: Dictionary containing item metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item,
-        label=item.get("label"),
-        default_icon="DefaultVideo.png",
-        properties=item.get("properties", {}),
-    )
-
-
-@videoinfotag_setter(
-    "",
-    {
-        "tagline": "TagLine",
-    },
-)
-def set_tmdb(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for tmdb helper using mapped metadata.
-
-    :param item: Dictionary containing item metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item,
-        label=item.get("label"),
-        label2=item.get("label2"),
-        default_icon="DefaultVideo.png",
-        properties=item.get("properties", {}),
-    )
-
-
-@videoinfotag_setter(
-    "movie",
-    {
-        "director": "Directors",
-        "lastplayed": "LastPlayed",
-        "movieid": "DbId",
-        "mpaa": "Mpaa",
-        "playcount": "Playcount",
-        "plot": "Plot",
-        "plotoutline": "PlotOutline",
-        "runtime": "Duration",
-        "studio": "Studios",
-        "tagline": "TagLine",
-        "title": "Title",
-        "trailer": "Trailer",
-        "year": "Year",
-    },
-    stream_fields={"video": "VideoStream", "audio": "AudioStream"},
-)
-def set_movie(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for a movie using mapped metadata and artwork.
-
-    :param item: Dictionary containing movie metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item, label=item.get("title"), default_icon="DefaultMovies.png"
-    )
-
-
-@videoinfotag_setter(
-    "tvshow",
-    {
-        "lastplayed": "LastPlayed",
-        "tvshowid": "DbId",
-        "mpaa": "Mpaa",
-        "plot": "Plot",
-        "studio": "Studios",
-        "title": "Title",
-        "year": "Year",
-    },
-)
-def set_tvshow(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for a tv show using mapped metadata and artwork.
-
-    :param item: Dictionary containing tv show metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    episode = item.get("episode", 0)
-    watched_episodes = item.get("watchedepisodes", 0)
-    season = item.get("season", 0)
-
-    return create_li_item(
-        item=item,
-        label=item.get("title"),
-        default_icon="DefaultTVShows.png",
-        properties={
-            "totalseasons": season,
-            "totalepisodes": episode,
-            "watchedepisodes": watched_episodes,
-            "unwatchedepisodes": max(episode - watched_episodes, 0),
-            "watchedepisodepercent": int(
-                (watched_episodes / episode * 100) if episode else 0
-            ),
-        },
-    )
-
-
-@videoinfotag_setter(
-    "episode",
-    {
-        "episode": "Episode",
-        "episodeid": "DbId",
-        "firstaired": "Premiered",
-        "lastplayed": "LastPlayed",
-        "mpaa": "Mpaa",
-        "playcount": "Playcount",
-        "plot": "Plot",
-        "runtime": "Duration",
-        "season": "Season",
-        "showtitle": "TvShowTitle",
-        "studio": "Studios",
-        "title": "Title",
-    },
-    stream_fields={"video": "VideoStream", "audio": "AudioStream"},
-)
-def set_episode(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for an episode using mapped metadata and artwork.
-
-    :param item: Dictionary containing episode metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item,
-        label=f"{item.get('season', 0)}x{item.get('episode', 0):02}",
-        default_icon="DefaultTVShows.png",
-    )
-
-
-@videoinfotag_setter(
-    "musicvideo",
-    {
-        "artist": "Artists",
-        "musicvideoid": "DbId",
-        "runtime": "Duration",
-        "lastplayed": "LastPlayed",
-        "playcount": "Playcount",
-        "title": "Title",
-        "year": "Year",
-    },
-    stream_fields={"video": "VideoStream", "audio": "AudioStream"},
-)
-def set_musicvideo(item: dict) -> ListItem:
-    """
-    Builds a Kodi ListItem for a music video using mapped metadata and artwork.
-
-    :param item: Dictionary containing music video metadata.
-    :return: xbmcgui.ListItem with enriched VideoInfoTag.
-    """
-    return create_li_item(
-        item=item, label=item.get("title"), default_item="DefaultVideo.png"
-    )
+        for s in streams:
+            if not isinstance(s, dict):
+                continue
+            try:
+                add_method(detail_cls(**s))
+            except TypeError:
+                continue
