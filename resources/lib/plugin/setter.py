@@ -58,7 +58,7 @@ def _as_list(value: Any) -> list[str]:
     return [str(value)] if value not in (None, "") else []
 
 
-def add_items(
+def set_items(
     items: Iterable[dict],
     media_type: str | None = None,
     tag_applier: TagApplier | None = None,

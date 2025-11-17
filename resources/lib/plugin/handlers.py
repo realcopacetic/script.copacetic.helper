@@ -18,7 +18,7 @@ from resources.lib.plugin.helpers import (
     TypewriterAnimation,
 )
 from resources.lib.plugin.json_map import JSON_MAP
-from resources.lib.plugin.library import *
+from resources.lib.plugin.setter import *
 from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
@@ -238,7 +238,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     keep_main_first=True,
                 )
             current_position = to_int(self.expected, 0)
-            return add_items(
+            return set_items(
                 [
                     {
                         "file": "artwork",
@@ -276,7 +276,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive() or val is None:
                 return
 
-            return add_items(
+            return set_items(
                 [
                     {
                         "file": "darken",
@@ -335,7 +335,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 data |= {"properties": {"truncated_label": truncated}}
 
-            return add_items([data], media_type="metadata")
+            return set_items([data], media_type="metadata")
 
     @log.duration
     def progressbar(self) -> list[tuple]:
@@ -353,7 +353,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             pb = ProgressBarManager(target=f"{self.container}.ListItem")
             resume, unwatched = pb.calculate()
             result.extend(
-                add_items(
+                set_items(
                     [
                         {
                             "file": "progress",
@@ -411,7 +411,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            return add_items(
+            return set_items(
                 [data],
                 media_type="tmdb",
             )
@@ -572,7 +572,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 continue
             eps[0]["studio"] = studio
             eps[0]["mpaa"] = mpaa
-            results.extend(add_items(eps, media_type="episode"))
+            results.extend(set_items(eps, media_type="episode"))
 
         return results or None
 
@@ -652,7 +652,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 continue
             items = self._remove_current(items, current_item, total)
-            results.extend(add_items(items, media_type=media_type))
+            results.extend(set_items(items, media_type=media_type))
 
         return results or None
 
@@ -692,7 +692,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         if postprocess:
             postprocess(items)
-        return add_items(items, media_type=media_type)
+        return set_items(items, media_type=media_type)
 
     def _enrich_with_tvshow(self, episodes: list[dict[str, Any]], parent: str) -> None:
         """

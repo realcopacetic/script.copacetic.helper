@@ -1,7 +1,9 @@
 # author: realcopacetic, sualfred
 
-JSON_MAP = {
-    "movie_properties": [
+from resources.lib.plugin.setter import TAG_TYPES
+
+JSON_PROPERTIES: dict[str, list[str]] = {
+    "movie": [
         "title",
         "year",
         "director",
@@ -18,8 +20,9 @@ JSON_MAP = {
         "file",
         "resume",
         "art",
+        "movieid",
     ],
-    "episode_properties": [
+    "episode": [
         "title",
         "plot",
         "firstaired",
@@ -34,8 +37,9 @@ JSON_MAP = {
         "resume",
         "tvshowid",
         "art",
+        "episodeid",
     ],
-    "tvshow_properties": [
+    "tvshow": [
         "title",
         "year",
         "plot",
@@ -48,8 +52,9 @@ JSON_MAP = {
         "season",
         "watchedepisodes",
         "art",
+        "tvshowid",
     ],
-    "musicvideo_properties": [
+    "musicvideo": [
         "title",
         "playcount",
         "runtime",
@@ -61,8 +66,9 @@ JSON_MAP = {
         "file",
         "resume",
         "art",
+        "musicvideoid",
     ],
-    "season_properties": [
+    "season": [
         "season",
         "showtitle",
         "playcount",
@@ -75,7 +81,7 @@ JSON_MAP = {
         "userrating",
         "title",
     ],
-    "artist_properties": [
+    "artist": [
         "instrument",
         "style",
         "mood",
@@ -94,8 +100,9 @@ JSON_MAP = {
         "roles",
         "songgenres",
         "isalbumartist",
+        "artistid",
     ],
-    "playlist_properties": [
+    "playlist": [
         "title",
         "artist",
         "albumartist",
@@ -181,3 +188,78 @@ JSON_MAP = {
         "userrating",
     ],
 }
+
+JSON_FIELD_MAP: dict[str, str] = {
+    "artist": "Artists",
+    "director": "Directors",
+    "dbid": "DbId",
+    "episode": "Episode",
+    "episodeid": "DbId",
+    "firstaired": "Premiered",
+    "genre": "Genres",
+    "lastplayed": "LastPlayed",
+    "movieid": "DbId",
+    "mpaa": "Mpaa",
+    "musicvideoid": "DbId",
+    "playcount": "Playcount",
+    "plot": "Plot",
+    "plotoutline": "PlotOutline",
+    "runtime": "Duration",
+    "season": "Season",
+    "showtitle": "TvShowTitle",
+    "studio": "Studios",
+    "tagline": "TagLine",
+    "title": "Title",
+    "top250": "Top250",
+    "track": "TrackNumber",
+    "trailer": "Trailer",
+    "tvshowid": "DbId",
+    "writer": "Writers",
+    "year": "Year",
+}
+
+
+def json_to_canonical(
+    raw: dict,
+    content_type: str,
+    allowed: set[str] | None = None,
+) -> dict:
+    """
+    Convert a raw Kodi JSON-RPC VideoLibrary item into a canonical metadata dict.
+
+    Structural fields (file, art, resume, streamdetails) are copied directly.
+    JSON fields are mapped to canonical tag names using JSON_FIELD_MAP and
+    filtered against TAG_TYPES and an optional allowed set.
+
+    :param raw: Raw dictionary returned by VideoLibrary.*.
+    :param content_type: Logical type (``"movie"``, ``"tvshow"``, ``"episode"``, ...).
+    :param allowed: Optional whitelist of canonical tag names.
+    :return: Canonical metadata dictionary ready for ``add_items()``.
+    """
+    item: dict[str, str | int | list] = {
+        "file": raw.get("file", ""),
+        "art": raw.get("art", {}) or {},
+        "properties": {},
+    }
+
+    if isinstance(raw.get("resume"), dict):
+        item["resume"] = raw["resume"]
+
+    if isinstance(raw.get("streamdetails"), dict):
+        item["streamdetails"] = raw["streamdetails"]
+
+    for json_key in JSON_PROPERTIES.get(content_type, []):
+        if json_key not in raw:
+            continue
+
+        canonical = JSON_FIELD_MAP.get(json_key)
+        if canonical is None:
+            continue
+
+        if allowed and canonical not in allowed:
+            continue
+
+        if canonical in TAG_TYPES:
+            item[canonical] = raw[json_key]
+
+    return item
