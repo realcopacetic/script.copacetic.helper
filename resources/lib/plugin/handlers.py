@@ -508,7 +508,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         for show in shows:
-            tvshow_id = to_int(show.get("tvshowid"), 00)
+            tvshow_id = to_int(show.get("tvshowid"), 0)
             if tvshow_id <= 0:
                 continue
 
@@ -607,29 +607,30 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
         set_plugincontent(content="videos", category=ADDON.getLocalizedString(32604))
-        results = self._role_credits(
+        return self._role_credits(
             field="writer",
-            content_map=[
-                ("VideoLibrary.GetMovies", "movie"),
-                ("VideoLibrary.GetEpisodes", "episode"),
+            sources=[
+                ("VideoLibrary.GetMovies", "movies"),
+                ("VideoLibrary.GetEpisodes", "episodes"),
             ],
             parent="writer_credits",
-            enrich_tvshows=True,  # so episodes get mpaa/studio
+            postprocess=lambda eps: self._enrich_with_tvshow(eps, parent="writer_credits"),
         )
-        return results or None
 
     def _role_credits(
         self,
         field: str,
         sources: list[tuple[str, str]],
         parent: str,
+        postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
     ) -> list[DirectoryItem] | None:
         """
-        Generic role-based credits fetcher for actors/directors.
+        Generic role-based credits fetcher for actors/directors/writers.
 
-        :param field: VideoLibrary filter field (e.g. "actor", "director").
+        :param field: VideoLibrary filter field ("actor", "director", "writer").
         :param sources: List of (method, content_type) pairs to query.
         :param parent: Parent name for logging.
+        :param enrich_tvshows: If True, enrich episode items with TV show metadata.
         :return: List of (file, ListItem, isFolder) tuples, or None if empty.
         """
         results = []
@@ -648,6 +649,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     sort=self.sort_year,
                     parent=parent,
                     tag_applier=apply_videoinfotag,
+                    postprocess=postprocess,
                 )
             )
 
@@ -686,9 +688,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             parent=parent,
         )
 
-        items = q.get("result", {}).get(f"{content_type}s", []) or []
+        items = q.get("result", {}).get(f"{content_type}", []) or []
         if not items:
-            log.debug(f"PluginHandlers → {parent}: No {content_type}s found.")
+            log.debug(f"PluginHandlers → {parent}: No {content_type} found.")
             return []
 
         if postprocess is not None:
@@ -727,6 +729,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 meta = details.get("result", {}).get("tvshowdetails", {}) or {}
                 cache[tvshowid] = meta
-            
+
             ep["studio"] = meta.get("studio")
             ep["mpaa"] = meta.get("mpaa")
