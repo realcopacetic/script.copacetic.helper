@@ -20,6 +20,7 @@ from resources.lib.plugin.helpers import (
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.setter import *
 from resources.lib.plugin.registry import PluginInfoRegistry
+from resources.lib.plugin.tvshows import TvShowHelper
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
@@ -406,7 +407,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             tagline = fetch_tmdb_fields(kind, tmdb_id, fields=["tagline"])
             data = {"file": "tmdb"}
             data |= tagline
-            log.debug(f'FUCK DEBUG data {data}')
+            log.debug(f"FUCK DEBUG data {data}")
 
             if not guard.alive():
                 return
@@ -491,15 +492,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
         set_plugincontent(content="episodes", category=ADDON.getLocalizedString(32600))
-        filters = [self.filter_inprogress]
-        results = []
-
+        results_meta = []
         q = json_call(
             "VideoLibrary.GetTVShows",
-            properties=["title", "lastplayed", "studio", "mpaa"],
+            properties=["title", "tvshowid", "studio", "mpaa", "lastplayed"],
             sort=self.sort_lastplayed,
             limit=25,
-            query_filter={"and": filters},
+            query_filter={"and": [self.filter_inprogress]},
             parent="next_up",
         )
         shows = q.get("result", {}).get("tvshows", [])
@@ -512,79 +511,53 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if tvshow_id <= 0:
                 continue
 
-            studio = show.get("studio", "")
-            mpaa = show.get("mpaa", "")
-            use_last_played_season = True
-
-            last_played = json_call(
+            ep_query = json_call(
                 "VideoLibrary.GetEpisodes",
-                properties=["seasonid", "season"],
-                sort={"order": "descending", "method": "lastplayed"},
+                properties=JSON_PROPERTIES["episode"],
+                sort={"order": "ascending", "method": "episode"},
                 limit=1,
-                query_filter={
-                    "and": [
-                        {"or": [self.filter_inprogress, self.filter_watched]},
-                        self.filter_no_specials,
-                    ]
-                },
+                query_filter={"and": [self.filter_unwatched, self.filter_no_specials]},
                 params={"tvshowid": tvshow_id},
                 parent="next_up",
             )
-            if last_played.get("result", {}).get("limits", {}).get("total", 0) < 1:
-                use_last_played_season = False
 
-            # Return the next episode of last played season
-            if use_last_played_season:
-                season = last_played["result"]["episodes"][0].get("season")
-                ep_query = json_call(
-                    "VideoLibrary.GetEpisodes",
-                    properties=JSON_PROPERTIES["episode"],
-                    sort={"order": "ascending", "method": "episode"},
-                    limit=1,
-                    query_filter={
-                        "and": [
-                            self.filter_unwatched,
-                            {"field": "season", "operator": "is", "value": str(season)},
-                        ]
-                    },
-                    params={"tvshowid": int(show["tvshowid"])},
-                    parent="next_up",
-                )
-                if ep_query.get("result", {}).get("limits", {}).get("total", 0) < 1:
-                    use_last_played_season = False
-
-            # If no episode is left of the last played season, fall back to the very first unwatched episode
-            if not use_last_played_season:
-                ep_query = json_call(
-                    "VideoLibrary.GetEpisodes",
-                    properties=JSON_PROPERTIES["episode"],
-                    sort={"order": "ascending", "method": "episode"},
-                    limit=1,
-                    query_filter={
-                        "and": [self.filter_unwatched, self.filter_no_specials]
-                    },
-                    params={"tvshowid": int(show["tvshowid"])},
-                    parent="next_up",
-                )
-
-            eps = ep_query.get("result", {}).get("episodes", [])
-            if not eps:
+            episodes = ep_query.get("result", {}).get("episodes", [])
+            if not episodes:
                 log.debug(
-                    f"PluginHandlers → next_up: No next episode found for {show['title']}"
+                    f"{self.__class__.__name__} → next_up: No unwatched episodes for "
+                    f"{show.get('title', '<unknown>')}"
                 )
                 continue
-            raw_ep = eps[0]
-            raw_ep["studio"] = studio
-            raw_ep["mpaa"] = mpaa
 
+            raw_ep = episodes[0]
+            raw_ep.setdefault("studio", show.get("studio", ""))
+            raw_ep.setdefault("mpaa", show.get("mpaa", ""))
             canonical = json_to_canonical(raw_ep, "episode")
-            results.extend(
-                set_items(
-                    [canonical],
-                    media_type="episode",
-                    tag_applier=apply_videoinfotag,
-                )
+
+            dir_items = set_items(
+                [canonical],
+                media_type="episode",
+                tag_applier=apply_videoinfotag,
             )
+            if not dir_items:
+                continue
+
+            file_path, li, is_folder = dir_items[0]
+            effective_lastplayed, is_new = TvShowHelper.compute_new_unwatched(
+                show.get("lastplayed"),
+                raw_ep.get("firstaired"),
+            )
+
+            if is_new:
+                li.setProperty(TvShowHelper.NEW_UNWATCHED_PROP, "true")
+
+            results_meta.append((effective_lastplayed, (file_path, li, is_folder)))
+        
+        if not results_meta:
+            return None
+
+        results_meta.sort(key=lambda r: r[0] or "", reverse=True)
+        results = [entry[1] for entry in results_meta]
 
         return results or None
 
