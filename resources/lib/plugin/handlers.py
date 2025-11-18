@@ -10,18 +10,27 @@ from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import collect_multiart, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
-from resources.lib.plugin.helpers import (DataHandler, JumpButton,
-                                          ProgressBarManager, TextTruncator,
-                                          TypewriterAnimation)
+from resources.lib.plugin.helpers import (
+    DataHandler,
+    JumpButton,
+    ProgressBarManager,
+    TextTruncator,
+    TypewriterAnimation,
+)
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.plugin.setter import *
 from resources.lib.plugin.tvshows import TvShowHelper
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (ADDON, condition, infolabel,
-                                            json_call, set_plugincontent,
-                                            to_int)
+from resources.lib.shared.utilities import (
+    ADDON,
+    condition,
+    infolabel,
+    json_call,
+    set_plugincontent,
+    to_int,
+)
 
 DirectoryItem = tuple[str, Any, bool]
 
@@ -179,7 +188,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
 
     @log.duration
-    def artwork(self) -> list[tuple]:
+    def artwork(self) -> list[DirectoryItem] | None:
         """
         Process/calculate artwork and attach to listitem; aborts if focus changes.
 
@@ -242,12 +251,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                             "next": current_position + 1,
                         },
                     }
-                ],
-                media_type="artwork",
+                ]
             )
 
     @log.duration
-    def darken(self) -> list[tuple]:
+    def darken(self) -> list[DirectoryItem] | None:
         """
         On-demand darken for a single fanart path. Acts as a lightweight
         alternative entry point for darkening without invoking artwork handler.
@@ -274,11 +282,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 [
                     {
                         "file": "darken",
-                        "label": str(val),
                         "properties": {"fanart_darken": str(val)},
                     }
-                ],
-                media_type="darken",
+                ]
             )
 
     @log.duration
@@ -296,7 +302,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
 
     @log.duration
-    def metadata(self) -> None:
+    def metadata(self) -> list[DirectoryItem] | None:
         """
         Fetch/attach cleaned metadata to a helper list item; aborts if focus changes.
 
@@ -329,35 +335,31 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 data |= {"properties": {"truncated_label": truncated}}
 
-            return set_items([data], media_type="metadata")
+            return set_items([data], tag_applier=apply_videoinfotag)
 
     @log.duration
-    def progressbar(self) -> list[tuple]:
+    def progressbar(self) -> list[DirectoryItem] | None:
         """
         Compute resume/unwatched values and expose a helper item for the list.
-        If focus changes mid-flight, skip UI update but still return the item.
+        If focus changes after item creation, return it but skip UI update.
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
         with self.focus() as guard:
-            result = []
             if not guard.alive():
-                return result
+                return
 
             pb = ProgressBarManager(target=f"{self.container}.ListItem")
             resume, unwatched = pb.calculate()
-            result.extend(
-                set_items(
-                    [
-                        {
-                            "file": "progress",
-                            "label": str(resume),
-                            "resume": {"position": resume, "total": 100},
-                            "properties": {"unwatchedepisodes": str(unwatched)},
-                        }
-                    ],
-                    media_type="progressbar",
-                )
+            result = set_items(
+                [
+                    {
+                        "file": "progress",
+                        "resume": {"position": resume, "total": 100},
+                        "properties": {"unwatchedepisodes": str(unwatched)},
+                    }
+                ],
+                tag_applier=apply_videoinfotag,
             )
 
             if not guard.alive():
@@ -435,6 +437,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 alive=guard.alive,
             )
 
+    @log.duration
     def in_progress(self) -> list[DirectoryItem] | None:
         """
         Build a container of in-progress movies and episodes.
@@ -477,6 +480,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         return results or None
 
+    @log.duration
     def next_up(self) -> list[DirectoryItem] | None:
         """
         Build a container of "next up" TV episodes.
@@ -605,7 +609,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 ("VideoLibrary.GetEpisodes", "episode"),
             ],
             parent="writer_credits",
-            postprocess=lambda eps: self._enrich_with_tvshow(eps, parent="writer_credits"),
+            postprocess=lambda eps: self._enrich_with_tvshow(
+                eps, parent="writer_credits"
+            ),
         )
 
     def _role_credits(
@@ -621,7 +627,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param field: VideoLibrary filter field ("actor", "director", "writer").
         :param sources: List of (method, media_type) pairs to query.
         :param parent: Parent name for logging.
-        :param enrich_tvshows: If True, enrich episode items with TV show metadata.
+        :param postprocess: Optional in-place mutator for the raw item list.
         :return: List of (file, ListItem, isFolder) tuples, or None if empty.
         """
         results = []
