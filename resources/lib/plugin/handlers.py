@@ -18,8 +18,8 @@ from resources.lib.plugin.helpers import (
     TypewriterAnimation,
 )
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
-from resources.lib.plugin.setter import *
 from resources.lib.plugin.registry import PluginInfoRegistry
+from resources.lib.plugin.setter import *
 from resources.lib.plugin.tvshows import TvShowHelper
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
@@ -31,6 +31,8 @@ from resources.lib.shared.utilities import (
     set_plugincontent,
     to_int,
 )
+
+DirectoryItem = tuple[str, Any, bool]
 
 
 class _FocusGuard:
@@ -442,7 +444,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 alive=guard.alive,
             )
 
-    def in_progress(self) -> None:
+    def in_progress(self) -> list[DirectoryItem] | None:
         """
         Build a container of in-progress movies and episodes.
 
@@ -453,39 +455,38 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             category=ADDON.getLocalizedString(32601),
             sort_method=SORT_METHOD_LASTPLAYED,
         )
-
-        filters = [self.filter_inprogress]
         results = []
-
+        filters = [self.filter_inprogress]
         if self.dbtype != "tvshow":
             results.extend(
                 self._fetch_and_add(
-                    "VideoLibrary.GetMovies",
-                    JSON_MAP["movie_properties"],
-                    filters,
-                    media_type="movie",
+                    method="VideoLibrary.GetMovies",
+                    content_type="movies",
+                    filters=filters,
                     sort=self.sort_lastplayed,
                     parent="in_progress",
+                    tag_applier=apply_videoinfotag,
                 )
             )
 
         if self.dbtype != "movie":
             results.extend(
                 self._fetch_and_add(
-                    "VideoLibrary.GetEpisodes",
-                    JSON_MAP["episode_properties"],
-                    filters,
-                    media_type="episode",
+                    method="VideoLibrary.GetEpisodes",
+                    content_type="episodes",
+                    filters=filters,
                     sort=self.sort_lastplayed,
                     parent="in_progress",
+                    tag_applier=apply_videoinfotag,
                     postprocess=lambda eps: self._enrich_with_tvshow(
                         eps, parent="in_progress"
                     ),
                 )
             )
+
         return results or None
 
-    def next_up(self) -> None:
+    def next_up(self) -> list[DirectoryItem] | None:
         """
         Build a container of "next up" TV episodes.
 
@@ -513,7 +514,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             ep_query = json_call(
                 "VideoLibrary.GetEpisodes",
-                properties=JSON_PROPERTIES["episode"],
+                properties=JSON_PROPERTIES["episodes"],
                 sort={"order": "ascending", "method": "episode"},
                 limit=1,
                 query_filter={"and": [self.filter_unwatched, self.filter_no_specials]},
@@ -552,7 +553,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 li.setProperty(TvShowHelper.NEW_UNWATCHED_PROP, "true")
 
             results_meta.append((effective_lastplayed, (file_path, li, is_folder)))
-        
+
         if not results_meta:
             return None
 
@@ -561,127 +562,150 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         return results or None
 
-    def director_credits(self) -> None:
-        """
-        Build a container of movies and music videos directed by ``self.label``.
-
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
-        """
-        set_plugincontent(content="videos", category=ADDON.getLocalizedString(32602))
-
-        filters = [{"field": "director", "operator": "is", "value": self.label}]
-        results = []
-
-        if self.filter_exclude:
-            filters.append(self.filter_exclude)
-
-        for method, props, media_type in [
-            ("VideoLibrary.GetMovies", JSON_MAP["movie_properties"], "movie"),
-            (
-                "VideoLibrary.GetMusicVideos",
-                JSON_MAP["musicvideo_properties"],
-                "musicvideo",
-            ),
-        ]:
-            results.extend(
-                self._fetch_and_add(
-                    method,
-                    props,
-                    filters,
-                    media_type,
-                    sort=self.sort_year,
-                    parent="director_credits",
-                )
-            )
-        return results or None
-
-    def actor_credits(self) -> None:
+    def actor_credits(self) -> list[DirectoryItem] | None:
         """
         Build a container of movies and TV shows featuring ``self.label``.
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        set_plugincontent(content="videos", category=ADDON.getLocalizedString(32603))
+        set_plugincontent(
+            content="videos",
+            category=ADDON.getLocalizedString(32603),
+        )
+        return self._role_credits(
+            field="actor",
+            sources=[
+                ("VideoLibrary.GetMovies", "movies"),
+                ("VideoLibrary.GetTVShows", "tvshows"),
+            ],
+            parent="actor_credits",
+        )
 
-        filters = [{"field": "actor", "operator": "is", "value": self.label}]
+    def director_credits(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of movies and music videos directed by ``self.label``.
+
+        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
+        """
+        set_plugincontent(
+            content="videos",
+            category=ADDON.getLocalizedString(32602),
+        )
+        return self._role_credits(
+            field="director",
+            sources=[
+                ("VideoLibrary.GetMovies", "movies"),
+                ("VideoLibrary.GetMusicVideos", "musicvideos"),
+            ],
+            parent="director_credits",
+        )
+
+    def writer_credits(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of movies and episodes written by ``self.label``.
+
+        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
+        """
+        set_plugincontent(content="videos", category=ADDON.getLocalizedString(32604))
+        results = self._role_credits(
+            field="writer",
+            content_map=[
+                ("VideoLibrary.GetMovies", "movie"),
+                ("VideoLibrary.GetEpisodes", "episode"),
+            ],
+            parent="writer_credits",
+            enrich_tvshows=True,  # so episodes get mpaa/studio
+        )
+        return results or None
+
+    def _role_credits(
+        self,
+        field: str,
+        sources: list[tuple[str, str]],
+        parent: str,
+    ) -> list[DirectoryItem] | None:
+        """
+        Generic role-based credits fetcher for actors/directors.
+
+        :param field: VideoLibrary filter field (e.g. "actor", "director").
+        :param sources: List of (method, content_type) pairs to query.
+        :param parent: Parent name for logging.
+        :return: List of (file, ListItem, isFolder) tuples, or None if empty.
+        """
         results = []
+        filters = [
+            {"field": field, "operator": "is", "value": self.label},
+        ]
+        if self.filter_exclude:
+            filters.append(self.filter_exclude)
 
-        current_item = (
-            infolabel("ListItem.TVShowTitle")
-            if condition("String.IsEqual(ListItem.DBType,episode)")
-            else infolabel("ListItem.Label")
-        )
-        movies = json_call(
-            "VideoLibrary.GetMovies",
-            properties=JSON_MAP["movie_properties"],
-            sort=self.sort_year,
-            query_filter={"and": filters},
-            parent="actor_credits",
-        )
-        tvshows = json_call(
-            "VideoLibrary.GetTVShows",
-            properties=JSON_MAP["tvshow_properties"],
-            sort=self.sort_year,
-            query_filter={"and": filters},
-            parent="actor_credits",
-        )
-        total = int(movies.get("result", {}).get("limits", {}).get("total", 0)) + int(
-            tvshows.get("result", {}).get("limits", {}).get("total", 0)
-        )
-
-        for src, media_type in [(movies, "movie"), (tvshows, "tvshow")]:
-            items = src.get("result", {}).get(f"{media_type}s", [])
-            if not items:
-                log.debug(
-                    f"PluginHandlers → actor_credits: No {media_type}s found for {self.label}."
+        for method, content_type in sources:
+            results.extend(
+                self._fetch_and_add(
+                    method=method,
+                    content_type=content_type,
+                    filters=filters,
+                    sort=self.sort_year,
+                    parent=parent,
+                    tag_applier=apply_videoinfotag,
                 )
-                continue
-            items = self._remove_current(items, current_item, total)
-            results.extend(set_items(items, media_type=media_type))
+            )
 
         return results or None
 
     def _fetch_and_add(
         self,
         method: str,
-        props: list[str],
+        content_type: str,
         filters: list[dict[str, Any]],
-        media_type: str,
         sort: dict[str, Any],
         parent: str,
+        tag_applier: TagApplier | None = apply_videoinfotag,
         postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
+        params: dict[str, Any] | None = None,
     ) -> list[tuple]:
         """
-        Generic helper to fetch JSON items, optionally postprocess, and append.
+        Fetch JSON-RPC items, normalise to canonical metadata, and build ListItems.
 
         :param method: JSON-RPC method (e.g. "VideoLibrary.GetMovies").
-        :param props: List of property names to request.
-        :param filters: List of filter dicts for query_filter.
-        :param media_type: Media type for add_items (e.g. "movie").
+        :param content_type: Logical content type (e.g. "movie", "episode").
+        :param filters: List of filter dicts to AND together.
         :param sort: Sort specification for JSON-RPC.
         :param parent: Parent name for logging.
-        :param postprocess: Optional function to transform/enrich the items.
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or [] if aborted.
+        :param tag_applier: Optional tag-applier for the VideoInfoTag.
+        :param postprocess: Optional in-place mutator for the raw item list.
+        :param params: Optional extra params to pass to JSON-RPC.
+        :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
         """
         q = json_call(
             method,
-            properties=props,
+            properties=JSON_PROPERTIES.get(content_type, []),
             sort=sort,
             query_filter={"and": filters},
+            params=params or {},
             parent=parent,
         )
-        items = q.get("result", {}).get(f"{media_type}s", [])
+
+        items = q.get("result", {}).get(f"{content_type}s", []) or []
         if not items:
-            log.debug(f"PluginHandlers → {parent}: No {media_type}s found.")
+            log.debug(f"PluginHandlers → {parent}: No {content_type}s found.")
             return []
 
-        if postprocess:
+        if postprocess is not None:
             postprocess(items)
-        return set_items(items, media_type=media_type)
+
+        canonical_items = [json_to_canonical(raw, content_type) for raw in items]
+
+        return set_items(
+            canonical_items,
+            media_type=content_type,
+            tag_applier=tag_applier,
+        )
 
     def _enrich_with_tvshow(self, episodes: list[dict[str, Any]], parent: str) -> None:
         """
         Postprocess episodes to add studio/mpaa from parent TV show.
+        Caches each json lookup to save processing for multiple episodes from same show.
 
         :param episodes: Episode dicts to enrich (in place).
         :param parent: Parent name for logging.
@@ -692,6 +716,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             tvshowid = ep.get("tvshowid")
             if not tvshowid:
                 continue
+
             meta = cache.get(tvshowid)
             if meta is None:
                 details = json_call(
@@ -702,21 +727,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 meta = details.get("result", {}).get("tvshowdetails", {}) or {}
                 cache[tvshowid] = meta
+            
             ep["studio"] = meta.get("studio")
             ep["mpaa"] = meta.get("mpaa")
-
-    def _remove_current(
-        self, items: list[dict[str, Any]], current_label: str, total: int
-    ) -> list[dict[str, Any]]:
-        """
-        Remove the current item from a list of items if present.
-
-        :param items: List of item dicts.
-        :param current_label: Label of the current playing item.
-        :param total: Combined total of credits.
-        :return: Filtered list of items.
-        """
-        match = next((i for i in items if i.get("label") == current_label), None)
-        if match and total > 1:
-            items.remove(match)
-        return items
