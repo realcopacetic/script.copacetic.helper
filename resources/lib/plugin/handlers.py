@@ -10,27 +10,18 @@ from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import collect_multiart, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
-from resources.lib.plugin.helpers import (
-    DataHandler,
-    JumpButton,
-    ProgressBarManager,
-    TextTruncator,
-    TypewriterAnimation,
-)
+from resources.lib.plugin.helpers import (DataHandler, JumpButton,
+                                          ProgressBarManager, TextTruncator,
+                                          TypewriterAnimation)
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.plugin.setter import *
 from resources.lib.plugin.tvshows import TvShowHelper
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (
-    ADDON,
-    condition,
-    infolabel,
-    json_call,
-    set_plugincontent,
-    to_int,
-)
+from resources.lib.shared.utilities import (ADDON, condition, infolabel,
+                                            json_call, set_plugincontent,
+                                            to_int)
 
 DirectoryItem = tuple[str, Any, bool]
 
@@ -461,7 +452,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             results.extend(
                 self._fetch_and_add(
                     method="VideoLibrary.GetMovies",
-                    content_type="movies",
+                    media_type="movie",
                     filters=filters,
                     sort=self.sort_lastplayed,
                     parent="in_progress",
@@ -473,7 +464,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             results.extend(
                 self._fetch_and_add(
                     method="VideoLibrary.GetEpisodes",
-                    content_type="episodes",
+                    media_type="episode",
                     filters=filters,
                     sort=self.sort_lastplayed,
                     parent="in_progress",
@@ -514,7 +505,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             ep_query = json_call(
                 "VideoLibrary.GetEpisodes",
-                properties=JSON_PROPERTIES["episodes"],
+                properties=JSON_PROPERTIES["episode"],
                 sort={"order": "ascending", "method": "episode"},
                 limit=1,
                 query_filter={"and": [self.filter_unwatched, self.filter_no_specials]},
@@ -575,8 +566,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return self._role_credits(
             field="actor",
             sources=[
-                ("VideoLibrary.GetMovies", "movies"),
-                ("VideoLibrary.GetTVShows", "tvshows"),
+                ("VideoLibrary.GetMovies", "movie"),
+                ("VideoLibrary.GetTVShows", "tvshow"),
             ],
             parent="actor_credits",
         )
@@ -594,8 +585,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return self._role_credits(
             field="director",
             sources=[
-                ("VideoLibrary.GetMovies", "movies"),
-                ("VideoLibrary.GetMusicVideos", "musicvideos"),
+                ("VideoLibrary.GetMovies", "movie"),
+                ("VideoLibrary.GetMusicVideos", "musicvideo"),
             ],
             parent="director_credits",
         )
@@ -610,8 +601,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return self._role_credits(
             field="writer",
             sources=[
-                ("VideoLibrary.GetMovies", "movies"),
-                ("VideoLibrary.GetEpisodes", "episodes"),
+                ("VideoLibrary.GetMovies", "movie"),
+                ("VideoLibrary.GetEpisodes", "episode"),
             ],
             parent="writer_credits",
             postprocess=lambda eps: self._enrich_with_tvshow(eps, parent="writer_credits"),
@@ -628,7 +619,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Generic role-based credits fetcher for actors/directors/writers.
 
         :param field: VideoLibrary filter field ("actor", "director", "writer").
-        :param sources: List of (method, content_type) pairs to query.
+        :param sources: List of (method, media_type) pairs to query.
         :param parent: Parent name for logging.
         :param enrich_tvshows: If True, enrich episode items with TV show metadata.
         :return: List of (file, ListItem, isFolder) tuples, or None if empty.
@@ -640,11 +631,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if self.filter_exclude:
             filters.append(self.filter_exclude)
 
-        for method, content_type in sources:
+        for method, media_type in sources:
             results.extend(
                 self._fetch_and_add(
                     method=method,
-                    content_type=content_type,
+                    media_type=media_type,
                     filters=filters,
                     sort=self.sort_year,
                     parent=parent,
@@ -658,7 +649,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _fetch_and_add(
         self,
         method: str,
-        content_type: str,
+        media_type: str,
         filters: list[dict[str, Any]],
         sort: dict[str, Any],
         parent: str,
@@ -670,7 +661,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Fetch JSON-RPC items, normalise to canonical metadata, and build ListItems.
 
         :param method: JSON-RPC method (e.g. "VideoLibrary.GetMovies").
-        :param content_type: Logical content type (e.g. "movie", "episode").
+        :param media_type: Logical content type (e.g. "movie", "episode").
         :param filters: List of filter dicts to AND together.
         :param sort: Sort specification for JSON-RPC.
         :param parent: Parent name for logging.
@@ -681,33 +672,34 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         q = json_call(
             method,
-            properties=JSON_PROPERTIES.get(content_type, []),
+            properties=JSON_PROPERTIES.get(media_type, []),
             sort=sort,
             query_filter={"and": filters},
             params=params or {},
             parent=parent,
         )
 
-        items = q.get("result", {}).get(f"{content_type}", []) or []
+        items = q.get("result", {}).get(f"{media_type}s", []) or []
         if not items:
-            log.debug(f"PluginHandlers → {parent}: No {content_type} found.")
+            log.debug(f"PluginHandlers → {parent}: No {media_type}s found.")
             return []
 
         if postprocess is not None:
             postprocess(items)
 
-        canonical_items = [json_to_canonical(raw, content_type) for raw in items]
+        canonical_items = [json_to_canonical(raw, media_type) for raw in items]
 
         return set_items(
             canonical_items,
-            media_type=content_type,
+            media_type=media_type,
             tag_applier=tag_applier,
         )
 
     def _enrich_with_tvshow(self, episodes: list[dict[str, Any]], parent: str) -> None:
         """
-        Postprocess episodes to add studio/mpaa from parent TV show.
-        Caches each json lookup to save processing for multiple episodes from same show.
+        Postprocess episodes to add studio/mpaa from parent show. Required
+        because the Video.Fields.Episode enum doesn't contain these fields.
+        Results cached to avoid multiple json requests for the same show.
 
         :param episodes: Episode dicts to enrich (in place).
         :param parent: Parent name for logging.

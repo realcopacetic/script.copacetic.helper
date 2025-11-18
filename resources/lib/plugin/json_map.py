@@ -3,7 +3,7 @@
 from resources.lib.plugin.setter import TAG_TYPES
 
 JSON_PROPERTIES: dict[str, list[str]] = {
-    "movies": [
+    "movie": [
         "title",
         "year",
         "director",
@@ -22,7 +22,7 @@ JSON_PROPERTIES: dict[str, list[str]] = {
         "art",
         "movieid",
     ],
-    "episodes": [
+    "episode": [
         "title",
         "plot",
         "firstaired",
@@ -39,7 +39,7 @@ JSON_PROPERTIES: dict[str, list[str]] = {
         "art",
         "episodeid",
     ],
-    "tvshows": [
+    "tvshow": [
         "title",
         "year",
         "plot",
@@ -54,7 +54,7 @@ JSON_PROPERTIES: dict[str, list[str]] = {
         "art",
         "tvshowid",
     ],
-    "musicvideos": [
+    "musicvideo": [
         "title",
         "playcount",
         "runtime",
@@ -68,7 +68,7 @@ JSON_PROPERTIES: dict[str, list[str]] = {
         "art",
         "musicvideoid",
     ],
-    "seasons": [
+    "season": [
         "season",
         "showtitle",
         "playcount",
@@ -81,7 +81,7 @@ JSON_PROPERTIES: dict[str, list[str]] = {
         "userrating",
         "title",
     ],
-    "artists": [
+    "artist": [
         "instrument",
         "style",
         "mood",
@@ -102,7 +102,7 @@ JSON_PROPERTIES: dict[str, list[str]] = {
         "isalbumartist",
         "artistid",
     ],
-    "playlists": [
+    "playlist": [
         "title",
         "artist",
         "albumartist",
