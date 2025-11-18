@@ -22,7 +22,6 @@ from resources.lib.plugin.library import (
     DirectoryItem,
     enrich_with_tvshow,
     fetch_and_add,
-    role_credits,
     role_endpoint,
     TvShowHelper,
 )
