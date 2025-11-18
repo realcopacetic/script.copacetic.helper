@@ -2,7 +2,7 @@
 
 import inspect
 from contextlib import contextmanager
-from typing import Any, Callable, Iterator
+from typing import Callable, Iterator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
@@ -18,9 +18,16 @@ from resources.lib.plugin.helpers import (
     TypewriterAnimation,
 )
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
+from resources.lib.plugin.library import (
+    DirectoryItem,
+    enrich_with_tvshow,
+    fetch_and_add,
+    role_credits,
+    role_endpoint,
+    TvShowHelper,
+)
 from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.plugin.setter import *
-from resources.lib.plugin.tvshows import TvShowHelper
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import SQLiteHandler
 from resources.lib.shared.utilities import (
@@ -29,10 +36,9 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     set_plugincontent,
+    to_float,
     to_int,
 )
-
-DirectoryItem = tuple[str, Any, bool]
 
 
 class _FocusGuard:
@@ -199,23 +205,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             image_processor = ImageEditor(SQLiteHandler()).image_processor
-            overlay_target = self.params.get("overlay_target")
-            try:
-                overlay_target = (
-                    float(overlay_target) if overlay_target is not None else None
-                )
-            except:
-                overlay_target = None
-
             processed = image_processor(
                 processes={"clearlogo": "crop", "fanart": "blur"},
                 source=f"{self.container}.ListItem",
                 overlay_enable=self.params.get("overlay_enable"),
                 overlay_source=self.params.get("overlay_source"),
                 overlay_rects=self.params.get("overlay_rects"),
-                overlay_target=overlay_target,
+                overlay_target=to_float(self.params.get("overlay_target")),
             )
-
             if not guard.alive():
                 return
 
@@ -365,18 +362,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return result
 
-            opts = PlacementOpts.from_params(self.params)
-            base_id = to_int(self.params.get("base_id"), None)
-            backing_id = to_int(self.params.get("backing_id"), None)
-            progress_id = to_int(self.params.get("progress_id"), None)
-            btn_id = to_int(self.params.get("btn_id"), None)
             pb.update(
                 percent=resume,
-                opts=opts,
-                base_id=base_id,
-                backing_id=backing_id,
-                progress_id=progress_id,
-                btn_id=btn_id,
+                opts=PlacementOpts.from_params(self.params),
+                base_id=to_int(self.params.get("base_id"), None),
+                backing_id=to_int(self.params.get("backing_id"), None),
+                progress_id=to_int(self.params.get("progress_id"), None),
+                btn_id=to_int(self.params.get("btn_id"), None),
             )
             return result
 
@@ -423,17 +415,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            label_id = to_int(self.params.get("label_id"), None)
-            line_step = to_int(self.params.get("line_step"), None)
-            max_lines = to_int(self.params.get("max_lines"), None)
-
             t = TypewriterAnimation()
             t.update(
                 label=self.label,
                 opts=PlacementOpts.from_params(self.params),
-                label_id=label_id,
-                line_step=line_step,
-                max_lines=max_lines,
+                label_id=to_int(self.params.get("label_id"), None),
+                line_step=to_int(self.params.get("line_step"), None),
+                max_lines=to_int(self.params.get("max_lines"), None),
                 alive=guard.alive,
             )
 
@@ -453,7 +441,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         filters = [self.filter_inprogress]
         if self.dbtype != "tvshow":
             results.extend(
-                self._fetch_and_add(
+                fetch_and_add(
                     method="VideoLibrary.GetMovies",
                     media_type="movie",
                     filters=filters,
@@ -465,14 +453,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         if self.dbtype != "movie":
             results.extend(
-                self._fetch_and_add(
+                fetch_and_add(
                     method="VideoLibrary.GetEpisodes",
                     media_type="episode",
                     filters=filters,
                     sort=self.sort_lastplayed,
                     parent="in_progress",
                     tag_applier=apply_videoinfotag,
-                    postprocess=lambda eps: self._enrich_with_tvshow(
+                    postprocess=lambda eps: enrich_with_tvshow(
                         eps, parent="in_progress"
                     ),
                 )
@@ -543,7 +531,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 show.get("lastplayed"),
                 raw_ep.get("firstaired"),
             )
-
             if is_new:
                 li.setProperty(TvShowHelper.NEW_UNWATCHED_PROP, "true")
 
@@ -557,176 +544,56 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         return results or None
 
+    @role_endpoint
     def actor_credits(self) -> list[DirectoryItem] | None:
         """
         Build a container of movies and TV shows featuring ``self.label``.
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        set_plugincontent(
-            content="videos",
-            category=ADDON.getLocalizedString(32603),
-        )
-        return self._role_credits(
-            field="actor",
-            sources=[
+        return {
+            "field": "actor",
+            "category_id": 32603,
+            "sources": [
                 ("VideoLibrary.GetMovies", "movie"),
                 ("VideoLibrary.GetTVShows", "tvshow"),
             ],
-            parent="actor_credits",
-        )
+            "parent": "actor_credits",
+        }
 
+    @role_endpoint
     def director_credits(self) -> list[DirectoryItem] | None:
         """
         Build a container of movies and music videos directed by ``self.label``.
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        set_plugincontent(
-            content="videos",
-            category=ADDON.getLocalizedString(32602),
-        )
-        return self._role_credits(
-            field="director",
-            sources=[
+        return {
+            "field": "director",
+            "category_id": 32602,
+            "sources": [
                 ("VideoLibrary.GetMovies", "movie"),
                 ("VideoLibrary.GetMusicVideos", "musicvideo"),
             ],
-            parent="director_credits",
-        )
+            "parent": "director_credits",
+        }
 
+    @role_endpoint
     def writer_credits(self) -> list[DirectoryItem] | None:
         """
         Build a container of movies and episodes written by ``self.label``.
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        set_plugincontent(content="videos", category=ADDON.getLocalizedString(32604))
-        return self._role_credits(
-            field="writer",
-            sources=[
+        return {
+            "field": "writer",
+            "category_id": 32604,
+            "sources": [
                 ("VideoLibrary.GetMovies", "movie"),
                 ("VideoLibrary.GetEpisodes", "episode"),
             ],
-            parent="writer_credits",
-            postprocess=lambda eps: self._enrich_with_tvshow(
+            "parent": "writer_credits",
+            "postprocess": lambda eps: enrich_with_tvshow(
                 eps, parent="writer_credits"
             ),
-        )
-
-    def _role_credits(
-        self,
-        field: str,
-        sources: list[tuple[str, str]],
-        parent: str,
-        postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
-    ) -> list[DirectoryItem] | None:
-        """
-        Generic role-based credits fetcher for actors/directors/writers.
-
-        :param field: VideoLibrary filter field ("actor", "director", "writer").
-        :param sources: List of (method, media_type) pairs to query.
-        :param parent: Parent name for logging.
-        :param postprocess: Optional in-place mutator for the raw item list.
-        :return: List of (file, ListItem, isFolder) tuples, or None if empty.
-        """
-        results = []
-        filters = [
-            {"field": field, "operator": "is", "value": self.label},
-        ]
-        if self.filter_exclude:
-            filters.append(self.filter_exclude)
-
-        for method, media_type in sources:
-            results.extend(
-                self._fetch_and_add(
-                    method=method,
-                    media_type=media_type,
-                    filters=filters,
-                    sort=self.sort_year,
-                    parent=parent,
-                    tag_applier=apply_videoinfotag,
-                    postprocess=postprocess,
-                )
-            )
-
-        return results or None
-
-    def _fetch_and_add(
-        self,
-        method: str,
-        media_type: str,
-        filters: list[dict[str, Any]],
-        sort: dict[str, Any],
-        parent: str,
-        tag_applier: TagApplier | None = apply_videoinfotag,
-        postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
-        params: dict[str, Any] | None = None,
-    ) -> list[tuple]:
-        """
-        Fetch JSON-RPC items, normalise to canonical metadata, and build ListItems.
-
-        :param method: JSON-RPC method (e.g. "VideoLibrary.GetMovies").
-        :param media_type: Logical content type (e.g. "movie", "episode").
-        :param filters: List of filter dicts to AND together.
-        :param sort: Sort specification for JSON-RPC.
-        :param parent: Parent name for logging.
-        :param tag_applier: Optional tag-applier for the VideoInfoTag.
-        :param postprocess: Optional in-place mutator for the raw item list.
-        :param params: Optional extra params to pass to JSON-RPC.
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
-        """
-        q = json_call(
-            method,
-            properties=JSON_PROPERTIES.get(media_type, []),
-            sort=sort,
-            query_filter={"and": filters},
-            params=params or {},
-            parent=parent,
-        )
-
-        items = q.get("result", {}).get(f"{media_type}s", []) or []
-        if not items:
-            log.debug(f"PluginHandlers → {parent}: No {media_type}s found.")
-            return []
-
-        if postprocess is not None:
-            postprocess(items)
-
-        canonical_items = [json_to_canonical(raw, media_type) for raw in items]
-
-        return set_items(
-            canonical_items,
-            media_type=media_type,
-            tag_applier=tag_applier,
-        )
-
-    def _enrich_with_tvshow(self, episodes: list[dict[str, Any]], parent: str) -> None:
-        """
-        Postprocess episodes to add studio/mpaa from parent show. Required
-        because the Video.Fields.Episode enum doesn't contain these fields.
-        Results cached to avoid multiple json requests for the same show.
-
-        :param episodes: Episode dicts to enrich (in place).
-        :param parent: Parent name for logging.
-        :return: None
-        """
-        cache = {}
-        for ep in episodes:
-            tvshowid = ep.get("tvshowid")
-            if not tvshowid:
-                continue
-
-            meta = cache.get(tvshowid)
-            if meta is None:
-                details = json_call(
-                    "VideoLibrary.GetTVShowDetails",
-                    params={"tvshowid": tvshowid},
-                    properties=["studio", "mpaa"],
-                    parent=parent,
-                )
-                meta = details.get("result", {}).get("tvshowdetails", {}) or {}
-                cache[tvshowid] = meta
-
-            ep["studio"] = meta.get("studio")
-            ep["mpaa"] = meta.get("mpaa")
+        }

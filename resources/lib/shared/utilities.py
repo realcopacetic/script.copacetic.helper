@@ -431,6 +431,18 @@ def split_random(string: str, *, separator: str = "/", **kwargs: object) -> str:
 
 
 """TYPE UTILS"""
+def to_float(value: object, default: float | None = None) -> float | None:
+    """
+    Safely convert a value to float.
+
+    :param value: The value to convert.
+    :param default: Value to return if conversion fails.
+    :return: The converted float or the default value.
+    """
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def to_int(value: object, default: int = 0) -> int:

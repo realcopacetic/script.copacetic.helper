@@ -79,11 +79,10 @@ class DataHandler:
             "file": encoded_label,
             "label": label,
             "label2": label,
-            "director": split_random(self.infolabels["Director"]),
-            "dbtype": self.dbtype,
-            "genre": split_random(self.infolabels["Genre"]),
-            "studio": self._studio(),
-            "writer": split(self.infolabels["Writer"]),
+            "Directors": split_random(self.infolabels["Director"]),
+            "Genres": split_random(self.infolabels["Genre"]),
+            "Studios": self._studio(),
+            "Writers": split(self.infolabels["Writer"]),
         }
 
     def _studio(self) -> str:
