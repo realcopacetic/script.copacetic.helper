@@ -131,40 +131,46 @@ def role_credits(
     return results or None
 
 
-def role_endpoint(func):
+def role_endpoint(
+    *,
+    field: str,
+    category_id: int,
+    sources: list[tuple[str, str]],
+    parent: str,
+    postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
+):
     """
     Decorator for role-based credits endpoints.
-    Wraps handlers that return a configuration dict for ``role_credits()``.
+    Injects static configuration and dispatches into ``role_credits()``.
 
-    :param func: The decorated handler method returning a role config dict.
-    :return: Wrapped handler that executes the role-based credits logic.
+    :param field: Kodi JSON filter field (``"actor"``, ``"director"``, ``"writer"``).
+    :param category_id: Localized string ID for the plugin category label.
+    :param sources: List of ``(method, media_type)`` JSON-RPC pairs.
+    :param parent: Parent name for logging.
+    :param postprocess: Optional in-place postprocessor for episode lists.
+    :return: Wrapped handler returning directory items or None.
     """
-    @wraps(func)
-    def wrapper(self, *args, **kwargs) -> list[DirectoryItem] | None:
-        cfg = func(self, *args, **kwargs) or {}
 
-        field = cfg["field"]
-        category_id = cfg["category_id"]
-        sources = cfg["sources"]
-        parent = cfg["parent"]
-        postprocess = cfg.get("postprocess")
+    def decorator(func: Callable) -> Callable[[Any], list[DirectoryItem | None]]:
+        @wraps(func)
+        def wrapper(self, *args, **kwargs) -> list[DirectoryItem] | None:
+            set_plugincontent(
+                content="videos",
+                category=ADDON.getLocalizedString(category_id),
+            )
+            return role_credits(
+                field=field,
+                label=self.label,
+                filter_exclude=self.filter_exclude,
+                sources=sources,
+                sort=self.sort_year,
+                parent=parent,
+                tag_applier=apply_videoinfotag,
+                postprocess=postprocess,
+            )
 
-        set_plugincontent(
-            content="videos",
-            category=ADDON.getLocalizedString(category_id),
-        )
-        return role_credits(
-            field=field,
-            label=self.label,
-            filter_exclude=self.filter_exclude,
-            sources=sources,
-            sort=self.sort_year,
-            parent=parent,
-            tag_applier=apply_videoinfotag,
-            postprocess=postprocess,
-        )
-
-    return wrapper
+        return wrapper
+    return decorator
 
 
 class TvShowHelper:

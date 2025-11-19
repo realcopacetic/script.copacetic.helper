@@ -543,56 +543,48 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         return results or None
 
-    @role_endpoint
-    def actor_credits(self) -> list[DirectoryItem] | None:
+    @role_endpoint(
+        field="actor",
+        category_id=32603,
+        sources=[
+            ("VideoLibrary.GetMovies", "movie"),
+            ("VideoLibrary.GetTVShows", "tvshow"),
+        ],
+        parent="actor_credits",
+    )
+    def actor_credits(self):
         """
         Build a container of movies and TV shows featuring ``self.label``.
-
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        return {
-            "field": "actor",
-            "category_id": 32603,
-            "sources": [
-                ("VideoLibrary.GetMovies", "movie"),
-                ("VideoLibrary.GetTVShows", "tvshow"),
-            ],
-            "parent": "actor_credits",
-        }
+        pass
 
-    @role_endpoint
-    def director_credits(self) -> list[DirectoryItem] | None:
+    @role_endpoint(
+        field="director",
+        category_id=32602,
+        sources=[
+            ("VideoLibrary.GetMovies", "movie"),
+            ("VideoLibrary.GetMusicVideos", "musicvideo"),
+        ],
+        parent="director_credits",
+    )
+    def director_credits(self):
         """
         Build a container of movies and music videos directed by ``self.label``.
-
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        return {
-            "field": "director",
-            "category_id": 32602,
-            "sources": [
-                ("VideoLibrary.GetMovies", "movie"),
-                ("VideoLibrary.GetMusicVideos", "musicvideo"),
-            ],
-            "parent": "director_credits",
-        }
+        pass
 
-    @role_endpoint
-    def writer_credits(self) -> list[DirectoryItem] | None:
+    @role_endpoint(
+        field="writer",
+        category_id=32604,
+        sources=[
+            ("VideoLibrary.GetMovies", "movie"),
+            ("VideoLibrary.GetEpisodes", "episode"),
+        ],
+        parent="writer_credits",
+        postprocess=lambda eps: enrich_with_tvshow(eps, parent="writer_credits"),
+    )
+    def writer_credits(self):
         """
         Build a container of movies and episodes written by ``self.label``.
-
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        return {
-            "field": "writer",
-            "category_id": 32604,
-            "sources": [
-                ("VideoLibrary.GetMovies", "movie"),
-                ("VideoLibrary.GetEpisodes", "episode"),
-            ],
-            "parent": "writer_credits",
-            "postprocess": lambda eps: enrich_with_tvshow(
-                eps, parent="writer_credits"
-            ),
-        }
+        pass
