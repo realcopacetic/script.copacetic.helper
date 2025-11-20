@@ -167,7 +167,7 @@ TMDB_FIELD_MAP: dict[str, dict[str, Any]] = {
     },
 }
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
-YOUTUBE_BASE_URL = "https://www.youtube.com/watch"
+YOUTUBE_PLUGIN_BASE = "plugin://plugin.video.youtube/play/?video_id="
 
 
 def apply_tmdb_transform(name: str, value: Any) -> Any:
@@ -253,7 +253,7 @@ def pick_best_trailer(value: Any) -> str:
         return ""
 
     if site == "youtube":
-        return f"{YOUTUBE_BASE_URL}?v={key}"
+        return f"{YOUTUBE_PLUGIN_BASE}{key}"
 
     return str(key)
 
