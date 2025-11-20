@@ -150,7 +150,6 @@ def role_endpoint(
     :param postprocess: Optional in-place postprocessor for episode lists.
     :return: Wrapped handler returning directory items or None.
     """
-
     def decorator(func: Callable) -> Callable[[Any], list[DirectoryItem | None]]:
         @wraps(func)
         def wrapper(self, *args, **kwargs) -> list[DirectoryItem] | None:

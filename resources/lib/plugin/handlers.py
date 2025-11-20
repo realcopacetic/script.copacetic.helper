@@ -6,6 +6,7 @@ from typing import Callable, Iterator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
+from resources.lib.apis.tmdb.client import tmdb_to_canonical
 from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import collect_multiart, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
@@ -20,10 +21,10 @@ from resources.lib.plugin.helpers import (
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.library import (
     DirectoryItem,
+    TvShowHelper,
     enrich_with_tvshow,
     fetch_and_add,
     role_endpoint,
-    TvShowHelper,
 )
 from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.plugin.setter import *
@@ -390,17 +391,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 return
 
-            tagline = fetch_tmdb_fields(kind, tmdb_id, fields=["tagline"])
-            data = {"file": "tmdb"}
-            data |= tagline
-            log.debug(f"FUCK DEBUG data {data}")
+            item = tmdb_to_canonical(
+                kind=kind,
+                tmdb_id=tmdb_id,
+                allowed=None,  # or a set of VideoInfoTag keys if you ever want to trim
+                language=None,  # uses addon default (e.g. "en-US")
+            )
+
+            if not item:
+                log.debug(
+                    f"{self.__class__.__name__} → tmdb: no data for kind={kind}, tmdb_id={tmdb_id}"
+                )
+                return
 
             if not guard.alive():
                 return
 
             return set_items(
-                [data],
-                media_type="tmdb",
+                [item],
+                tag_applier=apply_videoinfotag,
             )
 
     @log.duration
