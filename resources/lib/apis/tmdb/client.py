@@ -169,10 +169,9 @@ def tmdb_to_canonical(
     }
 
     # Use two-letter ISO code for image language matching (e.g. "en" from "en-US").
-    preferred_iso = None
-    effective_lang = language or ADDON.getSetting("tmdb_language") or ""
-    if effective_lang:
-        preferred_iso = effective_lang.split("-")[0].lower()
+    # Always fall back to a sane default ("en-US") so we never drop valid EN artwork.
+    effective_lang = language or ADDON.getSetting("tmdb_language") or "en-US"
+    preferred_iso = effective_lang.split("-")[0].lower()
 
     for logical_name, value in raw.items():
         if value is None:

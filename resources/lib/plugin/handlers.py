@@ -394,8 +394,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             item = tmdb_to_canonical(
                 kind=kind,
                 tmdb_id=tmdb_id,
-                allowed=None,  # or a set of VideoInfoTag keys if you ever want to trim
-                language=None,  # uses addon default (e.g. "en-US")
+                allowed=None,
+                language=None,
             )
 
             if not item:

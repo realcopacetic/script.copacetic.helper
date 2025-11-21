@@ -28,10 +28,7 @@ TMDB_FIELD_MAP:
             "label":     VideoInfoTag key / art key / property name,
             "kind":      optional hint for art ("image" | "image_list"),
             "transform": optional transform name (string),
-            "info_label": optional VideoInfoTag label for dual mapping.
         }
-
-    This is the TMDb analogue of JSON_FIELD_MAP on the JSON-RPC side.
 """
 
 TMDB_PROPERTIES: dict[str, dict[str, Any]] = {
@@ -63,7 +60,7 @@ TMDB_PROPERTIES: dict[str, dict[str, Any]] = {
             "original_name",
             "overview",
             "tagline",
-            "episode_run_time",
+            "created_by",
             "first_air_date",
             ("next_episode_air_date", ("next_episode_to_air", "air_date")),
             "backdrop_path",
@@ -85,6 +82,11 @@ TMDB_FIELD_MAP: dict[str, dict[str, Any]] = {
     "budget": {
         "target": "property",
         "label": "tmdb_budget",
+    },
+    "created_by": {
+        "target": "info",
+        "label": "Writers",
+        "transform": "extract_creator_names",
     },
     "episode_run_time": {
         "target": "info",
@@ -183,9 +185,24 @@ def apply_tmdb_transform(name: str, value: Any) -> Any:
         return first_runtime_from_list(value)
     if name == "pick_best_trailer":
         return pick_best_trailer(value)
+    if name == "extract_creator_names":
+        return extract_creator_names(value)
 
     log.debug(f"apply_tmdb_transform → unknown transform={name}, value={value}")
     return value
+
+
+def extract_creator_names(value: Any) -> list[str]:
+    """Extract a list of creator names from TMDb created_by array."""
+    if not isinstance(value, list):
+        return []
+    names: list[str] = []
+    for item in value:
+        if isinstance(item, Mapping):
+            name = item.get("name")
+            if isinstance(name, str) and name:
+                names.append(name)
+    return names
 
 
 def year_from_date(value: Any) -> int:
@@ -248,7 +265,6 @@ def pick_best_trailer(value: Any) -> str:
 
     key = best.get("key")
     site = str(best.get("site", "")).lower()
-
     if not key or not isinstance(key, str):
         return ""
 
