@@ -400,8 +400,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 return
 
-            log.debug(f'FUCK DEBUG item {item}')
-
             if not guard.alive():
                 return
 
