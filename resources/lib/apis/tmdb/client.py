@@ -97,7 +97,7 @@ def fetch_tmdb_fields(
 
     kind_map = TMDB_PROPERTIES.get(kind)
     if not kind_map:
-        log.debug(f"fetch_tmdb_fields → unknown kind={kind}")
+        log.debug(f"fetch_tmdb_fields → unknown kind={kind}, skipping TMDB lookup.")
         return {}
 
     endpoint = kind_map["endpoint"].format(id=tmdb_id)

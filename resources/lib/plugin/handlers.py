@@ -141,7 +141,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.params = params
 
         self.label = params.get("label", "")
-        self.dbtype = params.get("type", "")
+        self.dbtype = params.get("type", "").lower()
         self.dbid = params.get("id", "")
         self.target = to_int(params.get("target"), None)
         self.expected = params.get("focus_guard")
@@ -373,17 +373,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return result
 
     @log.duration
-    def tmdb(self) -> list[tuple]:
-
-        from resources.lib.apis.tmdb.client import fetch_tmdb_fields
+    def tmdb_details(self) -> list[tuple]:
 
         with self.focus() as guard:
             if not guard.alive():
                 return
 
-            kind = (self.params.get("kind") or "tvshow").lower()
             tmdb_id = to_int(self.params.get("tmdb_id"), 0)
-
             if tmdb_id <= 0:
                 log.debug(
                     f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
@@ -392,7 +388,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             item = tmdb_to_canonical(
-                kind=kind,
+                kind=self.dbtype,
                 tmdb_id=tmdb_id,
                 allowed=None,
                 language=None,
@@ -400,7 +396,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             if not item:
                 log.debug(
-                    f"{self.__class__.__name__} → tmdb: no data for kind={kind}, tmdb_id={tmdb_id}"
+                    f"{self.__class__.__name__} → tmdb: no data for type={self.dbtype}, tmdb_id={tmdb_id}"
                 )
                 return
 
