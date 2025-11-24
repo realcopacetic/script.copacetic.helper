@@ -7,21 +7,11 @@ import urllib.request
 from typing import Any, Iterable, Mapping, Sequence
 from urllib.error import HTTPError, URLError
 
-from resources.lib.apis.tmdb.fields import (
-    TMDB_PROPERTIES,
-    TMDB_FIELD_MAP,
-    apply_tmdb_transform,
-    build_tmdb_image_url,
-    build_tmdb_image_url_list,
-    assign_image_list_to_art,
-    split_tmdb_images_by_language,
-)
+from resources.lib.apis.tmdb.fields import TMDB_PROPERTIES
 from resources.lib.shared import logger as log
-from resources.lib.shared.sqlite import TmdbCacheHandler
 from resources.lib.shared.utilities import ADDON
 
 TMDB_API_BASE = "https://api.themoviedb.org/3"
-_TMDB_CACHE = TmdbCacheHandler()
 
 
 def get_tmdb_client(language: str = "en-US") -> "TmdbClient | None":
@@ -99,7 +89,7 @@ def fetch_tmdb_fields(
 
     kind_map = TMDB_PROPERTIES.get(kind)
     if not kind_map:
-        log.debug(f"fetch_tmdb_fields → unknown kind={kind}, skipping TMDB lookup.")
+        log.debug(f"fetch_tmdb_fields → unknown kind={kind}")
         return {}
 
     endpoint = kind_map["endpoint"].format(id=tmdb_id)
@@ -138,6 +128,7 @@ def fetch_tmdb_fields(
 
     result: dict[str, Any] = {}
     for name in requested:
+        # field_map values are key paths; reuse the logic from fields.py or build here
         path = field_map[name]
         value = _extract_path(data, path)
         if value is not None:
@@ -145,259 +136,6 @@ def fetch_tmdb_fields(
 
     log.debug(f"fetch_tmdb_fields(kind={kind}, tmdb_id={tmdb_id}) → {result}")
     return result
-
-
-def _apply_label_defaults(item: dict[str, Any]) -> None:
-    """Apply sensible defaults for label/label2 based on Title/TagLine."""
-    if "Title" in item and not item.get("label"):
-        item["label"] = str(item["Title"])
-    if "TagLine" in item and not item.get("label2"):
-        item["label2"] = str(item["TagLine"])
-
-
-def _filter_allowed_info_fields(
-    item: dict[str, Any],
-    allowed: set[str],
-) -> dict[str, Any]:
-    """
-    Return a shallow copy of `item` with VideoInfoTag keys filtered by `allowed`.
-
-    Only info fields defined in TMDB_FIELD_MAP are filtered. Label/label2 are
-    left untouched so defaults continue to work even when Title/TagLine are
-    not part of the allowed set.
-    """
-    if not allowed:
-        return item
-
-    filtered = dict(item)
-
-    for logical_name, spec in TMDB_FIELD_MAP.items():
-        if spec.get("target") != "info":
-            continue
-        label = spec["label"]
-        if label not in allowed:
-            filtered.pop(label, None)
-
-    return filtered
-
-
-def _build_tmdb_canonical_item(
-    kind: str,
-    tmdb_id: int,
-    raw: Mapping[str, Any],
-    preferred_iso: str,
-) -> dict[str, Any]:
-    """
-    Build the canonical TMDb payload from raw logical TMDb fields.
-
-    This is the original tmdb_to_canonical body, without `allowed` filtering
-    and without label defaults or logging.
-    """
-    item: dict[str, Any] = {
-        "file": "tmdb",
-        "art": {},
-        "properties": {},
-    }
-
-    for logical_name, value in raw.items():
-        if value is None:
-            continue
-
-        spec = TMDB_FIELD_MAP.get(logical_name)
-        if not spec:
-            continue
-
-        target = spec["target"]
-        label = spec["label"]
-        transform_name = spec.get("transform")
-
-        if transform_name:
-            value = apply_tmdb_transform(transform_name, value)
-
-        if target == "info":
-            item[label] = value
-            continue
-
-        if target == "property":
-            item["properties"][label] = str(value)
-            continue
-
-        if target != "art":
-            log.debug(
-                f"tmdb_to_canonical → unsupported target={target} "
-                f"for field={logical_name}"
-            )
-            continue
-
-        # ---------- Artwork handling ----------
-        kind_hint = spec.get("kind")
-
-        # Simple image fields (poster_path / backdrop_path).
-        if kind_hint == "image":
-            url = build_tmdb_image_url(str(value))
-            if url:
-                item["art"][label] = url
-            continue
-
-        # Language-aware image lists for images.* fields.
-        if kind_hint == "image_list":
-            limit = spec.get("limit")
-
-            # Posters: lang → poster; None → keyart.
-            if logical_name == "images_posters":
-                lang_items, none_items = split_tmdb_images_by_language(
-                    value,
-                    preferred_iso,
-                )
-                poster_urls = build_tmdb_image_url_list(
-                    lang_items,
-                    limit=limit,
-                )
-                keyart_urls = build_tmdb_image_url_list(
-                    none_items,
-                    limit=limit,
-                )
-                assign_image_list_to_art(item["art"], "poster", poster_urls)
-                assign_image_list_to_art(item["art"], "keyart", keyart_urls)
-                continue
-
-            # Backdrops: None → fanart; lang → landscape.
-            if logical_name == "images_backdrops":
-                lang_items, none_items = split_tmdb_images_by_language(
-                    value,
-                    preferred_iso,
-                )
-                fanart_urls = build_tmdb_image_url_list(
-                    none_items,
-                    limit=limit,
-                )
-                landscape_urls = build_tmdb_image_url_list(
-                    lang_items,
-                    limit=limit,
-                )
-                assign_image_list_to_art(item["art"], "fanart", fanart_urls)
-                assign_image_list_to_art(
-                    item["art"],
-                    "landscape",
-                    landscape_urls,
-                )
-                continue
-
-            # Logos: prefer language-matched, fall back to language-none.
-            if logical_name == "images_logos":
-                lang_items, none_items = split_tmdb_images_by_language(
-                    value,
-                    preferred_iso,
-                )
-                logo_items = lang_items or none_items
-                logo_urls = build_tmdb_image_url_list(
-                    logo_items,
-                    limit=limit,
-                )
-                assign_image_list_to_art(item["art"], "clearlogo", logo_urls)
-                continue
-
-            # Fallback: treat as a simple image list for the given label.
-            urls = build_tmdb_image_url_list(value, limit=limit)
-            assign_image_list_to_art(item["art"], label, urls)
-            continue
-
-        # Fallback: unexpected art kind, just store as string.
-        item["art"][label] = str(value)
-
-    return item
-
-
-def _load_tmdb_from_cache(
-    kind: str,
-    tmdb_id: int,
-    language_key: str,
-) -> dict[str, Any] | None:
-    """Return cached canonical item payload, or None."""
-    row = _TMDB_CACHE.get_entry(kind, tmdb_id, language_key)
-    if not row:
-        return None
-    return row["payload"]
-
-
-def tmdb_to_canonical(
-    kind: str,
-    tmdb_id: int,
-    allowed: set[str] | None = None,
-    language: str | None = None,
-) -> dict[str, Any]:
-    """Fetch TMDb data and normalise to the JSON-style canonical dict.
-
-    :param kind: Logical kind name (e.g. "movie", "tvshow").
-    :param tmdb_id: TMDb numeric identifier.
-    :param allowed: Optional whitelist of VideoInfoTag keys to include.
-    :param language: Optional TMDb language code (e.g. "en-US").
-    :return: Canonical item dict compatible with json_to_canonical() and set_items().
-    """
-    if tmdb_id <= 0:
-        log.debug(f"tmdb_to_canonical → invalid tmdb_id={tmdb_id} for kind={kind}")
-        return {}
-
-    # Language used for the TMDb HTTP client and text fields.
-    language_key = language or "en-US"
-
-    # Language used to decide image language preference; keeps your
-    # previous behaviour (ADDON setting can override image lang).
-    effective_lang = language or ADDON.getSetting("tmdb_language") or "en-US"
-    preferred_iso = effective_lang.split("-")[0].lower()
-
-    # ---- 1) Cache lookup ----------------------------------------------------
-    cached = _load_tmdb_from_cache(kind, tmdb_id, language_key)
-    if cached:
-        item = cached
-        if allowed:
-            item = _filter_allowed_info_fields(item, allowed)
-        log.debug(f"tmdb_to_canonical (cache): kind={kind}, tmdb_id={tmdb_id} → {item}")
-        return item
-
-    # ---- 2) Fresh fetch -----------------------------------------------------
-    raw = fetch_tmdb_fields(
-        kind=kind,
-        tmdb_id=tmdb_id,
-        fields=None,
-        language=language,
-    )
-    if not raw:
-        return {}
-
-    item = _build_tmdb_canonical_item(
-        kind=kind,
-        tmdb_id=tmdb_id,
-        raw=raw,
-        preferred_iso=preferred_iso,
-    )
-    _apply_label_defaults(item)
-
-    # ---- 3) Store full canonical item in cache ------------------------------
-    try:
-        _TMDB_CACHE.upsert_entry(
-            dbtype=kind,
-            tmdb_id=tmdb_id,
-            language=language_key,
-            payload_json=json.dumps(item),
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.debug(
-            f"tmdb_to_canonical: cache upsert failed for kind={kind}, "
-            f"tmdb_id={tmdb_id} → {exc}"
-        )
-
-    # ---- 4) Apply allowed filter on a copy, if requested --------------------
-    if allowed:
-        filtered = _filter_allowed_info_fields(item, allowed)
-        log.debug(
-            f"tmdb_to_canonical (fresh, filtered): "
-            f"kind={kind}, tmdb_id={tmdb_id} → {filtered}"
-        )
-        return filtered
-
-    log.debug(f"tmdb_to_canonical (fresh): kind={kind}, tmdb_id={tmdb_id} → {item}")
-    return item
 
 
 class TmdbClient:
@@ -461,7 +199,7 @@ class TmdbClient:
                 return json.loads(data)
         except HTTPError as exc:
             log.error(
-                f"{ self.__class__.__name__}: TMDb HTTPError "
+                f"{self.__class__.__name__}: TMDb HTTPError "
                 f"{exc.code} for {path}: {exc.reason}"
             )
         except URLError as exc:

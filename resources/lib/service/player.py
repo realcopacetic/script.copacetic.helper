@@ -4,7 +4,7 @@ from xbmc import Player
 
 from resources.lib.art.editor import ImageEditor
 from resources.lib.script.actions import clean_filename, subtitle_limiter
-from resources.lib.shared.sqlite import SQLiteHandler
+from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -16,7 +16,7 @@ from resources.lib.shared.utilities import (
 class PlayerMonitor(Player):
     def __init__(self, sqlite_handler=None):
         Player.__init__(self)
-        self.sqlite = sqlite_handler or SQLiteHandler()
+        self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.image_processor = ImageEditor(self.sqlite).image_processor
 
     def onAVStarted(self):

@@ -10,7 +10,7 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared import logger as log
-from resources.lib.shared.sqlite import SQLiteHandler
+from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (ADDON, BLURS, CROPS, TEMPS,
                                             condition, create_dir,
                                             get_cache_size, infolabel,
@@ -36,7 +36,7 @@ class Monitor(xbmc.Monitor):
         self.crop_folder = CROPS
         self.temp_folder = TEMPS
         # Monitors
-        self.sqlite = SQLiteHandler()
+        self.sqlite = ArtworkCacheHandler()
         self.settings = SettingsMonitor()
         self.slideshow = SlideshowMonitor(self.sqlite)
         self.slideshow_wait = 0

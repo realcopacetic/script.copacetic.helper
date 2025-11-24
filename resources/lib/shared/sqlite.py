@@ -9,10 +9,9 @@ from resources.lib.art.policy import ART_DB_COLUMNS
 from resources.lib.shared.utilities import LOOKUPS
 
 
-class BaseSQLiteHandler:
+class SQLiteHandler:
     """
     Base SQLite handler providing a shared connection helper and DB path.
-
     Subclasses must implement `_initialize_database()` to create their tables.
     """
 
@@ -24,7 +23,8 @@ class BaseSQLiteHandler:
         self._initialize_database()
 
     def _initialize_database(self) -> None:  # pragma: no cover - abstract
-        """Create any required tables and indices. Must be implemented by subclasses."""
+        """Create any required tables and indices.
+        Must be implemented by subclasses."""
         raise NotImplementedError
 
     def _connect(self) -> sqlite3.Connection:
@@ -49,16 +49,15 @@ class BaseSQLiteHandler:
             cursor = conn.cursor()
             cursor.execute(f"SELECT * FROM {table} WHERE {where}", params)
             row = cursor.fetchone()
+            if not row:
+                return None
 
-        if not row:
-            return None
-
-        # Default SQLite rows are tuples; build a dict by introspecting columns.
-        col_names = [desc[0] for desc in cursor.description]
-        return {name: value for name, value in zip(col_names, row)}
+            # Default SQLite rows are tuples; build a dict by introspecting columns.
+            col_names = [desc[0] for desc in cursor.description]
+            return {name: value for name, value in zip(col_names, row)}
 
 
-class SQLiteHandler(BaseSQLiteHandler):
+class ArtworkCacheHandler(SQLiteHandler):
     """
     Manages artwork metadata using a lightweight SQLite database.
     Provides methods for adding and retrieving processed image entries.
@@ -102,19 +101,17 @@ class SQLiteHandler(BaseSQLiteHandler):
         Inserts or replaces an artwork entry into the database.
 
         :param category: Artwork category (e.g., "clearlogo", "fanart").
-        :param attributes: Dictionary with keys matching ART_DB_COLUMNS
-                           (except 'category', which is passed explicitly), e.g.:
+        :param attributes: Dictionary with keys matching ART_DB_COLUMNS (except
+                           'category', which is passed explicitly), e.g.:
                            'original_url', 'processed_path', 'cached_file_hash',
                            'color', 'accent', 'contrast', 'luminosity'.
         """
         cols = ", ".join(ART_DB_COLUMNS)
         placeholders = ", ".join(["?"] * len(ART_DB_COLUMNS))
-
         row = tuple(
             (category if key == "category" else attributes.get(key))
             for key in ART_DB_COLUMNS
         )
-
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -139,7 +136,6 @@ class SQLiteHandler(BaseSQLiteHandler):
     def clear_all(self) -> None:
         """
         Deletes all entries from the artwork database.
-
         :return: None
         """
         with self._connect() as conn:
@@ -182,7 +178,7 @@ class SQLiteHandler(BaseSQLiteHandler):
         return self.update_fields(url, **{column: value})
 
 
-class TmdbCacheHandler(BaseSQLiteHandler):
+class TmdbCacheHandler(SQLiteHandler):
     """
     Manages cached TMDb canonical payloads in the same SQLite database.
 
@@ -199,7 +195,8 @@ class TmdbCacheHandler(BaseSQLiteHandler):
 
     Notes:
         * Entries older than TTL_SECONDS are automatically removed on read & write.
-        * We don't throttle purging because Kodi plugins are short-lived and purge is cheap.
+        * We don't throttle purging because Kodi plugins are short-lived and purge
+          is cheap.
     """
 
     TTL_SECONDS = 86400 * 7  # 7 days
@@ -233,7 +230,10 @@ class TmdbCacheHandler(BaseSQLiteHandler):
             conn.commit()
 
     def get_entry(
-        self, dbtype: str, tmdb_id: int, language: str
+        self,
+        dbtype: str,
+        tmdb_id: int,
+        language: str,
     ) -> dict[str, Any] | None:
         """Retrieve a single cached row, deleting it if stale or corrupt."""
         row = self._get_one(
@@ -269,7 +269,11 @@ class TmdbCacheHandler(BaseSQLiteHandler):
             conn.commit()
 
     def upsert_entry(
-        self, dbtype: str, tmdb_id: int, language: str, payload_json: str
+        self,
+        dbtype: str,
+        tmdb_id: int,
+        language: str,
+        payload_json: str,
     ) -> None:
         """Always purge stale rows, then write fresh entry."""
         now = int(time.time())

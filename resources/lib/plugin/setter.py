@@ -95,7 +95,6 @@ def build_listitem(
     :param tag_applier: Optional function to apply VideoInfoTag fields.
     :return: Fully configured ``xbmcgui.ListItem`` instance.
     """
-    log.debug(f'FUCK DEBUG build_listitem item {item}')
     li = ListItem(
         label=item.get("label", ""),
         label2=item.get("label2", ""),
@@ -129,7 +128,6 @@ def apply_videoinfotag(
     :param media_type: Logical media type to annotate the VideoInfoTag.
     :return: ``None``.
     """
-    log.debug(f"FUCK DEBUG apply_videoinfotag item {item}")
     tag = li_item.getVideoInfoTag()
     tag.setMediaType(str(media_type or item.get("DbType") or ""))
 

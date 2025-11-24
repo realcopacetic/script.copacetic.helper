@@ -8,7 +8,7 @@ import xbmcvfs
 
 from resources.lib.art.policy import ART_FIELD_PROCESSED, ART_FIELD_HASH
 from resources.lib.shared.hash import HashManager
-from resources.lib.shared.sqlite import SQLiteHandler
+from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     TEMPS,
     THUMB_DB,
@@ -25,7 +25,7 @@ class ArtworkCacheManager:
     """
 
     def __init__(
-        self, sqlite_handler: SQLiteHandler, hash_manager: HashManager
+        self, sqlite_handler: ArtworkCacheHandler, hash_manager: HashManager
     ) -> None:
         """
         Initialize managers and working state.

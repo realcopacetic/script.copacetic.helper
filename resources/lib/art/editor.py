@@ -6,14 +6,17 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
-from resources.lib.art.policy import (ART_SOURCE_KEYS, ArtMeta, ColorConfig,
-                                      resolve_art_type)
+from resources.lib.art.policy import (
+    ART_SOURCE_KEYS,
+    ArtMeta,
+    ColorConfig,
+    resolve_art_type,
+)
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
-from resources.lib.shared.sqlite import SQLiteHandler
-from resources.lib.shared.utilities import (BLURS, CROPS, infolabel,
-                                            validate_path)
+from resources.lib.shared.sqlite import ArtworkCacheHandler
+from resources.lib.shared.utilities import BLURS, CROPS, infolabel, validate_path
 
 RGB = tuple[int, int, int]
 
@@ -30,13 +33,13 @@ class ImageEditor:
     }
 
     # --- Public methods ---
-    def __init__(self, sqlite_handler: SQLiteHandler | None = None) -> None:
+    def __init__(self, sqlite_handler: ArtworkCacheHandler | None = None) -> None:
         """
         Initialize caches, processors, and database/session dependencies.
 
         :param sqlite_handler: Optional SQLite handler instance, defaults to a new one.
         """
-        self.sqlite = sqlite_handler or SQLiteHandler()
+        self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.temp_folder = self.cache_manager.temp_folder
         self.cfg = ColorConfig()
@@ -155,12 +158,13 @@ class ImageEditor:
 
         extension = self.PROCESS_CONFIG.get(process)["extension"]
         self.cache_manager.prepare_cache(original_url, extension)
-
-        if not (
-            attributes := self.cache_manager.read_lookup(original_url)
-            or self._run_processor(process, art, **proc_kwargs)
-        ):
-            return None
+        
+        if attributes := self.cache_manager.read_lookup(original_url):
+            log.debug(f"ImageEditor (cache): art_type={art_type} → {attributes}")
+        else:
+            if not (attributes := self._run_processor(process, art, **proc_kwargs)):
+                return None
+            log.debug(f"ImageEditor (fresh): art_type={art_type} → {attributes}")
 
         attributes["category"] = art_type
         self.cache_manager.write_lookup(art_type, attributes)
@@ -257,7 +261,9 @@ class ImageEditor:
         if self.temp_folder in source_path:
             try:
                 xbmcvfs.delete(source_path)
-                log.debug(f"{self.__class__.__name__}: Temp file deleted → {source_path}")
+                log.debug(
+                    f"{self.__class__.__name__}: Temp file deleted → {source_path}"
+                )
             except Exception:
                 pass
 

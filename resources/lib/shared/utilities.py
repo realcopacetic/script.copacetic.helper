@@ -180,9 +180,9 @@ def clear_cache(**kwargs: str) -> None:
             xbmcvfs.rmdir(folder, force=True)
             create_dir(folder)
 
-    from resources.lib.shared.sqlite import SQLiteHandler
+    from resources.lib.shared.sqlite import ArtworkCacheHandler
 
-    SQLiteHandler().clear_all()
+    ArtworkCacheHandler().clear_all()
 
     log.info(f"Artwork cache cleared by user. {readable_size} saved.")
     message = f"{ADDON.getLocalizedString(32201)}, {readable_size} {ADDON.getLocalizedString(32202)}."

@@ -6,7 +6,7 @@ from typing import Callable, Iterator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
-from resources.lib.apis.tmdb.client import tmdb_to_canonical
+from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import collect_multiart, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
@@ -29,7 +29,7 @@ from resources.lib.plugin.library import (
 from resources.lib.plugin.registry import PluginInfoRegistry
 from resources.lib.plugin.setter import *
 from resources.lib.shared import logger as log
-from resources.lib.shared.sqlite import SQLiteHandler
+from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
     condition,
@@ -204,7 +204,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            image_processor = ImageEditor(SQLiteHandler()).image_processor
+            image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
             processed = image_processor(
                 processes={"clearlogo": "crop", "fanart": "blur"},
                 source=f"{self.container}.ListItem",
@@ -265,7 +265,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not url:
                 return
 
-            val = ImageEditor(SQLiteHandler()).compute_darken_runtime(
+            val = ImageEditor(ArtworkCacheHandler()).compute_darken_runtime(
                 url=url,
                 overlay_enable=self.params.get("overlay_enable", "true"),
                 overlay_source=self.params.get("overlay_source"),
@@ -390,8 +390,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             item = tmdb_to_canonical(
                 kind=self.dbtype,
                 tmdb_id=tmdb_id,
-                allowed=None,
-                language=None,
+                language=self.params.get("language"),
             )
 
             if not item:

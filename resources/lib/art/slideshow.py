@@ -5,7 +5,7 @@ import time
 
 from resources.lib.art.editor import ImageEditor
 from resources.lib.shared import logger as log
-from resources.lib.shared.sqlite import SQLiteHandler
+from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -27,9 +27,9 @@ class SlideshowMonitor:
         """
         Initializes the slideshow with optional SQLite and processing tools.
 
-        :param sqlite_handler: Optional SQLiteHandler instance.
+        :param sqlite_handler: Optional ArtworkCacheHandler instance.
         """
-        self.sqlite = sqlite_handler or SQLiteHandler()
+        self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.image_processor = ImageEditor(self.sqlite).image_processor
         self.slideshow_path = self._get_slideshow_path()
         self.slideshow_source = self._check_slideshow_source()
