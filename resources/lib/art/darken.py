@@ -25,7 +25,6 @@ class ColorDarken:
         """
         self.color = color_analyzer
 
-    @log.duration
     def compute_darken_percent(
         self,
         image: Image.Image,
@@ -217,12 +216,12 @@ class ColorDarken:
         L_bg = self.color.get_luminosity(bg_rgb)
 
         contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
+        diff = (contrast - target)
         log.debug(
-            f"{self.__class__.__name__}: darken → "
-            f"bg_rgb={bg_rgb}, text_rgb={text_rgb}, "
-            f"L_bg={L_bg:.4f}, L_text={L_text:.4f}, "
-            f"contrast={contrast:.3f}, target={target:.2f}, "
-            f"diff={(contrast - target):+.3f}",
+            f"{self.__class__.__name__} → "
+            f"{bg_rgb=}, {text_rgb=}, {L_bg=:.4f}, "
+            f"{L_text=:.4f}, {contrast=:.3f}, {target=:.2f}, "
+            f"{diff=:+.3f}",
         )
         if contrast >= (target - 1e-9):
             return 0

@@ -9,27 +9,69 @@ from resources.lib.art.policy import ART_DB_COLUMNS
 from resources.lib.shared.utilities import LOOKUPS
 
 
+TMDB_DB_COLUMNS: tuple[str, ...] = (
+    "dbtype",
+    "tmdb_id",
+    "language",
+    "fetched_at",
+    "payload",
+)
+
+
 class SQLiteHandler:
     """
-    Base SQLite handler providing a shared connection helper and DB path.
-    Subclasses must implement `_initialize_database()` to create their tables.
+    Base SQLite handler providing unified connection (WAL mode),
+    table name enforcement and basic CRUD operation helpers.
+    Subclasses must set TABLE_NAME, implement _initialize_database().
     """
+    TABLE_NAME: str | None = None
 
     def __init__(self, db_path: str | None = None) -> None:
-        """
-        :param db_path: Optional custom path for the SQLite database.
-        """
         self.db_path = db_path or LOOKUPS
         self._initialize_database()
 
-    def _initialize_database(self) -> None:  # pragma: no cover - abstract
-        """Create any required tables and indices.
-        Must be implemented by subclasses."""
+    def _initialize_database(self) -> None:
+        """Subclasses must implement table creation."""
         raise NotImplementedError
 
     def _connect(self) -> sqlite3.Connection:
-        """Return a new SQLite connection with a small timeout."""
-        return sqlite3.connect(self.db_path, timeout=5)
+        """Unified connection helper with WAL mode."""
+        conn = sqlite3.connect(self.db_path, timeout=5)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return conn
+
+    def _insert_or_replace(
+        self, columns: tuple[str, ...], values: tuple[Any, ...]
+    ) -> None:
+        """INSERT OR REPLACE helper using a dynamic column list."""
+        if not self.TABLE_NAME:
+            raise RuntimeError("TABLE_NAME must be defined.")
+
+        cols = ", ".join(columns)
+        placeholders = ", ".join("?" for _ in columns)
+
+        with self._connect() as conn:
+            conn.execute(
+                f"""
+                INSERT OR REPLACE INTO {self.TABLE_NAME} (
+                    {cols}
+                ) VALUES ({placeholders})
+                """,
+                values,
+            )
+            conn.commit()
+
+    def _delete_where(self, where: str, params: tuple[Any, ...]) -> None:
+        """DELETE helper with dynamic WHERE clause."""
+        if not self.TABLE_NAME:
+            raise RuntimeError("TABLE_NAME must be defined.")
+
+        with self._connect() as conn:
+            conn.execute(
+                f"DELETE FROM {self.TABLE_NAME} WHERE {where}",
+                params,
+            )
+            conn.commit()
 
     def _get_one(
         self,
@@ -37,14 +79,7 @@ class SQLiteHandler:
         where: str,
         params: tuple[Any, ...],
     ) -> dict[str, Any] | None:
-        """
-        Convenience helper to fetch a single row from `table` with a WHERE clause.
-
-        :param table: Table name.
-        :param where: WHERE clause without the 'WHERE' keyword.
-        :param params: Parameters tuple for the WHERE clause.
-        :returns: Row as a dict if found, otherwise None.
-        """
+        """Return a single row as dict or None."""
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(f"SELECT * FROM {table} WHERE {where}", params)
@@ -52,33 +87,36 @@ class SQLiteHandler:
             if not row:
                 return None
 
-            # Default SQLite rows are tuples; build a dict by introspecting columns.
             col_names = [desc[0] for desc in cursor.description]
-            return {name: value for name, value in zip(col_names, row)}
+            return dict(zip(col_names, row))
+
+    def clear_all(self) -> None:
+        """Delete every row in this table."""
+        if not self.TABLE_NAME:
+            raise RuntimeError("TABLE_NAME must be set on subclasses.")
+
+        with self._connect() as conn:
+            conn.execute(f"DELETE FROM {self.TABLE_NAME}")
+            conn.commit()
 
 
 class ArtworkCacheHandler(SQLiteHandler):
     """
-    Manages artwork metadata using a lightweight SQLite database.
-    Provides methods for adding and retrieving processed image entries.
+    Stores processed artwork data (colors, hashes, processed_path, etc.)
     """
-
-    _ALLOWED_UPDATE_COLS = set(ART_DB_COLUMNS)
+    TABLE_NAME = "artwork"
+    _IMMUTABLE_COLUMNS = {"category", "original_url"}
+    _ALLOWED_UPDATE_COLS = set(ART_DB_COLUMNS) - _IMMUTABLE_COLUMNS
 
     def __init__(self) -> None:
-        super().__init__(db_path=LOOKUPS)
+        super().__init__()
 
     def _initialize_database(self) -> None:
-        """
-        Creates the artwork table and index if they don't already exist.
-        Uses WAL mode for concurrent read/write access.
-        """
-        with sqlite3.connect(self.db_path, timeout=5) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS artwork (
+                f"""
+                CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     category TEXT NOT NULL,
                     original_url TEXT UNIQUE NOT NULL,
@@ -92,80 +130,48 @@ class ArtworkCacheHandler(SQLiteHandler):
                 """
             )
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_url ON artwork (original_url)"
+                f"CREATE INDEX IF NOT EXISTS idx_url "
+                f"ON {self.TABLE_NAME} (original_url)"
             )
             conn.commit()
 
     def add_entry(self, category: str, attributes: dict[str, Any]) -> None:
-        """
-        Inserts or replaces an artwork entry into the database.
-
-        :param category: Artwork category (e.g., "clearlogo", "fanart").
-        :param attributes: Dictionary with keys matching ART_DB_COLUMNS (except
-                           'category', which is passed explicitly), e.g.:
-                           'original_url', 'processed_path', 'cached_file_hash',
-                           'color', 'accent', 'contrast', 'luminosity'.
-        """
-        cols = ", ".join(ART_DB_COLUMNS)
-        placeholders = ", ".join(["?"] * len(ART_DB_COLUMNS))
+        """Insert/replace an artwork entry using ART_DB_COLUMNS."""
         row = tuple(
-            (category if key == "category" else attributes.get(key))
-            for key in ART_DB_COLUMNS
+            category if col == "category" else attributes.get(col)
+            for col in ART_DB_COLUMNS
         )
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                f"INSERT OR REPLACE INTO artwork ({cols}) VALUES ({placeholders})",
-                row,
-            )
-            conn.commit()
+        self._insert_or_replace(ART_DB_COLUMNS, row)
 
     def get_entry(self, original_url: str) -> dict[str, Any] | None:
-        """
-        Retrieves an artwork entry by original URL.
-
-        :param original_url: The URL used to identify the artwork in the DB.
-        :return: Dictionary of entry data if found, otherwise None.
-        """
         return self._get_one(
-            table="artwork",
+            table=self.TABLE_NAME,
             where="original_url = ?",
             params=(original_url,),
         )
 
-    def clear_all(self) -> None:
-        """
-        Deletes all entries from the artwork database.
-        :return: None
-        """
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM artwork")
-            conn.commit()
-
     def update_fields(self, url: str, **fields: Any) -> int:
-        """
-        Update one or more columns for a single row identified by original URL.
-        Returns number of affected rows.
-        """
-        if not fields:
-            return 0
-
-        # Filter to allowed, non-None values
+        """Update selected mutable fields by original_url."""
         safe_items = [
-            (k, v) for k, v in fields.items() if k in self._ALLOWED_UPDATE_COLS
+            (col, val)
+            for col, val in fields.items()
+            if col in self._ALLOWED_UPDATE_COLS and val is not None
         ]
         if not safe_items:
             return 0
 
         cols, vals = zip(*safe_items)
-        sets = ", ".join([f"{c} = ?" for c in cols])
+        assignments = ", ".join(f"{c} = ?" for c in cols)
 
         try:
             with self._connect() as conn:
                 cur = conn.cursor()
                 cur.execute(
-                    f"UPDATE artwork SET {sets} WHERE original_url = ?",
+                    f"""
+                    UPDATE {self.TABLE_NAME}
+                    SET {assignments}
+                    WHERE original_url = ?
+                    """,
                     (*vals, url),
                 )
                 conn.commit()
@@ -174,83 +180,60 @@ class ArtworkCacheHandler(SQLiteHandler):
             return 0
 
     def update_field(self, url: str, column: str, value: Any) -> int:
-        """Thin wrapper for single-column updates."""
         return self.update_fields(url, **{column: value})
 
 
 class TmdbCacheHandler(SQLiteHandler):
     """
-    Manages cached TMDb canonical payloads in the same SQLite database.
-
-    Schema:
-        tmdb_cache(
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            dbtype     TEXT    NOT NULL,
-            tmdb_id    INTEGER NOT NULL,
-            language   TEXT    NOT NULL,
-            fetched_at INTEGER NOT NULL,
-            payload    TEXT    NOT NULL,
-            UNIQUE (dbtype, tmdb_id, language)
-        )
-
-    Notes:
-        * Entries older than TTL_SECONDS are automatically removed on read & write.
-        * We don't throttle purging because Kodi plugins are short-lived and purge
-          is cheap.
+    Stores canonical TMDb payloads as raw JSON with
+    dbtype, tmdb_id, language, fetched_at, payload (TEXT)
     """
-
+    TABLE_NAME = "tmdb_cache"
     TTL_SECONDS = 86400 * 7  # 7 days
 
     def __init__(self) -> None:
-        super().__init__(db_path=LOOKUPS)
+        super().__init__()
 
     def _initialize_database(self) -> None:
-        with sqlite3.connect(self.db_path, timeout=5) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS tmdb_cache (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    dbtype     TEXT    NOT NULL,
-                    tmdb_id    INTEGER NOT NULL,
-                    language   TEXT    NOT NULL,
+                f"""
+                CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dbtype TEXT NOT NULL,
+                    tmdb_id INTEGER NOT NULL,
+                    language TEXT NOT NULL,
                     fetched_at INTEGER NOT NULL,
-                    payload    TEXT    NOT NULL,
+                    payload TEXT NOT NULL,
                     UNIQUE (dbtype, tmdb_id, language)
                 )
                 """
             )
             cursor.execute(
-                """
+                f"""
                 CREATE INDEX IF NOT EXISTS idx_tmdb_cache_lookup
-                ON tmdb_cache (dbtype, tmdb_id, language)
+                ON {self.TABLE_NAME}(dbtype, tmdb_id, language)
                 """
             )
             conn.commit()
 
     def get_entry(
-        self,
-        dbtype: str,
-        tmdb_id: int,
-        language: str,
+        self, dbtype: str, tmdb_id: int, language: str
     ) -> dict[str, Any] | None:
-        """Retrieve a single cached row, deleting it if stale or corrupt."""
         row = self._get_one(
-            table="tmdb_cache",
+            table=self.TABLE_NAME,
             where="dbtype = ? AND tmdb_id = ? AND language = ?",
             params=(dbtype, tmdb_id, language),
         )
         if not row:
             return None
 
-        # TTL check
-        age = int(time.time()) - int(row["fetched_at"])
-        if age > self.TTL_SECONDS:
+        now = int(time.time())
+        if now - int(row["fetched_at"]) > self.TTL_SECONDS:
             self.delete_entry(dbtype, tmdb_id, language)
             return None
 
-        # JSON decode check
         try:
             row["payload"] = json.loads(row["payload"])
         except Exception:
@@ -260,47 +243,35 @@ class TmdbCacheHandler(SQLiteHandler):
         return row
 
     def delete_entry(self, dbtype: str, tmdb_id: int, language: str) -> None:
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "DELETE FROM tmdb_cache WHERE dbtype = ? AND tmdb_id = ? AND language = ?",
-                (dbtype, tmdb_id, language),
-            )
-            conn.commit()
+        self._delete_where(
+            "dbtype = ? AND tmdb_id = ? AND language = ?",
+            (dbtype, tmdb_id, language),
+        )
 
     def upsert_entry(
         self,
         dbtype: str,
         tmdb_id: int,
         language: str,
-        payload_json: str,
+        payload: dict[str, Any],
     ) -> None:
-        """Always purge stale rows, then write fresh entry."""
+        """
+        Insert or replace a TMDb cache entry and purge stale rows.
+
+        :param dbtype: 'movie', 'tv', etc.
+        :param tmdb_id: TMDb numeric ID.
+        :param language: TMDb language/region code (e.g. 'en-US').
+        :param payload: Parsed TMDb JSON payload as a dict.
+        """
         now = int(time.time())
         cutoff = now - self.TTL_SECONDS
-
-        with self._connect() as conn:
-            cursor = conn.cursor()
-
-            # Bulk purge every write
-            cursor.execute(
-                "DELETE FROM tmdb_cache WHERE fetched_at < ?",
-                (cutoff,),
-            )
-
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO tmdb_cache (
-                    dbtype, tmdb_id, language, fetched_at, payload
-                )
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (dbtype, tmdb_id, language, now, payload_json),
-            )
-            conn.commit()
-
-    def clear_all(self) -> None:
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM tmdb_cache")
-            conn.commit()
+        payload_json = json.dumps(payload, separators=(",", ":"))
+        self._delete_where("fetched_at < ?", (cutoff,))
+        row = (
+            dbtype,
+            tmdb_id,
+            language,
+            now,
+            payload_json,
+        )
+        self._insert_or_replace(TMDB_DB_COLUMNS, row)

@@ -457,12 +457,13 @@ class TextTruncator:
             out = self._search_bounded(ctrl, cond_str, base, n=n)
 
         mode = "coarse" if (min_safe and min_safe > 0) else "binary"
+        delta = self._last_len - (min_safe or 0)
         log.debug(
             f"Trunc: probes={self._probes} "
-            f"mode={mode} "
-            f"min_safe={min_safe or 0} "
+            f"{mode=} "
+            f"{min_safe or 0=} "
             f"final_len={self._last_len} "
-            f"delta={self._last_len - (min_safe or 0)}"
+            f"{delta=}"
         )
 
         return self._smart_sentence_cap(out, min_safe) if smart_cap else out
@@ -725,7 +726,7 @@ class TypewriterAnimation:
                 return ok
             return True
 
-        log.debug(f"{self.__class__.__name__}: START → '{label}'")
+        log.debug(f"{self.__class__.__name__} → START → '{label}'")
         control_id = to_int(label_id, self.control_id)
 
         if not _alive():
@@ -801,4 +802,4 @@ class TypewriterAnimation:
                 xbmc.sleep(1)
                 control.setText(sub)
 
-        log.debug(f"{self.__class__.__name__}: DONE → '{label}'")
+        log.debug(f"{self.__class__.__name__} → DONE → '{label}'")

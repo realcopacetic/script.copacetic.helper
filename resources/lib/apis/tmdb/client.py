@@ -1,5 +1,4 @@
 # author: realcopacetic
-from __future__ import annotations
 
 import json
 import urllib.parse
@@ -15,10 +14,11 @@ TMDB_API_BASE = "https://api.themoviedb.org/3"
 
 
 def get_tmdb_client(language: str = "en-US") -> "TmdbClient | None":
-    """Build and return a TmdbClient if configuration is valid.
+    """
+    Create a TmdbClient instance if TMDb access is enabled.
 
     :param language: TMDb language code (e.g. "en-US").
-    :return: TmdbClient instance or None if disabled or misconfigured.
+    :return: TmdbClient or None if disabled or misconfigured.
     """
     enabled = ADDON.getSetting("tmdb_access") == "true"
     token = (ADDON.getSetting("tmdb_access_token") or "").strip()
@@ -31,11 +31,12 @@ def get_tmdb_client(language: str = "en-US") -> "TmdbClient | None":
 
 
 def _extract_path(data: Mapping[str, Any], path: Sequence[str]) -> Any:
-    """Safely walk a nested dict by a sequence of keys.
+    """
+    Walk a nested mapping by key sequence.
 
-    :param data: TMDb JSON response mapping.
-    :param path: Sequence of keys, e.g. ("tagline",).
-    :return: Value at path or None if missing or incompatible.
+    :param data: TMDb JSON response data.
+    :param path: Iterable of nested keys.
+    :return: Extracted value or None.
     """
     current: Any = data
     for key in path:
@@ -50,10 +51,11 @@ def _extract_path(data: Mapping[str, Any], path: Sequence[str]) -> Any:
 def _build_field_map(
     field_specs: Iterable[str | tuple[str, Sequence[str]]],
 ) -> dict[str, tuple[str, ...]]:
-    """Convert a list of field specs into a logical_name → path mapping.
+    """
+    Normalize TMDB_PROPERTIES field specs to name → JSON path mapping.
 
-    :param field_specs: Iterable of "field" or (logical_name, path_tuple) specs.
-    :return: Mapping of logical field names to JSON key paths.
+    :param field_specs: List of "field" or (name, path_tuple).
+    :return: Mapping of logical name to tuple path.
     """
     return {
         (spec if isinstance(spec, str) else spec[0]): (
@@ -69,17 +71,18 @@ def fetch_tmdb_fields(
     fields: Iterable[str] | None = None,
     language: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch selected TMDb fields for a given kind/id.
+    """
+    Fetch specific TMDb fields for a given kind/id.
 
-    :param kind: Logical kind, e.g. "tvshow" or "movie".
-    :param tmdb_id: TMDb numeric identifier.
-    :param fields: Iterable of logical field names to fetch, or None for all.
-    :param language: Optional TMDb language code (e.g. "en-US").
-    :return: Dict of {logical_field_name: value} for resolved fields.
+    :param kind: TMDb media kind ("movie", "tvshow", etc.).
+    :param tmdb_id: TMDb item identifier.
+    :param fields: Logical fields to extract or None for all known.
+    :param language: Optional TMDb language override.
+    :return: Mapping of field name → extracted value.
     """
     if tmdb_id <= 0:
         log.debug(
-            f"fetch_tmdb_fields → invalid tmdb_id={tmdb_id} for kind={kind}",
+            f"fetch_tmdb_fields → invalid {tmdb_id=} for {kind=}",
         )
         return {}
 
@@ -89,7 +92,7 @@ def fetch_tmdb_fields(
 
     kind_map = TMDB_PROPERTIES.get(kind)
     if not kind_map:
-        log.debug(f"fetch_tmdb_fields → unknown kind={kind}")
+        log.debug(f"fetch_tmdb_fields → unknown {kind=}")
         return {}
 
     endpoint = kind_map["endpoint"].format(id=tmdb_id)
@@ -101,13 +104,13 @@ def fetch_tmdb_fields(
     if fields is None:
         requested = list(field_map.keys())
     else:
-        requested = [name for name in fields if name in field_map]
+        requested = [f for f in fields if f in field_map]
         unknown = sorted(set(fields) - set(field_map))
         if unknown:
-            log.debug(f"fetch_tmdb_fields → unknown fields for kind={kind}: {unknown}")
+            log.debug(f"fetch_tmdb_fields → unknown fields for {kind=}: {unknown!r}")
 
     if not requested:
-        log.debug(f"fetch_tmdb_fields → no valid fields requested for kind={kind}")
+        log.debug(f"fetch_tmdb_fields → no valid fields requested for {kind=}")
         return {}
 
     params: dict[str, Any] = {}
@@ -115,12 +118,10 @@ def fetch_tmdb_fields(
         params["append_to_response"] = ",".join(sorted(set(append_blocks)))
 
     # Include image language hints if we know the preferred ISO code.
-    lang_for_images = language or client.language
-    preferred_iso = None
-    if lang_for_images:
-        preferred_iso = lang_for_images.split("-")[0].lower()
-    if preferred_iso:
-        params["include_image_language"] = f"{preferred_iso},null"
+    lang = language or client.language
+    if lang:
+        iso = lang.split("-")[0].lower()
+        params["include_image_language"] = f"{iso},null"
 
     data = client.get_json(endpoint, params=params)
     if not data:
@@ -128,24 +129,25 @@ def fetch_tmdb_fields(
 
     result: dict[str, Any] = {}
     for name in requested:
-        # field_map values are key paths; reuse the logic from fields.py or build here
         path = field_map[name]
         value = _extract_path(data, path)
         if value is not None:
             result[name] = value
 
-    log.debug(f"fetch_tmdb_fields(kind={kind}, tmdb_id={tmdb_id}) → {result}")
     return result
 
 
 class TmdbClient:
-    """Thin TMDb HTTP client supporting v3 and v4 authentication."""
+    """
+    Minimal TMDb HTTP client with v3/v4 authentication support.
+    """
 
     def __init__(self, token: str, language: str = "en-US") -> None:
-        """Initialise the client with authentication and language.
+        """
+        Initialize the client with API authentication + default language.
 
         :param token: API key (v3) or read access token (v4).
-        :param language: Default TMDb language parameter.
+        :param language: Default TMDb language.
         """
         self.token = token.strip()
         self.language = language
@@ -157,13 +159,14 @@ class TmdbClient:
     def _build_request(
         self,
         path: str,
-        params: dict | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> urllib.request.Request:
-        """Build an authenticated HTTP request for a TMDb endpoint.
+        """
+        Build an authenticated TMDb HTTP Request.
 
-        :param path: TMDb path starting with "/3/...".
-        :param params: Optional query parameter mapping.
-        :return: Prepared urllib Request instance.
+        :param path: TMDb REST path beginning with "/".
+        :param params: Query parameters mapping.
+        :return: Prepared urllib Request.
         """
         if params is None:
             params = {}
@@ -185,30 +188,37 @@ class TmdbClient:
 
         return urllib.request.Request(url, headers=headers)
 
-    def get_json(self, path: str, params: dict | None = None) -> dict:
-        """Send a GET request and decode the JSON response.
+    def get_json(self, path: str, params: Mapping[str, Any] | None = None) -> dict:
+        """
+        GET a TMDb endpoint and decode its JSON response.
 
-        :param path: TMDb path starting with "/3/...".
-        :param params: Optional query parameter mapping.
-        :return: Parsed JSON dict or empty dict on error.
+        :param path: TMDb path beginning with "/".
+        :param params: Optional query parameters.
+        :return: Parsed dict, or empty dict on failure.
         """
         request = self._build_request(path, params)
+
         try:
             with urllib.request.urlopen(request, timeout=10) as resp:
                 data = resp.read().decode("utf-8")
                 return json.loads(data)
+
         except HTTPError as exc:
             log.error(
-                f"{self.__class__.__name__}: TMDb HTTPError "
-                f"{exc.code} for {path}: {exc.reason}"
+                f"{self.__class__.__name__}: HTTPError {exc.code} "
+                f"for URL={request.full_url!r}: {exc.reason}"
             )
+
         except URLError as exc:
             log.error(
-                f"{self.__class__.__name__}: TMDb URLError " f"for {path}: {exc.reason}"
+                f"{self.__class__.__name__}: URLError for URL={request.full_url!r}: "
+                f"{exc.reason}"
             )
+
         except Exception as exc:  # noqa: BLE001
             log.error(
-                f"{self.__class__.__name__}: TMDb unexpected error for {path}: "
-                f"{exc}"
+                f"{self.__class__.__name__}: Unexpected TMDb error "
+                f"for URL={request.full_url!r}: {exc!r}"
             )
+
         return {}

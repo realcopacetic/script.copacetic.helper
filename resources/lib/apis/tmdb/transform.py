@@ -1,5 +1,4 @@
 # author: realcopacetic
-from __future__ import annotations
 
 from typing import Any, Mapping
 
@@ -18,119 +17,61 @@ from resources.lib.shared.utilities import ADDON
 
 
 _CACHE = TmdbCache()
-
-# ---------------------------------------------------------------------------
-# Artwork shaping configuration
-# ---------------------------------------------------------------------------
-
-# For TMDb image *lists* (e.g. images.posters/backdrops/logos),
-# we describe how to split the list into "buckets" and which bucket
-# maps to which Kodi art label.
-#
-# Buckets:
-#   - "lang"          → language-matched entries
-#   - "none"          → entries with no language tag
-#   - "lang_or_none"  → language-matched, else fall back to none
-#   - "all"           → entire list (no language split)
-#
-# Each entry in the list is: (art_label, bucket_name)
 IMAGE_LIST_ROLES: dict[str, list[tuple[str, str]]] = {
-    # Posters: lang → poster, none → keyart
     "images_posters": [
         ("poster", "lang"),
         ("keyart", "none"),
     ],
-    # Backdrops: none → fanart, lang → landscape
     "images_backdrops": [
         ("fanart", "none"),
         ("landscape", "lang"),
     ],
-    # Logos: prefer lang, fall back to none → clearlogo
     "images_logos": [
         ("clearlogo", "lang_or_none"),
     ],
-    # Any other "images_*" fields will fall back to "all" → label.
 }
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _preferred_iso(language: str | None) -> str:
+def tmdb_to_canonical(
+    kind: str,
+    tmdb_id: int,
+    language: str | None = None,
+) -> dict[str, Any]:
     """
-    Return the two-letter ISO code for an input language like 'en-US'.
+    Fetch TMDb data and normalise it into canonical Kodi item format.
 
-    Falls back to an empty string if the language is not provided.
+    :param kind: TMDb logical kind (for example, 'movie', 'tvshow').
+    :param tmdb_id: TMDb numeric identifier.
+    :param language: Optional TMDb language override.
+    :return: Canonical TMDb item dict or empty dict.
     """
-    if not language:
-        return ""
-    return language.split("-")[0].lower()
+    if tmdb_id <= 0:
+        log.debug(f"TmdbClient → invalid {tmdb_id=} for {kind=}")
+        return {}
 
+    language_key = language or ADDON.getSetting("tmdb_language") or "en-US"
+    cached = _CACHE.get(kind, tmdb_id, language_key)
+    if cached:
+        return cached
 
-def _handle_image_art(
-    label: str,
-    value: Any,
-    art: dict[str, Any],
-) -> None:
-    """Handle simple 'image' kind artwork (single TMDb path → one URL)."""
-    url = build_tmdb_image_url(str(value))
-    if url:
-        art[label] = url
+    raw = fetch_tmdb_fields(
+        kind=kind,
+        tmdb_id=tmdb_id,
+        fields=None,
+        language=language_key,
+    )
+    if not raw:
+        return {}
 
+    item = _build_tmdb_canonical_item(
+        kind=kind,
+        tmdb_id=tmdb_id,
+        raw=raw,
+        language=language_key,
+    )
+    _CACHE.set(kind, tmdb_id, language_key, item)
 
-def _select_bucket_items(
-    bucket: str,
-    value: Any,
-    lang_items: list[Any],
-    none_items: list[Any],
-) -> list[Any]:
-    """
-    Given a bucket name and language-split lists, return the appropriate source list.
-    """
-    if bucket == "lang":
-        return lang_items
-    if bucket == "none":
-        return none_items
-    if bucket == "lang_or_none":
-        return lang_items or none_items
-    # "all" or unknown => use the raw list value
-    return value or []
-
-
-def _handle_image_list_art(
-    logical_name: str,
-    label: str,
-    value: Any,
-    art: dict[str, Any],
-    preferred_iso: str,
-    limit: int | None = None,
-) -> None:
-    """
-    Generic handler for 'image_list' artwork.
-
-    Uses IMAGE_LIST_ROLES to decide how to map the raw TMDb list to one or more
-    Kodi art labels with language-aware prioritisation.
-    """
-    roles = IMAGE_LIST_ROLES.get(logical_name)
-
-    # If we have a role definition, we need language splitting.
-    if roles:
-        lang_items, none_items = split_tmdb_images_by_language(
-            value,
-            preferred_iso,
-        )
-        for art_label, bucket in roles:
-            items = _select_bucket_items(bucket, value, lang_items, none_items)
-            urls = build_tmdb_image_url_list(items, limit=limit)
-            assign_image_list_to_art(art, art_label, urls)
-        return
-
-    # Fallback: no special shaping requested for this logical_name.
-    # Just treat the entire list as belonging to the given label.
-    urls = build_tmdb_image_url_list(value, limit=limit)
-    assign_image_list_to_art(art, label, urls)
+    return item
 
 
 def _build_tmdb_canonical_item(
@@ -140,19 +81,13 @@ def _build_tmdb_canonical_item(
     language: str,
 ) -> dict[str, Any]:
     """
-    Build the canonical TMDb payload from raw logical TMDb fields.
+    Convert raw TMDb fields into canonical Kodi-compatible structure.
 
-    Canonical format:
-
-        {
-            "file": "tmdb",
-            "art": {...},
-            "properties": {...},
-            <info fields...>
-        }
-
-    Artwork shaping (posters/backdrops/logos) is handled by generic helpers
-    with configuration in IMAGE_LIST_ROLES.
+    :param kind: Logical TMDb kind ('movie', 'tvshow').
+    :param tmdb_id: TMDb numeric identifier.
+    :param raw: Resolved TMDb logical fields.
+    :param language: TMDb language key used for fetching.
+    :return: Canonical item dict for downstream handlers.
     """
     item: dict[str, Any] = {
         "file": "tmdb",
@@ -173,8 +108,8 @@ def _build_tmdb_canonical_item(
 
         target = spec["target"]
         label = spec["label"]
-        transform_name = spec.get("transform")
 
+        transform_name = spec.get("transform")
         if transform_name:
             value = apply_tmdb_transform(transform_name, value)
 
@@ -187,90 +122,113 @@ def _build_tmdb_canonical_item(
             continue
 
         if target != "art":
-            log.debug(
-                f"tmdb_to_canonical → unsupported target={target} "
-                f"for field={logical_name}"
-            )
+            log.debug(f"tmdb_to_canonical → unsupported {target=} for {logical_name=}")
             continue
 
         kind_hint = spec.get("kind")
 
-        # Simple single-path image.
         if kind_hint == "image":
             _handle_image_art(label, value, art)
             continue
 
-        # Image lists with language awareness and shaping described in IMAGE_LIST_ROLES.
         if kind_hint == "image_list":
-            limit = spec.get("limit")
             _handle_image_list_art(
                 logical_name=logical_name,
                 label=label,
                 value=value,
                 art=art,
                 preferred_iso=preferred_iso,
-                limit=limit,
+                limit=spec.get("limit"),
             )
             continue
 
-        # Fallback: unexpected art kind, just store as string.
         art[label] = str(value)
 
     return item
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
-def tmdb_to_canonical(
-    kind: str,
-    tmdb_id: int,
-    language: str | None = None,
-) -> dict[str, Any]:
+def _preferred_iso(language: str | None) -> str:
     """
-    Fetch TMDb data and normalise to the JSON-style canonical dict.
+    Extract a two-letter ISO language code.
 
-    :param kind: Logical kind name (e.g. "movie", "tvshow").
-    :param tmdb_id: TMDb numeric identifier.
-    :param language: Optional TMDb language code (e.g. "en-US"). If not provided,
-                     falls back to the addon "tmdb_language" setting or "en-US".
-    :return: Canonical item dict compatible with json_to_canonical() and set_items().
+    :param language: TMDb language code (e.g. 'en-US').
+    :return: ISO code (e.g. 'en') or empty string.
     """
-    if tmdb_id <= 0:
-        log.debug(f"tmdb_to_canonical → invalid tmdb_id={tmdb_id} for kind={kind}")
-        return {}
+    if not language:
+        return ""
+    return language.split("-")[0].lower()
 
-    language_key = language or ADDON.getSetting("tmdb_language") or "en-US"
 
-    # ---- 1) Try cache -------------------------------------------------------
-    cached = _CACHE.get(kind, tmdb_id, language_key)
-    if cached:
-        log.debug(
-            f"tmdb_to_canonical (cache): kind={kind}, tmdb_id={tmdb_id} → {cached}"
-        )
-        return cached
+def _handle_image_art(
+    label: str,
+    value: Any,
+    art: dict[str, Any],
+) -> None:
+    """
+    Handle simple single-path TMDb images.
 
-    # ---- 2) Fresh fetch -----------------------------------------------------
-    raw = fetch_tmdb_fields(
-        kind=kind,
-        tmdb_id=tmdb_id,
-        fields=None,
-        language=language_key,
-    )
-    if not raw:
-        return {}
+    :param label: Kodi art label to assign.
+    :param value: Raw TMDb file_path string.
+    :param art: Artwork dict to update in place.
+    :return: None.
+    """
+    url = build_tmdb_image_url(str(value))
+    if url:
+        art[label] = url
 
-    item = _build_tmdb_canonical_item(
-        kind=kind,
-        tmdb_id=tmdb_id,
-        raw=raw,
-        language=language_key,
-    )
 
-    # ---- 3) Store full canonical payload in cache ---------------------------
-    _CACHE.set(kind, tmdb_id, language_key, item)
+def _select_bucket_items(
+    bucket: str,
+    value: Any,
+    lang_items: list[Any],
+    none_items: list[Any],
+) -> list[Any]:
+    """
+    Select TMDb image entries for a named bucket.
 
-    log.debug(f"tmdb_to_canonical (fresh): kind={kind}, tmdb_id={tmdb_id} → {item}")
-    return item
+    :param bucket: 'lang', 'none', 'lang_or_none', or 'all'.
+    :param value: Raw TMDb list value.
+    :param lang_items: Language-matched image entries.
+    :param none_items: Language-none image entries.
+    :return: Selected list of items.
+    """
+    if bucket == "lang":
+        return lang_items
+    if bucket == "none":
+        return none_items
+    if bucket == "lang_or_none":
+        return lang_items or none_items
+    return value or []
+
+
+def _handle_image_list_art(
+    logical_name: str,
+    label: str,
+    value: Any,
+    art: dict[str, Any],
+    preferred_iso: str,
+    limit: int | None = None,
+) -> None:
+    """
+    Handle TMDb image lists with language-aware shaping.
+
+    :param logical_name: Logical TMDb field name (e.g. 'images_posters').
+    :param label: Default Kodi art label for fallback behaviour.
+    :param value: Raw TMDb images list.
+    :param art: Artwork dict to update in place.
+    :param preferred_iso: Two-letter ISO language code.
+    :param limit: Optional maximum URL count.
+    :return: None.
+    """
+    roles = IMAGE_LIST_ROLES.get(logical_name)
+
+    if roles:
+        lang_items, none_items = split_tmdb_images_by_language(value, preferred_iso)
+        for art_label, bucket in roles:
+            items = _select_bucket_items(bucket, value, lang_items, none_items)
+            urls = build_tmdb_image_url_list(items, limit=limit)
+            assign_image_list_to_art(art, art_label, urls)
+        return
+
+    urls = build_tmdb_image_url_list(value, limit=limit)
+    assign_image_list_to_art(art, label, urls)

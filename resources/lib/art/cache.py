@@ -86,7 +86,7 @@ class ArtworkCacheManager:
 
         temp_path = str(Path(self.temp_folder) / self.cached_thumb)
         if not validate_path(temp_path) and xbmcvfs.copy(self.decoded_url, temp_path):
-            log.debug(f"{self.__class__.__name__}: Temporary file created → {temp_path}")
+            log.debug(f"{self.__class__.__name__} → Temp file created → {temp_path}")
             return temp_path, destination_path
         return None, destination_path
 

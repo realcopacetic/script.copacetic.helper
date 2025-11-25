@@ -1,7 +1,5 @@
 # author: realcopacetic
-from __future__ import annotations
 
-import json
 from typing import Any
 
 from resources.lib.shared.sqlite import TmdbCacheHandler
@@ -10,14 +8,16 @@ from resources.lib.shared import logger as log
 
 class TmdbCache:
     """
-    Thin facade around TmdbCacheHandler.
-
-    Stores and retrieves canonical TMDb payloads (dicts) per
-    (dbtype, tmdb_id, language). TTL and purge behaviour are handled
-    by the underlying TmdbCacheHandler.
+    TMDb response cache facade. Wraps TmdbCacheHandler to store canonical 
+    payloads keyed by (dbtype, tmdb_id, language).
     """
 
     def __init__(self, handler: TmdbCacheHandler | None = None) -> None:
+        """
+        Initialise the TMDb cache facade.
+
+        :param handler: Optional preconfigured TmdbCacheHandler instance.
+        """
         self._handler = handler or TmdbCacheHandler()
 
     def get(
@@ -27,8 +27,12 @@ class TmdbCache:
         language: str,
     ) -> dict[str, Any] | None:
         """
-        Return the cached canonical payload dict for (dbtype, tmdb_id, language),
-        or None if no fresh entry exists.
+        Retrieve a cached TMDb payload.
+
+        :param dbtype: TMDb database type (for example, "movie" or "tv").
+        :param tmdb_id: Numeric TMDb identifier for the requested item.
+        :param language: TMDb language/region code (for example, "en-US").
+        :return: Canonical payload dict if present and fresh, otherwise ``None``.
         """
         row = self._handler.get_entry(dbtype, tmdb_id, language)
         if not row:
@@ -38,7 +42,6 @@ class TmdbCache:
         if isinstance(payload, dict):
             return payload
 
-        # Defensive: if something odd slips through, log + treat as miss.
         log.debug(
             f"TmdbCache.get → unexpected payload type for "
             f"{dbtype=}, {tmdb_id=}, {language=}: {type(payload)!r}"
@@ -53,14 +56,19 @@ class TmdbCache:
         payload: dict[str, Any],
     ) -> None:
         """
-        Store a canonical TMDb payload for (dbtype, tmdb_id, language).
+        Store a TMDb payload in the cache.
+
+        :param dbtype: TMDb database type (for example, "movie" or "tv").
+        :param tmdb_id: Numeric TMDb identifier for the item being cached.
+        :param language: TMDb language/region code (for example, "en-US").
+        :param payload: Canonical TMDb response payload as a dict.
         """
         try:
             self._handler.upsert_entry(
                 dbtype=dbtype,
                 tmdb_id=tmdb_id,
                 language=language,
-                payload_json=json.dumps(payload),
+                payload=payload,
             )
         except Exception as exc:  # noqa: BLE001
             log.debug(

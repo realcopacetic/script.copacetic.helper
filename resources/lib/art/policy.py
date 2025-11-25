@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Mapping
 
-from resources.lib.shared.utilities import log
-
 # Fields produced by analysis/processing that we want to persist/export
 ART_FIELD_PROCESSED: str = "processed_path"
 ART_FIELD_HASH: str = "cached_file_hash"
@@ -49,9 +47,9 @@ class ColorConfig:
     sample_size: int = 64  # downsample size for palette sampling (square SxS)
     avg_downsample: int = 32  # downsample size used when averaging RGB for luminance
     avg_grid: int = 6  # Resolution (GxG) used to locate brightest cell before averaging
-    logo_presize_max: set = (1840, 713)  # Max bounding size for cropping clearlogos
-    logo_final_max: set = (1600, 620)  # Final post-crop scaling target for clearlogos
-    fanart_target_size: set = (480, 270)  # Downsample resolution for fanart blur
+    logo_presize_max: tuple[int, int] = (1840, 713)  # Max bounding size for cropping
+    logo_final_max: tuple[int, int] = (1600, 620)  # Final post-crop scaling target
+    fanart_target_size: tuple[int, int] = (480, 270)  # Downsample resolution for blur
     blur_radius: int = 50  # Guassian blur strength (in pixels) for fanart blur
 
     # --- Filtering thresholds ---
@@ -131,11 +129,6 @@ class ArtMeta:
     def to_dict(self) -> dict[str, Any]:
         """Dict view (for JSON/logging/UI)."""
         return asdict(self)
-
-    def to_db_row(self) -> tuple[Any, ...]:
-        """Tuple in DB column order (ART_DB_COLUMNS)."""
-        d = self.to_dict()
-        return tuple(d.get(k) for k in ART_DB_COLUMNS)
 
     @classmethod
     def from_values(

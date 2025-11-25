@@ -101,7 +101,7 @@ class ImageEditor:
     def compute_darken_runtime(
         self,
         url: str,
-        overlay_enable: str | bool = "true",
+        overlay_enabled: bool = True,
         overlay_source: str | None = None,
         overlay_rects: str | None = None,
         overlay_target: float | str | None = None,
@@ -111,18 +111,21 @@ class ImageEditor:
         Mirrors the in-pipeline path for consistent results; performs no DB writes.
 
         :param url: Kodi VFS/URL of the fanart to analyze (used only to locate local cache).
-        :param overlay_enable: Bool-ish flag; returns None if not truthy.
+        :param overlay_enabled: Boolean flag that disables the darken pipeline entirely when False.
         :param overlay_source: Hex text colour (e.g. 'fff0efef') or 'clearlogo' to use stashed colour.
         :param overlay_rects: Overlay sampling rects, e.g. "x,y,w,h" or "(x,y,w,h),(x,y,w,h)" in 1920x1080 space.
         :param overlay_target: Desired contrast target (float) or str convertible to float.
         :return: Darken percentage 0..100, or None if disabled/unavailable.
         """
-        return self._darken_core(
-            lambda: self._get_runtime_image(url=url),
-            overlay_enable=overlay_enable,
-            overlay_source=overlay_source,
-            overlay_rects=overlay_rects,
-            overlay_target=overlay_target,
+        return (
+            self._darken_core(
+                lambda: self._get_runtime_image(url=url),
+                overlay_source=overlay_source,
+                overlay_rects=overlay_rects,
+                overlay_target=overlay_target,
+            )
+            if overlay_enabled
+            else None
         )
 
     # --- Private methods ---
@@ -158,13 +161,15 @@ class ImageEditor:
 
         extension = self.PROCESS_CONFIG.get(process)["extension"]
         self.cache_manager.prepare_cache(original_url, extension)
-        
+
         if attributes := self.cache_manager.read_lookup(original_url):
-            log.debug(f"ImageEditor (cache): art_type={art_type} → {attributes}")
+            log.debug(f"ImageEditor → Cache returned → {art_type=} → {attributes}")
         else:
             if not (attributes := self._run_processor(process, art, **proc_kwargs)):
                 return None
-            log.debug(f"ImageEditor (fresh): art_type={art_type} → {attributes}")
+            log.debug(
+                f"ImageEditor → Fresh payload returned → {art_type=} → {attributes}"
+            )
 
         attributes["category"] = art_type
         self.cache_manager.write_lookup(art_type, attributes)
@@ -175,10 +180,10 @@ class ImageEditor:
             if col:
                 self._session["clearlogo_color"] = col
 
-        if art_type == "fanart":
+        overlay_enabled = proc_kwargs.get("overlay_enabled", "").lower() == "true"
+        if overlay_enabled and art_type == "fanart":
             val = self._darken_core(
                 lambda: self._get_runtime_image(attrs=attributes),
-                overlay_enable=proc_kwargs.get("overlay_enable", ""),
                 overlay_source=proc_kwargs.get("overlay_source"),
                 overlay_rects=proc_kwargs.get("overlay_rects"),
                 overlay_target=proc_kwargs.get("overlay_target"),
@@ -255,14 +260,14 @@ class ImageEditor:
                     compress_level=self.cfg.png_compress_level,
                 )
             log.debug(
-                f"{self.__class__.__name__}: File processed: {url} → {destination_path}"
+                f"{self.__class__.__name__} → File processed: {url} → {destination_path}"
             )
 
         if self.temp_folder in source_path:
             try:
                 xbmcvfs.delete(source_path)
                 log.debug(
-                    f"{self.__class__.__name__}: Temp file deleted → {source_path}"
+                    f"{self.__class__.__name__} → Temp file deleted → {source_path}"
                 )
             except Exception:
                 pass
@@ -305,7 +310,6 @@ class ImageEditor:
         self,
         get_image: Callable[[], Image.Image | None],
         *,
-        overlay_enable: str | bool = "true",
         overlay_source: str | None = None,
         overlay_rects: str | None = None,
         overlay_target: float | str | None = None,
@@ -315,20 +319,16 @@ class ImageEditor:
         Used by both the in-pipeline enrichment and the on-demand runtime helper.
 
         :param get_image: Zero-arg callable that returns a PIL Image or None (no network I/O inside core).
-        :param overlay_enable: Bool-ish flag; short-circuits if not truthy.
         :param overlay_source: Hex text colour or 'clearlogo' to resolve from session.
         :param overlay_rects: Sampling rects in 1920x1080 reference space.
         :param overlay_target: Desired contrast target (float) or str convertible to float.
         :return: Darken percentage 0..100, or None if image/params are invalid.
         """
-        enable, rects, target, text_rgb = self._resolve_overlay_params(
-            overlay_enable=overlay_enable,
+        rects, target, text_rgb = self._resolve_overlay_params(
             overlay_rects=overlay_rects,
             overlay_target=overlay_target,
             overlay_source=overlay_source,
         )
-        if not enable:
-            return None
 
         img = get_image()
         if img is None:
@@ -356,13 +356,12 @@ class ImageEditor:
 
     def _resolve_overlay_params(
         self, **proc_kwargs
-    ) -> tuple[bool, str | None, float | None, RGB | None]:
+    ) -> tuple[str | None, float | None, RGB | None]:
         """Parse overlay_* kwargs and resolve text_rgb (supports 'clearlogo' source).
 
         :param proc_kwargs: Arbitrary keyword arguments from the artwork plugin call.
         :return: Tuple of params needed for runtime image processing
         """
-        enable = str(proc_kwargs.get("overlay_enable", "")).lower() == "true"
         rects = proc_kwargs.get("overlay_rects")
         target = proc_kwargs.get("overlay_target")
         if isinstance(target, str):
@@ -380,7 +379,7 @@ class ImageEditor:
         elif src:
             text_rgb = self.processor.color_analyzer.from_hex(src)
 
-        return enable, rects, target, text_rgb
+        return rects, target, text_rgb
 
     def _get_runtime_image(
         self, attrs: dict | None = None, url: str | None = None

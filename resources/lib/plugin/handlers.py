@@ -208,7 +208,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             processed = image_processor(
                 processes={"clearlogo": "crop", "fanart": "blur"},
                 source=f"{self.container}.ListItem",
-                overlay_enable=self.params.get("overlay_enable"),
+                overlay_enabled=self.params.get("overlay_enabled"),
                 overlay_source=self.params.get("overlay_source"),
                 overlay_rects=self.params.get("overlay_rects"),
                 overlay_target=to_float(self.params.get("overlay_target")),
@@ -261,13 +261,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
+            overlay_enabled = str(self.params.get("overlay_enabled", "false")).lower() == "true"
+            if not overlay_enabled:
+                return
+
             url = self.params.get("fanart") or ""
             if not url:
                 return
 
             val = ImageEditor(ArtworkCacheHandler()).compute_darken_runtime(
                 url=url,
-                overlay_enable=self.params.get("overlay_enable", "true"),
+                overlay_enabled=overlay_enabled,
                 overlay_source=self.params.get("overlay_source"),
                 overlay_rects=self.params.get("overlay_rects"),
                 overlay_target=self.params.get("overlay_target"),
@@ -373,7 +377,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return result
 
     @log.duration
-    def tmdb_details(self) -> list[tuple]:
+    def tmdb_details(self) -> list[DirectoryItem] | None:
+        """
+        Fetch TMDb details for the focused item and build a canonical result list.
+
+        :return: List of (file, xbmcgui.ListItem, isFolder) tuples or None.
+        """
 
         with self.focus() as guard:
             if not guard.alive():
@@ -392,10 +401,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 tmdb_id=tmdb_id,
                 language=self.params.get("language"),
             )
-
             if not item:
                 log.debug(
-                    f"{self.__class__.__name__} → tmdb: no data for type={self.dbtype}, tmdb_id={tmdb_id}"
+                    f"{self.__class__.__name__} → tmdb: no data for type={self.dbtype}, {tmdb_id=}"
                 )
                 return
 
