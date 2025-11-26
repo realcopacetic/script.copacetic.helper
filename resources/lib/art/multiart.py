@@ -22,17 +22,17 @@ def build_multiart_dict(
     multiart_type: str | None,
     max_items: int | str | None,
     get_extra_multiart: bool,
-    dbtype: str | None,
     language: str,
 ) -> dict[str, str]:
     """
-    Build a combined multiart dict from local artwork and optional TMDb artwork.
+    Build a combined multiart dictionary from local artwork and optional TMDb artwork.
 
-    This function abstracts EVERYTHING needed:
-    - determine local multiart sequence
-    - fetch TMDb art if requested
-    - merge sequences
-    - return normalized {multiart, multiart1..N}
+    :param target: Infolabel prefix such as "ListItem" or "Container(3100).ListItem".
+    :param multiart_type: Base art type (e.g. "fanart", "poster", "keyart").
+    :param max_items: Maximum number of multiart slots to read.
+    :param get_extra_multiart: Whether to augment local artwork with TMDb artwork.
+    :param language: TMDb language code (e.g. "en-US") used for cache lookup.
+    :return: A dict mapping "multiart" and "multiartN" keys to artwork URLs.
     """
     if not multiart_type:
         return {}
@@ -45,7 +45,6 @@ def build_multiart_dict(
 
     tmdb_art = _get_tmdb_art(
         target=target,
-        dbtype=dbtype,
         language=language,
         get_extra_multiart=get_extra_multiart,
     )
@@ -65,12 +64,16 @@ def build_multiart_dict(
 def _get_tmdb_art(
     *,
     target: str,
-    dbtype: str | None,
     language: str,
     get_extra_multiart: bool,
 ) -> dict[str, str]:
     """
-    Internal helper: return TMDb 'art' dict for the current ListItem.
+    Internal helper to return the TMDb 'art' mapping for the current ListItem.
+
+    :param target: Infolabel prefix used to resolve UniqueID(tmdb) and DBType.
+    :param language: TMDb language code (e.g. "en-US") used for cache lookup.
+    :param get_extra_multiart: Whether TMDb artwork should be fetched.
+    :return: A dict containing TMDb artwork fields, or {} if unavailable.
     """
     if not get_extra_multiart:
         return {}
@@ -79,7 +82,7 @@ def _get_tmdb_art(
     if tmdb_id <= 0:
         return {}
 
-    resolved_dbtype = infolabel(f"{target}.DBType") or dbtype
+    resolved_dbtype = infolabel(f"{target}.DBType")
     if not resolved_dbtype:
         return {}
 

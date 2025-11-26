@@ -226,7 +226,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 multiart_type=self.params.get("multiart"),
                 max_items=self.params.get("multiart_max"),
                 get_extra_multiart=(
-                    self.params.get("get_extra_multiart", "false").lower() == "true"
+                    self.params.get("get_extra_multiart", "").lower() == "true"
                 ),
                 language="en-US",
             )
