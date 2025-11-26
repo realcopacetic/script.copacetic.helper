@@ -36,6 +36,7 @@ def tmdb_to_canonical(
     kind: str,
     tmdb_id: int,
     language: str | None = None,
+    append_artwork: bool = True,
 ) -> dict[str, Any]:
     """
     Fetch TMDb data and normalise it into canonical Kodi item format.
@@ -43,6 +44,7 @@ def tmdb_to_canonical(
     :param kind: TMDb logical kind (for example, 'movie', 'tvshow').
     :param tmdb_id: TMDb numeric identifier.
     :param language: Optional TMDb language override.
+    :param append_artwork: If False, skip TMDb 'images' append block.
     :return: Canonical TMDb item dict or empty dict.
     """
     if tmdb_id <= 0:
@@ -50,7 +52,9 @@ def tmdb_to_canonical(
         return {}
 
     language_key = language or ADDON.getSetting("tmdb_language") or "en-US"
-    cached = _CACHE.get(kind, tmdb_id, language_key)
+    cache_language = language_key if append_artwork else f"{language_key}|noart"
+
+    cached = _CACHE.get(kind, tmdb_id, cache_language)
     if cached:
         return cached
 
@@ -59,6 +63,7 @@ def tmdb_to_canonical(
         tmdb_id=tmdb_id,
         fields=None,
         language=language_key,
+        append_artwork=append_artwork,
     )
     if not raw:
         return {}
@@ -69,7 +74,7 @@ def tmdb_to_canonical(
         raw=raw,
         language=language_key,
     )
-    _CACHE.set(kind, tmdb_id, language_key, item)
+    _CACHE.set(kind, tmdb_id, cache_language, item)
 
     return item
 

@@ -6,9 +6,13 @@ from typing import Callable, Iterator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
+from resources.lib.apis.tmdb.cache import TmdbCache
 from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 from resources.lib.art.editor import ImageEditor
-from resources.lib.art.multiart import collect_multiart, set_multiart_fadelabel
+from resources.lib.art.multiart import (
+    build_multiart_dict,
+    set_multiart_fadelabel,
+)
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
@@ -217,11 +221,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             art = flatten_art_attributes(processed)
-            art |= collect_multiart(
+            multiart_dict = build_multiart_dict(
                 target=f"{self.container}.ListItem",
-                art_type=self.params.get("multiart"),
+                multiart_type=self.params.get("multiart"),
                 max_items=self.params.get("multiart_max"),
+                get_extra_multiart=(
+                    self.params.get("get_extra_multiart", "false").lower() == "true"
+                ),
+                language="en-US",
             )
+            art |= multiart_dict
             log.debug(
                 f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
             )
@@ -230,10 +239,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             fadelabel_id = self.params.get("multiart_fadelabel")
-            if fadelabel_id and art:
+            if fadelabel_id and multiart_dict:
                 set_multiart_fadelabel(
                     fadelabel_id=fadelabel_id,
-                    art=art,
+                    art=multiart_dict,
                     randomize=True,
                     keep_main_first=True,
                 )
@@ -261,7 +270,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            overlay_enabled = str(self.params.get("overlay_enabled", "false")).lower() == "true"
+            overlay_enabled = (
+                str(self.params.get("overlay_enabled", "false")).lower() == "true"
+            )
             if not overlay_enabled:
                 return
 
@@ -396,10 +407,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 return
 
+            multiart_enabled = str(self.params.get("multiart")).lower() == "true"
             item = tmdb_to_canonical(
                 kind=self.dbtype,
                 tmdb_id=tmdb_id,
                 language=self.params.get("language"),
+                append_artwork=multiart_enabled,
             )
             if not item:
                 log.debug(

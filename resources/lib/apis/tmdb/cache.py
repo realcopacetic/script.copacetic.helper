@@ -8,7 +8,7 @@ from resources.lib.shared import logger as log
 
 class TmdbCache:
     """
-    TMDb response cache facade. Wraps TmdbCacheHandler to store canonical 
+    TMDb response cache facade. Wraps TmdbCacheHandler to store canonical
     payloads keyed by (dbtype, tmdb_id, language).
     """
 
@@ -47,6 +47,34 @@ class TmdbCache:
             f"{dbtype=}, {tmdb_id=}, {language=}: {type(payload)!r}"
         )
         return None
+
+    def get_field(
+        self,
+        dbtype: str,
+        tmdb_id: int,
+        language: str,
+        field: str,
+    ) -> Any:
+        """
+        Return a specific field from a cached TMDb payload.
+
+        :param dbtype: TMDb database type (e.g., "movie" or "tv").
+        :param tmdb_id: Numeric TMDb identifier.
+        :param language: TMDb language/region code (e.g., "en-US").
+        :param field: Top-level field name to extract (e.g. "art", "videos", "credits").
+        :return: The field value or {} / None if missing.
+        """
+        payload = self.get(dbtype, tmdb_id, language)
+        if not payload:
+            return {}
+
+        value = payload.get(field)
+        if value is None:
+            return {}
+        return value
+
+    def get_art(self, dbtype, tmdb_id, language):
+        return self.get_field(dbtype, tmdb_id, language, "art")
 
     def set(
         self,

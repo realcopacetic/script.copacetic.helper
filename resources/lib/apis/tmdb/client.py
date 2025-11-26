@@ -70,6 +70,7 @@ def fetch_tmdb_fields(
     tmdb_id: int,
     fields: Iterable[str] | None = None,
     language: str | None = None,
+    append_artwork: bool = False,
 ) -> dict[str, Any]:
     """
     Fetch specific TMDb fields for a given kind/id.
@@ -78,6 +79,7 @@ def fetch_tmdb_fields(
     :param tmdb_id: TMDb item identifier.
     :param fields: Logical fields to extract or None for all known.
     :param language: Optional TMDb language override.
+    :param append_artwork: If False, skip heavy image append blocks (e.g. "images").
     :return: Mapping of field name → extracted value.
     """
     if tmdb_id <= 0:
@@ -100,6 +102,8 @@ def fetch_tmdb_fields(
     field_map = _build_field_map(field_specs)
 
     append_blocks = list(kind_map.get("append") or [])
+    if not append_artwork:
+        append_blocks = [b for b in append_blocks if b != "images"]
 
     if fields is None:
         requested = list(field_map.keys())
