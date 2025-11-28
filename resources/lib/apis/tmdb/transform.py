@@ -13,7 +13,7 @@ from resources.lib.apis.tmdb.fields import (
     split_tmdb_images_by_language,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import ADDON
+from resources.lib.shared.utilities import ADDON, pretty_print
 
 
 _CACHE = TmdbCache()
@@ -35,6 +35,7 @@ IMAGE_LIST_ROLES: dict[str, list[tuple[str, str]]] = {
 def tmdb_to_canonical(
     kind: str,
     tmdb_id: int,
+    season_number: int | None = None,
     language: str | None = None,
     append_artwork: bool = True,
 ) -> dict[str, Any]:
@@ -43,6 +44,7 @@ def tmdb_to_canonical(
 
     :param kind: TMDb logical kind (for example, 'movie', 'tvshow').
     :param tmdb_id: TMDb numeric identifier.
+    :param season_number: Optional season number when kind == "season".
     :param language: Optional TMDb language override.
     :param append_artwork: If False, skip TMDb 'images' append block.
     :return: Canonical TMDb item dict or empty dict.
@@ -53,14 +55,24 @@ def tmdb_to_canonical(
 
     language_key = language or ADDON.getSetting("tmdb_language") or "en-US"
     cache_language = language_key if append_artwork else f"{language_key}|noart"
+    cache_kind = (
+        f"season_{season_number}"
+        if kind == "season" and season_number is not None
+        else kind
+    )
 
-    cached = _CACHE.get(kind, tmdb_id, cache_language)
+    cached = _CACHE.get(cache_kind, tmdb_id, cache_language)
     if cached:
+        log.debug(
+            "tmdb_to_canonical → cached canonical item:\n%s",
+            pretty_print(cached),
+        )
         return cached
 
     raw = fetch_tmdb_fields(
         kind=kind,
         tmdb_id=tmdb_id,
+        season_number=season_number,
         fields=None,
         language=language_key,
         append_artwork=append_artwork,
@@ -74,7 +86,7 @@ def tmdb_to_canonical(
         raw=raw,
         language=language_key,
     )
-    _CACHE.set(kind, tmdb_id, cache_language, item)
+    _CACHE.set(cache_kind, tmdb_id, cache_language, item)
 
     return item
 

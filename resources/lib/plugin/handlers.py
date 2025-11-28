@@ -6,13 +6,10 @@ from typing import Callable, Iterator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
-from resources.lib.apis.tmdb.cache import TmdbCache
+from resources.lib.apis.tmdb.context import resolve_tmdb_context
 from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 from resources.lib.art.editor import ImageEditor
-from resources.lib.art.multiart import (
-    build_multiart_dict,
-    set_multiart_fadelabel,
-)
+from resources.lib.art.multiart import build_multiart_dict, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
@@ -399,7 +396,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            tmdb_id = to_int(self.params.get("tmdb_id"), 0)
+            target = f"{self.container}.ListItem"
+            ctx = resolve_tmdb_context(self.params, target=target)
+            tmdb_id_str = ctx.get("tmdb_id")
+            tmdb_id = to_int(tmdb_id_str, 0) if tmdb_id_str else 0
             if tmdb_id <= 0:
                 log.debug(
                     f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
@@ -409,8 +409,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             multiart_enabled = str(self.params.get("multiart")).lower() == "true"
             item = tmdb_to_canonical(
-                kind=self.dbtype,
+                kind=(ctx.get("kind") or self.dbtype).lower(),
                 tmdb_id=tmdb_id,
+                season_number=ctx.get("season_number"),
                 language=self.params.get("language"),
                 append_artwork=multiart_enabled,
             )

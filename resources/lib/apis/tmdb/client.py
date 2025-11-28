@@ -68,6 +68,7 @@ def _build_field_map(
 def fetch_tmdb_fields(
     kind: str,
     tmdb_id: int,
+    season_number: int | None = None,
     fields: Iterable[str] | None = None,
     language: str | None = None,
     append_artwork: bool = False,
@@ -77,6 +78,7 @@ def fetch_tmdb_fields(
 
     :param kind: TMDb media kind ("movie", "tvshow", etc.).
     :param tmdb_id: TMDb item identifier.
+    :param season_number: Season number for kind == "season".
     :param fields: Logical fields to extract or None for all known.
     :param language: Optional TMDb language override.
     :param append_artwork: If False, skip heavy image append blocks (e.g. "images").
@@ -97,7 +99,20 @@ def fetch_tmdb_fields(
         log.debug(f"fetch_tmdb_fields → unknown {kind=}")
         return {}
 
-    endpoint = kind_map["endpoint"].format(id=tmdb_id)
+    endpoint_template: str = kind_map["endpoint"]
+    format_kwargs: dict[str, Any] = {"id": tmdb_id}
+
+    if "{season_number}" in endpoint_template:
+        if season_number is None:
+            log.debug(
+                "fetch_tmdb_fields → missing season_number for kind=%r, tmdb_id=%r",
+                kind,
+                tmdb_id,
+            )
+            return {}
+        format_kwargs["season_number"] = season_number
+
+    endpoint = endpoint_template.format(**format_kwargs)
     field_specs = kind_map["fields"]
     field_map = _build_field_map(field_specs)
 

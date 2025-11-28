@@ -69,6 +69,13 @@ TMDB_PROPERTIES: dict[str, dict[str, Any]] = {
             ("videos_results", ("videos", "results")),
         ],
     },
+    "season": {
+        "endpoint": "/tv/{id}/season/{season_number}",
+        "append": [],
+        "fields": [
+            ("season_overview", ("overview",)),
+        ],
+    },
 }
 
 TMDB_FIELD_MAP: dict[str, dict[str, Any]] = {
@@ -151,6 +158,10 @@ TMDB_FIELD_MAP: dict[str, dict[str, Any]] = {
     "runtime": {
         "target": "info",
         "label": "Duration",
+    },
+    "season_overview": {
+        "target": "info",
+        "label": "Plot",
     },
     "tagline": {
         "target": "info",
