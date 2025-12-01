@@ -18,7 +18,7 @@ from resources.lib.plugin.helpers import (
     ProgressBarManager,
     TextTruncator,
     TypewriterAnimation,
-    merge_tmdb_metadata,
+    merge_metadata,
 )
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.library import (
@@ -195,6 +195,80 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             expected_identity=self.expected,
         )
 
+    def _get_tmdb_item(
+        self,
+        *,
+        append_artwork: bool,
+    ) -> dict[str, Any] | None:
+        """Resolve TMDb canonical item for the current listitem.
+
+        :param append_artwork: Whether to include TMDb artwork fields.
+        :return: canonical item dict or None.
+        """
+        target = f"{self.container}.ListItem"
+        ctx = resolve_tmdb_context(self.params, target=target)
+
+        tmdb_id_str = ctx.get("tmdb_id")
+        tmdb_id = to_int(tmdb_id_str, 0) if tmdb_id_str else 0
+        if tmdb_id <= 0:
+            log.debug(
+                f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
+                f"({self.params.get('tmdb_id')!r})"
+            )
+            return None
+
+        item = tmdb_to_canonical(
+            kind=(ctx.get("kind") or self.dbtype).lower(),
+            tmdb_id=tmdb_id,
+            season_number=ctx.get("season_number"),
+            language=self.params.get("language"),
+            append_artwork=append_artwork,
+        )
+        if not item:
+            log.debug(
+                f"{self.__class__.__name__} → tmdb: no data for "
+                f"type={self.dbtype}, tmdb_id={tmdb_id}"
+            )
+            return None
+
+        return item
+
+    def _apply_truncated_label(
+        self,
+        data: dict[str, Any],
+        *,
+        target: str,
+        default_text: str | None = None,
+    ) -> None:
+        """Attach a truncated label to a metadata dict.
+
+        :param data: Metadata dict to update in place.
+        :param target: ListItem infolabel prefix for plot fallback.
+        :param default_text: Optional plot to use before infolabel fallback.
+        :return: None.
+        """
+        truncate_id = to_int(self.params.get("truncate_id", 0))
+        if not truncate_id:
+            return
+
+        truncate_label = (
+            self.params.get("truncate_label")
+            or default_text
+            or infolabel(f"{target}.Plot")
+        )
+        if not truncate_label:
+            return
+
+        trunc = TextTruncator(measure_ctrl_id=truncate_id)
+        truncated = trunc.truncate(
+            text=truncate_label,
+            min_safe=to_int(self.params.get("truncate_min_safe", 0)),
+            smart_cap=self.params.get("truncate_smart_cap", "").lower() == "true",
+        )
+
+        props = data.setdefault("properties", {})
+        props["truncated_label"] = truncated
+
     @log.duration
     def artwork(self) -> list[DirectoryItem] | None:
         """
@@ -334,45 +408,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             enrich_with_tmdb = self.params.get("enrich_with_tmdb", "").lower() == "true"
             if enrich_with_tmdb:
-                ctx = resolve_tmdb_context(self.params, target=target)
-                tmdb_id_str = ctx.get("tmdb_id")
-                tmdb_id = to_int(tmdb_id_str, 0) if tmdb_id_str else 0
-                if tmdb_id <= 0:
-                    log.debug(
-                        f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
+                tmdb_item = self._get_tmdb_item(append_artwork=False)
+                if tmdb_item:
+                    data = merge_metadata(
+                        base=data,
+                        incoming=tmdb_item,
+                        prefer_incoming=True,
+                        ignore_keys=("art", "file"),
                     )
-                else:
-                    tmdb_item = tmdb_to_canonical(
-                        kind=(ctx.get("kind") or self.dbtype).lower(),
-                        tmdb_id=tmdb_id,
-                        season_number=ctx.get("season_number"),
-                        language=self.params.get("language"),
-                        append_artwork=False,
-                    )
-                    if tmdb_item:
-                        data = merge_tmdb_metadata(data, tmdb_item)
 
             if not guard.alive():
                 return
 
-            truncate_id = to_int(self.params.get("truncate_id", 0))
-            truncate_label = (
-                self.params.get("truncate_label")
-                or data.get("Plot")
-                or infolabel(f"{target}.Plot")
+            self._apply_truncated_label(
+                data,
+                target=target,
+                default_text=data.get("Plot"),
             )
-            if truncate_label and truncate_id > 0:
-                trunc = TextTruncator(
-                    measure_ctrl_id=truncate_id,
-                )
-                truncated = trunc.truncate(
-                    text=truncate_label,
-                    min_safe=to_int(self.params.get("truncate_min_safe", 0)),
-                    smart_cap=self.params.get("truncate_smart_cap", "").lower()
-                    == "true",
-                )
-                props = data.setdefault("properties", {})
-                props["truncated_label"] = truncated
 
             return set_items([data], tag_applier=apply_videoinfotag)
 
@@ -427,49 +479,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             target = f"{self.container}.ListItem"
-            ctx = resolve_tmdb_context(self.params, target=target)
-            tmdb_id_str = ctx.get("tmdb_id")
-            tmdb_id = to_int(tmdb_id_str, 0) if tmdb_id_str else 0
-            if tmdb_id <= 0:
-                log.debug(
-                    f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
-                    f"({self.params.get('tmdb_id')!r})"
-                )
-                return
-
             multiart_enabled = str(self.params.get("multiart")).lower() == "true"
-            item = tmdb_to_canonical(
-                kind=(ctx.get("kind") or self.dbtype).lower(),
-                tmdb_id=tmdb_id,
-                season_number=ctx.get("season_number"),
-                language=self.params.get("language"),
-                append_artwork=multiart_enabled,
-            )
+            item = self._get_tmdb_item(append_artwork=multiart_enabled)
+
             if not item:
-                log.debug(
-                    f"{self.__class__.__name__} → tmdb: no data for type={self.dbtype}, {tmdb_id=}"
-                )
                 return
 
             if not guard.alive():
                 return
 
-            truncate_id = to_int(self.params.get("truncate_id", 0))
-            if (plot := item.get("Plot")) and truncate_id:
-                trunc = TextTruncator(
-                    measure_ctrl_id=truncate_id,
-                )
-                truncated = trunc.truncate(
-                    text=plot,
-                    min_safe=to_int(self.params.get("truncate_min_safe", 0)),
-                    smart_cap=self.params.get("truncate_smart_cap", "").lower()
-                    == "true",
-                )
-                props = item.setdefault("properties", {})
-                props["truncated_label"] = truncated
-
-            if not guard.alive():
-                return
+            self._apply_truncated_label(
+                item,
+                target=target,
+                default_text=item.get("Plot"),
+            )
 
             return set_items(
                 [item],

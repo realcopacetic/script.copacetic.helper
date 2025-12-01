@@ -2,7 +2,7 @@
 
 import math
 from itertools import chain
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable, Collection, Iterable, Mapping
 
 from xbmcgui import Window, getCurrentWindowId
 
@@ -38,37 +38,47 @@ def has_value(value: Any) -> bool:
     return True  # ints, bools, floats: treat all as meaningful
 
 
-def merge_tmdb_metadata(
-    data: dict[str, Any],
-    tmdb_item: Mapping[str, Any],
+def merge_metadata(
+    base: dict[str, Any],
+    incoming: Mapping[str, Any],
+    *,
+    prefer_incoming: bool = False,
+    ignore_keys: Collection[str] = ("art", "file"),
 ) -> dict[str, Any]:
-    """
-    Merge TMDb canonical metadata into local data.
-    Uses itertools.chain to flatten key/value sources.
+    """Merge incoming metadata into a base metadata dict.
 
-    Rules:
-    - Never overwrite an existing meaningful (non-empty) value.
-    - Never merge artwork.
-    - Merge properties dict the same way (key-by-key).
+    Mutates ``base`` in place using has_value rules and overwrite policy.
+    :param base: Local metadata dict to update in place.
+    :param incoming: Metadata dict to merge values from.
+    :param prefer_incoming: If true, prefer incoming over non-empty base.
+    :param ignore_keys: Top-level keys to skip entirely when merging.
+    :return: Updated base metadata dict.
     """
-    for key, tmdb_value in chain(tmdb_item.items()):
-        if key in {"art", "file"}:
-            continue  # metadata helper ignores artwork completely
+    incoming_props = incoming.get("properties")
+    if isinstance(incoming_props, Mapping):
+        local_props = base.setdefault("properties", {})
+        for key, incoming_val in incoming_props.items():
+            local_val = local_props.get(key)
+            if prefer_incoming:
+                if has_value(incoming_val):
+                    local_props[key] = incoming_val
+            else:
+                if not has_value(local_val) and has_value(incoming_val):
+                    local_props[key] = incoming_val
 
-        if key == "properties":
-            # Merge inner dicts using same rule:
-            local_props = data.setdefault("properties", {})
-            for p_key, p_val in tmdb_value.items():
-                if not has_value(local_props.get(p_key)) and has_value(p_val):
-                    local_props[p_key] = p_val
+    for key, incoming_val in incoming.items():
+        if key == "properties" or key in ignore_keys:
             continue
 
-        # Top-level fields
-        local_val = data.get(key)
-        if not has_value(local_val) and has_value(tmdb_value):
-            data[key] = tmdb_value
+        local_val = base.get(key)
+        if prefer_incoming:
+            if has_value(incoming_val):
+                base[key] = incoming_val
+        else:
+            if not has_value(local_val) and has_value(incoming_val):
+                base[key] = incoming_val
 
-    return data
+    return base
 
 
 def get_infolabels(target: str, keys: Iterable[str]) -> dict[str, str]:

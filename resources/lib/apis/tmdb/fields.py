@@ -4,30 +4,6 @@ from typing import Any, Iterable, Mapping
 
 from resources.lib.shared import logger as log
 
-"""
-TMDb mapping configuration.
-
-TMDB_PROPERTIES:
-    Per-kind configuration:
-        - endpoint: TMDb path with {id} placeholder.
-        - append:   list of TMDb append_to_response block names (optional).
-        - fields:   list of field specs, where each element is either:
-            * "field_name" → logical name == JSON key, path=("field_name",)
-            * ("logical_name", ("path", "to", "value")).
-
-    The logical field names produced by TMDB_PROPERTIES must match the keys
-    in TMDB_FIELD_MAP below.
-
-TMDB_FIELD_MAP:
-    Mapping of logical field name → spec dict:
-
-        {
-            "target":    "info" | "art" | "property",
-            "label":     VideoInfoTag key / art key / property name,
-            "kind":      optional hint for art ("image" | "image_list"),
-            "transform": optional transform name (string),
-        }
-"""
 
 TMDB_PROPERTIES: dict[str, dict[str, Any]] = {
     "movie": {
