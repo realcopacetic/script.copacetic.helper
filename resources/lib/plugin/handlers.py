@@ -18,6 +18,7 @@ from resources.lib.plugin.helpers import (
     ProgressBarManager,
     TextTruncator,
     TypewriterAnimation,
+    merge_tmdb_metadata,
 )
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.library import (
@@ -321,8 +322,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
+            target = f"{self.container}.ListItem"
             data = DataHandler(
-                target=f"{self.container}.ListItem",
+                target=target,
                 dbtype=self.dbtype,
                 dbid=self.dbid,
             ).fetch_data()
@@ -330,8 +332,35 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            truncate_label = self.params.get("truncate_label")
+            enrich_with_tmdb = self.params.get("enrich_with_tmdb", "").lower() == "true"
+            if enrich_with_tmdb:
+                ctx = resolve_tmdb_context(self.params, target=target)
+                tmdb_id_str = ctx.get("tmdb_id")
+                tmdb_id = to_int(tmdb_id_str, 0) if tmdb_id_str else 0
+                if tmdb_id <= 0:
+                    log.debug(
+                        f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
+                    )
+                else:
+                    tmdb_item = tmdb_to_canonical(
+                        kind=(ctx.get("kind") or self.dbtype).lower(),
+                        tmdb_id=tmdb_id,
+                        season_number=ctx.get("season_number"),
+                        language=self.params.get("language"),
+                        append_artwork=False,
+                    )
+                    if tmdb_item:
+                        data = merge_tmdb_metadata(data, tmdb_item)
+
+            if not guard.alive():
+                return
+
             truncate_id = to_int(self.params.get("truncate_id", 0))
+            truncate_label = (
+                self.params.get("truncate_label")
+                or data.get("Plot")
+                or infolabel(f"{target}.Plot")
+            )
             if truncate_label and truncate_id > 0:
                 trunc = TextTruncator(
                     measure_ctrl_id=truncate_id,
@@ -342,7 +371,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     smart_cap=self.params.get("truncate_smart_cap", "").lower()
                     == "true",
                 )
-                data |= {"properties": {"truncated_label": truncated}}
+                props = data.setdefault("properties", {})
+                props["truncated_label"] = truncated
 
             return set_items([data], tag_applier=apply_videoinfotag)
 
@@ -420,6 +450,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     f"{self.__class__.__name__} → tmdb: no data for type={self.dbtype}, {tmdb_id=}"
                 )
                 return
+
+            if not guard.alive():
+                return
+
+            truncate_id = to_int(self.params.get("truncate_id", 0))
+            if (plot := item.get("Plot")) and truncate_id:
+                trunc = TextTruncator(
+                    measure_ctrl_id=truncate_id,
+                )
+                truncated = trunc.truncate(
+                    text=plot,
+                    min_safe=to_int(self.params.get("truncate_min_safe", 0)),
+                    smart_cap=self.params.get("truncate_smart_cap", "").lower()
+                    == "true",
+                )
+                props = item.setdefault("properties", {})
+                props["truncated_label"] = truncated
 
             if not guard.alive():
                 return

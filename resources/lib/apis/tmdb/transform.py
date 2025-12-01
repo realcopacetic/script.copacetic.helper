@@ -64,8 +64,7 @@ def tmdb_to_canonical(
     cached = _CACHE.get(cache_kind, tmdb_id, cache_language)
     if cached:
         log.debug(
-            "tmdb_to_canonical → cached canonical item:\n%s",
-            pretty_print(cached),
+            f"tmdb_to_canonical → Cache returned → {pretty_print(cached)}",
         )
         return cached
 
@@ -80,6 +79,7 @@ def tmdb_to_canonical(
     if not raw:
         return {}
 
+    log.debug(f"tmdb_to_canonical → Fresh payload returned → {pretty_print(raw)}")
     item = _build_tmdb_canonical_item(
         kind=kind,
         tmdb_id=tmdb_id,

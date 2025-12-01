@@ -1,7 +1,8 @@
 # author: realcopacetic
 
-from typing import Callable, Iterable
 import math
+from itertools import chain
+from typing import Any, Callable, Iterable, Mapping
 
 from xbmcgui import Window, getCurrentWindowId
 
@@ -12,6 +13,7 @@ from resources.lib.plugin.geometry import (
     axis_travel,
     compute_rect,
 )
+from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -23,7 +25,50 @@ from resources.lib.shared.utilities import (
     url_encode,
     xbmc,
 )
-from resources.lib.shared import logger as log
+
+
+def has_value(value: Any) -> bool:
+    """Whether a value should be preserved and not overwritten."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value != ""
+    if isinstance(value, (list, dict)):
+        return bool(value)
+    return True  # ints, bools, floats: treat all as meaningful
+
+
+def merge_tmdb_metadata(
+    data: dict[str, Any],
+    tmdb_item: Mapping[str, Any],
+) -> dict[str, Any]:
+    """
+    Merge TMDb canonical metadata into local data.
+    Uses itertools.chain to flatten key/value sources.
+
+    Rules:
+    - Never overwrite an existing meaningful (non-empty) value.
+    - Never merge artwork.
+    - Merge properties dict the same way (key-by-key).
+    """
+    for key, tmdb_value in chain(tmdb_item.items()):
+        if key in {"art", "file"}:
+            continue  # metadata helper ignores artwork completely
+
+        if key == "properties":
+            # Merge inner dicts using same rule:
+            local_props = data.setdefault("properties", {})
+            for p_key, p_val in tmdb_value.items():
+                if not has_value(local_props.get(p_key)) and has_value(p_val):
+                    local_props[p_key] = p_val
+            continue
+
+        # Top-level fields
+        local_val = data.get(key)
+        if not has_value(local_val) and has_value(tmdb_value):
+            data[key] = tmdb_value
+
+    return data
 
 
 def get_infolabels(target: str, keys: Iterable[str]) -> dict[str, str]:
@@ -253,14 +298,13 @@ class ProgressBarManager:
 
             response = json_call(
                 method="VideoLibrary.GetMovieSetDetails",
-                params={"setid": int(set_id), "movies": {"properties": ["playcount"], "limits": {"start": 0}}},
+                params={
+                    "setid": int(set_id),
+                    "movies": {"properties": ["playcount"], "limits": {"start": 0}},
+                },
                 parent={self.__class__.__name__},
             )
-            movies = (
-                response.get("result", {})
-                .get("setdetails", {})
-                .get("movies", [])
-            )
+            movies = response.get("result", {}).get("setdetails", {}).get("movies", [])
 
             total = len(movies)
             if not total:
