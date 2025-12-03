@@ -46,12 +46,8 @@ class Main:
         
         log.debug(f"PluginHandlers initialized with params: {self.params}")
         items = fn()
-        if not items:
-            log.debug(
-                f"{self.__class__.__name__} → {info}: handler returned no items; "
-                f"keeping existing directory contents"
-            )
-            return
+        if not isinstance(items, (list, tuple)):
+            items = []
         
         self._additems(items)
 
