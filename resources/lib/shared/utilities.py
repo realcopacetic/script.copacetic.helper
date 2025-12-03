@@ -2,6 +2,7 @@
 
 import json
 import sys
+import time
 import urllib.parse as urllib
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,34 @@ def infolabel(infolabel: str) -> str:
     :return: Evaluated string value.
     """
     return xbmc.getInfoLabel(infolabel)
+
+
+def wait_for_infolabel(
+    name: str,
+    *,
+    timeout_ms: int = 250,
+    poll_ms: int = 25,
+) -> str:
+    """
+    Wait briefly for an InfoLabel to become non-empty.
+
+    :param name: Fully-qualified InfoLabel name (e.g. "Container.ListItem.DBID").
+    :param timeout_ms: Maximum time to wait in milliseconds.
+    :param poll_ms: Polling interval in milliseconds.
+    :return: First non-empty value observed, or "" if timeout/abort.
+    """
+    monitor = xbmc.Monitor()
+    deadline = time.time() + (timeout_ms / 1000.0)
+
+    value = infolabel(name)
+    if value:
+        return value
+
+    while not value and not monitor.abortRequested() and time.time() < deadline:
+        xbmc.sleep(poll_ms)
+        value = infolabel(name)
+
+    return value or ""
 
 
 def skin_string(key: str, value: str | bool = False) -> None:

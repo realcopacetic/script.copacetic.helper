@@ -3,39 +3,8 @@
 
 from typing import Any, Mapping, MutableMapping
 
+from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import infolabel, json_call, to_int
-
-def get_tmdb_for_season(target: str) -> tuple[str | None, int | None]:
-    """
-    Resolve TMDb tvshow id and season number for a season listitem.
-
-    :param target: InfoLabel prefix, e.g. "Container(50).ListItem"
-    :return: (tvshow_tmdb_id, season_number) or (None, None) if resolution fails.
-    """
-    tvshow_dbid = to_int(infolabel(f"{target}.TvShowDBID"))
-    if not tvshow_dbid:
-        return None, None
-
-    season_number = to_int(infolabel(f"{target}.Season"))
-    if season_number is None:
-        return None, None
-
-    response: Mapping[str, Any] = json_call(
-        "VideoLibrary.GetTVShowDetails",
-        params={
-            "tvshowid": tvshow_dbid,
-            "properties": ["uniqueid"],
-        },
-        parent="get_tmdb_for_season",
-    )
-
-    uniqueid = response.get("result", {}).get("tvshowdetails", {}).get("uniqueid", {})
-
-    tvshow_tmdb = uniqueid.get("tmdb")
-    if not tvshow_tmdb:
-        return None, None
-
-    return str(tvshow_tmdb), season_number
 
 
 def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, Any]:
@@ -48,53 +17,33 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
     """
     context: MutableMapping[str, Any] = {}
 
-    # Normalise kind from param or fallback to InfoLabel
-    kind = (params.get("type") or infolabel(f"{target}.DBType")).lower()
-    context["kind"] = kind
+    kind = (params.get("type") or infolabel(f"{target}.DBType") or "").lower()
+    context["kind"] = kind or None
+    dbid = to_int(params.get("id") or infolabel(f"{target}.DBID"), None)
+    context["dbid"] = dbid
+    tmdb_id = params.get("tmdb_id") or infolabel(f"{target}.UniqueID(tmdb)") or None
 
-    # 1: explicit URL param (from XML)
-    tmdb_id = (params.get("tmdb_id") or "").strip()
-
-    # 2: InfoLabel fallback
-    if not tmdb_id:
-        tmdb_id = infolabel(f"{target}.UniqueID(tmdb)").strip()
-
-    # 3: DBID-based lookup (movies/tvshows/episodes)
-    if not tmdb_id and kind in {"movie", "tvshow", "episode"}:
-        dbid = to_int(infolabel(f"{target}.DBID"))
-        if dbid is not None:
-            method = {
-                "movie": "VideoLibrary.GetMovieDetails",
-                "tvshow": "VideoLibrary.GetTVShowDetails",
-                "episode": "VideoLibrary.GetEpisodeDetails",
-            }[kind]
-
-            result_key = {
-                "movie": "moviedetails",
-                "tvshow": "tvshowdetails",
-                "episode": "episodedetails",
-            }[kind]
-
-            response: Mapping[str, Any] = json_call(
-                method,
-                params={
-                    f"{kind}id": dbid,
-                    "properties": ["uniqueid"],
-                },
+    if kind == "season":
+        tvshow_dbid = to_int(params.get("tvshowid") or infolabel(f"{target}.TvShowDBID"), None)
+        season = to_int(params.get("season") or infolabel(f"{target}.Season"), None)
+        context["season_number"] = season
+        if not tmdb_id and tvshow_dbid:
+            response = json_call(
+                "VideoLibrary.GetTVShowDetails",
+                params={"tvshowid": tvshow_dbid, "properties": ["uniqueid"]},
                 parent="resolve_tmdb_context",
             )
-
             uniqueid = (
-                response.get("result", {}).get(result_key, {}).get("uniqueid", {})
+                response.get("result", {}).get("tvshowdetails", {}).get("uniqueid", {})
+                or {}
             )
-            tmdb_id = str(uniqueid.get("tmdb", "")).strip()
-
-    # 4: seasons – use TvShowDBID + Season number
-    if kind == "season":
-        tv_tmdb, season_num = get_tmdb_for_season(target)
-        context["season_number"] = season_num
-        if tv_tmdb:
-            tmdb_id = tv_tmdb
+            tmdb_id = uniqueid.get("tmdb")
 
     context["tmdb_id"] = tmdb_id or None
+    log.debug(
+        f"resolve_tmdb_context → kind={context.get('kind')!r}, "
+        f"dbid={context.get('dbid')}, tmdb_id={context.get('tmdb_id')}, "
+        f"season_number={context.get('season_number')}, target='{target}'"
+    )
+
     return dict(context)

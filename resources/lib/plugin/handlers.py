@@ -141,6 +141,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def __init__(self, params: dict[str, str]) -> None:
         self.params = params
+        self._debounced = self._compute_debounce()
 
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "").lower()
@@ -195,6 +196,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             expected_identity=self.expected,
         )
 
+    def _compute_debounce(self) -> bool:
+        """
+        Evaluate optional debounce condition once per plugin instance.
+        """
+        return self.params.get("debounce_when_true","").lower() == "true"
+
     def _get_tmdb_item(
         self,
         *,
@@ -207,13 +214,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         target = f"{self.container}.ListItem"
         ctx = resolve_tmdb_context(self.params, target=target)
-
         tmdb_id_str = ctx.get("tmdb_id")
-        tmdb_id = to_int(tmdb_id_str, 0) if tmdb_id_str else 0
+        tmdb_id = to_int(tmdb_id_str, 0)
         if tmdb_id <= 0:
             log.debug(
                 f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
-                f"({self.params.get('tmdb_id')!r})"
+                f"({ctx.get('tmdb_id')!r})"
             )
             return None
 
@@ -227,7 +233,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not item:
             log.debug(
                 f"{self.__class__.__name__} → tmdb: no data for "
-                f"type={self.dbtype}, tmdb_id={tmdb_id}"
+                f"type={(ctx.get('kind') or self.dbtype)!r}, tmdb_id={tmdb_id}"
             )
             return None
 
@@ -280,9 +286,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
+            logo_url = self.params.get("logo_crop") or None
+            fanart_url = self.params.get("bg_blur") or None
+            config = [
+                ("crop", "clearlogo", logo_url),
+                ("blur", "fanart", fanart_url),
+            ]
+            jobs = [
+                {"process": process, "art_type": art_type, "url": url}
+                for process, art_type, url in config
+                if url
+            ]
+            if not jobs:
+                log.debug(
+                    f"{self.__class__.__name__} → artwork: no jobs created; "
+                    f"logo_crop={logo_url!r}, bg_blur={fanart_url!r}"
+                )
+                return
+
             image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
             processed = image_processor(
-                processes={"clearlogo": "crop", "fanart": "blur"},
+                jobs=jobs,
                 source=f"{self.container}.ListItem",
                 overlay_enabled=self.params.get("overlay_enabled"),
                 overlay_source=self.params.get("overlay_source"),
@@ -378,6 +402,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: None (no directory items created)
         """
+        if self._debounced:
+            log.debug(
+                f"PluginHandlers → jumpbutton: DEBOUNCED → params={self.params}"
+            )
+            return
+
         jump = JumpButton()
         jump.update(
             sortletter=self.params.get("sortletter", ""),
@@ -473,7 +503,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples or None.
         """
-
         with self.focus() as guard:
             if not guard.alive():
                 return
@@ -506,6 +535,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: None (no directory items created)
         """
+        if self._debounced:
+            log.debug(
+                f"PluginHandlers → typewriter: DEBOUNCED → params={self.params}"
+            )
+            return
+
         with self.focus() as guard:
             if not guard.alive():
                 return

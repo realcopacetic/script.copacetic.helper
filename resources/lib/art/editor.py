@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from typing import Any, Callable
+from typing import Any, Callable, Iterable, Mapping
 
 import xbmcvfs
 from PIL import Image
@@ -16,7 +16,13 @@ from resources.lib.art.processor import ImageProcessor
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import ArtworkCacheHandler
-from resources.lib.shared.utilities import BLURS, CROPS, infolabel, validate_path
+from resources.lib.shared.utilities import (
+    BLURS,
+    CROPS,
+    infolabel,
+    to_float,
+    validate_path,
+)
 
 RGB = tuple[int, int, int]
 
@@ -48,47 +54,29 @@ class ImageEditor:
 
     def image_processor(
         self,
-        processes: dict[str, str],
+        jobs: Iterable[Mapping[str, str]],
         source: str | None = None,
-        url: str | None = None,
         **proc_kwargs: Any,
     ) -> list[dict[str, Any]]:
         """
-        Process one or more artwork types and return structured per-item metadata.
+        Process one or more artwork jobs into attribute dictionaries.
 
-        :param processes: Mapping of {art_type: "crop"|"blur"} to run.
+        :param jobs: Iterable of job specs with 'process', 'art_type', optional 'url'.
         :param source: Kodi infolabel source prefix. Required if no URL is provided.
-        :param url: Explicit image path. Required if no source is provided.
         :param proc_kwargs: Extra keyword arguments forwarded to processor methods
 
         :return: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
         """
-        if not processes:
-            log.warning(
-                f"{self.__class__.__name__}: No processes defined — expected mapping of {{art_type: 'crop'|'blur'}}.",
-            )
-            return []
-
-        if not source and not url:
-            log.warning(
-                f"{self.__class__.__name__}: Missing both source and URL; nothing to process."
-            )
-            return []
-
-        items = sorted(
-            processes.items(),
-            key=lambda kv: (not kv[0].startswith("clearlogo"), kv[0]),
-        )
         try:
             attributes = [
                 self._handle_image(
-                    art_type=art_type,
-                    process=process,
+                    art_type=job.get("art_type", ""),
+                    process=job.get("process", ""),
                     source=source,
-                    url=url,
+                    url=(job.get("url") or "").strip() or None,
                     **proc_kwargs,
                 )
-                for art_type, process in items
+                for job in jobs
             ]
         except Exception as error:
             log.error(
@@ -153,10 +141,16 @@ class ImageEditor:
             else self._fetch_art_url(art_type, source) if source else None
         )
         if not art:
+            log.debug(
+                f"{self.__class__.__name__} → _handle_image({art_type}) → no art resolved for {source=}, {url=}",
+            )
             return None
 
         original_url = next(iter(art.values()))
         if not original_url:
+            log.debug(
+                f"{self.__class__.__name__} → _handle_image({art_type}) → original_url empty → {art=}",
+            )
             return None
 
         extension = self.PROCESS_CONFIG.get(process)["extension"]
@@ -206,6 +200,9 @@ class ImageEditor:
             for key in ART_SOURCE_KEYS.get(art_type, (art_type,))
             if (path := infolabel(f"{source}.Art({key})"))
         }
+        log.debug(
+            f"{self.__class__.__name__} → _fetch_art_url({art_type}, {source}) → {candidates=}",
+        )
         choice = resolve_art_type(candidates, art_type)
         return {choice.target_key: choice.path} if choice.path else {}
 
@@ -363,13 +360,7 @@ class ImageEditor:
         :return: Tuple of params needed for runtime image processing
         """
         rects = proc_kwargs.get("overlay_rects")
-        target = proc_kwargs.get("overlay_target")
-        if isinstance(target, str):
-            try:
-                target = float(target)
-            except ValueError:
-                target = None
-
+        target = to_float(proc_kwargs.get("overlay_target"))
         text_rgb = None
         src = (proc_kwargs.get("overlay_source") or "").strip().lower()
         if src == "clearlogo":
