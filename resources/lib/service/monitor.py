@@ -38,14 +38,13 @@ class Monitor(xbmc.Monitor):
         # Monitors
         self.sqlite = ArtworkCacheHandler()
         self.settings = SettingsMonitor()
-        self.slideshow = SlideshowMonitor(self.sqlite)
+        # self.slideshow = SlideshowMonitor(self.sqlite)
         self.slideshow_wait = 0
         self.slideshow_interval = self._get_slideshow_interval()
         self.player_monitor = None
         # Run
         self._create()
         self._on_start()
-        log.info(f"{self.__class__.__name__} → Python version: {sys.version}")
 
     def _get_slideshow_interval(self):
         """
@@ -100,6 +99,7 @@ class Monitor(xbmc.Monitor):
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""
         if self.start:
+            log.info(f"{self.__class__.__name__} → Python version: {sys.version}")
             log.info(f"{self.__class__.__name__}: Started")
             self.start = False
             self.player_monitor = PlayerMonitor(self.sqlite)
@@ -146,17 +146,17 @@ class Monitor(xbmc.Monitor):
         """Polling loop that runs background tasks for different windows."""   
         if condition("Window.IsVisible(home)"):
             # Run slideshow whenever wait is 0
-            if self.slideshow_wait == 0:
-                self.slideshow.background_slideshow(
-                    infolabel("Skin.String(slideshow_type)")
-                )
-            # Account for interval changes ahead of next pass
-            new_slideshow_interval = self._get_slideshow_interval()
-            if self.slideshow_interval != new_slideshow_interval:
-                self.slideshow_interval = new_slideshow_interval
-                self.slideshow_wait = min(self.slideshow_wait, self.slideshow_interval)
-            # Reset countdown if interval reached, otherwise increment
-            self.slideshow_wait = (self.slideshow_wait + 1) % self.slideshow_interval
+            # if self.slideshow_wait == 0:
+            #     self.slideshow.background_slideshow(
+            #         infolabel("Skin.String(slideshow_type)")
+            #     )
+            # # Account for interval changes ahead of next pass
+            # new_slideshow_interval = self._get_slideshow_interval()
+            # if self.slideshow_interval != new_slideshow_interval:
+            #     self.slideshow_interval = new_slideshow_interval
+            #     self.slideshow_wait = min(self.slideshow_wait, self.slideshow_interval)
+            # # Reset countdown if interval reached, otherwise increment
+            # self.slideshow_wait = (self.slideshow_wait + 1) % self.slideshow_interval
             self.waitForAbort(1)
         elif condition("Window.IsVisible(skinsettings)"):
             if self.check_cache:

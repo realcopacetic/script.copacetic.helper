@@ -200,7 +200,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Evaluate optional debounce condition once per plugin instance.
         """
-        return self.params.get("debounce_when_true","").lower() == "true"
+        return self.params.get("debounce","").lower() == "true"
 
     def _get_tmdb_item(
         self,
@@ -286,6 +286,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
+            current_position = to_int(self.expected, 0)
             logo_url = self.params.get("logo_crop") or None
             fanart_url = self.params.get("bg_blur") or None
             config = [
@@ -317,32 +318,33 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             art = flatten_art_attributes(processed)
-            multiart_dict = build_multiart_dict(
-                target=f"{self.container}.ListItem",
-                multiart_type=self.params.get("multiart"),
-                max_items=self.params.get("multiart_max"),
-                get_extra_multiart=(
-                    self.params.get("get_extra_multiart", "").lower() == "true"
-                ),
-                language="en-US",
-            )
-            art |= multiart_dict
-            log.debug(
-                f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
-            )
-
-            if not guard.alive():
-                return
-
-            fadelabel_id = self.params.get("multiart_fadelabel")
-            if fadelabel_id and multiart_dict:
-                set_multiart_fadelabel(
-                    fadelabel_id=fadelabel_id,
-                    art=multiart_dict,
-                    randomize=True,
-                    keep_main_first=True,
+            if not self._debounced:
+                multiart_dict = build_multiart_dict(
+                    target=f"{self.container}.ListItem",
+                    multiart_type=self.params.get("multiart"),
+                    max_items=self.params.get("multiart_max"),
+                    get_extra_multiart=(
+                        self.params.get("get_extra_multiart", "").lower() == "true"
+                    ),
+                    language="en-US",
                 )
-            current_position = to_int(self.expected, 0)
+                art |= multiart_dict
+                log.debug(
+                    f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
+                )
+
+                if not guard.alive():
+                    return
+
+                fadelabel_id = self.params.get("multiart_fadelabel")
+                if fadelabel_id and multiart_dict:
+                    set_multiart_fadelabel(
+                        fadelabel_id=fadelabel_id,
+                        art=multiart_dict,
+                        randomize=True,
+                        keep_main_first=True,
+                    )
+
             return set_items(
                 [
                     {

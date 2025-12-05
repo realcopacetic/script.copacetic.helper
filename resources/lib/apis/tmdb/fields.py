@@ -250,6 +250,8 @@ def pick_best_trailer(value: Any) -> str:
     """
     if not isinstance(value, list) or not value:
         return ""
+    
+    log.debug(f'FUCK DEBUG trailers {list=}')
 
     def score(item: Mapping[str, Any]) -> tuple[int, int, int, str]:
         site = str(item.get("site", "")).lower()
