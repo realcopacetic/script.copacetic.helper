@@ -1,7 +1,6 @@
 # author: realcopacetic
 
 import math
-from itertools import chain
 from typing import Any, Callable, Collection, Iterable, Mapping
 
 from xbmcgui import Window, getCurrentWindowId
@@ -20,7 +19,6 @@ from resources.lib.shared.utilities import (
     json_call,
     return_label,
     split,
-    split_random,
     to_int,
     url_encode,
     xbmc,
