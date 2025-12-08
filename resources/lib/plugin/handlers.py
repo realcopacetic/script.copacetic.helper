@@ -4,7 +4,7 @@ import inspect
 from contextlib import contextmanager
 from typing import Callable, Iterator
 
-from xbmcplugin import SORT_METHOD_LASTPLAYED
+from xbmcplugin import SORT_METHOD_LASTPLAYED, SORT_METHOD_UNSORTED
 
 from resources.lib.apis.tmdb.context import resolve_tmdb_context
 from resources.lib.apis.tmdb.transform import tmdb_to_canonical
@@ -141,7 +141,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def __init__(self, params: dict[str, str]) -> None:
         self.params = params
-        self._debounced = self._compute_debounce()
 
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "").lower()
@@ -195,12 +194,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             container=self.container,
             expected_identity=self.expected,
         )
-
-    def _compute_debounce(self) -> bool:
-        """
-        Evaluate optional debounce condition once per plugin instance.
-        """
-        return self.params.get("debounce","").lower() == "true"
 
     def _get_tmdb_item(
         self,
@@ -318,32 +311,31 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             art = flatten_art_attributes(processed)
-            if not self._debounced:
-                multiart_dict = build_multiart_dict(
-                    target=f"{self.container}.ListItem",
-                    multiart_type=self.params.get("multiart"),
-                    max_items=self.params.get("multiart_max"),
-                    get_extra_multiart=(
-                        self.params.get("get_extra_multiart", "").lower() == "true"
-                    ),
-                    language="en-US",
-                )
-                art |= multiart_dict
-                log.debug(
-                    f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
-                )
+            multiart_dict = build_multiart_dict(
+                target=f"{self.container}.ListItem",
+                multiart_type=self.params.get("multiart"),
+                max_items=self.params.get("multiart_max"),
+                get_extra_multiart=(
+                    self.params.get("get_extra_multiart", "").lower() == "true"
+                ),
+                language="en-US",
+            )
+            art |= multiart_dict
+            log.debug(
+                f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
+            )
 
-                if not guard.alive():
-                    return
+            if not guard.alive():
+                return
 
-                fadelabel_id = self.params.get("multiart_fadelabel")
-                if fadelabel_id and multiart_dict:
-                    set_multiart_fadelabel(
-                        fadelabel_id=fadelabel_id,
-                        art=multiart_dict,
-                        randomize=True,
-                        keep_main_first=True,
-                    )
+            fadelabel_id = self.params.get("multiart_fadelabel")
+            if fadelabel_id and multiart_dict:
+                set_multiart_fadelabel(
+                    fadelabel_id=fadelabel_id,
+                    art=multiart_dict,
+                    randomize=True,
+                    keep_main_first=True,
+                )
 
             return set_items(
                 [
@@ -404,12 +396,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: None (no directory items created)
         """
-        if self._debounced:
-            log.debug(
-                f"PluginHandlers → jumpbutton: DEBOUNCED → params={self.params}"
-            )
-            return
-
         jump = JumpButton()
         jump.update(
             sortletter=self.params.get("sortletter", ""),
@@ -537,12 +523,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: None (no directory items created)
         """
-        if self._debounced:
-            log.debug(
-                f"PluginHandlers → typewriter: DEBOUNCED → params={self.params}"
-            )
-            return
-
         with self.focus() as guard:
             if not guard.alive():
                 return
@@ -607,7 +587,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
         """
-        set_plugincontent(content="episodes", category=ADDON.getLocalizedString(32600))
+        set_plugincontent(
+            content="episodes",
+            category=ADDON.getLocalizedString(32600),
+            sort_method=SORT_METHOD_LASTPLAYED,
+        )
         results_meta = []
         q = json_call(
             "VideoLibrary.GetTVShows",

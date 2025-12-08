@@ -51,17 +51,17 @@ class PlayerMonitor(Player):
             #     window_property("Return_Label")
 
             # # Get set id
-            # tag = self.getVideoInfoTag()
-            # dbid = tag.getDbId()
-            # if dbid and condition("VideoPlayer.Content(movie)"):
-            #     query = json_call(
-            #         "VideoLibrary.GetMovieDetails",
-            #         params={"properties": ["setid"], "movieid": dbid},
-            #         parent="get_set_id",
-            #     )
-            #     if query["result"].get("moviedetails", None):
-            #         setid = int(query["result"]["moviedetails"]["setid"])
-            #         window_property("VideoPlayer_SetID", value=setid)
+            tag = self.getVideoInfoTag()
+            dbid = tag.getDbId()
+            if dbid and condition("VideoPlayer.Content(movie)"):
+                query = json_call(
+                    "VideoLibrary.GetMovieDetails",
+                    params={"properties": ["setid"], "movieid": dbid},
+                    parent="get_set_id",
+                )
+                if query["result"].get("moviedetails", None):
+                    setid = int(query["result"]["moviedetails"]["setid"])
+                    window_property("VideoPlayer_SetID", value=setid)
 
             # # Switch subtitles to lang if set in skin settings
             # lang = infolabel("Skin.String(Subtitle_Limiter)")
