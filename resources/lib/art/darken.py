@@ -10,44 +10,55 @@ RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
 
 
+class DarkenSolution:
+    """
+    Pair of darken percentages for background and text/overlay.
+
+    :param bg: Background darken percentage (0–100).
+    :param text: Text/overlay darken percentage (0–100).
+    """
+    bg: int
+    text: int
+
+
 class ColorDarken:
     """
-    Multi-rect darken computation using ColorAnalyzer helpers.
-    Finds the brightest sampled cell across provided rects, then solves WCAG darken%.
+    WCAG-based solver for darkening background and overlay text regions.
+
+    Computes a darken percentage for both the underlying image patch and
+    the overlay/text colour to meet a target contrast ratio.
     """
 
     def __init__(self, color_analyzer: object) -> None:
         """
-        Inject shared colour utilities and configuration.
-        Stores a reference to ColorAnalyzer to reuse its helpers and cfg.
+        Initialise with shared ColorAnalyzer utilities.
 
-        :param color_analyzer: ColorAnalyzer instance providing helpers and ColorConfig.
+        :param color_analyzer: Analyzer instance providing colour helpers.
         """
         self.color = color_analyzer
 
-    def compute_darken_percent(
+    def compute_solution(
         self,
         image: Image.Image,
-        overlay_rects: str,  # "(x,y,w,h),(x,y,w,h)"
+        overlay_rects: str,
         text_rgb: RGB | None = None,
         target_ratio: float | None = None,
-    ) -> int:
+    ) -> DarkenSolution:
         """
-        Compute minimal darken% so overlay text meets a WCAG 2.1 contrast target.
+        Compute darken percentages for a background patch and overlay text.
         Uses contrast = (L_text+0.05)/(L_bg+0.05) with sRGB linearization (Rec.709).
         https://www.w3.org/TR/WCAG21/#contrast-minimum
 
-        :param image: Source image (as displayed).
-        :param overlay_rects: Rects separated by parenthises "(x,y,w,h),(x,y,w,h)" in a 1920x1080 reference frame.
-        :param text_rgb: Optional text RGB override (defaults to cfg.text_overlay_colour).
-        :param target_ratio: Optional WCAG contrast target override (e.g. 4.5 body, 3.0 large/logo).
-        :return: Darken percent 0-cfg.max_darken_cap for fade/diffuse mapping.
+        :param image: Source image for sampling.
+        :param overlay_rects: Overlay rects in reference coordinates.
+        :param text_rgb: Optional text RGB override.
+        :param target_ratio: Optional WCAG contrast target override.
+        :return: DarkenSolution(bg, text).
         """
         cfg = self.color.cfg
 
         rects = self.parse_overlay_rects(overlay_rects)
         if not rects:
-            # Fall back to default full-frame rect in config
             bx, by, bw, bh = cfg.text_overlay_rect
             rects = [(bx, by, bw, bh)]
 
@@ -55,7 +66,6 @@ class ColorDarken:
             rects, image.width, image.height, ref_w=1920, ref_h=1080
         )
 
-        # Brightest cell across all rects, then precise mean RGB
         bg_rgb = self._brightest_patch_rgb_multi(
             image, scaled, grid=cfg.avg_grid, pass2=cfg.avg_downsample
         )
@@ -63,16 +73,18 @@ class ColorDarken:
         target = cfg.target_contrast_ratio if target_ratio is None else target_ratio
         text_rgb = text_rgb or self.color.from_hex(cfg.text_overlay_colour)
 
-        return self._solve_darken(bg_rgb, text_rgb, target)
+        bg_darken = self._solve_bg_darken(bg_rgb, text_rgb, target)
+        text_darken = self._solve_text_darken(bg_rgb, text_rgb, target)
+
+        return DarkenSolution(bg=bg_darken, text=text_darken)
 
     @staticmethod
     def parse_overlay_rects(param: str) -> list[Rect]:
         """
-        Parse overlay rects into a list of (x, y, w, h) tuples. Accepts single
-        rect "x,y,w,h" or multiple wrapped in parenthises "(x,y,w,h),(x,y,w,h),..."
+        Parse overlay rect definitions from a Kodi-style string.
 
-        :param param: Rects string from Kodi .
-        :return: Rect list as [(x, y, w, h), ...].
+        :param param: Raw rect string e.g. "(x,y,w,h),(x,y,w,h)".
+        :return: Parsed rect tuples.
         """
         if not (value := (param or "").strip()):
             return []
@@ -101,15 +113,14 @@ class ColorDarken:
         ref_h: int,
     ) -> list[Rect]:
         """
-        Scale rects from a reference frame to image coordinates and clamp.
-        Drops degenerate rects after scaling/clamping to image bounds.
+        Scale rects from a reference frame to image coordinates.
 
         :param rects: Rects in the reference frame.
         :param img_w: Image width in pixels.
         :param img_h: Image height in pixels.
-        :param ref_w: Reference width the rects are defined against.
-        :param ref_h: Reference height the rects are defined against.
-        :return: Scaled, clamped rects in image coordinates.
+        :param ref_w: Reference width for rect definitions.
+        :param ref_h: Reference height for rect definitions.
+        :return: Scaled and clamped rects.
         """
         sx = img_w / float(ref_w or 1)
         sy = img_h / float(ref_h or 1)
@@ -125,13 +136,16 @@ class ColorDarken:
             x1, y1 = min(img_w, x + w), min(img_h, y + h)
             if x1 <= x0 or y1 <= y0:
                 continue
+
             out.append((x0, y0, x1 - x0, y1 - y0))
+
         return out
 
     def _brightest_patch_rgb_multi(
         self,
         im: Image.Image,
         rects: Iterable[Rect],
+        *,
         grid: int,
         pass2: int,
     ) -> RGB:
@@ -143,7 +157,7 @@ class ColorDarken:
         :param rects: Image-space rects to sample.
         :param grid: Grid resolution per rect for cell search.
         :param pass2: Downsample size for precise mean on winning cell.
-        :return: Mean (r, g, b) of the brightest cell.
+         :return: Mean RGB of brightest patch.
         """
         if im.mode != "RGB":
             im = im.convert("RGB")
@@ -155,10 +169,8 @@ class ColorDarken:
         best_box = None
 
         for rx, ry, rw, rh in rects:
-            # Clamp grid for tiny rects
             gx = max(1, min(grid, rw))
             gy = max(1, min(grid, rh))
-
             cell_w = rw / gx
             cell_h = rh / gy
 
@@ -173,8 +185,7 @@ class ColorDarken:
                     cy = min(max(0, (top + bottom) // 2), H - 1)
 
                     r, g, b = px[cx, cy]
-                    # Fast luma; you already have _luma709 if you prefer to call it
-                    y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                    y = 0.2126 * r + 0.7152 * g + 0.0722 * b  # Fast luma
 
                     if y > best_luma:
                         best_luma = y
@@ -190,23 +201,26 @@ class ColorDarken:
         tiny = patch.resize((pass2, pass2), Image.BOX)
         return self.color.mean_rgb(tiny)
 
-    def _solve_darken(self, bg_rgb: RGB, text_rgb: RGB, target: float) -> int:
+    def _solve_bg_darken(
+        self,
+        bg_rgb: RGB,
+        text_rgb: RGB,
+        target: float,
+    ) -> int:
         """
-        Solve multiplicative darken on background luminance to reach target.
-        Applies optional red leniency, then computes darken% capped by configuration.
+        Solve darken percentage applied to background luminance.
 
-        :param bg_rgb: Mean background RGB of the brightest sampled cell.
-        :param text_rgb: Overlay text RGB for contrast calculation.
-        :param target: Desired WCAG contrast ratio.
-        :return: Darken percentage clamped to [0, cfg.max_darken_cap].
+        :param bg_rgb: RGB underlay sample.
+        :param text_rgb: Overlay/text RGB.
+        :param target: Target contrast ratio.
+        :return: Background darken percentage.
         """
         cfg = self.color.cfg
 
-        # Optional red relax (same semantics as your analyzer)
+        # Red relax logic from original pipeline
         if cfg.red_relax_enable:
             h, _, _ = self.color.rgb_to_hls(text_rgb)
             d = min(abs(h - cfg.red_hue_center), 1.0 - abs(h - cfg.red_hue_center))
-            # Use linearized background luminance via analyzer
             if d <= cfg.red_hue_window and (
                 self.color.get_luminosity(bg_rgb) <= cfg.red_bg_floor
             ):
@@ -216,20 +230,46 @@ class ColorDarken:
         L_bg = self.color.get_luminosity(bg_rgb)
 
         contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
-        diff = (contrast - target)
-        log.debug(
-            f"{self.__class__.__name__} → "
-            f"{bg_rgb=}, {text_rgb=}, {L_bg=:.4f}, "
-            f"{L_text=:.4f}, {contrast=:.3f}, {target=:.2f}, "
-            f"{diff=:+.3f}",
-        )
-        if contrast >= (target - 1e-9):
+        if contrast >= target:
             return 0
 
         numerator = (L_text + 0.05) / target - 0.05
-        if L_bg <= 1e-9 or numerator <= 0:
+        if L_bg <= 0 or numerator <= 0:
             return cfg.max_darken_cap
 
-        k = max(0.0, min(1.0, numerator / L_bg))  # L_bg' = k * L_bg
-        darken = int(round((1.0 - k) * 100))
-        return max(0, min(cfg.max_darken_cap, darken))
+        k = max(0.0, min(1.0, numerator / L_bg))
+        pct = int(round((1.0 - k) * 100))
+        return max(0, min(cfg.max_darken_cap, pct))
+
+    def _solve_text_darken(
+        self,
+        bg_rgb: RGB,
+        text_rgb: RGB,
+        target: float,
+    ) -> int:
+        """
+        Solve darken percentage for overlay/text colour alone.
+
+        :param bg_rgb: RGB underlay sample.
+        :param text_rgb: Overlay/text RGB.
+        :param target: Target contrast ratio.
+        :return: Text/overlay darken percentage.
+        """
+        L_bg = self.color.get_luminosity(bg_rgb)
+        L_text = self.color.get_luminosity(text_rgb)
+
+        def contrast_for(L_t: float) -> float:
+            L1, L2 = (L_bg, L_t) if L_bg >= L_t else (L_t, L_bg)
+            return (L1 + 0.05) / (L2 + 0.05)
+
+        if contrast_for(L_text) >= target:
+            return 0
+
+        best = 100
+        for pct in range(1, 101):
+            k = 1.0 - (pct / 100.0)
+            if contrast_for(L_text * k) >= target:
+                best = pct
+                break
+
+        return best

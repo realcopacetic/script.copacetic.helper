@@ -19,6 +19,7 @@ from resources.lib.shared.utilities import (
     json_call,
     return_label,
     split,
+    split_random,
     to_int,
     url_encode,
     xbmc,
@@ -132,8 +133,8 @@ class DataHandler:
             "file": encoded_label,
             "label": label,
             "label2": label,
-            "Directors": split(self.infolabels["Director"]),
-            "Genres": split(self.infolabels["Genre"]),
+            "Directors": split_random(self.infolabels["Director"]),
+            "Genres": split_random(self.infolabels["Genre"]),
             "Studios": self._studio(),
             "Writers": split(self.infolabels["Writer"]),
         }

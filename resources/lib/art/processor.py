@@ -11,8 +11,9 @@ from resources.lib.shared import logger as log
 
 class ImageProcessor:
     """
-    Performs artwork transforms (crop/blur) and extracts color metadata.
+    Performs artwork transforms (crop/blur/analyze) and extracts color metadata.
     Uses ColorAnalyzer for hex/contrast/luminosity.
+
     """
 
     def __init__(self, cfg: ColorConfig) -> ColorConfig:
@@ -89,4 +90,30 @@ class ImageProcessor:
             "format": "JPEG",
             "metadata": analysis,
             "sample_frame": sample_frame,
+        }
+
+    @log.duration
+    def analyze(self, image: Image.Image, **_: Any) -> dict[str, Any] | None:
+        """
+        Extract color metadata from arbitrary artwork without saving output.
+
+        :param image: Input PIL image.
+        :param _: Ignored future parameters.
+        :return: Dict with {"image", "format", "metadata"} or None.
+        """
+        try:
+            # Reuse fanart target size as a reasonable downscale for analysis.
+            image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
+        except Exception as exc:
+            log.error(f"{self.__class__.__name__}: Unable to analyze image → {exc}")
+            return None
+
+        # Use RGBA so icons/overlays keep alpha where present.
+        image = self._ensure_mode(image, "RGBA")
+        analysis = self.color_analyzer.analyze(image)
+
+        return {
+            "image": image,
+            "format": "PNG",
+            "metadata": analysis,
         }

@@ -13,6 +13,7 @@ from resources.lib.art.policy import (
     resolve_art_type,
 )
 from resources.lib.art.processor import ImageProcessor
+from resources.lib.art.darken import DarkenSolution
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import ArtworkCacheHandler
@@ -36,6 +37,7 @@ class ImageEditor:
     PROCESS_CONFIG = {
         "blur": {"folder": BLURS, "extension": ".jpg"},
         "crop": {"folder": CROPS, "extension": ".png"},
+        "analyze": {"folder": None, "extension": None},
     }
 
     # --- Public methods ---
@@ -95,26 +97,26 @@ class ImageEditor:
         overlay_target: float | str | None = None,
     ) -> int | None:
         """
-        Compute a runtime darken value (0..100) for a single image using the cache-only resolver.
-        Mirrors the in-pipeline path for consistent results; performs no DB writes.
+        Compute background darken% for a single image.
 
-        :param url: Kodi VFS/URL of the fanart to analyze (used only to locate local cache).
-        :param overlay_enabled: Boolean flag that disables the darken pipeline entirely when False.
-        :param overlay_source: Hex text colour (e.g. 'fff0efef') or 'clearlogo' to use stashed colour.
-        :param overlay_rects: Overlay sampling rects, e.g. "x,y,w,h" or "(x,y,w,h),(x,y,w,h)" in 1920x1080 space.
-        :param overlay_target: Desired contrast target (float) or str convertible to float.
-        :return: Darken percentage 0..100, or None if disabled/unavailable.
+        :param url: Image URL.
+        :param overlay_enabled: Whether darken is active.
+        :param overlay_source: Colour source override.
+        :param overlay_rects: Rect string for sampling.
+        :param overlay_target: Contrast target override.
+        :return: Background darken percentage.
         """
-        return (
-            self._darken_core(
-                lambda: self._get_runtime_image(url=url),
-                overlay_source=overlay_source,
-                overlay_rects=overlay_rects,
-                overlay_target=overlay_target,
-            )
-            if overlay_enabled
-            else None
+        if not overlay_enabled:
+            return None
+
+        solution = self._darken_core(
+            lambda: self._get_runtime_image(url=url),
+            overlay_source=overlay_source,
+            overlay_rects=overlay_rects,
+            overlay_target=overlay_target,
         )
+
+        return solution.bg if solution else None
 
     # --- Private methods ---
     def _handle_image(
@@ -126,13 +128,13 @@ class ImageEditor:
         **proc_kwargs: Any,
     ) -> dict[str, Any] | None:
         """
-        Resolve source URL, process/cache the image, and persist metadata.
+        Resolve source URL, process the image, and return metadata.
 
         :param art_type: Artwork key (e.g. "clearlogo", "fanart").
-        :param process: Processor name ("crop" or "blur").
+        :param process: Processor name ("crop", "blur" or "analyze").
         :param source: Optional Kodi infolabel source prefix for Art() lookups.
         :param url: Optional explicit URL to process for this art_type.
-        :param proc_kwargs: Extra keyword arguments forwarded to processor methods
+        :param proc_kwargs: Extra keyword arguments forwarded to processor methods.
         :return: Metadata dict including processed path and colors, or None.
         """
         art = (
@@ -142,33 +144,34 @@ class ImageEditor:
         )
         if not art:
             log.debug(
-                f"{self.__class__.__name__} → _handle_image({art_type}) → no art resolved for {source=}, {url=}",
+                f"{self.__class__.__name__} → _handle_image({art_type}) → "
+                f"no art resolved for {source=}, {url=}",
             )
             return None
 
         original_url = next(iter(art.values()))
         if not original_url:
             log.debug(
-                f"{self.__class__.__name__} → _handle_image({art_type}) → original_url empty → {art=}",
+                f"{self.__class__.__name__} → _handle_image({art_type}) → "
+                f"original_url empty → {art=}",
             )
             return None
 
-        extension = self.PROCESS_CONFIG.get(process)["extension"]
-        self.cache_manager.prepare_cache(original_url, extension)
+        config = self.PROCESS_CONFIG.get(process, {})
+        extension = config.get("extension")
+        if extension:
+            self.cache_manager.prepare_cache(original_url, extension)
 
-        if attributes := self.cache_manager.read_lookup(original_url):
-            log.debug(f"ImageEditor → Cache returned → {art_type=} → {attributes}")
-        else:
-            if not (attributes := self._run_processor(process, art, **proc_kwargs)):
-                return None
-            log.debug(
-                f"ImageEditor → Fresh payload returned → {art_type=} → {attributes}"
-            )
+        attributes = self._run_processor(process, art, **proc_kwargs)
+        if not attributes:
+            return None
 
+        log.debug(
+            f"ImageEditor → Payload returned → {art_type=} → {attributes}",
+        )
         attributes["category"] = art_type
-        self.cache_manager.write_lookup(art_type, attributes)
 
-        # stash clearlogo color for downstream fanart (overlay_source=clearlogo)
+        # Stash clearlogo color for downstream fanart (overlay_source=clearlogo).
         if art_type.startswith("clearlogo"):
             col = attributes.get("color")
             if col:
@@ -176,14 +179,15 @@ class ImageEditor:
 
         overlay_enabled = proc_kwargs.get("overlay_enabled", "").lower() == "true"
         if overlay_enabled and art_type == "fanart":
-            val = self._darken_core(
+            solution = self._darken_core(
                 lambda: self._get_runtime_image(attrs=attributes),
                 overlay_source=proc_kwargs.get("overlay_source"),
                 overlay_rects=proc_kwargs.get("overlay_rects"),
                 overlay_target=proc_kwargs.get("overlay_target"),
             )
-            if val is not None:
-                attributes["darken"] = val
+            if solution:
+                attributes["darken"] = solution.bg
+                attributes["text_darken"] = solution.text
 
         return attributes
 
@@ -213,11 +217,11 @@ class ImageEditor:
         **proc_kwargs: Any,
     ) -> dict[str, Any] | None:
         """
-        Execute a processor for a single image and write the processed file.
+        Execute a processor for a single image and optionally write the file.
 
-        :param process: Processor name ("crop" or "blur").
+        :param process: Processor name ("crop", "blur" or "analyze").
         :param art: Mapping of {resolved_key: url} for the selected artwork.
-        :param proc_kwargs: Extra keyword arguments forwarded to processor methods
+        :param proc_kwargs: Extra keyword arguments forwarded to processor methods.
         :return: Dict with file paths and color metadata, or None on failure.
         """
         process_method = getattr(self.processor, process, None)
@@ -225,46 +229,64 @@ class ImageEditor:
             return None
 
         category, url = next(iter(art.items()), (None, None))
-        folder = self.PROCESS_CONFIG.get(process)["folder"]
-        source_path, destination_path = self.cache_manager.get_image_paths(folder)
-        if not source_path:
+        if not url:
             return None
 
-        image = self._image_open(source_path)
-        if not image:
-            return None
+        config = self.PROCESS_CONFIG.get(process, {})
+        folder = config.get("folder")
+        if folder:
+            source_path, destination_path = self.cache_manager.get_image_paths(folder)
+            if not source_path:
+                return None
+
+            image = self._image_open(source_path)
+            if not image:
+                return None
+        else:  # Runtime-only process (e.g. analyze): open directly from URL.
+            source_path = url
+            destination_path = ""
+            image = self._get_runtime_image(attrs=None, url=url)
+            if not image:
+                return None
 
         result = process_method(image, **proc_kwargs)
         if not result or "image" not in result:
             return None
 
-        with xbmcvfs.File(destination_path, "wb") as f:
-            fmt = result.get("format", "PNG")
-            if fmt == "JPEG":
-                result["image"].save(
-                    f,
-                    "JPEG",
-                    quality=self.cfg.jpeg_quality,
-                    optimize=self.cfg.jpeg_optimize,
-                    progressive=self.cfg.jpeg_progressive,
-                    subsampling=self.cfg.jpeg_subsampling,
-                )
-            elif fmt == "PNG":
-                result["image"].save(
-                    f,
-                    "PNG",
-                    optimize=self.cfg.png_optimize,
-                    compress_level=self.cfg.png_compress_level,
-                )
-            log.debug(
-                f"{self.__class__.__name__} → File processed: {url} → {destination_path}"
-            )
+        processed_path = destination_path
 
-        if self.temp_folder in source_path:
+        # Persist processed image only when folder is configured.
+        if folder:
+            with xbmcvfs.File(destination_path, "wb") as f:
+                fmt = result.get("format", "PNG")
+                if fmt == "JPEG":
+                    result["image"].save(
+                        f,
+                        "JPEG",
+                        quality=self.cfg.jpeg_quality,
+                        optimize=self.cfg.jpeg_optimize,
+                        progressive=self.cfg.jpeg_progressive,
+                        subsampling=self.cfg.jpeg_subsampling,
+                    )
+                elif fmt == "PNG":
+                    result["image"].save(
+                        f,
+                        "PNG",
+                        optimize=self.cfg.png_optimize,
+                        compress_level=self.cfg.png_compress_level,
+                    )
+                log.debug(
+                    f"{self.__class__.__name__} → File processed: "
+                    f"{url} → {destination_path}",
+                )
+        else:
+            processed_path = ""
+
+        if folder and self.temp_folder in source_path:
             try:
                 xbmcvfs.delete(source_path)
                 log.debug(
-                    f"{self.__class__.__name__} → Temp file deleted → {source_path}"
+                    f"{self.__class__.__name__} → Temp file deleted → {source_path}",
                 )
             except Exception:
                 pass
@@ -273,7 +295,7 @@ class ImageEditor:
             **ArtMeta.from_values(
                 category=category,
                 original_url=url,
-                processed_path=destination_path,
+                processed_path=processed_path,
                 cached_file_hash=self.cache_manager.cached_file_hash,
                 values=result.get("metadata", {}),
             ).to_dict(),
@@ -310,16 +332,15 @@ class ImageEditor:
         overlay_source: str | None = None,
         overlay_rects: str | None = None,
         overlay_target: float | str | None = None,
-    ) -> int | None:
+    ) -> DarkenSolution | None:
         """
-        Unified darken pipeline: parse params, obtain image via provider, resize to target, compute 0..100.
-        Used by both the in-pipeline enrichment and the on-demand runtime helper.
+        Compute a DarkenSolution for a resolved runtime image.
 
-        :param get_image: Zero-arg callable that returns a PIL Image or None (no network I/O inside core).
-        :param overlay_source: Hex text colour or 'clearlogo' to resolve from session.
-        :param overlay_rects: Sampling rects in 1920x1080 reference space.
-        :param overlay_target: Desired contrast target (float) or str convertible to float.
-        :return: Darken percentage 0..100, or None if image/params are invalid.
+        :param get_image: Provider returning an image or None.
+        :param overlay_source: Optional colour source override.
+        :param overlay_rects: Rect string for sampling.
+        :param overlay_target: Target contrast ratio override.
+        :return: DarkenSolution or None.
         """
         rects, target, text_rgb = self._resolve_overlay_params(
             overlay_rects=overlay_rects,
@@ -339,13 +360,11 @@ class ImageEditor:
                 return None
 
         try:
-            return int(
-                self._compute_darken_percent(
-                    image=img,
-                    overlay_rects=rects,
-                    text_rgb=text_rgb,
-                    target_ratio=target,
-                )
+            return self.processor.color_analyzer.darken.compute_solution(
+                image=img,
+                overlay_rects=rects,
+                text_rgb=text_rgb,
+                target_ratio=target,
             )
         except Exception as exc:
             log.error(f"ColorDarken: compute failed: {exc}")

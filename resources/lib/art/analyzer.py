@@ -37,10 +37,6 @@ class ColorAnalyzer:
             "luminosity": int(self.get_luminosity(dominant) * 1000),
         }
 
-    def compute_darken_percent(self, *a, **kw) -> int:
-        """Forward to ColorDarken for convenience."""
-        return self.darken.compute_darken_percent(*a, **kw)
-
     @log.duration
     def extract_dominant_color(self, image: Image.Image) -> RGB:
         """
