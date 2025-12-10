@@ -1,10 +1,11 @@
 # author: realcopacetic
 
-from typing import Iterable
+from dataclasses import dataclass
+from typing import Iterable, Mapping
 
 from PIL import Image
 
-from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import parse_bool, to_float
 
 RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
@@ -17,8 +18,33 @@ class DarkenSolution:
     :param bg: Background darken percentage (0–100).
     :param text: Text/overlay darken percentage (0–100).
     """
+
     bg: int
     text: int
+
+
+@dataclass(frozen=True)
+class DarkenOverlayOpts:
+    enabled: bool
+    source: str | None
+    rects: str | None
+    target: float | None
+
+    @classmethod
+    def from_params(cls, params: Mapping[str, str], prefix: str) -> "DarkenOverlayOpts":
+        """
+        Build overlay options from a parameter mapping and a name prefix.
+
+        :param params: Mapping of plugin parameters.
+        :param prefix: Prefix such as "fanart" or "icon".
+        :return: Parsed DarkenOverlayOpts instance.
+        """
+        return cls(
+            enabled=parse_bool(params.get(f"{prefix}_overlay_enabled", "false")),
+            source=params.get(f"{prefix}_overlay_source"),
+            rects=params.get(f"{prefix}_overlay_rects"),
+            target=to_float(params.get(f"{prefix}_overlay_target")),
+        )
 
 
 class ColorDarken:

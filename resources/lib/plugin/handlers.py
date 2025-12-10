@@ -4,10 +4,11 @@ import inspect
 from contextlib import contextmanager
 from typing import Callable, Iterator
 
-from xbmcplugin import SORT_METHOD_LASTPLAYED, SORT_METHOD_UNSORTED
+from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.apis.tmdb.context import resolve_tmdb_context
 from resources.lib.apis.tmdb.transform import tmdb_to_canonical
+from resources.lib.art.darken import DarkenOverlayOpts
 from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import build_multiart_dict, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
@@ -38,6 +39,7 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     set_plugincontent,
+    parse_bool,
     to_float,
     to_int,
 )
@@ -262,7 +264,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         truncated = trunc.truncate(
             text=truncate_label,
             min_safe=to_int(self.params.get("truncate_min_safe", 0)),
-            smart_cap=self.params.get("truncate_smart_cap", "").lower() == "true",
+            smart_cap=parse_bool(self.params.get("truncate_smart_cap", "false")),
         )
 
         props = data.setdefault("properties", {})
@@ -280,11 +282,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             current_position = to_int(self.expected, 0)
-            logo_url = self.params.get("logo_crop") or None
-            fanart_url = self.params.get("bg_blur") or None
+            clearlogo_url = self.params.get("clearlogo_crop") or None
+            fanart_url = self.params.get("fanart_blur") or None
+            icon_url = self.params.get("icon") or None
+            overlay_params = {
+                art_type: DarkenOverlayOpts.from_params(self.params, art_type)
+                for art_type in ("fanart", "icon")
+            }
+
             config = [
-                ("crop", "clearlogo", logo_url),
+                ("crop", "clearlogo", clearlogo_url),
                 ("blur", "fanart", fanart_url),
+                ("analyze", "icon", icon_url),
             ]
             jobs = [
                 {"process": process, "art_type": art_type, "url": url}
@@ -292,20 +301,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 if url
             ]
             if not jobs:
-                log.debug(
-                    f"{self.__class__.__name__} → artwork: no jobs created; "
-                    f"logo_crop={logo_url!r}, bg_blur={fanart_url!r}"
-                )
+                log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
                 return
 
             image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
             processed = image_processor(
                 jobs=jobs,
                 source=f"{self.container}.ListItem",
-                overlay_enabled=self.params.get("overlay_enabled"),
-                overlay_source=self.params.get("overlay_source"),
-                overlay_rects=self.params.get("overlay_rects"),
-                overlay_target=to_float(self.params.get("overlay_target")),
+                overlay_params=overlay_params,
             )
             if not guard.alive():
                 return
@@ -315,8 +318,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 target=f"{self.container}.ListItem",
                 multiart_type=self.params.get("multiart"),
                 max_items=self.params.get("multiart_max"),
-                get_extra_multiart=(
-                    self.params.get("get_extra_multiart", "").lower() == "true"
+                get_extra_multiart=parse_bool(
+                    self.params.get("get_extra_multiart", "false")
                 ),
                 language="en-US",
             )
@@ -360,9 +363,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            overlay_enabled = (
-                str(self.params.get("overlay_enabled", "false")).lower() == "true"
-            )
+            overlay_enabled = parse_bool(self.params.get("overlay_enabled", "false"))
             if not overlay_enabled:
                 return
 
@@ -424,7 +425,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            enrich_with_tmdb = self.params.get("enrich_with_tmdb", "").lower() == "true"
+            enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb", "false"))
             if enrich_with_tmdb:
                 tmdb_item = self._get_tmdb_item(append_artwork=False)
                 if tmdb_item:
@@ -496,7 +497,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             target = f"{self.container}.ListItem"
-            multiart_enabled = str(self.params.get("multiart")).lower() == "true"
+            multiart_enabled = parse_bool(self.params.get("multiart", "false"))
             item = self._get_tmdb_item(append_artwork=multiart_enabled)
 
             if not item:

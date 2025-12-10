@@ -14,7 +14,10 @@ ART_VALUE_FIELDS: tuple[str, ...] = (
     "contrast",
     "luminosity",
 )
-ART_RUNTIME_FIELDS: tuple[str, ...] = ("darken",)
+ART_RUNTIME_FIELDS: tuple[str, ...] = (
+    "darken",
+    "text_darken",
+)
 
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),

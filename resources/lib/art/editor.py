@@ -65,8 +65,7 @@ class ImageEditor:
 
         :param jobs: Iterable of job specs with 'process', 'art_type', optional 'url'.
         :param source: Kodi infolabel source prefix. Required if no URL is provided.
-        :param proc_kwargs: Extra keyword arguments forwarded to processor methods
-
+        :param proc_kwargs: Global keyword arguments forwarded to all jobs.
         :return: List of attribute dicts; one per art_type (e.g., {"category","processed_path","color",...}).
         """
         try:
@@ -75,7 +74,7 @@ class ImageEditor:
                     art_type=job.get("art_type", ""),
                     process=job.get("process", ""),
                     source=source,
-                    url=(job.get("url") or "").strip() or None,
+                    url=(job.get("url") or "") or None,
                     **proc_kwargs,
                 )
                 for job in jobs
@@ -177,13 +176,14 @@ class ImageEditor:
             if col:
                 self._session["clearlogo_color"] = col
 
-        overlay_enabled = proc_kwargs.get("overlay_enabled", "").lower() == "true"
-        if overlay_enabled and art_type == "fanart":
+        overlay_map = proc_kwargs.get("overlay_params") or {}
+        opts = overlay_map.get(art_type)
+        if opts and opts.enabled:
             solution = self._darken_core(
                 lambda: self._get_runtime_image(attrs=attributes),
-                overlay_source=proc_kwargs.get("overlay_source"),
-                overlay_rects=proc_kwargs.get("overlay_rects"),
-                overlay_target=proc_kwargs.get("overlay_target"),
+                overlay_source=opts.source,
+                overlay_rects=opts.rects,
+                overlay_target=opts.target,
             )
             if solution:
                 attributes["darken"] = solution.bg
