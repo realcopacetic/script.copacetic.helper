@@ -94,28 +94,26 @@ class ImageEditor:
         overlay_source: str | None = None,
         overlay_rects: str | None = None,
         overlay_target: float | str | None = None,
-    ) -> int | None:
+    ) -> DarkenSolution | None:
         """
-        Compute background darken% for a single image.
+        Compute DarkenSolution for a single image.
 
         :param url: Image URL.
         :param overlay_enabled: Whether darken is active.
         :param overlay_source: Colour source override.
         :param overlay_rects: Rect string for sampling.
         :param overlay_target: Contrast target override.
-        :return: Background darken percentage.
+        :return: DarkenSolution or None.
         """
         if not overlay_enabled:
             return None
 
-        solution = self._darken_core(
+        return self._darken_core(
             lambda: self._get_runtime_image(url=url),
             overlay_source=overlay_source,
             overlay_rects=overlay_rects,
             overlay_target=overlay_target,
         )
-
-        return solution.bg if solution else None
 
     # --- Private methods ---
     def _handle_image(
@@ -425,7 +423,3 @@ class ImageEditor:
                 return im
 
         return None
-
-    def _compute_darken_percent(self, *a, **kw) -> int:
-        """Forward to ColorDarken for convenience."""
-        return self.processor.color_analyzer.compute_darken_percent(*a, **kw)

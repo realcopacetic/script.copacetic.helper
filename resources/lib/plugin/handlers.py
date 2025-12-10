@@ -371,21 +371,24 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not url:
                 return
 
-            val = ImageEditor(ArtworkCacheHandler()).compute_darken_runtime(
+            solution = ImageEditor(ArtworkCacheHandler()).compute_darken_runtime(
                 url=url,
                 overlay_enabled=overlay_enabled,
                 overlay_source=self.params.get("overlay_source"),
                 overlay_rects=self.params.get("overlay_rects"),
                 overlay_target=self.params.get("overlay_target"),
             )
-            if not guard.alive() or val is None:
+            if not guard.alive() or solution is None:
                 return
 
             return set_items(
                 [
                     {
                         "file": "darken",
-                        "properties": {"fanart_darken": str(val)},
+                        "properties": {
+                            "fanart_darken": str(solution.bg),
+                            "fanart_text_darken": str(solution.text),
+                        },
                     }
                 ]
             )

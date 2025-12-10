@@ -11,14 +11,14 @@ RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
 
 
+@dataclass(frozen=True)
 class DarkenSolution:
     """
     Pair of darken percentages for background and text/overlay.
 
-    :param bg: Background darken percentage (0–100).
-    :param text: Text/overlay darken percentage (0–100).
+    :param bg: Background darken percentage (0-100).
+    :param text: Text/overlay darken percentage (0-100).
     """
-
     bg: int
     text: int
 
