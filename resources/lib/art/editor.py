@@ -37,7 +37,7 @@ class ImageEditor:
     PROCESS_CONFIG = {
         "blur": {"folder": BLURS, "extension": ".jpg"},
         "crop": {"folder": CROPS, "extension": ".png"},
-        "analyze": {"folder": None, "extension": None},
+        "analyze": {"folder": None, "extension": ".jpg"},
     }
 
     # --- Public methods ---
@@ -244,6 +244,7 @@ class ImageEditor:
             image = self._image_open(source_path)
             if not image:
                 return None
+
         else:  # Runtime-only process (e.g. analyze): open directly from URL.
             source_path = url
             destination_path = ""
@@ -356,6 +357,13 @@ class ImageEditor:
             hexc = self._session.get("clearlogo_color")
             resolved_source = hexc or None
 
+        log.debug(
+            f"{self.__class__.__name__} → _darken_core: "
+            f"image_size={getattr(img, 'size', None)}, "
+            f"overlay_source={resolved_source!r}, "
+            f"rects={overlay_rects!r}, frame={overlay_frame!r}, "
+            f"target={overlay_target!r}",
+        )
         try:
             return self.processor.color_analyzer.darken.compute_solution_from_params(
                 image=img,
@@ -381,6 +389,10 @@ class ImageEditor:
         """
         # prefer in-memory `_sample_frame` from this run
         if attrs and (img := attrs.pop("_sample_frame", None)):
+            log.debug(
+                f"{self.__class__.__name__} → _get_runtime_image: "
+                f"using in-memory sample_frame size={getattr(img, 'size', None)}",
+            )
             return img
 
         # local Kodi texture-cache path for original
@@ -393,12 +405,22 @@ class ImageEditor:
                 cache_local = ""
 
         if cache_local and validate_path(cache_local):
+            log.debug(
+                f"{self.__class__.__name__} → _get_runtime_image: "
+                f"using cached texture → {cache_local}",
+            )
             if im := self._image_open(cache_local):
                 return im
 
         # fallback: processed (blurred) image
         if attrs and (cache_blur := attrs.get("processed_path")):
+            log.debug(
+                f"{self.__class__.__name__} → _get_runtime_image: "
+                f"using processed image → {cache_blur}",
+            )
             if im := self._image_open(cache_blur):
                 return im
-
+        log.debug(
+            f"{self.__class__.__name__} → _get_runtime_image: no local source found"
+        )
         return None

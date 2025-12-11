@@ -1,8 +1,5 @@
 # author: realcopacetic
 
-import os
-import time
-
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
@@ -140,7 +137,9 @@ class ColorDarken:
                 target_ratio=target,
             )
         except Exception:
-            log.debug(f'FUCK DEBUG OH SHIT')
+            log.error(
+                f"{self.__class__.__name__} → compute_solution_from_params failed: {exc}"
+            )
             return None
 
     def compute_solution(
@@ -383,37 +382,6 @@ class ColorDarken:
         left, top, right, bottom = best_box
         patch = im.crop((left, top, right, bottom))
         tiny = patch.resize((pass2, pass2), Image.BOX)
-
-        # --- DEBUG: log and export the exact patch we used --------------------
-        log.debug(
-            f"{self.__class__.__name__} → brightest patch box={best_box}, "
-            f"frame_size={im.size}"
-        )
-        try:
-            debug_dir = os.path.join(
-                os.path.expanduser("~"),
-                "Library",
-                "Application Support",
-                "Kodi",
-                "userdata",
-                "addon_data",
-                "script.copacetic.helper",
-                "temp",
-            )
-            os.makedirs(debug_dir, exist_ok=True)
-            debug_path = os.path.join(
-                debug_dir, f"darken_patch_{int(time.time())}.png"
-            )
-            patch.save(debug_path)
-            log.debug(
-                f"{self.__class__.__name__} → debug patch saved to '{debug_path}'"
-            )
-        except Exception as exc:
-            log.debug(
-                f"{self.__class__.__name__} → debug patch save failed: {exc}"
-            )
-        # ----------------------------------------------------------------------
-
         return self.color.mean_rgb(tiny)
 
     def _solve_bg_darken(
@@ -455,7 +423,7 @@ class ColorDarken:
         k = max(0.0, min(1.0, numerator / L_bg))
         pct = int(round((1.0 - k) * 100))
         return max(0, min(cfg.max_darken_cap, pct))
-    
+
     def _solve_text_darken(
         self,
         *,

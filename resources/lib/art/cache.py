@@ -82,6 +82,10 @@ class ArtworkCacheManager:
         destination_path = str(Path(folder) / self.cached_thumb)
 
         if validate_path(source_path):
+            log.debug(
+                f"{self.__class__.__name__} → get_image_paths: "
+                f"using existing texture-cache file → {source_path}"
+            )
             return source_path, destination_path
 
         temp_path = str(Path(self.temp_folder) / self.cached_thumb)
