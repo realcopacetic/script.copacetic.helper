@@ -376,6 +376,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 overlay_enabled=overlay_enabled,
                 overlay_source=self.params.get("overlay_source"),
                 overlay_rects=self.params.get("overlay_rects"),
+                overlay_frame=self.params.get("overlay_frame"),
                 overlay_target=self.params.get("overlay_target"),
             )
             if not guard.alive() or solution is None:

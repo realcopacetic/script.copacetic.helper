@@ -93,6 +93,7 @@ class ImageEditor:
         overlay_enabled: bool = True,
         overlay_source: str | None = None,
         overlay_rects: str | None = None,
+        overlay_frame: str | None = None,
         overlay_target: float | str | None = None,
     ) -> DarkenSolution | None:
         """
@@ -102,6 +103,7 @@ class ImageEditor:
         :param overlay_enabled: Whether darken is active.
         :param overlay_source: Colour source override.
         :param overlay_rects: Rect string for sampling.
+        :param overlay_frame: Frame size "w,h" for rect coordinates.
         :param overlay_target: Contrast target override.
         :return: DarkenSolution or None.
         """
@@ -112,6 +114,7 @@ class ImageEditor:
             lambda: self._get_runtime_image(url=url),
             overlay_source=overlay_source,
             overlay_rects=overlay_rects,
+            overlay_frame=overlay_frame,
             overlay_target=overlay_target,
         )
 
@@ -181,6 +184,7 @@ class ImageEditor:
                 lambda: self._get_runtime_image(attrs=attributes),
                 overlay_source=opts.source,
                 overlay_rects=opts.rects,
+                overlay_frame=opts.frame,
                 overlay_target=opts.target,
             )
             if solution:
@@ -329,65 +333,40 @@ class ImageEditor:
         *,
         overlay_source: str | None = None,
         overlay_rects: str | None = None,
+        overlay_frame: str | None = None,
         overlay_target: float | str | None = None,
     ) -> DarkenSolution | None:
         """
         Compute a DarkenSolution for a resolved runtime image.
 
         :param get_image: Provider returning an image or None.
-        :param overlay_source: Optional colour source override.
+        :param overlay_source: Optional colour source override ("clearlogo" or hex).
         :param overlay_rects: Rect string for sampling.
+        :param overlay_frame: Frame size "w,h" for rect coordinates.
         :param overlay_target: Target contrast ratio override.
         :return: DarkenSolution or None.
         """
-        rects, target, text_rgb = self._resolve_overlay_params(
-            overlay_rects=overlay_rects,
-            overlay_target=overlay_target,
-            overlay_source=overlay_source,
-        )
-
         img = get_image()
         if img is None:
             return None
 
-        target_size = self.cfg.fanart_target_size
-        if img.size != target_size:
-            try:
-                img = img.resize(target_size, Image.BOX)
-            except Exception:
-                return None
+        resolved_source = overlay_source
+        src = (overlay_source or "").strip().lower()
+        if src == "clearlogo":
+            hexc = self._session.get("clearlogo_color")
+            resolved_source = hexc or None
 
         try:
-            return self.processor.color_analyzer.darken.compute_solution(
+            return self.processor.color_analyzer.darken.compute_solution_from_params(
                 image=img,
-                overlay_rects=rects,
-                text_rgb=text_rgb,
-                target_ratio=target,
+                overlay_source=resolved_source,
+                overlay_rects=overlay_rects,
+                overlay_frame=overlay_frame,
+                overlay_target=overlay_target,
             )
         except Exception as exc:
             log.error(f"ColorDarken: compute failed: {exc}")
             return None
-
-    def _resolve_overlay_params(
-        self, **proc_kwargs
-    ) -> tuple[str | None, float | None, RGB | None]:
-        """Parse overlay_* kwargs and resolve text_rgb (supports 'clearlogo' source).
-
-        :param proc_kwargs: Arbitrary keyword arguments from the artwork plugin call.
-        :return: Tuple of params needed for runtime image processing
-        """
-        rects = proc_kwargs.get("overlay_rects")
-        target = to_float(proc_kwargs.get("overlay_target"))
-        text_rgb = None
-        src = (proc_kwargs.get("overlay_source") or "").strip().lower()
-        if src == "clearlogo":
-            hexc = self._session.get("clearlogo_color")
-            if hexc:
-                text_rgb = self.processor.color_analyzer.from_hex(hexc)
-        elif src:
-            text_rgb = self.processor.color_analyzer.from_hex(src)
-
-        return rects, target, text_rgb
 
     def _get_runtime_image(
         self, attrs: dict | None = None, url: str | None = None

@@ -1,11 +1,15 @@
 # author: realcopacetic
 
+import os
+import time
+
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
 from PIL import Image
 
 from resources.lib.shared.utilities import parse_bool, to_float
+from resources.lib.shared import logger as log
 
 RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
@@ -25,10 +29,20 @@ class DarkenSolution:
 
 @dataclass(frozen=True)
 class DarkenOverlayOpts:
+    """
+    Overlay configuration for a given artwork type.
+
+    :param enabled: Whether darken is active.
+    :param source: Colour source override (hex or "clearlogo").
+    :param rects: Rect string for sampling in frame coordinates.
+    :param frame: Frame size "w,h" as a raw string.
+    :param target: Contrast target override as a raw string.
+    """
     enabled: bool
     source: str | None
     rects: str | None
-    target: float | None
+    frame: str | None
+    target: str | None
 
     @classmethod
     def from_params(cls, params: Mapping[str, str], prefix: str) -> "DarkenOverlayOpts":
@@ -43,7 +57,8 @@ class DarkenOverlayOpts:
             enabled=parse_bool(params.get(f"{prefix}_overlay_enabled", "false")),
             source=params.get(f"{prefix}_overlay_source"),
             rects=params.get(f"{prefix}_overlay_rects"),
-            target=to_float(params.get(f"{prefix}_overlay_target")),
+            frame=params.get(f"{prefix}_overlay_frame"),
+            target=params.get(f"{prefix}_overlay_target"),
         )
 
 
@@ -63,10 +78,76 @@ class ColorDarken:
         """
         self.color = color_analyzer
 
+    def compute_solution_from_params(
+        self,
+        image: Image.Image,
+        *,
+        overlay_source: str | None,
+        overlay_rects: str | None,
+        overlay_frame: str | None,
+        overlay_target: float | str | None,
+    ) -> DarkenSolution | None:
+        """
+        Compute a DarkenSolution from raw overlay params and an image.
+
+        :param image: Source image to sample.
+        :param overlay_source: Colour source override (hex already resolved).
+        :param overlay_rects: Rect string in frame coordinates.
+        :param overlay_frame: Raw frame string "w,h".
+        :param overlay_target: Raw target string or float.
+        :return: DarkenSolution or None on failure.
+        """
+        cfg = self.color.cfg
+
+        frame_w, frame_h = cfg.overlay_default_frame
+        if overlay_frame:
+            parts = [p.strip() for p in str(overlay_frame).split(",")]
+            if len(parts) == 2:
+                try:
+                    w = int(parts[0])
+                    h = int(parts[1])
+                    if w > 0 and h > 0:
+                        frame_w, frame_h = w, h
+                except ValueError:
+                    frame_w, frame_h = cfg.fanart_target_size
+        log.debug(
+            f"ColorDarken → frame override: raw='{overlay_frame}', "
+            f"resolved=({frame_w},{frame_h})"
+        )
+
+        framed, frame_size = self._frame_image(image, frame_w, frame_h)
+        log.debug(
+            f"ColorDarken → after framing: final_frame={frame_size}, "
+            f"image_size={framed.size}, "
+            f"rects='{overlay_rects}'"
+        )
+
+        target = to_float(overlay_target)
+        if target <= 0:
+            target = cfg.target_contrast_ratio
+
+        text_rgb: RGB | None = None
+        src = (overlay_source or "").strip()
+        if src:
+            text_rgb = self.color.from_hex(src)
+
+        try:
+            return self.compute_solution(
+                image=framed,
+                overlay_rects=overlay_rects or "",
+                ref_size=frame_size,
+                text_rgb=text_rgb,
+                target_ratio=target,
+            )
+        except Exception:
+            log.debug(f'FUCK DEBUG OH SHIT')
+            return None
+
     def compute_solution(
         self,
         image: Image.Image,
         overlay_rects: str,
+        ref_size: tuple[int, int] | None = None,
         text_rgb: RGB | None = None,
         target_ratio: float | None = None,
     ) -> DarkenSolution:
@@ -77,6 +158,7 @@ class ColorDarken:
 
         :param image: Source image for sampling.
         :param overlay_rects: Overlay rects in reference coordinates.
+        :param ref_size: Optional (width, height) reference frame for rects.
         :param text_rgb: Optional text RGB override.
         :param target_ratio: Optional WCAG contrast target override.
         :return: DarkenSolution(bg, text).
@@ -88,21 +170,97 @@ class ColorDarken:
             bx, by, bw, bh = cfg.text_overlay_rect
             rects = [(bx, by, bw, bh)]
 
+        if ref_size is None:
+            ref_w, ref_h = cfg.overlay_default_frame
+        else:
+            ref_w, ref_h = ref_size
+
         scaled = self._scale_rects(
-            rects, image.width, image.height, ref_w=1920, ref_h=1080
+            rects,
+            image.width,
+            image.height,
+            ref_w=ref_w,
+            ref_h=ref_h,
         )
 
         bg_rgb = self._brightest_patch_rgb_multi(
-            image, scaled, grid=cfg.avg_grid, pass2=cfg.avg_downsample
+            image,
+            scaled,
+            grid=cfg.avg_grid,
+            pass2=cfg.avg_downsample,
         )
 
         target = cfg.target_contrast_ratio if target_ratio is None else target_ratio
         text_rgb = text_rgb or self.color.from_hex(cfg.text_overlay_colour)
 
-        bg_darken = self._solve_bg_darken(bg_rgb, text_rgb, target)
-        text_darken = self._solve_text_darken(bg_rgb, text_rgb, target)
+        # Compute once, reuse everywhere.
+        L_bg = self.color.get_luminosity(bg_rgb)
+        L_text = self.color.get_luminosity(text_rgb)
+        contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
+        diff = contrast - target
+
+        log.debug(
+            f"{self.__class__.__name__} → "
+            f"{bg_rgb=}, {text_rgb=}, {L_bg=:.4f}, "
+            f"{L_text=:.4f}, {contrast=:.3f}, {target=:.2f}, "
+            f"{diff=:+.3f}",
+        )
+
+        bg_darken = self._solve_bg_darken(
+            bg_rgb=bg_rgb,
+            text_rgb=text_rgb,
+            L_bg=L_bg,
+            L_text=L_text,
+            target=target,
+        )
+        text_darken = self._solve_text_darken(
+            L_bg=L_bg,
+            L_text=L_text,
+            target=target,
+        )
 
         return DarkenSolution(bg=bg_darken, text=text_darken)
+
+    @staticmethod
+    def _frame_image(
+        image: Image.Image,
+        frame_w: int,
+        frame_h: int,
+    ) -> tuple[Image.Image, tuple[int, int]]:
+        """
+        Normalise image into a frame size using cover-scaling and centering.
+
+        :param image: Source image.
+        :param frame_w: Frame width in pixels.
+        :param frame_h: Frame height in pixels.
+        :return: Tuple of (framed image, (frame_w, frame_h)).
+        """
+        if frame_w <= 0 or frame_h <= 0:
+            return image, image.size
+
+        if image.size == (frame_w, frame_h):
+            return image, (frame_w, frame_h)
+
+        src_w, src_h = image.size
+        if src_w <= 0 or src_h <= 0:
+            return image, image.size
+
+        scale = max(frame_w / float(src_w), frame_h / float(src_h))
+        new_w = max(1, int(round(src_w * scale)))
+        new_h = max(1, int(round(src_h * scale)))
+
+        try:
+            resized = image.resize((new_w, new_h), Image.BOX)
+        except Exception:
+            return image, image.size
+
+        left = max(0, (new_w - frame_w) // 2)
+        top = max(0, (new_h - frame_h) // 2)
+        right = min(new_w, left + frame_w)
+        bottom = min(new_h, top + frame_h)
+
+        cropped = resized.crop((left, top, right, bottom))
+        return cropped, (frame_w, frame_h)
 
     @staticmethod
     def parse_overlay_rects(param: str) -> list[Rect]:
@@ -183,7 +341,7 @@ class ColorDarken:
         :param rects: Image-space rects to sample.
         :param grid: Grid resolution per rect for cell search.
         :param pass2: Downsample size for precise mean on winning cell.
-         :return: Mean RGB of brightest patch.
+        :return: Mean RGB of brightest patch.
         """
         if im.mode != "RGB":
             im = im.convert("RGB")
@@ -192,7 +350,7 @@ class ColorDarken:
         px = im.load()
 
         best_luma = -1.0
-        best_box = None
+        best_box: tuple[int, int, int, int] | None = None
 
         for rx, ry, rw, rh in rects:
             gx = max(1, min(grid, rw))
@@ -225,12 +383,46 @@ class ColorDarken:
         left, top, right, bottom = best_box
         patch = im.crop((left, top, right, bottom))
         tiny = patch.resize((pass2, pass2), Image.BOX)
+
+        # --- DEBUG: log and export the exact patch we used --------------------
+        log.debug(
+            f"{self.__class__.__name__} → brightest patch box={best_box}, "
+            f"frame_size={im.size}"
+        )
+        try:
+            debug_dir = os.path.join(
+                os.path.expanduser("~"),
+                "Library",
+                "Application Support",
+                "Kodi",
+                "userdata",
+                "addon_data",
+                "script.copacetic.helper",
+                "temp",
+            )
+            os.makedirs(debug_dir, exist_ok=True)
+            debug_path = os.path.join(
+                debug_dir, f"darken_patch_{int(time.time())}.png"
+            )
+            patch.save(debug_path)
+            log.debug(
+                f"{self.__class__.__name__} → debug patch saved to '{debug_path}'"
+            )
+        except Exception as exc:
+            log.debug(
+                f"{self.__class__.__name__} → debug patch save failed: {exc}"
+            )
+        # ----------------------------------------------------------------------
+
         return self.color.mean_rgb(tiny)
 
     def _solve_bg_darken(
         self,
+        *,
         bg_rgb: RGB,
         text_rgb: RGB,
+        L_bg: float,
+        L_text: float,
         target: float,
     ) -> int:
         """
@@ -238,6 +430,8 @@ class ColorDarken:
 
         :param bg_rgb: RGB underlay sample.
         :param text_rgb: Overlay/text RGB.
+        :param L_bg: Background luminance (precomputed).
+        :param L_text: Text luminance (precomputed).
         :param target: Target contrast ratio.
         :return: Background darken percentage.
         """
@@ -247,13 +441,8 @@ class ColorDarken:
         if cfg.red_relax_enable:
             h, _, _ = self.color.rgb_to_hls(text_rgb)
             d = min(abs(h - cfg.red_hue_center), 1.0 - abs(h - cfg.red_hue_center))
-            if d <= cfg.red_hue_window and (
-                self.color.get_luminosity(bg_rgb) <= cfg.red_bg_floor
-            ):
+            if d <= cfg.red_hue_window and L_bg <= cfg.red_bg_floor:
                 target = max(cfg.red_min_target, min(target, cfg.red_relax_cap))
-
-        L_text = self.color.get_luminosity(text_rgb)
-        L_bg = self.color.get_luminosity(bg_rgb)
 
         contrast = (max(L_text, L_bg) + 0.05) / (min(L_text, L_bg) + 0.05)
         if contrast >= target:
@@ -266,24 +455,22 @@ class ColorDarken:
         k = max(0.0, min(1.0, numerator / L_bg))
         pct = int(round((1.0 - k) * 100))
         return max(0, min(cfg.max_darken_cap, pct))
-
+    
     def _solve_text_darken(
         self,
-        bg_rgb: RGB,
-        text_rgb: RGB,
+        *,
+        L_bg: float,
+        L_text: float,
         target: float,
     ) -> int:
         """
         Solve darken percentage for overlay/text colour alone.
 
-        :param bg_rgb: RGB underlay sample.
-        :param text_rgb: Overlay/text RGB.
+        :param L_bg: Background luminance (precomputed).
+        :param L_text: Text luminance (precomputed).
         :param target: Target contrast ratio.
         :return: Text/overlay darken percentage.
         """
-        L_bg = self.color.get_luminosity(bg_rgb)
-        L_text = self.color.get_luminosity(text_rgb)
-
         def contrast_for(L_t: float) -> float:
             L1, L2 = (L_bg, L_t) if L_bg >= L_t else (L_t, L_bg)
             return (L1 + 0.05) / (L2 + 0.05)
