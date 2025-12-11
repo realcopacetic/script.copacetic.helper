@@ -34,7 +34,7 @@ class ImageEditor:
             "folder": CROPS,
             "extension": ".png",
             "analysis": True,
-            "darken": None,
+            "darken_handler": None,
         },
         "background": {
             "process": "blur",

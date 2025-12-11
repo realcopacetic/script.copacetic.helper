@@ -11,10 +11,6 @@ from resources.lib.shared import logger as log
 RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
 
-# Heuristic: if the rect is very “busy” (high luminance stddev), skip text darken.
-# This keeps text-dim decisions conservative on complex poster areas.
-TEXT_COMPLEXITY_STDDEV = 18.0
-
 
 @dataclass(frozen=True)
 class DarkenSolution:
@@ -186,7 +182,7 @@ class ColorDarken:
             # Complexity guard: skip very “busy” regions
             try:
                 stat = ImageStat.Stat(patch.convert("L"))
-                if stat.stddev and stat.stddev[0] >= TEXT_COMPLEXITY_STDDEV:
+                if stat.stddev and stat.stddev[0] >= cfg.text_complexity_stddev:
                     series.append(0)
                     continue
             except Exception:
@@ -296,7 +292,7 @@ class ColorDarken:
                     if w > 0 and h > 0:
                         frame_w, frame_h = w, h
                 except ValueError:
-                    frame_w, frame_h = cfg.fanart_target_size
+                    frame_w, frame_h = cfg.overlay_default_frame
 
         log.debug(
             f"{self.__class__.__name__} → frame override: raw='{overlay_frame}', "
@@ -490,10 +486,6 @@ class ColorDarken:
         patch = im.crop((left, top, right, bottom))
         tiny = patch.resize((pass2, pass2), Image.BOX)
         return self.color.mean_rgb(tiny)
-
-    # --------------------------------------------------------------------- #
-    # WCAG solvers
-    # --------------------------------------------------------------------- #
 
     def _solve_bg_darken(
         self,

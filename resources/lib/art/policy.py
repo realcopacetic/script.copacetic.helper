@@ -93,6 +93,7 @@ class ColorConfig:
     )  # (x, y, w, h) region
     target_contrast_ratio: float = 4.5  # WCAG target (4.5 normal, 3.0 large)
     overlay_default_frame: tuple[int, int] = (1920, 1080) # Fallback artwork size
+    text_complexity_stddev: float = 18.0
 
     # --- Red leniency / guard rails ---
     red_relax_enable: bool = True  # enable hue-aware leniency for reds on dark bg
