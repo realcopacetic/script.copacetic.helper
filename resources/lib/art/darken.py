@@ -3,13 +3,17 @@
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
-from PIL import Image
+from PIL import Image, ImageStat
 
 from resources.lib.shared.utilities import parse_bool, to_float
 from resources.lib.shared import logger as log
 
 RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
+
+# Heuristic: if the rect is very “busy” (high luminance stddev), skip text darken.
+# This keeps text-dim decisions conservative on complex poster areas.
+TEXT_COMPLEXITY_STDDEV = 18.0
 
 
 @dataclass(frozen=True)
@@ -20,7 +24,6 @@ class DarkenSolution:
     :param bg: Background darken percentage (0-100).
     :param text: Text/overlay darken percentage (0-100).
     """
-
     bg: int
     text: int
 
@@ -36,7 +39,6 @@ class DarkenOverlayOpts:
     :param frame: Frame size "w,h" as a raw string.
     :param target: Contrast target override as a raw string.
     """
-
     enabled: bool
     source: str | None
     rects: str | None
@@ -49,7 +51,7 @@ class DarkenOverlayOpts:
         Build overlay options from a parameter mapping and a name prefix.
 
         :param params: Mapping of plugin parameters.
-        :param prefix: Prefix such as "fanart" or "icon".
+        :param prefix: Prefix such as "background" or "icon".
         :return: Parsed DarkenOverlayOpts instance.
         """
         return cls(
@@ -65,8 +67,9 @@ class ColorDarken:
     """
     WCAG-based solver for darkening background and overlay text regions.
 
-    Computes a darken percentage for both the underlying image patch and
-    the overlay/text colour to meet a target contrast ratio.
+    Provides two main entry points:
+      - compute_solution_from_params: bg + text darken for a single overlay region.
+      - compute_text_series_from_params: per-rect text darken series for icons.
     """
 
     def __init__(self, color_analyzer: object) -> None:
@@ -89,37 +92,22 @@ class ColorDarken:
         """
         Compute a DarkenSolution from raw overlay params and an image.
 
-        :param image: Source image to sample.
-        :param overlay_source: Colour source override (hex already resolved).
-        :param overlay_rects: Rect string in frame coordinates.
-        :param overlay_frame: Raw frame string "w,h".
-        :param overlay_target: Raw target string or float.
-        :return: DarkenSolution or None on failure.
+        Used for the blurred background image: returns bg + text darken.
         """
+        try:
+            framed, scaled_rects, _ = self._prepare_frame_and_rects(
+                image=image,
+                overlay_rects=overlay_rects,
+                overlay_frame=overlay_frame,
+            )
+        except Exception as exc:
+            log.error(
+                f"{self.__class__.__name__} → compute_solution_from_params: "
+                f"prep failed: {exc}"
+            )
+            return None
+
         cfg = self.color.cfg
-
-        frame_w, frame_h = cfg.overlay_default_frame
-        if overlay_frame:
-            parts = [p.strip() for p in str(overlay_frame).split(",")]
-            if len(parts) == 2:
-                try:
-                    w = int(parts[0])
-                    h = int(parts[1])
-                    if w > 0 and h > 0:
-                        frame_w, frame_h = w, h
-                except ValueError:
-                    frame_w, frame_h = cfg.fanart_target_size
-        log.debug(
-            f"{self.__class__.__name__} → frame override: raw='{overlay_frame}', "
-            f"resolved=({frame_w},{frame_h})"
-        )
-
-        framed, frame_size = self._frame_image(image, frame_w, frame_h)
-        log.debug(
-            f"{self.__class__.__name__} → after framing: final_frame={frame_size}, "
-            f"image_size={framed.size}, "
-            f"rects='{overlay_rects}'"
-        )
 
         target = to_float(overlay_target)
         if target <= 0:
@@ -133,8 +121,7 @@ class ColorDarken:
         try:
             return self.compute_solution(
                 image=framed,
-                overlay_rects=overlay_rects or "",
-                ref_size=frame_size,
+                rects=scaled_rects,
                 text_rgb=text_rgb,
                 target_ratio=target,
             )
@@ -144,50 +131,114 @@ class ColorDarken:
             )
             return None
 
+    def compute_text_series_from_params(
+        self,
+        image: Image.Image,
+        *,
+        overlay_source: str | None,
+        overlay_rects: str | None,
+        overlay_frame: str | None,
+        overlay_target: float | str | None,
+    ) -> list[int] | None:
+        """
+        Compute per-rect text darken percentages for an overlay series.
+
+        Used for icon/poster overlays (e.g. title, tagline) where multiple labels
+        sit over different bands of the same image.
+
+        :return: List of percentages, one per rect, or None if no darken needed.
+        """
+        try:
+            framed, scaled_rects, _ = self._prepare_frame_and_rects(
+                image=image,
+                overlay_rects=overlay_rects,
+                overlay_frame=overlay_frame,
+            )
+        except Exception as exc:
+            log.error(
+                f"{self.__class__.__name__} → compute_text_series_from_params: "
+                f"prep failed: {exc}"
+            )
+            return None
+
+        if not scaled_rects:
+            return None
+
+        cfg = self.color.cfg
+
+        target = to_float(overlay_target)
+        if target <= 0:
+            target = cfg.target_contrast_ratio
+
+        src = (overlay_source or "").strip()
+        text_rgb = (
+            self.color.from_hex(src)
+            if src
+            else self.color.from_hex(cfg.text_overlay_colour)
+        )
+
+        series: list[int] = []
+
+        for rx, ry, rw, rh in scaled_rects:
+            # Extract patch for this rect
+            patch = framed.crop((rx, ry, rx + rw, ry + rh))
+
+            # Complexity guard: skip very “busy” regions
+            try:
+                stat = ImageStat.Stat(patch.convert("L"))
+                if stat.stddev and stat.stddev[0] >= TEXT_COMPLEXITY_STDDEV:
+                    series.append(0)
+                    continue
+            except Exception:
+                # Non-fatal; fall back to normal WCAG solve
+                pass
+
+            # Background sample for this rect: brightest patch within the rect
+            bg_rgb = self._brightest_patch_rgb_multi(
+                patch,
+                rects=[(0, 0, patch.width, patch.height)],
+                grid=cfg.avg_grid,
+                pass2=cfg.avg_downsample,
+            )
+
+            L_bg = self.color.get_luminosity(bg_rgb)
+            L_text = self.color.get_luminosity(text_rgb)
+
+            pct = self._solve_text_darken(
+                L_bg=L_bg,
+                L_text=L_text,
+                target=target,
+            )
+            series.append(pct)
+
+        # If *everything* is zero, treat as “no darken”
+        if not any(series):
+            return None
+
+        return series
+
     def compute_solution(
         self,
         image: Image.Image,
-        overlay_rects: str,
-        ref_size: tuple[int, int] | None = None,
+        rects: list[Rect],
         text_rgb: RGB | None = None,
         target_ratio: float | None = None,
     ) -> DarkenSolution:
         """
         Compute darken percentages for a background patch and overlay text.
-        Uses contrast = (L_text+0.05)/(L_bg+0.05) with sRGB linearization (Rec.709).
-        https://www.w3.org/TR/WCAG21/#contrast-minimum
 
-        :param image: Source image for sampling.
-        :param overlay_rects: Overlay rects in reference coordinates.
-        :param ref_size: Optional (width, height) reference frame for rects.
-        :param text_rgb: Optional text RGB override.
-        :param target_ratio: Optional WCAG contrast target override.
-        :return: DarkenSolution(bg, text).
+        Uses contrast = (L_text+0.05)/(L_bg+0.05) with sRGB linearization.
+        https://www.w3.org/TR/WCAG21/#contrast-minimum
         """
         cfg = self.color.cfg
 
-        rects = self.parse_overlay_rects(overlay_rects)
         if not rects:
             bx, by, bw, bh = cfg.text_overlay_rect
             rects = [(bx, by, bw, bh)]
 
-        if ref_size is None:
-            ref_w, ref_h = cfg.overlay_default_frame
-        else:
-            ref_w, ref_h = ref_size
-
-        scaled = self._scale_rects(
-            rects,
-            image.width,
-            image.height,
-            ref_w=ref_w,
-            ref_h=ref_h,
-        )
-
-        # NEW: pick the brightest rect by *mean* luminance, not single brightest cell.
         bg_rgb = self._brightest_patch_rgb_multi(
             image,
-            scaled,
+            rects,
             grid=cfg.avg_grid,
             pass2=cfg.avg_downsample,
         )
@@ -222,6 +273,59 @@ class ColorDarken:
         )
 
         return DarkenSolution(bg=bg_darken, text=text_darken)
+
+    def _prepare_frame_and_rects(
+        self,
+        image: Image.Image,
+        overlay_rects: str | None,
+        overlay_frame: str | None,
+    ) -> tuple[Image.Image, list[Rect], tuple[int, int]]:
+        """
+        Normalise the image into a frame and scale overlay rects into image coords.
+        """
+        cfg = self.color.cfg
+
+        # Resolve frame size
+        frame_w, frame_h = cfg.overlay_default_frame
+        if overlay_frame:
+            parts = [p.strip() for p in str(overlay_frame).split(",")]
+            if len(parts) == 2:
+                try:
+                    w = int(parts[0])
+                    h = int(parts[1])
+                    if w > 0 and h > 0:
+                        frame_w, frame_h = w, h
+                except ValueError:
+                    frame_w, frame_h = cfg.fanart_target_size
+
+        log.debug(
+            f"{self.__class__.__name__} → frame override: raw='{overlay_frame}', "
+            f"resolved=({frame_w},{frame_h})"
+        )
+
+        framed, frame_size = self._frame_image(image, frame_w, frame_h)
+
+        rects = self.parse_overlay_rects(overlay_rects or "")
+        if not rects:
+            bx, by, bw, bh = cfg.text_overlay_rect
+            rects = [(bx, by, bw, bh)]
+
+        ref_w, ref_h = frame_size
+
+        scaled = self._scale_rects(
+            rects,
+            framed.width,
+            framed.height,
+            ref_w=ref_w,
+            ref_h=ref_h,
+        )
+
+        log.debug(
+            f"{self.__class__.__name__} → after framing: final_frame={frame_size}, "
+            f"image_size={framed.size}, rects='{overlay_rects}'"
+        )
+
+        return framed, scaled, frame_size
 
     @staticmethod
     def _frame_image(
@@ -311,7 +415,7 @@ class ColorDarken:
         sx = img_w / float(ref_w or 1)
         sy = img_h / float(ref_h or 1)
 
-        out = []
+        out: list[Rect] = []
         for bx, by, bw, bh in rects:
             x = int(round(bx * sx))
             y = int(round(by * sy))
@@ -336,22 +440,14 @@ class ColorDarken:
         pass2: int,
     ) -> RGB:
         """
-        Return mean RGB of the *brightest rect* by average luminance.
-
-        For each rect:
-          - Sample a grid of cells.
-          - Take the center pixel of each cell.
-          - Average all sampled pixels to get a rect-mean RGB.
-          - Compute luminance of that mean.
-
-        The rect with highest mean luminance wins; we then compute a precise
-        mean RGB over that rect and return it.
+        Return mean RGB of the brightest grid cell across all rects.
+        Center-samples each cell for speed, then averages the winning cell precisely.
 
         :param im: Source image; converted to RGB if needed.
         :param rects: Image-space rects to sample.
-        :param grid: Grid resolution per rect for sampling.
-        :param pass2: Downsample size for precise mean on the winning rect.
-        :return: Mean RGB of the brightest rect region.
+        :param grid: Grid resolution per rect for cell search.
+        :param pass2: Downsample size for precise mean on winning cell.
+        :return: Mean RGB of brightest patch.
         """
         if im.mode != "RGB":
             im = im.convert("RGB")
@@ -360,19 +456,13 @@ class ColorDarken:
         px = im.load()
 
         best_luma = -1.0
-        best_rect: Rect | None = None
+        best_box: tuple[int, int, int, int] | None = None
 
         for rx, ry, rw, rh in rects:
-            if rw <= 0 or rh <= 0:
-                continue
-
             gx = max(1, min(grid, rw))
             gy = max(1, min(grid, rh))
             cell_w = rw / gx
             cell_h = rh / gy
-
-            sum_r = sum_g = sum_b = 0.0
-            samples = 0
 
             for iy in range(gy):
                 for ix in range(gx):
@@ -385,45 +475,25 @@ class ColorDarken:
                     cy = min(max(0, (top + bottom) // 2), H - 1)
 
                     r, g, b = px[cx, cy]
-                    sum_r += r
-                    sum_g += g
-                    sum_b += b
-                    samples += 1
+                    y = 0.2126 * r + 0.7152 * g + 0.0722 * b  # Fast luma
 
-            if not samples:
-                continue
+                    if y > best_luma:
+                        best_luma = y
+                        best_box = (left, top, right, bottom)
 
-            mr = sum_r / samples
-            mg = sum_g / samples
-            mb = sum_b / samples
-            y = 0.2126 * mr + 0.7152 * mg + 0.0722 * mb  # mean rect luma
-
-            if y > best_luma:
-                best_luma = y
-                best_rect = (rx, ry, rw, rh)
-
-        if best_rect is None:
-            # Fallback: whole-image mean (unlikely / rects empty)
+        if best_box is None:
+            # Fallback: whole-image bright patch mean (unlikely)
             tiny = im.resize((pass2, pass2), Image.BOX)
-            r = g = b = 0
-            n = pass2 * pass2
-            for pr, pg, pb in tiny.getdata():
-                r += pr
-                g += pg
-                b += pb
-            return (r // n, g // n, b // n)
+            return self.color.mean_rgb(tiny)
 
-        rx, ry, rw, rh = best_rect
-        patch = im.crop((rx, ry, rx + rw, ry + rh))
+        left, top, right, bottom = best_box
+        patch = im.crop((left, top, right, bottom))
         tiny = patch.resize((pass2, pass2), Image.BOX)
+        return self.color.mean_rgb(tiny)
 
-        r = g = b = 0
-        n = pass2 * pass2
-        for pr, pg, pb in tiny.getdata():
-            r += pr
-            g += pg
-            b += pb
-        return (r // n, g // n, b // n)
+    # --------------------------------------------------------------------- #
+    # WCAG solvers
+    # --------------------------------------------------------------------- #
 
     def _solve_bg_darken(
         self,
@@ -485,6 +555,7 @@ class ColorDarken:
             L1, L2 = (L_bg, L_t) if L_bg >= L_t else (L_t, L_bg)
             return (L1 + 0.05) / (L2 + 0.05)
 
+        # Already sufficient contrast
         if contrast_for(L_text) >= target:
             return 0
 

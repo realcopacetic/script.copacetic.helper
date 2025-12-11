@@ -6,6 +6,7 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager
+from resources.lib.art.darken import DarkenOverlayOpts, DarkenSolution
 from resources.lib.art.policy import (
     ART_SOURCE_KEYS,
     ArtMeta,
@@ -13,17 +14,10 @@ from resources.lib.art.policy import (
     resolve_art_type,
 )
 from resources.lib.art.processor import ImageProcessor
-from resources.lib.art.darken import DarkenSolution
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import ArtworkCacheHandler
-from resources.lib.shared.utilities import (
-    BLURS,
-    CROPS,
-    infolabel,
-    to_float,
-    validate_path,
-)
+from resources.lib.shared.utilities import BLURS, CROPS, infolabel, validate_path
 
 RGB = tuple[int, int, int]
 
@@ -34,10 +28,28 @@ class ImageEditor:
     Handles cropping, blurring, caching, and exposure of color metadata to Kodi.
     """
 
-    PROCESS_CONFIG = {
-        "blur": {"folder": BLURS, "extension": ".jpg"},
-        "crop": {"folder": CROPS, "extension": ".png"},
-        "analyze": {"folder": None, "extension": ".jpg"},
+    FLOW_CONFIG: dict[str, dict[str, Any]] = {
+        "clearlogo": {
+            "process": "crop",
+            "folder": CROPS,
+            "extension": ".png",
+            "analysis": True,
+            "darken": None,
+        },
+        "background": {
+            "process": "blur",
+            "folder": BLURS,
+            "extension": ".jpg",
+            "analysis": True,
+            "darken_handler": "_apply_darken_background",
+        },
+        "icon": {
+            "process": "analyze",
+            "folder": None,
+            "extension": ".jpg",
+            "analysis": True,
+            "darken_handler": "_apply_darken_text_series",
+        },
     }
 
     # --- Public methods ---
@@ -72,7 +84,6 @@ class ImageEditor:
             attributes = [
                 self._handle_image(
                     art_type=job.get("art_type", ""),
-                    process=job.get("process", ""),
                     source=source,
                     url=(job.get("url") or "") or None,
                     **proc_kwargs,
@@ -122,7 +133,6 @@ class ImageEditor:
     def _handle_image(
         self,
         art_type: str,
-        process: str,
         source: str = "Container.ListItem",
         url: str | None = None,
         **proc_kwargs: Any,
@@ -131,12 +141,12 @@ class ImageEditor:
         Resolve source URL, process the image, and return metadata.
 
         :param art_type: Artwork key (e.g. "clearlogo", "fanart").
-        :param process: Processor name ("crop", "blur" or "analyze").
         :param source: Optional Kodi infolabel source prefix for Art() lookups.
         :param url: Optional explicit URL to process for this art_type.
         :param proc_kwargs: Extra keyword arguments forwarded to processor methods.
         :return: Metadata dict including processed path and colors, or None.
         """
+        flow_cfg = self.FLOW_CONFIG.get(art_type, {})
         art = (
             {art_type: url}
             if url
@@ -157,12 +167,11 @@ class ImageEditor:
             )
             return None
 
-        config = self.PROCESS_CONFIG.get(process, {})
-        extension = config.get("extension")
+        extension = flow_cfg.get("extension")
         if extension:
             self.cache_manager.prepare_cache(original_url, extension)
 
-        attributes = self._run_processor(process, art, **proc_kwargs)
+        attributes = self._run_processor(art_type=art_type, art=art, **proc_kwargs)
         if not attributes:
             return None
 
@@ -180,16 +189,7 @@ class ImageEditor:
         overlay_map = proc_kwargs.get("overlay_params") or {}
         opts = overlay_map.get(art_type)
         if opts and opts.enabled:
-            solution = self._darken_core(
-                lambda: self._get_runtime_image(attrs=attributes),
-                overlay_source=opts.source,
-                overlay_rects=opts.rects,
-                overlay_frame=opts.frame,
-                overlay_target=opts.target,
-            )
-            if solution:
-                attributes["darken"] = solution.bg
-                attributes["text_darken"] = solution.text
+            self._apply_overlay_darken(art_type, attributes, opts)
 
         return attributes
 
@@ -214,19 +214,20 @@ class ImageEditor:
 
     def _run_processor(
         self,
-        process: str,
+        art_type: str,
         art: dict[str, str],
         **proc_kwargs: Any,
     ) -> dict[str, Any] | None:
         """
         Execute a processor for a single image and optionally write the file.
 
-        :param process: Processor name ("crop", "blur" or "analyze").
         :param art: Mapping of {resolved_key: url} for the selected artwork.
         :param proc_kwargs: Extra keyword arguments forwarded to processor methods.
         :return: Dict with file paths and color metadata, or None on failure.
         """
-        process_method = getattr(self.processor, process, None)
+        flow_cfg = self.FLOW_CONFIG.get(art_type, {})
+        proc_name = flow_cfg.get("process", "")
+        process_method = getattr(self.processor, proc_name, None)
         if not process_method:
             return None
 
@@ -234,8 +235,7 @@ class ImageEditor:
         if not url:
             return None
 
-        config = self.PROCESS_CONFIG.get(process, {})
-        folder = config.get("folder")
+        folder = flow_cfg.get("folder")
         if folder:
             source_path, destination_path = self.cache_manager.get_image_paths(folder)
             if not source_path:
@@ -327,6 +327,45 @@ class ImageEditor:
                 f"{self.__class__.__name__}: Unable to open image {url} → {error}",
             )
             return None
+
+    def _apply_overlay_darken(
+        self,
+        art_type: str,
+        attributes: dict[str, Any],
+        opts: DarkenOverlayOpts,
+    ) -> None:
+        """
+        Dispatch overlay-based darken logic using the flow_config handler.
+
+        The handler name is stored in FLOW_CONFIG[art_type]["darken_handler"] and
+        is expected to be a method on this class taking:
+            (attributes, img, opts, resolved_source)
+        """
+        flow_cfg = self.FLOW_CONFIG.get(art_type, {})
+        handler_name = flow_cfg.get("darken_handler")
+        if not handler_name:
+            return
+
+        img = self._get_runtime_image(attrs=attributes)
+        if img is None:
+            return
+
+        # Resolve "clearlogo" indirection once
+        resolved_source = opts.source
+        src = (opts.source or "").strip().lower()
+        if src == "clearlogo":
+            hexc = self._session.get("clearlogo_color")
+            resolved_source = hexc or None
+
+        handler = getattr(self, handler_name, None)
+        if not handler:
+            log.debug(
+                f"{self.__class__.__name__} → _apply_overlay_darken: "
+                f"no handler '{handler_name}' for art_type='{art_type}'"
+            )
+            return
+
+        handler(attributes, img, opts, resolved_source)
 
     def _darken_core(
         self,

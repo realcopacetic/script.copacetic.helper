@@ -40,7 +40,6 @@ from resources.lib.shared.utilities import (
     json_call,
     set_plugincontent,
     parse_bool,
-    to_float,
     to_int,
 )
 
