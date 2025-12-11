@@ -283,16 +283,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             current_position = to_int(self.expected, 0)
             clearlogo_url = self.params.get("clearlogo_crop") or None
-            fanart_url = self.params.get("fanart_blur") or None
+            background_url = self.params.get("background_blur") or None
             icon_url = self.params.get("icon") or None
             overlay_params = {
                 art_type: DarkenOverlayOpts.from_params(self.params, art_type)
-                for art_type in ("fanart", "icon")
+                for art_type in ("background", "icon")
             }
 
             config = [
                 ("crop", "clearlogo", clearlogo_url),
-                ("blur", "fanart", fanart_url),
+                ("blur", "background", background_url),
                 ("analyze", "icon", icon_url),
             ]
             jobs = [
