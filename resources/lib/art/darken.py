@@ -20,6 +20,7 @@ class DarkenSolution:
     :param bg: Background darken percentage (0-100).
     :param text: Text/overlay darken percentage (0-100).
     """
+
     bg: int
     text: int
 
@@ -35,6 +36,7 @@ class DarkenOverlayOpts:
     :param frame: Frame size "w,h" as a raw string.
     :param target: Contrast target override as a raw string.
     """
+
     enabled: bool
     source: str | None
     rects: str | None
@@ -108,13 +110,13 @@ class ColorDarken:
                 except ValueError:
                     frame_w, frame_h = cfg.fanart_target_size
         log.debug(
-            f"ColorDarken → frame override: raw='{overlay_frame}', "
+            f"{self.__class__.__name__} → frame override: raw='{overlay_frame}', "
             f"resolved=({frame_w},{frame_h})"
         )
 
         framed, frame_size = self._frame_image(image, frame_w, frame_h)
         log.debug(
-            f"ColorDarken → after framing: final_frame={frame_size}, "
+            f"{self.__class__.__name__} → after framing: final_frame={frame_size}, "
             f"image_size={framed.size}, "
             f"rects='{overlay_rects}'"
         )
@@ -136,7 +138,7 @@ class ColorDarken:
                 text_rgb=text_rgb,
                 target_ratio=target,
             )
-        except Exception:
+        except Exception as exc:
             log.error(
                 f"{self.__class__.__name__} → compute_solution_from_params failed: {exc}"
             )
@@ -182,6 +184,7 @@ class ColorDarken:
             ref_h=ref_h,
         )
 
+        # NEW: pick the brightest rect by *mean* luminance, not single brightest cell.
         bg_rgb = self._brightest_patch_rgb_multi(
             image,
             scaled,
@@ -333,14 +336,22 @@ class ColorDarken:
         pass2: int,
     ) -> RGB:
         """
-        Return mean RGB of the brightest grid cell across all rects.
-        Center-samples each cell for speed, then averages the winning cell precisely.
+        Return mean RGB of the *brightest rect* by average luminance.
+
+        For each rect:
+          - Sample a grid of cells.
+          - Take the center pixel of each cell.
+          - Average all sampled pixels to get a rect-mean RGB.
+          - Compute luminance of that mean.
+
+        The rect with highest mean luminance wins; we then compute a precise
+        mean RGB over that rect and return it.
 
         :param im: Source image; converted to RGB if needed.
         :param rects: Image-space rects to sample.
-        :param grid: Grid resolution per rect for cell search.
-        :param pass2: Downsample size for precise mean on winning cell.
-        :return: Mean RGB of brightest patch.
+        :param grid: Grid resolution per rect for sampling.
+        :param pass2: Downsample size for precise mean on the winning rect.
+        :return: Mean RGB of the brightest rect region.
         """
         if im.mode != "RGB":
             im = im.convert("RGB")
@@ -349,13 +360,19 @@ class ColorDarken:
         px = im.load()
 
         best_luma = -1.0
-        best_box: tuple[int, int, int, int] | None = None
+        best_rect: Rect | None = None
 
         for rx, ry, rw, rh in rects:
+            if rw <= 0 or rh <= 0:
+                continue
+
             gx = max(1, min(grid, rw))
             gy = max(1, min(grid, rh))
             cell_w = rw / gx
             cell_h = rh / gy
+
+            sum_r = sum_g = sum_b = 0.0
+            samples = 0
 
             for iy in range(gy):
                 for ix in range(gx):
@@ -368,21 +385,45 @@ class ColorDarken:
                     cy = min(max(0, (top + bottom) // 2), H - 1)
 
                     r, g, b = px[cx, cy]
-                    y = 0.2126 * r + 0.7152 * g + 0.0722 * b  # Fast luma
+                    sum_r += r
+                    sum_g += g
+                    sum_b += b
+                    samples += 1
 
-                    if y > best_luma:
-                        best_luma = y
-                        best_box = (left, top, right, bottom)
+            if not samples:
+                continue
 
-        if best_box is None:
-            # Fallback: whole-image bright patch mean (unlikely)
+            mr = sum_r / samples
+            mg = sum_g / samples
+            mb = sum_b / samples
+            y = 0.2126 * mr + 0.7152 * mg + 0.0722 * mb  # mean rect luma
+
+            if y > best_luma:
+                best_luma = y
+                best_rect = (rx, ry, rw, rh)
+
+        if best_rect is None:
+            # Fallback: whole-image mean (unlikely / rects empty)
             tiny = im.resize((pass2, pass2), Image.BOX)
-            return self.color.mean_rgb(tiny)
+            r = g = b = 0
+            n = pass2 * pass2
+            for pr, pg, pb in tiny.getdata():
+                r += pr
+                g += pg
+                b += pb
+            return (r // n, g // n, b // n)
 
-        left, top, right, bottom = best_box
-        patch = im.crop((left, top, right, bottom))
+        rx, ry, rw, rh = best_rect
+        patch = im.crop((rx, ry, rx + rw, ry + rh))
         tiny = patch.resize((pass2, pass2), Image.BOX)
-        return self.color.mean_rgb(tiny)
+
+        r = g = b = 0
+        n = pass2 * pass2
+        for pr, pg, pb in tiny.getdata():
+            r += pr
+            g += pg
+            b += pb
+        return (r // n, g // n, b // n)
 
     def _solve_bg_darken(
         self,
@@ -439,6 +480,7 @@ class ColorDarken:
         :param target: Target contrast ratio.
         :return: Text/overlay darken percentage.
         """
+
         def contrast_for(L_t: float) -> float:
             L1, L2 = (L_bg, L_t) if L_bg >= L_t else (L_t, L_bg)
             return (L1 + 0.05) / (L2 + 0.05)
