@@ -92,8 +92,15 @@ class ColorConfig:
         360,
     )  # (x, y, w, h) region
     target_contrast_ratio: float = 4.5  # WCAG target (4.5 normal, 3.0 large)
-    overlay_default_frame: tuple[int, int] = (1920, 1080) # Fallback artwork size
-    text_complexity_stddev: float = 35.0
+    overlay_default_frame: tuple[int, int] = (1920, 1080)  # Fallback artwork size
+    text_complexity_stddev: float = 20.0
+    text_complexity_probe_size: int = 64  # downsample size for complexity probe
+    text_complexity_dark_luma: int = 30  # 0-255: "dark" cutoff
+    text_complexity_bright_luma: int = 225  # 0-255: "bright" cutoff
+    text_complexity_bimodal_min: float = (
+        0.25  # if min(dark_frac, bright_frac) >= this => "busy"
+    )
+    text_complexity_entropy: float = 4.2  # higher = more lenient, lower = more strict
 
     # --- Red leniency / guard rails ---
     red_relax_enable: bool = True  # enable hue-aware leniency for reds on dark bg

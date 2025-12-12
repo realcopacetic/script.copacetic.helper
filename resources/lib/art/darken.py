@@ -138,15 +138,16 @@ class ColorDarken:
             patch = framed.crop((x, y, x + w, y + h))
             key = "element_darken" if idx == 0 else f"element_darken{idx}"
             if not self._is_simple_patch(patch):
-                updates[key] = -1
-                continue
+                pct = -1
 
-            bg_rgb = self._brightest_patch_rgb(patch)
-            L_bg = self.color.get_luminosity(bg_rgb)
-            pct = self._solve_text_darken(L_bg=L_bg, L_text=L_text, target=target)
+            else:
+                bg_rgb = self._brightest_patch_rgb(patch)
+                L_bg = self.color.get_luminosity(bg_rgb)
+                pct = self._solve_text_darken(L_bg=L_bg, L_text=L_text, target=target)
+                if pct > 0 and (best is None or pct > best[0]):
+                    best = (pct, idx, key, rect, bg_rgb, L_bg)
+
             updates[key] = pct
-            if pct > 0 and (best is None or pct > best[0]):
-                best = (pct, idx, key, rect, bg_rgb, L_bg)
 
         if best:
             pct, idx, key, rect, bg_rgb, L_bg = best
@@ -402,21 +403,72 @@ class ColorDarken:
         tiny = region.resize((cfg.avg_downsample, cfg.avg_downsample), Image.BOX)
         return self.color.mean_rgb(tiny)
 
+    # def _is_simple_patch(self, patch: Image.Image) -> bool:
+    #     """
+    #     Return True if a patch is simple enough for text darken evaluation.
+    #     Uses a grayscale stddev threshold from config.
+
+    #     :param patch: Patch image already cropped to a single overlay rect.
+    #     :return: True if patch is not visually complex, else False.
+    #     """
+    #     cfg = self.color.cfg
+    #     try:
+    #         stat = ImageStat.Stat(patch.convert("L"))
+    #         std = float(stat.stddev[0]) if stat.stddev else 0.0
+    #         return std < cfg.text_complexity_stddev
+    #     except Exception:
+    #         return True
+
     def _is_simple_patch(self, patch: Image.Image) -> bool:
         """
         Return True if a patch is simple enough for text darken evaluation.
-        Uses a grayscale stddev threshold from config.
 
-        :param patch: Patch image already cropped to a single overlay rect.
-        :return: True if patch is not visually complex, else False.
+        Heuristic:
+        1) Low grayscale stddev => simple.
+        2) Otherwise:
+        - If truly bimodal (meaningful dark + bright presence) => busy.
+        - Else if histogram entropy is high => busy (captures mid-tone texture).
+        - Else => simple.
         """
         cfg = self.color.cfg
         try:
-            stat = ImageStat.Stat(patch.convert("L"))
-            std = float(stat.stddev[0]) if stat.stddev else 0.0
-            return std < cfg.text_complexity_stddev
+            s = cfg.text_complexity_probe_size
+            g = patch.convert("L").resize((s, s), Image.BOX)
+
+            stat = ImageStat.Stat(g)
+            std = stat.stddev[0] if stat.stddev else 0.0
+            if std < cfg.text_complexity_stddev:
+                return True
+
+            hist = g.histogram()
+            total = s * s
+
+            dark = sum(hist[: cfg.text_complexity_dark_luma + 1])
+            bright = sum(hist[cfg.text_complexity_bright_luma :])
+
+            dark_frac = dark / total
+            bright_frac = bright / total
+
+            # Busy if *both* extremes are meaningfully present
+            if min(dark_frac, bright_frac) >= cfg.text_complexity_bimodal_min:
+                return False
+
+            # Otherwise, detect mid-tone texture via entropy
+            # entropy in [0..~8] for 256-bin grayscale
+            import math
+
+            ent = 0.0
+            for c in hist:
+                if c:
+                    p = c / total
+                    ent -= p * math.log2(p)
+
+            return ent < cfg.text_complexity_entropy
+
         except Exception:
+            # Fail open — never block rendering due to analysis failure
             return True
+
 
     def _solve_bg_darken(
         self,
