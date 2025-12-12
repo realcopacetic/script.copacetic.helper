@@ -16,7 +16,7 @@ ART_VALUE_FIELDS: tuple[str, ...] = (
 )
 ART_RUNTIME_FIELDS: tuple[str, ...] = (
     "darken",
-    "text_darken",
+    "element_darken",
 )
 
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
@@ -93,7 +93,7 @@ class ColorConfig:
     )  # (x, y, w, h) region
     target_contrast_ratio: float = 4.5  # WCAG target (4.5 normal, 3.0 large)
     overlay_default_frame: tuple[int, int] = (1920, 1080) # Fallback artwork size
-    text_complexity_stddev: float = 18.0
+    text_complexity_stddev: float = 35.0
 
     # --- Red leniency / guard rails ---
     red_relax_enable: bool = True  # enable hue-aware leniency for reds on dark bg
@@ -205,10 +205,20 @@ def flatten_art_attributes(
         cat = d.get("category")
         if not cat:
             continue
+
+        # existing explicit exports
         for key in ART_LISTITEM_EXPORT_KEYS:
             val = d.get(key)
             if val is None:
                 continue
             name = cat if key == "processed_path" else f"{cat}_{key}"
             out[name] = val
+
+        # export element_darken series keys (element_darken1, element_darken2, ...)
+        for key, val in d.items():
+            if val is None:
+                continue
+            if key.startswith("element_darken") and key not in ART_LISTITEM_EXPORT_KEYS:
+                out[f"{cat}_{key}"] = val
+
     return out

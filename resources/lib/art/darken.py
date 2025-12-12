@@ -110,7 +110,7 @@ class ColorDarken:
                 f"diff={diff:+.3f}, darken={pct}",
             )
 
-        return {"background_darken": pct} if pct > 0 else None
+        return {"darken": pct}
 
     def compute_element_darken_series(
         self,
@@ -132,22 +132,21 @@ class ColorDarken:
 
         framed, rects, target, text_rgb, L_text = ctx
         updates: DarkenUpdates = {}
-        any_nonzero = False
         best = None
         for idx, rect in enumerate(rects):
             x, y, w, h = rect
             patch = framed.crop((x, y, x + w, y + h))
             key = "element_darken" if idx == 0 else f"element_darken{idx}"
-            pct = 0
-            if self._is_simple_patch(patch):
-                bg_rgb = self._brightest_patch_rgb(patch)
-                L_bg = self.color.get_luminosity(bg_rgb)
-                pct = self._solve_text_darken(L_bg=L_bg, L_text=L_text, target=target)
-                if pct > 0 and (best is None or pct > best[0]):
-                    best = (pct, idx, key, rect, bg_rgb, L_bg)
+            if not self._is_simple_patch(patch):
+                updates[key] = -1
+                continue
 
+            bg_rgb = self._brightest_patch_rgb(patch)
+            L_bg = self.color.get_luminosity(bg_rgb)
+            pct = self._solve_text_darken(L_bg=L_bg, L_text=L_text, target=target)
             updates[key] = pct
-            any_nonzero |= pct > 0
+            if pct > 0 and (best is None or pct > best[0]):
+                best = (pct, idx, key, rect, bg_rgb, L_bg)
 
         if best:
             pct, idx, key, rect, bg_rgb, L_bg = best
@@ -161,7 +160,7 @@ class ColorDarken:
                 f"diff={diff:+.3f}, darken={pct}",
             )
 
-        return updates if any_nonzero else None
+        return updates
 
     # --- Internal helpers ---
     def _prepare_darken_context(
