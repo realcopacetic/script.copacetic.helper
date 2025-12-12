@@ -56,8 +56,8 @@ class ArtworkCacheManager:
         :return CacheContext dataclass.
         """
         decoded_url = url_decode_path(url)
-        cached_thumb = self.get_cached_thumb(self.decoded_url, suffix)
-        cached_image_path = Path(THUMB_DB) / self.cached_thumb[0] / self.cached_thumb
+        cached_thumb = self.get_cached_thumb(decoded_url, suffix)
+        cached_image_path = Path(THUMB_DB) / cached_thumb[0] / cached_thumb
         cached_file_hash = (
             self.hash_manager.compute_hash(cached_image_path)
             if validate_path(cached_image_path)
@@ -81,7 +81,7 @@ class ArtworkCacheManager:
         :param suffix: Desired file extension (e.g., ".jpg", ".png").
         :return: Cache-friendly filename string (no directories).
         """
-        return xbmc.getCacheThumbName(url).replace(".tbn", f"{suffix}")
+        return xbmc.getCacheThumbName(url).replace(".tbn", suffix)
 
     def get_image_paths(self, folder: str, ctx: CacheContext) -> tuple[str | None, str]:
         """

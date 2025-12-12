@@ -94,6 +94,7 @@ class _FocusGuard:
 
         if (
             self.expected_identity is not None
+            and self.expected_identity.isdigit()
             and self.expected_identity != self.identity_getter()
         ):
             log.debug(
@@ -147,7 +148,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.dbtype = params.get("type", "").lower()
         self.dbid = params.get("id", "")
         self.target = to_int(params.get("target"), None)
-        self.expected = params.get("focus_guard")
+        self.expected_identity = params.get("focus_guard")
         self.container = (
             f"Container({self.target})" if self.target is not None else "Container"
         )
@@ -193,7 +194,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             caller_name=caller,
             target=self.target,
             container=self.container,
-            expected_identity=self.expected,
+            expected_identity=self.expected_identity,
         )
 
     def _get_tmdb_item(
@@ -215,7 +216,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
                 f"({ctx.get('tmdb_id')!r})"
             )
-            return None
+            return
 
         item = tmdb_to_canonical(
             kind=(ctx.get("kind") or self.dbtype).lower(),
@@ -229,7 +230,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 f"{self.__class__.__name__} → tmdb: no data for "
                 f"type={(ctx.get('kind') or self.dbtype)!r}, tmdb_id={tmdb_id}"
             )
-            return None
+            return
 
         return item
 
@@ -274,13 +275,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Process/calculate artwork and attach to listitem; aborts if focus changes.
 
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
+        :return: List of directory items for Kodi, or None if aborted/failed.
         """
         with self.focus() as guard:
             if not guard.alive():
                 return
 
-            current_position = to_int(self.expected, 0)
+            current_position = to_int(self.expected_identity, 0)
             clearlogo_url = self.params.get("clearlogo_crop") or None
             background_url = self.params.get("background_blur") or None
             icon_url = self.params.get("icon") or None
@@ -355,41 +356,28 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         On-demand darken for a single fanart path. Acts as a lightweight
         alternative entry point for darkening without invoking artwork handler.
+        
+        :return: List of directory items for Kodi, or None if aborted/failed.
         """
         with self.focus() as guard:
             if not guard.alive():
                 return
 
-            overlay_enabled = parse_bool(self.params.get("overlay_enabled", "false"))
-            if not overlay_enabled:
-                return
-
-            url = self.params.get("fanart") or ""
+            url = self.params.get("icon") or ""
             if not url:
                 return
 
-            solution = ImageEditor(ArtworkCacheHandler()).compute_darken_runtime(
+            opts = DarkenOverlayOpts.from_params(self.params, "icon")
+            updates = ImageEditor(ArtworkCacheHandler()).compute_darken(
                 url=url,
-                overlay_enabled=overlay_enabled,
-                overlay_source=self.params.get("overlay_source"),
-                overlay_rects=self.params.get("overlay_rects"),
-                overlay_frame=self.params.get("overlay_frame"),
-                overlay_target=self.params.get("overlay_target"),
+                handler_name="compute_element_darken_series",
+                opts=opts,
             )
-            if not guard.alive() or solution is None:
+            if not guard.alive() or not updates:
                 return
 
-            return set_items(
-                [
-                    {
-                        "file": "darken",
-                        "properties": {
-                            "fanart_darken": str(solution.bg),
-                            "fanart_text_darken": str(solution.text),
-                        },
-                    }
-                ]
-            )
+            props = {k: str(v) for k, v in updates.items()}
+            return set_items([{"file": "darken", "properties": props}])
 
     @log.duration
     def jumpbutton(self) -> None:
@@ -410,7 +398,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Fetch/attach cleaned metadata to a helper list item; aborts if focus changes.
 
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
+        :return: List of directory items for Kodi, or None if aborted/failed.
         """
         with self.focus() as guard:
             if not guard.alive():
@@ -454,7 +442,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Compute resume/unwatched values and expose a helper item for the list.
         If focus changes after item creation, return it but skip UI update.
 
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
+        :return: List of directory items for Kodi, or None if aborted/failed.
         """
         with self.focus() as guard:
             if not guard.alive():
@@ -544,7 +532,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Build a container of in-progress movies and episodes.
 
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
+        :return: List of directory items for Kodi, or None if aborted/failed.
         """
         set_plugincontent(
             content="videos",
@@ -587,7 +575,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Build a container of "next up" TV episodes.
 
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples, or None if aborted.
+        :return: List of directory items for Kodi, or None if aborted/failed.
         """
         set_plugincontent(
             content="episodes",
@@ -655,7 +643,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             results_meta.append((effective_lastplayed, (file_path, li, is_folder)))
 
         if not results_meta:
-            return None
+            return
 
         results_meta.sort(key=lambda r: r[0] or "", reverse=True)
         results = [entry[1] for entry in results_meta]
