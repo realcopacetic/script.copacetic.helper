@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -18,11 +19,20 @@ from resources.lib.shared.utilities import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class CacheContext:
+    """Resolved, immutable cache context for a single artwork URL."""
+
+    original_url: str
+    decoded_url: str
+    suffix: str
+    cached_thumb: str
+    cached_image_path: Path
+    cached_file_hash: str
+
+
 class ArtworkCacheManager:
-    """
-    Handles file path resolution, thumbnail naming, and lookup caching
-    for processed artwork files using file hash verification and SQLite.
-    """
+    """Resolve texture-cache and processing paths for a given artwork URL."""
 
     def __init__(
         self, sqlite_handler: ArtworkCacheHandler, hash_manager: HashManager
@@ -37,31 +47,33 @@ class ArtworkCacheManager:
         self.hash_manager = hash_manager
         self.temp_folder = TEMPS
 
-        # Cached state after prepare_cache() is called
-        self.decoded_url = None
-        self.cached_thumb = None
-        self.cached_image_path = None
-        self.cached_file_hash = None
-
-    def prepare_cache(self, url: str, suffix: str) -> None:
+    def prepare(self, url: str, suffix: str) -> CacheContext:
         """
         Decode URL, compute cache filename, locate cached image, and file hash.
 
         :param url: Original artwork URL.
         :param suffix: File extension (e.g., ".jpg", ".png").
+        :return CacheContext dataclass.
         """
-        self.decoded_url = url_decode_path(url)
-        self.cached_thumb = self.get_cached_thumb(self.decoded_url, suffix)
-        self.cached_image_path = (
-            Path(THUMB_DB) / self.cached_thumb[0] / self.cached_thumb
+        decoded_url = url_decode_path(url)
+        cached_thumb = self.get_cached_thumb(self.decoded_url, suffix)
+        cached_image_path = Path(THUMB_DB) / self.cached_thumb[0] / self.cached_thumb
+        cached_file_hash = (
+            self.hash_manager.compute_hash(cached_image_path)
+            if validate_path(cached_image_path)
+            else ""
         )
-        self.cached_file_hash = ""
-        if validate_path(self.cached_image_path):
-            self.cached_file_hash = self.hash_manager.compute_hash(
-                self.cached_image_path
-            )
+        return CacheContext(
+            original_url=url,
+            decoded_url = decoded_url,
+            suffix=suffix,
+            cached_thumb=cached_thumb,
+            cached_image_path=cached_image_path,
+            cached_file_hash=cached_file_hash,
+        )
 
-    def get_cached_thumb(self, url: str, suffix: str) -> str:
+    @staticmethod
+    def get_cached_thumb(url: str, suffix: str) -> str:
         """
         Build a cache-safe filename for the given URL and target suffix.
 
@@ -71,16 +83,15 @@ class ArtworkCacheManager:
         """
         return xbmc.getCacheThumbName(url).replace(".tbn", f"{suffix}")
 
-    def get_image_paths(self, folder: str) -> tuple[str | None, str]:
+    def get_image_paths(self, folder: str, ctx: CacheContext) -> tuple[str | None, str]:
         """
         Resolve source and destination paths for processing; copy to temp if needed.
 
         :param folder: Destination folder for processed images.
         :return: (source_path or None, destination_path).
         """
-        source_path = str(self.cached_image_path)
-        destination_path = str(Path(folder) / self.cached_thumb)
-
+        source_path = str(ctx.cached_image_path)
+        destination_path = str(Path(folder) / ctx.cached_thumb)
         if validate_path(source_path):
             log.debug(
                 f"{self.__class__.__name__} → get_image_paths: "
@@ -88,20 +99,21 @@ class ArtworkCacheManager:
             )
             return source_path, destination_path
 
-        temp_path = str(Path(self.temp_folder) / self.cached_thumb)
-        if not validate_path(temp_path) and xbmcvfs.copy(self.decoded_url, temp_path):
+        temp_path = str(Path(self.temp_folder) / ctx.cached_thumb)
+        if not validate_path(temp_path) and xbmcvfs.copy(ctx.decoded_url, temp_path):
             log.debug(f"{self.__class__.__name__} → Temp file created → {temp_path}")
             return temp_path, destination_path
+        
         return None, destination_path
 
-    def read_lookup(self, url: str) -> dict[str, Any] | None:
+    def read_lookup(self, ctx: CacheContext) -> dict[str, Any] | None:
         """
         Read cached metadata for URL and validate against current file hash.
 
         :param url: Original image URL (lookup key).
         :return: Cached metadata dict if valid, else None.
         """
-        if not (entry := self.sqlite.get_entry(url)):
+        if not (entry := self.sqlite.get_entry(ctx.original_url)):
             return None
 
         processed = validate_path(entry.get(ART_FIELD_PROCESSED))
@@ -109,18 +121,18 @@ class ArtworkCacheManager:
             return None
 
         # If no hash computed yet (first-touch), trust the processed file
-        if not self.cached_file_hash:
+        if not ctx.cached_file_hash:
             return entry
 
         db_hash = entry.get(ART_FIELD_HASH)
 
         # If both have hashes, require match
-        if db_hash and db_hash == self.cached_file_hash:
+        if db_hash and db_hash == ctx.cached_file_hash:
             return entry
 
         # If DB hash empty but we have one now, backfill without reprocessing
-        if not db_hash and self.cached_file_hash:
-            self.sqlite.update_field(url, ART_FIELD_HASH, self.cached_file_hash)
+        if not db_hash and ctx.cached_file_hash:
+            self.sqlite.update_field(ctx.original_url, ART_FIELD_HASH, ctx.cached_file_hash)
             return entry
 
         # Hash mismatch and both populated → stale entry
@@ -133,6 +145,8 @@ class ArtworkCacheManager:
         :param art_type: Artwork type for categorization (e.g., "clearlogo").
         :param metadata: Processed attributes including paths, colors, and hashes.
         """
-        if metadata:
-            category = "clearlogo" if "clearlogo" in art_type else art_type
-            self.sqlite.add_entry(category, metadata)
+        if not metadata:
+            return
+        
+        category = "clearlogo" if "clearlogo" in art_type else art_type
+        self.sqlite.add_entry(category, metadata)

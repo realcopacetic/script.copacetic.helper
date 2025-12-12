@@ -5,7 +5,7 @@ from typing import Any, Callable, Iterable, Mapping
 import xbmcvfs
 from PIL import Image
 
-from resources.lib.art.cache import ArtworkCacheManager
+from resources.lib.art.cache import ArtworkCacheManager, CacheContext
 from resources.lib.art.darken import DarkenOverlayOpts, DarkenSolution
 from resources.lib.art.policy import (
     ART_SOURCE_KEYS,
@@ -62,6 +62,7 @@ class ImageEditor:
         self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.temp_folder = self.cache_manager.temp_folder
+
         self.cfg = ColorConfig()
         self.processor = ImageProcessor(self.cfg)
         self._session: dict[str, Any] = {}
@@ -121,9 +122,15 @@ class ImageEditor:
         if not overlay_enabled:
             return None
 
-        return self._darken_core(
-            lambda: self._get_runtime_image(url=url),
-            overlay_source=overlay_source,
+        ctx = self.cache_manager.prepare(url, ".jpg")
+        img = self._get_runtime_image(ctx=ctx, attrs=None)
+        if img is None:
+            return None
+
+        resolved_source = self._resolve_overlay_source(overlay_source)
+        return self._darken_solution(
+            image=img,
+            overlay_source=resolved_source,
             overlay_rects=overlay_rects,
             overlay_frame=overlay_frame,
             overlay_target=overlay_target,
@@ -168,19 +175,17 @@ class ImageEditor:
             return None
 
         extension = flow_cfg.get("extension")
-        if extension:
-            self.cache_manager.prepare_cache(original_url, extension)
-
-        attributes = self._run_processor(art_type=art_type, art=art, **proc_kwargs)
-        if not attributes:
+        ctx = self.cache_manager.prepare(original_url, extension)
+        payload = self._run_processor(art_type=art_type, art=art, ctx=ctx, **proc_kwargs)
+        if payload is None:
             return None
 
         log.debug(
-            f"ImageEditor → Payload returned → {art_type=} → {attributes}",
+            f"ImageEditor → Payload returned → {art_type=} → {payload}",
         )
-        attributes["category"] = art_type
+        attributes, image, ctx = payload
 
-        # Stash clearlogo color for downstream fanart (overlay_source=clearlogo).
+        # Stash clearlogo color for downstream background darken process
         if art_type.startswith("clearlogo"):
             col = attributes.get("color")
             if col:
@@ -189,7 +194,13 @@ class ImageEditor:
         overlay_map = proc_kwargs.get("overlay_params") or {}
         opts = overlay_map.get(art_type)
         if opts and opts.enabled:
-            self._apply_overlay_darken(art_type, attributes, opts)
+            self._apply_overlay_darken(
+                art_type=art_type,
+                attributes=attributes,
+                opts=opts,
+                image=image,
+                ctx=ctx,
+            )
 
         return attributes
 
@@ -216,6 +227,7 @@ class ImageEditor:
         self,
         art_type: str,
         art: dict[str, str],
+        ctx: CacheContext,
         **proc_kwargs: Any,
     ) -> dict[str, Any] | None:
         """
@@ -231,7 +243,7 @@ class ImageEditor:
         if not process_method:
             return None
 
-        category, url = next(iter(art.items()), (None, None))
+        url = next(iter(art.values()), (None, None))
         if not url:
             return None
 
@@ -245,69 +257,47 @@ class ImageEditor:
             if not image:
                 return None
 
-        else:  # Runtime-only process (e.g. analyze): open directly from URL.
-            source_path = url
-            destination_path = ""
-            image = self._get_runtime_image(attrs=None, url=url)
+            result = process_method(image, **proc_kwargs)
+            if not result or "image" not in result:
+                return None
+
+            processed_path = destination_path
+
+            with xbmcvfs.File(destination_path, "wb") as f:
+                self._save_processed_image(f, result)
+
+            log.debug(
+                f"{self.__class__.__name__} → File processed: "
+                f"{url} → {destination_path}",
+            )
+            if self.temp_folder in source_path:
+                try:
+                    xbmcvfs.delete(source_path)
+                    log.debug(
+                        f"{self.__class__.__name__} → Temp file deleted → {source_path}",
+                    )
+                except Exception:
+                    pass
+
+        else:
+            processed_path = ""
+            image = self._get_runtime_image(ctx=ctx, attrs=None)
             if not image:
                 return None
 
-        result = process_method(image, **proc_kwargs)
-        if not result or "image" not in result:
-            return None
+            result = process_method(image, **proc_kwargs)
+            if not result or "image" not in result:
+                return None
 
-        processed_path = destination_path
-
-        # Persist processed image only when folder is configured.
-        if folder:
-            with xbmcvfs.File(destination_path, "wb") as f:
-                fmt = result.get("format", "PNG")
-                if fmt == "JPEG":
-                    result["image"].save(
-                        f,
-                        "JPEG",
-                        quality=self.cfg.jpeg_quality,
-                        optimize=self.cfg.jpeg_optimize,
-                        progressive=self.cfg.jpeg_progressive,
-                        subsampling=self.cfg.jpeg_subsampling,
-                    )
-                elif fmt == "PNG":
-                    result["image"].save(
-                        f,
-                        "PNG",
-                        optimize=self.cfg.png_optimize,
-                        compress_level=self.cfg.png_compress_level,
-                    )
-                log.debug(
-                    f"{self.__class__.__name__} → File processed: "
-                    f"{url} → {destination_path}",
-                )
-        else:
-            processed_path = ""
-
-        if folder and self.temp_folder in source_path:
-            try:
-                xbmcvfs.delete(source_path)
-                log.debug(
-                    f"{self.__class__.__name__} → Temp file deleted → {source_path}",
-                )
-            except Exception:
-                pass
-
-        return {
-            **ArtMeta.from_values(
-                category=category,
-                original_url=url,
-                processed_path=processed_path,
-                cached_file_hash=self.cache_manager.cached_file_hash,
-                values=result.get("metadata", {}),
-            ).to_dict(),
-            **(
-                {"_sample_frame": result["sample_frame"]}
-                if "sample_frame" in result
-                else {}
-            ),
-        }
+        attrs = ArtMeta.from_values(
+            category=art_type,
+            original_url=url,
+            processed_path=processed_path,
+            cached_file_hash=ctx.cached_file_hash,
+            values=result.get("metadata", {}),
+        ).to_dict()
+        img_for_overlay = result.get("image")
+        return attrs, img_for_overlay, ctx
 
     def _image_open(self, url: str) -> Image.Image | None:
         """
@@ -328,11 +318,42 @@ class ImageEditor:
             )
             return None
 
+    def _get_runtime_image(
+        self, *, ctx: CacheContext, attrs: dict[str, Any] | None,
+    ) -> Image.Image | None:
+        """
+        Resolve a PIL Image for runtime analysis from local sources (no network/VFS reads).
+        Priority: in-memory sample → texture-cache local path → processed blur (from attrs).
+
+        :param attrs: Optional metadata dict that may contain '_sample_frame' and/or 'processed_path'.
+        :param url: Optional art URL used only to prime/locate the texture-cache path.
+        :return: PIL Image ready for analysis, or None if no local source is available.
+        """
+        cache_local = str(ctx.cached_image_path)
+        if cache_local and validate_path(cache_local):
+            log.debug(
+                f"{self.__class__.__name__} → _get_runtime_image: using cached texture → {cache_local}"
+            )
+            if im := self._image_open(cache_local):
+                return im
+
+        return None
+
+    def _resolve_overlay_source(self, overlay_source: str | None) -> str | None:
+        """Resolve 'clearlogo' indirection to a hex colour when available."""
+        src = (overlay_source or "")
+        if src == "clearlogo":
+            return self._session.get("clearlogo_color") or None
+
+        return overlay_source
+
     def _apply_overlay_darken(
         self,
         art_type: str,
         attributes: dict[str, Any],
         opts: DarkenOverlayOpts,
+        image: Image.Image | None,
+        ctx: CacheContext,
     ) -> None:
         """
         Dispatch overlay-based darken logic using the flow_config handler.
@@ -346,17 +367,11 @@ class ImageEditor:
         if not handler_name:
             return
 
-        img = self._get_runtime_image(attrs=attributes)
+        img = image or self._get_runtime_image(ctx=ctx, attrs=attributes)
         if img is None:
             return
 
-        # Resolve "clearlogo" indirection once
-        resolved_source = opts.source
-        src = (opts.source or "").strip().lower()
-        if src == "clearlogo":
-            hexc = self._session.get("clearlogo_color")
-            resolved_source = hexc or None
-
+        resolved_source = self._resolve_overlay_source(opts.source)
         handler = getattr(self, handler_name, None)
         if not handler:
             log.debug(
@@ -414,52 +429,3 @@ class ImageEditor:
         except Exception as exc:
             log.error(f"ColorDarken: compute failed: {exc}")
             return None
-
-    def _get_runtime_image(
-        self, attrs: dict | None = None, url: str | None = None
-    ) -> Image.Image | None:
-        """
-        Resolve a PIL Image for runtime analysis from local sources only (no network/VFS reads).
-        Priority: in-memory sample → texture-cache local path → processed blur (from attrs).
-
-        :param attrs: Optional metadata dict that may contain '_sample_frame' and/or 'processed_path'.
-        :param url: Optional art URL used only to prime/locate the texture-cache path.
-        :return: PIL Image ready for analysis, or None if no local source is available.
-        """
-        # prefer in-memory `_sample_frame` from this run
-        if attrs and (img := attrs.pop("_sample_frame", None)):
-            log.debug(
-                f"{self.__class__.__name__} → _get_runtime_image: "
-                f"using in-memory sample_frame size={getattr(img, 'size', None)}",
-            )
-            return img
-
-        # local Kodi texture-cache path for original
-        cache_local = str(self.cache_manager.cached_image_path or "")
-        if not cache_local and url:
-            try:
-                self.cache_manager.prepare_cache(url, ".jpg")
-                cache_local = str(self.cache_manager.cached_image_path or "")
-            except Exception:
-                cache_local = ""
-
-        if cache_local and validate_path(cache_local):
-            log.debug(
-                f"{self.__class__.__name__} → _get_runtime_image: "
-                f"using cached texture → {cache_local}",
-            )
-            if im := self._image_open(cache_local):
-                return im
-
-        # fallback: processed (blurred) image
-        if attrs and (cache_blur := attrs.get("processed_path")):
-            log.debug(
-                f"{self.__class__.__name__} → _get_runtime_image: "
-                f"using processed image → {cache_blur}",
-            )
-            if im := self._image_open(cache_blur):
-                return im
-        log.debug(
-            f"{self.__class__.__name__} → _get_runtime_image: no local source found"
-        )
-        return None

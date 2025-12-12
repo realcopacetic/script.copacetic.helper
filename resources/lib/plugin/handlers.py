@@ -288,7 +288,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 art_type: DarkenOverlayOpts.from_params(self.params, art_type)
                 for art_type in ("background", "icon")
             }
-
             config = [
                 ("crop", "clearlogo", clearlogo_url),
                 ("blur", "background", background_url),
@@ -326,7 +325,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             log.debug(
                 f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
             )
-
             if not guard.alive():
                 return
 
