@@ -7,7 +7,7 @@ import xbmcvfs
 from PIL import Image
 
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
-from resources.lib.art.darken import DarkenOverlayOpts, DarkenUpdates
+from resources.lib.art.darken import DarkenOpts, DarkenUpdates
 from resources.lib.art.policy import (
     ART_SOURCE_KEYS,
     ArtMeta,
@@ -107,7 +107,7 @@ class ImageEditor:
         *,
         url: str,
         handler_name: str,
-        opts: DarkenOverlayOpts,
+        opts: DarkenOpts,
         image: Image.Image | None = None,
     ) -> DarkenUpdates | None:
         """
@@ -372,7 +372,7 @@ class ImageEditor:
             compress_level=self.cfg.png_compress_level,
         )
 
-    def _resolve_overlay_opts(self, opts: DarkenOverlayOpts) -> DarkenOverlayOpts:
+    def _resolve_overlay_opts(self, opts: DarkenOpts) -> DarkenOpts:
         """
         Resolve 'clearlogo' indirection to a hex colour when available.
 

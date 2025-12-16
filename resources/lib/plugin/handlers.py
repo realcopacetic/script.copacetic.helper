@@ -8,7 +8,7 @@ from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.apis.tmdb.context import resolve_tmdb_context
 from resources.lib.apis.tmdb.transform import tmdb_to_canonical
-from resources.lib.art.darken import DarkenOverlayOpts
+from resources.lib.art.darken import DarkenOpts
 from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import build_multiart_dict, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
@@ -282,20 +282,21 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             current_position = to_int(self.expected_identity, 0)
-            clearlogo_url = self.params.get("clearlogo_crop") or None
-            background_url = self.params.get("background_blur") or None
-            icon_url = self.params.get("icon") or None
-            overlay_params = {
-                art_type: DarkenOverlayOpts.from_params(self.params, art_type)
+            darken_params = {
+                art_type: DarkenOpts.from_params(self.params, art_type)
                 for art_type in ("background", "icon")
             }
-            config = [
-                ("crop", "clearlogo", clearlogo_url),
-                ("blur", "background", background_url),
-                ("analyze", "icon", icon_url),
+
+            approved = [
+                {"clearlogo": ["crop", "analyze"]},
+                {"background": ["blur", "analyze", "darken"]},
+                {"icon": ["blur", "analyze", "darken"]},
             ]
+
+            config = [k:self.params.get(f"{k}_{v}") for k,v in approved]
+            
             jobs = [
-                {"process": process, "art_type": art_type, "url": url}
+                {"art_type": art_type, "process": process, "url": url}
                 for process, art_type, url in config
                 if url
             ]
@@ -307,7 +308,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             processed = image_processor(
                 jobs=jobs,
                 source=f"{self.container}.ListItem",
-                overlay_params=overlay_params,
+                darken_params=darken_params,
             )
             if not guard.alive():
                 return
@@ -356,7 +357,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         On-demand darken for a single fanart path. Acts as a lightweight
         alternative entry point for darkening without invoking artwork handler.
-        
+
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
         with self.focus() as guard:
@@ -367,7 +368,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not url:
                 return
 
-            opts = DarkenOverlayOpts.from_params(self.params, "icon")
+            opts = DarkenOpts.from_params(self.params, "icon")
             updates = ImageEditor(ArtworkCacheHandler()).compute_darken(
                 url=url,
                 handler_name="compute_element_darken_series",

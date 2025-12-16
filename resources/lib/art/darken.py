@@ -14,37 +14,42 @@ DarkenUpdates = dict[str, int]
 
 
 @dataclass(frozen=True, slots=True)
-class DarkenOverlayOpts:
+class DarkenOpts:
     """
-    Overlay configuration for a given artwork type.
+    Darken configuration for a given artwork type.
 
-    :param enabled: Whether darken is active.
+    :param mode: Darken mode or "None" to disable.
     :param source: Colour source override (hex or "clearlogo").
     :param rects: Rect string for sampling in frame coordinates.
     :param frame: Frame size "w,h" as a raw string.
     :param target: Contrast target override as a raw string.
     """
-    enabled: bool
+    mode: str | None
     source: str | None
     rects: str | None
     frame: str | None
     target: str | None
 
+    @property
+    def enabled(self) -> bool:
+        """Return True if darken mode is valid."""
+        return self.mode in ("artwork", "elements", "both")
+
     @classmethod
-    def from_params(cls, params: Mapping[str, str], prefix: str) -> "DarkenOverlayOpts":
+    def from_params(cls, params: Mapping[str, str], prefix: str) -> "DarkenOpts":
         """
-        Build overlay options from a parameter mapping and a name prefix.
+        Build darken options from a parameter mapping and a name prefix.
 
         :param params: Mapping of plugin parameters.
         :param prefix: Prefix such as "background" or "icon".
-        :return: Parsed DarkenOverlayOpts instance.
+        :return: Parsed DarkenOpts instance.
         """
         return cls(
-            enabled=parse_bool(params.get(f"{prefix}_overlay_enabled", "false")),
-            source=params.get(f"{prefix}_overlay_source"),
-            rects=params.get(f"{prefix}_overlay_rects"),
-            frame=params.get(f"{prefix}_overlay_frame"),
-            target=params.get(f"{prefix}_overlay_target"),
+            mode=params.get(f"{prefix}_darken_mode", None),
+            source=params.get(f"{prefix}_darken_source"),
+            rects=params.get(f"{prefix}_darken_rects"),
+            frame=params.get(f"{prefix}_darken_frame"),
+            target=params.get(f"{prefix}_darken_target"),
         )
 
 
@@ -67,7 +72,7 @@ class ColorDarken:
         self,
         image: Image.Image,
         *,
-        opts: DarkenOverlayOpts,
+        opts: DarkenOpts,
     ) -> DarkenUpdates | None:
         """
         Compute a single background darken value across all rects.
@@ -116,7 +121,7 @@ class ColorDarken:
         self,
         image: Image.Image,
         *,
-        opts: DarkenOverlayOpts,
+        opts: DarkenOpts,
     ) -> DarkenUpdates | None:
         """
         Compute per-rect element darken values for overlays.
@@ -168,7 +173,7 @@ class ColorDarken:
         self,
         *,
         image: Image.Image,
-        opts: DarkenOverlayOpts,
+        opts: DarkenOpts,
     ) -> tuple[Image.Image, list[Rect], float, RGB, float] | None:
         """
         Prepare shared darken inputs from overlay options.
