@@ -8,11 +8,11 @@ from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.apis.tmdb.context import resolve_tmdb_context
 from resources.lib.apis.tmdb.transform import tmdb_to_canonical
-from resources.lib.art.darken import DarkenOpts
 from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import build_multiart_dict, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
+from resources.lib.plugin.opts import DarkenOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
