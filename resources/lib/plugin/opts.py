@@ -37,7 +37,7 @@ class DarkenOpts:
         :return: Parsed DarkenOpts instance.
         """
         return cls(
-            mode=params.get(f"{prefix}_darken_mode", None),
+            mode=params.get(f"{prefix}_darken", None),
             source=params.get(f"{prefix}_darken_source"),
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
@@ -53,8 +53,8 @@ class ArtOpts:
     :param url: Source URL for the artwork.
     :param crop: Enable crop.
     :param blur: Enable blur.
-    :param analyze: Enable analysis.
     :param blur_radius: Blur radius override.
+    :param analyze: Enable analysis.
     :param darken: Darken options for this art_type.
     """
     url: str | None
@@ -63,6 +63,19 @@ class ArtOpts:
     analyze: bool
     blur_radius: int
     darken: DarkenOpts | None
+
+    def enabled(self, process: str) -> bool:
+        """
+        Return True if the given process is enabled for this artwork.
+
+        :param process: Process name (crop, blur, analyze, darken).
+        :return: True if enabled.
+        """
+        return (
+            bool(self.darken and self.darken.enabled)
+            if process == "darken"
+            else bool(getattr(self, process, False))
+        )
 
     @classmethod
     def from_params(cls, params: Mapping[str, str], art_type: str) -> "ArtOpts":
@@ -77,8 +90,8 @@ class ArtOpts:
             url=params.get(f"{art_type}_url") or None,
             crop=parse_bool(params.get(f"{art_type}_crop", "false")),
             blur=parse_bool(params.get(f"{art_type}_blur", "false")),
+            blur_radius=to_int(params.get(f"{art_type}_blur_radius"), None),
             analyze=parse_bool(params.get(f"{art_type}_analyze", "false")),
-            blur_radius=to_int(params.get(f"{art_type}_blur_radius"), 0),
             darken=(
                 DarkenOpts.from_params(params, art_type)
                 if art_type in ("background", "icon")

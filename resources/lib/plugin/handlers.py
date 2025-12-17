@@ -12,7 +12,7 @@ from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import build_multiart_dict, set_multiart_fadelabel
 from resources.lib.art.policy import flatten_art_attributes
 from resources.lib.plugin.geometry import PlacementOpts
-from resources.lib.plugin.opts import DarkenOpts
+from resources.lib.plugin.opts import ArtOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
@@ -282,23 +282,21 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             current_position = to_int(self.expected_identity, 0)
-            darken_params = {
-                art_type: DarkenOpts.from_params(self.params, art_type)
-                for art_type in ("background", "icon")
+            art_opts = {
+                art_type: ArtOpts.from_params(self.params, art_type)
+                for art_type in ("clearlogo", "background", "icon")
             }
-
-            approved = [
-                {"clearlogo": ["crop", "analyze"]},
-                {"background": ["blur", "analyze", "darken"]},
-                {"icon": ["blur", "analyze", "darken"]},
-            ]
-
-            config = [k:self.params.get(f"{k}_{v}") for k,v in approved]
-            
+            approved = {
+                "clearlogo": ("crop", "analyze"),
+                "background": ("blur", "analyze", "darken"),
+                "icon": ("blur", "analyze", "darken"),
+            }
             jobs = [
-                {"art_type": art_type, "process": process, "url": url}
-                for process, art_type, url in config
-                if url
+                {"art_type": art_type, "process": process, "url": opts.url}
+                for art_type, processes in approved.items()
+                if (opts := art_opts.get(art_type)) and opts.url
+                for process in processes
+                if opts.enabled(process)
             ]
             if not jobs:
                 log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
@@ -307,8 +305,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
             processed = image_processor(
                 jobs=jobs,
+                art_opts=art_opts,
                 source=f"{self.container}.ListItem",
-                darken_params=darken_params,
             )
             if not guard.alive():
                 return
@@ -351,34 +349,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     }
                 ]
             )
-
-    @log.duration
-    def darken(self) -> list[DirectoryItem] | None:
-        """
-        On-demand darken for a single fanart path. Acts as a lightweight
-        alternative entry point for darkening without invoking artwork handler.
-
-        :return: List of directory items for Kodi, or None if aborted/failed.
-        """
-        with self.focus() as guard:
-            if not guard.alive():
-                return
-
-            url = self.params.get("icon") or ""
-            if not url:
-                return
-
-            opts = DarkenOpts.from_params(self.params, "icon")
-            updates = ImageEditor(ArtworkCacheHandler()).compute_darken(
-                url=url,
-                handler_name="compute_element_darken_series",
-                opts=opts,
-            )
-            if not guard.alive() or not updates:
-                return
-
-            props = {k: str(v) for k, v in updates.items()}
-            return set_items([{"file": "darken", "properties": props}])
 
     @log.duration
     def jumpbutton(self) -> None:

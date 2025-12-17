@@ -17,11 +17,11 @@ class ImageProcessor:
 
     """
 
-    def __init__(self, cfg: ColorConfig) -> ColorConfig:
+    def __init__(self, cfg: ColorConfig) -> None:
         """Initialize the processor with a color analyzer."""
         self.cfg = cfg
         self.color_analyzer = ColorAnalyzer(self.cfg)
-        self.darken = ColorDarken(self.color_analyzer)
+        self.darken_engine = ColorDarken(self.color_analyzer)
 
     @staticmethod
     def _ensure_mode(image: Image.Image, target: str) -> Image.Image:
@@ -79,8 +79,7 @@ class ImageProcessor:
         try:
             image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
             sample_frame = image.copy()
-            radius = kwargs.get("blur_radius")
-            radius = radius if isinstance(radius, (int, float)) and radius > 0 else self.cfg.blur_radius
+            radius = kwargs.get("blur_radius") or self.cfg.blur_radius
             image = image.filter(ImageFilter.GaussianBlur(radius=radius))
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to blur image → {exc}")
@@ -121,14 +120,15 @@ class ImageProcessor:
             "format": "PNG",
             "metadata": analysis,
         }
-    
+
     @log.duration
     def darken(self, image: Image.Image, **kwargs: Any) -> dict[str, Any] | None:
         """
         Compute darken metadata without altering pixels.
+        Uses contrast rules against the configured source.
 
         :param image: Input PIL image.
-        :param kwargs: Process inputs (expects ``darken``).
+        :param kwargs: Process inputs (expects ``darken`` options).
         :return: Dict with {"image", "metadata"} or None.
         """
         opts = kwargs.get("darken")
@@ -137,10 +137,14 @@ class ImageProcessor:
 
         frame = kwargs.get("sample_frame") or image
         try:
-            updates = self.darken.compute_darken(frame, opts=opts) or {}
+            updates = (
+                self.darken_engine.compute_darken(
+                    frame, opts=opts.darken, shared=kwargs.get("shared")
+                )
+                or {}
+            )
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to darken image → {exc}")
             return None
 
         return {"image": image, "metadata": updates}
-

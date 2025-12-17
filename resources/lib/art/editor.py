@@ -156,12 +156,11 @@ class ImageEditor:
                 )
 
             if cached := shared["cache"][cache_key]:
-                merged = base_attrs | cached
                 log.debug(
                     f"{self.__class__.__name__} → Cache returned → "
-                    f"{art_type=} → {merged}",
+                    f"{art_type=} → {cached}",
                 )
-                return merged
+                return base_attrs | cached
 
         processed = self._run_processor(
             art_type=art_type,
@@ -229,11 +228,11 @@ class ImageEditor:
             if not validate_path(source_path):
                 return None
 
-        image = shared["images"].get(source_path) or self._image_open(source_path)
+        image = shared["image_cache"].get(source_path) or self._image_open(source_path)
         if image is None:
             return None
 
-        shared["images"][source_path] = image
+        shared["image_cache"][source_path] = image
         result = process_method(
             image,
             art_type=art_type,

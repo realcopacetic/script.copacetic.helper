@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from typing import Iterable
+from typing import Any, Iterable
 
 from PIL import Image, ImageStat
 
@@ -34,18 +34,20 @@ class ColorDarken:
         image: Image.Image,
         *,
         opts: DarkenOpts,
+        shared: dict[str, Any] | None = None,
     ) -> DarkenUpdates | None:
         """
         Compute darken updates based on ``opts.mode``.
 
         :param image: PIL image to sample (original, not blurred).
         :param opts: Darken options for sampling and targets.
+        :param shared: Shared per-run context containing prior process results (e.g. clearlogo color).
         :return: Dict of updates or None.
         """
         if not opts.enabled:
             return None
 
-        ctx = self._prepare_darken_context(image=image, opts=opts)
+        ctx = self._prepare_darken_context(image=image, opts=opts, shared=shared)
         if not ctx:
             return None
 
@@ -180,12 +182,14 @@ class ColorDarken:
         *,
         image: Image.Image,
         opts: DarkenOpts,
+        shared: dict[str, Any] | None = None,
     ) -> tuple[Image.Image, list[Rect], float, RGB, float] | None:
         """
         Prepare shared darken inputs from options.
 
         :param image: PIL image to sample.
         :param opts: Parsed options.
+        :param shared: Shared per-run context containing prior process results (e.g. clearlogo color).
         :return: Tuple (framed, rects, target, text_rgb, L_text) or None.
         """
         if not opts.rects:
@@ -205,6 +209,10 @@ class ColorDarken:
             target = cfg.target_contrast_ratio
 
         src = (opts.source or "").strip()
+        if src.lower() == "clearlogo":
+            clearlogo = (shared or {}).get("results", {}).get("clearlogo", {})
+            src = (clearlogo.get("color") or "")
+
         text_rgb = (
             self.color.from_hex(src)
             if src
@@ -409,7 +417,7 @@ class ColorDarken:
             stat = ImageStat.Stat(patch.convert("L"))
             std = float(stat.stddev[0]) if stat.stddev else 0.0
             return std < cfg.text_complexity_stddev
-        
+
         except Exception:
             return True
 
