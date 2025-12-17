@@ -156,6 +156,10 @@ class ImageEditor:
                 )
 
             if cached := shared["cache"][cache_key]:
+                log.debug(
+                    f"{self.__class__.__name__} → Cache returned → "
+                    f"{art_type=} → keys={tuple(cached.keys())}",
+                )
                 return base_attrs | cached
 
         processed = self._run_processor(
@@ -172,7 +176,7 @@ class ImageEditor:
 
         attrs, img, _ctx = processed
         log.debug(
-            f"ImageEditor → Payload returned → {art_type=} → {attrs}",
+            f"{self.__class__.__name__} → Payload returned → {art_type=} → {attrs}",
         )
         if img is not None:
             shared["last_image"][art_type] = img

@@ -7,6 +7,7 @@ from PIL import Image, ImageFilter
 from resources.lib.art.analyzer import ColorAnalyzer
 from resources.lib.art.policy import ColorConfig
 from resources.lib.shared import logger as log
+from resources.lib.art.darken import ColorDarken
 
 
 class ImageProcessor:
@@ -20,6 +21,7 @@ class ImageProcessor:
         """Initialize the processor with a color analyzer."""
         self.cfg = cfg
         self.color_analyzer = ColorAnalyzer(self.cfg)
+        self.darken = ColorDarken(self.color_analyzer)
 
     @staticmethod
     def _ensure_mode(image: Image.Image, target: str) -> Image.Image:
@@ -77,7 +79,9 @@ class ImageProcessor:
         try:
             image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
             sample_frame = image.copy()
-            image = image.filter(ImageFilter.GaussianBlur(radius=self.cfg.blur_radius))
+            radius = kwargs.get("blur_radius")
+            radius = radius if isinstance(radius, (int, float)) and radius > 0 else self.cfg.blur_radius
+            image = image.filter(ImageFilter.GaussianBlur(radius=radius))
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to blur image → {exc}")
             return None
@@ -117,3 +121,32 @@ class ImageProcessor:
             "format": "PNG",
             "metadata": analysis,
         }
+    
+    @log.duration
+    def darken(self, image: Image.Image, **kwargs: Any) -> dict[str, Any] | None:
+        """
+        Compute darken metadata without altering pixels.
+
+        :param image: Input PIL image.
+        :param kwargs: Process inputs (expects ``darken``/``opts`` + optional ``sample_frame``).
+        :return: Dict with {"image", "format", "metadata"} or None.
+        """
+        opts = kwargs.get("darken") or kwargs.get("opts")
+        if not opts:
+            return {"image": image, "format": "PNG", "metadata": {}}
+
+        sample_frame = kwargs.get("sample_frame")
+        frame = sample_frame if isinstance(sample_frame, Image.Image) else image
+
+        try:
+            updates = self.darken.compute_darken(frame, opts=opts) or {}
+        except Exception as exc:
+            log.error(f"{self.__class__.__name__}: Unable to darken image → {exc}")
+            return None
+
+        return {
+            "image": image,
+            "format": "PNG", 
+            "metadata": updates,
+        }
+
