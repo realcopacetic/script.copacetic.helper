@@ -1,15 +1,11 @@
 # author: realcopacetic
 
-from dataclasses import replace
 from typing import Any, Iterable, Mapping
 
 import xbmcvfs
 from PIL import Image
-from urllib.parse import urlparse
-import os
 
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
-from resources.lib.art.darken import DarkenUpdates
 from resources.lib.art.policy import (
     ART_SOURCE_KEYS,
     ArtMeta,
@@ -23,19 +19,28 @@ from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import BLURS, CROPS, infolabel, validate_path
 
-RGB = tuple[int, int, int]
-
 
 class ImageEditor:
     """
     Coordinate artwork processing, caching and color metadata extraction.
     Handles crop/blur/analyze plus optional overlay darken.
     """
+    PROCESS_SPEC: dict[str, dict[str, Any]] = {
+        "crop": {"folder": CROPS, "require": ("processed_path",)},
+        "blur": {"folder": BLURS, "require": ("processed_path",)},
+        "analyze": {
+            "folder": None,
+            "require": ("color", "accent", "contrast", "luminosity"),
+        },
+        "darken": {
+            "folder": None,
+            "require": None,
+        },
+    }
 
     def __init__(self, sqlite_handler: ArtworkCacheHandler | None = None) -> None:
         """
         Initialize caches, processors and lookup dependencies.
-        Creates a per-instance session for cross-job sharing (e.g. clearlogo color).
 
         :param sqlite_handler: Optional SQLite handler instance.
         """
@@ -44,7 +49,6 @@ class ImageEditor:
         self.temp_folder = self.cache_manager.temp_folder
         self.cfg = ColorConfig()
         self.processor = ImageProcessor(self.cfg)
-        self._session: dict[str, Any] = {}
 
     def image_processor(
         self,
@@ -53,51 +57,71 @@ class ImageEditor:
         source: str | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Process artwork jobs into attribute dictionaries.
+        Process jobs into per-art_type attribute dictionaries.
+        Each job is cache-checked before processing.
 
-        :param jobs: Iterable of job specs with 'art_type' and optional 'url'.
+        :param jobs: Iterable of job dicts with 'art_type' and 'process'.
         :param art_opts: Mapping of art_type to parsed ArtOpts.
         :param source: Kodi infolabel source prefix for Art() lookups.
-        :return: List of attribute dicts for successfully processed jobs.
+        :return: List of attribute dicts (one per art_type).
         """
+        shared = {
+            "images": {},
+            "cache": {},
+            "results": {},
+            "last_image": {},
+        }
         try:
-            return [
-                attrs
+            updates = [
+                (art_type, attrs)
                 for job in jobs
-                if (art_type := (job.get("art_type") or ""))  # avoids double get
+                if (art_type := (job.get("art_type") or ""))
+                and (process := (job.get("process") or ""))
                 and (opts := art_opts.get(art_type)) is not None
-                and (attrs := self._handle_image(
-                    art_type=art_type,
-                    source=source or "Container.ListItem",
-                    url=(job.get("url") or "") or None,
-                    opts=opts,
-                ))
+                and (
+                    attrs := self._handle_job(
+                        art_type=art_type,
+                        process=process,
+                        source=source or "Container.ListItem",
+                        url=(job.get("url") or "") or None,
+                        opts=opts,
+                        shared=shared,
+                    )
+                )
             ]
+            for art_type, attrs in updates:
+                shared["results"][art_type] = attrs
 
         except Exception as error:
-            log.error(f"{self.__class__.__name__}: Error during image processing → {error}")
+            log.error(
+                f"{self.__class__.__name__}: Error during image processing → {error}",
+            )
             return []
 
-    def _handle_image(
+        return list(shared["results"].values())
+
+    def _handle_job(
         self,
         *,
         art_type: str,
+        process: str,
         source: str,
         url: str | None = None,
-        opts: ArtOpts | None,
+        opts: ArtOpts,
+        shared: dict[str, Any],
     ) -> dict[str, Any] | None:
         """
-        Process one art_type using enabled options.
+        Resolve URL, cache-check the DB row, then run one job if needed.
+        Returns updated attributes for the art_type.
 
         :param art_type: Artwork type key.
+        :param process: Process name ('crop', 'blur', 'analyze', 'darken').
         :param source: Kodi infolabel source prefix.
-        :param url: Optional explicit URL.
+        :param url: Optional explicit URL override.
         :param opts: Parsed ArtOpts for this art_type.
-        :return: Attribute dict or None.
+        :param shared: Shared context across jobs in this call.
+        :return: Updated per-art_type attributes, or None.
         """
-        if not opts:
-            return None
-
         art = (
             {art_type: url}
             if url
@@ -105,7 +129,7 @@ class ImageEditor:
         )
         if not art:
             log.debug(
-                f"{self.__class__.__name__} → _handle_image({art_type}) → "
+                f"{self.__class__.__name__} → _handle_job({art_type}) → "
                 f"no art resolved for {source=}, {url=}",
             )
             return None
@@ -113,85 +137,73 @@ class ImageEditor:
         original_url = next(iter(art.values()))
         if not original_url:
             log.debug(
-                f"{self.__class__.__name__} → _handle_image({art_type}) → "
+                f"{self.__class__.__name__} → _handle_job({art_type}) → "
                 f"original_url empty → {art=}",
             )
             return None
 
-        ext = _infer_ext(original_url)
+        ext = ".png" if original_url.lower().endswith(".png") else ".jpg"
         ctx = self.cache_manager.prepare(original_url, ext)
+        spec = self.PROCESS_SPEC[process]
+
+        base_attrs: dict[str, Any] = shared["results"].get(art_type, {}) | {}
+        if (require := spec.get("require")) is not None:
+            cache_key = (original_url, process)
+            if cache_key not in shared["cache"]:
+                shared["cache"][cache_key] = self.cache_manager.read_lookup(
+                    ctx,
+                    require=tuple(require),
+                )
+
+            if cached := shared["cache"][cache_key]:
+                return base_attrs | cached
+
         processed = self._run_processor(
-            art_type=art_type, art=art, ctx=ctx, **proc_kwargs
+            art_type=art_type,
+            process=process,
+            art=art,
+            ctx=ctx,
+            opts=opts,
+            shared=shared,
+            folder=spec.get("folder"),
         )
-        if processed is None:
+        if not processed:
             return None
 
-        attributes, image_for_overlay, ctx = processed
+        attrs, img, _ctx = processed
         log.debug(
-            f"ImageEditor → Payload returned → {art_type=} → {attributes}",
+            f"ImageEditor → Payload returned → {art_type=} → {attrs}",
         )
+        if img is not None:
+            shared["last_image"][art_type] = img
 
-        # Stash clearlogo color for downstream background darken process
-        if art_type.startswith("clearlogo"):
-            col = attributes.get("color")
-            if col:
-                self._session["clearlogo_color"] = col
-
-        overlay_map = proc_kwargs.get("overlay_params") or {}
-        opts = overlay_map.get(art_type)
-        handler_name = flow_cfg.get("darken_handler")
-        if handler_name and opts and opts.enabled:
-            updates = self.compute_darken(
-                url=original_url,
-                handler_name=handler_name,
-                opts=opts,
-                image=image_for_overlay,
-            )
-            if updates:
-                attributes.update(updates)
-
-        return attributes
-
-    def _fetch_art_url(self, art_type: str, source: str):
-        """
-        Read artwork paths from Kodi infolabels and select the best candidate.
-        Uses :data:`ART_SOURCE_KEYS` and :func:`resolve_art_type`.
-
-        :param art_type: Target artwork type to resolve.
-        :param source: Kodi info label source prefix (e.g. "Container.ListItem").
-        :return: Mapping {chosen_key: path} if found, else {}.
-        """
-        candidates = {
-            key: path
-            for key in ART_SOURCE_KEYS.get(art_type, (art_type,))
-            if (path := infolabel(f"{source}.Art({key})"))
-        }
-        log.debug(
-            f"{self.__class__.__name__} → _fetch_art_url({art_type}, {source}) → {candidates=}",
-        )
-        choice = resolve_art_type(candidates, art_type)
-        return {choice.target_key: choice.path} if choice.path else {}
+        return base_attrs | attrs
 
     def _run_processor(
         self,
+        *,
         art_type: str,
+        process: str,
         art: dict[str, str],
         ctx: CacheContext,
-        **proc_kwargs: Any,
+        opts: ArtOpts,
+        shared: dict[str, Any],
+        folder: str | None,
     ) -> tuple[dict[str, Any], Image.Image | None, CacheContext] | None:
         """
-        Execute a processor for a single image and optionally write the file.
-        Returns attributes plus a best in-memory image for downstream overlay darken.
+        Execute a single process and optionally write the processed file.
+        Returns attrs plus the best in-memory image for subsequent jobs.
 
-        :param art_type: Logical art type used to select flow configuration.
+        :param art_type: Artwork type key.
+        :param process: Process name to execute.
         :param art: Mapping of {resolved_key: url} for the selected artwork.
         :param ctx: CacheContext for resolving texture-cache and destination paths.
-        :param proc_kwargs: Extra keyword arguments forwarded to processor methods.
-        :return: Tuple (attrs, img_for_overlay, ctx) or None on failure.
+        :param opts: Parsed ArtOpts for this art_type.
+        :param shared: Shared context across jobs in this call.
+        :param folder: Output folder name if this process writes files.
+        :return: Tuple (attrs, image, ctx) or None on failure.
         """
-        flow_cfg = self.FLOW_CONFIG.get(art_type, {})
-        proc_name = flow_cfg.get("process", "")
-        process_method = getattr(self.processor, proc_name, None)
+        process_method = getattr(self.processor, process, None)
         if not process_method:
             return None
 
@@ -199,7 +211,6 @@ class ImageEditor:
         if not url:
             return None
 
-        folder = flow_cfg.get("folder")
         processed_path = ""
         if folder:
             source_path, destination_path = self.cache_manager.get_image_paths(
@@ -213,11 +224,19 @@ class ImageEditor:
             if not validate_path(source_path):
                 return None
 
-        image = self._image_open(source_path)
-        if not image:
+        image = shared["image_cache"].get(source_path) or self._image_open(source_path)
+        if image is None:
             return None
 
-        result = process_method(image, **proc_kwargs)
+        shared["image_cache"][source_path] = image
+
+        result = process_method(
+            image,
+            art_type=art_type,
+            opts=opts,
+            ctx=ctx,
+            shared=shared,
+        )
         if not result or "image" not in result:
             return None
 
@@ -246,7 +265,27 @@ class ImageEditor:
             cached_file_hash=ctx.cached_file_hash,
             values=result.get("metadata", {}),
         ).to_dict()
-        return attrs, result.get("image"), ctx
+        return attrs, result["image"], ctx
+
+    def _fetch_art_url(self, art_type: str, source: str) -> dict[str, str]:
+        """
+        Read artwork paths from Kodi infolabels and select the best candidate.
+        Uses :data:`ART_SOURCE_KEYS` and :func:`resolve_art_type`.
+
+        :param art_type: Target artwork type to resolve.
+        :param source: Kodi info label source prefix (e.g. "Container.ListItem").
+        :return: Mapping {chosen_key: path} if found, else {}.
+        """
+        candidates = {
+            key: path
+            for key in ART_SOURCE_KEYS.get(art_type, (art_type,))
+            if (path := infolabel(f"{source}.Art({key})"))
+        }
+        log.debug(
+            f"{self.__class__.__name__} → _fetch_art_url({art_type}, {source}) → {candidates=}",
+        )
+        choice = resolve_art_type(candidates, art_type)
+        return {choice.target_key: choice.path} if choice.path else {}
 
     def _image_open(self, url: str) -> Image.Image | None:
         """
@@ -262,6 +301,7 @@ class ImageEditor:
 
         try:
             return Image.open(xbmcvfs.translatePath(url))
+
         except (FileNotFoundError, OSError) as error:
             log.error(
                 f"{self.__class__.__name__}: Unable to open image {url} → {error}",
@@ -296,17 +336,3 @@ class ImageEditor:
             optimize=self.cfg.png_optimize,
             compress_level=self.cfg.png_compress_level,
         )
-
-    def _resolve_overlay_opts(self, opts: DarkenOpts) -> DarkenOpts:
-        """
-        Resolve 'clearlogo' indirection to a hex colour when available.
-
-        :param opts: Overlay options to resolve.
-        :return: New DarkenOverlayOpts with resolved source if needed.
-        """
-        src = (opts.source or "").strip().lower()
-        if src != "clearlogo":
-            return opts
-
-        hexc = self._session.get("clearlogo_color")
-        return replace(opts, source=hexc or None)

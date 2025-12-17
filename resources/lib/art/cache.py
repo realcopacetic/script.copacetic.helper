@@ -22,7 +22,6 @@ from resources.lib.shared.utilities import (
 @dataclass(frozen=True, slots=True)
 class CacheContext:
     """Resolved, immutable cache context for a single artwork URL."""
-
     original_url: str
     decoded_url: str
     suffix: str
@@ -103,40 +102,45 @@ class ArtworkCacheManager:
         if not validate_path(temp_path) and xbmcvfs.copy(ctx.decoded_url, temp_path):
             log.debug(f"{self.__class__.__name__} → Temp file created → {temp_path}")
             return temp_path, destination_path
-        
+
         return None, destination_path
 
-    def read_lookup(self, ctx: CacheContext) -> dict[str, Any] | None:
+    def read_lookup(
+        self,
+        ctx: CacheContext,
+        *,
+        require: tuple[str, ...] = (),
+    ) -> dict[str, Any] | None:
         """
         Read cached metadata for URL and validate against current file hash.
 
-        :param url: Original image URL (lookup key).
+        :param ctx: CacheContext with original_url and cached_file_hash.
+        :param require: Require these keys to exist in the row.
         :return: Cached metadata dict if valid, else None.
         """
         if not (entry := self.sqlite.get_entry(ctx.original_url)):
             return None
 
-        processed = validate_path(entry.get(ART_FIELD_PROCESSED))
-        if not processed:
-            return None
+        if require:
+            if ART_FIELD_PROCESSED in require and not validate_path(entry.get(ART_FIELD_PROCESSED)):
+                return None
 
-        # If no hash computed yet (first-touch), trust the processed file
-        if not ctx.cached_file_hash:
+            missing = (set(require) - {ART_FIELD_PROCESSED}) - entry.keys()
+            if missing:
+                return None
+
+        if not ctx.cached_file_hash: #trust processed if no hash computed yet
             return entry
 
         db_hash = entry.get(ART_FIELD_HASH)
-
-        # If both have hashes, require match
-        if db_hash and db_hash == ctx.cached_file_hash:
+        if db_hash and db_hash == ctx.cached_file_hash: # require match if both hashed
             return entry
 
-        # If DB hash empty but we have one now, backfill without reprocessing
-        if not db_hash and ctx.cached_file_hash:
+        if not db_hash and ctx.cached_file_hash: # backfill hash without reprocessing 
             self.sqlite.update_field(ctx.original_url, ART_FIELD_HASH, ctx.cached_file_hash)
             return entry
 
-        # Hash mismatch and both populated → stale entry
-        return None
+        return None  # Hash mismatch → stale entry
 
     def write_lookup(self, art_type: str, metadata: dict[str, Any]) -> None:
         """
@@ -147,6 +151,6 @@ class ArtworkCacheManager:
         """
         if not metadata:
             return
-        
+
         category = "clearlogo" if "clearlogo" in art_type else art_type
         self.sqlite.add_entry(category, metadata)
