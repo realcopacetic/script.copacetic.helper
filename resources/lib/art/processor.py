@@ -128,25 +128,19 @@ class ImageProcessor:
         Compute darken metadata without altering pixels.
 
         :param image: Input PIL image.
-        :param kwargs: Process inputs (expects ``darken``/``opts`` + optional ``sample_frame``).
-        :return: Dict with {"image", "format", "metadata"} or None.
+        :param kwargs: Process inputs (expects ``darken``).
+        :return: Dict with {"image", "metadata"} or None.
         """
-        opts = kwargs.get("darken") or kwargs.get("opts")
-        if not opts:
-            return {"image": image, "format": "PNG", "metadata": {}}
+        opts = kwargs.get("darken")
+        if not opts or not opts.enabled:
+            return {"image": image, "metadata": {}}
 
-        sample_frame = kwargs.get("sample_frame")
-        frame = sample_frame if isinstance(sample_frame, Image.Image) else image
-
+        frame = kwargs.get("sample_frame") or image
         try:
             updates = self.darken.compute_darken(frame, opts=opts) or {}
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to darken image → {exc}")
             return None
 
-        return {
-            "image": image,
-            "format": "PNG", 
-            "metadata": updates,
-        }
+        return {"image": image, "metadata": updates}
 

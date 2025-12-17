@@ -156,11 +156,12 @@ class ImageEditor:
                 )
 
             if cached := shared["cache"][cache_key]:
+                merged = base_attrs | cached
                 log.debug(
                     f"{self.__class__.__name__} → Cache returned → "
-                    f"{art_type=} → keys={tuple(cached.keys())}",
+                    f"{art_type=} → {merged}",
                 )
-                return base_attrs | cached
+                return merged
 
         processed = self._run_processor(
             art_type=art_type,
@@ -233,7 +234,6 @@ class ImageEditor:
             return None
 
         shared["images"][source_path] = image
-
         result = process_method(
             image,
             art_type=art_type,
