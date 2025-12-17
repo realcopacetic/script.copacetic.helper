@@ -8,25 +8,23 @@ from typing import Any, Iterable, Mapping
 # Fields produced by analysis/processing that we want to persist/export
 ART_FIELD_PROCESSED: str = "processed_path"
 ART_FIELD_HASH: str = "cached_file_hash"
-ART_VALUE_FIELDS: tuple[str, ...] = (
+ART_FIELD_ANALYSIS: tuple[str, ...] = (
     "color",
     "accent",
     "contrast",
     "luminosity",
 )
-ART_RUNTIME_FIELDS: tuple[str, ...] = (
+ART_RUNTIME_PREFIXES: tuple[str, ...] = (
     "darken",
     "element_darken",
 )
-
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
     "clearlogo": ("clearlogo", "clearlogo-alt", "clearlogo-billboard"),
 }
-
 # Keys exported to ListItem.Art: processed_path maps to "{category}"; others map to "{category}_{key}"
 ART_LISTITEM_EXPORT_KEYS: tuple[str, ...] = (
-    (ART_FIELD_PROCESSED,) + ART_VALUE_FIELDS + ART_RUNTIME_FIELDS
+    (ART_FIELD_PROCESSED,) + ART_FIELD_ANALYSIS + ART_RUNTIME_PREFIXES
 )
 
 # DB column order for inserts/updates (tuple order matters)
@@ -37,7 +35,7 @@ ART_DB_COLUMNS: tuple[str, ...] = (
         ART_FIELD_HASH,
     )
     + (ART_FIELD_PROCESSED,)
-    + ART_VALUE_FIELDS
+    + ART_FIELD_ANALYSIS
 )
 
 
@@ -135,7 +133,9 @@ class ArtMeta:
     color: str | None = None
     accent: str | None = None
     contrast: str | None = None
-    luminosity: int | None = None  # keep your int( L * 1000 )
+    luminosity: int | None = None
+    darken: int | None = None
+    element_darken: dict[str, int] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Dict view (for JSON/logging/UI)."""

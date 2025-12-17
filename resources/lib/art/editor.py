@@ -256,7 +256,7 @@ class ImageEditor:
                     )
                 except Exception:
                     pass
-
+        
         attrs = ArtMeta.from_values(
             category=art_type,
             original_url=url,
