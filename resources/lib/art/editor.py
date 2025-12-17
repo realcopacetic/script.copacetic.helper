@@ -146,7 +146,7 @@ class ImageEditor:
         ctx = self.cache_manager.prepare(original_url, ext)
         spec = self.PROCESS_SPEC[process]
 
-        base_attrs: dict[str, Any] = shared["results"].get(art_type, {}) | {}
+        base_attrs = dict(shared["results"].get(art_type, {}))
         if (require := spec.get("require")) is not None:
             cache_key = (original_url, process)
             if cache_key not in shared["cache"]:
@@ -224,11 +224,11 @@ class ImageEditor:
             if not validate_path(source_path):
                 return None
 
-        image = shared["image_cache"].get(source_path) or self._image_open(source_path)
+        image = shared["images"].get(source_path) or self._image_open(source_path)
         if image is None:
             return None
 
-        shared["image_cache"][source_path] = image
+        shared["images"][source_path] = image
 
         result = process_method(
             image,
