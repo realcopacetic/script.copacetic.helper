@@ -291,13 +291,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "background": ("blur", "analyze", "darken"),
                 "icon": ("blur", "analyze", "darken"),
             }
-            jobs = [
-                {"art_type": art_type, "process": process, "url": opts.url}
+            jobs = {
+                art_type: [p for p in processes if opts.enabled(p)]
                 for art_type, processes in approved.items()
                 if (opts := art_opts.get(art_type)) and opts.url
-                for process in processes
-                if opts.enabled(process)
-            ]
+            }
             if not jobs:
                 log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
                 return

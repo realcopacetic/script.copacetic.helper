@@ -52,7 +52,7 @@ class ColorDarken:
             return None
 
         framed, rects, target, text_rgb, L_text = ctx
-        mode = (opts.mode or "").strip().lower()
+        mode = (opts.mode or "")
         updates: DarkenUpdates = {}
 
         if mode in ("artwork", "both"):
@@ -210,7 +210,7 @@ class ColorDarken:
 
         src = (opts.source or "").strip()
         if src.lower() == "clearlogo":
-            clearlogo = (shared or {}).get("results", {}).get("clearlogo", {})
+            clearlogo = shared.get("results", {}).get("clearlogo", {})
             src = (clearlogo.get("color") or "")
 
         text_rgb = (

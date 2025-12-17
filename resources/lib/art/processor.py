@@ -74,12 +74,13 @@ class ImageProcessor:
 
         :param image: Input PIL Image.
         :param kwargs: Optional overlay parameters (e.g. overlay_source, overlay_rect).
-        :return: Dict with {"image", "format", "metadata"}.
+        :return: Dict with {"image", "format", "metadata", "work_image"} or None on failure.
         """
         try:
             image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
-            sample_frame = image.copy()
-            radius = kwargs.get("blur_radius") or self.cfg.blur_radius
+            work_image = image.copy()
+            opts = kwargs["opts"]
+            radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
             image = image.filter(ImageFilter.GaussianBlur(radius=radius))
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to blur image → {exc}")
@@ -92,54 +93,58 @@ class ImageProcessor:
             "image": image,
             "format": "JPEG",
             "metadata": analysis,
-            "sample_frame": sample_frame,
+            "work_image": work_image,  # non-blurred for downstream processsing
         }
 
     @log.duration
-    def analyze(self, image: Image.Image, **_: Any) -> dict[str, Any] | None:
+    def analyze(self, image: Image.Image, art_type: str, **kwargs: Any) -> dict[str, Any] | None:
         """
         Extract color metadata from arbitrary artwork without saving output.
 
         :param image: Input PIL image.
-        :param _: Ignored future parameters.
-        :return: Dict with {"image", "format", "metadata"} or None.
+        :param art_type: Artwork type key.
+        :param kwargs: Process inputs (e.g. work_image).
+        :return: Dict with {"image", "metadata"} or None on failure.
         """
+        img = kwargs["shared"]["work_image"].get(art_type) or image
         try:
-            # Reuse fanart target size as a reasonable downscale for analysis.
-            image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
+            img.thumbnail(self.cfg.fanart_target_size, Image.BOX)
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to analyze image → {exc}")
             return None
 
         # Use RGBA so icons/overlays keep alpha where present.
-        image = self._ensure_mode(image, "RGBA")
-        analysis = self.color_analyzer.analyze(image)
+        img = self._ensure_mode(img, "RGBA")
+        analysis = self.color_analyzer.analyze(img)
 
         return {
-            "image": image,
-            "format": "PNG",
+            "image": img,
             "metadata": analysis,
         }
 
     @log.duration
-    def darken(self, image: Image.Image, **kwargs: Any) -> dict[str, Any] | None:
+    def darken(
+        self, image: Image.Image, art_type: str, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """
         Compute darken metadata without altering pixels.
         Uses contrast rules against the configured source.
 
         :param image: Input PIL image.
+        :param art_type: Artwork type key.
         :param kwargs: Process inputs (expects ``darken`` options).
-        :return: Dict with {"image", "metadata"} or None.
+        :return: Dict with {"image", "metadata"} or None on failure.
         """
-        opts = kwargs.get("darken")
-        if not opts or not opts.enabled:
+        darken_opts = kwargs["opts"].darken
+        if not darken_opts or not darken_opts.enabled:
             return {"image": image, "metadata": {}}
 
-        frame = kwargs.get("sample_frame") or image
+        shared = kwargs["shared"]
+        frame = shared["work_image"].get(art_type) or image
         try:
             updates = (
                 self.darken_engine.compute_darken(
-                    frame, opts=opts.darken, shared=kwargs.get("shared")
+                    frame, opts=darken_opts, shared=shared
                 )
                 or {}
             )

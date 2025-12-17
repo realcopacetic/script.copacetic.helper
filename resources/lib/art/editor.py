@@ -52,45 +52,40 @@ class ImageEditor:
 
     def image_processor(
         self,
-        jobs: Iterable[Mapping[str, str]],
+        jobs: Mapping[str, Iterable[str]],
         art_opts: Mapping[str, ArtOpts],
         source: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Process jobs into per-art_type attribute dictionaries.
-        Each job is cache-checked before processing.
+        Each process is cache-checked before running.
 
-        :param jobs: Iterable of job dicts with 'art_type' and 'process'.
+        :param jobs: Mapping of art_type to ordered process names.
         :param art_opts: Mapping of art_type to parsed ArtOpts.
         :param source: Kodi infolabel source prefix for Art() lookups.
         :return: List of attribute dicts (one per art_type).
         """
         shared = {
-            "images": {},
+            "image_cache": {},
             "cache": {},
             "results": {},
-            "last_image": {},
+            "work_image": {}
         }
         try:
-            updates = [
-                (art_type, attrs)
-                for job in jobs
-                if (art_type := (job.get("art_type") or ""))
-                and (process := (job.get("process") or ""))
-                and (opts := art_opts.get(art_type)) is not None
+            return [
+                merged
+                for art_type, processes in jobs.items()
+                if (opts := art_opts.get(art_type)) is not None
                 and (
-                    attrs := self._handle_job(
+                    merged := self._handle_jobs(
                         art_type=art_type,
-                        process=process,
+                        processes=tuple(processes),
                         source=source or "Container.ListItem",
-                        url=(job.get("url") or "") or None,
                         opts=opts,
                         shared=shared,
                     )
                 )
             ]
-            for art_type, attrs in updates:
-                shared["results"][art_type] = attrs
 
         except Exception as error:
             log.error(
@@ -98,30 +93,27 @@ class ImageEditor:
             )
             return []
 
-        return list(shared["results"].values())
-
-    def _handle_job(
+    def _handle_jobs(
         self,
         *,
         art_type: str,
-        process: str,
+        processes: Iterable[str],
         source: str,
-        url: str | None = None,
         opts: ArtOpts,
         shared: dict[str, Any],
     ) -> dict[str, Any] | None:
         """
-        Resolve URL, cache-check the DB row, then run one job if needed.
-        Returns updated attributes for the art_type.
+        Resolve URL, cache-check required fields, then run processes in order.
+        Returns the merged attributes for this art_type.
 
         :param art_type: Artwork type key.
-        :param process: Process name ('crop', 'blur', 'analyze', 'darken').
+        :param processes: Ordered process names for this art_type.
         :param source: Kodi infolabel source prefix.
-        :param url: Optional explicit URL override.
         :param opts: Parsed ArtOpts for this art_type.
         :param shared: Shared context across jobs in this call.
-        :return: Updated per-art_type attributes, or None.
+        :return: Merged per-art_type attributes, or None on failure.
         """
+        url = opts.url
         art = (
             {art_type: url}
             if url
@@ -129,7 +121,7 @@ class ImageEditor:
         )
         if not art:
             log.debug(
-                f"{self.__class__.__name__} → _handle_job({art_type}) → "
+                f"{self.__class__.__name__} → _handle_jobs({art_type}) → "
                 f"no art resolved for {source=}, {url=}",
             )
             return None
@@ -137,51 +129,53 @@ class ImageEditor:
         original_url = next(iter(art.values()))
         if not original_url:
             log.debug(
-                f"{self.__class__.__name__} → _handle_job({art_type}) → "
+                f"{self.__class__.__name__} → _handle_jobs({art_type}) → "
                 f"original_url empty → {art=}",
             )
             return None
 
         ext = ".png" if original_url.lower().endswith(".png") else ".jpg"
         ctx = self.cache_manager.prepare(original_url, ext)
-        spec = self.PROCESS_SPEC[process]
 
-        base_attrs = dict(shared["results"].get(art_type, {}))
-        if (require := spec.get("require")) is not None:
-            cache_key = (original_url, process)
-            if cache_key not in shared["cache"]:
-                shared["cache"][cache_key] = self.cache_manager.read_lookup(
-                    ctx,
-                    require=tuple(require),
-                )
+        merged: dict[str, Any] = dict(shared["results"].get(art_type, {}))
+        for process in processes:
+            spec = self.PROCESS_SPEC[process]
+            require = spec.get("require")
+            if require is not None:
+                cache_key = (original_url, process)
+                if cache_key not in shared["cache"]:
+                    shared["cache"][cache_key] = self.cache_manager.read_lookup(
+                        ctx,
+                        require=tuple(require),
+                    )
 
-            if cached := shared["cache"][cache_key]:
-                log.debug(
-                    f"{self.__class__.__name__} → Cache returned → "
-                    f"{art_type=} → {cached}",
-                )
-                return base_attrs | cached
+                if cached := shared["cache"][cache_key]:
+                    log.debug(
+                        f"{self.__class__.__name__} → Cache returned → {art_type=} → {cached}",
+                    )
+                    merged |= cached
+                    continue
 
-        processed = self._run_processor(
-            art_type=art_type,
-            process=process,
-            art=art,
-            ctx=ctx,
-            opts=opts,
-            shared=shared,
-            folder=spec.get("folder"),
-        )
-        if not processed:
-            return None
+            processed = self._run_processor(
+                art_type=art_type,
+                process=process,
+                art=art,
+                ctx=ctx,
+                opts=opts,
+                shared=shared,
+                folder=spec.get("folder"),
+            )
+            if not processed:
+                return None
 
-        attrs, img, _ctx = processed
-        log.debug(
-            f"{self.__class__.__name__} → Payload returned → {art_type=} → {attrs}",
-        )
-        if img is not None:
-            shared["last_image"][art_type] = img
+            attrs, _img, _ctx = processed
+            log.debug(
+                f"{self.__class__.__name__} → Payload returned → {art_type=} → {attrs}",
+            )
+            merged |= attrs
 
-        return base_attrs | attrs
+        shared["results"][art_type] = merged
+        return merged
 
     def _run_processor(
         self,
@@ -243,6 +237,8 @@ class ImageEditor:
         if not result or "image" not in result:
             return None
 
+        if (work := result.get("work_image")) is not None:
+            shared["work_image"][art_type] = work
         if folder:
             processed_path = destination_path
             with xbmcvfs.File(processed_path, "wb") as f:

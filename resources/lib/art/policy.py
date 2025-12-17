@@ -128,7 +128,6 @@ class ArtMeta:
     Canonical artwork record passed from processors -> editor -> sqlite -> handler.
     Only add fields here once; all layers see the same shape.
     """
-
     category: str
     original_url: str | None = None
     processed_path: str | None = None
