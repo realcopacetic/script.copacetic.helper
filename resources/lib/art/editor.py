@@ -8,7 +8,6 @@ from PIL import Image
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
 from resources.lib.art.policy import (
     ART_SOURCE_KEYS,
-    ArtMeta,
     ColorConfig,
     resolve_art_type,
 )
@@ -256,20 +255,20 @@ class ImageEditor:
                     )
                 except Exception:
                     pass
-        
-        attrs = ArtMeta.from_values(
-            category=art_type,
-            original_url=url,
-            processed_path=processed_path,
-            cached_file_hash=ctx.cached_file_hash,
-            values=result.get("metadata", {}),
-        ).to_dict()
-        return attrs, result["image"], ctx
+
+            meta = result.get("metadata") or {}
+            attrs: dict[str, Any] = {
+                "category": art_type,
+                "original_url": url,
+                "processed_path": processed_path or None,
+                "cached_file_hash": ctx.cached_file_hash or None,
+                **{k: v for k, v in meta.items() if v is not None},
+            }
+            return attrs, result["image"], ctx
 
     def _fetch_art_url(self, art_type: str, source: str) -> dict[str, str]:
         """
         Read artwork paths from Kodi infolabels and select the best candidate.
-        Uses :data:`ART_SOURCE_KEYS` and :func:`resolve_art_type`.
 
         :param art_type: Target artwork type to resolve.
         :param source: Kodi info label source prefix (e.g. "Container.ListItem").
@@ -283,8 +282,7 @@ class ImageEditor:
         log.debug(
             f"{self.__class__.__name__} → _fetch_art_url({art_type}, {source}) → {candidates=}",
         )
-        choice = resolve_art_type(candidates, art_type)
-        return {choice.target_key: choice.path} if choice.path else {}
+        return resolve_art_type(candidates, art_type)
 
     def _image_open(self, url: str) -> Image.Image | None:
         """

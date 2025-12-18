@@ -1,9 +1,7 @@
 # author: realcopacetic
 
-from __future__ import annotations
-
-from dataclasses import asdict, dataclass, field
-from typing import Any, Iterable, Mapping
+from dataclasses import dataclass, field
+from typing import Any, Iterable
 
 # Fields produced by analysis/processing that we want to persist/export
 ART_FIELD_PROCESSED: str = "processed_path"
@@ -39,7 +37,7 @@ ART_DB_COLUMNS: tuple[str, ...] = (
 )
 
 
-@dataclass
+@dataclass(frozen=True)
 class ColorConfig:
     """Tunable parameters for colour analysis, contrast, and readability."""
 
@@ -120,64 +118,14 @@ class ColorConfig:
     png_compress_level: int = 3  # 0–9 (0 fastest, 9 smallest)
 
 
-@dataclass
-class ArtMeta:
-    """
-    Canonical artwork record passed from processors -> editor -> sqlite -> handler.
-    Only add fields here once; all layers see the same shape.
-    """
-    category: str
-    original_url: str | None = None
-    processed_path: str | None = None
-    cached_file_hash: str | None = None
-    color: str | None = None
-    accent: str | None = None
-    contrast: str | None = None
-    luminosity: int | None = None
-    darken: int | None = None
-    element_darken: dict[str, int] | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Dict view (for JSON/logging/UI)."""
-        return asdict(self)
-
-    @classmethod
-    def from_values(
-        cls,
-        *,
-        category: str,
-        values: Mapping[str, Any] | None = None,
-        **extras: Any,
-    ) -> ArtMeta:
-        """
-        Build an ArtMeta by filtering only known value fields from `values`
-        and merging with editor-level extras (paths, url, hashes).
-        """
-        values = values or {}
-        payload = {
-            k: values.get(k)
-            for k in ART_LISTITEM_EXPORT_KEYS
-            if values.get(k) is not None
-        }
-        payload.update(extras)  # original_url, processed_path, cached_file_hash, etc.
-        return cls(category=category, **payload)
-
-
-@dataclass(frozen=True)
-class ArtChoice:
-    target_key: str  # normalized role to publish under (e.g. "fanart")
-    path: str  # resolved VFS path ("" if none found)
-
-
-def resolve_art_type(art: dict, art_type: str) -> ArtChoice:
+def resolve_art_type(art: dict, art_type: str) -> dict[str, str]:
     """
     Choose the best artwork path for a target art_type using ART_SOURCE_KEYS priority,
     with special episode-friendly fanart heuristic.
 
     :param art: Kodi-style dict of available art {key: path}
     :param art_type: role to resolve (e.g., "fanart", "clearlogo")
-    :return: ArtChoice(target_key=art_type, path=...,)
-             Empty path if nothing suitable found.
+    :return: Mapping {published_key: path} or {}.
     """
     keys = ART_SOURCE_KEYS.get(art_type, (art_type,))
 
@@ -187,44 +135,24 @@ def resolve_art_type(art: dict, art_type: str) -> ArtChoice:
         fanart = art.get("fanart")
         tv_fanart = art.get("tvshow.fanart")
         if thumb and (not fanart or (tv_fanart and fanart == tv_fanart)):
-            return ArtChoice(target_key="fanart", path=thumb)
+            return {"fanart": thumb}
 
     # Return first valid path from priority list (or from art_type itself)
-    return ArtChoice(
-        target_key=art_type,
-        path=next((art[k] for k in keys if art.get(k)), art.get(art_type, "")) or "",
-    )
+    path = next((art[k] for k in keys if art.get(k)), art.get(art_type, "")) or ""
+    return {art_type: path} if path else {}
 
 
 def flatten_art_attributes(
-    records: Iterable[ArtMeta | dict[str, Any]],
+    records: Iterable[dict[str, Any]],
 ) -> dict[str, Any]:
     """
     Flatten canonical records into ListItem.Art-style keys.
-
     processed_path -> "{category}"
     others         -> "{category}_{key}"
     """
-    out: dict[str, Any] = {}
-    for rec in records or ():
-        d = rec.to_dict() if hasattr(rec, "to_dict") else dict(rec)
-        cat = d.get("category")
-        if not cat:
-            continue
-
-        # existing explicit exports
-        for key in ART_LISTITEM_EXPORT_KEYS:
-            val = d.get(key)
-            if val is None:
-                continue
-            name = cat if key == "processed_path" else f"{cat}_{key}"
-            out[name] = val
-
-        # export element_darken series keys (element_darken1, element_darken2, ...)
-        for key, val in d.items():
-            if val is None:
-                continue
-            if key.startswith("element_darken") and key not in ART_LISTITEM_EXPORT_KEYS:
-                out[f"{cat}_{key}"] = val
-
-    return out
+    return {
+        (d["category"] if k == "processed_path" else f'{d["category"]}_{k}'): v
+        for d in records or ()
+        for k, v in d.items()
+        if v is not None and k != "category"
+    }
