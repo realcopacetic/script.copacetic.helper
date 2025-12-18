@@ -1,40 +1,109 @@
 # author: realcopacetic
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
-# Fields produced by analysis/processing that we want to persist/export
-ART_FIELD_PROCESSED: str = "processed_path"
+
+ART_FIELD_CATEGORY: str = "category"
+ART_FIELD_ORIGINAL_URL: str = "original_url"
 ART_FIELD_HASH: str = "cached_file_hash"
-ART_FIELD_ANALYSIS: tuple[str, ...] = (
+ART_FIELD_PROCESSED: str = "processed_path"
+
+ART_DB_FIELDS: tuple[str, ...] = (
+    ART_FIELD_CATEGORY,
+    ART_FIELD_ORIGINAL_URL,
+    ART_FIELD_HASH,
+    ART_FIELD_PROCESSED,
     "color",
     "accent",
     "contrast",
     "luminosity",
 )
-ART_RUNTIME_PREFIXES: tuple[str, ...] = (
+
+ART_LISTITEM_KEYS: tuple[str, ...] = (
+    ART_FIELD_CATEGORY,
+    ART_FIELD_PROCESSED,
+    "color",
+    "accent",
+    "contrast",
+    "luminosity",
     "darken",
-    "element_darken",
 )
+ART_LISTITEM_PREFIXES: tuple[str, ...] = (
+    "element_darken",  # element_darken1, element_darken2, ...
+)
+
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
     "clearlogo": ("clearlogo", "clearlogo-alt", "clearlogo-billboard"),
 }
-# Keys exported to ListItem.Art: processed_path maps to "{category}"; others map to "{category}_{key}"
-ART_LISTITEM_EXPORT_KEYS: tuple[str, ...] = (
-    (ART_FIELD_PROCESSED,) + ART_FIELD_ANALYSIS + ART_RUNTIME_PREFIXES
-)
 
-# DB column order for inserts/updates (tuple order matters)
-ART_DB_COLUMNS: tuple[str, ...] = (
-    (
-        "category",
-        "original_url",
-        ART_FIELD_HASH,
-    )
-    + (ART_FIELD_PROCESSED,)
-    + ART_FIELD_ANALYSIS
-)
+
+def filter_db_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    """
+    Filter a record down to DB-safe fields only.
+
+    :param row: Full record dict.
+    :return: Dict restricted to ART_DB_FIELDS with None removed.
+    """
+    return {k: row.get(k) for k in ART_DB_FIELDS if row.get(k) is not None}
+
+
+def filter_listitem_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    """
+    Filter a record down to ListItem-export fields only.
+
+    :param row: Full record dict.
+    :return: Dict restricted to export keys/prefixes with None removed.
+    """
+    return {
+        k: v
+        for k, v in row.items()
+        if v is not None
+        and (
+            k in ART_LISTITEM_KEYS
+            or any(k.startswith(p) for p in ART_LISTITEM_PREFIXES)
+        )
+    }
+
+
+def flatten_art_attributes(
+    records: Iterable[dict[str, Any]],
+) -> dict[str, Any]:
+    """
+    Flatten canonical records into ListItem.Art-style keys.
+    processed_path -> "{category}"
+    others         -> "{category}_{key}"
+    """
+    return {
+        (d["category"] if k == "processed_path" else f'{d["category"]}_{k}'): v
+        for d in records or ()
+        for k, v in filter_listitem_payload(d).items()
+    }
+
+
+def resolve_art_type(art: dict, art_type: str) -> dict[str, str]:
+    """
+    Choose the best artwork path for a target art_type using ART_SOURCE_KEYS priority,
+    with special episode-friendly fanart heuristic.
+
+    :param art: Kodi-style dict of available art {key: path}
+    :param art_type: role to resolve (e.g., "fanart", "clearlogo")
+    :return: Mapping {published_key: path} or {}.
+    """
+    keys = ART_SOURCE_KEYS.get(art_type, (art_type,))
+
+    # Episode-friendly heuristic: prefer thumb if fanart mirrors tvshow.fanart
+    if art_type == "fanart":
+        thumb = art.get("thumb")
+        fanart = art.get("fanart")
+        tv_fanart = art.get("tvshow.fanart")
+        if thumb and (not fanart or (tv_fanart and fanart == tv_fanart)):
+            return {"fanart": thumb}
+
+    # Return first valid path from priority list (or from art_type itself)
+    path = next((art[k] for k in keys if art.get(k)), art.get(art_type, "")) or ""
+    return {art_type: path} if path else {}
 
 
 @dataclass(frozen=True)
@@ -55,7 +124,6 @@ class ColorConfig:
     skip_whites: bool = True  # ignore white-ish swatches unless overwhelmingly dominant
     skip_blacks: bool = True  # ignore black-ish swatches unless overwhelmingly dominant
     dominance_allow_threshold: float = 0.70  # allow skipped extremes if ≥70% of pixels
-    alpha_thresholded_mask: bool = True  # binary alpha; uses alpha_opaque_min as cutoff
     alpha_opaque_min: int = 65  # alpha cutoff (0–255) for treating pixels as opaque
     near_white: int = 245  # per-channel threshold for considering a swatch “near white”
     near_black: int = 10  # per-channel threshold for considering a swatch “near black”
@@ -90,13 +158,6 @@ class ColorConfig:
     target_contrast_ratio: float = 4.5  # WCAG target (4.5 normal, 3.0 large)
     overlay_default_frame: tuple[int, int] = (1920, 1080)  # Fallback artwork size
     text_complexity_stddev: float = 20.0
-    text_complexity_probe_size: int = 64  # downsample size for complexity probe
-    text_complexity_dark_luma: int = 30  # 0-255: "dark" cutoff
-    text_complexity_bright_luma: int = 225  # 0-255: "bright" cutoff
-    text_complexity_bimodal_min: float = (
-        0.25  # if min(dark_frac, bright_frac) >= this => "busy"
-    )
-    text_complexity_entropy: float = 4.2  # higher = more lenient, lower = more strict
 
     # --- Red leniency / guard rails ---
     red_relax_enable: bool = True  # enable hue-aware leniency for reds on dark bg
@@ -112,47 +173,5 @@ class ColorConfig:
     jpeg_optimize: bool = False  # smaller files, slower saves
     jpeg_progressive: bool = False  # progressive encoding; slower
     jpeg_subsampling: str = "4:2:0"  # color detail vs size ("4:4:4" = best)
-
-    # PNG save knobs
     png_optimize: bool = False  # smaller files, slower saves
     png_compress_level: int = 3  # 0–9 (0 fastest, 9 smallest)
-
-
-def resolve_art_type(art: dict, art_type: str) -> dict[str, str]:
-    """
-    Choose the best artwork path for a target art_type using ART_SOURCE_KEYS priority,
-    with special episode-friendly fanart heuristic.
-
-    :param art: Kodi-style dict of available art {key: path}
-    :param art_type: role to resolve (e.g., "fanart", "clearlogo")
-    :return: Mapping {published_key: path} or {}.
-    """
-    keys = ART_SOURCE_KEYS.get(art_type, (art_type,))
-
-    # Episode-friendly heuristic: prefer thumb if fanart mirrors tvshow.fanart
-    if art_type == "fanart":
-        thumb = art.get("thumb")
-        fanart = art.get("fanart")
-        tv_fanart = art.get("tvshow.fanart")
-        if thumb and (not fanart or (tv_fanart and fanart == tv_fanart)):
-            return {"fanart": thumb}
-
-    # Return first valid path from priority list (or from art_type itself)
-    path = next((art[k] for k in keys if art.get(k)), art.get(art_type, "")) or ""
-    return {art_type: path} if path else {}
-
-
-def flatten_art_attributes(
-    records: Iterable[dict[str, Any]],
-) -> dict[str, Any]:
-    """
-    Flatten canonical records into ListItem.Art-style keys.
-    processed_path -> "{category}"
-    others         -> "{category}_{key}"
-    """
-    return {
-        (d["category"] if k == "processed_path" else f'{d["category"]}_{k}'): v
-        for d in records or ()
-        for k, v in d.items()
-        if v is not None and k != "category"
-    }

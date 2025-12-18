@@ -38,9 +38,9 @@ class ImageProcessor:
         :param image: Input PIL Image.
         :return: Dict with {"image", "format", "metadata"} or None on failure.
         """
-        pre_resize_max = self.cfg.logo_presize_max
-        if image.width > pre_resize_max[0] or image.height > pre_resize_max[1]:
-            image.thumbnail(pre_resize_max, Image.BOX)
+        thumb_size = self.cfg.logo_presize_max
+        if image.width > thumb_size[0] or image.height > thumb_size[1]:
+            image.thumbnail(self.cfg.logo_presize_max, Image.BOX)
 
         try:
             image = self._ensure_mode(image, "RGBA")
@@ -58,13 +58,9 @@ class ImageProcessor:
         if image.width > final_max[0] or image.height > final_max[1]:
             image.thumbnail(final_max, Image.LANCZOS)
 
-        image = self._ensure_mode(image, "RGBA")
-        analysis = self.color_analyzer.analyze(image)
-
         return {
-            "image": image,
+            "image": self._ensure_mode(image, "RGBA"),
             "format": "PNG",
-            "metadata": analysis,
         }
 
     @log.duration
@@ -76,28 +72,24 @@ class ImageProcessor:
         :param kwargs: Optional overlay parameters (e.g. overlay_source, overlay_rect).
         :return: Dict with {"image", "format", "metadata", "work_image"} or None on failure.
         """
-        try:
+        thumb_size = self.cfg.fanart_target_size
+        if image.width > thumb_size[0] or image.height > thumb_size[1]:
             image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
-            work_image = image.copy()
-            opts = kwargs["opts"]
-            radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
+
+        opts = kwargs["opts"]
+        radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
+        try:
             image = image.filter(ImageFilter.GaussianBlur(radius=radius))
+            return {
+                "image": self._ensure_mode(image, "RGB"),
+                "format": "JPEG",
+            }
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to blur image → {exc}")
             return None
 
-        image = self._ensure_mode(image, "RGB")
-        analysis = self.color_analyzer.analyze(image)
-
-        return {
-            "image": image,
-            "format": "JPEG",
-            "metadata": analysis,
-            "work_image": work_image,  # non-blurred for downstream processsing
-        }
-
     @log.duration
-    def analyze(self, image: Image.Image, art_type: str, **kwargs: Any) -> dict[str, Any] | None:
+    def analyze(self, image: Image.Image, *_: Any) -> dict[str, Any] | None:
         """
         Extract color metadata from arbitrary artwork without saving output.
 
@@ -106,21 +98,19 @@ class ImageProcessor:
         :param kwargs: Process inputs (e.g. work_image).
         :return: Dict with {"image", "metadata"} or None on failure.
         """
-        img = kwargs["shared"]["work_image"].get(art_type) or image
+        thumb_size = self.cfg.fanart_target_size
+        if image.width > thumb_size[0] or image.height > thumb_size[1]:
+            image.thumbnail(self.cfg.fanart_target_size, Image.BOX)
+
         try:
-            img.thumbnail(self.cfg.fanart_target_size, Image.BOX)
+            return {
+                "metadata": self.color_analyzer.analyze(
+                    self._ensure_mode(image, "RGBA")  # keep alpha where present
+                )
+            }
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to analyze image → {exc}")
             return None
-
-        # Use RGBA so icons/overlays keep alpha where present.
-        img = self._ensure_mode(img, "RGBA")
-        analysis = self.color_analyzer.analyze(img)
-
-        return {
-            "image": img,
-            "metadata": analysis,
-        }
 
     @log.duration
     def darken(
@@ -140,16 +130,13 @@ class ImageProcessor:
             return {"image": image, "metadata": {}}
 
         shared = kwargs["shared"]
-        frame = shared["work_image"].get(art_type) or image
         try:
-            updates = (
-                self.darken_engine.compute_darken(
-                    frame, opts=darken_opts, shared=shared
+            return {
+                "metadata": self.darken_engine.compute_darken(
+                    image, opts=darken_opts, shared=shared
                 )
                 or {}
-            )
+            }
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to darken image → {exc}")
             return None
-
-        return {"image": image, "metadata": updates}

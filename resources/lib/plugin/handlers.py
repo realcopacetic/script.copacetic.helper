@@ -300,8 +300,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
                 return
 
+            log.debug(f"FUCK DEBUG {jobs=}")
+
             image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
-            processed = image_processor(
+            art = image_processor(
                 jobs=jobs,
                 art_opts=art_opts,
                 source=f"{self.container}.ListItem",
@@ -309,7 +311,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            art = flatten_art_attributes(processed)
             multiart_dict = build_multiart_dict(
                 target=f"{self.container}.ListItem",
                 multiart_type=self.params.get("multiart"),

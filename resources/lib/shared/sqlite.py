@@ -5,7 +5,7 @@ import sqlite3
 import time
 from typing import Any
 
-from resources.lib.art.policy import ART_DB_COLUMNS
+from resources.lib.art.policy import ART_DB_FIELDS
 from resources.lib.shared.utilities import LOOKUPS
 
 
@@ -106,7 +106,7 @@ class ArtworkCacheHandler(SQLiteHandler):
     """
     TABLE_NAME = "artwork"
     _IMMUTABLE_COLUMNS = {"category", "original_url"}
-    _ALLOWED_UPDATE_COLS = set(ART_DB_COLUMNS) - _IMMUTABLE_COLUMNS
+    _ALLOWED_UPDATE_COLS = set(ART_DB_FIELDS) - _IMMUTABLE_COLUMNS
 
     def __init__(self) -> None:
         super().__init__()
@@ -136,12 +136,12 @@ class ArtworkCacheHandler(SQLiteHandler):
             conn.commit()
 
     def add_entry(self, category: str, attributes: dict[str, Any]) -> None:
-        """Insert/replace an artwork entry using ART_DB_COLUMNS."""
+        """Insert/replace an artwork entry using ART_DB_FIELDS."""
         row = tuple(
             category if col == "category" else attributes.get(col)
-            for col in ART_DB_COLUMNS
+            for col in ART_DB_FIELDS
         )
-        self._insert_or_replace(ART_DB_COLUMNS, row)
+        self._insert_or_replace(ART_DB_FIELDS, row)
 
     def get_entry(self, original_url: str) -> dict[str, Any] | None:
         return self._get_one(

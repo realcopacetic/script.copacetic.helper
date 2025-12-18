@@ -9,6 +9,8 @@ from resources.lib.art.cache import ArtworkCacheManager, CacheContext
 from resources.lib.art.policy import (
     ART_SOURCE_KEYS,
     ColorConfig,
+    filter_db_payload,
+    flatten_art_attributes,
     resolve_art_type,
 )
 from resources.lib.art.processor import ImageProcessor
@@ -24,6 +26,7 @@ class ImageEditor:
     Coordinate artwork processing, caching and color metadata extraction.
     Handles crop/blur/analyze plus optional overlay darken.
     """
+
     PROCESS_SPEC: dict[str, dict[str, Any]] = {
         "crop": {"folder": CROPS, "require": ("processed_path",)},
         "blur": {"folder": BLURS, "require": ("processed_path",)},
@@ -64,27 +67,29 @@ class ImageEditor:
         :param source: Kodi infolabel source prefix for Art() lookups.
         :return: List of attribute dicts (one per art_type).
         """
+        art_types = tuple(jobs)
         shared = {
-            "image_cache": {},
-            "cache": {},
-            "results": {},
-            "work_image": {}
+            "image_cache": {k: {} for k in art_types},
+            "cache": {k: {} for k in art_types},
+            "results": {k: {} for k in art_types},
         }
         try:
-            return [
-                merged
-                for art_type, processes in jobs.items()
-                if (opts := art_opts.get(art_type)) is not None
-                and (
-                    merged := self._handle_jobs(
-                        art_type=art_type,
-                        processes=tuple(processes),
-                        source=source or "Container.ListItem",
-                        opts=opts,
-                        shared=shared,
+            return flatten_art_attributes(
+                [
+                    merged
+                    for art_type, processes in jobs.items()
+                    if (opts := art_opts.get(art_type)) is not None
+                    and (
+                        merged := self._handle_jobs(
+                            art_type=art_type,
+                            processes=tuple(processes),
+                            source=source or "Container.ListItem",
+                            opts=opts,
+                            shared=shared,
+                        )
                     )
-                )
-            ]
+                ]
+            )
 
         except Exception as error:
             log.error(
@@ -112,6 +117,7 @@ class ImageEditor:
         :param shared: Shared context across jobs in this call.
         :return: Merged per-art_type attributes, or None on failure.
         """
+        write_required = False
         url = opts.url
         art = (
             {art_type: url}
@@ -125,35 +131,22 @@ class ImageEditor:
             )
             return None
 
-        original_url = next(iter(art.values()))
-        if not original_url:
+        ext = ".png" if url.lower().endswith(".png") else ".jpg"
+        ctx = self.cache_manager.prepare(url, ext)
+        attrs = self.cache_manager.read_lookup(ctx) or {}
+        if attrs:
             log.debug(
-                f"{self.__class__.__name__} → _handle_jobs({art_type}) → "
-                f"original_url empty → {art=}",
+                f"{self.__class__.__name__} → Cache returned → {art_type=} → {attrs}",
             )
-            return None
 
-        ext = ".png" if original_url.lower().endswith(".png") else ".jpg"
-        ctx = self.cache_manager.prepare(original_url, ext)
-
-        merged: dict[str, Any] = dict(shared["results"].get(art_type, {}))
         for process in processes:
             spec = self.PROCESS_SPEC[process]
             require = spec.get("require")
-            if require is not None:
-                cache_key = (original_url, process)
-                if cache_key not in shared["cache"]:
-                    shared["cache"][cache_key] = self.cache_manager.read_lookup(
-                        ctx,
-                        require=tuple(require),
-                    )
-
-                if cached := shared["cache"][cache_key]:
-                    log.debug(
-                        f"{self.__class__.__name__} → Cache returned → {art_type=} → {cached}",
-                    )
-                    merged |= cached
-                    continue
+            if require is not None and self._has_required(attrs, require):
+                log.debug(
+                    f"{self.__class__.__name__} → Cache sufficient for {art_type=} → {process=}"
+                )
+                continue
 
             processed = self._run_processor(
                 art_type=art_type,
@@ -167,14 +160,42 @@ class ImageEditor:
             if not processed:
                 return None
 
-            attrs, _img, _ctx = processed
             log.debug(
-                f"{self.__class__.__name__} → Payload returned → {art_type=} → {attrs}",
+                f"{self.__class__.__name__} → Payload returned → {art_type=} → {processed}",
             )
-            merged |= attrs
+            attrs |= processed
+            write_required = True
 
-        shared["results"][art_type] = merged
-        return merged
+        if write_required:
+            try:
+                self.cache_manager.write_lookup(
+                    art_type,
+                    {
+                        "url": url,
+                        **filter_db_payload(attrs),
+                    },
+                )
+            except Exception as exc:
+                log.error(
+                    f"{self.__class__.__name__} → DB write failed → {art_type=} → {exc}"
+                )
+
+        log.debug(f"FUCK DEBUG attrs returned at end of _handle_jobs() {attrs=}")
+        shared["results"][art_type] = attrs
+        return attrs
+
+    def _has_required(self, row: dict[str, Any], require: tuple[str, ...]) -> bool:
+        if not require:
+            return True
+
+        if "processed_path" in require and not validate_path(row.get("processed_path")):
+            return False
+
+        return all(
+            k in row and row.get(k) is not None
+            for k in require
+            if k != "processed_path"
+        )
 
     def _run_processor(
         self,
@@ -200,6 +221,7 @@ class ImageEditor:
         :param folder: Output folder name if this process writes files.
         :return: Tuple (attrs, image, ctx) or None on failure.
         """
+        processed_path = None
         process_method = getattr(self.processor, process, None)
         if not process_method:
             return None
@@ -208,7 +230,6 @@ class ImageEditor:
         if not url:
             return None
 
-        processed_path = ""
         if folder:
             source_path, destination_path = self.cache_manager.get_image_paths(
                 folder, ctx
@@ -221,11 +242,13 @@ class ImageEditor:
             if not validate_path(source_path):
                 return None
 
-        image = shared["image_cache"].get(source_path) or self._image_open(source_path)
+        image = shared["image_cache"][art_type].get(source_path) or self._image_open(
+            source_path
+        )
         if image is None:
             return None
 
-        shared["image_cache"][source_path] = image
+        shared["image_cache"][art_type][source_path] = image
         result = process_method(
             image,
             art_type=art_type,
@@ -233,12 +256,10 @@ class ImageEditor:
             ctx=ctx,
             shared=shared,
         )
-        if not result or "image" not in result:
+        if not result:
             return None
 
-        if (work := result.get("work_image")) is not None:
-            shared["work_image"][art_type] = work
-        if folder:
+        if folder and "image" in result:
             processed_path = destination_path
             with xbmcvfs.File(processed_path, "wb") as f:
                 self._save_processed_image(f, result)
@@ -256,15 +277,20 @@ class ImageEditor:
                 except Exception:
                     pass
 
-            meta = result.get("metadata") or {}
-            attrs: dict[str, Any] = {
-                "category": art_type,
-                "original_url": url,
-                "processed_path": processed_path or None,
-                "cached_file_hash": ctx.cached_file_hash or None,
-                **{k: v for k, v in meta.items() if v is not None},
-            }
-            return attrs, result["image"], ctx
+        meta = result.get("metadata") or {}
+        return {
+            "category": art_type,
+            "url": url,
+            **(
+                {"cached_file_hash": ctx.cached_file_hash}
+                if ctx.cached_file_hash is not None
+                else {}
+            ),
+            **(
+                {"processed_path": processed_path} if processed_path is not None else {}
+            ),
+            **{k: v for k, v in meta.items() if v is not None},
+        }
 
     def _fetch_art_url(self, art_type: str, source: str) -> dict[str, str]:
         """
@@ -292,6 +318,7 @@ class ImageEditor:
         :param url: Kodi VFS or translated path to the image resource.
         :return: PIL Image or None if missing/unsupported/unreadable.
         """
+        log.debug(f"FUCK DEBUG ARARAR 3")
         if url.lower().endswith(".svg"):
             log.debug(f"{self.__class__.__name__}: Skipping unsupported SVG → {url}")
             return None
@@ -314,8 +341,8 @@ class ImageEditor:
         :param result: Processor result mapping with 'image' and optional 'format'.
         :return: None.
         """
-        fmt = result.get("format", "PNG")
         img = result["image"]
+        fmt = result.get("format", "PNG")
         if fmt == "JPEG":
             img.save(
                 fh,
