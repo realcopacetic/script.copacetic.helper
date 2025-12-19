@@ -22,6 +22,7 @@ from resources.lib.shared.utilities import (
 @dataclass(frozen=True, slots=True)
 class CacheContext:
     """Resolved, immutable cache context for a single artwork URL."""
+
     url: str
     decoded_url: str
     suffix: str
@@ -64,7 +65,7 @@ class ArtworkCacheManager:
         )
         return CacheContext(
             url=url,
-            decoded_url = decoded_url,
+            decoded_url=decoded_url,
             suffix=suffix,
             cached_thumb=cached_thumb,
             cached_image_path=cached_image_path,
@@ -122,21 +123,23 @@ class ArtworkCacheManager:
             return None
 
         if require:
-            if ART_FIELD_PROCESSED in require and not validate_path(entry.get(ART_FIELD_PROCESSED)):
+            if ART_FIELD_PROCESSED in require and not validate_path(
+                entry.get(ART_FIELD_PROCESSED)
+            ):
                 return None
 
             missing = (set(require) - {ART_FIELD_PROCESSED}) - entry.keys()
             if missing:
                 return None
 
-        if not ctx.cached_file_hash: #trust processed if no hash computed yet
+        if not ctx.cached_file_hash:  # trust processed if no hash computed yet
             return entry
 
         db_hash = entry.get(ART_FIELD_HASH)
-        if db_hash and db_hash == ctx.cached_file_hash: # require match if both hashed
+        if db_hash and db_hash == ctx.cached_file_hash:  # require match if both hashed
             return entry
 
-        if not db_hash and ctx.cached_file_hash: # backfill hash without reprocessing 
+        if not db_hash and ctx.cached_file_hash:  # backfill hash without reprocessing
             self.sqlite.update_field(ctx.url, ART_FIELD_HASH, ctx.cached_file_hash)
             return entry
 
@@ -149,8 +152,11 @@ class ArtworkCacheManager:
         :param art_type: Artwork type for categorization (e.g., "clearlogo").
         :param metadata: Processed attributes including paths, colors, and hashes.
         """
-        if not metadata:
+        if not (url := (metadata or {}).get("url")):
+            log.error(f"{self.__class__.__name__} → write_lookup called without url in metadata")
             return
 
-        category = "clearlogo" if "clearlogo" in art_type else art_type
-        self.sqlite.add_entry(category, metadata)
+        if not self.sqlite.get_entry(url):
+            self.sqlite.add_entry(art_type, {"url": url})
+
+        self.sqlite.update_fields(url, **metadata)

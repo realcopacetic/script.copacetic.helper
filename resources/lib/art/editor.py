@@ -211,7 +211,7 @@ class ImageEditor:
         opts: ArtOpts,
         shared: dict[str, Any],
         folder: str | None,
-    ) -> tuple[dict[str, Any], Image.Image | None, CacheContext] | None:
+    ) -> dict[str, Any] | None:
         """
         Execute a single process and optionally write the processed file.
         Returns attrs plus the best in-memory image for subsequent jobs.
@@ -223,7 +223,7 @@ class ImageEditor:
         :param opts: Parsed ArtOpts for this art_type.
         :param shared: Shared context across jobs in this call.
         :param folder: Output folder name if this process writes files.
-        :return: Tuple (attrs, image, ctx) or None on failure.
+        :return: dict of processed attributes
         """
         processed_path = None
         process_method = getattr(self.processor, process, None)
@@ -315,7 +315,6 @@ class ImageEditor:
         :param url: Kodi VFS or translated path to the image resource.
         :return: PIL Image or None if missing/unsupported/unreadable.
         """
-        log.debug(f"FUCK DEBUG ARARAR 3")
         if url.lower().endswith(".svg"):
             log.debug(f"{self.__class__.__name__}: Skipping unsupported SVG → {url}")
             return None

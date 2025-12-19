@@ -10,7 +10,7 @@ from resources.lib.apis.tmdb.context import resolve_tmdb_context
 from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import build_multiart_dict, set_multiart_fadelabel
-from resources.lib.art.policy import flatten_art_attributes
+from resources.lib.art.policy import ART_PROCESS_MAP
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.plugin.helpers import (
@@ -286,21 +286,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 art_type: ArtOpts.from_params(self.params, art_type)
                 for art_type in ("clearlogo", "background", "icon")
             }
-            approved = {
-                "clearlogo": ("crop", "analyze"),
-                "background": ("blur", "analyze", "darken"),
-                "icon": ("blur", "analyze", "darken"),
-            }
             jobs = {
                 art_type: [p for p in processes if opts.enabled(p)]
-                for art_type, processes in approved.items()
+                for art_type, processes in ART_PROCESS_MAP.items()
                 if (opts := art_opts.get(art_type)) and opts.url
             }
             if not jobs:
                 log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
                 return
-
-            log.debug(f"FUCK DEBUG {jobs=}")
 
             image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
             art = image_processor(

@@ -38,6 +38,12 @@ ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "clearlogo": ("clearlogo", "clearlogo-alt", "clearlogo-billboard"),
 }
 
+ART_PROCESS_MAP: dict[str, tuple[str, ...]] = {
+    "clearlogo": ("crop", "analyze"),
+    "background": ("blur", "analyze", "darken"),
+    "icon": ("blur", "analyze", "darken"),
+}
+
 
 def filter_db_payload(row: Mapping[str, Any]) -> dict[str, Any]:
     """
