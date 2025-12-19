@@ -20,22 +20,32 @@ TMDB_DB_COLUMNS: tuple[str, ...] = (
 
 class SQLiteHandler:
     """
-    Base SQLite handler providing unified connection (WAL mode),
-    table name enforcement and basic CRUD operation helpers.
+    Base SQLite handler with WAL-enabled connections.
+    Provides shared CRUD helpers for SQLite-backed caches.
     Subclasses must set TABLE_NAME, implement _initialize_database().
     """
     TABLE_NAME: str | None = None
 
     def __init__(self, db_path: str | None = None) -> None:
+        """
+        Initialize the SQLite handler and ensure schema exists.
+        Sets database path and calls subclass initialization.
+        """
         self.db_path = db_path or LOOKUPS
         self._initialize_database()
 
     def _initialize_database(self) -> None:
-        """Subclasses must implement table creation."""
+        """
+        Create tables and indexes for the handler.
+        Must be implemented by subclasses.
+        """
         raise NotImplementedError
 
     def _connect(self) -> sqlite3.Connection:
-        """Unified connection helper with WAL mode."""
+        """
+        Open a SQLite connection with WAL mode enabled.
+        Returns an active sqlite3.Connection.
+        """
         conn = sqlite3.connect(self.db_path, timeout=5)
         conn.execute("PRAGMA journal_mode=WAL;")
         return conn
@@ -43,7 +53,10 @@ class SQLiteHandler:
     def _insert_or_replace(
         self, columns: tuple[str, ...], values: tuple[Any, ...]
     ) -> None:
-        """INSERT OR REPLACE helper using a dynamic column list."""
+        """
+        Insert or replace a row using dynamic columns.
+        Writes data into TABLE_NAME.
+        """
         if not self.TABLE_NAME:
             raise RuntimeError("TABLE_NAME must be defined.")
 
@@ -62,7 +75,10 @@ class SQLiteHandler:
             conn.commit()
 
     def _delete_where(self, where: str, params: tuple[Any, ...]) -> None:
-        """DELETE helper with dynamic WHERE clause."""
+        """
+        Delete rows matching a WHERE clause.
+        Applies to TABLE_NAME.
+        """
         if not self.TABLE_NAME:
             raise RuntimeError("TABLE_NAME must be defined.")
 
@@ -79,7 +95,10 @@ class SQLiteHandler:
         where: str,
         params: tuple[Any, ...],
     ) -> dict[str, Any] | None:
-        """Return a single row as dict or None."""
+        """
+        Fetch a single row from a table.
+        Returns row as dict or None.
+        """
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(f"SELECT * FROM {table} WHERE {where}", params)
@@ -91,7 +110,10 @@ class SQLiteHandler:
             return dict(zip(col_names, row))
 
     def clear_all(self) -> None:
-        """Delete every row in this table."""
+        """
+        Remove all rows from TABLE_NAME.
+        Clears cached data entirely.
+        """
         if not self.TABLE_NAME:
             raise RuntimeError("TABLE_NAME must be set on subclasses.")
 
@@ -102,16 +124,21 @@ class SQLiteHandler:
 
 class ArtworkCacheHandler(SQLiteHandler):
     """
-    Stores processed artwork data (colors, hashes, processed_path, etc.)
+    Cache for processed artwork attributes.
+    Stores paths, hashes, and color metadata.
     """
     TABLE_NAME = "artwork"
-    _IMMUTABLE_COLUMNS = {"category", "original_url"}
+    _IMMUTABLE_COLUMNS = {"category", "url"}
     _ALLOWED_UPDATE_COLS = set(ART_DB_FIELDS) - _IMMUTABLE_COLUMNS
 
     def __init__(self) -> None:
         super().__init__()
 
     def _initialize_database(self) -> None:
+        """
+        Create artwork cache table and indexes.
+        Ensures schema exists before use.
+        """
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -119,7 +146,7 @@ class ArtworkCacheHandler(SQLiteHandler):
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     category TEXT NOT NULL,
-                    original_url TEXT UNIQUE NOT NULL,
+                    url TEXT UNIQUE NOT NULL,
                     processed_path TEXT,
                     cached_file_hash TEXT,
                     color TEXT,
@@ -131,27 +158,48 @@ class ArtworkCacheHandler(SQLiteHandler):
             )
             cursor.execute(
                 f"CREATE INDEX IF NOT EXISTS idx_url "
-                f"ON {self.TABLE_NAME} (original_url)"
+                f"ON {self.TABLE_NAME} (url)"
             )
             conn.commit()
 
     def add_entry(self, category: str, attributes: dict[str, Any]) -> None:
-        """Insert/replace an artwork entry using ART_DB_FIELDS."""
+        """
+        Insert or replace an artwork cache record.
+        Writes category and processed attributes to SQLite.
+
+        :param category: Artwork category key.
+        :param attributes: Canonical artwork attributes.
+        :return: None.
+        """
         row = tuple(
             category if col == "category" else attributes.get(col)
             for col in ART_DB_FIELDS
         )
         self._insert_or_replace(ART_DB_FIELDS, row)
 
-    def get_entry(self, original_url: str) -> dict[str, Any] | None:
+    def get_entry(self, url: str) -> dict[str, Any] | None:
+        """
+        Retrieve a cached artwork entry by URL.
+        Returns stored attributes if present.
+
+        :param url: Artwork source URL.
+        :return: Cached artwork record or None.
+        """
         return self._get_one(
             table=self.TABLE_NAME,
-            where="original_url = ?",
-            params=(original_url,),
+            where="url = ?",
+            params=(url,),
         )
 
     def update_fields(self, url: str, **fields: Any) -> int:
-        """Update selected mutable fields by original_url."""
+        """
+        Update mutable artwork fields by URL.
+        Ignores immutable or None values.
+
+        :param url: Artwork source URL.
+        :param fields: Field names and values to update.
+        :return: Number of rows updated.
+        """
         safe_items = [
             (col, val)
             for col, val in fields.items()
@@ -170,7 +218,7 @@ class ArtworkCacheHandler(SQLiteHandler):
                     f"""
                     UPDATE {self.TABLE_NAME}
                     SET {assignments}
-                    WHERE original_url = ?
+                    WHERE url = ?
                     """,
                     (*vals, url),
                 )
@@ -180,6 +228,15 @@ class ArtworkCacheHandler(SQLiteHandler):
             return 0
 
     def update_field(self, url: str, column: str, value: Any) -> int:
+        """
+        Update a single artwork field by URL.
+        Delegates to update_fields.
+
+        :param url: Artwork source URL.
+        :param column: Column name to update.
+        :param value: New column value.
+        :return: Number of rows updated.
+        """
         return self.update_fields(url, **{column: value})
 
 
@@ -195,6 +252,10 @@ class TmdbCacheHandler(SQLiteHandler):
         super().__init__()
 
     def _initialize_database(self) -> None:
+        """
+        Create TMDb cache table and indexes.
+        Ensures schema exists before use.
+        """
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -221,6 +282,15 @@ class TmdbCacheHandler(SQLiteHandler):
     def get_entry(
         self, dbtype: str, tmdb_id: int, language: str
     ) -> dict[str, Any] | None:
+        """
+        Retrieve a cached TMDb payload by identifiers.
+        Validates TTL and parses stored JSON.
+
+        :param dbtype: Media database type.
+        :param tmdb_id: TMDb numeric identifier.
+        :param language: Language code.
+        :return: Cached TMDb record or None.
+        """
         row = self._get_one(
             table=self.TABLE_NAME,
             where="dbtype = ? AND tmdb_id = ? AND language = ?",
@@ -243,6 +313,15 @@ class TmdbCacheHandler(SQLiteHandler):
         return row
 
     def delete_entry(self, dbtype: str, tmdb_id: int, language: str) -> None:
+        """
+        Delete a TMDb cache entry.
+        Removes matching row from SQLite.
+
+        :param dbtype: Media database type.
+        :param tmdb_id: TMDb numeric identifier.
+        :param language: Language code.
+        :return: None.
+        """
         self._delete_where(
             "dbtype = ? AND tmdb_id = ? AND language = ?",
             (dbtype, tmdb_id, language),
@@ -256,12 +335,14 @@ class TmdbCacheHandler(SQLiteHandler):
         payload: dict[str, Any],
     ) -> None:
         """
-        Insert or replace a TMDb cache entry and purge stale rows.
+        Insert or update a TMDb cache entry.
+        Removes expired entries before write.
 
-        :param dbtype: 'movie', 'tv', etc.
-        :param tmdb_id: TMDb numeric ID.
-        :param language: TMDb language/region code (e.g. 'en-US').
-        :param payload: Parsed TMDb JSON payload as a dict.
+        :param dbtype: Media database type.
+        :param tmdb_id: TMDb numeric identifier.
+        :param language: Language code.
+        :param payload: Raw TMDb response payload.
+        :return: None.
         """
         now = int(time.time())
         cutoff = now - self.TTL_SECONDS

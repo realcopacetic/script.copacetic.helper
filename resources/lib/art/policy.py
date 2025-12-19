@@ -5,13 +5,13 @@ from typing import Any, Iterable, Mapping
 
 
 ART_FIELD_CATEGORY: str = "category"
-ART_FIELD_ORIGINAL_URL: str = "original_url"
+ART_FIELD_URL: str = "url"
 ART_FIELD_HASH: str = "cached_file_hash"
 ART_FIELD_PROCESSED: str = "processed_path"
 
 ART_DB_FIELDS: tuple[str, ...] = (
     ART_FIELD_CATEGORY,
-    ART_FIELD_ORIGINAL_URL,
+    ART_FIELD_URL,
     ART_FIELD_HASH,
     ART_FIELD_PROCESSED,
     "color",
@@ -76,9 +76,14 @@ def flatten_art_attributes(
     others         -> "{category}_{key}"
     """
     return {
-        (d["category"] if k == "processed_path" else f'{d["category"]}_{k}'): v
+        (
+            d[ART_FIELD_CATEGORY]
+            if k == ART_FIELD_PROCESSED
+            else f"{d[ART_FIELD_CATEGORY]}_{k}"
+        ): v
         for d in records or ()
         for k, v in filter_listitem_payload(d).items()
+        if k != ART_FIELD_CATEGORY
     }
 
 
@@ -115,9 +120,8 @@ class ColorConfig:
     sample_size: int = 64  # downsample size for palette sampling (square SxS)
     avg_downsample: int = 32  # downsample size used when averaging RGB for luminance
     avg_grid: int = 6  # Resolution (GxG) used to locate brightest cell before averaging
-    logo_presize_max: tuple[int, int] = (1840, 713)  # Max bounding size for cropping
-    logo_final_max: tuple[int, int] = (1600, 620)  # Final post-crop scaling target
-    fanart_target_size: tuple[int, int] = (480, 270)  # Downsample resolution for blur
+    crop_target_size: tuple[int, int] = (1600, 620)  # Downsample res for crop
+    blur_target_size: tuple[int, int] = (480, 270)  # Downsample res for blur
     blur_radius: int = 50  # Guassian blur strength (in pixels) for fanart blur
 
     # --- Filtering thresholds ---

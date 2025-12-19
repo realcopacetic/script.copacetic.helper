@@ -22,7 +22,7 @@ from resources.lib.shared.utilities import (
 @dataclass(frozen=True, slots=True)
 class CacheContext:
     """Resolved, immutable cache context for a single artwork URL."""
-    original_url: str
+    url: str
     decoded_url: str
     suffix: str
     cached_thumb: str
@@ -63,7 +63,7 @@ class ArtworkCacheManager:
             else ""
         )
         return CacheContext(
-            original_url=url,
+            url=url,
             decoded_url = decoded_url,
             suffix=suffix,
             cached_thumb=cached_thumb,
@@ -114,11 +114,11 @@ class ArtworkCacheManager:
         """
         Read cached metadata for URL and validate against current file hash.
 
-        :param ctx: CacheContext with original_url and cached_file_hash.
+        :param ctx: CacheContext with url and cached_file_hash.
         :param require: Require these keys to exist in the row.
         :return: Cached metadata dict if valid, else None.
         """
-        if not (entry := self.sqlite.get_entry(ctx.original_url)):
+        if not (entry := self.sqlite.get_entry(ctx.url)):
             return None
 
         if require:
@@ -137,7 +137,7 @@ class ArtworkCacheManager:
             return entry
 
         if not db_hash and ctx.cached_file_hash: # backfill hash without reprocessing 
-            self.sqlite.update_field(ctx.original_url, ART_FIELD_HASH, ctx.cached_file_hash)
+            self.sqlite.update_field(ctx.url, ART_FIELD_HASH, ctx.cached_file_hash)
             return entry
 
         return None  # Hash mismatch → stale entry

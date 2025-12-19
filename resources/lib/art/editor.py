@@ -90,7 +90,6 @@ class ImageEditor:
                     )
                 ]
             )
-
         except Exception as error:
             log.error(
                 f"{self.__class__.__name__}: Error during image processing → {error}",
@@ -117,7 +116,6 @@ class ImageEditor:
         :param shared: Shared context across jobs in this call.
         :return: Merged per-art_type attributes, or None on failure.
         """
-        write_required = False
         url = opts.url
         art = (
             {art_type: url}
@@ -131,14 +129,21 @@ class ImageEditor:
             )
             return None
 
-        ext = ".png" if url.lower().endswith(".png") else ".jpg"
-        ctx = self.cache_manager.prepare(url, ext)
+        resolved_url = next(iter(art.values()))
+        ext = ".png" if resolved_url.lower().endswith(".png") else ".jpg"
+        ctx = self.cache_manager.prepare(resolved_url, ext)
         attrs = self.cache_manager.read_lookup(ctx) or {}
         if attrs:
             log.debug(
                 f"{self.__class__.__name__} → Cache returned → {art_type=} → {attrs}",
             )
+        
+        attrs.setdefault("category", art_type)
+        attrs.setdefault("url", resolved_url)
+        if ctx.cached_file_hash is not None:
+            attrs.setdefault("cached_file_hash", ctx.cached_file_hash)
 
+        updates: list[dict[str, Any]] = []
         for process in processes:
             spec = self.PROCESS_SPEC[process]
             require = spec.get("require")
@@ -148,7 +153,7 @@ class ImageEditor:
                 )
                 continue
 
-            processed = self._run_processor(
+            delta = self._run_processor(
                 art_type=art_type,
                 process=process,
                 art=art,
@@ -157,34 +162,33 @@ class ImageEditor:
                 shared=shared,
                 folder=spec.get("folder"),
             )
-            if not processed:
+            if not delta:
                 return None
 
             log.debug(
-                f"{self.__class__.__name__} → Payload returned → {art_type=} → {processed}",
+                f"{self.__class__.__name__} → Payload returned → {art_type=} → {delta}",
             )
-            attrs |= processed
-            write_required = True
+            updates.append(delta)
+            attrs |= delta
 
-        if write_required:
-            try:
-                self.cache_manager.write_lookup(
-                    art_type,
-                    {
-                        "url": url,
-                        **filter_db_payload(attrs),
-                    },
-                )
-            except Exception as exc:
-                log.error(
-                    f"{self.__class__.__name__} → DB write failed → {art_type=} → {exc}"
-                )
+        if updates:
+            self.cache_manager.write_lookup(
+                art_type,
+                filter_db_payload(attrs),
+            )
 
-        log.debug(f"FUCK DEBUG attrs returned at end of _handle_jobs() {attrs=}")
         shared["results"][art_type] = attrs
         return attrs
 
     def _has_required(self, row: dict[str, Any], require: tuple[str, ...]) -> bool:
+        """
+        Validate that a cache row satisfies required fields.
+        Treats processed_path as a special-case path validity check.
+
+        :param row: Cached attribute row to validate.
+        :param require: Required field names for a process.
+        :return: True if requirements are satisfied, else False.
+        """
         if not require:
             return True
 
@@ -251,9 +255,7 @@ class ImageEditor:
         shared["image_cache"][art_type][source_path] = image
         result = process_method(
             image,
-            art_type=art_type,
             opts=opts,
-            ctx=ctx,
             shared=shared,
         )
         if not result:
@@ -279,15 +281,10 @@ class ImageEditor:
 
         meta = result.get("metadata") or {}
         return {
-            "category": art_type,
-            "url": url,
             **(
-                {"cached_file_hash": ctx.cached_file_hash}
-                if ctx.cached_file_hash is not None
+                {"processed_path": processed_path}
+                if processed_path is not None and folder and "image" in result
                 else {}
-            ),
-            **(
-                {"processed_path": processed_path} if processed_path is not None else {}
             ),
             **{k: v for k, v in meta.items() if v is not None},
         }
