@@ -158,5 +158,6 @@ class ArtworkCacheManager:
 
         if not self.sqlite.get_entry(url):
             self.sqlite.add_entry(art_type, {"url": url})
+            
 
-        self.sqlite.update_fields(url, **metadata)
+        self.sqlite.update_fields(url, metadata)

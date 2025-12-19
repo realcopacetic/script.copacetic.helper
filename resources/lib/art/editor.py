@@ -57,20 +57,19 @@ class ImageEditor:
         jobs: Mapping[str, Iterable[str]],
         art_opts: Mapping[str, ArtOpts],
         source: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """
-        Process jobs into per-art_type attribute dictionaries.
-        Each process is cache-checked before running.
+        Process jobs into flattened ListItem.Art-style key/value pairs.
+        Uses cache-first per-art_type processing and merges deltas when needed.
 
         :param jobs: Mapping of art_type to ordered process names.
         :param art_opts: Mapping of art_type to parsed ArtOpts.
         :param source: Kodi infolabel source prefix for Art() lookups.
-        :return: List of attribute dicts (one per art_type).
+        :return: Flattened dict of ListItem.Art keys and metadata values.
         """
         art_types = tuple(jobs)
         shared = {
             "image_cache": {k: {} for k in art_types},
-            "cache": {k: {} for k in art_types},
             "results": {k: {} for k in art_types},
         }
         try:
@@ -137,7 +136,7 @@ class ImageEditor:
             log.debug(
                 f"{self.__class__.__name__} → Cache returned → {art_type=} → {attrs}",
             )
-        
+
         attrs.setdefault("category", art_type)
         attrs.setdefault("url", resolved_url)
         if ctx.cached_file_hash is not None:
@@ -213,17 +212,17 @@ class ImageEditor:
         folder: str | None,
     ) -> dict[str, Any] | None:
         """
-        Execute a single process and optionally write the processed file.
-        Returns attrs plus the best in-memory image for subsequent jobs.
+        Execute a single processor step and optionally write a processed file.
+        Returns only the delta fields produced by this step.
 
         :param art_type: Artwork type key.
         :param process: Process name to execute.
         :param art: Mapping of {resolved_key: url} for the selected artwork.
-        :param ctx: CacheContext for resolving texture-cache and destination paths.
+        :param ctx: CacheContext for resolving paths and hashes.
         :param opts: Parsed ArtOpts for this art_type.
         :param shared: Shared context across jobs in this call.
         :param folder: Output folder name if this process writes files.
-        :return: dict of processed attributes
+        :return: Delta dict of produced fields, or None on failure.
         """
         processed_path = None
         process_method = getattr(self.processor, process, None)

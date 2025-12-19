@@ -210,7 +210,7 @@ class ColorDarken:
 
         src = (opts.source or "").strip()
         if src.lower() == "clearlogo":
-            clearlogo = shared.get("results", {}).get("clearlogo", {})
+            clearlogo = shared["results"]["clearlogo"]
             src = (clearlogo.get("color") or "")
 
         text_rgb = (

@@ -3,7 +3,7 @@
 import json
 import sqlite3
 import time
-from typing import Any
+from typing import Mapping, Any
 
 from resources.lib.art.policy import ART_DB_FIELDS
 from resources.lib.shared.utilities import LOOKUPS
@@ -191,13 +191,13 @@ class ArtworkCacheHandler(SQLiteHandler):
             params=(url,),
         )
 
-    def update_fields(self, url: str, **fields: Any) -> int:
+    def update_fields(self, url: str, fields: Mapping[str, str]) -> int:
         """
         Update mutable artwork fields by URL.
         Ignores immutable or None values.
 
         :param url: Artwork source URL.
-        :param fields: Field names and values to update.
+        :param fields: Dict of field names and values to update.
         :return: Number of rows updated.
         """
         safe_items = [
