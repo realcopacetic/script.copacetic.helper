@@ -336,7 +336,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         "art": art,
                         "properties": {
                             "previous": current_position - 1,
+                            "previous_art": infolabel(
+                                f"ListItemAbsolute({current_position - 1}).Art(fanart)"
+                            ),
                             "next": current_position + 1,
+                            "next_art": infolabel(
+                                f"ListItemAbsolute({current_position + 1}).Art(fanart)"
+                            ),
                         },
                     }
                 ]
