@@ -163,9 +163,9 @@ class ColorConfig:
     target_contrast_ratio: float = 4.5  # WCAG target (4.5 normal, 3.0 large)
     overlay_default_frame: tuple[int, int] = (1920, 1080)  # Fallback artwork size
     text_complexity_stddev: float = 20.0
-    
+
     # --- Background luminance sampling ---
-    bg_sampling_mode: str = "grid"  # "grid" | "percentile" | "topk"
+    bg_sampling_mode: str = "percentile"  # "grid" | "percentile" | "topk"
     bg_sampling_percentile: float = 0.92  # used when mode == "percentile"
     bg_sampling_topk: float = 0.10  # used when mode == "topk"
 

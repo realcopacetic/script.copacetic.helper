@@ -374,7 +374,8 @@ class ColorDarken:
         :param patch: Cropped patch image for a single rect.
         :return: Tuple of (rgb, relative_luminance).
         """
-        mode = self.cfg.bg_sampling_mode
+        cfg = self.color.cfg
+        mode = cfg.bg_sampling_mode
         sampler = self._BG_SAMPLERS.get(mode)
         return sampler(patch)
 
