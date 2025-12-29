@@ -24,6 +24,7 @@ class SQLiteHandler:
     Provides shared CRUD helpers for SQLite-backed caches.
     Subclasses must set TABLE_NAME, implement _initialize_database().
     """
+
     TABLE_NAME: str | None = None
 
     def __init__(self, db_path: str | None = None) -> None:
@@ -127,8 +128,9 @@ class ArtworkCacheHandler(SQLiteHandler):
     Cache for processed artwork attributes.
     Stores paths, hashes, and color metadata.
     """
+
     TABLE_NAME = "artwork"
-    _IMMUTABLE_COLUMNS = {"category", "url"}
+    _IMMUTABLE_COLUMNS = {"url"}
     _ALLOWED_UPDATE_COLS = set(ART_DB_FIELDS) - _IMMUTABLE_COLUMNS
 
     def __init__(self) -> None:
@@ -145,10 +147,10 @@ class ArtworkCacheHandler(SQLiteHandler):
                 f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    category TEXT NOT NULL,
                     url TEXT UNIQUE NOT NULL,
                     processed_path TEXT,
                     cached_file_hash TEXT,
+                    blur_radius INTEGER,
                     color TEXT,
                     accent TEXT,
                     contrast TEXT,
@@ -157,24 +159,19 @@ class ArtworkCacheHandler(SQLiteHandler):
                 """
             )
             cursor.execute(
-                f"CREATE INDEX IF NOT EXISTS idx_url "
-                f"ON {self.TABLE_NAME} (url)"
+                f"CREATE INDEX IF NOT EXISTS idx_url " f"ON {self.TABLE_NAME} (url)"
             )
             conn.commit()
 
-    def add_entry(self, category: str, attributes: dict[str, Any]) -> None:
+    def add_entry(self, attributes: dict[str, Any]) -> None:
         """
         Insert or replace an artwork cache record.
-        Writes category and processed attributes to SQLite.
+        Writes processed attributes to SQLite.
 
-        :param category: Artwork category key.
         :param attributes: Canonical artwork attributes.
         :return: None.
         """
-        row = tuple(
-            category if col == "category" else attributes.get(col)
-            for col in ART_DB_FIELDS
-        )
+        row = tuple(attributes.get(col) for col in ART_DB_FIELDS)
         self._insert_or_replace(ART_DB_FIELDS, row)
 
     def get_entry(self, url: str) -> dict[str, Any] | None:
@@ -245,6 +242,7 @@ class TmdbCacheHandler(SQLiteHandler):
     Stores canonical TMDb payloads as raw JSON with
     dbtype, tmdb_id, language, fetched_at, payload (TEXT)
     """
+
     TABLE_NAME = "tmdb_cache"
     TTL_SECONDS = 86400 * 7  # 7 days
 

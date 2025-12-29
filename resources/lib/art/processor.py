@@ -73,6 +73,7 @@ class ImageProcessor:
             return {
                 "image": self._ensure_mode(image, "RGB"),
                 "format": "JPEG",
+                "metadata": {"blur_radius": radius},
             }
         except Exception as exc:
             log.error(f"{self.__class__.__name__}: Unable to blur image → {exc}")

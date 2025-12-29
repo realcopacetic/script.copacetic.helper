@@ -61,7 +61,7 @@ class ArtOpts:
     crop: bool
     blur: bool
     analyze: bool
-    blur_radius: int
+    blur_radius: int | None
     darken: DarkenOpts | None
 
     def enabled(self, process: str) -> bool:

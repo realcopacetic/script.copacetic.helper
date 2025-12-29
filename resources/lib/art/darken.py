@@ -28,6 +28,11 @@ class ColorDarken:
         :return: None.
         """
         self.color = color_analyzer
+        self._BG_SAMPLERS = {
+            "grid": self._sample_bg_baseline_grid_center,
+            "percentile": self._sample_bg_percentile,
+            "topk": self._sample_bg_topk,
+        }
 
     def compute_darken(
         self,
@@ -100,8 +105,8 @@ class ColorDarken:
         def _sample(rect: Rect) -> tuple[Rect, RGB, float]:
             x, y, w, h = rect
             patch = framed.crop((x, y, x + w, y + h))
-            bg_rgb = self._brightest_patch_rgb(patch)
-            return rect, bg_rgb, self.color.get_luminosity(bg_rgb)
+            bg_rgb, L_bg = self._sample_bg(patch)
+            return rect, bg_rgb, L_bg
 
         idx, (rect, bg_rgb, L_bg) = max(
             ((i, _sample(r)) for i, r in enumerate(rects)),
@@ -155,8 +160,7 @@ class ColorDarken:
             if not self._is_simple_patch(patch):
                 pct = -1
             else:
-                bg_rgb = self._brightest_patch_rgb(patch)
-                L_bg = self.color.get_luminosity(bg_rgb)
+                bg_rgb, L_bg = self._sample_bg(patch)
                 pct = self._solve_text_darken(L_bg=L_bg, L_text=L_text, target=target)
                 if pct > 0 and (best is None or pct > best[0]):
                     best = (pct, idx, key, rect, bg_rgb, L_bg)
@@ -363,12 +367,23 @@ class ColorDarken:
 
         return out
 
-    def _brightest_patch_rgb(self, patch: Image.Image) -> RGB:
+    def _sample_bg(self, patch: Image.Image) -> tuple[RGB, float]:
         """
-        Return mean RGB of the brightest grid cell in a patch.
+        Sample background RGB and luminance using configured sampler.
 
-        :param patch: Patch image already cropped to one overlay rect.
-        :return: Mean RGB of brightest sub-area.
+        :param patch: Cropped patch image for a single rect.
+        :return: Tuple of (rgb, relative_luminance).
+        """
+        mode = self.cfg.bg_sampling_mode
+        sampler = self._BG_SAMPLERS.get(mode)
+        return sampler(patch)
+
+    def _sample_bg_baseline_grid_center(self, patch: Image.Image) -> tuple[RGB, float]:
+        """
+        Grid-split patch, choose brightest cell by center pixel luma, then mean the cell.
+
+        :param patch: Patch image cropped to one overlay rect.
+        :return: Tuple of (bg_rgb, bg_luminance).
         """
         cfg = self.color.cfg
         if patch.mode != "RGB":
@@ -380,30 +395,110 @@ class ColorDarken:
         cell_w = w / gx
         cell_h = h / gy
         px = patch.load()
+
         best_luma = -1.0
         best_box: tuple[int, int, int, int] | None = None
+
         for iy in range(gy):
             for ix in range(gx):
                 left = int(round(ix * cell_w))
                 top = int(round(iy * cell_h))
                 right = int(round((ix + 1) * cell_w))
                 bottom = int(round((iy + 1) * cell_h))
+
                 cx = min(max(0, (left + right) // 2), w - 1)
                 cy = min(max(0, (top + bottom) // 2), h - 1)
                 r, g, b = px[cx, cy]
                 y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+
                 if y > best_luma:
                     best_luma = y
                     best_box = (left, top, right, bottom)
 
-        if best_box is None:
-            tiny = patch.resize((cfg.avg_downsample, cfg.avg_downsample), Image.BOX)
-            return self.color.mean_rgb(tiny)
-
-        left, top, right, bottom = best_box
-        region = patch.crop((left, top, right, bottom))
+        region = patch if best_box is None else patch.crop(best_box)
         tiny = region.resize((cfg.avg_downsample, cfg.avg_downsample), Image.BOX)
-        return self.color.mean_rgb(tiny)
+        rgb = self.color.mean_rgb(tiny)
+        return rgb, self.color.get_luminosity(rgb)
+
+    def _sample_bg_percentile(self, patch: Image.Image) -> tuple[RGB, float]:
+        """
+        Downsample patch, compute luminance percentile threshold, then mean only the bright tail.
+
+        This avoids single-pixel highlights driving the decision.
+
+        :param patch: Patch image cropped to one overlay rect.
+        :return: Tuple of (bg_rgb, bg_luminance).
+        """
+        cfg = self.color.cfg
+        n = max(8, int(cfg.avg_downsample))
+        q = max(0.0, min(1.0, float(cfg.bg_sampling_percentile)))
+
+        if patch.mode != "RGB":
+            patch = patch.convert("RGB")
+
+        tiny = patch.resize((n, n), Image.BOX)
+        pixels = list(tiny.getdata())
+
+        # Luma list (0..255)
+        lumas = [0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in pixels]
+        if not lumas:
+            rgb = self.color.mean_rgb(tiny)
+            return rgb, self.color.get_luminosity(rgb)
+
+        # Percentile threshold
+        l_sorted = sorted(lumas)
+        idx = int(round((len(l_sorted) - 1) * max(0.0, min(1.0, q))))
+        thresh = l_sorted[idx]
+
+        # Mean RGB over pixels in the bright tail
+        rs = gs = bs = count = 0
+        for (r, g, b), y in zip(pixels, lumas):
+            if y >= thresh:
+                rs += r
+                gs += g
+                bs += b
+                count += 1
+
+        if count <= 0:
+            rgb = self.color.mean_rgb(tiny)
+            return rgb, self.color.get_luminosity(rgb)
+
+        rgb = (rs // count, gs // count, bs // count)
+        return rgb, self.color.get_luminosity(rgb)
+
+    def _sample_bg_topk(self, patch: Image.Image) -> tuple[RGB, float]:
+        """
+        Downsample patch, take the top-k brightest pixels by luminance, average their RGB.
+
+        :param patch: Patch image cropped to one overlay rect.
+        :return: Tuple of (bg_rgb, bg_luminance).
+        """
+        cfg = self.color.cfg
+        n = max(8, int(cfg.avg_downsample))
+        k_frac = max(0.0, min(1.0, float(cfg.bg_sampling_topk)))
+
+        if patch.mode != "RGB":
+            patch = patch.convert("RGB")
+
+        tiny = patch.resize((n, n), Image.BOX)
+        pixels = list(tiny.getdata())
+        if not pixels:
+            rgb = self.color.mean_rgb(tiny)
+            return rgb, self.color.get_luminosity(rgb)
+
+        scored = [
+            (0.2126 * r + 0.7152 * g + 0.0722 * b, r, g, b)
+            for r, g, b in pixels
+        ]
+        scored.sort(key=lambda t: t[0], reverse=True)
+
+        k = max(1, int(round(len(scored) * max(0.0, min(1.0, k_frac)))))
+        rs = sum(r for _, r, _, _ in scored[:k])
+        gs = sum(g for _, _, g, _ in scored[:k])
+        bs = sum(b for _, _, _, b in scored[:k])
+
+        rgb = (rs // k, gs // k, bs // k)
+        return rgb, self.color.get_luminosity(rgb)
 
     def _is_simple_patch(self, patch: Image.Image) -> bool:
         """

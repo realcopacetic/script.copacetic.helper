@@ -4,16 +4,16 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 
-ART_FIELD_CATEGORY: str = "category"
 ART_FIELD_URL: str = "url"
 ART_FIELD_HASH: str = "cached_file_hash"
 ART_FIELD_PROCESSED: str = "processed_path"
+ART_FIELD_BLUR_RADIUS: str = "blur_radius"
 
 ART_DB_FIELDS: tuple[str, ...] = (
-    ART_FIELD_CATEGORY,
     ART_FIELD_URL,
     ART_FIELD_HASH,
     ART_FIELD_PROCESSED,
+    ART_FIELD_BLUR_RADIUS,
     "color",
     "accent",
     "contrast",
@@ -21,8 +21,8 @@ ART_DB_FIELDS: tuple[str, ...] = (
 )
 
 ART_LISTITEM_KEYS: tuple[str, ...] = (
-    ART_FIELD_CATEGORY,
     ART_FIELD_PROCESSED,
+    ART_FIELD_BLUR_RADIUS,
     "color",
     "accent",
     "contrast",
@@ -78,20 +78,15 @@ def flatten_art_attributes(
 ) -> dict[str, Any]:
     """
     Flatten canonical records into ListItem.Art-style keys.
-    processed_path -> "{category}"
-    others         -> "{category}_{key}"
+    processed_path -> "{prefix}"
+    others -> "{prefix}_{key}"
     """
     return {
-        (
-            d[ART_FIELD_CATEGORY]
-            if k == ART_FIELD_PROCESSED
-            else f"{d[ART_FIELD_CATEGORY]}_{k}"
-        ): v
-        for d in records or ()
-        for k, v in filter_listitem_payload(d).items()
-        if k != ART_FIELD_CATEGORY
+        (prefix if key == ART_FIELD_PROCESSED else f"{prefix}_{key}"): value
+        for prefix, record in (records or ())
+        for key, value in filter_listitem_payload(record).items()
+        if value is not None
     }
-
 
 def resolve_art_type(art: dict, art_type: str) -> dict[str, str]:
     """
@@ -168,6 +163,11 @@ class ColorConfig:
     target_contrast_ratio: float = 4.5  # WCAG target (4.5 normal, 3.0 large)
     overlay_default_frame: tuple[int, int] = (1920, 1080)  # Fallback artwork size
     text_complexity_stddev: float = 20.0
+    
+    # --- Background luminance sampling ---
+    bg_sampling_mode: str = "grid"  # "grid" | "percentile" | "topk"
+    bg_sampling_percentile: float = 0.92  # used when mode == "percentile"
+    bg_sampling_topk: float = 0.10  # used when mode == "topk"
 
     # --- Red leniency / guard rails ---
     red_relax_enable: bool = True  # enable hue-aware leniency for reds on dark bg

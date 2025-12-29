@@ -29,7 +29,11 @@ class ImageEditor:
 
     PROCESS_SPEC: dict[str, dict[str, Any]] = {
         "crop": {"folder": CROPS, "require": ("processed_path",)},
-        "blur": {"folder": BLURS, "require": ("processed_path",)},
+        "blur": {
+            "folder": BLURS,
+            "require": ("processed_path", "blur_radius"),
+            "match": ("blur_radius",),
+        },
         "analyze": {
             "folder": None,
             "require": ("color", "accent", "contrast", "luminosity"),
@@ -75,7 +79,7 @@ class ImageEditor:
         try:
             return flatten_art_attributes(
                 [
-                    merged
+                    (art_type, merged)
                     for art_type, processes in jobs.items()
                     if (opts := art_opts.get(art_type)) is not None
                     and (
@@ -93,7 +97,7 @@ class ImageEditor:
             log.error(
                 f"{self.__class__.__name__}: Error during image processing → {error}",
             )
-            return []
+            return {}
 
     def _handle_jobs(
         self,
@@ -137,7 +141,6 @@ class ImageEditor:
                 f"{self.__class__.__name__} → Cache returned → {art_type=} → {attrs}",
             )
 
-        attrs.setdefault("category", art_type)
         attrs.setdefault("url", resolved_url)
         if ctx.cached_file_hash is not None:
             attrs.setdefault("cached_file_hash", ctx.cached_file_hash)
@@ -146,7 +149,8 @@ class ImageEditor:
         for process in processes:
             spec = self.PROCESS_SPEC[process]
             require = spec.get("require")
-            if require is not None and self._has_required(attrs, require):
+            expected = self._expected_from_spec(spec, opts=opts)
+            if require is not None and self._has_required(attrs, require, expected):
                 log.debug(
                     f"{self.__class__.__name__} → Cache sufficient for {art_type=} → {process=}"
                 )
@@ -172,14 +176,35 @@ class ImageEditor:
 
         if updates:
             self.cache_manager.write_lookup(
-                art_type,
                 filter_db_payload(attrs),
             )
 
         shared["results"][art_type] = attrs
         return attrs
 
-    def _has_required(self, row: dict[str, Any], require: tuple[str, ...]) -> bool:
+    def _expected_from_spec(
+        self, spec: dict[str, Any], *, opts: ArtOpts
+    ) -> dict[str, object] | None:
+        """
+        Build expected cache-field matches from PROCESS_SPEC['match'].
+        Only enforces matches for ArtOpts values explicitly provided (non-None).
+
+        :param spec: Process spec dict (may contain 'match').
+        :param opts: Parsed ArtOpts for the current art_type.
+        :return: Expected cache-field values, or None if no matches apply.
+        """
+        return {
+            key: value
+            for key in (spec.get("match") or ())
+            if (value := getattr(opts, key, None)) is not None
+        } or None
+
+    def _has_required(
+        self,
+        row: dict[str, Any],
+        require: tuple[str, ...],
+        expected: Mapping[str, object] | None = None,
+    ) -> bool:
         """
         Validate that a cache row satisfies required fields.
         Treats processed_path as a special-case path validity check.
@@ -188,16 +213,13 @@ class ImageEditor:
         :param require: Required field names for a process.
         :return: True if requirements are satisfied, else False.
         """
-        if not require:
-            return True
-
-        if "processed_path" in require and not validate_path(row.get("processed_path")):
-            return False
-
-        return all(
-            k in row and row.get(k) is not None
-            for k in require
-            if k != "processed_path"
+        return (
+            (
+                "processed_path" not in require
+                or validate_path(row.get("processed_path"))
+            )
+            and all(row.get(k) is not None for k in require if k != "processed_path")
+            and (not expected or all(row.get(k) == v for k, v in expected.items()))
         )
 
     def _run_processor(

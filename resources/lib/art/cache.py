@@ -145,11 +145,10 @@ class ArtworkCacheManager:
 
         return None  # Hash mismatch → stale entry
 
-    def write_lookup(self, art_type: str, metadata: dict[str, Any]) -> None:
+    def write_lookup(self, metadata: dict[str, Any]) -> None:
         """
         Persist processed metadata to SQLite lookup.
 
-        :param art_type: Artwork type for categorization (e.g., "clearlogo").
         :param metadata: Processed attributes including paths, colors, and hashes.
         """
         if not (url := (metadata or {}).get("url")):
@@ -157,7 +156,7 @@ class ArtworkCacheManager:
             return
 
         if not self.sqlite.get_entry(url):
-            self.sqlite.add_entry(art_type, {"url": url})
+            self.sqlite.add_entry({"url": url})
             
 
         self.sqlite.update_fields(url, metadata)
