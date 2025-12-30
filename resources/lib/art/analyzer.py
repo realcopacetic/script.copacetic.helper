@@ -178,7 +178,7 @@ class ColorAnalyzer:
         """
         r, g, b = rgb
         r, g, b = self._linearize(r), self._linearize(g), self._linearize(b)
-        return self.luma709((r, g, b))
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
     @log.duration
     def get_contrasting_color(self, rgb: RGB, shift: float) -> RGB:
@@ -230,7 +230,7 @@ class ColorAnalyzer:
         g = sum(p[1] for p in px) / n
         b = sum(p[2] for p in px) / n
         return int(r), int(g), int(b)
-    
+
     @staticmethod
     def luma709(rgb: RGB) -> float:
         """
@@ -241,16 +241,26 @@ class ColorAnalyzer:
         """
         r, g, b = rgb
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
-    
+
     @staticmethod
     def to_hex(rgb: RGB) -> str:
-        """Convert RGB to ARGB hex with full opacity."""
+        """
+        Convert RGB to ARGB hex with full opacity.
+
+        :param rgb: (r, g, b) tuple in 0..255.
+        :return: ARGB hex string (e.g. "ff112233").
+        """
         r, g, b = rgb
         return f"ff{r:02x}{g:02x}{b:02x}"
 
     @staticmethod
     def from_hex(hex_str: str) -> RGB:
-        """Convert ARGB/RGB hex to an RGB tuple."""
+        """
+        Convert ARGB/RGB hex to an RGB tuple.
+        
+        :param hex_str: Hex string with optional leading "#" and optional alpha.
+        :return: (r, g, b) tuple in 0..255.
+        """
         s = hex_str.lstrip("#")
         if len(s) == 8:  # strip alpha
             s = s[2:]
@@ -270,21 +280,33 @@ class ColorAnalyzer:
 
     @staticmethod
     def hls_to_rgb(hls: HLS) -> RGB:
+        """
+        Convert HLS (0..1 floats) to RGB (0..255 ints).
+
+        :param hls: (h, l, s) in 0..1 space.
+        :return: (r, g, b) tuple in 0..255.
+        """
         r, g, b = colorsys.hls_to_rgb(*hls)
         return tuple(int(round(c * 255)) for c in (r, g, b))
 
     # ---------- private helper methods ----------
     def _sample_image(self, im: Image.Image) -> Image.Image:
-        """Downsample early to cap cost while keeping structure."""
+        """
+        Downsample image for fast palette and accent analysis.
+
+        :param im: Input PIL image (any mode).
+        :return: Downsampled image in RGB/RGBA mode.
+        """
         if im.mode not in ("RGB", "RGBA"):
             im = im.convert("RGBA" if "A" in im.getbands() else "RGB")
         return im.resize((self.cfg.sample_size, self.cfg.sample_size), Image.BOX)
 
     def _opaque_rgb(self, im_small: Image.Image) -> Image.Image | None:
         """
-        Build an RGB image containing **only** pixels with alpha >= alpha_opaque_min.
-        This avoids black-matting transparent regions (common for clearlogos).
-        Returns a tiny 1*N strip; None if no opaque pixels.
+        Filter to opaque pixels to avoid transparency skewing colour stats.
+
+        :param im_small: Small RGB/RGBA image used for analysis.
+        :return: RGB image of opaque pixels, or None if no opaque pixels.
         """
         if im_small.mode == "RGBA":
             rgb = im_small.convert("RGB")
@@ -303,7 +325,12 @@ class ColorAnalyzer:
     def _quantize_palette(
         self, rgb_small: Image.Image
     ) -> tuple[list[RGB], list[tuple[int, int]]]:
-        """Adaptive palette quantization on a small image; returns (swatches, counts)."""
+        """
+        Quantize to an adaptive palette and return swatches and counts.
+
+        :param rgb_small: Small RGB image to quantize.
+        :return: (swatches, counts) where counts are (count, palette_index).
+        """
         pal = rgb_small.convert(
             "P", palette=Image.ADAPTIVE, colors=self.cfg.palette_size
         )
@@ -313,10 +340,23 @@ class ColorAnalyzer:
         return swatches, counts
 
     def _saturation(self, rgb: RGB) -> float:
+        """
+        Compute HLS saturation for an RGB colour.
+
+        :param rgb: RGB tuple in 0-255 space.
+        :return: Saturation component in 0-1.
+        """
         return self.rgb_to_hls(rgb)[2]
 
     @staticmethod
     def _rgb_dist(a: RGB, b: RGB) -> float:
+        """
+        Compute Euclidean distance between two RGB colours.
+
+        :param a: First RGB tuple in 0-255 space.
+        :param b: Second RGB tuple in 0-255 space.
+        :return: Euclidean distance in RGB space.
+        """
         return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
 
     @staticmethod
@@ -334,10 +374,6 @@ class ColorAnalyzer:
     def _brightest_patch_rgb(self, im: Image.Image, *, grid: int, pass2: int) -> RGB:
         """
         Find the brightest grid cell (by luminance) and return its average RGB.
-
-        Pass 1: resize to (grid x grid) with BOX to cheaply locate the brightest cell.
-        Pass 2: crop that cell in the original image and compute its mean RGB by
-                resizing to (pass2 x pass2) with BOX, then averaging pixels.
 
         :param im: Input PIL image (any mode).
         :param grid: Grid resolution (GxG) to locate brightest cell.

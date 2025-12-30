@@ -175,7 +175,7 @@ class ColorConfig:
         1680,
         360,
     )  # (x, y, w, h) region
-    element_complexity_stddev: float = 20.0
+    element_complexity_stddev: float = 20.0  # max patch stddev to treat as "simple"
 
     # --- Save settings ---
     jpeg_quality: int = 80  # quality (1–95); higher = better, slower
