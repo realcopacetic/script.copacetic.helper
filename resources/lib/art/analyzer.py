@@ -19,6 +19,12 @@ class ColorAnalyzer:
     """
 
     def __init__(self, cfg: ColorConfig):
+        """
+        Store config and initialise darken helper.
+
+        :param cfg: Shared colour configuration.
+        :return: None.
+        """
         self.cfg = cfg
         self.darken = ColorDarken(self)
 
@@ -172,7 +178,7 @@ class ColorAnalyzer:
         """
         r, g, b = rgb
         r, g, b = self._linearize(r), self._linearize(g), self._linearize(b)
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return self.luma709((r, g, b))
 
     @log.duration
     def get_contrasting_color(self, rgb: RGB, shift: float) -> RGB:
@@ -193,18 +199,49 @@ class ColorAnalyzer:
         return self.hls_to_rgb((h, l, s))
 
     # ---------- public helper methods ----------
-    def mean_rgb(self, im: Image.Image) -> RGB:
+    def brightest_mean_rgb(self, im: Image.Image) -> RGB:
         """
-        Brightest-patch mean: locate the brightest grid cell by luminance,
-        then return the mean RGB of that cell.
+        Return mean RGB of the brightest patch in the image.
+        Brightness is located via a coarse grid, then averaged on the winning cell.
 
         :param im: Input PIL image.
-        :return: Average (r, g, b) of the brightest patch.
+        :return: RGB mean of the brightest patch.
         """
         return self._brightest_patch_rgb(
             im, grid=self.cfg.avg_grid, pass2=self.cfg.avg_downsample
         )
 
+    def plain_mean_rgb(self, im: Image.Image) -> RGB:
+        """
+        Return mean RGB of the full image.
+        Optionally downsamples first to reduce cost.
+
+        :param im: Input PIL image.
+        :return: RGB mean of the full image.
+        """
+        if self.cfg.avg_downsample:
+            im = im.resize(
+                (self.cfg.avg_downsample, self.cfg.avg_downsample), Image.BOX
+            )
+
+        px = im.convert("RGB").getdata()
+        n = len(px) or 1
+        r = sum(p[0] for p in px) / n
+        g = sum(p[1] for p in px) / n
+        b = sum(p[2] for p in px) / n
+        return int(r), int(g), int(b)
+    
+    @staticmethod
+    def luma709(rgb: RGB) -> float:
+        """
+        Per-pixel relative luminance using Rec.709 coefficients (sRGB primaries).
+
+        :param rgb: (r, g, b) tuple in 0-255 space.
+        :return: Relative luminance (0-255 scale).
+        """
+        r, g, b = rgb
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    
     @staticmethod
     def to_hex(rgb: RGB) -> str:
         """Convert RGB to ARGB hex with full opacity."""
@@ -221,6 +258,13 @@ class ColorAnalyzer:
 
     @staticmethod
     def rgb_to_hls(rgb: RGB) -> HLS:
+        """
+        Convert RGB to HLS in 0..1 space.
+        Uses colorsys with channels normalised from 0..255.
+
+        :param rgb: RGB tuple in 0..255.
+        :return: HLS tuple in 0..1.
+        """
         r, g, b = [c / 255.0 for c in rgb]
         return colorsys.rgb_to_hls(r, g, b)
 
@@ -287,11 +331,6 @@ class ColorAnalyzer:
         c = channel_0_255 / 255.0
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
-    @staticmethod
-    def _luma709(r: int, g: int, b: int) -> float:
-        """Per-pixel relative luminance using Rec.709 coefficients (sRGB primaries)."""
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
     def _brightest_patch_rgb(self, im: Image.Image, *, grid: int, pass2: int) -> RGB:
         """
         Find the brightest grid cell (by luminance) and return its average RGB.
@@ -314,7 +353,7 @@ class ColorAnalyzer:
         max_idx = 0
         max_y = -1.0
         for idx, (r, g, b) in enumerate(small.getdata()):
-            y = self._luma709(r, g, b)
+            y = self.luma709((r, g, b))
             if y > max_y:
                 max_y = y
                 max_idx = idx

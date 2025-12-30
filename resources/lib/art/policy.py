@@ -117,13 +117,13 @@ class ColorConfig:
     """Tunable parameters for colour analysis, contrast, and readability."""
 
     # --- Sampling & Palette ---
-    palette_size: int = 8  # no. colours in adaptive palette (lower = faster, smoother)
-    sample_size: int = 64  # downsample size for palette sampling (square SxS)
-    avg_downsample: int = 32  # downsample size used when averaging RGB for luminance
-    avg_grid: int = 6  # Resolution (GxG) used to locate brightest cell before averaging
-    crop_target_size: tuple[int, int] = (1600, 620)  # Downsample res for crop
-    blur_target_size: tuple[int, int] = (480, 270)  # Downsample res for blur
-    blur_radius: int = 50  # Guassian blur strength (in pixels) for fanart blur
+    palette_size: int = 8  # Adaptive palette size (lower = faster, smoother)
+    sample_size: int = 64  # Downsample size for palette sampling (SxS square)
+    avg_downsample: int = 32  # Downsample size for mean RGB/luminance sampling
+    avg_grid: int = 6  # Grid resolution (GxG) used to locate brightest cell
+    crop_target_size: tuple[int, int] = (1600, 620)  # Downsample size for crop
+    blur_target_size: tuple[int, int] = (480, 270)  # Downsample size for blur
+    blur_radius: int = 50  # Gaussian blur radius in pixels for blur
 
     # --- Filtering thresholds ---
     skip_whites: bool = True  # ignore white-ish swatches unless overwhelmingly dominant
@@ -152,22 +152,12 @@ class ColorConfig:
     min_lightness: float = 0.0  # lower clamp for HLS lightness when adjusting contrast
     max_lightness: float = 1.0  # upper clamp for HLS lightness when adjusting contrast
 
-    # --- Readability (text overlay) ---
-    text_overlay_colour: str = "fff0efef"  # colour for readability checks (ARGB hex)
-    text_overlay_rect: tuple[int, int, int, int] = (
-        120,
-        660,
-        1680,
-        360,
-    )  # (x, y, w, h) region
-    target_contrast_ratio: float = 4.5  # WCAG target (4.5 normal, 3.0 large)
-    overlay_default_frame: tuple[int, int] = (1920, 1080)  # Fallback artwork size
-    text_complexity_stddev: float = 20.0
-
-    # --- Background luminance sampling ---
-    bg_sampling_mode: str = "grid"  # "grid" | "percentile" | "topk"
-    bg_sampling_percentile: float = 0.92  # used when mode == "percentile"
+    # --- Background sampling / luminance ---
+    bg_frame: tuple[int, int] = (1920, 1080)  # Fallback artwork size
+    bg_sampling_mode: str = "topk"  # "grid" | "percentile" | "topk"
+    bg_sampling_percentile: float = 0.95  # used when mode == "percentile"
     bg_sampling_topk: float = 0.10  # used when mode == "topk"
+    target_contrast_ratio: float = 4.5  # contrast ratio target (4.5 normal, 3.0 large)
 
     # --- Red leniency / guard rails ---
     red_relax_enable: bool = True  # enable hue-aware leniency for reds on dark bg
@@ -176,7 +166,16 @@ class ColorConfig:
     red_min_target: float = 2.7  # never demand higher ratio when red rule applies
     red_relax_cap: float = 3.0  # max target when relaxing reds on dark bg
     red_bg_floor: float = 0.06  # if L_bg below this, treat as “already dark”
-    max_darken_cap: int = 85  # cap darken percent to avoid over-darkening
+
+    # --- Readability (element overlay) ---
+    element_overlay_color: str = "fff0efef"  # colour for readability checks (ARGB hex)
+    element_overlay_rect: tuple[int, int, int, int] = (
+        120,
+        660,
+        1680,
+        360,
+    )  # (x, y, w, h) region
+    element_complexity_stddev: float = 20.0
 
     # --- Save settings ---
     jpeg_quality: int = 80  # quality (1–95); higher = better, slower

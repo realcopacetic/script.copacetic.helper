@@ -15,7 +15,7 @@ DarkenUpdates = dict[str, int]
 
 class ColorDarken:
     """
-    Compute WCAG-based darken percentages for artwork and overlay elements.
+    Compute darken percentages for artwork and overlay elements.
 
     Public methods return dicts ready to be merged into artwork metadata.
     """
@@ -29,7 +29,7 @@ class ColorDarken:
         """
         self.color = color_analyzer
         self._BG_SAMPLERS = {
-            "grid": self._sample_bg_baseline_grid_center,
+            "grid": self._sample_bg_grid,
             "percentile": self._sample_bg_percentile,
             "topk": self._sample_bg_topk,
         }
@@ -161,7 +161,7 @@ class ColorDarken:
                 pct = -1
             else:
                 bg_rgb, L_bg = self._sample_bg(patch)
-                pct = self._solve_text_darken(L_bg=L_bg, L_text=L_text, target=target)
+                pct = self._solve_element_darken(L_bg=L_bg, L_text=L_text, target=target)
                 if pct > 0 and (best is None or pct > best[0]):
                     best = (pct, idx, key, rect, bg_rgb, L_bg)
 
@@ -220,7 +220,7 @@ class ColorDarken:
         text_rgb = (
             self.color.from_hex(src)
             if src
-            else self.color.from_hex(cfg.text_overlay_colour)
+            else self.color.from_hex(cfg.element_overlay_color)
         )
         L_text = self.color.get_luminosity(text_rgb)
         return framed, rects, target, text_rgb, L_text
@@ -241,7 +241,7 @@ class ColorDarken:
         :return: Tuple (framed_image, scaled_rects).
         """
         cfg = self.color.cfg
-        frame_w, frame_h = cfg.overlay_default_frame
+        frame_w, frame_h = cfg.bg_frame
         if frame:
             parts = [p.strip() for p in str(frame).split(",")]
             if len(parts) == 2:
@@ -251,12 +251,12 @@ class ColorDarken:
                     if w > 0 and h > 0:
                         frame_w, frame_h = w, h
                 except ValueError:
-                    frame_w, frame_h = cfg.overlay_default_frame
+                    frame_w, frame_h = cfg.bg_frame
 
         framed, frame_size = self._frame_image(image, frame_w, frame_h)
         parsed = self.parse_overlay_rects(rects or "")
         if not parsed:
-            bx, by, bw, bh = cfg.text_overlay_rect
+            bx, by, bw, bh = cfg.element_overlay_rect
             parsed = [(bx, by, bw, bh)]
 
         ref_w, ref_h = frame_size
@@ -375,58 +375,22 @@ class ColorDarken:
         :return: Tuple of (rgb, relative_luminance).
         """
         cfg = self.color.cfg
-        mode = cfg.bg_sampling_mode
-        sampler = self._BG_SAMPLERS.get(mode, self._sample_bg_baseline_grid_center)
-        log.debug(f"{self.__class__.__name__} sampler {mode=}")
+        sampler = self._BG_SAMPLERS.get(cfg.bg_sampling_mode, self._sample_bg_grid)
         return sampler(patch)
 
-    def _sample_bg_baseline_grid_center(self, patch: Image.Image) -> tuple[RGB, float]:
+    def _sample_bg_grid(self, patch: Image.Image) -> tuple[RGB, float]:
         """
-        Grid-split patch, choose brightest cell by center pixel luma, then mean the cell.
+        Sample background using brightest-cell mean (robust baseline).
 
         :param patch: Patch image cropped to one overlay rect.
         :return: Tuple of (bg_rgb, bg_luminance).
         """
-        cfg = self.color.cfg
-        if patch.mode != "RGB":
-            patch = patch.convert("RGB")
-
-        w, h = patch.size
-        gx = max(1, min(cfg.avg_grid, w))
-        gy = max(1, min(cfg.avg_grid, h))
-        cell_w = w / gx
-        cell_h = h / gy
-        px = patch.load()
-
-        best_luma = -1.0
-        best_box: tuple[int, int, int, int] | None = None
-
-        for iy in range(gy):
-            for ix in range(gx):
-                left = int(round(ix * cell_w))
-                top = int(round(iy * cell_h))
-                right = int(round((ix + 1) * cell_w))
-                bottom = int(round((iy + 1) * cell_h))
-
-                cx = min(max(0, (left + right) // 2), w - 1)
-                cy = min(max(0, (top + bottom) // 2), h - 1)
-                r, g, b = px[cx, cy]
-                y = 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-                if y > best_luma:
-                    best_luma = y
-                    best_box = (left, top, right, bottom)
-
-        region = patch if best_box is None else patch.crop(best_box)
-        tiny = region.resize((cfg.avg_downsample, cfg.avg_downsample), Image.BOX)
-        rgb = self.color.mean_rgb(tiny)
+        rgb = self.color.brightest_mean_rgb(patch)
         return rgb, self.color.get_luminosity(rgb)
 
     def _sample_bg_percentile(self, patch: Image.Image) -> tuple[RGB, float]:
         """
-        Downsample patch, compute luminance percentile threshold, then mean only the bright tail.
-
-        This avoids single-pixel highlights driving the decision.
+        Downsample patch, compute luminance percentile, mean pixels in bright tail.
 
         :param patch: Patch image cropped to one overlay rect.
         :return: Tuple of (bg_rgb, bg_luminance).
@@ -435,42 +399,35 @@ class ColorDarken:
         n = max(8, int(cfg.avg_downsample))
         q = max(0.0, min(1.0, float(cfg.bg_sampling_percentile)))
 
-        if patch.mode != "RGB":
-            patch = patch.convert("RGB")
-
-        tiny = patch.resize((n, n), Image.BOX)
-        pixels = list(tiny.getdata())
-
-        # Luma list (0..255)
-        lumas = [0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in pixels]
-        if not lumas:
-            rgb = self.color.mean_rgb(tiny)
+        tiny = patch.convert("RGB").resize((n, n), Image.BOX)
+        px = list(tiny.getdata())
+        if not px:
+            rgb = self.color.plain_mean_rgb(tiny)
             return rgb, self.color.get_luminosity(rgb)
 
-        # Percentile threshold
+        lumas = [self.color.luma709(p) for p in px]
         l_sorted = sorted(lumas)
-        idx = int(round((len(l_sorted) - 1) * max(0.0, min(1.0, q))))
+        idx = int(round((len(l_sorted) - 1) * q))
         thresh = l_sorted[idx]
 
-        # Mean RGB over pixels in the bright tail
         rs = gs = bs = count = 0
-        for (r, g, b), y in zip(pixels, lumas):
+        for (r, g, b), y in zip(px, lumas):
             if y >= thresh:
                 rs += r
                 gs += g
                 bs += b
                 count += 1
 
-        if count <= 0:
-            rgb = self.color.mean_rgb(tiny)
-            return rgb, self.color.get_luminosity(rgb)
-
-        rgb = (rs // count, gs // count, bs // count)
+        rgb = (
+            self.color.plain_mean_rgb(tiny)
+            if count <= 0
+            else (rs // count, gs // count, bs // count)
+        )
         return rgb, self.color.get_luminosity(rgb)
 
     def _sample_bg_topk(self, patch: Image.Image) -> tuple[RGB, float]:
         """
-        Downsample patch, take the top-k brightest pixels by luminance, average their RGB.
+        Downsample patch, take top-k brightest pixels by luminance, mean their RGB.
 
         :param patch: Patch image cropped to one overlay rect.
         :return: Tuple of (bg_rgb, bg_luminance).
@@ -479,25 +436,19 @@ class ColorDarken:
         n = max(8, int(cfg.avg_downsample))
         k_frac = max(0.0, min(1.0, float(cfg.bg_sampling_topk)))
 
-        if patch.mode != "RGB":
-            patch = patch.convert("RGB")
-
-        tiny = patch.resize((n, n), Image.BOX)
-        pixels = list(tiny.getdata())
-        if not pixels:
-            rgb = self.color.mean_rgb(tiny)
+        tiny = patch.convert("RGB").resize((n, n), Image.BOX)
+        px = list(tiny.getdata())
+        if not px:
+            rgb = self.color.plain_mean_rgb(tiny)
             return rgb, self.color.get_luminosity(rgb)
 
-        scored = [
-            (0.2126 * r + 0.7152 * g + 0.0722 * b, r, g, b)
-            for r, g, b in pixels
-        ]
+        scored = [(self.color.luma709(p), p) for p in px]
         scored.sort(key=lambda t: t[0], reverse=True)
 
-        k = max(1, int(round(len(scored) * max(0.0, min(1.0, k_frac)))))
-        rs = sum(r for _, r, _, _ in scored[:k])
-        gs = sum(g for _, _, g, _ in scored[:k])
-        bs = sum(b for _, _, _, b in scored[:k])
+        k = max(1, int(round(len(scored) * k_frac)))
+        rs = sum(p[0] for _, p in scored[:k])
+        gs = sum(p[1] for _, p in scored[:k])
+        bs = sum(p[2] for _, p in scored[:k])
 
         rgb = (rs // k, gs // k, bs // k)
         return rgb, self.color.get_luminosity(rgb)
@@ -513,7 +464,7 @@ class ColorDarken:
         try:
             stat = ImageStat.Stat(patch.convert("L"))
             std = float(stat.stddev[0]) if stat.stddev else 0.0
-            return std < cfg.text_complexity_stddev
+            return std < cfg.element_complexity_stddev
 
         except Exception:
             return True
@@ -526,6 +477,18 @@ class ColorDarken:
         L_text: float,
         target: float,
     ) -> int:
+        """
+        Compute how much to darken background to meet target contrast vs text.
+
+        :param text_rgb: Text colour RGB.
+        :param L_bg: Background luminance (0..1).
+        :param L_text: Text luminance (0..1).
+        :param target: Target contrast ratio.
+        :return: Darken percentage (0..100).
+        """
+        if L_bg <= 0:
+            return 0
+
         cfg = self.color.cfg
         if cfg.red_relax_enable:
             h, _, _ = self.color.rgb_to_hls(text_rgb)
@@ -539,14 +502,21 @@ class ColorDarken:
             return 0
 
         numerator = (L_text + 0.05) / target - 0.05
-        if L_bg <= 0 or numerator <= 0:
-            return int(cfg.max_darken_cap)
+        k = numerator / L_bg
+        k = 0.0 if k < 0.0 else (1.0 if k > 1.0 else k)
+        pct = int(round((1.0 - k) * 100.0))
+        return 0 if pct < 0 else (100 if pct > 100 else pct)
 
-        k = max(0.0, min(1.0, numerator / L_bg))
-        pct = int(round((1.0 - k) * 100))
-        return max(0, min(int(cfg.max_darken_cap), pct))
+    def _solve_element_darken(self, *, L_bg: float, L_text: float, target: float) -> int:
+        """
+        Compute how much to darken element to meet target contrast vs background.
+        Uses a simple scan from 1..100 for stability.
 
-    def _solve_text_darken(self, *, L_bg: float, L_text: float, target: float) -> int:
+        :param L_bg: Background luminance (0..1).
+        :param L_text: Text luminance (0..1).
+        :param target: Target contrast ratio.
+        :return: Darken percentage (1..100) or 0 if already compliant.
+        """
         def contrast_for(L_t: float) -> float:
             L1, L2 = (L_bg, L_t) if L_bg >= L_t else (L_t, L_bg)
             return (L1 + 0.05) / (L2 + 0.05)

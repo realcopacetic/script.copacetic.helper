@@ -179,8 +179,8 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 - `max_lightness` — upper clamp for HLS lightness.
 
 **Readability (overlay)**
-- `text_overlay_colour` — ARGB colour to use when evaluating readability (if not provided via `overlay_source`).
-- `text_overlay_rect` — default rectangle `(x, y, w, h)` for overlay analysis.
+- `element_overlay_color` — ARGB colour to use when evaluating readability (if not provided via `overlay_source`).
+- `element_overlay_rect` — default rectangle `(x, y, w, h)` for overlay analysis.
 - `target_contrast_ratio` — target WCAG contrast ratio (normal text ≈ 4.5, large text ≈ 3.0).
 
 **Red leniency / guard rails**
