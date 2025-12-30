@@ -376,7 +376,8 @@ class ColorDarken:
         """
         cfg = self.color.cfg
         mode = cfg.bg_sampling_mode
-        sampler = self._BG_SAMPLERS.get(mode)
+        sampler = self._BG_SAMPLERS.get(mode, self._sample_bg_baseline_grid_center)
+        log.debug(f"{self.__class__.__name__} sampler {mode=}")
         return sampler(patch)
 
     def _sample_bg_baseline_grid_center(self, patch: Image.Image) -> tuple[RGB, float]:

@@ -165,7 +165,7 @@ class ColorConfig:
     text_complexity_stddev: float = 20.0
 
     # --- Background luminance sampling ---
-    bg_sampling_mode: str = "percentile"  # "grid" | "percentile" | "topk"
+    bg_sampling_mode: str = "grid"  # "grid" | "percentile" | "topk"
     bg_sampling_percentile: float = 0.92  # used when mode == "percentile"
     bg_sampling_topk: float = 0.10  # used when mode == "topk"
 
