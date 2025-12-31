@@ -5,7 +5,7 @@ import sqlite3
 import time
 from typing import Mapping, Any
 
-from resources.lib.art.policy import ART_DB_FIELDS, ART_FIELD_CACHE_KEY
+from resources.lib.art import policy
 from resources.lib.shared.utilities import LOOKUPS
 
 
@@ -141,8 +141,8 @@ class ArtworkCacheHandler(SQLiteHandler):
     """
 
     TABLE_NAME = "artwork"
-    _IMMUTABLE_COLUMNS = {ART_FIELD_CACHE_KEY}
-    _ALLOWED_UPDATE_COLS = set(ART_DB_FIELDS) - _IMMUTABLE_COLUMNS
+    _IMMUTABLE_COLUMNS = {policy.ART_FIELD_CACHE_KEY}
+    _ALLOWED_UPDATE_COLS = set(policy.ART_DB_FIELDS) - _IMMUTABLE_COLUMNS
 
     def __init__(self) -> None:
         super().__init__()
@@ -187,8 +187,8 @@ class ArtworkCacheHandler(SQLiteHandler):
 
         :param attributes: Canonical artwork attributes for ART_DB_FIELDS.
         """
-        row = tuple(attributes.get(col) for col in ART_DB_FIELDS)
-        self._insert_or_replace(ART_DB_FIELDS, row)
+        row = tuple(attributes.get(col) for col in policy.ART_DB_FIELDS)
+        self._insert_or_replace(policy.ART_DB_FIELDS, row)
 
     def get_entry(self, cache_key: str) -> dict[str, Any] | None:
         """
@@ -248,6 +248,64 @@ class ArtworkCacheHandler(SQLiteHandler):
         :return: Number of rows updated.
         """
         return self.update_fields(cache_key, **{column: value})
+
+    def delete_by_source_url(self, source_url: str) -> int:
+        """
+        Delete all cache rows for a given source_url.
+
+        :param source_url: Original artwork URL to purge.
+        :return: Number of rows deleted.
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"DELETE FROM {self.TABLE_NAME} WHERE {policy.ART_FIELD_SOURCE_URL} = ?",
+                (source_url,),
+            )
+            conn.commit()
+            return cur.rowcount
+
+    def delete_by_cache_key(self, cache_key: str) -> int:
+        """
+        Delete a cache row by cache_key.
+
+        :param cache_key: Unique cache key to purge.
+        :return: Number of rows deleted.
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"DELETE FROM {self.TABLE_NAME} WHERE {policy.ART_FIELD_CACHE_KEY} = ?",
+                (cache_key,),
+            )
+            conn.commit()
+            return cur.rowcount
+
+    def delete_processed_file_by_cache_key(self, cache_key: str) -> bool:
+        """
+        Delete processed file on disk for a cache_key, if present.
+
+        :param cache_key: Unique cache key to look up processed_path.
+        :return: True if a file was deleted, else False.
+        """
+        entry = self.get_entry(cache_key)
+        if not entry:
+            return False
+
+        processed_path = entry.get(policy.ART_FIELD_PROCESSED)
+        if not processed_path:
+            return False
+
+        try:
+            import xbmcvfs
+
+            if xbmcvfs.exists(processed_path):
+                xbmcvfs.delete(processed_path)
+                return True
+        except Exception:
+            return False
+
+        return False
 
 
 class TmdbCacheHandler(SQLiteHandler):
