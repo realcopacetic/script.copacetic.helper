@@ -34,7 +34,14 @@ class ImageEditor:
         },
         "darken": {
             "folder": None,
-            "require": None,
+            "require": ("darken",),
+            "match": (
+                "darken_mode",
+                "darken_source",
+                "darken_rects",
+                "darken_frame",
+                "darken_target",
+            ),
         },
     }
 

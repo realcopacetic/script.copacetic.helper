@@ -56,30 +56,26 @@ class ColorDarken:
             return None
 
         framed, rects, target, text_rgb, L_text = ctx
-        mode = (opts.mode or "")
+        mode = opts.mode or ""
         updates: DarkenUpdates = {}
-
-        if mode in ("artwork", "both"):
-            pct = self._compute_artwork_darken(
+        if mode == "all":
+            updates["darken"] = self._compute_element_darken_series(
                 framed=framed,
                 rects=rects,
                 target=target,
                 text_rgb=text_rgb,
                 L_text=L_text,
             )
-            updates["darken"] = pct
 
-        if mode in ("elements", "both"):
-            series = self._compute_element_darken_series(
+        return updates.update(
+            self._compute_artwork_darken(
                 framed=framed,
                 rects=rects,
                 target=target,
                 text_rgb=text_rgb,
                 L_text=L_text,
             )
-            updates.update(series)
-
-        return updates
+        )
 
     def _compute_artwork_darken(
         self,
@@ -160,7 +156,9 @@ class ColorDarken:
                 pct = -1
             else:
                 bg_rgb, L_bg = self._sample_bg(patch)
-                pct = self._solve_element_darken(L_bg=L_bg, L_text=L_text, target=target)
+                pct = self._solve_element_darken(
+                    L_bg=L_bg, L_text=L_text, target=target
+                )
                 if pct > 0 and (best is None or pct > best[0]):
                     best = (pct, idx, key, rect, bg_rgb, L_bg)
 
@@ -214,7 +212,7 @@ class ColorDarken:
         src = (opts.source or "").strip()
         if src.lower() == "clearlogo":
             clearlogo = shared["results"]["clearlogo"]
-            src = (clearlogo.get("color") or "")
+            src = clearlogo.get("color") or ""
 
         text_rgb = (
             self.color.from_hex(src)
@@ -506,7 +504,9 @@ class ColorDarken:
         pct = int(round((1.0 - k) * 100.0))
         return 0 if pct < 0 else (100 if pct > 100 else pct)
 
-    def _solve_element_darken(self, *, L_bg: float, L_text: float, target: float) -> int:
+    def _solve_element_darken(
+        self, *, L_bg: float, L_text: float, target: float
+    ) -> int:
         """
         Compute how much to darken element to meet target contrast vs background.
         Uses a simple scan from 1..100 for stability.
@@ -516,6 +516,7 @@ class ColorDarken:
         :param target: Target contrast ratio.
         :return: Darken percentage (1..100) or 0 if already compliant.
         """
+
         def contrast_for(L_t: float) -> float:
             L1, L2 = (L_bg, L_t) if L_bg >= L_t else (L_t, L_bg)
             return (L1 + 0.05) / (L2 + 0.05)

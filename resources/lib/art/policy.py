@@ -10,6 +10,20 @@ ART_FIELD_PROCESS: str = "process"
 ART_FIELD_HASH: str = "cached_file_hash"
 ART_FIELD_PROCESSED: str = "processed_path"
 ART_FIELD_BLUR_RADIUS: str = "blur_radius"
+ART_FIELD_COLOR: str = "color"
+ART_FIELD_ACCENT: str = "accent"
+ART_FIELD_CONTRAST: str = "contrast"
+ART_FIELD_COLOR: str = "color"
+ART_FIELD_LUMINOSITY: str = "luminosity"
+ART_FIELD_DARKEN: str = "darken"
+ART_FIELD_DARKEN_MODE: str = "darken_mode"
+ART_FIELD_DARKEN_SOURCE: str = "darken_source"
+ART_FIELD_DARKEN_RECTS: str = "darken_rects"
+ART_FIELD_DARKEN_FRAME: str = "darken_frame"
+ART_FIELD_DARKEN_TARGET: str = "darken_target"
+ART_FIELD_ELEMENT_DARKEN: str = "element_darken"
+ART_FIELD_ELEMENT_DARKEN1: str = "element_darken1"
+ART_FIELD_ELEMENT_DARKEN2: str = "element_darken2"
 
 ART_DB_FIELDS: tuple[str, ...] = (
     ART_FIELD_CACHE_KEY,
@@ -18,23 +32,34 @@ ART_DB_FIELDS: tuple[str, ...] = (
     ART_FIELD_HASH,
     ART_FIELD_PROCESSED,
     ART_FIELD_BLUR_RADIUS,
-    "color",
-    "accent",
-    "contrast",
-    "luminosity",
+    ART_FIELD_COLOR,
+    ART_FIELD_ACCENT,
+    ART_FIELD_CONTRAST,
+    ART_FIELD_COLOR,
+    ART_FIELD_LUMINOSITY,
+    ART_FIELD_DARKEN,
+    ART_FIELD_ELEMENT_DARKEN,
+    ART_FIELD_ELEMENT_DARKEN1,
+    ART_FIELD_ELEMENT_DARKEN2,
+    ART_FIELD_DARKEN_MODE,
+    ART_FIELD_DARKEN_SOURCE,
+    ART_FIELD_DARKEN_RECTS,
+    ART_FIELD_DARKEN_FRAME,
+    ART_FIELD_DARKEN_TARGET,
 )
 
 ART_LISTITEM_KEYS: tuple[str, ...] = (
     ART_FIELD_PROCESSED,
     ART_FIELD_BLUR_RADIUS,
-    "color",
-    "accent",
-    "contrast",
-    "luminosity",
-    "darken",
-)
-ART_LISTITEM_PREFIXES: tuple[str, ...] = (
-    "element_darken",  # element_darken1, element_darken2, ...
+    ART_FIELD_COLOR,
+    ART_FIELD_ACCENT,
+    ART_FIELD_CONTRAST,
+    ART_FIELD_COLOR,
+    ART_FIELD_LUMINOSITY,
+    ART_FIELD_DARKEN,
+    ART_FIELD_ELEMENT_DARKEN,
+    ART_FIELD_ELEMENT_DARKEN1,
+    ART_FIELD_ELEMENT_DARKEN2,
 )
 
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
@@ -66,15 +91,7 @@ def filter_listitem_payload(row: Mapping[str, Any]) -> dict[str, Any]:
     :param row: Full record dict.
     :return: Dict restricted to export keys/prefixes with None removed.
     """
-    return {
-        k: v
-        for k, v in row.items()
-        if v is not None
-        and (
-            k in ART_LISTITEM_KEYS
-            or any(k.startswith(p) for p in ART_LISTITEM_PREFIXES)
-        )
-    }
+    return {k: v for k, v in row.items() if k in ART_LISTITEM_KEYS and v is not None}
 
 
 def flatten_art_attributes(
@@ -91,6 +108,7 @@ def flatten_art_attributes(
         for key, value in filter_listitem_payload(record).items()
         if value is not None
     }
+
 
 def resolve_art_type(art: dict, art_type: str) -> dict[str, str]:
     """
