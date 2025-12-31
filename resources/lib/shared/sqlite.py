@@ -5,7 +5,7 @@ import sqlite3
 import time
 from typing import Mapping, Any
 
-from resources.lib.art.policy import ART_DB_FIELDS
+from resources.lib.art.policy import ART_DB_FIELDS, ART_FIELD_CACHE_KEY
 from resources.lib.shared.utilities import LOOKUPS
 
 
@@ -130,7 +130,7 @@ class ArtworkCacheHandler(SQLiteHandler):
     """
 
     TABLE_NAME = "artwork"
-    _IMMUTABLE_COLUMNS = {"url"}
+    _IMMUTABLE_COLUMNS = {ART_FIELD_CACHE_KEY}
     _ALLOWED_UPDATE_COLS = set(ART_DB_FIELDS) - _IMMUTABLE_COLUMNS
 
     def __init__(self) -> None:
@@ -147,7 +147,9 @@ class ArtworkCacheHandler(SQLiteHandler):
                 f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    url TEXT UNIQUE NOT NULL,
+                    cache_key TEXT UNIQUE NOT NULL,
+                    source_url TEXT NOT NULL,
+                    process TEXT NOT NULL,
                     processed_path TEXT,
                     cached_file_hash TEXT,
                     blur_radius INTEGER,
@@ -159,7 +161,12 @@ class ArtworkCacheHandler(SQLiteHandler):
                 """
             )
             cursor.execute(
-                f"CREATE INDEX IF NOT EXISTS idx_url " f"ON {self.TABLE_NAME} (url)"
+                f"CREATE INDEX IF NOT EXISTS idx_cache_key "
+                f"ON {self.TABLE_NAME} (cache_key)"
+            )
+            cursor.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_source_url "
+                f"ON {self.TABLE_NAME} (source_url)"
             )
             conn.commit()
 
@@ -174,28 +181,28 @@ class ArtworkCacheHandler(SQLiteHandler):
         row = tuple(attributes.get(col) for col in ART_DB_FIELDS)
         self._insert_or_replace(ART_DB_FIELDS, row)
 
-    def get_entry(self, url: str) -> dict[str, Any] | None:
+    def get_entry(self, cache_key: str) -> dict[str, Any] | None:
         """
-        Retrieve a cached artwork entry by URL.
+        Retrieve a cached artwork entry by cache_key.
         Returns stored attributes if present.
 
-        :param url: Artwork source URL.
+        :param cache_key: Unique cache key for a process variant.
         :return: Cached artwork record or None.
         """
         return self._get_one(
             table=self.TABLE_NAME,
-            where="url = ?",
-            params=(url,),
+            where="cache_key = ?",
+            params=(cache_key,),
         )
 
-    def update_fields(self, url: str, fields: Mapping[str, str]) -> int:
+    def update_fields(self, cache_key: str, fields: Mapping[str, Any]) -> int:
         """
-        Update mutable artwork fields by URL.
+        Update mutable artwork fields by cache_key.
         Ignores immutable or None values.
 
-        :param url: Artwork source URL.
+        :param cache_key: Unique cache key for a process variant.
         :param fields: Dict of field names and values to update.
-        :return: Number of rows updated.
+        :return: Number of rows updated
         """
         safe_items = [
             (col, val)
@@ -215,26 +222,26 @@ class ArtworkCacheHandler(SQLiteHandler):
                     f"""
                     UPDATE {self.TABLE_NAME}
                     SET {assignments}
-                    WHERE url = ?
+                    WHERE cache_key = ?
                     """,
-                    (*vals, url),
+                    (*vals, cache_key),
                 )
                 conn.commit()
                 return cur.rowcount or 0
         except Exception:
             return 0
 
-    def update_field(self, url: str, column: str, value: Any) -> int:
+    def update_field(self, cache_key: str, column: str, value: Any) -> int:
         """
-        Update a single artwork field by URL.
+        Update a single artwork field by cache_key.
         Delegates to update_fields.
 
-        :param url: Artwork source URL.
+        :param cache_key: Unique cache key for a process variant.
         :param column: Column name to update.
         :param value: New column value.
         :return: Number of rows updated.
         """
-        return self.update_fields(url, **{column: value})
+        return self.update_fields(cache_key, **{column: value})
 
 
 class TmdbCacheHandler(SQLiteHandler):

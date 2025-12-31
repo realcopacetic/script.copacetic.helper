@@ -40,10 +40,10 @@ class ArtworkCacheManager:
         self, sqlite_handler: ArtworkCacheHandler, hash_manager: HashManager
     ) -> None:
         """
-        Initialize managers and working state.
+        Initialise cache manager dependencies and working folders.
 
-        :param sqlite_handler: SQLite handler with get_entry/add_entry/update_field.
-        :param hash_manager: Hash manager with compute_hash(path) -> str.
+        :param sqlite_handler: SQLite handler instance for artwork cache.
+        :param hash_manager: Hash manager for file and string hashing.
         """
         self.sqlite = sqlite_handler
         self.hash_manager = hash_manager
@@ -51,11 +51,11 @@ class ArtworkCacheManager:
 
     def prepare(self, url: str, suffix: str) -> CacheContext:
         """
-        Decode URL, compute cache filename, locate cached image, and file hash.
+        Resolve Kodi texture-cache paths and compute source hash.
 
         :param url: Original artwork URL.
         :param suffix: File extension (e.g., ".jpg", ".png").
-        :return CacheContext dataclass.
+        :return: CacheContext for the resolved source.
         """
         decoded_url = url_decode_path(url)
         cached_thumb = self.get_cached_thumb(decoded_url, suffix)
@@ -79,17 +79,22 @@ class ArtworkCacheManager:
     @staticmethod
     def get_cached_thumb(url: str, suffix: str) -> str:
         """
-        Build a cache-safe filename for the given URL and target suffix.
+        Build a Kodi cache-safe filename for a given URL and suffix.
 
         :param url: Artwork URL (decoded/encoded accepted).
         :param suffix: Desired file extension (e.g., ".jpg", ".png").
-        :return: Cache-friendly filename string (no directories).
+        :return: Cache-friendly filename (no directories).
         """
         return xbmc.getCacheThumbName(url).replace(".tbn", suffix)
 
     @staticmethod
     def _variant_token(expected: Mapping[str, object] | None) -> str:
-        """Build a stable token from expected match fields (sorted keys)."""
+        """
+        Build a stable variant token from expected match fields.
+
+        :param expected: Mapping of match field names to values.
+        :return: Stable token string (or empty string).
+        """
         return (
             ""
             if not expected
@@ -105,8 +110,13 @@ class ArtworkCacheManager:
         folder: str | None = None,
     ) -> CacheContext:
         """
-        Build a context keyed by (source_url  process  expected match fields).
-        If folder is provided (file-writing process), dest_thumb will be variant-safe.
+        Derive a per-process/per-variant cache context.
+
+        :param base: Base CacheContext resolved from source_url.
+        :param process: Process name (e.g., "blur", "crop", "analyze").
+        :param expected: Variant match parameters for this process.
+        :param folder: Output folder when this process writes a file.
+        :return: Derived CacheContext with cache_key and dest_thumb.
         """
         token = self._variant_token(expected)
         cache_key = f"{base.source_url}|{process}" + (f"|{token}" if token else "")
@@ -132,10 +142,11 @@ class ArtworkCacheManager:
 
     def get_image_paths(self, folder: str, ctx: CacheContext) -> tuple[str | None, str]:
         """
-        Resolve source and destination paths for processing; copy to temp if needed.
+        Resolve (source_path, destination_path) for processing.
 
         :param folder: Destination folder for processed images.
-        :return: (source_path or None, destination_path).
+        :param ctx: CacheContext for source/variant.
+        :return: Tuple of (source_path or None, destination_path).
         """
         source_path = str(ctx.cached_image_path)
         destination_path = str(Path(folder) / ctx.dest_thumb)
@@ -160,10 +171,10 @@ class ArtworkCacheManager:
         require: tuple[str, ...] = (),
     ) -> dict[str, Any] | None:
         """
-        Read cached metadata for URL and validate against current file hash.
+        Read cached metadata and validate against the current source hash.
 
-        :param ctx: CacheContext with url and cached_file_hash.
-        :param require: Require these keys to exist in the row.
+        :param ctx: CacheContext with cache_key and cached_file_hash.
+        :param require: Required field names that must be present.
         :return: Cached metadata dict if valid, else None.
         """
         if not (entry := self.sqlite.get_entry(ctx.cache_key)):
@@ -196,9 +207,10 @@ class ArtworkCacheManager:
 
     def write_lookup(self, metadata: dict[str, Any]) -> None:
         """
-        Persist processed metadata to SQLite lookup.
+        Persist a cache row into SQLite.
 
-        :param metadata: Processed attributes including paths, colors, and hashes.
+        :param metadata: Processed attributes including keys and hashes.
+        :return: None.
         """
         if not (url := (metadata or {}).get("url")):
             log.error(

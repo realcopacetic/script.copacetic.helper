@@ -4,13 +4,17 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 
-ART_FIELD_URL: str = "url"
+ART_FIELD_CACHE_KEY: str = "cache_key"
+ART_FIELD_SOURCE_URL: str = "source_url"
+ART_FIELD_PROCESS: str = "process"
 ART_FIELD_HASH: str = "cached_file_hash"
 ART_FIELD_PROCESSED: str = "processed_path"
 ART_FIELD_BLUR_RADIUS: str = "blur_radius"
 
 ART_DB_FIELDS: tuple[str, ...] = (
-    ART_FIELD_URL,
+    ART_FIELD_CACHE_KEY,
+    ART_FIELD_SOURCE_URL,
+    ART_FIELD_PROCESS,
     ART_FIELD_HASH,
     ART_FIELD_PROCESSED,
     ART_FIELD_BLUR_RADIUS,
