@@ -15,36 +15,47 @@ ART_FIELD_ACCENT: str = "accent"
 ART_FIELD_CONTRAST: str = "contrast"
 ART_FIELD_LUMINOSITY: str = "luminosity"
 ART_FIELD_DARKEN: str = "darken"
-ART_FIELD_DARKEN_ELEMENT: str = "element_darken"
-ART_FIELD_DARKEN_ELEMENT1: str = "element_darken1"
-ART_FIELD_DARKEN_ELEMENT2: str = "element_darken2"
+ART_FIELD_DARKEN_ELEMENT: str = "darken_element"
+ART_FIELD_DARKEN_ELEMENT1: str = "darken_element1"
+ART_FIELD_DARKEN_ELEMENT2: str = "darken_element2"
 ART_FIELD_DARKEN_FRAME: str = "darken_frame"
 ART_FIELD_DARKEN_MODE: str = "darken_mode"
 ART_FIELD_DARKEN_RECTS: str = "darken_rects"
 ART_FIELD_DARKEN_SOURCE: str = "darken_source"
 ART_FIELD_DARKEN_TARGET: str = "darken_target"
 
-ART_DB_FIELDS: tuple[str, ...] = (
-    ART_FIELD_CACHE_KEY,
-    ART_FIELD_SOURCE_URL,
-    ART_FIELD_PROCESS,
-    ART_FIELD_HASH,
-    ART_FIELD_PROCESSED,
-    ART_FIELD_BLUR_RADIUS,
-    ART_FIELD_COLOR,
-    ART_FIELD_ACCENT,
-    ART_FIELD_CONTRAST,
-    ART_FIELD_LUMINOSITY,
-    ART_FIELD_DARKEN,
+ART_FIELDS_DARKEN_ELEMENT: tuple[str, ...] = (
     ART_FIELD_DARKEN_ELEMENT,
     ART_FIELD_DARKEN_ELEMENT1,
     ART_FIELD_DARKEN_ELEMENT2,
-    ART_FIELD_DARKEN_FRAME,
-    ART_FIELD_DARKEN_MODE,
-    ART_FIELD_DARKEN_RECTS,
-    ART_FIELD_DARKEN_SOURCE,
-    ART_FIELD_DARKEN_TARGET,
 )
+
+ART_DB_SCHEMA: tuple[tuple[str, str], ...] = (
+    (ART_FIELD_CACHE_KEY, "TEXT NOT NULL"),
+    (ART_FIELD_SOURCE_URL, "TEXT NOT NULL"),
+    (ART_FIELD_PROCESS, "TEXT NOT NULL"),
+    (ART_FIELD_PROCESSED, "TEXT"),
+    (ART_FIELD_HASH, "TEXT"),
+    (ART_FIELD_BLUR_RADIUS, "INTEGER"),
+    (ART_FIELD_COLOR, "TEXT"),
+    (ART_FIELD_ACCENT, "TEXT"),
+    (ART_FIELD_CONTRAST, "TEXT"),
+    (ART_FIELD_LUMINOSITY, "INTEGER"),
+    (ART_FIELD_DARKEN, "INTEGER"),
+    *((field, "INTEGER") for field in ART_FIELDS_DARKEN_ELEMENT),
+    (ART_FIELD_DARKEN_FRAME, "TEXT"),
+    (ART_FIELD_DARKEN_MODE, "TEXT"),
+    (ART_FIELD_DARKEN_RECTS, "TEXT"),
+    (ART_FIELD_DARKEN_SOURCE, "TEXT"),
+    (ART_FIELD_DARKEN_TARGET, "TEXT"),
+)
+ART_DB_UNIQUE: tuple[str, ...] = (ART_FIELD_CACHE_KEY,)
+
+ART_DB_INDEXES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("idx_source_url", (ART_FIELD_SOURCE_URL,)),
+)
+
+ART_DB_FIELDS: tuple[str, ...] = tuple(name for name, _ in ART_DB_SCHEMA)
 
 ART_LISTITEM_KEYS: tuple[str, ...] = (
     ART_FIELD_PROCESSED,
@@ -54,10 +65,7 @@ ART_LISTITEM_KEYS: tuple[str, ...] = (
     ART_FIELD_CONTRAST,
     ART_FIELD_LUMINOSITY,
     ART_FIELD_DARKEN,
-    ART_FIELD_DARKEN_ELEMENT,
-    ART_FIELD_DARKEN_ELEMENT1,
-    ART_FIELD_DARKEN_ELEMENT2,
-)
+) + ART_FIELDS_DARKEN_ELEMENT
 
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),

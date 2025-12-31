@@ -4,11 +4,7 @@ from typing import Any, Iterable
 
 from PIL import Image, ImageStat
 
-from resources.lib.art.policy import (
-    ART_FIELD_DARKEN_ELEMENT,
-    ART_FIELD_DARKEN_ELEMENT1,
-    ART_FIELD_DARKEN_ELEMENT2,
-)
+from resources.lib.art.policy import ART_FIELDS_DARKEN_ELEMENT
 from resources.lib.plugin.opts import DarkenOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import to_float
@@ -152,14 +148,10 @@ class ColorDarken:
         :param L_text: Text luminance.
         :return: Dict like {"darken_element": x, "darken_element1": y, ...}.
         """
-        keys = (
-            ART_FIELD_DARKEN_ELEMENT,
-            ART_FIELD_DARKEN_ELEMENT1,
-            ART_FIELD_DARKEN_ELEMENT2,
-        )
+        keys = ART_FIELDS_DARKEN_ELEMENT
         updates: DarkenUpdates = {}
         best = None
-        for idx, rect in enumerate(rects[:3]):
+        for idx, rect in enumerate(rects[: len(keys)]):
             x, y, w, h = rect
             patch = framed.crop((x, y, x + w, y + h))
             key = keys[idx]

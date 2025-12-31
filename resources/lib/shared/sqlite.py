@@ -9,13 +9,18 @@ from resources.lib.art import policy
 from resources.lib.shared.utilities import LOOKUPS
 
 
-TMDB_DB_COLUMNS: tuple[str, ...] = (
-    "dbtype",
-    "tmdb_id",
-    "language",
-    "fetched_at",
-    "payload",
+TMDB_DB_SCHEMA: tuple[tuple[str, str], ...] = (
+    ("dbtype", "TEXT NOT NULL"),
+    ("tmdb_id", "INTEGER NOT NULL"),
+    ("language", "TEXT NOT NULL"),
+    ("fetched_at", "INTEGER NOT NULL"),
+    ("payload", "TEXT NOT NULL"),
 )
+
+TMDB_DB_FIELDS: tuple[str, ...] = tuple(name for name, _ in TMDB_DB_SCHEMA)
+
+TMDB_UNIQUE: tuple[str, ...] = ("dbtype", "tmdb_id", "language")
+TMDB_LOOKUP_INDEX: tuple[str, ...] = TMDB_UNIQUE
 
 
 class SQLiteHandler:
@@ -152,42 +157,30 @@ class ArtworkCacheHandler(SQLiteHandler):
         Create artwork cache table and indexes.
         Ensures schema exists before use.
         """
+        cols_sql = ",\n".join(f"{name} {decl}" for name, decl in policy.ART_DB_SCHEMA)
+        unique_sql = ", ".join(policy.ART_DB_UNIQUE)
+
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cache_key TEXT UNIQUE NOT NULL,
-                    source_url TEXT NOT NULL,
-                    process TEXT NOT NULL,
-                    processed_path TEXT,
-                    cached_file_hash TEXT,
-                    blur_radius INTEGER,
-                    color TEXT,
-                    accent TEXT,
-                    contrast TEXT,
-                    luminosity INTEGER
-                    darken INTEGER,
-                    darken_element INTEGER,
-                    darken_element1 INTEGER,
-                    darken_element2 INTEGER,
-                    darken_frame TEXT,
-                    darken_mode TEXT,
-                    darken_rects TEXT,
-                    darken_source TEXT,
-                    darken_target TEXT
+                    {cols_sql},
+                    UNIQUE ({unique_sql})
                 )
                 """
             )
-            cursor.execute(
-                f"CREATE INDEX IF NOT EXISTS idx_cache_key "
-                f"ON {self.TABLE_NAME} (cache_key)"
-            )
-            cursor.execute(
-                f"CREATE INDEX IF NOT EXISTS idx_source_url "
-                f"ON {self.TABLE_NAME} (source_url)"
-            )
+
+            for idx_name, cols in policy.ART_DB_INDEXES:
+                idx_cols_sql = ", ".join(cols)
+                cursor.execute(
+                    f"""
+                    CREATE INDEX IF NOT EXISTS {idx_name}
+                    ON {self.TABLE_NAME}({idx_cols_sql})
+                    """
+                )
+
             conn.commit()
 
     def add_entry(self, attributes: dict[str, Any]) -> None:
@@ -256,7 +249,7 @@ class ArtworkCacheHandler(SQLiteHandler):
         :param value: New column value.
         :return: Number of rows updated.
         """
-        return self.update_fields(cache_key, **{column: value})
+        return self.update_fields(cache_key, {column: value})
 
 
 class TmdbCacheHandler(SQLiteHandler):
@@ -276,25 +269,25 @@ class TmdbCacheHandler(SQLiteHandler):
         Create TMDb cache table and indexes.
         Ensures schema exists before use.
         """
+        cols_sql = ",\n".join(f"{name} {decl}" for name, decl in TMDB_DB_SCHEMA)
+        unique_sql = ", ".join(TMDB_UNIQUE)
+        index_cols_sql = ", ".join(TMDB_LOOKUP_INDEX)
+
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    dbtype TEXT NOT NULL,
-                    tmdb_id INTEGER NOT NULL,
-                    language TEXT NOT NULL,
-                    fetched_at INTEGER NOT NULL,
-                    payload TEXT NOT NULL,
-                    UNIQUE (dbtype, tmdb_id, language)
+                    {cols_sql},
+                    UNIQUE ({unique_sql})
                 )
                 """
             )
             cursor.execute(
                 f"""
                 CREATE INDEX IF NOT EXISTS idx_tmdb_cache_lookup
-                ON {self.TABLE_NAME}(dbtype, tmdb_id, language)
+                ON {self.TABLE_NAME}({index_cols_sql})
                 """
             )
             conn.commit()
@@ -373,4 +366,4 @@ class TmdbCacheHandler(SQLiteHandler):
             now,
             payload_json,
         )
-        self._insert_or_replace(TMDB_DB_COLUMNS, row)
+        self._insert_or_replace(TMDB_DB_FIELDS, row)

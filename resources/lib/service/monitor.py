@@ -59,6 +59,7 @@ class Monitor(xbmc.Monitor):
 
     def _create(self):
         """Handles full startup initialization (directories + skin files)."""
+        log.info(f"{self.__class__.__name__} → Python version: {sys.version}")
         self._ensure_directories_exist()
         self._builder_elements()
 
@@ -99,7 +100,6 @@ class Monitor(xbmc.Monitor):
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""
         if self.start:
-            log.info(f"{self.__class__.__name__} → Python version: {sys.version}")
             log.info(f"{self.__class__.__name__}: Started")
             self.start = False
             self.player_monitor = PlayerMonitor(self.sqlite)

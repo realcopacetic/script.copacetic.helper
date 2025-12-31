@@ -143,7 +143,6 @@ class ImageEditor:
 
         base_ctx = self.cache_manager.prepare(resolved_url, ext)
         attrs = {"cached_file_hash": base_ctx.cached_file_hash}
-
         for process in processes:
             spec = self.PROCESS_SPEC[process]
             require = spec.get("require")
