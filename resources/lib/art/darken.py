@@ -58,24 +58,26 @@ class ColorDarken:
         framed, rects, target, text_rgb, L_text = ctx
         mode = opts.mode or ""
         updates: DarkenUpdates = {}
+        updates["darken"] = self._compute_artwork_darken(
+            framed=framed,
+            rects=rects,
+            target=target,
+            text_rgb=text_rgb,
+            L_text=L_text,
+        )
+
         if mode == "all":
-            updates["darken"] = self._compute_element_darken_series(
-                framed=framed,
-                rects=rects,
-                target=target,
-                text_rgb=text_rgb,
-                L_text=L_text,
+            updates.update(
+                self._compute_element_darken_series(
+                    framed=framed,
+                    rects=rects,
+                    target=target,
+                    text_rgb=text_rgb,
+                    L_text=L_text,
+                )
             )
 
-        return updates.update(
-            self._compute_artwork_darken(
-                framed=framed,
-                rects=rects,
-                target=target,
-                text_rgb=text_rgb,
-                L_text=L_text,
-            )
-        )
+        return updates
 
     def _compute_artwork_darken(
         self,
@@ -145,13 +147,14 @@ class ColorDarken:
         :param L_text: Text luminance.
         :return: Dict like {"element_darken": x, "element_darken1": y, ...}.
         """
+        keys = ("element_darken", "element_darken1", "element_darken2")
         updates: DarkenUpdates = {}
         best = None
-        for idx, rect in enumerate(rects):
+        for idx, rect in enumerate(rects[:3]):
             x, y, w, h = rect
             patch = framed.crop((x, y, x + w, y + h))
+            key = keys[idx]
 
-            key = "element_darken" if idx == 0 else f"element_darken{idx}"
             if not self._is_simple_patch(patch):
                 pct = -1
             else:
