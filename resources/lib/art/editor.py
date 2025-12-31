@@ -134,50 +134,55 @@ class ImageEditor:
 
         resolved_url = next(iter(art.values()))
         ext = ".png" if resolved_url.lower().endswith(".png") else ".jpg"
-        ctx = self.cache_manager.prepare(resolved_url, ext)
-        attrs = self.cache_manager.read_lookup(ctx) or {}
-        if attrs:
-            log.debug(
-                f"{self.__class__.__name__} → Cache returned → {art_type=} → {attrs}",
-            )
+        
+        base_ctx = self.cache_manager.prepare(resolved_url, ext)
+        attrs = {"url": resolved_url}
+        attrs.setdefault("cached_file_hash", base_ctx.cached_file_hash)
 
-        attrs.setdefault("url", resolved_url)
-        if ctx.cached_file_hash is not None:
-            attrs.setdefault("cached_file_hash", ctx.cached_file_hash)
-
-        updates: list[dict[str, Any]] = []
         for process in processes:
             spec = self.PROCESS_SPEC[process]
             require = spec.get("require")
+            folder = spec.get("folder")
             expected = self._expected_from_spec(spec, opts=opts)
-            if require is not None and self._has_required(attrs, require, expected):
+            ctx = self.cache_manager.with_process_variant(
+                base_ctx,
+                process=process,
+                expected=expected,
+                folder=folder,
+            )
+            cached = (
+                self.cache_manager.read_lookup(ctx, require=tuple(require or ())) or {}
+            )
+            if cached and (require is None or self._has_required(cached, require, expected)):
                 log.debug(
-                    f"{self.__class__.__name__} → Cache sufficient for {art_type=} → {process=}"
+                    f"{self.__class__.__name__} → Cache hit → {art_type=} → {process=} → {ctx.cache_key=}"
                 )
+                attrs |= cached
                 continue
 
-            delta = self._run_processor(
+            processed = self._run_processor(
                 art_type=art_type,
                 process=process,
                 art=art,
                 ctx=ctx,
                 opts=opts,
                 shared=shared,
-                folder=spec.get("folder"),
+                folder=folder,
             )
-            if not delta:
+            if not processed:
                 return None
 
+            attrs |= processed
             log.debug(
-                f"{self.__class__.__name__} → Payload returned → {art_type=} → {delta}",
+                f"{self.__class__.__name__} → Payload returned → {art_type=} → {processed}",
             )
-            updates.append(delta)
-            attrs |= delta
-
-        if updates:
-            self.cache_manager.write_lookup(
-                filter_db_payload(attrs),
-            )
+            row = {
+                "url": ctx.cache_key,
+                "cached_file_hash": base_ctx.cached_file_hash,
+                **(expected or {}),
+                **processed,
+            }
+            self.cache_manager.write_lookup(filter_db_payload(row))
 
         shared["results"][art_type] = attrs
         return attrs

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import xbmc
 import xbmcvfs
@@ -23,12 +23,14 @@ from resources.lib.shared.utilities import (
 class CacheContext:
     """Resolved, immutable cache context for a single artwork URL."""
 
-    url: str
+    source_url: str
     decoded_url: str
     suffix: str
     cached_thumb: str
     cached_image_path: Path
     cached_file_hash: str
+    cache_key: str
+    dest_thumb: str
 
 
 class ArtworkCacheManager:
@@ -64,12 +66,14 @@ class ArtworkCacheManager:
             else ""
         )
         return CacheContext(
-            url=url,
+            source_url=url,
             decoded_url=decoded_url,
             suffix=suffix,
             cached_thumb=cached_thumb,
             cached_image_path=cached_image_path,
             cached_file_hash=cached_file_hash,
+            cache_key=url,
+            dest_thumb=cached_thumb,
         )
 
     @staticmethod
@@ -83,6 +87,49 @@ class ArtworkCacheManager:
         """
         return xbmc.getCacheThumbName(url).replace(".tbn", suffix)
 
+    @staticmethod
+    def _variant_token(expected: Mapping[str, object] | None) -> str:
+        """Build a stable token from expected match fields (sorted keys)."""
+        return (
+            ""
+            if not expected
+            else "&".join(f"{k}={expected[k]}" for k in sorted(expected))
+        )
+
+    def with_process_variant(
+        self,
+        base: CacheContext,
+        *,
+        process: str,
+        expected: Mapping[str, object] | None = None,
+        folder: str | None = None,
+    ) -> CacheContext:
+        """
+        Build a context keyed by (source_url  process  expected match fields).
+        If folder is provided (file-writing process), dest_thumb will be variant-safe.
+        """
+        token = self._variant_token(expected)
+        cache_key = f"{base.source_url}|{process}" + (f"|{token}" if token else "")
+
+        # Only need unique filenames for file-writing processes (folder is not None).
+        if folder and token:
+            stem = Path(base.cached_thumb).stem
+            vhash = self.hash_manager.short_hash_str(token, length=8)
+            dest_thumb = f"{stem}__{vhash}{base.suffix}"
+        else:
+            dest_thumb = base.cached_thumb
+
+        return CacheContext(
+            source_url=base.source_url,
+            decoded_url=base.decoded_url,
+            suffix=base.suffix,
+            cached_thumb=base.cached_thumb,
+            cached_image_path=base.cached_image_path,
+            cached_file_hash=base.cached_file_hash,
+            cache_key=cache_key,
+            dest_thumb=dest_thumb,
+        )
+
     def get_image_paths(self, folder: str, ctx: CacheContext) -> tuple[str | None, str]:
         """
         Resolve source and destination paths for processing; copy to temp if needed.
@@ -91,7 +138,7 @@ class ArtworkCacheManager:
         :return: (source_path or None, destination_path).
         """
         source_path = str(ctx.cached_image_path)
-        destination_path = str(Path(folder) / ctx.cached_thumb)
+        destination_path = str(Path(folder) / ctx.dest_thumb)
         if validate_path(source_path):
             log.debug(
                 f"{self.__class__.__name__} → get_image_paths: "
@@ -119,7 +166,7 @@ class ArtworkCacheManager:
         :param require: Require these keys to exist in the row.
         :return: Cached metadata dict if valid, else None.
         """
-        if not (entry := self.sqlite.get_entry(ctx.url)):
+        if not (entry := self.sqlite.get_entry(ctx.cache_key)):
             return None
 
         if require:
@@ -140,7 +187,9 @@ class ArtworkCacheManager:
             return entry
 
         if not db_hash and ctx.cached_file_hash:  # backfill hash without reprocessing
-            self.sqlite.update_field(ctx.url, ART_FIELD_HASH, ctx.cached_file_hash)
+            self.sqlite.update_field(
+                ctx.cache_key, ART_FIELD_HASH, ctx.cached_file_hash
+            )
             return entry
 
         return None  # Hash mismatch → stale entry
@@ -152,11 +201,12 @@ class ArtworkCacheManager:
         :param metadata: Processed attributes including paths, colors, and hashes.
         """
         if not (url := (metadata or {}).get("url")):
-            log.error(f"{self.__class__.__name__} → write_lookup called without url in metadata")
+            log.error(
+                f"{self.__class__.__name__} → write_lookup called without url in metadata"
+            )
             return
 
         if not self.sqlite.get_entry(url):
             self.sqlite.add_entry({"url": url})
-            
 
         self.sqlite.update_fields(url, metadata)
