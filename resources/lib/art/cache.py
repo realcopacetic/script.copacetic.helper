@@ -180,30 +180,37 @@ class ArtworkCacheManager:
         if not (entry := self.sqlite.get_entry(ctx.cache_key)):
             return None
 
-        if require:
-            if policy.ART_FIELD_PROCESSED in require and not validate_path(
-                entry.get(policy.ART_FIELD_PROCESSED)
-            ):
+        # Validate disk path if required.
+        if require and policy.ART_FIELD_PROCESSED in require:
+            if not validate_path(entry.get(policy.ART_FIELD_PROCESSED)):
                 return None
 
-            missing = (set(require) - {policy.ART_FIELD_PROCESSED}) - entry.keys()
+        cleaned = {k: v for k, v in entry.items() if v is not None}
+
+        # Validate required fields (presence + non-None).
+        if require:
+            required = set(require) - {policy.ART_FIELD_PROCESSED}
+            missing = required - cleaned.keys()
             if missing:
                 return None
 
-        if not ctx.cached_file_hash:  # trust processed if no hash computed yet
-            return entry
+        # If we couldn't hash the source yet, trust the cached row.
+        if not ctx.cached_file_hash:
+            return cleaned
 
         db_hash = entry.get(policy.ART_FIELD_HASH)
-        if db_hash and db_hash == ctx.cached_file_hash:  # require match if both hashed
-            return entry
+        if db_hash and db_hash == ctx.cached_file_hash:
+            return cleaned
 
-        if not db_hash and ctx.cached_file_hash:  # backfill hash without reprocessing
+        if not db_hash:
+            # Backfill the hash so we can validate next time without reprocessing.
             self.sqlite.update_field(
                 ctx.cache_key, policy.ART_FIELD_HASH, ctx.cached_file_hash
             )
-            return entry
+            return cleaned
 
-        return None  # Hash mismatch → stale entry
+        # Hash mismatch → stale entry.
+        return None
 
     def write_lookup(self, metadata: dict[str, Any]) -> None:
         """
