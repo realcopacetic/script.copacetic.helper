@@ -368,7 +368,6 @@ def assign_image_list_to_art(
     :param art: Mutable art dictionary to update in place.
     :param label: Base artwork key name (for example, "fanart").
     :param urls: Iterable of image URLs to assign.
-    :return: None.
     """
     urls_list = [u for u in urls if u]
     if not urls_list:

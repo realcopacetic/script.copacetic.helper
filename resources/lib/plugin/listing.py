@@ -23,7 +23,6 @@ class PluginListing(object):
         """
         :param params: Dictionary of plugin parameters (unused).
         :param li: List container to append ListItems to.
-        :return: None
         """
         self.params = params
 
@@ -57,7 +56,6 @@ class PluginListing(object):
 
         :param label: Display label for the ListItem.
         :param url: Plugin URL this item will trigger.
-        :return: None
         """
         icon = f"special://home/addons/{ADDON_ID}/resources/icon.png"
         li_item = ListItem(label=label, offscreen=True)

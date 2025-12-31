@@ -154,7 +154,6 @@ class BuildElements:
 
         :param processed_data: Dictionary containing processed builder output.
         :param builder_name: Builder identifier used to look up file details.
-        :return: None
         """
         builder_info = BUILDER_CONFIG.get(builder_name, {})
 

@@ -246,7 +246,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param data: Metadata dict to update in place.
         :param target: ListItem infolabel prefix for plot fallback.
         :param default_text: Optional plot to use before infolabel fallback.
-        :return: None.
         """
         truncate_id = to_int(self.params.get("truncate_id", 0))
         if not truncate_id:
@@ -352,8 +351,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def jumpbutton(self) -> None:
         """
         Update jump button overlay using params and placement options.
-
-        :return: None (no directory items created)
         """
         jump = JumpButton()
         jump.update(
@@ -479,8 +476,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def typewriter(self) -> None:
         """
         Run typewriter animation for the current listitem; guarded against focus changes.
-
-        :return: None (no directory items created)
         """
         with self.focus() as guard:
             if not guard.alive():

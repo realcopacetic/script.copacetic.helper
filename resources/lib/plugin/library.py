@@ -66,7 +66,6 @@ def enrich_with_tvshow(episodes: list[dict[str, Any]], parent: str) -> None:
 
     :param episodes: Episode dicts to enrich (in place).
     :param parent: Parent name for logging.
-    :return: None
     """
     cache = {}
     for ep in episodes:

@@ -187,7 +187,6 @@ def _handle_image_art(
     :param label: Kodi art label to assign.
     :param value: Raw TMDb file_path string.
     :param art: Artwork dict to update in place.
-    :return: None.
     """
     url = build_tmdb_image_url(str(value))
     if url:
@@ -235,7 +234,6 @@ def _handle_image_list_art(
     :param art: Artwork dict to update in place.
     :param preferred_iso: Two-letter ISO language code.
     :param limit: Optional maximum URL count.
-    :return: None.
     """
     roles = IMAGE_LIST_ROLES.get(logical_name)
 

@@ -5,14 +5,8 @@ from typing import Any, Iterable, Mapping
 import xbmcvfs
 from PIL import Image
 
+from resources.lib.art import policy
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
-from resources.lib.art.policy import (
-    ART_SOURCE_KEYS,
-    ColorConfig,
-    filter_db_payload,
-    flatten_art_attributes,
-    resolve_art_type,
-)
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
@@ -53,7 +47,7 @@ class ImageEditor:
         self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.temp_folder = self.cache_manager.temp_folder
-        self.cfg = ColorConfig()
+        self.cfg = policy.ColorConfig()
         self.processor = ImageProcessor(self.cfg)
 
     def image_processor(
@@ -77,7 +71,7 @@ class ImageEditor:
             "results": {k: {} for k in art_types},
         }
         try:
-            return flatten_art_attributes(
+            return policy.flatten_art_attributes(
                 [
                     (art_type, merged)
                     for art_type, processes in jobs.items()
@@ -134,10 +128,9 @@ class ImageEditor:
 
         resolved_url = next(iter(art.values()))
         ext = ".png" if resolved_url.lower().endswith(".png") else ".jpg"
-        
+
         base_ctx = self.cache_manager.prepare(resolved_url, ext)
-        attrs = {"url": resolved_url}
-        attrs.setdefault("cached_file_hash", base_ctx.cached_file_hash)
+        attrs = {"cached_file_hash": base_ctx.cached_file_hash}
 
         for process in processes:
             spec = self.PROCESS_SPEC[process]
@@ -153,7 +146,9 @@ class ImageEditor:
             cached = (
                 self.cache_manager.read_lookup(ctx, require=tuple(require or ())) or {}
             )
-            if cached and (require is None or self._has_required(cached, require, expected)):
+            if cached and (
+                require is None or self._has_required(cached, require, expected)
+            ):
                 log.debug(
                     f"{self.__class__.__name__} → Cache hit → {art_type=} → {process=} → {ctx.cache_key=}"
                 )
@@ -177,12 +172,14 @@ class ImageEditor:
                 f"{self.__class__.__name__} → Payload returned → {art_type=} → {processed}",
             )
             row = {
-                "url": ctx.cache_key,
+                policy.ART_FIELD_CACHE_KEY: ctx.cache_key,
+                policy.ART_FIELD_SOURCE_URL: base_ctx.source_url,
+                policy.ART_FIELD_PROCESS: process,
                 "cached_file_hash": base_ctx.cached_file_hash,
                 **(expected or {}),
                 **processed,
             }
-            self.cache_manager.write_lookup(filter_db_payload(row))
+            self.cache_manager.write_lookup(policy.filter_db_payload(row))
 
         shared["results"][art_type] = attrs
         return attrs
@@ -325,13 +322,13 @@ class ImageEditor:
         """
         candidates = {
             key: path
-            for key in ART_SOURCE_KEYS.get(art_type, (art_type,))
+            for key in policy.ART_SOURCE_KEYS.get(art_type, (art_type,))
             if (path := infolabel(f"{source}.Art({key})"))
         }
         log.debug(
             f"{self.__class__.__name__} → _fetch_art_url({art_type}, {source}) → {candidates=}",
         )
-        return resolve_art_type(candidates, art_type)
+        return policy.resolve_art_type(candidates, art_type)
 
     def _image_open(self, url: str) -> Image.Image | None:
         """
@@ -361,7 +358,6 @@ class ImageEditor:
 
         :param fh: Open binary file handle for writing.
         :param result: Processor result mapping with 'image' and optional 'format'.
-        :return: None.
         """
         img = result["image"]
         fmt = result.get("format", "PNG")

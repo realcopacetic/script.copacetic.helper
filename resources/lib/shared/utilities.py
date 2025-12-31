@@ -189,7 +189,6 @@ def create_dir(path: str) -> None:
     Creates a directory if it doesn't already exist.
 
     :param path: Directory path.
-    :return: None
     """
     try:  # Try makedir to avoid race conditions
         xbmcvfs.mkdirs(path)

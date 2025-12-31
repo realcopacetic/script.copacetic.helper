@@ -29,8 +29,10 @@ class SQLiteHandler:
 
     def __init__(self, db_path: str | None = None) -> None:
         """
-        Initialize the SQLite handler and ensure schema exists.
-        Sets database path and calls subclass initialization.
+        Initialise database path and ensure schema exists.
+
+        :param db_path: Optional sqlite database path override.
+        :return: None.
         """
         self.db_path = db_path or LOOKUPS
         self._initialize_database()
@@ -45,7 +47,8 @@ class SQLiteHandler:
     def _connect(self) -> sqlite3.Connection:
         """
         Open a SQLite connection with WAL mode enabled.
-        Returns an active sqlite3.Connection.
+
+        :return: Active sqlite3 connection.
         """
         conn = sqlite3.connect(self.db_path, timeout=5)
         conn.execute("PRAGMA journal_mode=WAL;")
@@ -56,7 +59,9 @@ class SQLiteHandler:
     ) -> None:
         """
         Insert or replace a row using dynamic columns.
-        Writes data into TABLE_NAME.
+
+        :param columns: Ordered column names to write.
+        :param values: Ordered values matching the columns.
         """
         if not self.TABLE_NAME:
             raise RuntimeError("TABLE_NAME must be defined.")
@@ -78,7 +83,9 @@ class SQLiteHandler:
     def _delete_where(self, where: str, params: tuple[Any, ...]) -> None:
         """
         Delete rows matching a WHERE clause.
-        Applies to TABLE_NAME.
+
+        :param where: SQL WHERE clause (without the WHERE keyword).
+        :param params: SQL parameters for the WHERE clause.
         """
         if not self.TABLE_NAME:
             raise RuntimeError("TABLE_NAME must be defined.")
@@ -98,7 +105,11 @@ class SQLiteHandler:
     ) -> dict[str, Any] | None:
         """
         Fetch a single row from a table.
-        Returns row as dict or None.
+
+        :param table: SQL table name.
+        :param where: SQL WHERE clause (without the WHERE keyword).
+        :param params: SQL parameters for the WHERE clause.
+        :return: Row dict if found, else None.
         """
         with self._connect() as conn:
             cursor = conn.cursor()
@@ -173,21 +184,18 @@ class ArtworkCacheHandler(SQLiteHandler):
     def add_entry(self, attributes: dict[str, Any]) -> None:
         """
         Insert or replace an artwork cache record.
-        Writes processed attributes to SQLite.
 
-        :param attributes: Canonical artwork attributes.
-        :return: None.
+        :param attributes: Canonical artwork attributes for ART_DB_FIELDS.
         """
         row = tuple(attributes.get(col) for col in ART_DB_FIELDS)
         self._insert_or_replace(ART_DB_FIELDS, row)
 
     def get_entry(self, cache_key: str) -> dict[str, Any] | None:
         """
-        Retrieve a cached artwork entry by cache_key.
-        Returns stored attributes if present.
+        Retrieve a cached artwork record by cache_key.
 
-        :param cache_key: Unique cache key for a process variant.
-        :return: Cached artwork record or None.
+        :param cache_key: Unique key for a process+variant row.
+        :return: Cached record dict, or None.
         """
         return self._get_one(
             table=self.TABLE_NAME,
@@ -197,12 +205,11 @@ class ArtworkCacheHandler(SQLiteHandler):
 
     def update_fields(self, cache_key: str, fields: Mapping[str, Any]) -> int:
         """
-        Update mutable artwork fields by cache_key.
-        Ignores immutable or None values.
+        Update mutable artwork fields for a cache_key.
 
-        :param cache_key: Unique cache key for a process variant.
-        :param fields: Dict of field names and values to update.
-        :return: Number of rows updated
+        :param cache_key: Unique key for a process+variant row.
+        :param fields: Field/value mapping to update.
+        :return: Number of rows updated.
         """
         safe_items = [
             (col, val)
@@ -233,10 +240,9 @@ class ArtworkCacheHandler(SQLiteHandler):
 
     def update_field(self, cache_key: str, column: str, value: Any) -> int:
         """
-        Update a single artwork field by cache_key.
-        Delegates to update_fields.
+        Update a single mutable field for a cache_key.
 
-        :param cache_key: Unique cache key for a process variant.
+        :param cache_key: Unique key for a process+variant row.
         :param column: Column name to update.
         :param value: New column value.
         :return: Number of rows updated.
@@ -325,7 +331,6 @@ class TmdbCacheHandler(SQLiteHandler):
         :param dbtype: Media database type.
         :param tmdb_id: TMDb numeric identifier.
         :param language: Language code.
-        :return: None.
         """
         self._delete_where(
             "dbtype = ? AND tmdb_id = ? AND language = ?",
@@ -347,7 +352,6 @@ class TmdbCacheHandler(SQLiteHandler):
         :param tmdb_id: TMDb numeric identifier.
         :param language: Language code.
         :param payload: Raw TMDb response payload.
-        :return: None.
         """
         now = int(time.time())
         cutoff = now - self.TTL_SECONDS

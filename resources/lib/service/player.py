@@ -32,8 +32,6 @@ class PlayerMonitor(Player):
     def onAVStarted(self):
         """
         Handle playback start events for video and audio.
-
-        :return: None.
         """
         if self.isPlayingVideo() and condition(
             "String.IsEmpty(Window(home).Property(Trailer_Autoplay))"
@@ -78,8 +76,6 @@ class PlayerMonitor(Player):
     def onPlayBackStopped(self):
         """
         Cleanup managed window properties on playback stop.
-
-        :return: None.
         """
         for key, window in self._cleanup_registry:
             window_property(key, value="", window=window)
@@ -89,8 +85,6 @@ class PlayerMonitor(Player):
     def _handle_audio_start(self) -> None:
         """
         Set music-related window properties on audio start.
-
-        :return: None.
         """
         tag = self.getMusicInfoTag()
         self._set_managed_property(

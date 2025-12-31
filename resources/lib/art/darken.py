@@ -25,7 +25,6 @@ class ColorDarken:
         Initialise with shared ColorAnalyzer utilities.
 
         :param color_analyzer: Analyzer instance providing colour helpers.
-        :return: None.
         """
         self.color = color_analyzer
         self._BG_SAMPLERS = {

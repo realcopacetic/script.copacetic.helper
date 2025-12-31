@@ -199,7 +199,6 @@ class JumpButton:
         :param sortletter: Custom label or fallback to ListItem.SortLetter if None.
         :param scroll_id: Scrollbar control ID override for this update.
         :param opts: Placement options (coords/anchor_id/inset/track_w/track_h/…).
-        :return: None
         """
         expected = sortletter or infolabel("ListItem.SortLetter")
         fraction = self._fraction_from_scrollbar(to_int(scroll_id, self.scroll_id))
@@ -462,7 +461,6 @@ class TextTruncator:
         :param safety_chars: Conservative backoff (chars) from the probe index.
         :param ellipsis: Ellipsis string to append to truncated output.
         :param abbrev_set: Lowercased abbreviations to suppress sentence caps.
-        :return: None
         """
         self.measure_ctrl_id = int(measure_ctrl_id or 0)
         self.window = Window(getCurrentWindowId())
@@ -528,7 +526,6 @@ class TextTruncator:
 
         :param ctrl: Measuring TextBox control instance.
         :param text: Candidate string to set into the control.
-        :return: None
         """
         ctrl.setText(text)
         self._probes += 1
@@ -766,7 +763,6 @@ class TypewriterAnimation:
         :param max_lines: Optional cap for number of lines (overrides default).
         :param expected_identity: Focus snapshot for guarding.
         :param alive: Optional guard callable; return False to abort animation.
-        :return: None
         """
 
         def _alive() -> bool:

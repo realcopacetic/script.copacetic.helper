@@ -7,7 +7,7 @@ from typing import Any, Mapping
 import xbmc
 import xbmcvfs
 
-from resources.lib.art.policy import ART_FIELD_PROCESSED, ART_FIELD_HASH
+from resources.lib.art import policy
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
@@ -181,25 +181,25 @@ class ArtworkCacheManager:
             return None
 
         if require:
-            if ART_FIELD_PROCESSED in require and not validate_path(
-                entry.get(ART_FIELD_PROCESSED)
+            if policy.ART_FIELD_PROCESSED in require and not validate_path(
+                entry.get(policy.ART_FIELD_PROCESSED)
             ):
                 return None
 
-            missing = (set(require) - {ART_FIELD_PROCESSED}) - entry.keys()
+            missing = (set(require) - {policy.ART_FIELD_PROCESSED}) - entry.keys()
             if missing:
                 return None
 
         if not ctx.cached_file_hash:  # trust processed if no hash computed yet
             return entry
 
-        db_hash = entry.get(ART_FIELD_HASH)
+        db_hash = entry.get(policy.ART_FIELD_HASH)
         if db_hash and db_hash == ctx.cached_file_hash:  # require match if both hashed
             return entry
 
         if not db_hash and ctx.cached_file_hash:  # backfill hash without reprocessing
             self.sqlite.update_field(
-                ctx.cache_key, ART_FIELD_HASH, ctx.cached_file_hash
+                ctx.cache_key, policy.ART_FIELD_HASH, ctx.cached_file_hash
             )
             return entry
 
@@ -210,15 +210,73 @@ class ArtworkCacheManager:
         Persist a cache row into SQLite.
 
         :param metadata: Processed attributes including keys and hashes.
-        :return: None.
         """
-        if not (url := (metadata or {}).get("url")):
+        meta = metadata or {}
+        cache_key = meta.get(policy.ART_FIELD_CACHE_KEY)
+        source_url = meta.get(policy.ART_FIELD_SOURCE_URL)
+        process = meta.get(policy.ART_FIELD_PROCESS)
+
+        if not cache_key or not source_url or not process:
             log.error(
-                f"{self.__class__.__name__} → write_lookup called without url in metadata"
+                f"{self.__class__.__name__} → write_lookup missing required keys → "
+                f"{cache_key=}, {source_url=}, {process=}"
             )
             return
 
-        if not self.sqlite.get_entry(url):
-            self.sqlite.add_entry({"url": url})
+        self.sqlite.add_entry(meta)
 
-        self.sqlite.update_fields(url, metadata)
+    def delete_by_source_url(self, source_url: str) -> int:
+        """
+        Delete all cache rows for a given source_url.
+
+        :param source_url: Original artwork URL to purge.
+        :return: Number of rows deleted.
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"DELETE FROM {self.TABLE_NAME} WHERE {policy.ART_FIELD_SOURCE_URL} = ?",
+                (source_url,),
+            )
+            conn.commit()
+            return cur.rowcount
+
+    def delete_by_cache_key(self, cache_key: str) -> int:
+        """
+        Delete a cache row by cache_key.
+
+        :param cache_key: Unique cache key to purge.
+        :return: Number of rows deleted.
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"DELETE FROM {self.TABLE_NAME} WHERE {policy.ART_FIELD_CACHE_KEY} = ?",
+                (cache_key,),
+            )
+            conn.commit()
+            return cur.rowcount
+
+    def delete_processed_file_by_cache_key(self, cache_key: str) -> bool:
+        """
+        Delete processed file on disk for a cache_key, if present.
+
+        :param cache_key: Unique cache key to look up processed_path.
+        :return: True if a file was deleted, else False.
+        """
+        entry = self.get_entry(cache_key)
+        if not entry:
+            return False
+
+        processed_path = entry.get(policy.ART_FIELD_PROCESSED)
+        if not processed_path:
+            return False
+
+        try:
+            if xbmcvfs.exists(processed_path):
+                xbmcvfs.delete(processed_path)
+                return True
+        except Exception:
+            return False
+
+        return False

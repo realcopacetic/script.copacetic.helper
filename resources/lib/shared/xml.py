@@ -216,7 +216,6 @@ class XMLHandler:
         Saves an ElementTree to disk with indentation and UTF-8 encoding.
 
         :param tree: XML ElementTree to write.
-        :return: None
         """
         try:
             with open(self.path, "wb") as file:

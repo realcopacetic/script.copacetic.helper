@@ -12,8 +12,6 @@ class TrailerZoomController:
     def apply_zoom_if_needed(self) -> None:
         """
         Apply zoom when a trailer viewport is active.
-
-        :return: None.
         """
         ar_window = self._get_viewport_ar()
         if ar_window <= 0.0:
@@ -57,8 +55,6 @@ class TrailerZoomController:
     def _reset_zoom(self) -> None:
         """
         Reset Kodi view mode zoom to neutral.
-
-        :return: None.
         """
         json_call(
             method="Player.SetViewMode",
@@ -71,7 +67,6 @@ class TrailerZoomController:
         Apply a zoom factor via JSON-RPC.
 
         :param zoom: Zoom factor to apply.
-        :return: None.
         """
         json_call(
             method="Player.SetViewMode",

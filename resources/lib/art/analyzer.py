@@ -23,7 +23,6 @@ class ColorAnalyzer:
         Store config and initialise darken helper.
 
         :param cfg: Shared colour configuration.
-        :return: None.
         """
         self.cfg = cfg
         self.darken = ColorDarken(self)

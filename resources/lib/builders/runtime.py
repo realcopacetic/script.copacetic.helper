@@ -85,8 +85,6 @@ class RuntimeStateManager:
     def initialize_runtime_state(self):
         """
         Create runtime_state.json from defaults if not already present.
-
-        :return: None
         """
         if self.exists:
             return
@@ -209,7 +207,6 @@ class RuntimeStateManager:
 
         :param mapping_key: The mapping group key.
         :param index: Position to remove.
-        :return: None
         """
         state = self.runtime_state
         lst = state.get(mapping_key, [])
@@ -223,7 +220,6 @@ class RuntimeStateManager:
         :param mapping_key: The mapping group key.
         :param i: First index.
         :param j: Second index.
-        :return: None
         """
         state = self.runtime_state
         lst = state.get(mapping_key, [])
