@@ -4,6 +4,11 @@ from typing import Any, Iterable
 
 from PIL import Image, ImageStat
 
+from resources.lib.art.policy import (
+    ART_FIELD_DARKEN_ELEMENT,
+    ART_FIELD_DARKEN_ELEMENT1,
+    ART_FIELD_DARKEN_ELEMENT2,
+)
 from resources.lib.plugin.opts import DarkenOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import to_float
@@ -68,7 +73,7 @@ class ColorDarken:
 
         if mode == "all":
             updates.update(
-                self._compute_element_darken_series(
+                self._compute_darken_element_series(
                     framed=framed,
                     rects=rects,
                     target=target,
@@ -128,7 +133,7 @@ class ColorDarken:
 
         return pct
 
-    def _compute_element_darken_series(
+    def _compute_darken_element_series(
         self,
         *,
         framed: Image.Image,
@@ -145,9 +150,13 @@ class ColorDarken:
         :param target: Target contrast ratio.
         :param text_rgb: Text/overlay RGB.
         :param L_text: Text luminance.
-        :return: Dict like {"element_darken": x, "element_darken1": y, ...}.
+        :return: Dict like {"darken_element": x, "darken_element1": y, ...}.
         """
-        keys = ("element_darken", "element_darken1", "element_darken2")
+        keys = (
+            ART_FIELD_DARKEN_ELEMENT,
+            ART_FIELD_DARKEN_ELEMENT1,
+            ART_FIELD_DARKEN_ELEMENT2,
+        )
         updates: DarkenUpdates = {}
         best = None
         for idx, rect in enumerate(rects[:3]):
@@ -159,7 +168,7 @@ class ColorDarken:
                 pct = -1
             else:
                 bg_rgb, L_bg = self._sample_bg(patch)
-                pct = self._solve_element_darken(
+                pct = self._solve_darken_element(
                     L_bg=L_bg, L_text=L_text, target=target
                 )
                 if pct > 0 and (best is None or pct > best[0]):
@@ -214,7 +223,7 @@ class ColorDarken:
 
         src = (opts.source or "").strip()
         if src.lower() == "clearlogo":
-            clearlogo = shared["results"]["clearlogo"]
+            clearlogo = (shared or {}).get("results", {}).get("clearlogo", {})
             src = clearlogo.get("color") or ""
 
         text_rgb = (
@@ -507,7 +516,7 @@ class ColorDarken:
         pct = int(round((1.0 - k) * 100.0))
         return 0 if pct < 0 else (100 if pct > 100 else pct)
 
-    def _solve_element_darken(
+    def _solve_darken_element(
         self, *, L_bg: float, L_text: float, target: float
     ) -> int:
         """

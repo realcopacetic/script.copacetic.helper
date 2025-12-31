@@ -27,31 +27,6 @@ class DarkenOpts:
         """Return True if darken mode is valid."""
         return self.mode in ("artwork", "all")
 
-    @property
-    def darken_mode(self) -> str | None:
-        """Return *_darken_mode param as a property"""
-        return self.darken.mode if self.darken else None
-
-    @property
-    def darken_source(self) -> str | None:
-        """Return *_darken_source param as a property"""
-        return self.darken.source if self.darken else None
-
-    @property
-    def darken_rects(self) -> str | None:
-        """Return *_darken_rects param as a property"""
-        return self.darken.rects if self.darken else None
-
-    @property
-    def darken_frame(self) -> str | None:
-        """Return *_darken_frame param as a property"""
-        return self.darken.frame if self.darken else None
-
-    @property
-    def darken_target(self) -> str | None:
-        """Return *_darken_target param as a property"""
-        return self.darken.target if self.darken else None
-
     @classmethod
     def from_params(cls, params: Mapping[str, str], prefix: str) -> "DarkenOpts":
         """
@@ -101,6 +76,31 @@ class ArtOpts:
             if process == "darken"
             else bool(getattr(self, process, False))
         )
+
+    @property
+    def darken_mode(self) -> str | None:
+        """Return *_darken_mode param as a property"""
+        return self.darken.mode if self.darken else None
+
+    @property
+    def darken_source(self) -> str | None:
+        """Return *_darken_source param as a property"""
+        return self.darken.source if self.darken else None
+
+    @property
+    def darken_rects(self) -> str | None:
+        """Return *_darken_rects param as a property"""
+        return self.darken.rects if self.darken else None
+
+    @property
+    def darken_frame(self) -> str | None:
+        """Return *_darken_frame param as a property"""
+        return self.darken.frame if self.darken else None
+
+    @property
+    def darken_target(self) -> str | None:
+        """Return *_darken_target param as a property"""
+        return self.darken.target if self.darken else None
 
     @classmethod
     def from_params(cls, params: Mapping[str, str], art_type: str) -> "ArtOpts":

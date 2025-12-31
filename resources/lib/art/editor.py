@@ -22,25 +22,30 @@ class ImageEditor:
     """
 
     PROCESS_SPEC: dict[str, dict[str, Any]] = {
-        "crop": {"folder": CROPS, "require": ("processed_path",)},
+        "crop": {"folder": CROPS, "require": (policy.ART_FIELD_PROCESSED,)},
         "blur": {
             "folder": BLURS,
-            "require": ("processed_path", "blur_radius"),
-            "match": ("blur_radius",),
+            "require": (policy.ART_FIELD_PROCESSED, policy.ART_FIELD_BLUR_RADIUS),
+            "match": (policy.ART_FIELD_BLUR_RADIUS,),
         },
         "analyze": {
             "folder": None,
-            "require": ("color", "accent", "contrast", "luminosity"),
+            "require": (
+                policy.ART_FIELD_COLOR,
+                policy.ART_FIELD_ACCENT,
+                policy.ART_FIELD_CONTRAST,
+                policy.ART_FIELD_LUMINOSITY,
+            ),
         },
         "darken": {
             "folder": None,
-            "require": ("darken",),
+            "require": (policy.ART_FIELD_DARKEN,),
             "match": (
-                "darken_mode",
-                "darken_source",
-                "darken_rects",
-                "darken_frame",
-                "darken_target",
+                policy.ART_FIELD_DARKEN_MODE,
+                policy.ART_FIELD_DARKEN_SOURCE,
+                policy.ART_FIELD_DARKEN_RECTS,
+                policy.ART_FIELD_DARKEN_FRAME,
+                policy.ART_FIELD_DARKEN_TARGET,
             ),
         },
     }

@@ -169,13 +169,13 @@ class ArtworkCacheHandler(SQLiteHandler):
                     contrast TEXT,
                     luminosity INTEGER
                     darken INTEGER,
-                    element_darken INTEGER,
-                    element_darken1 INTEGER,
-                    element_darken2 INTEGER,
-                    darken_mode TEXT,
-                    darken_source TEXT,
-                    darken_rects TEXT,
+                    darken_element INTEGER,
+                    darken_element1 INTEGER,
+                    darken_element2 INTEGER,
                     darken_frame TEXT,
+                    darken_mode TEXT,
+                    darken_rects TEXT,
+                    darken_source TEXT,
                     darken_target TEXT
                 )
                 """
