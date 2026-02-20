@@ -43,7 +43,7 @@ def collect_info_handlers(inst: object) -> dict[str, Callable]:
     :return: Mapping of info name to bound method.
     """
     return {
-        getattr(fn, _INFO_TAG): fn
-        for attr in dir(inst)
-        if callable(fn := getattr(inst, attr)) and getattr(fn, _INFO_TAG, None)
+        tag: getattr(inst, attr)
+        for attr, fn in type(inst).__dict__.items()
+        if callable(fn) and (tag := getattr(fn, _INFO_TAG, None))
     }

@@ -128,12 +128,7 @@ def focus_guard(
         else None
     )
     identity_getter = lambda: infolabel(f"{container}.CurrentItem")
-
-    guard = _FocusGuard(caller_name, focus_check, expected_identity, identity_getter)
-    try:
-        yield guard
-    finally:
-        pass
+    yield _FocusGuard(caller_name, focus_check, expected_identity, identity_getter)
 
 
 class PluginHandlers(metaclass=PluginInfoRegistry):
@@ -280,7 +275,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            current_position = to_int(self.expected_identity, 0)
+            current_position = to_int(
+                self.expected_identity,
+                to_int(infolabel(f"{self.container}.CurrentItem"), None),
+            )
             art_opts = {
                 art_type: ArtOpts.from_params(self.params, art_type)
                 for art_type in ("clearlogo", "background", "icon")
@@ -333,16 +331,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     {
                         "file": "artwork",
                         "art": art,
-                        "properties": {
-                            "previous": current_position - 1,
-                            "previous_art": infolabel(
-                                f"ListItemAbsolute({current_position - 1}).Art(fanart)"
-                            ),
-                            "next": current_position + 1,
-                            "next_art": infolabel(
-                                f"ListItemAbsolute({current_position + 1}).Art(fanart)"
-                            ),
-                        },
+                        "properties": (
+                            {
+                                "previous": current_position - 1,
+                                "next": current_position + 1,
+                            }
+                            if current_position is not None
+                            else {}
+                        ),
                     }
                 ]
             )

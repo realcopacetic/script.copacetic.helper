@@ -199,9 +199,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Initiate management buttons if runtime expansion
         self.has_runtime = any(
-            ctrl
+            ctrl.get("role") == "preset_picker"
             for ctrl in self.dynamic_controls.values()
-            if ctrl.get("mapping") and "field" not in ctrl
         )
         if self.has_runtime:
             try:

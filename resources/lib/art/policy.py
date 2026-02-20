@@ -21,8 +21,8 @@ ART_FIELD_DARKEN_ELEMENT2: str = "darken_element2"
 ART_FIELD_DARKEN_FRAME: str = "darken_frame"
 ART_FIELD_DARKEN_MODE: str = "darken_mode"
 ART_FIELD_DARKEN_RECTS: str = "darken_rects"
+ART_FIELD_DARKEN_STRENGTH: str = "darken_strength"
 ART_FIELD_DARKEN_SOURCE: str = "darken_source"
-ART_FIELD_DARKEN_TARGET: str = "darken_target"
 
 ART_FIELDS_DARKEN_ELEMENT: tuple[str, ...] = (
     ART_FIELD_DARKEN_ELEMENT,
@@ -46,8 +46,8 @@ ART_DB_SCHEMA: tuple[tuple[str, str], ...] = (
     (ART_FIELD_DARKEN_FRAME, "TEXT"),
     (ART_FIELD_DARKEN_MODE, "TEXT"),
     (ART_FIELD_DARKEN_RECTS, "TEXT"),
+    (ART_FIELD_DARKEN_STRENGTH, "REAL"),
     (ART_FIELD_DARKEN_SOURCE, "TEXT"),
-    (ART_FIELD_DARKEN_TARGET, "TEXT"),
 )
 ART_DB_UNIQUE: tuple[str, ...] = (ART_FIELD_CACHE_KEY,)
 
@@ -100,7 +100,7 @@ def filter_listitem_payload(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def flatten_art_attributes(
-    records: Iterable[dict[str, Any]],
+    records: Iterable[tuple[str, dict[str, Any]]],
 ) -> dict[str, Any]:
     """
     Flatten canonical records into ListItem.Art-style keys.
@@ -143,69 +143,49 @@ def resolve_art_type(art: dict, art_type: str) -> dict[str, str]:
 class ColorConfig:
     """Tunable parameters for colour analysis, contrast, and readability."""
 
-    # --- Sampling & Palette ---
-    palette_size: int = 8  # Adaptive palette size (lower = faster, smoother)
-    sample_size: int = 64  # Downsample size for palette sampling (SxS square)
-    avg_downsample: int = 32  # Downsample size for mean RGB/luminance sampling
-    avg_grid: int = 6  # Grid resolution (GxG) used to locate brightest cell
-    crop_target_size: tuple[int, int] = (1600, 620)  # Downsample size for crop
-    blur_target_size: tuple[int, int] = (480, 270)  # Downsample size for blur
-    blur_radius: int = 50  # Gaussian blur radius in pixels for blur
+    # --- Sizing & Scaling ---
+    bg_frame: tuple[int, int] = (1920, 1080)  # Default fallback UI coordinate size
+    crop_target_size: tuple[int, int] = (1600, 620)  # Downsample bounds for cropping
+    blur_target_size: tuple[int, int] = (480, 270)  # Downsample bounds before blurring
 
-    # --- Filtering thresholds ---
-    skip_whites: bool = True  # ignore white-ish swatches unless overwhelmingly dominant
-    skip_blacks: bool = True  # ignore black-ish swatches unless overwhelmingly dominant
-    dominance_allow_threshold: float = 0.70  # allow skipped extremes if ≥70% of pixels
-    alpha_opaque_min: int = 65  # alpha cutoff (0–255) for treating pixels as opaque
-    near_white: int = 245  # per-channel threshold for considering a swatch “near white”
-    near_black: int = 10  # per-channel threshold for considering a swatch “near black”
+    # --- Image Processing ---
+    blur_radius: int = 50  # Default Gaussian blur radius in pixels
+    jpeg_quality: int = 80  # JPEG export quality (1-95)
+    jpeg_optimize: bool = False  # Enable JPEG optimization (slower save, smaller file)
+    jpeg_progressive: bool = False  # Enable progressive JPEG encoding
+    jpeg_subsampling: str = "4:2:0"  # Chroma subsampling ("4:4:4" for max detail)
+    png_optimize: bool = False  # Enable PNG optimization
+    png_compress_level: int = 3  # PNG zlib compression (0 fastest, 9 smallest)
 
-    # --- Accent extraction ---
-    freq_distance_norm: float = 255.0  # normalization factor for RGB distance (Δ/255)
+    # --- Sampling & Extraction ---
+    palette_size: int = 8  # Colors in the adaptive palette (lower is faster)
+    sample_size: int = 64  # Downsampled square size for palette extraction
+    avg_downsample: int = 32  # Downsampled square size for luminance/mean sampling
+    avg_grid: int = 6  # NxN grid resolution for locating the brightest patch
+    bg_sampling_topk: float = 0.10  # Fraction of brightest pixels used for background L
+
+    # --- Color Filtering ---
+    alpha_opaque_min: int = 65  # Alpha channel threshold to consider a pixel opaque
+    skip_whites: bool = True  # Ignore near-white swatches during dominance extraction
+    skip_blacks: bool = True  # Ignore near-black swatches during dominance extraction
+    near_white: int = 245  # RGB threshold (per channel) to trigger skip_whites
+    near_black: int = 10  # RGB threshold (per channel) to trigger skip_blacks
+    dominance_allow_threshold: float = 0.70  # Override skips if swatch covers >70%
+
+    # --- Accent Colour Rules ---
     accent_weight: dict[str, float] = (
         field(  # weights for accent scoring: freq, sat, dist
             default_factory=lambda: {"freq": 0.5, "sat": 0.3, "dist": 0.2}
         )
     )
-    accent_freq_exponent: float = 0.5  # gamma exponent to flatten dominance (0.5=sqrt)
-    accent_freq_floor: float = 0.06  # ignore swatches contributing <6% of counts
-    accent_min_dist: int = 28  # min RGB Euclidean distance from dominant for accent
-    accent_stdev_floor: float = 3.0  # px stdev threshold: lower, quicker early exit
-    accent_dom_share_cutoff: float = 0.85  # skip accent if dom color covers ≥85% px
+    accent_freq_exponent: float = 0.5  # Gamma curve to flatten dominance (0.5 = sqrt)
+    accent_freq_floor: float = 0.06  # Minimum pixel share (6%) required to be an accent
+    accent_min_dist: int = 28  # Minimum RGB distance (0-441) from the dominant color
+    accent_stdev_floor: float = 3.0  # Fast-exit standard deviation for uniform images
+    accent_dom_share_cutoff: float = 0.85  # Fast-exit if dominant covers >85%
 
-    # --- Contrast & Lightness ---
-    contrast_shift: float = 0.3  # lightness delta for contrast colour (0.3–0.5 typical)
-    contrast_midpoint: float = 0.5  # HLS pivot; lighten if L < pivot else darken
-    min_lightness: float = 0.0  # lower clamp for HLS lightness when adjusting contrast
-    max_lightness: float = 1.0  # upper clamp for HLS lightness when adjusting contrast
-
-    # --- Background sampling / luminance ---
-    bg_frame: tuple[int, int] = (1920, 1080)  # Fallback artwork size
-    bg_sampling_topk: float = 0.10  # used when mode == "topk"
-    target_contrast_ratio: float = 4.5  # contrast ratio target (4.5 normal, 3.0 large)
-
-    # --- Red leniency / guard rails ---
-    red_relax_enable: bool = True  # enable hue-aware leniency for reds on dark bg
-    red_hue_center: float = 0.0  # 0.0 == red hue in [0..1] (colorsys)
-    red_hue_window: float = 0.06  # ± hue window around red (~±22°)
-    red_min_target: float = 2.7  # never demand higher ratio when red rule applies
-    red_relax_cap: float = 3.0  # max target when relaxing reds on dark bg
-    red_bg_floor: float = 0.06  # if L_bg below this, treat as “already dark”
-
-    # --- Readability (element overlay) ---
-    element_overlay_color: str = "fff0efef"  # colour for readability checks (ARGB hex)
-    element_overlay_rect: tuple[int, int, int, int] = (
-        120,
-        660,
-        1680,
-        360,
-    )  # (x, y, w, h) region
-    element_complexity_stddev: float = 20.0  # max patch stddev to treat as "simple"
-
-    # --- Save settings ---
-    jpeg_quality: int = 80  # quality (1–95); higher = better, slower
-    jpeg_optimize: bool = False  # smaller files, slower saves
-    jpeg_progressive: bool = False  # progressive encoding; slower
-    jpeg_subsampling: str = "4:2:0"  # color detail vs size ("4:4:4" = best)
-    png_optimize: bool = False  # smaller files, slower saves
-    png_compress_level: int = 3  # 0–9 (0 fastest, 9 smallest)
+    # --- Contrast & Readability ---
+    contrast_shift: float = 0.3  # Lightness delta (0-1) for generating contrast color
+    element_overlay_color: str = "fff0efef"  # Fallback text hex for readability checks
+    element_complexity_stddev: float = 20.0  # Luma stdev limit for "simple" backgrounds
+    darken_element_floor: float = 0.4  # floor below which element darken is skipped

@@ -12,7 +12,7 @@ from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import ArtworkCacheHandler
-from resources.lib.shared.utilities import BLURS, CROPS, infolabel, validate_path
+from resources.lib.shared.utilities import infolabel, validate_path
 
 
 class ImageEditor:
@@ -20,35 +20,6 @@ class ImageEditor:
     Coordinate artwork processing, caching and color metadata extraction.
     Handles crop/blur/analyze plus optional overlay darken.
     """
-
-    PROCESS_SPEC: dict[str, dict[str, Any]] = {
-        "crop": {"folder": CROPS, "require": (policy.ART_FIELD_PROCESSED,)},
-        "blur": {
-            "folder": BLURS,
-            "require": (policy.ART_FIELD_PROCESSED, policy.ART_FIELD_BLUR_RADIUS),
-            "match": (policy.ART_FIELD_BLUR_RADIUS,),
-        },
-        "analyze": {
-            "folder": None,
-            "require": (
-                policy.ART_FIELD_COLOR,
-                policy.ART_FIELD_ACCENT,
-                policy.ART_FIELD_CONTRAST,
-                policy.ART_FIELD_LUMINOSITY,
-            ),
-        },
-        "darken": {
-            "folder": None,
-            "require": (policy.ART_FIELD_DARKEN,),
-            "match": (
-                policy.ART_FIELD_DARKEN_MODE,
-                policy.ART_FIELD_DARKEN_SOURCE,
-                policy.ART_FIELD_DARKEN_RECTS,
-                policy.ART_FIELD_DARKEN_FRAME,
-                policy.ART_FIELD_DARKEN_TARGET,
-            ),
-        },
-    }
 
     def __init__(self, sqlite_handler: ArtworkCacheHandler | None = None) -> None:
         """
@@ -144,7 +115,10 @@ class ImageEditor:
         base_ctx = self.cache_manager.prepare(resolved_url, ext)
         attrs = {"cached_file_hash": base_ctx.cached_file_hash}
         for process in processes:
-            spec = self.PROCESS_SPEC[process]
+            if not opts.enabled(process):
+                continue
+
+            spec = self.processor.PROCESS_SPEC[process]
             require = spec.get("require")
             folder = spec.get("folder")
             expected = self._expected_from_spec(spec, opts=opts)
@@ -175,7 +149,7 @@ class ImageEditor:
                 shared=shared,
                 folder=folder,
             )
-            if not processed:
+            if processed is None:
                 return None
 
             attrs |= processed
@@ -200,15 +174,25 @@ class ImageEditor:
     ) -> dict[str, object] | None:
         """
         Build expected cache-field matches from PROCESS_SPEC['match'].
-        Only enforces matches for ArtOpts values explicitly provided (non-None).
+        For darken, delegates to DarkenOpts.match_fields() so the spec stays
+        decoupled from ArtOpts proxy properties.
+        For other processes, falls back to flat getattr (e.g. blur_radius).
 
         :param spec: Process spec dict (may contain 'match').
         :param opts: Parsed ArtOpts for the current art_type.
         :return: Expected cache-field values, or None if no matches apply.
         """
+        match_keys = spec.get("match") or ()
+        if not match_keys:
+            return None
+
+        if opts.darken and all(k.startswith("darken_") for k in match_keys):
+            fields = opts.darken.match_fields()
+            return {k: v for k, v in fields.items() if k in match_keys} or None
+
         return {
             key: value
-            for key in (spec.get("match") or ())
+            for key in match_keys
             if (value := getattr(opts, key, None)) is not None
         } or None
 
@@ -228,10 +212,14 @@ class ImageEditor:
         """
         return (
             (
-                "processed_path" not in require
-                or validate_path(row.get("processed_path"))
+                policy.ART_FIELD_PROCESSED not in require
+                or validate_path(row.get(policy.ART_FIELD_PROCESSED))
             )
-            and all(row.get(k) is not None for k in require if k != "processed_path")
+            and all(
+                row.get(k) is not None
+                for k in require
+                if k != policy.ART_FIELD_PROCESSED
+            )
             and (not expected or all(row.get(k) == v for k, v in expected.items()))
         )
 
@@ -292,7 +280,7 @@ class ImageEditor:
             opts=opts,
             shared=shared,
         )
-        if not result:
+        if result is None:
             return None
 
         if folder and "image" in result:

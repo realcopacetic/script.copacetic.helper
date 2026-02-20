@@ -282,45 +282,30 @@ class configsBuilder(BaseBuilder):
         :param setting_data: The full config definition including defaults.
         :return: Updated resolved settings dict with defaults applied.
         """
-        default_entry = next(
-            ((k, v) for k, v in setting_data.items() if k.startswith("defaults_per_")),
-            (None, None),
-        )
+        defaults = setting_data.get("defaults")
+        default_key = setting_data.get("default_key")
 
-        default_key, default_values = default_entry
-        if not default_key:
+        if not defaults or not default_key:
             return resolved
 
-        default_field = default_key[len("defaults_per_") :].strip("{}")
-
-        all_settings_by_group = defaultdict(list)
-        for setting_name in resolved:
+        for setting_name, setting_config in resolved.items():
             sub = self.group_map.get(setting_name, {})
-            if default_field in sub:
-                all_settings_by_group[sub[default_field]].append(setting_name)
-
-        for i, (group_key, setting_list) in enumerate(all_settings_by_group.items()):
-            default_value = default_values[min(i, len(default_values) - 1)]
-
-            if not setting_list:
-                continue
-
-            for setting_name in setting_list:
-                allowed_items = resolved[setting_name]["items"]
-                if (
-                    default_value not in allowed_items
-                ):  # default_value prohibited, safe fallback to first allowed item
-                    fallback_default = allowed_items[0]
-                    resolved[setting_name]["default"] = fallback_default
-
-                    log.debug(
-                        f"{self.__class__.__name__}: [Default override] {setting_name} default '{default_value}' invalid; using '{fallback_default}' instead (group: {group_key})"
-                    )
-                else:  # default_value allowed
-                    resolved[setting_name]["default"] = default_value
-                    log.debug(
-                        f"{self.__class__.__name__}: [Default applied] {setting_name} default = {default_value} (group: {group_key})",
-                    )
+            current_loop_value = sub.get(default_key)
+            target_default = defaults.get(current_loop_value, defaults.get("*"))
+            
+            if not target_default:
+                 continue
+            
+            allowed_items = setting_config.get("items", [])
+            
+            # Guard rail: Ensure requested default is allowed by the rules
+            if target_default not in allowed_items and allowed_items:
+                fallback = allowed_items[0]
+                setting_config["default"] = fallback
+                log.debug(f"{self.__class__.__name__}: [Default override] {setting_name} requested '{target_default}' but not allowed. Using '{fallback}'.")
+            else:
+                setting_config["default"] = target_default
+                log.debug(f"{self.__class__.__name__}: [Default applied] {setting_name} default = {target_default} (group: {current_loop_value})")
 
         return resolved
 
@@ -497,18 +482,11 @@ class expressionsBuilder(BaseBuilder):
         :param expr_data: The expression's full rule definition.
         :return: Updated resolved expression dict with fallbacks applied.
         """
-        fallback_entry = next(
-            ((k, v) for k, v in expr_data.items() if k.startswith("fallback_per_")),
-            (None, None),
-        )
-
-        fallback_key, fallback_dict = fallback_entry
-        if not fallback_key:
+        fallbacks = expr_data.get("fallbacks")
+        if not fallbacks:
             return resolved
 
-        fallback_field = fallback_key[len("fallback_per_") :].strip("{}")
-        fallback_values = fallback_dict.get("values", [])
-        fallback_items = fallback_dict.get("target_items", fallback_values)
+        fallback_field = self.placeholders.get("key")
 
         all_exprs_by_group = defaultdict(list)
         for expr_name in resolved:
@@ -516,12 +494,16 @@ class expressionsBuilder(BaseBuilder):
             if fallback_field in sub:
                 all_exprs_by_group[sub[fallback_field]].append(expr_name)
 
-        for i, (group_key, expr_list) in enumerate(all_exprs_by_group.items()):
-            fallback_item = fallback_items[min(i, len(fallback_items) - 1)]
-            fallback_value = fallback_values[min(i, len(fallback_values) - 1)]
-
+        for group_key, expr_list in all_exprs_by_group.items():
             if not expr_list:
+                 continue
+
+            fallback_config = fallbacks.get(group_key, fallbacks.get("*"))
+            if not fallback_config:
                 continue
+                
+            fallback_item = fallback_config.get("target_item")
+            fallback_value = fallback_config.get("value", "true")
 
             target_expr = next(
                 (

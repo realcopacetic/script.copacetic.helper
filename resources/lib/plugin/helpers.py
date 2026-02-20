@@ -103,7 +103,7 @@ class DataHandler:
         """
         Initialize the handler with listitem, dbtype and dbid.
 
-        :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
+        :param target: InfoLabel prefix (e.g. "Container(3100).ListItem").
         :param dbtype: Database content type (e.g. video or tvshow).
         :param dbid: Database ID for the given item.
         """
@@ -146,7 +146,7 @@ class DataHandler:
         :return: Studio string or empty string.
         """
         studio = (
-            split(infolabel(f"Container({self.target}).ListItem(-1).Studio"))
+            split(infolabel(f"{self.target}(-1).Studio"))
             if "set" in self.dbtype
             else split(self.infolabels["Studio"])
         )
@@ -310,7 +310,7 @@ class ProgressBarManager:
                     "setid": int(set_id),
                     "movies": {"properties": ["playcount"], "limits": {"start": 0}},
                 },
-                parent={self.__class__.__name__},
+                parent=self.__class__.__name__,
             )
             movies = response.get("result", {}).get("setdetails", {}).get("movies", [])
 
@@ -792,7 +792,9 @@ class TypewriterAnimation:
             window=self.window,
             caller_name=self.__class__.__name__,
             opts=opts,
-            content_h=(self.line_height * self.max_lines) if not opts.track_h else None,
+            content_h=(
+                (self.default_line_step * self.max_lines) if not opts.track_h else None
+            ),
         )
 
         step_h = max(1, int(line_step or self.default_line_step))

@@ -457,11 +457,11 @@ def dynamic_settings_window(**kwargs):
 
 
 @action
-def update_views(**kwargs):
+def rebuild(**kwargs):
     """ """
     from resources.lib.builders.build_elements import BuildElements
 
-    builder = BuildElements(run_context="runtime")
+    builder = BuildElements(run_context=kwargs.get("context", "runtime"))
     log.execute("ReloadSkin()")
 
 
