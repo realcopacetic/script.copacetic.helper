@@ -181,8 +181,6 @@ class ColorConfig:
 
     # --- Background sampling / luminance ---
     bg_frame: tuple[int, int] = (1920, 1080)  # Fallback artwork size
-    bg_sampling_mode: str = "topk"  # "grid" | "percentile" | "topk"
-    bg_sampling_percentile: float = 0.95  # used when mode == "percentile"
     bg_sampling_topk: float = 0.10  # used when mode == "topk"
     target_contrast_ratio: float = 4.5  # contrast ratio target (4.5 normal, 3.0 large)
 

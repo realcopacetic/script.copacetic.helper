@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 from PIL import Image, ImageStat
 
@@ -28,11 +28,6 @@ class ColorDarken:
         :param color_analyzer: Analyzer instance providing colour helpers.
         """
         self.color = color_analyzer
-        self._BG_SAMPLERS = {
-            "grid": self._sample_bg_grid,
-            "percentile": self._sample_bg_percentile,
-            "topk": self._sample_bg_topk,
-        }
 
     def compute_darken(
         self,
@@ -370,62 +365,6 @@ class ColorDarken:
 
     def _sample_bg(self, patch: Image.Image) -> tuple[RGB, float]:
         """
-        Sample background RGB and luminance using configured sampler.
-
-        :param patch: Cropped patch image for a single rect.
-        :return: Tuple of (rgb, relative_luminance).
-        """
-        cfg = self.color.cfg
-        sampler = self._BG_SAMPLERS.get(cfg.bg_sampling_mode, self._sample_bg_grid)
-        return sampler(patch)
-
-    def _sample_bg_grid(self, patch: Image.Image) -> tuple[RGB, float]:
-        """
-        Sample background using brightest-cell mean (robust baseline).
-
-        :param patch: Patch image cropped to one overlay rect.
-        :return: Tuple of (bg_rgb, bg_luminance).
-        """
-        rgb = self.color.brightest_mean_rgb(patch)
-        return rgb, self.color.get_luminosity(rgb)
-
-    def _sample_bg_percentile(self, patch: Image.Image) -> tuple[RGB, float]:
-        """
-        Downsample patch, find threshold via histogram, mean pixels in bright tail.
-        """
-        cfg = self.color.cfg
-        n = max(8, int(cfg.avg_downsample))
-        q = max(0.0, min(1.0, float(cfg.bg_sampling_percentile)))
-
-        tiny = patch.convert("RGB").resize((n, n), Image.BOX)
-        tiny_l = tiny.convert("L")  # Fast C-level luminance
-
-        # Find threshold luminance using a 256-bucket histogram
-        hist = tiny_l.histogram()
-        target_pixels = int(round((1.0 - q) * (n * n))) or 1
-
-        count = 0
-        thresh = 255
-        for i in range(255, -1, -1):
-            count += hist[i]
-            if count >= target_pixels:
-                thresh = i
-                break
-
-        # Create a binary mask and get the mean of only the bright pixels
-        mask = tiny_l.point(lambda p: 255 if p >= thresh else 0, mode="1")
-        stat = ImageStat.Stat(tiny, mask=mask)
-
-        if stat.count[0] == 0:
-            rgb = self.color.plain_mean_rgb(tiny)
-        else:
-            r, g, b = stat.mean
-            rgb = (int(r), int(g), int(b))
-
-        return rgb, self.color.get_luminosity(rgb)
-
-    def _sample_bg_topk(self, patch: Image.Image) -> tuple[RGB, float]:
-        """
         Downsample patch, take top-k brightest pixels using a histogram mask.
         """
         cfg = self.color.cfg
@@ -454,7 +393,6 @@ class ColorDarken:
         else:
             r, g, b = stat.mean
             rgb = (int(r), int(g), int(b))
-
         return rgb, self.color.get_luminosity(rgb)
 
     def _is_simple_patch(self, patch: Image.Image) -> bool:
@@ -493,6 +431,10 @@ class ColorDarken:
         if L_bg <= 0:
             return 0
 
+        if L_text < 0.2:
+            log.debug(f"{self.__class__.__name__}: Darken aborted → Overlay element is dark (L={L_text:.3f})")
+            return 0
+
         cfg = self.color.cfg
         if cfg.red_relax_enable:
             h, _, _ = self.color.rgb_to_hls(text_rgb)
@@ -507,9 +449,9 @@ class ColorDarken:
 
         numerator = (L_text + 0.05) / target - 0.05
         k = numerator / L_bg
-        k = 0.0 if k < 0.0 else (1.0 if k > 1.0 else k)
+        k = max(0.0, min(1.0, k))
         pct = int(round((1.0 - k) * 100.0))
-        return 0 if pct < 0 else (100 if pct > 100 else pct)
+        return pct
 
     def _solve_darken_element(
         self, *, L_bg: float, L_text: float, target: float
