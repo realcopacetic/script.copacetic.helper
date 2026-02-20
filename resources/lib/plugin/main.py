@@ -43,12 +43,12 @@ class Main:
         if not fn:
             log.debug(f"Ignoring unknown info: {self.info}")
             return
-        
+
         log.debug(f"PluginHandlers initialized with params: {self.params}")
         items = fn()
         if not isinstance(items, (list, tuple)):
             items = []
-        
+
         self._additems(items)
 
     def run_listing(self) -> None:
@@ -62,5 +62,5 @@ class Main:
         handle = int(sys.argv[1]) if len(sys.argv) > 1 else 0
         xbmcplugin.addDirectoryItems(handle, items)
         xbmcplugin.endOfDirectory(
-            handle=handle, succeeded=True, updateListing=False, cacheToDisc=True
+            handle=handle, succeeded=True, updateListing=False, cacheToDisc=bool(items)
         )

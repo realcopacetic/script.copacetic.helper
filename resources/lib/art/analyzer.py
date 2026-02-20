@@ -223,11 +223,8 @@ class ColorAnalyzer:
                 (self.cfg.avg_downsample, self.cfg.avg_downsample), Image.BOX
             )
 
-        px = im.convert("RGB").getdata()
-        n = len(px) or 1
-        r = sum(p[0] for p in px) / n
-        g = sum(p[1] for p in px) / n
-        b = sum(p[2] for p in px) / n
+        stat = ImageStat.Stat(im.convert("RGB"))
+        r, g, b = stat.mean
         return int(r), int(g), int(b)
 
     @staticmethod
@@ -407,10 +404,6 @@ class ColorAnalyzer:
 
         # --- Pass 2: precise average on the chosen patch -------------------------
         tiny = patch.resize((pass2, pass2), Image.BOX)
-        r = g = b = 0
-        n = pass2 * pass2
-        for pr, pg, pb in tiny.getdata():
-            r += pr
-            g += pg
-            b += pb
-        return (r // n, g // n, b // n)
+        stat = ImageStat.Stat(tiny.convert("RGB"))
+        r, g, b = stat.mean
+        return int(r), int(g), int(b)

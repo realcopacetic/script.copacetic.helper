@@ -391,67 +391,70 @@ class ColorDarken:
 
     def _sample_bg_percentile(self, patch: Image.Image) -> tuple[RGB, float]:
         """
-        Downsample patch, compute luminance percentile, mean pixels in bright tail.
-
-        :param patch: Patch image cropped to one overlay rect.
-        :return: Tuple of (bg_rgb, bg_luminance).
+        Downsample patch, find threshold via histogram, mean pixels in bright tail.
         """
         cfg = self.color.cfg
         n = max(8, int(cfg.avg_downsample))
         q = max(0.0, min(1.0, float(cfg.bg_sampling_percentile)))
 
         tiny = patch.convert("RGB").resize((n, n), Image.BOX)
-        px = list(tiny.getdata())
-        if not px:
+        tiny_l = tiny.convert("L")  # Fast C-level luminance
+
+        # Find threshold luminance using a 256-bucket histogram
+        hist = tiny_l.histogram()
+        target_pixels = int(round((1.0 - q) * (n * n))) or 1
+
+        count = 0
+        thresh = 255
+        for i in range(255, -1, -1):
+            count += hist[i]
+            if count >= target_pixels:
+                thresh = i
+                break
+
+        # Create a binary mask and get the mean of only the bright pixels
+        mask = tiny_l.point(lambda p: 255 if p >= thresh else 0, mode="1")
+        stat = ImageStat.Stat(tiny, mask=mask)
+
+        if stat.count[0] == 0:
             rgb = self.color.plain_mean_rgb(tiny)
-            return rgb, self.color.get_luminosity(rgb)
+        else:
+            r, g, b = stat.mean
+            rgb = (int(r), int(g), int(b))
 
-        lumas = [self.color.luma709(p) for p in px]
-        l_sorted = sorted(lumas)
-        idx = int(round((len(l_sorted) - 1) * q))
-        thresh = l_sorted[idx]
-
-        rs = gs = bs = count = 0
-        for (r, g, b), y in zip(px, lumas):
-            if y >= thresh:
-                rs += r
-                gs += g
-                bs += b
-                count += 1
-
-        rgb = (
-            self.color.plain_mean_rgb(tiny)
-            if count <= 0
-            else (rs // count, gs // count, bs // count)
-        )
         return rgb, self.color.get_luminosity(rgb)
 
     def _sample_bg_topk(self, patch: Image.Image) -> tuple[RGB, float]:
         """
-        Downsample patch, take top-k brightest pixels by luminance, mean their RGB.
-
-        :param patch: Patch image cropped to one overlay rect.
-        :return: Tuple of (bg_rgb, bg_luminance).
+        Downsample patch, take top-k brightest pixels using a histogram mask.
         """
         cfg = self.color.cfg
         n = max(8, int(cfg.avg_downsample))
         k_frac = max(0.0, min(1.0, float(cfg.bg_sampling_topk)))
 
         tiny = patch.convert("RGB").resize((n, n), Image.BOX)
-        px = list(tiny.getdata())
-        if not px:
+        tiny_l = tiny.convert("L")
+
+        hist = tiny_l.histogram()
+        target_pixels = max(1, int(round((n * n) * k_frac)))
+
+        count = 0
+        thresh = 255
+        for i in range(255, -1, -1):
+            count += hist[i]
+            if count >= target_pixels:
+                thresh = i
+                break
+
+        mask = tiny_l.point(lambda p: 255 if p >= thresh else 0, mode="1")
+        stat = ImageStat.Stat(tiny, mask=mask)
+
+        if stat.count[0] == 0:
             rgb = self.color.plain_mean_rgb(tiny)
-            return rgb, self.color.get_luminosity(rgb)
+        else:
+            r, g, b = stat.mean
+            rgb = (int(r), int(g), int(b))
 
-        scored = [(self.color.luma709(p), p) for p in px]
-        scored.sort(key=lambda t: t[0], reverse=True)
-
-        k = max(1, int(round(len(scored) * k_frac)))
-        rs = sum(p[0] for _, p in scored[:k])
-        gs = sum(p[1] for _, p in scored[:k])
-        bs = sum(p[2] for _, p in scored[:k])
-
-        rgb = (rs // k, gs // k, bs // k)
         return rgb, self.color.get_luminosity(rgb)
 
     def _is_simple_patch(self, patch: Image.Image) -> bool:
