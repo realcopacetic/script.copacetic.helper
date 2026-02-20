@@ -473,7 +473,7 @@ def to_float(value: object, default: float  = 0.0) -> float:
         return default
 
 
-def to_int(value: object, default: int = 0) -> int:
+def to_int(value: object, default: int | None = 0) -> int:
     """
     Safely convert a value to an integer, returning a default on failure.
 

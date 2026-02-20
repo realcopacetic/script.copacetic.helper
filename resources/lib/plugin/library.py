@@ -218,5 +218,5 @@ class TvShowHelper:
             "episodes": total,
             "watchedepisodes": watched,
             "unwatchedepisodes": max(total - watched, 0),
-            "watchedpercent": int((watched / total & 100)) if total > 0 else 0,
+            "watchedpercent": int((total and watched / total or 0) * 100),
         }

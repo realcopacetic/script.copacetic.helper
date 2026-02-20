@@ -151,12 +151,11 @@ def merge_multiart_sequences(
     secondary: Iterable[str],
 ) -> list[str]:
     """
-    Build an ordered list of multiart URLs from a plain art dict.
+    Merge two multiart sequences, preserving order and deduplicating by URL.
 
-    :param art: Artwork mapping using keys like "fanart", "fanart1", "fanart2".
-    :param art_type: Base art key such as "fanart" or "poster".
-    :param max_items: Maximum number of slots to read, defaults to DEFAULT_SLOTS.
-    :return: List of artwork URLs in multiart order.
+    :param primary: Preferred sequence of artwork URLs.
+    :param secondary: Fallback sequence; duplicates of primary are dropped.
+    :return: Deduplicated list with primary URLs first.
     """
     merged: list[str] = []
     seen: set[str] = set()

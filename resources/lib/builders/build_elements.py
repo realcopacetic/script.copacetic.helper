@@ -192,9 +192,7 @@ class BuildElements:
 
         for setting_key, setting_data in configs_data.items():
             default_value = setting_data.get("default")
-            storage_type = setting_data.get("storage", "skinstring")
-
-            if storage_type != "skinstring" or default_value is None:
+            if setting_data.get("mode") != "static" or default_value is None:
                 continue
 
             if not condition(f"Skin.String({setting_key})"):

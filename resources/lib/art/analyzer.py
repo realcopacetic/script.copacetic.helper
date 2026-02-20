@@ -4,7 +4,6 @@ import colorsys
 
 from PIL import Image, ImageStat
 
-from resources.lib.art.darken import ColorDarken
 from resources.lib.art.policy import ColorConfig
 from resources.lib.shared import logger as log
 
@@ -20,12 +19,11 @@ class ColorAnalyzer:
 
     def __init__(self, cfg: ColorConfig):
         """
-        Store config and initialise darken helper.
+        Store config.
 
         :param cfg: Shared colour configuration.
         """
         self.cfg = cfg
-        self.darken = ColorDarken(self)
 
     @log.duration
     def analyze(self, image: Image.Image) -> dict[str, float | str]:
@@ -145,7 +143,6 @@ class ColorAnalyzer:
         total = sum(count_map.values()) or 1
         w = self.cfg.accent_weight
         min_dist = self.cfg.accent_min_dist
-        dist_norm = float(self.cfg.freq_distance_norm or 255.0)
         freq_floor = float(self.cfg.accent_freq_floor)
 
         def score(rgb: RGB) -> float:
@@ -154,7 +151,7 @@ class ColorAnalyzer:
                 return -1.0
             f = f**self.cfg.accent_freq_exponent
             s = self._saturation(rgb)
-            d = self._rgb_dist(rgb, dominant_rgb) / dist_norm
+            d = self._rgb_dist(rgb, dominant_rgb) / 255.0
             return w["freq"] * f + w["sat"] * s + w["dist"] * d
 
         try:
@@ -191,9 +188,9 @@ class ColorAnalyzer:
         """
         h, l, s = self.rgb_to_hls(rgb)
         l = (
-            min(self.cfg.max_lightness, l + shift)
-            if l < self.cfg.contrast_midpoint
-            else max(self.cfg.min_lightness, l - shift)
+            min(1.0, l + shift)
+            if l < 0.5
+            else max(0.0, l - shift)
         )
         return self.hls_to_rgb((h, l, s))
 
@@ -260,7 +257,8 @@ class ColorAnalyzer:
         s = hex_str.lstrip("#")
         if len(s) == 8:  # strip alpha
             s = s[2:]
-        return tuple(int(s[i : i + 2], 16) for i in (0, 2, 4))
+        r, g, b = (int(s[i : i + 2], 16) for i in (0, 2, 4))
+        return r, g, b
 
     @staticmethod
     def rgb_to_hls(rgb: RGB) -> HLS:

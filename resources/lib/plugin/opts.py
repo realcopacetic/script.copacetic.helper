@@ -2,7 +2,9 @@
 
 from dataclasses import dataclass
 from typing import Mapping
-from resources.lib.shared.utilities import parse_bool, to_int
+
+from resources.lib.art import policy
+from resources.lib.shared.utilities import parse_bool, to_float, to_int
 
 
 @dataclass(frozen=True, slots=True)
@@ -11,16 +13,31 @@ class DarkenOpts:
     Darken configuration for a given artwork type.
 
     :param mode: Darken mode or "None" to disable.
+    :param strength: Effect strength multiplier (0.0-2.0); 1.0 = full luminance mapping.
     :param source: Colour source override (hex or "clearlogo").
     :param rects: Rect string for sampling in frame coordinates.
     :param frame: Frame size "w,h" as a raw string.
-    :param target: Contrast target override as a raw string.
     """
     mode: str | None
+    strength: float
     source: str | None
     rects: str | None
     frame: str | None
-    target: str | None
+
+    def match_fields(self) -> dict[str, object]:
+        """
+        Return fields that vary the cache key for this darken configuration.
+        Used by ImageEditor._expected_from_spec; values of None are excluded.
+        """
+        return {
+            k: v for k, v in {
+                policy.ART_FIELD_DARKEN_MODE: self.mode,
+                policy.ART_FIELD_DARKEN_SOURCE: self.source,
+                policy.ART_FIELD_DARKEN_RECTS: self.rects,
+                policy.ART_FIELD_DARKEN_FRAME: self.frame,
+                policy.ART_FIELD_DARKEN_STRENGTH: self.strength,
+            }.items() if v is not None
+        }
 
     @property
     def enabled(self) -> bool:
@@ -38,10 +55,13 @@ class DarkenOpts:
         """
         return cls(
             mode=params.get(f"{prefix}_darken", None),
+            strength=max(
+                0.0,
+                min(2.0, to_float(params.get(f"{prefix}_darken_scale"), 1.0) or 1.0),
+            ),
             source=params.get(f"{prefix}_darken_source"),
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
-            target=params.get(f"{prefix}_darken_target"),
         )
 
 
@@ -76,31 +96,6 @@ class ArtOpts:
             if process == "darken"
             else bool(getattr(self, process, False))
         )
-
-    @property
-    def darken_mode(self) -> str | None:
-        """Return *_darken_mode param as a property"""
-        return self.darken.mode if self.darken else None
-
-    @property
-    def darken_source(self) -> str | None:
-        """Return *_darken_source param as a property"""
-        return self.darken.source if self.darken else None
-
-    @property
-    def darken_rects(self) -> str | None:
-        """Return *_darken_rects param as a property"""
-        return self.darken.rects if self.darken else None
-
-    @property
-    def darken_frame(self) -> str | None:
-        """Return *_darken_frame param as a property"""
-        return self.darken.frame if self.darken else None
-
-    @property
-    def darken_target(self) -> str | None:
-        """Return *_darken_target param as a property"""
-        return self.darken.target if self.darken else None
 
     @classmethod
     def from_params(cls, params: Mapping[str, str], art_type: str) -> "ArtOpts":

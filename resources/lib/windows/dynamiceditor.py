@@ -199,9 +199,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Initiate management buttons if runtime expansion
         self.has_runtime = any(
-            ctrl
+            ctrl.get("role") == "preset_picker"
             for ctrl in self.dynamic_controls.values()
-            if ctrl.get("mapping") and "field" not in ctrl
         )
         if self.has_runtime:
             try:
@@ -368,9 +367,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Ask user to select preset before modifying the UI
         preset = next(
-            h
-            for h in self.handlers.values()
-            if h.control.get("mapping") and "field" not in h.control
+            h for h in self.handlers.values()
+            if h.control.get("role") == "preset_picker"
         )
         onclick = preset.control.get("onclick", {})
         cfg = preset._build_cfg(onclick)

@@ -207,7 +207,7 @@ class BaseBuilder:
         for key in keys:
             metadata = self.metadata.get(key, {})
             combined_metadata.update(metadata)
-        return {**substitutions, **combined_metadata}
+        return {**combined_metadata, **substitutions}
 
 
 class configsBuilder(BaseBuilder):
@@ -264,7 +264,7 @@ class configsBuilder(BaseBuilder):
             for item in resolved_data["items"]
             if (item not in excluded) == (resolved_data["filter_mode"] == "exclude")
         ]
-        prefixes_to_remove = ("defaults_per_", "filter_mode", "rules")
+        prefixes_to_remove = ("filter_mode", "rules", "defaults", "default_key")
 
         return {
             key: value
@@ -282,45 +282,29 @@ class configsBuilder(BaseBuilder):
         :param setting_data: The full config definition including defaults.
         :return: Updated resolved settings dict with defaults applied.
         """
-        default_entry = next(
-            ((k, v) for k, v in setting_data.items() if k.startswith("defaults_per_")),
-            (None, None),
-        )
-
-        default_key, default_values = default_entry
-        if not default_key:
+        defaults = setting_data.get("defaults")
+        default_key = setting_data.get("default_key")
+        if not defaults or not default_key:
             return resolved
 
-        default_field = default_key[len("defaults_per_") :].strip("{}")
-
-        all_settings_by_group = defaultdict(list)
-        for setting_name in resolved:
+        for setting_name, cfg in resolved.items():
             sub = self.group_map.get(setting_name, {})
-            if default_field in sub:
-                all_settings_by_group[sub[default_field]].append(setting_name)
-
-        for i, (group_key, setting_list) in enumerate(all_settings_by_group.items()):
-            default_value = default_values[min(i, len(default_values) - 1)]
-
-            if not setting_list:
-                continue
-
-            for setting_name in setting_list:
-                allowed_items = resolved[setting_name]["items"]
-                if (
-                    default_value not in allowed_items
-                ):  # default_value prohibited, safe fallback to first allowed item
-                    fallback_default = allowed_items[0]
-                    resolved[setting_name]["default"] = fallback_default
-
+            lookup_val = sub.get(default_key, "")
+            default_value = defaults.get(lookup_val) or defaults.get("*")
+            allowed = cfg.get("items", [])
+            if default_value not in allowed:
+                default_value = allowed[0] if allowed else None
+                if default_value:
                     log.debug(
-                        f"{self.__class__.__name__}: [Default override] {setting_name} default '{default_value}' invalid; using '{fallback_default}' instead (group: {group_key})"
+                        f"{self.__class__.__name__}: [Default override] {setting_name} "
+                        f"default not in allowed items; using '{default_value}'"
                     )
-                else:  # default_value allowed
-                    resolved[setting_name]["default"] = default_value
-                    log.debug(
-                        f"{self.__class__.__name__}: [Default applied] {setting_name} default = {default_value} (group: {group_key})",
-                    )
+            if default_value is not None:
+                cfg["default"] = default_value
+                log.debug(
+                    f"{self.__class__.__name__}: [Default applied] {setting_name} "
+                    f"= {default_value}"
+                )
 
         return resolved
 
@@ -497,30 +481,25 @@ class expressionsBuilder(BaseBuilder):
         :param expr_data: The expression's full rule definition.
         :return: Updated resolved expression dict with fallbacks applied.
         """
-        fallback_entry = next(
-            ((k, v) for k, v in expr_data.items() if k.startswith("fallback_per_")),
-            (None, None),
-        )
-
-        fallback_key, fallback_dict = fallback_entry
-        if not fallback_key:
+        fallbacks = expr_data.get("fallbacks")
+        fallback_key = expr_data.get("fallback_key")
+        if not fallbacks or not fallback_key:
             return resolved
-
-        fallback_field = fallback_key[len("fallback_per_") :].strip("{}")
-        fallback_values = fallback_dict.get("values", [])
-        fallback_items = fallback_dict.get("target_items", fallback_values)
-
+        
         all_exprs_by_group = defaultdict(list)
         for expr_name in resolved:
             sub = self.group_map.get(expr_name, {})
-            if fallback_field in sub:
-                all_exprs_by_group[sub[fallback_field]].append(expr_name)
+            if fallback_key in sub:
+                all_exprs_by_group[sub[fallback_key]].append(expr_name)
 
-        for i, (group_key, expr_list) in enumerate(all_exprs_by_group.items()):
-            fallback_item = fallback_items[min(i, len(fallback_items) - 1)]
-            fallback_value = fallback_values[min(i, len(fallback_values) - 1)]
+        for group_key, expr_list in all_exprs_by_group.items():
+            fallback_entry = fallbacks.get(group_key) or fallbacks.get("*")
+            if not fallback_entry:
+                continue
 
-            if not expr_list:
+            fallback_item = fallback_entry.get("target_item")
+            fallback_value = fallback_entry.get("value")
+            if not fallback_item or fallback_value is None:
                 continue
 
             target_expr = next(

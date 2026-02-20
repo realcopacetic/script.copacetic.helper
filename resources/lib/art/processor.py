@@ -1,22 +1,53 @@
 # author: realcopacetic
 
+import dataclasses
 from typing import Any
 
 from PIL import Image, ImageFilter
 
-from resources.lib.plugin.opts import ArtOpts
+from resources.lib.art import policy
 from resources.lib.art.analyzer import ColorAnalyzer
-from resources.lib.art.policy import ColorConfig
-from resources.lib.shared import logger as log
 from resources.lib.art.darken import ColorDarken
+from resources.lib.art.policy import ColorConfig
+from resources.lib.plugin.opts import ArtOpts
+from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import BLURS, CROPS
 
 
 class ImageProcessor:
     """
     Performs artwork transforms (crop/blur/analyze) and extracts color metadata.
     Uses ColorAnalyzer for hex/contrast/luminosity.
-
     """
+
+    PROCESS_SPEC: dict[str, dict[str, Any]] = {
+        "crop": {"folder": CROPS, "require": (policy.ART_FIELD_PROCESSED,)},
+        "blur": {
+            "folder": BLURS,
+            "require": (policy.ART_FIELD_PROCESSED, policy.ART_FIELD_BLUR_RADIUS),
+            "match": (policy.ART_FIELD_BLUR_RADIUS,),
+        },
+        "analyze": {
+            "folder": None,
+            "require": (
+                policy.ART_FIELD_COLOR,
+                policy.ART_FIELD_ACCENT,
+                policy.ART_FIELD_CONTRAST,
+                policy.ART_FIELD_LUMINOSITY,
+            ),
+        },
+        "darken": {
+            "folder": None,
+            "require": (policy.ART_FIELD_DARKEN,),
+            "match": (
+                policy.ART_FIELD_DARKEN_MODE,
+                policy.ART_FIELD_DARKEN_SOURCE,
+                policy.ART_FIELD_DARKEN_RECTS,
+                policy.ART_FIELD_DARKEN_FRAME,
+                policy.ART_FIELD_DARKEN_STRENGTH,
+            ),
+        },
+    }
 
     def __init__(self, cfg: ColorConfig) -> None:
         """Initialize the processor with a color analyzer."""
@@ -55,7 +86,9 @@ class ImageProcessor:
             return None
 
     @log.duration
-    def blur(self, image: Image.Image, opts: ArtOpts, **_: Any) -> dict[str, Any] | None:
+    def blur(
+        self, image: Image.Image, opts: ArtOpts, **_: Any
+    ) -> dict[str, Any] | None:
         """
         Resize fanart, apply Gaussian blur, coerce JPEG-safe mode, extract colors.
 
@@ -103,11 +136,12 @@ class ImageProcessor:
 
     @log.duration
     def darken(
-        self, image: Image.Image, opts: ArtOpts, shared: dict[str, Any]
+        self, image: Image.Image, opts: ArtOpts, shared: dict[str, Any], **_: Any
     ) -> dict[str, Any] | None:
         """
         Compute darken metadata without altering pixels.
-        Uses contrast rules against the configured source.
+        Resolves clearlogo source explicitly from shared results before delegating
+        to ColorDarken. Returns None if darken is not enabled or fails.
 
         :param image: Input PIL image.
         :param opts: Parsed ArtOpts for this art_type.
@@ -115,13 +149,21 @@ class ImageProcessor:
         :return: Dict with "metadata" or None on failure.
         """
         if not (darken_opts := opts.darken) or not darken_opts.enabled:
-            return {"metadata": {}}
+            return None
+
+        if darken_opts.source and darken_opts.source.strip().lower() == "clearlogo":
+            color = shared.get("results", {}).get("clearlogo", {}).get("color")
+            if color:
+                darken_opts = dataclasses.replace(darken_opts, source=color)
+            else:
+                log.debug(
+                    f"{self.__class__.__name__}: darken source=clearlogo but no "
+                    f"clearlogo color in shared results — falling back to element_overlay_color"
+                )
 
         try:
             return {
-                "metadata": self.darken_engine.compute_darken(
-                    image, opts=darken_opts, shared=shared
-                )
+                "metadata": self.darken_engine.compute_darken(image, opts=darken_opts)
                 or {}
             }
         except Exception as exc:

@@ -51,7 +51,6 @@ class BaseControlHandler:
         self.is_dynamic_linked = control.get("mode") == "dynamic" and self.field
         self.config_field_template = (
             runtime_manager.mappings[self.mapping_key]
-            .get("user_defined_schema", {})
             .get("config_fields", {})
             .get(self.field)
             if self.is_dynamic_linked
