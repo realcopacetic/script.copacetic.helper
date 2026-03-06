@@ -412,12 +412,12 @@ class XMLDictConverter:
         for element in container.findall(self.element_tag):
             template_dict = {}
 
-            expansion_elem = element.find("expansion")
+            mode_elem = element.find("mode")
             index_elem = element.find("index")
             items_elem = element.find("items")
 
-            if expansion_elem is not None:
-                template_dict["expansion"] = expansion_elem.text.strip()
+            if mode_elem is not None:
+                template_dict["mode"] = mode_elem.text.strip()
 
             if index_elem is not None:
                 template_dict["index"] = {

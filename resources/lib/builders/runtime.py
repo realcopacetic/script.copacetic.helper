@@ -68,8 +68,8 @@ class RuntimeStateManager:
         :param item: The mapping_item identifier.
         :return: Dict of default fields and metadata.
         """
-        schema = self.mappings[mapping_key]["user_defined_schema"]
         placeholders = self.mappings[mapping_key]["placeholders"]
+        config_fields = self.mappings[mapping_key].get("config_fields", {})
         return {
             "runtime_id": str(uuid.uuid4()),
             "mapping_item": item,
@@ -77,9 +77,8 @@ class RuntimeStateManager:
                 field: self.configs_data.get(
                     template.format(**{placeholders["key"]: item}), {}
                 ).get("default")
-                for field, template in schema.get("config_fields", {}).items()
+                for field, template in config_fields.items()
             },
-            **schema.get("metadata_fields", {}).get(item, {}),
         }
 
     def initialize_runtime_state(self):
@@ -95,7 +94,7 @@ class RuntimeStateManager:
                 for item in mapping.get("default_order", [])
             ]
             for mapping_key, mapping in self.mappings.items()
-            if "user_defined_schema" in mapping
+            if "config_fields" in mapping
         }
 
         self.runtime_state_handler.write_json(runtime_state)
@@ -108,7 +107,7 @@ class RuntimeStateManager:
         """
         state = self.runtime_state
         mapping = self.mappings.get(mapping_key)
-        if not mapping or "user_defined_schema" not in mapping:
+        if not mapping or "config_fields" not in mapping:
             return
 
         default_order = mapping.get("default_order", [])
@@ -177,7 +176,10 @@ class RuntimeStateManager:
             instance = self.runtime_state.get(mapping_key, [])[index]
             metadata_key = instance.get("mapping_item")
             metadata = self.mappings.get(mapping_key, {}).get("metadata", {}).get(metadata_key, {})
-            return template.format(**metadata)
+            key_placeholder = self.mappings.get(mapping_key, {}).get("placeholders", {}).get("key", "")
+            extra = {key_placeholder: metadata_key} if key_placeholder else {}
+            substitutions = {**instance, **metadata, **extra}
+            return template.format(**substitutions)
         except Exception:
             return template
 

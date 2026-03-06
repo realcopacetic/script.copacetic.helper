@@ -207,7 +207,7 @@ class BaseBuilder:
         for key in keys:
             metadata = self.metadata.get(key, {})
             combined_metadata.update(metadata)
-        return {**substitutions, **combined_metadata}
+        return {**combined_metadata, **substitutions}
 
 
 class configsBuilder(BaseBuilder):
@@ -264,7 +264,7 @@ class configsBuilder(BaseBuilder):
             for item in resolved_data["items"]
             if (item not in excluded) == (resolved_data["filter_mode"] == "exclude")
         ]
-        prefixes_to_remove = ("defaults_per_", "filter_mode", "rules")
+        prefixes_to_remove = ("filter_mode", "rules", "defaults", "default_key")
 
         return {
             key: value
@@ -284,28 +284,27 @@ class configsBuilder(BaseBuilder):
         """
         defaults = setting_data.get("defaults")
         default_key = setting_data.get("default_key")
-
         if not defaults or not default_key:
             return resolved
 
-        for setting_name, setting_config in resolved.items():
+        for setting_name, cfg in resolved.items():
             sub = self.group_map.get(setting_name, {})
-            current_loop_value = sub.get(default_key)
-            target_default = defaults.get(current_loop_value, defaults.get("*"))
-            
-            if not target_default:
-                 continue
-            
-            allowed_items = setting_config.get("items", [])
-            
-            # Guard rail: Ensure requested default is allowed by the rules
-            if target_default not in allowed_items and allowed_items:
-                fallback = allowed_items[0]
-                setting_config["default"] = fallback
-                log.debug(f"{self.__class__.__name__}: [Default override] {setting_name} requested '{target_default}' but not allowed. Using '{fallback}'.")
-            else:
-                setting_config["default"] = target_default
-                log.debug(f"{self.__class__.__name__}: [Default applied] {setting_name} default = {target_default} (group: {current_loop_value})")
+            lookup_val = sub.get(default_key, "")
+            default_value = defaults.get(lookup_val) or defaults.get("*")
+            allowed = cfg.get("items", [])
+            if default_value not in allowed:
+                default_value = allowed[0] if allowed else None
+                if default_value:
+                    log.debug(
+                        f"{self.__class__.__name__}: [Default override] {setting_name} "
+                        f"default not in allowed items; using '{default_value}'"
+                    )
+            if default_value is not None:
+                cfg["default"] = default_value
+                log.debug(
+                    f"{self.__class__.__name__}: [Default applied] {setting_name} "
+                    f"= {default_value}"
+                )
 
         return resolved
 
@@ -483,23 +482,24 @@ class expressionsBuilder(BaseBuilder):
         :return: Updated resolved expression dict with fallbacks applied.
         """
         fallbacks = expr_data.get("fallbacks")
-        if not fallbacks:
+        fallback_key = expr_data.get("fallback_key")
+        if not fallbacks or not fallback_key:
             return resolved
-
-        fallback_field = self.placeholders.get("key")
-
+        
         all_exprs_by_group = defaultdict(list)
         for expr_name in resolved:
             sub = self.group_map.get(expr_name, {})
-            if fallback_field in sub:
-                all_exprs_by_group[sub[fallback_field]].append(expr_name)
+            if fallback_key in sub:
+                all_exprs_by_group[sub[fallback_key]].append(expr_name)
 
         for group_key, expr_list in all_exprs_by_group.items():
-            if not expr_list:
-                 continue
+            fallback_entry = fallbacks.get(group_key) or fallbacks.get("*")
+            if not fallback_entry:
+                continue
 
-            fallback_config = fallbacks.get(group_key, fallbacks.get("*"))
-            if not fallback_config:
+            fallback_item = fallback_entry.get("target_item")
+            fallback_value = fallback_entry.get("value")
+            if not fallback_item or fallback_value is None:
                 continue
                 
             fallback_item = fallback_config.get("target_item")

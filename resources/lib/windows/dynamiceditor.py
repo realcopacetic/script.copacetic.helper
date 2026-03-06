@@ -367,9 +367,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Ask user to select preset before modifying the UI
         preset = next(
-            h
-            for h in self.handlers.values()
-            if h.control.get("mapping") and "field" not in h.control
+            h for h in self.handlers.values()
+            if h.control.get("role") == "preset_picker"
         )
         onclick = preset.control.get("onclick", {})
         cfg = preset._build_cfg(onclick)
