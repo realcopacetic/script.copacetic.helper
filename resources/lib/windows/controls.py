@@ -59,6 +59,10 @@ class BaseControlHandler:
         self.current_listitem = None
         self.container_position = None
 
+    @property
+    def focus_ids(self):
+        return {self.instance.getId()}
+
     def _get_active_link(self):
         if self._link_data_cache is None:
             self._link_data_cache = self._resolve_active_link()
@@ -113,8 +117,12 @@ class BaseControlHandler:
         return (
             self.runtime_manager.configs_data.get(cfg, {}).get("items", [])
             if cfg
-            else self.runtime_manager.mappings.get(self.control["mapping"], {}).get(
-                "items", []
+            else (
+                []
+                if self.field and not self.config_field_template
+                else self.runtime_manager.mappings.get(self.control["mapping"], {}).get(
+                    "items", []
+                )
             )
         )
 
@@ -166,10 +174,14 @@ class BaseControlHandler:
 
         try:
             value = self.runtime_manager.get_runtime_setting(
-                self.mapping_key, self.container_position, "mapping_item"
+                self.mapping_key, self.container_position, self.field or "mapping_item"
             )
 
         except (IndexError, KeyError):
+            if self.field and not self.config_field_template:
+                # Runtime-direct field with no stored value yet — return None, not a preset name
+                return (None, None) if return_cfg else None
+
             default_order = self.runtime_manager.mappings.get(self.mapping_key, {}).get(
                 "default_order", []
             )
@@ -201,7 +213,10 @@ class BaseControlHandler:
 
         try:
             self.runtime_manager.update_runtime_setting(
-                self.mapping_key, self.container_position, "mapping_item", value
+                self.mapping_key,
+                self.container_position,
+                self.field or "mapping_item",
+                value,
             )
         except IndexError:
             pass
@@ -269,7 +284,11 @@ class BaseControlHandler:
             link.get("label2")
             or self.control.get("label2")
             or meta.get("label")
-            or (current_value.capitalize() if current_value else "")
+            or (
+                current_value
+                if (current_value and "://" in current_value)
+                else (current_value.capitalize() if current_value else "")
+            )
         )
 
         label, label2 = (
@@ -288,11 +307,14 @@ class BaseControlHandler:
         if focused_control_id != instance.getId() and (c := colors.get("textColor")):
             label2 = f"[COLOR {c}]{label2}[/COLOR]"
 
-        instance.setLabel(label=label or "", label2=label2 or "", **colors)
+        instance.setLabel(
+            label=label if label else " ", label2=label2 if label2 else " ", **colors
+        )
 
     def update_value(self, current_listitem, container_position):
         """
-        xxx
+        Syncs handler state with the current listitem and position, clearing
+        the link data cache so it will be re-resolved on next access.
 
         :param current_listitem: Named ID of the currently selected listitem.
         :param container_position: Current index position in the runtime list.
@@ -316,9 +338,7 @@ class BaseControlHandler:
         self.container_position = container_position
 
         link = self._get_active_link()
-        raw_condition = (
-            link.get("visible", "") if link else self.control.get("visible", "")
-        )
+        raw_condition = link.get("visible") or self.control.get("visible", "")
         visible_condition = self.runtime_manager.format_metadata(
             self.control["mapping"], self.container_position, raw_condition
         )
@@ -344,6 +364,10 @@ class ButtonHandler(BaseControlHandler):
         "browse": OnClickActions.browse,
         "browse_single": OnClickActions.browse_single,
         "browse_multiple": OnClickActions.browse_multiple,
+        "browse_content": OnClickActions.browse_content,
+        "colorpicker": OnClickActions.colorpicker,
+        "input": OnClickActions.input,
+        "numeric": OnClickActions.numeric,
         "custom": OnClickActions.custom,
     }
 
@@ -366,7 +390,7 @@ class ButtonHandler(BaseControlHandler):
         if (
             focused_control_id != self.instance.getId()
             or a_id != ACTION_SELECT_ITEM
-            or ("field" in self.control and not self._get_active_link())
+            or (self.config_field_template and not self._get_active_link())
         ):
             return
 
@@ -390,9 +414,39 @@ class ButtonHandler(BaseControlHandler):
             if 0 <= result < len(items):
                 result = items[result]
         if result is not None:
+            # browse_content returns a dict — extract the path for this field
+            # and write any sibling fields (label, icon, etc.) declared in cfg["sibling_fields"]
+            if isinstance(result, dict) and "path" in result:
+                for result_key, control_name in cfg.get("sibling_fields", {}).items():
+                    if result_key not in result:
+                        continue
+                    sibling_cfg = self.parent.dynamic_controls.get(control_name, {})
+                    runtime_field = sibling_cfg.get("field", control_name)
+                    try:
+                        current = self.runtime_manager.get_runtime_setting(
+                            self.mapping_key, self.container_position, runtime_field
+                        )
+                    except (IndexError, KeyError):
+                        current = None
+
+                    if not current:
+                        try:
+                            self.runtime_manager.update_runtime_setting(
+                                self.mapping_key,
+                                self.container_position,
+                                runtime_field,
+                                result[result_key],
+                            )
+                        except IndexError:
+                            pass
+
+                result = result["path"]
+
             self._set_setting_value(result)
-            if "field" not in self.control:
+            if self.control.get("role") == "preset_picker":
                 self.parent._on_mapping_item_changed()
+            else:
+                self.parent._refresh_ui()
 
     def _build_cfg(self, onclick):
         """
@@ -409,6 +463,8 @@ class ButtonHandler(BaseControlHandler):
             "autoclose",
             "preselect",
             "useDetails",
+            "mode",
+            "sibling_fields",
         )
 
         # Fetch items, then check for human-readable labels in metadata
@@ -445,11 +501,92 @@ class ButtonHandler(BaseControlHandler):
         self, current_listitem, container_position, focused_control_id
     ):
         """
-        Sets visibility and label/label2 for the radiobutton control.
+        Sets visibility and label/label2 for the button control.
 
         :param current_listitem: Named ID of the currently selected listitem.
         :param container_position: Current index position in the runtime list.
         :param focused_control_id: GUI control ID that has current focus.
+        """
+        super().update_visibility(
+            current_listitem, container_position, focused_control_id
+        )
+        self.set_instance_labels(focused_control_id)
+
+
+class EditHandler(BaseControlHandler):
+    """
+    Handles inline edit controls. The label field is used as hint text and keyboard
+    heading via setLabel(). Saves on keyboard close or when the user navigates away.
+    """
+
+    def __init__(self, control, instance, runtime_manager):
+        super().__init__(control, instance, runtime_manager)
+        self._cached_text = ""
+
+    def handle_interaction(
+        self, current_listitem, container_position, focused_control_id, a_id
+    ):
+        """
+        Reads the edit control's text after the keyboard closes and persists it.
+
+        :param current_listitem: Named ID of the currently selected listitem.
+        :param container_position: Index in the runtime list.
+        :param focused_control_id: ID of the focused control.
+        :param a_id: Kodi action ID.
+        """
+        from xbmcgui import (
+            ACTION_SELECT_ITEM,
+            ACTION_MOVE_DOWN,
+            ACTION_MOVE_LEFT,
+            ACTION_MOVE_RIGHT,
+            ACTION_MOVE_UP,
+            ACTION_NAV_BACK,
+        )
+
+        SAVE_ACTIONS = (
+            ACTION_SELECT_ITEM,
+            ACTION_MOVE_UP,
+            ACTION_MOVE_DOWN,
+            ACTION_MOVE_LEFT,
+            ACTION_MOVE_RIGHT,
+            ACTION_NAV_BACK,
+        )
+
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
+        if (
+            focused_control_id != self.instance.getId()
+            or a_id not in SAVE_ACTIONS
+            or (self.config_field_template and not self._get_active_link())
+        ):
+            return
+
+        value = self.instance.getText().strip()
+        if not value or value == self._cached_text:
+            return
+
+        self._cached_text = value
+        self._set_setting_value(value)
+        self.parent._on_mapping_item_changed()
+
+    def update_value(self, current_listitem, container_position):
+        """
+        Updates the edit control to reflect the current stored value.
+
+        :param current_listitem: Named ID of the currently selected listitem.
+        :param container_position: Current index position in the runtime list.
+        """
+        super().update_value(current_listitem, container_position)
+        current = self._get_setting_value()
+        self._cached_text = current
+        self.instance.setText(current)
+
+    def update_visibility(
+        self, current_listitem, container_position, focused_control_id
+    ):
+        """
+        Sets visibility and applies label (hint text / keyboard heading) to the edit control.
         """
         super().update_visibility(
             current_listitem, container_position, focused_control_id
@@ -496,7 +633,6 @@ class RadioButtonHandler(BaseControlHandler):
         :param container_position: Current index position in the runtime list.
         """
         super().update_value(current_listitem, container_position)
-
         allowed = self._allowed_items()
         current = self._get_setting_value()
         self.instance.setSelected(current == "true")

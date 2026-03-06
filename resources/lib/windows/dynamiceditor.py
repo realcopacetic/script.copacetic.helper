@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import copy
 from pathlib import Path
 
 import xbmcgui
@@ -8,8 +9,14 @@ from resources.lib.builders.builder_config import BUILDER_MAPPINGS
 from resources.lib.builders.runtime import RuntimeStateManager
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler, JSONMerger
-from resources.lib.shared.utilities import (CONFIGS, CONTROLS, RUNTIME_STATE,
-                                            SKINEXTRAS, execute, infolabel)
+from resources.lib.shared.utilities import (
+    CONFIGS,
+    CONTROLS,
+    RUNTIME_STATE,
+    SKINEXTRAS,
+    execute,
+    infolabel,
+)
 from resources.lib.windows.control_factory import DynamicControlFactory
 from resources.lib.windows.onclick_actions import OnClickActions
 
@@ -53,13 +60,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.has_runtime = False
         self.container_position = -1
         self.current_listitem = None
+        self.prev_focus_id = -1
         self.mgmt_ids = set()
         self.mgmt_map = {
-            "btn_add": 410,
-            "btn_delete": 411,
-            "btn_up": 412,
-            "btn_down": 413,
-            "btn_reset": 414,
+            "btn_add": {"id": 410, "description": "Add a new entry."},
+            "btn_delete": {"id": 411, "description": "Delete the selected entry."},
+            "btn_up": {"id": 412, "description": "Move the selected entry up."},
+            "btn_down": {"id": 413, "description": "Move the selected entry down."},
+            "btn_reset": {"id": 414, "description": "Reset all entries to defaults."},
+            "btn_close": {"id": 415, "description": "Save and close."},
         }
 
     def _build_dicts(self):
@@ -132,7 +141,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             )
             li = xbmcgui.ListItem(label=label)
             li.setProperty("content_id", runtime_id)
-            if (icon := item.get("icon")):
+            if icon := item.get("icon"):
                 li.setArt({"icon": icon})
             self.list_container.addItem(li)
 
@@ -174,9 +183,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         raw = item_def.get("label", "")
         new_lbl = self._format_and_localize(
             item_def["mapping"], item_def["runtime_index"], raw
-        )  # <-- fixed clearly here
+        )
         li.setLabel(new_lbl or "")
-        if (icon := item_def.get("icon")):
+        if icon := item_def.get("icon"):
             li.setArt({"icon": icon})
 
     def onInit(self):
@@ -190,6 +199,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Build listitems and refresh list
         self._build_dicts()
+        self._runtime_state_snapshot = copy.deepcopy(self.runtime_manager.runtime_state)
+
         if self.listitems:
             self.container_position = 0
             self.current_listitem = list(self.listitems.keys())[0]
@@ -205,12 +216,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if self.has_runtime:
             try:
                 self.mgmt_buttons = []
-                for name, cid in self.mgmt_map.items():
-                    btn = self.getControl(cid)
+                for name, entry in self.mgmt_map.items():
+                    btn = self.getControl(entry["id"])
                     setattr(self, name, btn)
                     self.mgmt_buttons.append(btn)
             except RuntimeError:
                 log.debug("Management buttons not found; skipping.")
+                self.mgmt_buttons = None
             else:
                 for btn in self.mgmt_buttons:
                     btn.setVisible(True)
@@ -234,8 +246,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     handler.parent = self
                     self.handlers[control_id] = handler
             except RuntimeError as e:
-                log.warn(
-                    f"Warning: Control ID {id} ({control_id}) not found in XML layout: {e}"
+                log.warning(
+                    f"Warning: Control ID {cid} ({control_id}) not found in XML layout: {e}"
                 )
 
         # Set initial focus and refresh UI
@@ -249,11 +261,17 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object.
         """
-        from xbmcgui import (ACTION_MOVE_DOWN, ACTION_MOVE_UP,
-                             ACTION_SELECT_ITEM)
+        from xbmcgui import (
+            ACTION_MOVE_DOWN,
+            ACTION_MOVE_UP,
+            ACTION_NAV_BACK,
+            ACTION_PREVIOUS_MENU,
+            ACTION_SELECT_ITEM,
+        )
 
         a_id = action.getId()
         current_focus = self.getFocusId()
+        prev_focus = self.prev_focus_id
 
         # Move Up/Down on management buttons
         if (
@@ -279,7 +297,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 h.handle_interaction(
                     self.current_listitem,
                     self.container_position,
-                    self.getFocusId(),
+                    prev_focus,
                     a_id,
                 )
                 if hasattr(h, "focus_target_id"):
@@ -296,6 +314,29 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     self.container_position,
                     current_focus,
                 )
+            # Update description for the focused control, clear if none
+            focused_handler = next(
+                (h for h in self.handlers.values() if current_focus in h.focus_ids),
+                None,
+            )
+            if focused_handler and focused_handler.description:
+                desc = self._format_and_localize(
+                    focused_handler.mapping_key,
+                    self.container_position,
+                    focused_handler.description,
+                )
+            else:
+                desc = next(
+                    (
+                        entry["description"]
+                        for entry in self.mgmt_map.values()
+                        if entry["id"] == current_focus
+                    ),
+                    "",
+                )
+
+            self.description_label.setText(desc)
+
         # Management buttons
         if a_id == ACTION_SELECT_ITEM and self.mgmt_buttons:
             if current_focus == self.btn_add.getId():
@@ -313,6 +354,17 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             if current_focus == self.btn_reset.getId():
                 return self._on_reset()
 
+            if current_focus == self.btn_close.getId():
+                return self._on_close()
+
+        if a_id in (ACTION_NAV_BACK, ACTION_PREVIOUS_MENU):
+            if current_focus != self.list_container.getId():
+                execute(f"Control.SetFocus({self.list_container.getId()})")
+                return  # don't fall through to super
+
+            return self._on_close()
+
+        self.prev_focus_id = current_focus
         super().onAction(action)
 
     def _on_list_scroll(self, current_focus):
@@ -352,8 +404,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             text = self._format_and_localize(
                 item_def["mapping"], self.container_position, raw
             )
-            resolved = infolabel(text) if text.startswith("$") else text
-            setter(resolved or "")
+            setter(text or "")
 
     def _on_add(self):
         """
@@ -367,9 +418,16 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Ask user to select preset before modifying the UI
         preset = next(
-            h for h in self.handlers.values()
-            if h.control.get("role") == "preset_picker"
+            (
+                h
+                for h in self.handlers.values()
+                if h.control.get("role") == "preset_picker"
+            ),
+            None,
         )
+        if not preset:
+            return
+
         onclick = preset.control.get("onclick", {})
         cfg = preset._build_cfg(onclick)
         result = OnClickActions.select(cfg)
@@ -458,3 +516,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._on_mapping_item_changed()
         self._refresh_list()
         self._refresh_ui()
+
+    def _on_close(self):
+        """Trigger a runtime rebuild and close the window."""
+        if self.runtime_manager.runtime_state != self._runtime_state_snapshot:
+            from resources.lib.builders.build_elements import BuildElements
+
+            BuildElements(run_context="runtime")
+            log.execute("ReloadSkin()")
+
+        self.close()

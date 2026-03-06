@@ -16,9 +16,9 @@ def parse_params(argv: list[str], mode: str = "plugin") -> dict[str, str]:
     - RunScript splits on commas before Python sees argv, so values with commas
       arrive as multiple tokens and must be stitched.
 
-    :param argv: ***
-    :param mode: ***
-    :return: ***
+    :param argv: Raw sys.argv from Kodi entry point.
+    :param mode: "plugin" for plugin:// URLs, "script" for RunScript tokens.
+    :return: Dict of parsed key-value parameter pairs.
     """
     return parse_plugin_argv(argv) if mode == "plugin" else parse_script_argv(argv)
 
@@ -28,8 +28,8 @@ def parse_plugin_argv(argv: list[str]) -> dict[str, str]:
     Parse plugin argv. Accepts '?k=v&k=v' or 'k=v&k=v' in argv[2].
     Preserves raw '&' inside values by splitting only at '&KEY='.
 
-    :param argv: 'argv[2]' querystring to be parsed via tolerant regex
-    :return: ***
+    :param argv: sys.argv list; querystring is expected in argv[2].
+    :return: Dict of parsed key-value parameter pairs.
     """
     q = ""
     if len(argv) >= 3 and argv[2]:
@@ -46,8 +46,8 @@ def parse_script_argv(argv: list[str]) -> dict[str, str]:
     Kodi has already split it into multiple tokens; tokens without '=' are value
     fragments. We stitch them back onto the previous key's value.
 
-    :param argv: 'argv[1:]' list of tokens
-    :return: ***
+    :param argv: sys.argv list; tokens are expected from argv[1:] onward.
+    :return: Dict of parsed key-value parameter pairs.
     """
     return {k: urllib.unquote(v) for k, v in _iter_script_pairs(argv[1:])}
 
@@ -56,6 +56,9 @@ def _iter_script_pairs(tokens: Iterable[str]) -> Iterator[tuple[str, str]]:
     """
     Yield (key, value) pairs from RunScript tokens, stitching comma fragments.
     ['action=foo', 'name=Greatest Hits', ' Vol. 2']  →  ('name', 'Greatest Hits, Vol. 2')
+
+    :param tokens: Iterable of raw RunScript tokens (typically argv[1:]).
+    :yields: (key, value) pairs with comma-split fragments re-joined.
     """
     cur_key = None
     cur_val = ""

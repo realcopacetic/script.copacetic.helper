@@ -462,6 +462,7 @@ def rebuild(**kwargs):
     from resources.lib.builders.build_elements import BuildElements
 
     builder = BuildElements(run_context=kwargs.get("context", "runtime"))
+    builder.process()
     log.execute("ReloadSkin()")
 
 

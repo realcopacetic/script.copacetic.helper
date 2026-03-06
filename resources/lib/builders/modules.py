@@ -88,12 +88,18 @@ class BaseBuilder:
         :return: List of substitution dictionaries for template expansion.
         """
         key_placeholder = self.placeholders.get("key")
+        runtime_keys = {"mapping_item", "runtime_id"}
         return [
             self._inject_metadata(
                 {
                     key_placeholder: item["mapping_item"],
                     "index": str(index_start + index),
                     **{k: v for k, v in item.items() if k != "mapping_item"},
+                    **{
+                        f"runtime|{k}": v
+                        for k, v in item.items()
+                        if k not in runtime_keys
+                    },
                 },
                 item["mapping_item"],
             )
@@ -170,36 +176,37 @@ class BaseBuilder:
             "Missing loop value items and items/index in json/xml templates"
         )
 
-    def substitute(self, object, substitutions):
+    def substitute(self, template, substitutions):
         """
         Formats an object using the provided substitution dictionary.
 
-        :param object: Template string with placeholders.
+        :param template: Template string with placeholders.
         :param substitutions: Dict of key-value substitutions.
         :return: Fully formatted string.
         """
-        if isinstance(object, str):
-            if not substitutions or ("{" not in object):
-                return object
+        if isinstance(template, str):
+            if not substitutions or ("{" not in template):
+                return template
+
             return PLACEHOLDER_PATTERN.sub(
                 lambda match: substitutions.get(match.group(1), ""),
-                object,
+                template,
             )
 
-        elif isinstance(object, list):
-            return [self.substitute(item, substitutions) for item in object]
+        elif isinstance(template, list):
+            return [self.substitute(item, substitutions) for item in template]
 
-        elif isinstance(object, dict):
+        elif isinstance(template, dict):
             substituted_dict = {
                 key: self.substitute(value, substitutions)
-                for key, value in object.items()
+                for key, value in template.items()
             }
             return {
                 k: v for k, v in substituted_dict.items() if v not in ("", {}, [], None)
             }
 
         else:
-            return object
+            return template
 
     def _inject_metadata(self, substitutions, *keys):
         """Merge substitutions with metadata if metadata for any key exists."""
@@ -210,7 +217,7 @@ class BaseBuilder:
         return {**combined_metadata, **substitutions}
 
 
-class configsBuilder(BaseBuilder):
+class ConfigsBuilder(BaseBuilder):
     """
     Builder that resolves UI configs based on exclusion/inclusion rules.
     """
@@ -259,6 +266,8 @@ class configsBuilder(BaseBuilder):
             if self.rules.evaluate(rule["condition"].format(**sub))
             for value in rule.get("value", [])
         }
+        # When filter_mode is "exclude": keep items NOT in excluded set
+        # When filter_mode is "include": keep items that ARE in excluded set
         resolved_data["items"] = [
             item
             for item in resolved_data["items"]
@@ -309,7 +318,7 @@ class configsBuilder(BaseBuilder):
         return resolved
 
 
-class controlsBuilder(BaseBuilder):
+class ControlsBuilder(BaseBuilder):
     """
     Builder that generates fully expanded control definitions.
     Expands placeholders, assigns IDs, and resolves update triggers.
@@ -401,7 +410,7 @@ class controlsBuilder(BaseBuilder):
         return resolved
 
 
-class expressionsBuilder(BaseBuilder):
+class ExpressionsBuilder(BaseBuilder):
     """
     Builder that processes expression definitions by expanding all possible
     variations and handles conditional logic.
@@ -501,9 +510,6 @@ class expressionsBuilder(BaseBuilder):
             fallback_value = fallback_entry.get("value")
             if not fallback_item or fallback_value is None:
                 continue
-                
-            fallback_item = fallback_config.get("target_item")
-            fallback_value = fallback_config.get("value", "true")
 
             target_expr = next(
                 (
@@ -540,7 +546,7 @@ class expressionsBuilder(BaseBuilder):
         return resolved
 
 
-class includesBuilder(BaseBuilder):
+class IncludesBuilder(BaseBuilder):
     """
     Expands Kodi XML 'include' templates by substituting placeholders and encoding XSP metadata.
     Handles recursive multi-level expansions for dynamic XML generation.
@@ -654,7 +660,7 @@ class includesBuilder(BaseBuilder):
                 meta["xsp"] = f"?xsp={xsp_json}"
 
 
-class variablesBuilder(BaseBuilder):
+class VariablesBuilder(BaseBuilder):
     """
     Builder that generates Kodi-style variable definitions with condition/value pairs.
     """

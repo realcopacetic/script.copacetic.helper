@@ -8,7 +8,7 @@ from resources.lib.shared.json import JSONHandler
 class RuntimeStateManager:
     """
     Manages initialization, retrieval, and updating of runtime settings stored in runtime_state.json.
-    Uses UUIDs for stable, position-independent item identifiers.de
+    Uses UUIDs for stable, position-independent item identifiers.
     """
 
     def __init__(self, mappings, configs_path, runtime_state_path):
@@ -22,6 +22,7 @@ class RuntimeStateManager:
         self._mappings = mappings
         self.configs_handler = JSONHandler(configs_path)
         self.runtime_state_handler = JSONHandler(runtime_state_path)
+        self._runtime_state_cache = None
 
     @property
     def mappings(self):
@@ -44,12 +45,26 @@ class RuntimeStateManager:
     @property
     def runtime_state(self):
         """
-        Load and return the current runtime state.
+        Load and return the current runtime state. Uses an in-memory cache
+        to avoid redundant disk reads; cache is invalidated after writes.
 
         :return: Dict of mapping_key → list of state entries.
         """
-        self.runtime_state_handler.reload()
-        return next(iter(self.runtime_state_handler.data.values()), {})
+        if self._runtime_state_cache is None:
+            self.runtime_state_handler.reload()
+            self._runtime_state_cache = next(
+                iter(self.runtime_state_handler.data.values()), {}
+            )
+        return self._runtime_state_cache
+
+    def _write_and_invalidate(self, state):
+        """
+        Write state to disk and invalidate the in-memory cache.
+
+        :param state: The full runtime state dict to persist.
+        """
+        self.runtime_state_handler.write_json(state)
+        self._runtime_state_cache = None
 
     @property
     def exists(self):
@@ -59,6 +74,17 @@ class RuntimeStateManager:
         :return: True if file exists, False otherwise.
         """
         return self.runtime_state_handler.exists
+
+    def _resolve_default(self, cfg_key: str) -> str | None:
+        """
+        Resolve the default value for a config entry.
+        Falls back to the first available item if no default is explicitly set.
+
+        :param cfg_key: The resolved config key to look up in configs_data.
+        :return: The default value, or None if no items are defined.
+        """
+        cfg = self.configs_data.get(cfg_key, {})
+        return cfg.get("default") or next(iter(cfg.get("items", [])), None)
 
     def _build_default_entry(self, mapping_key, item):
         """
@@ -74,9 +100,9 @@ class RuntimeStateManager:
             "runtime_id": str(uuid.uuid4()),
             "mapping_item": item,
             **{
-                field: self.configs_data.get(
-                    template.format(**{placeholders["key"]: item}), {}
-                ).get("default")
+                field: self._resolve_default(
+                    template.format(**{placeholders["key"]: item})
+                )
                 for field, template in config_fields.items()
             },
         }
@@ -97,7 +123,7 @@ class RuntimeStateManager:
             if "config_fields" in mapping
         }
 
-        self.runtime_state_handler.write_json(runtime_state)
+        self._write_and_invalidate(runtime_state)
 
     def reset_runtime_state_for(self, mapping_key):
         """
@@ -112,10 +138,9 @@ class RuntimeStateManager:
 
         default_order = mapping.get("default_order", [])
         state[mapping_key] = [
-            self._build_default_entry(mapping_key, item)
-            for item in default_order
+            self._build_default_entry(mapping_key, item) for item in default_order
         ]
-        self.runtime_state_handler.write_json(state)
+        self._write_and_invalidate(state)
 
     def update_runtime_setting(self, mapping_key, index, setting_name, value):
         """
@@ -135,7 +160,7 @@ class RuntimeStateManager:
             )
 
         mapping_list[index][setting_name] = value
-        self.runtime_state_handler.write_json(state)
+        self._write_and_invalidate(state)
 
     def get_runtime_setting(self, mapping_key, index, setting_name):
         """
@@ -175,8 +200,16 @@ class RuntimeStateManager:
         try:
             instance = self.runtime_state.get(mapping_key, [])[index]
             metadata_key = instance.get("mapping_item")
-            metadata = self.mappings.get(mapping_key, {}).get("metadata", {}).get(metadata_key, {})
-            key_placeholder = self.mappings.get(mapping_key, {}).get("placeholders", {}).get("key", "")
+            metadata = (
+                self.mappings.get(mapping_key, {})
+                .get("metadata", {})
+                .get(metadata_key, {})
+            )
+            key_placeholder = (
+                self.mappings.get(mapping_key, {})
+                .get("placeholders", {})
+                .get("key", "")
+            )
             extra = {key_placeholder: metadata_key} if key_placeholder else {}
             substitutions = {**instance, **metadata, **extra}
             return template.format(**substitutions)
@@ -200,7 +233,7 @@ class RuntimeStateManager:
         else:
             lst.insert(index, new_entry)
 
-        self.runtime_state_handler.write_json(state)
+        self._write_and_invalidate(state)
         return new_entry
 
     def delete_mapping_item(self, mapping_key, index):
@@ -213,7 +246,7 @@ class RuntimeStateManager:
         state = self.runtime_state
         lst = state.get(mapping_key, [])
         lst.pop(index)
-        self.runtime_state_handler.write_json(state)
+        self._write_and_invalidate(state)
 
     def swap_mapping_items(self, mapping_key, a, b):
         """
@@ -226,4 +259,4 @@ class RuntimeStateManager:
         state = self.runtime_state
         lst = state.get(mapping_key, [])
         lst[a], lst[b] = lst[b], lst[a]
-        self.runtime_state_handler.write_json(state)
+        self._write_and_invalidate(state)

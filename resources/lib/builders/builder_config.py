@@ -1,11 +1,11 @@
 # author: realcopacetic
 
 from resources.lib.builders.modules import (
-    configsBuilder,
-    controlsBuilder,
-    expressionsBuilder,
-    includesBuilder,
-    variablesBuilder,
+    ConfigsBuilder,
+    ControlsBuilder,
+    ExpressionsBuilder,
+    IncludesBuilder,
+    VariablesBuilder,
 )
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
@@ -19,7 +19,7 @@ from resources.lib.shared.xml import XMLHandler, sort_outer_keys
 
 BUILDER_CONFIG = {
     "configs": {
-        "module": configsBuilder,
+        "module": ConfigsBuilder,
         "run_contexts": ["prep"],
         "write_type": "json",
         "write_path": CONFIGS,
@@ -27,7 +27,7 @@ BUILDER_CONFIG = {
         "write_kwargs": {},
     },
     "controls": {
-        "module": controlsBuilder,
+        "module": ControlsBuilder,
         "run_contexts": ["build"],
         "write_type": "json",
         "write_path": CONTROLS,
@@ -35,7 +35,7 @@ BUILDER_CONFIG = {
         "write_kwargs": {},
     },
     "variables": {
-        "module": variablesBuilder,
+        "module": VariablesBuilder,
         "run_contexts": ["build"],
         "write_type": "xml",
         "write_path": VARIABLES,
@@ -48,7 +48,7 @@ BUILDER_CONFIG = {
         },
     },
     "includes": {
-        "module": includesBuilder,
+        "module": IncludesBuilder,
         "run_contexts": ["build", "runtime"],
         "read_kwargs": {
             "root_tag": "xml",
@@ -66,7 +66,7 @@ BUILDER_CONFIG = {
         },
     },
     "expressions": {
-        "module": expressionsBuilder,
+        "module": ExpressionsBuilder,
         "run_contexts": ["build", "runtime"],
         "write_type": "xml",
         "write_path": EXPRESSIONS,
