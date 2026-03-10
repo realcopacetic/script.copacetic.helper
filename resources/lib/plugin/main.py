@@ -53,8 +53,8 @@ class Main:
 
     def run_listing(self) -> None:
         """Emit the default plugin directory (top-level categories)."""
-        log.debug(f"PluginListing initialized with params: {self.params}")
-        items = PluginListing(self.params).build()
+        log.debug(f"PluginListing initialized")
+        items = PluginListing().build()
         self._additems(items)
 
     def _additems(self, items: list[tuple]) -> None:

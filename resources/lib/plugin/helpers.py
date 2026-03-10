@@ -734,7 +734,7 @@ class TypewriterAnimation:
         """
         :param control_id: Default text control id to animate if none is passed.
         :param step_time: Delay per character (seconds).
-        :param line_height: Pixels added per wrapped line.
+        :param default_line_step: Pixels added per wrapped line.
         :param max_lines: Max number of lines grown if track_h not set.
         """
         self.window = Window(getCurrentWindowId())

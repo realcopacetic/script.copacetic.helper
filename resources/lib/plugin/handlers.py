@@ -1,8 +1,8 @@
 # author: realcopacetic
 
-import inspect
+import sys
 from contextlib import contextmanager
-from typing import Callable, Iterator
+from typing import Any, Callable, Iterator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
@@ -12,7 +12,6 @@ from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import build_multiart_dict, set_multiart_fadelabel
 from resources.lib.art.policy import ART_PROCESS_MAP
 from resources.lib.plugin.geometry import PlacementOpts
-from resources.lib.plugin.opts import ArtOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
@@ -29,8 +28,9 @@ from resources.lib.plugin.library import (
     fetch_and_add,
     role_endpoint,
 )
+from resources.lib.plugin.opts import ArtOpts
 from resources.lib.plugin.registry import PluginInfoRegistry
-from resources.lib.plugin.setter import *
+from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
@@ -38,8 +38,8 @@ from resources.lib.shared.utilities import (
     condition,
     infolabel,
     json_call,
-    set_plugincontent,
     parse_bool,
+    set_plugincontent,
     to_int,
 )
 
@@ -182,9 +182,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def focus(self):
         """
         Return a pre-filled focus guard for the calling handler.
-        Auto-detects the handler name using inspect.
+        Auto-detects the handler name from the call frame.
         """
-        caller = inspect.stack()[1].function
+        caller = sys._getframe(1).f_code.co_name
         return focus_guard(
             caller_name=caller,
             target=self.target,

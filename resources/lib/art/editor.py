@@ -299,7 +299,9 @@ class ImageEditor:
                         f"{self.__class__.__name__} → Temp file deleted → {source_path}",
                     )
                 except Exception:
-                    pass
+                    log.debug(
+                        f"{self.__class__.__name__} → Temp file cleanup failed → {source_path}",
+                    )
 
         meta = result.get("metadata") or {}
         return {

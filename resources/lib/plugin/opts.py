@@ -57,7 +57,7 @@ class DarkenOpts:
             mode=params.get(f"{prefix}_darken", None),
             strength=max(
                 0.0,
-                min(2.0, to_float(params.get(f"{prefix}_darken_scale"), 1.0) or 1.0),
+                min(2.0, to_float(params.get(f"{prefix}_darken_strength"), 1.0)),
             ),
             source=params.get(f"{prefix}_darken_source"),
             rects=params.get(f"{prefix}_darken_rects"),

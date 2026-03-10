@@ -19,13 +19,6 @@ class PluginListing(object):
     Used to expose widget routes via plugin content listing.
     """
 
-    def __init__(self, params: dict[str, str]) -> None:
-        """
-        :param params: Dictionary of plugin parameters (unused).
-        :param li: List container to append ListItems to.
-        """
-        self.params = params
-
     def build(self) -> list[tuple]:
         """Return (url, ListItem, isFolder) tuples for the top-level directory."""
         items = []
