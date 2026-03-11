@@ -187,10 +187,7 @@ class TmdbClient:
         :param params: Query parameters mapping.
         :return: Prepared urllib Request.
         """
-        if params is None:
-            params = {}
-        params.setdefault("language", self.language)
-
+        request_params = {"language": self.language, **(params or {})}
         headers: dict[str, str] = {}
 
         if self.is_v4:
@@ -198,14 +195,24 @@ class TmdbClient:
             headers["Authorization"] = f"Bearer {self.token}"
         else:
             # v3 API key via query parameter.
-            params["api_key"] = self.token
+            request_params["api_key"] = self.token
 
-        query = urllib.parse.urlencode(params)
+        query = urllib.parse.urlencode(request_params)
         url = f"{TMDB_API_BASE}{path}"
         if query:
             url = f"{url}?{query}"
 
         return urllib.request.Request(url, headers=headers)
+
+    @staticmethod
+    def _safe_url(url: str) -> str:
+        """Strip api_key from URL for safe logging."""
+        parsed = urllib.parse.urlparse(url)
+        params = urllib.parse.parse_qs(parsed.query)
+        if "api_key" in params:
+            params["api_key"] = ["***"]
+        safe_query = urllib.parse.urlencode(params, doseq=True)
+        return urllib.parse.urlunparse(parsed._replace(query=safe_query))
 
     def get_json(self, path: str, params: Mapping[str, Any] | None = None) -> dict:
         """
@@ -225,19 +232,19 @@ class TmdbClient:
         except HTTPError as exc:
             log.error(
                 f"{self.__class__.__name__}: HTTPError {exc.code} "
-                f"for URL={request.full_url!r}: {exc.reason}"
+                f"for URL={self._safe_url(request.full_url)!r}: {exc.reason}"
             )
 
         except URLError as exc:
             log.error(
-                f"{self.__class__.__name__}: URLError for URL={request.full_url!r}: "
+                f"{self.__class__.__name__}: URLError for URL={self._safe_url(request.full_url)!r}: "
                 f"{exc.reason}"
             )
 
         except Exception as exc:  # noqa: BLE001
             log.error(
                 f"{self.__class__.__name__}: Unexpected TMDb error "
-                f"for URL={request.full_url!r}: {exc!r}"
+                f"for URL={self._safe_url(request.full_url)!r}: {exc!r}"
             )
 
         return {}

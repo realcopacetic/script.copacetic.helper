@@ -23,7 +23,8 @@ class BaseBuilder:
         """
         Initializes builder with placeholders, loop values, and dynamic key.
 
-        :param mapping: Looping values, placeholders and metadata for expansion
+        :param mapping_name: Name of the mapping driving this builder.
+        :param mapping_values: Looping values, placeholders and metadata for expansion.
         :param runtime_manager: Instance of manager class for handling runtime configs
         """
         self.mapping_name = mapping_name
@@ -45,19 +46,26 @@ class BaseBuilder:
         """
         mode = element_data.get("mode", "static")
 
-        if (
-            mode == "dynamic"
-            and self.runtime_manager is not None
-            and (
-                runtime_items := self.runtime_manager.runtime_state.get(
-                    self.mapping_name
+        if mode == "dynamic" and not element_data.get("items"):
+            if (
+                self.runtime_manager is not None
+                and (
+                    runtime_items := self.runtime_manager.runtime_state.get(
+                        self.mapping_name
+                    )
                 )
-            )
-        ):
-            index_start = int(element_data.get("index", {}).get("@start", 1))
-            substitutions = self.generate_runtimejson_substitutions(
-                runtime_items, index_start
-            )
+            ):
+                index_list = expand_index(element_data.get("index"))
+                index_start = int(index_list[0]) if index_list else 1
+                substitutions = self.generate_runtimejson_substitutions(
+                    runtime_items, index_start
+                )
+            else:
+                log.debug(
+                    f"{self.__class__.__name__}: Skipping dynamic template "
+                    f"'{element_name}' — no runtime state for '{self.mapping_name}'"
+                )
+                return    
         else:
             items = element_data.get("items") or expand_index(element_data.get("index"))
             dynamic_key_mapping = {"items": "item", "index": "index"}
@@ -176,6 +184,23 @@ class BaseBuilder:
             "Missing loop value items and items/index in json/xml templates"
         )
 
+    def _resolve_placeholder(self, match: re.Match, substitutions: dict[str, str]) -> str:
+        """
+        Resolve a single placeholder match against the substitution dict.
+        Logs unknown placeholders to aid template debugging.
+
+        :param match: Regex match object from PLACEHOLDER_PATTERN.
+        :param substitutions: Dict of key-value substitutions.
+        :return: Substituted value, or empty string if placeholder is unknown.
+        """
+        key = match.group(1)
+        if key in substitutions:
+            return substitutions[key]
+        log.debug(
+            f"{self.__class__.__name__}: Unknown placeholder '{{{key}}}' in template"
+        )
+        return ""
+
     def substitute(self, template, substitutions):
         """
         Formats an object using the provided substitution dictionary.
@@ -189,7 +214,7 @@ class BaseBuilder:
                 return template
 
             return PLACEHOLDER_PATTERN.sub(
-                lambda match: substitutions.get(match.group(1), ""),
+                lambda match: self._resolve_placeholder(match, substitutions),
                 template,
             )
 
@@ -259,20 +284,38 @@ class ConfigsBuilder(BaseBuilder):
         }
         resolved_data = {**defaults, **data}
 
+        # Normalise items: dict → keys list + labels dict
+        raw_items = resolved_data["items"]
+        if isinstance(raw_items, dict):
+            items_list = list(raw_items.keys())
+            labels = {k: v for k, v in raw_items.items() if v}
+        else:
+            items_list = raw_items
+            labels = {}
+
         excluded = {
             value
             for sub in subs
             for rule in resolved_data["rules"]
-            if self.rules.evaluate(rule["condition"].format(**sub))
+            if self.rules.evaluate(
+                rule["condition"].format(
+                    **self._inject_metadata(
+                        sub, sub.get(self.placeholders.get("key", ""))
+                    )
+                )
+            )
             for value in rule.get("value", [])
         }
         # When filter_mode is "exclude": keep items NOT in excluded set
         # When filter_mode is "include": keep items that ARE in excluded set
         resolved_data["items"] = [
             item
-            for item in resolved_data["items"]
+            for item in items_list
             if (item not in excluded) == (resolved_data["filter_mode"] == "exclude")
         ]
+        if labels:
+            resolved_data["labels"] = labels
+
         prefixes_to_remove = ("filter_mode", "rules", "defaults", "default_key")
 
         return {
@@ -292,7 +335,7 @@ class ConfigsBuilder(BaseBuilder):
         :return: Updated resolved settings dict with defaults applied.
         """
         defaults = setting_data.get("defaults")
-        default_key = setting_data.get("default_key")
+        default_key = setting_data.get("default_key") or self.placeholders.get("key")
         if not defaults or not default_key:
             return resolved
 
@@ -334,6 +377,9 @@ class ControlsBuilder(BaseBuilder):
         :return: Dict of {control_name: resolved_definition}
         """
         id_fixed = data.get("id")
+        
+        # Dynamic controls are returned as-is; contextual_bindings
+        # and per-mapping expansion do not apply.
         if data.get("mode") == "dynamic":
             return {
                 template_name: {
@@ -699,6 +745,7 @@ class VariablesBuilder(BaseBuilder):
         values = data.get("values", [])
         index_range = expand_index(data.get("index"))
 
+        # All subs in this group share the same expanded key, so subs[0] is representative.
         if not index_range:
             name = self.substitute(template_name, subs[0])
             return [self._build_variable(name, values, subs[0])]

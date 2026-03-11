@@ -68,13 +68,14 @@ class JSONHandler:
         :param file_path: Path to the .json file.
         :param data: Reference to dictionary to update with parsed content.
         """
-        with open(file_path, "r", encoding="utf-8") as file:
-            try:
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
                 content = json.load(file)
                 data[file_path] = content  # Store JSON content under its filename
-            except json.JSONDecodeError as e:
-                log.warning(f"{self.__class__.__name__}: Error parsing {file_path}: {e}")
-        return
+        except json.JSONDecodeError as e:
+            log.warning(f"{self.__class__.__name__}: Error parsing {file_path}: {e}")
+        except OSError as e:
+            log.warning(f"{self.__class__.__name__}: Error reading {file_path}: {e}")
 
     def reload(self):
         """
@@ -91,7 +92,7 @@ class JSONHandler:
         try:
             with open(self.path, "w", encoding="utf-8") as file:
                 json.dump(content, file, indent=4)
-        except IOError as e:
+        except (IOError, TypeError, ValueError) as e:
             log.error(
                 f"{self.__class__.__name__}: Error updating JSON file '{self.path}' --> {e}",
             )

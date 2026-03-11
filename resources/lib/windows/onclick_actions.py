@@ -1,7 +1,8 @@
 # author: realcopacetic
 
 from xbmcgui import Dialog
-from resources.lib.shared.utilities import execute
+
+from resources.lib.shared import logger as log
 
 BROWSE_TYPE_MAP = {
     "directories": 0,
@@ -107,7 +108,7 @@ class OnClickActions:
         """
         Execute a custom Kodi built-in command.
         """
-        execute(cfg["action"])
+        log.execute(cfg["action"])
 
     @staticmethod
     def input(cfg):

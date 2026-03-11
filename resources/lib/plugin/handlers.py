@@ -347,11 +347,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def jumpbutton(self) -> None:
         """
         Update jump button overlay using params and placement options.
+        No focus guard as needs to remain responsive to scroll.
         """
         jump = JumpButton()
         jump.update(
-            sortletter=self.params.get("sortletter", ""),
-            scroll_id=self.params.get("scroll_id", ""),
+            sortletter=self.params.get("sortletter"),
+            scroll_id=self.params.get("scroll_id"),
             opts=PlacementOpts.from_params(self.params),
         )
 

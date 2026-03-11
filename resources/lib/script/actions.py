@@ -98,7 +98,7 @@ def globalsearch_input(**kwargs):
     if kb.isConfirmed():
         text = kb.getText()
         skin_string("globalsearch", value=text)
-        xbmc.executebuiltin("ActivateWindow(1180)")
+        log.execute("ActivateWindow(1180)")
 
 
 @action
@@ -122,7 +122,7 @@ def hex_contrast_check(**kwargs):
         luminosity = image.return_luminosity(rgb)
         best_contrast = "dark" if luminosity > 0.179 else "light"
 
-        xbmc.executebuiltin(f"Skin.SetString(Accent_Color_Contrast,{best_contrast})")
+        log.execute(f"Skin.SetString(Accent_Color_Contrast,{best_contrast})")
 
 
 @action
@@ -405,11 +405,15 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
             try:
                 index = subtitles.index(lang)
             except ValueError as error:
-                log.debug(f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",)
+                log.debug(
+                    f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",
+                )
                 log.execute("Action(NextSubtitle)")
             else:
                 player.setSubtitleStream(index)
-                log.debug(f"subtitle_limiter: Switching to subtitle stream {index} in preferred language: {lang}")
+                log.debug(
+                    f"subtitle_limiter: Switching to subtitle stream {index} in preferred language: {lang}"
+                )
         elif condition("VideoPlayer.SubtitlesEnabled") and user_trigger:
             log.execute("Action(ShowSubtitles)")
     else:
@@ -449,10 +453,20 @@ def dynamic_settings_window(**kwargs):
     from resources.lib.windows.dynamiceditor import DynamicEditor
 
     name = kwargs.get("name", "dynamic_window")
+    mapping = kwargs.get("mapping")
     window_property(name, value="true")
+    if mapping:
+        window_property(mapping, value="true")
 
     myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
+    myWindow.parent_filter = kwargs.get("parent")
+    myWindow.mapping_override = mapping
     myWindow.doModal()
+
+    if mapping:
+        window_property(mapping)
+        
+    window_property(name)
     del myWindow
 
 
@@ -461,8 +475,7 @@ def rebuild(**kwargs):
     """ """
     from resources.lib.builders.build_elements import BuildElements
 
-    builder = BuildElements(run_context=kwargs.get("context", "runtime"))
-    builder.process()
+    BuildElements(run_context=kwargs.get("context", "runtime"))
     log.execute("ReloadSkin()")
 
 
@@ -519,7 +532,7 @@ def widget_move(posa, posb, **kwargs):
             if condition(f"Skin.HasSetting(Widget{item[0]}_Content_{content})"):
                 # capture value of bool then reset it in Kodi
                 item[1]["Content"] = content
-                xbmc.executebuiltin(f"Skin.Reset(Widget{item[0]}_Content_{content})")
+                log.execute(f"Skin.Reset(Widget{item[0]}_Content_{content})")
                 break
         for key, value in item[1].items():
             if type(value) == str and not value:
@@ -528,15 +541,13 @@ def widget_move(posa, posb, **kwargs):
                 if condition(f"Skin.HasSetting(Widget{item[0]}_{key})"):
                     # capture value of bool then reset it in Kodi
                     item[1][key] = True
-                    xbmc.executebuiltin(f"Skin.Reset(Widget{item[0]}_{key})")
+                    log.execute(f"Skin.Reset(Widget{item[0]}_{key})")
     # swap values
     swapped_list = [(posa, dicb), (posb, dica)]
     for item in swapped_list:
-        xbmc.executebuiltin(
-            f'Skin.ToggleSetting(Widget{item[0]}_Content_{item[1]["Content"]})'
-        )
+        log.execute(f'Skin.ToggleSetting(Widget{item[0]}_Content_{item[1]["Content"]})')
         for key, value in item[1].items():
             if type(value) == str:
                 skin_string(f"Widget{item[0]}_{key}", value=value)
             elif type(value) == bool and value and "Content" not in key:
-                xbmc.executebuiltin(f"Skin.ToggleSetting(Widget{item[0]}_{key})")
+                log.execute(f"Skin.ToggleSetting(Widget{item[0]}_{key})")

@@ -147,7 +147,7 @@ class DataHandler:
         """
         studio = (
             split(infolabel(f"{self.target}(-1).Studio"))
-            if "set" in self.dbtype
+            if self.dbtype == "set"
             else split(self.infolabels["Studio"])
         )
         return studio.replace("+", "") if studio else ""
@@ -191,7 +191,7 @@ class JumpButton:
             return 0
 
     def update(
-        self, *, sortletter: str | None, scroll_id: int, opts: PlacementOpts
+        self, *, sortletter: str | None, scroll_id: str | None, opts: PlacementOpts
     ) -> None:
         """
         Update indicator label and position along the resolved track.
@@ -299,8 +299,8 @@ class ProgressBarManager:
         ):
             return 100, ""
 
-        if "set" in self.infolabels["DBType"]:
-            set_id = int(infolabel("ListItem.DBID") or 0)
+        if self.infolabels["DBType"] == "set":
+            set_id = int(infolabel(f"{self.target}.DBID") or 0)
             if not set_id:
                 return 0, ""
 
@@ -319,9 +319,7 @@ class ProgressBarManager:
                 return 0, ""
 
             watched = sum(1 for m in movies if m.get("playcount"))
-            return ((total and watched / total or 0) * 100), (
-                total - watched
-            )  # https://stackoverflow.com/a/68118106/21112145 to avoid ZeroDivisionError
+            return (watched / total * 100), (total - watched)
 
         return 0, unwatched
 
@@ -708,14 +706,8 @@ class TextTruncator:
 
         # take the last acceptable boundary
         end = boundaries[-1] + 1  # include the punctuation
-        capped = core[:end].rstrip()
+        return core[:end].rstrip().strip()
 
-        if capped and capped[-1] not in ".!?":
-            # partial phrase — keep ellipsis
-            return (capped + " " + self.ellipsis).strip()
-        else:
-            # full sentence — no ellipsis
-            return capped.strip()
 
 
 class TypewriterAnimation:
@@ -761,7 +753,6 @@ class TypewriterAnimation:
         :param label_id: Optional override control id.
         :param line_step: Pixels added per wrapped line (defaults to default_line_step).
         :param max_lines: Optional cap for number of lines (overrides default).
-        :param expected_identity: Focus snapshot for guarding.
         :param alive: Optional guard callable; return False to abort animation.
         """
 
@@ -832,6 +823,8 @@ class TypewriterAnimation:
             sub = label[:i]
             control.setText(sub)
             xbmc.sleep(int(self.step_time * 1000))
+
+            # Kodi TextBox controls expose Container(id).HasNext when text overflows
             if (
                 i > 1
                 and condition(f"Container({control_id}).HasNext")
