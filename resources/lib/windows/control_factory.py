@@ -3,6 +3,7 @@
 from resources.lib.shared import logger as log
 from resources.lib.windows.controls import (
     ButtonHandler,
+    CycleHandler,
     EditHandler,
     RadioButtonHandler,
     SliderExHandler,
@@ -11,11 +12,11 @@ from resources.lib.windows.controls import (
 
 HANDLER_REGISTRY = {
     "button": ButtonHandler,
+    "cycle": CycleHandler,
     "edit": EditHandler,
     "radiobutton": RadioButtonHandler,
     "slider": SliderHandler,
     "sliderex": SliderExHandler,
-    # add more control types here
 }
 
 

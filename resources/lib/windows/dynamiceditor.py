@@ -57,6 +57,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.handlers = {}
         self.control_instances = {}
         self.dynamic_controls = {}
+        self.skin_strings_changed = False
         self.has_runtime = False
         self.container_position = -1
         self.current_listitem = None
@@ -210,7 +211,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # Initiate management buttons if runtime expansion
         self.has_runtime = any(
-            ctrl.get("role") == "preset_picker"
+            ctrl.get("role") == "item_picker"
             for ctrl in self.dynamic_controls.values()
         )
         if self.has_runtime:
@@ -421,7 +422,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             (
                 h
                 for h in self.handlers.values()
-                if h.control.get("role") == "preset_picker"
+                if h.control.get("role") == "item_picker"
             ),
             None,
         )
@@ -519,7 +520,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _on_close(self):
         """Trigger a runtime rebuild and close the window."""
-        if self.runtime_manager.runtime_state != self._runtime_state_snapshot:
+        if (
+            self.runtime_manager.runtime_state != self._runtime_state_snapshot
+            or self.skin_strings_changed
+        ):
             from resources.lib.builders.build_elements import BuildElements
 
             BuildElements(run_context="runtime")

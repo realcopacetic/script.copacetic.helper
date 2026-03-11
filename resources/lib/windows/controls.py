@@ -194,6 +194,8 @@ class BaseControlHandler:
     def _set_setting_value(self, value):
         """
         Set a new value for this control at the given list index.
+        Notifies the parent editor if a skin string was changed,
+        so it knows to rebuild on close.
 
         :param value: The new value to store.
         """
@@ -209,6 +211,8 @@ class BaseControlHandler:
                         pass
                 else:
                     skin_string(cfg, value)
+                    if hasattr(self, "parent"):
+                        self.parent.skin_strings_changed = True
                 return
 
         try:
@@ -280,14 +284,21 @@ class BaseControlHandler:
             .get(current_value, {})
         )
         raw_label = link.get("label") or self.control.get("label", "")
+        cfg_key = self._linked_config()
+        cfg_labels = (
+            self.runtime_manager.configs_data.get(cfg_key, {}).get("labels", {})
+            if cfg_key
+            else {}
+        )
         raw_label2 = (
             link.get("label2")
             or self.control.get("label2")
+            or cfg_labels.get(current_value)
             or meta.get("label")
             or (
                 current_value
                 if (current_value and "://" in current_value)
-                else (current_value.capitalize() if current_value else "")
+                else (current_value.replace("_", " ").title() if current_value else "")
             )
         )
 
@@ -443,7 +454,7 @@ class ButtonHandler(BaseControlHandler):
                 result = result["path"]
 
             self._set_setting_value(result)
-            if self.control.get("role") == "preset_picker":
+            if self.control.get("role") == "item_picker":
                 self.parent._on_mapping_item_changed()
             else:
                 self.parent._refresh_ui()
@@ -467,14 +478,21 @@ class ButtonHandler(BaseControlHandler):
             "sibling_fields",
         )
 
-        # Fetch items, then check for human-readable labels in metadata
+        # Fetch items, then resolve display labels from config labels, metadata, or title-case
         items = onclick.get("items") or self._allowed_items()
+        cfg_key = self._linked_config()
+        cfg_labels = (
+            self.runtime_manager.configs_data.get(cfg_key, {}).get("labels", {})
+            if cfg_key
+            else {}
+        )
         display_items = [
             infolabel(lbl) if isinstance(lbl, str) and lbl.startswith("$") else lbl
             for item in items
             for lbl in [
                 (
-                    self.runtime_manager.mappings[self.mapping_key]
+                    cfg_labels.get(item)
+                    or self.runtime_manager.mappings[self.mapping_key]
                     .get("metadata", {})
                     .get(item, {})
                     .get("label")
@@ -506,6 +524,72 @@ class ButtonHandler(BaseControlHandler):
         :param current_listitem: Named ID of the currently selected listitem.
         :param container_position: Current index position in the runtime list.
         :param focused_control_id: GUI control ID that has current focus.
+        """
+        super().update_visibility(
+            current_listitem, container_position, focused_control_id
+        )
+        self.set_instance_labels(focused_control_id)
+
+
+class CycleHandler(BaseControlHandler):
+    """
+    A button that cycles through allowed values on select.
+    Displays the current value as label2. Each press advances
+    to the next item in the list, wrapping around at the end.
+    """
+
+    def handle_interaction(
+        self, current_listitem, container_position, focused_control_id, a_id
+    ):
+        """
+        Advances to the next allowed value on select.
+
+        :param current_listitem: Named ID of the currently selected listitem.
+        :param container_position: Current index position in the runtime list.
+        :param focused_control_id: ID of currently focused control.
+        :param a_id: Kodi action ID.
+        """
+        from xbmcgui import ACTION_SELECT_ITEM
+
+        self.current_listitem = current_listitem
+        self.container_position = container_position
+
+        if (
+            focused_control_id != self.instance.getId()
+            or a_id != ACTION_SELECT_ITEM
+            or not self._get_active_link()
+        ):
+            return
+
+        values = self._allowed_items()
+        if not values:
+            return
+
+        current = self._get_setting_value()
+        try:
+            idx = values.index(current)
+        except ValueError:
+            idx = -1
+
+        next_idx = (idx + 1) % len(values)
+        self._set_setting_value(values[next_idx])
+        self.parent._refresh_ui()
+
+    def update_value(self, current_listitem, container_position):
+        """
+        Updates enabled state based on whether there are multiple values to cycle.
+
+        :param current_listitem: Named ID of the currently selected listitem.
+        :param container_position: Current index position in the runtime list.
+        """
+        super().update_value(current_listitem, container_position)
+        self.instance.setEnabled(len(self._allowed_items()) > 1)
+
+    def update_visibility(
+        self, current_listitem, container_position, focused_control_id
+    ):
+        """
+        Sets visibility and label/label2 for the cycle button.
         """
         super().update_visibility(
             current_listitem, container_position, focused_control_id
@@ -622,7 +706,8 @@ class RadioButtonHandler(BaseControlHandler):
         ):
             return
 
-        new_value = "true" if self.instance.isSelected() else "false"
+        values = self._allowed_items()
+        new_value = values[0] if self.instance.isSelected() else values[1]
         self._set_setting_value(new_value)
 
     def update_value(self, current_listitem, container_position):
@@ -635,7 +720,8 @@ class RadioButtonHandler(BaseControlHandler):
         super().update_value(current_listitem, container_position)
         allowed = self._allowed_items()
         current = self._get_setting_value()
-        self.instance.setSelected(current == "true")
+        first = allowed[0] if allowed else "true"
+        self.instance.setSelected(current == first)
         self.instance.setEnabled(len(allowed) > 1)
 
     def update_visibility(
@@ -731,6 +817,10 @@ class SliderExHandler(SliderHandler):
         super().__init__(control, slider_instance, runtime_manager)
         self.button_instance = button_instance
         self.button_id = button_instance.getId()
+
+    @property
+    def focus_ids(self):
+        return {self.instance.getId(), self.button_id}
 
     def handle_interaction(
         self, current_listitem, container_position, focused_control_id, a_id

@@ -40,7 +40,7 @@ Control inputs are JSON files placed in `extras/builders/controls/`. Each file d
 | `window` | list | Yes | Window XML filenames this control belongs to |
 | `mode` | string | No | `"dynamic"` for runtime-state-linked controls |
 | `field` | string | No | Runtime state field name (for dynamic mode) |
-| `role` | string | No | Special role identifier (e.g. `"preset_picker"`) |
+| `role` | string | No | Special role identifier (e.g. `"item_picker"`) |
 | `label` | string | No | Display label (supports `{placeholder}` tokens and `$LOCALIZE[]`) |
 | `label2` | string | No | Secondary label |
 | `description` | string | No | Help text shown at bottom of editor |
@@ -94,7 +94,7 @@ Buttons trigger an action when pressed. The `onclick` field defines what happens
 ```json
 "widget_preset": {
   "mode": "dynamic",
-  "role": "preset_picker",
+  "role": "item_picker",
   "id": 200,
   "control_type": "button",
   "window": ["widgetsettings"],
@@ -262,19 +262,17 @@ The `field: "view"` means this control reads and writes the `view` field in the 
 
 ---
 
-## The preset picker role
+## The item picker role
 
-A control with `"role": "preset_picker"` serves two purposes:
+A control with `"role": "item_picker"` serves two purposes:
 
 **As a control**, it lets the user pick from the mapping's `items` list — selecting which item (e.g. "next_up", "latest_movies", "custom") this runtime state entry should use. Its onclick dialog presents the full list of available items from the mapping.
 
-**As a signal**, its presence tells the Dynamic Editor that this window manages runtime state entries. When the editor detects a control with this role, it enables the management buttons (add, delete, move up/down, reset, close). Without a preset picker control, the editor assumes a static window and hides the management UI.
+**As a signal**, its presence tells the Dynamic Editor that this window manages runtime state entries. When the editor detects a control with this role, it enables the management buttons (add, delete, move up/down, reset, close). Without a item picker control, the editor assumes a static window and hides the management UI.
 
 When the user changes the selected item:
 - `_on_mapping_item_changed()` fires — refreshing all other controls, resetting invalid field values to defaults, and updating the list label.
-- On "Add", the preset picker's onclick dialog is shown first to let the user choose what type of entry to create before inserting it.
-
-> **Note:** The name `preset_picker` is tied to the widget use case where items are called "presets". In a future update this will be renamed to `item_picker` to better reflect that it picks from the mapping's `items` list regardless of what the skinner calls them.
+- On "Add", the item picker's onclick dialog is shown first to let the user choose what type of entry to create before inserting it.
 
 ---
 
@@ -375,7 +373,7 @@ The controls builder writes `controls.json`. Each entry is keyed by the control 
   "widget_preset": {
     "mapping": "widgets",
     "mode": "dynamic",
-    "role": "preset_picker",
+    "role": "item_picker",
     "control_type": "button",
     "window": ["widgetsettings"],
     "id": 200,

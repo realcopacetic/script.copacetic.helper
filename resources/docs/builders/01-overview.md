@@ -20,6 +20,74 @@ There are five builder modules. Each reads input templates, processes them again
 
 The first two (configs, controls) produce intermediate JSON used by the Dynamic Editor UI at runtime. The last three (variables, expressions, includes) produce final XML that Kodi loads directly as part of the skin.
 
+### Following a single value through the system
+
+To see how the builders connect, let's trace the `view` setting for a widget slot from definition through to output. This is one field on one widget — but it passes through four builders on its way to the final skin XML.
+
+**1. The mapping** defines that widgets have a `view` field, and links it to a config key template:
+
+```json
+"config_fields": {
+  "view": "widget_{widget_preset}_view"
+}
+```
+
+**2. The configs builder** resolves which views are available for each preset. For "next_up", all four views are allowed. For "liked_songs", rules exclude some:
+
+```json
+"widget_{widget_preset}_view": {
+  "mode": "dynamic",
+  "items": ["list", "showcase", "strip", "grid"],
+  "defaults": { "next_up": "strip", "*": "grid" }
+}
+```
+
+Output in `configs.json`:
+```json
+"widget_next_up_view": { "items": ["list", "showcase", "strip", "grid"], "default": "strip" }
+```
+
+**3. The controls builder** creates a slider control linked to this field:
+
+```json
+"widget_view": {
+  "mode": "dynamic",
+  "field": "view",
+  "id": 201,
+  "control_type": "sliderex",
+  "label": "View"
+}
+```
+
+At runtime, the Dynamic Editor reads `configs.json` to populate the slider with the allowed views, and reads/writes the `view` field in `runtime_state.json` when the user makes a selection.
+
+**4. The runtime state** captures the user's choice. The user selected "strip" for their first widget:
+
+```json
+{
+  "runtime_id": "912e...",
+  "mapping_item": "next_up",
+  "view": "strip",
+  "layout": "poster"
+}
+```
+
+**5. The includes builder** reads this entry and substitutes `{view}` into the template:
+
+```xml
+<param name="view" value="{view}" />
+```
+
+Output:
+```xml
+<include content="widget_next_up">
+  <param name="view" value="strip" />
+  <!-- ... other params from metadata and runtime state -->
+</include>
+```
+
+One value — defined in a mapping, filtered by configs, selected by the user through a control, stored in runtime state, and substituted into the final include. Each builder handled its part without knowing about the others.
+
 ---
 
 ## The pipeline
@@ -137,4 +205,3 @@ Runtime state also makes management operations trivial. Reordering widgets is a 
 - [Rule Engine](08-rule-engine.md) — The condition evaluator used across builders
 - [Runtime State & Dynamic Editor](09-runtime-state.md) — User-facing settings management
 - [Chaining Builders](10-use-cases.md) — Real-world examples combining multiple builders
-- [Extending the System](11-extending.md) — Custom mappings, new control types, and more

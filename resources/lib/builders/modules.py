@@ -259,6 +259,15 @@ class ConfigsBuilder(BaseBuilder):
         }
         resolved_data = {**defaults, **data}
 
+        # Normalise items: dict → keys list + labels dict
+        raw_items = resolved_data["items"]
+        if isinstance(raw_items, dict):
+            items_list = list(raw_items.keys())
+            labels = {k: v for k, v in raw_items.items() if v}
+        else:
+            items_list = raw_items
+            labels = {}
+
         excluded = {
             value
             for sub in subs
@@ -270,9 +279,12 @@ class ConfigsBuilder(BaseBuilder):
         # When filter_mode is "include": keep items that ARE in excluded set
         resolved_data["items"] = [
             item
-            for item in resolved_data["items"]
+            for item in items_list
             if (item not in excluded) == (resolved_data["filter_mode"] == "exclude")
         ]
+        if labels:
+            resolved_data["labels"] = labels
+            
         prefixes_to_remove = ("filter_mode", "rules", "defaults", "default_key")
 
         return {
@@ -292,7 +304,7 @@ class ConfigsBuilder(BaseBuilder):
         :return: Updated resolved settings dict with defaults applied.
         """
         defaults = setting_data.get("defaults")
-        default_key = setting_data.get("default_key")
+        default_key = setting_data.get("default_key") or self.placeholders.get("key")
         if not defaults or not default_key:
             return resolved
 
