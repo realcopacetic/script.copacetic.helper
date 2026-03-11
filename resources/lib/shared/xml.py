@@ -321,11 +321,10 @@ class XMLMerger:
 
     def yield_merged_data(self):
         """
-        Lazily yields aggregated XML elements merged by mapping names.
+        Lazily yields XML data grouped by mapping name.
 
-        :yields: Tuples of (mapping_name, merged ET.Element).
+        :yields: Tuples of (mapping_name, ET.Element root).
         """
-        mappings = defaultdict(list)
         for subfolder in self.subfolders:
             folder_path = self.base_folder / subfolder
             if not folder_path.exists():
@@ -334,10 +333,7 @@ class XMLMerger:
                 )
                 continue
             for mapping_name, elements in self._merge_xml_files(folder_path):
-                mappings[mapping_name].extend(elements)
-
-        for mapping, elements in mappings.items():
-            yield mapping, self._build_merged_xml(mapping, elements)
+                yield mapping_name, self._build_merged_xml(mapping_name, elements)
 
     def _build_merged_xml(self, mapping, elements):
         """
@@ -379,7 +375,7 @@ class XMLDictConverter:
         individual xml builder.
 
         :param root_element: Root element of the XML to convert.
-        :param read_kwargs: XML parsing options (container and element tags).
+        :param kwargs: XML parsing options (container and element tags).
         """
         self.root = root_element
         self.root_tag = kwargs.get("root_tag")

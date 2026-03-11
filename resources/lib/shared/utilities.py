@@ -62,15 +62,6 @@ def condition(condition: str) -> bool:
     return xbmc.getCondVisibility(condition)
 
 
-def execute(action: str) -> None:
-    """
-    Executes a Kodi built-in function.
-
-    :param action: The action string to run.
-    """
-    xbmc.executebuiltin(action)
-
-
 def infolabel(infolabel: str) -> str:
     """
     Retrieves the value of a Kodi InfoLabel expression.
@@ -118,11 +109,9 @@ def skin_string(key: str, value: str | bool = False) -> None:
     :param value: Value to assign.
     """
     if value:
-        execute(f"Skin.SetString({key}, {value})")
-        log.debug(f"Skin string: Set, {key}, {value}")
+        log.execute(f"Skin.SetString({key}, {value})")
     else:
-        execute(f"Skin.SetString({key},)")
-        log.debug(f"Skin string: Clear, {key}")
+        log.execute(f"Skin.SetString({key},)")
 
 
 def reset_bool(setting_id: str) -> None:
@@ -131,8 +120,7 @@ def reset_bool(setting_id: str) -> None:
 
     :param setting_id: The skin setting ID (e.g., "mysetting").
     """
-    execute(f"Skin.Reset({setting_id})")
-    log.debug(f"Skin Bool reset: {setting_id}")
+    log.execute(f"Skin.Reset({setting_id})")
 
 
 def set_bool(setting_id: str) -> None:
@@ -141,8 +129,7 @@ def set_bool(setting_id: str) -> None:
 
     :param setting_id: The skin setting ID (e.g., "mysetting").
     """
-    execute(f"Skin.SetBool({setting_id})")
-    log.debug(f"Skin Bool set: {setting_id}")
+    log.execute(f"Skin.SetBool({setting_id})")
 
 
 def toggle_bool(setting_id: str):
@@ -317,7 +304,7 @@ def json_call(
         "jsonrpc": "2.0",
         "id": 1,
         "method": method,
-        "params": {},
+        "params": dict(params) if params else {},
     }
 
     for key, value in [
@@ -332,9 +319,6 @@ def json_call(
 
     if limit is not None:
         json_string["params"]["limits"] = {"start": 0, "end": int(limit)}
-
-    if params is not None:
-        json_string["params"].update(params)
 
     jsonrpc_call = json.dumps(json_string, ensure_ascii=False)
     result = json.loads(xbmc.executeJSONRPC(jsonrpc_call))
@@ -393,6 +377,7 @@ def expand_index(index_obj: dict[str, Any]) -> list[str]:
     """
     if not index_obj:
         return []
+    
     try:
         keys = {k.lstrip("@"): v for k, v in index_obj.items()}
         start = int(keys["start"])
@@ -400,11 +385,12 @@ def expand_index(index_obj: dict[str, Any]) -> list[str]:
         step = int(keys.get("step", 1))
         return [str(i) for i in range(start, end, step)]
     except (KeyError, TypeError, ValueError):
+        log.debug(f"expand_index: Failed to expand {index_obj} — 'end' is required")
         return []
 
 
 def return_label(
-    label: str = infolabel("ListItem.Label"),
+    label: str | None,
     *,
     find: str = ".",
     replace: str = " ",
@@ -413,11 +399,14 @@ def return_label(
     """
     Replaces a specific character in a label with another character.
 
-    :param label: Input string (defaults to ListItem.Label).
+    :param label: Input string (defaults to ListItem.Label if None).
     :param find: Character to replace.
     :param replace: Replacement character.
     :return: Cleaned-up label.
     """
+    if label is None:
+        label = infolabel("ListItem.Label")
+
     find = urllib.unquote(find)
     replace = urllib.unquote(replace)
     return label.replace(find, replace, label.count(find))

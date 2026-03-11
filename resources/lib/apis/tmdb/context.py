@@ -30,7 +30,8 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
         if not tmdb_id and tvshow_dbid:
             response = json_call(
                 "VideoLibrary.GetTVShowDetails",
-                params={"tvshowid": tvshow_dbid, "properties": ["uniqueid"]},
+                params={"tvshowid": tvshow_dbid}, 
+                properties=["uniqueid"],
                 parent="resolve_tmdb_context",
             )
             uniqueid = (

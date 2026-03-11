@@ -3,11 +3,11 @@
 import json
 import sqlite3
 import time
-from typing import Mapping, Any
+from typing import Any, Mapping
 
 from resources.lib.art import policy
+from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import LOOKUPS
-
 
 TMDB_DB_SCHEMA: tuple[tuple[str, str], ...] = (
     ("dbtype", "TEXT NOT NULL"),
@@ -104,21 +104,19 @@ class SQLiteHandler:
 
     def _get_one(
         self,
-        table: str,
         where: str,
         params: tuple[Any, ...],
     ) -> dict[str, Any] | None:
         """
         Fetch a single row from a table.
 
-        :param table: SQL table name.
         :param where: SQL WHERE clause (without the WHERE keyword).
         :param params: SQL parameters for the WHERE clause.
         :return: Row dict if found, else None.
         """
         with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {table} WHERE {where}", params)
+            cursor.execute(f"SELECT * FROM {self.TABLE_NAME} WHERE {where}", params)
             row = cursor.fetchone()
             if not row:
                 return None
@@ -200,7 +198,6 @@ class ArtworkCacheHandler(SQLiteHandler):
         :return: Cached record dict, or None.
         """
         return self._get_one(
-            table=self.TABLE_NAME,
             where="cache_key = ?",
             params=(cache_key,),
         )
@@ -238,6 +235,9 @@ class ArtworkCacheHandler(SQLiteHandler):
                 conn.commit()
                 return cur.rowcount or 0
         except Exception:
+            log.debug(
+                f"{self.__class__.__name__}: update_fields failed for {cache_key=}"
+            )
             return 0
 
     def update_field(self, cache_key: str, column: str, value: Any) -> int:
@@ -305,7 +305,6 @@ class TmdbCacheHandler(SQLiteHandler):
         :return: Cached TMDb record or None.
         """
         row = self._get_one(
-            table=self.TABLE_NAME,
             where="dbtype = ? AND tmdb_id = ? AND language = ?",
             params=(dbtype, tmdb_id, language),
         )
@@ -313,7 +312,13 @@ class TmdbCacheHandler(SQLiteHandler):
             return None
 
         now = int(time.time())
-        if now - int(row["fetched_at"]) > self.TTL_SECONDS:
+        try:
+            fetched_at = int(row["fetched_at"])
+        except (TypeError, ValueError):
+            self.delete_entry(dbtype, tmdb_id, language)
+            return None
+
+        if now - fetched_at > self.TTL_SECONDS:
             self.delete_entry(dbtype, tmdb_id, language)
             return None
 

@@ -34,6 +34,7 @@ def parse_inset(s: str | None) -> tuple[int, int, int, int]:
     elif len(parts) >= 4:
         l, t, r, b = parts[:4]
     else:
+        log.debug(f"parse_inset: unexpected {len(parts)}-value inset '{s}'; using 0")
         l = t = r = b = 0
     return l, t, r, b
 
@@ -70,7 +71,6 @@ def resolve_rect(
     :param window: Kodi window object for control lookup.
     :param coords: CSV "x,y,w,h" absolute override (highest priority).
     :param anchor_id: Control to derive (x,y,w,h) from if coords not provided.
-    :param adjust_fn: Optional transform on the resolved rect.
     :param caller_name: Used for DEFAULT_COORDS lookup and logs.
     :return: (x, y, w, h) rect.
     """
@@ -78,8 +78,10 @@ def resolve_rect(
 
     if coords:
         try:
-            return tuple(map(int, coords.split(",")))
-
+            parts = tuple(map(int, coords.split(",")))
+            if len(parts) == 4:
+                return parts        
+            log.debug(f"{name}: coords '{coords}' has {len(parts)} elements, expected 4")
         except Exception as exc:
             log.debug(f"{name}: Invalid coords '{coords}': {exc}")
 
@@ -108,41 +110,17 @@ def axis_travel(start: int, span: int, item_size: int, fraction: float) -> int:
     return int(start + clamp(fraction, 0.0, 1.0) * travel)
 
 
-def center_x(posx: int, width: int, w: int, offset: int = 0) -> int:
-    """
-    Center a width 'w' inside (posx,width).
-
-    :param posx: Track x.
-    :param width: Track width.
-    :param w: Item width.
-    :param offset: Optional nudge.
-    :return: Centered x.
-    """
-    return int(posx + (width - w) / 2) + (offset or 0)
-
-
-def center_y(posy: int, height: int, h: int, offset: int = 0) -> int:
-    """
-    Center a height 'h' inside (posy,height).
-
-    :param posy: Track y.
-    :param height: Track height.
-    :param h: Item height.
-    :param offset: Optional nudge.
-    :return: Centered y.
-    """
-    return int(posy + (height - h) / 2) + (offset or 0)
-
-
 def align_x(posx: int, width: int, w: int, align: str = "center", pad: int = 0) -> int:
     """
-    Align width 'w' in a track on X.
+    Align width 'w' inside a horizontal track.
+    For left/right, pad is inward spacing from the edge.
+    For center, pad is a directional nudge (positive = rightward).
 
     :param posx: Track x.
     :param width: Track width.
     :param w: Item width.
     :param align: left|center|right.
-    :param pad: Padding offset.
+    :param pad: Edge inset (left/right) or center nudge (center).
     :return: Aligned x.
     """
     a = (align or "center").lower()
@@ -150,18 +128,20 @@ def align_x(posx: int, width: int, w: int, align: str = "center", pad: int = 0) 
         return posx + (pad or 0)
     if a == "right":
         return posx + max(0, width - w - (pad or 0))
-    return center_x(posx, width, w, pad or 0)
+    return int(posx + (width - w) / 2) + (pad or 0)
 
 
 def align_y(posy: int, height: int, h: int, align: str = "center", pad: int = 0) -> int:
     """
-    Align height 'h' in a track on Y.
+    Align height 'h' inside a vertical track.
+    For top/bottom, pad is inward spacing from the edge.
+    For center, pad is a directional nudge (positive = downward).
 
     :param posy: Track y.
     :param height: Track height.
     :param h: Item height.
     :param align: top|center|bottom.
-    :param pad: Padding offset.
+    :param pad: Edge inset (top/bottom) or center nudge (center).
     :return: Aligned y.
     """
     a = (align or "center").lower()
@@ -169,7 +149,7 @@ def align_y(posy: int, height: int, h: int, align: str = "center", pad: int = 0)
         return posy + (pad or 0)
     if a == "bottom":
         return posy + max(0, height - h - (pad or 0))
-    return center_y(posy, height, h, pad or 0)
+    return int(posy + (height - h) / 2) + (pad or 0)
 
 
 @dataclass(slots=True)
@@ -235,6 +215,11 @@ def compute_rect(
 ) -> tuple[int, int, int, int]:
     """
     Resolve and fit a rect using PlacementOpts.
+    Inside placement (default): align target_w/target_h within the inset rect,
+    clamping to the rect bounds if target exceeds them.
+
+    Outside placement (outside=below|above|left|right): position target adjacent
+    to the raw anchor rect. Inset is not applied in this mode.
 
     :param window: Kodi window object.
     :param caller_name: For DEFAULT_COORDS and logs.
@@ -266,24 +251,32 @@ def compute_rect(
     # Outside placement if requested
     mode = (opts.outside or "").lower()
     if mode and opts.anchor_id:
+        if opts.inset:
+            log.debug(
+                f"{caller_name}: 'inset' is ignored when 'outside' placement is active"
+            )
+
         if mode == "below":
             out_x = align_x(
                 anchor_x, anchor_w, target_w, align=opts.halign, pad=opts.hpad
             )
             out_y = anchor_y + anchor_h + (opts.vpad or 0)
             return out_x, out_y, target_w, target_h
+        
         if mode == "above":
             out_x = align_x(
                 anchor_x, anchor_w, target_w, align=opts.halign, pad=opts.hpad
             )
             out_y = anchor_y - (opts.vpad or 0) - target_h
             return out_x, out_y, target_w, target_h
+        
         if mode == "right":
             out_x = anchor_x + anchor_w + (opts.hpad or 0)
             out_y = align_y(
                 anchor_y, anchor_h, target_h, align=opts.valign, pad=opts.vpad
             )
             return out_x, out_y, target_w, target_h
+        
         if mode == "left":
             out_x = anchor_x - (opts.hpad or 0) - target_w
             out_y = align_y(
@@ -292,9 +285,20 @@ def compute_rect(
             return out_x, out_y, target_w, target_h
 
     # Inside placement (default)
+    if target_w > width:
+        log.debug(
+            f"{caller_name}: track_w ({target_w}) exceeds rect width ({width}); clamped"
+        )
+
     if target_w < width:
         posx = align_x(posx, width, target_w, align=opts.halign, pad=opts.hpad)
         width = target_w
+
+    if target_h > height:
+       log.debug(
+            f"{caller_name}: track_h ({target_h}) exceeds rect height ({height}); clamped"
+        )
+
     if target_h < height:
         posy = align_y(posy, height, target_h, align=opts.valign, pad=opts.vpad)
         height = target_h

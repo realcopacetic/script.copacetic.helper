@@ -102,8 +102,12 @@ def role_credits(
     Generic role-based credits fetcher for actors/directors/writers.
 
     :param field: VideoLibrary filter field ("actor", "director", "writer").
+    :param label: Actor/director/writer name to filter by.
+    :param filter_exclude: Optional exclusion filter dict appended to the filter list.
     :param sources: List of (method, media_type) pairs to query.
+    :param sort: Sort specification for JSON-RPC.
     :param parent: Parent name for logging.
+    :param tag_applier: Optional tag-applier for the VideoInfoTag.
     :param postprocess: Optional in-place mutator for the raw item list.
     :return: List of (file, ListItem, isFolder) tuples, or None if empty.
     """
@@ -149,7 +153,7 @@ def role_endpoint(
     :param postprocess: Optional in-place postprocessor for episode lists.
     :return: Wrapped handler returning directory items or None.
     """
-    def decorator(func: Callable) -> Callable[[Any], list[DirectoryItem | None]]:
+    def decorator(func: Callable) -> Callable[[Any], list[DirectoryItem] | None]:
         @wraps(func)
         def wrapper(self, *args, **kwargs) -> list[DirectoryItem] | None:
             set_plugincontent(
@@ -218,5 +222,5 @@ class TvShowHelper:
             "episodes": total,
             "watchedepisodes": watched,
             "unwatchedepisodes": max(total - watched, 0),
-            "watchedpercent": int((total and watched / total or 0) * 100),
+            "watchedpercent": int(watched / total * 100) if total else 0,
         }

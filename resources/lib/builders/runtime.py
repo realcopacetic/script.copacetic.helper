@@ -11,7 +11,9 @@ class RuntimeStateManager:
     Uses UUIDs for stable, position-independent item identifiers.
     """
 
-    def __init__(self, mappings, configs_path, runtime_state_path):
+    def __init__(
+        self, mappings: dict, configs_path: str, runtime_state_path: str
+    ) -> None:
         """
         Initializes RuntimeStateManager with provided JSON paths and mappings.
 
@@ -25,25 +27,25 @@ class RuntimeStateManager:
         self._runtime_state_cache = None
 
     @property
-    def mappings(self):
+    def mappings(self) -> dict:
         """
         Retrieve merged mapping definitions.
 
-        return: Dict of mapping configurations.
+        :return: Dict of mapping configurations.
         """
         return self._mappings
 
     @property
-    def configs_data(self):
+    def configs_data(self) -> dict:
         """
         Get flattened configs.json entries.
 
-        return: Dict of setting_id → config data.
+        :return: Dict of setting_id → config data.
         """
         return next(iter(self.configs_handler.data.values()), {})
 
     @property
-    def runtime_state(self):
+    def runtime_state(self) -> dict:
         """
         Load and return the current runtime state. Uses an in-memory cache
         to avoid redundant disk reads; cache is invalidated after writes.
@@ -57,7 +59,16 @@ class RuntimeStateManager:
             )
         return self._runtime_state_cache
 
-    def _write_and_invalidate(self, state):
+    @property
+    def exists(self) -> bool:
+        """
+        Check if runtime_state.json exists on disk.
+
+        :return: True if file exists, False otherwise.
+        """
+        return self.runtime_state_handler.exists
+
+    def _write_and_invalidate(self, state: dict) -> None:
         """
         Write state to disk and invalidate the in-memory cache.
 
@@ -66,14 +77,9 @@ class RuntimeStateManager:
         self.runtime_state_handler.write_json(state)
         self._runtime_state_cache = None
 
-    @property
-    def exists(self):
-        """
-        Check if runtime_state.json exists on disk.
-
-        :return: True if file exists, False otherwise.
-        """
-        return self.runtime_state_handler.exists
+    def reload_state(self) -> None:
+        """Discard cached state so next access re-reads from disk."""
+        self._runtime_state_cache = None
 
     def _resolve_default(self, cfg_key: str) -> str | None:
         """
@@ -86,7 +92,7 @@ class RuntimeStateManager:
         cfg = self.configs_data.get(cfg_key, {})
         return cfg.get("default") or next(iter(cfg.get("items", [])), None)
 
-    def _build_default_entry(self, mapping_key, item):
+    def _build_default_entry(self, mapping_key: str, item: str) -> dict:
         """
         Build the default entry for a single mapping_item.
 
@@ -96,9 +102,11 @@ class RuntimeStateManager:
         """
         placeholders = self.mappings[mapping_key]["placeholders"]
         config_fields = self.mappings[mapping_key].get("config_fields", {})
+        metadata = self.mappings[mapping_key].get("metadata", {}).get(item, {})
         return {
             "runtime_id": str(uuid.uuid4()),
             "mapping_item": item,
+            **metadata,
             **{
                 field: self._resolve_default(
                     template.format(**{placeholders["key"]: item})
@@ -107,62 +115,58 @@ class RuntimeStateManager:
             },
         }
 
-    def initialize_runtime_state(self):
+    def initialize_runtime_state(self) -> None:
         """
-        Create runtime_state.json from defaults if not already present.
+        Create runtime_state.json from defaults if not present,
+        or add missing mapping entries to an existing file.
         """
-        if self.exists:
-            return
-
-        runtime_state = {
+        state = self.runtime_state if self.exists else {}
+        missing = {
             mapping_key: [
                 self._build_default_entry(mapping_key, item)
                 for item in mapping.get("default_order", [])
             ]
             for mapping_key, mapping in self.mappings.items()
-            if "config_fields" in mapping
+            if "config_fields" in mapping and mapping_key not in state
         }
+        if missing or not self.exists:
+            merged = {**state, **missing}
+            self._resolve_parent_refs(merged)
+            self._write_and_invalidate(merged)
 
-        self._write_and_invalidate(runtime_state)
-
-    def reset_runtime_state_for(self, mapping_key):
+    def _resolve_parent_refs(self, state: dict) -> None:
         """
-        Reset the runtime state for a single mapping group.
+        Replace mapping_item parent references with runtime_ids.
+        For each entry with a ``parent`` field whose value matches a
+        ``mapping_item`` string, substitute the corresponding ``runtime_id``.
+        If multiple mappings share a ``mapping_item`` name, the first
+        encountered match wins. This is safe as long as parent references
+        always target a different mapping group than their own.
 
-        :param mapping_key: The group key to reset (e.g. 'widgets').
+        :param state: Full runtime state dict, mutated in place.
         """
-        state = self.runtime_state
-        mapping = self.mappings.get(mapping_key)
-        if not mapping or "config_fields" not in mapping:
-            return
+        # Build global lookup: mapping_item → runtime_id (first match wins)
+        item_to_id = {}
+        for entries in state.values():
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                mi = entry.get("mapping_item")
+                if mi and mi not in item_to_id:
+                    item_to_id[mi] = entry["runtime_id"]
 
-        default_order = mapping.get("default_order", [])
-        state[mapping_key] = [
-            self._build_default_entry(mapping_key, item) for item in default_order
-        ]
-        self._write_and_invalidate(state)
+        # Resolve parent refs
+        for entries in state.values():
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                parent = entry.get("parent")
+                if parent and parent in item_to_id:
+                    entry["parent"] = item_to_id[parent]
 
-    def update_runtime_setting(self, mapping_key, index, setting_name, value):
-        """
-        Update a field in a runtime state entry.
-
-        :param mapping_key: The mapping group key.
-        :param index: Position in the state list.
-        :param setting_name: Field to update.
-        :param value: New value to set.
-        """
-        state = self.runtime_state
-        mapping_list = state.setdefault(mapping_key, [])
-
-        if index >= len(mapping_list):
-            raise IndexError(
-                f"{self.__class__.__name__}: Index '{index}' out of range for mapping '{mapping_key}'."
-            )
-
-        mapping_list[index][setting_name] = value
-        self._write_and_invalidate(state)
-
-    def get_runtime_setting(self, mapping_key, index, setting_name):
+    def get_runtime_setting(
+        self, mapping_key: str, index: int, setting_name: str
+    ) -> str:
         """
         Retrieve a value from a runtime state entry.
 
@@ -186,7 +190,7 @@ class RuntimeStateManager:
 
         return instance[setting_name]
 
-    def format_metadata(self, mapping_key, index, template):
+    def format_metadata(self, mapping_key: str, index: int, template: str) -> str:
         """
         Substitute metadata placeholders in a template string.
 
@@ -216,17 +220,59 @@ class RuntimeStateManager:
         except Exception:
             return template
 
-    def insert_mapping_item(self, mapping_key, mapping_item, index=None):
+    def update_runtime_setting(
+        self, mapping_key: str, index: int, setting_name: str, value: str
+    ) -> None:
+        """
+        Update a field in a runtime state entry.
+
+        :param mapping_key: The mapping group key.
+        :param index: Position in the state list.
+        :param setting_name: Field to update.
+        :param value: New value to set.
+        """
+        self.update_runtime_settings_batch(mapping_key, index, {setting_name: value})
+
+    def update_runtime_settings_batch(
+        self, mapping_key: str, index: int, updates: dict[str, str]
+    ) -> None:
+        """
+        Update multiple fields on a single runtime state entry in one write.
+
+        :param mapping_key: The mapping group key.
+        :param index: Position in the state list.
+        :param updates: Dict of field_name → value pairs to set.
+        """
+        state = self.runtime_state
+        mapping_list = state.setdefault(mapping_key, [])
+
+        if index >= len(mapping_list):
+            raise IndexError(
+                f"{self.__class__.__name__}: Index '{index}' out of range "
+                f"for mapping '{mapping_key}'."
+            )
+
+        mapping_list[index].update(updates)
+        self._write_and_invalidate(state)
+
+    def insert_mapping_item(
+        self, mapping_key: str, mapping_item: str, index: int | None = None,
+        extra_fields: dict[str, str] | None = None,
+    ) -> dict:
         """
         Insert a new mapping_item at the given position.
 
         :param mapping_key: The mapping group key.
-        :param index: Position to insert at.
-        :param item: The new mapping_item identifier.
+        :param mapping_item: The mapping_item identifier to insert.
+        :param index: Position to insert at, or None to append.
+        :param extra_fields: Additional fields to set on the new entry before writing.
+        :return: The newly created entry dict.
         """
         state = self.runtime_state
         lst = state.setdefault(mapping_key, [])
         new_entry = self._build_default_entry(mapping_key, mapping_item)
+        if extra_fields:
+            new_entry.update(extra_fields)
 
         if index is None:
             lst.append(new_entry)
@@ -236,7 +282,7 @@ class RuntimeStateManager:
         self._write_and_invalidate(state)
         return new_entry
 
-    def delete_mapping_item(self, mapping_key, index):
+    def delete_mapping_item(self, mapping_key: str, index: int) -> None:
         """
         Remove a mapping_item from the state list.
 
@@ -248,15 +294,79 @@ class RuntimeStateManager:
         lst.pop(index)
         self._write_and_invalidate(state)
 
-    def swap_mapping_items(self, mapping_key, a, b):
+    def swap_mapping_items(self, mapping_key: str, a: int, b: int) -> None:
         """
         Swap two entries in the state list.
 
         :param mapping_key: The mapping group key.
-        :param i: First index.
-        :param j: Second index.
+        :param a: First index.
+        :param b: Second index.
         """
         state = self.runtime_state
         lst = state.get(mapping_key, [])
         lst[a], lst[b] = lst[b], lst[a]
         self._write_and_invalidate(state)
+
+    def reset_runtime_state_for(self, mapping_key: str) -> None:
+        """
+        Reset the runtime state for a single mapping group.
+
+        :param mapping_key: The group key to reset (e.g. 'widgets').
+        """
+        state = self.runtime_state
+        mapping = self.mappings.get(mapping_key)
+        if not mapping or "config_fields" not in mapping:
+            return
+
+        old_entries = state.get(mapping_key, [])
+        old_ids = {e["runtime_id"]: e["mapping_item"] for e in old_entries}
+
+        default_order = mapping.get("default_order", [])
+        state[mapping_key] = [
+            self._build_default_entry(mapping_key, item) for item in default_order
+        ]
+        new_ids = {e["runtime_id"] for e in state[mapping_key]}
+
+        # Remap surviving parents (old→new via matching mapping_item)
+        new_by_item = {e["mapping_item"]: e["runtime_id"] for e in state[mapping_key]}
+        remap = {
+            old_id: new_by_item[mi]
+            for old_id, mi in old_ids.items()
+            if mi in new_by_item
+        }
+
+        # Reparent or delete children across all other mappings
+        for key, entries in state.items():
+            if key == mapping_key or not isinstance(entries, list):
+                continue
+            state[key] = [
+                {**e, "parent": remap[e["parent"]]}
+                if e.get("parent") in remap
+                else e
+                for e in entries
+                if e.get("parent") not in old_ids or e.get("parent") in remap
+            ]
+
+        self._resolve_parent_refs(state)
+        self._write_and_invalidate(state)
+
+    def delete_orphans(self, parent_mapping: str, child_mapping: str) -> int:
+        """
+        Remove entries in child_mapping whose parent field doesn't
+        match any runtime_id in parent_mapping.
+
+        :param parent_mapping: The mapping key for parent entries.
+        :param child_mapping: The mapping key for child entries.
+        :return: Number of entries removed.
+        """
+        state = self.runtime_state
+        parent_ids = {
+            entry["runtime_id"] for entry in state.get(parent_mapping, [])
+        }
+        children = state.get(child_mapping, [])
+        cleaned = [c for c in children if c.get("parent") in parent_ids]
+        removed = len(children) - len(cleaned)
+        if removed:
+            state[child_mapping] = cleaned
+            self._write_and_invalidate(state)
+        return removed

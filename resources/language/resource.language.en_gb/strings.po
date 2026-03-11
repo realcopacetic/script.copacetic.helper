@@ -21,6 +21,7 @@ msgstr ""
 #: SERVICE            322XX
 #: SCRIPT             324XX
 #: PLUGIN             326XX
+#: WINDOWS            328XX
 
 
 
@@ -127,12 +128,12 @@ msgstr ""
 
 #########################################################################################################
 
-#: /resources/lib/utilities.py, /resources/lib/script/acions.py
+#: /resources/lib/utilities.py, /resources/lib/script/actions.py
 msgctxt "#32201"
 msgid "Cropped cache cleared"
 msgstr ""
 
-#: /resources/lib/utilities.py, /resources/lib/script/acions.py
+#: /resources/lib/utilities.py, /resources/lib/script/actions.py
 msgctxt "#32202"
 msgid "saved"
 msgstr ""
@@ -147,12 +148,12 @@ msgctxt "#32204"
 msgid "settings changed"
 msgstr ""
 
-#: /resources/lib/script/acions.py
+#: /resources/lib/script/actions.py
 msgctxt "#32205"
 msgid "Disabled"
 msgstr ""
 
-#: /resources/lib/script/acions.py
+#: /resources/lib/script/actions.py
 msgctxt "#32206"
 msgid "Enabled"
 msgstr ""
@@ -165,22 +166,101 @@ msgstr ""
 
 #########################################################################################################
 
-#: /resources/lib/content.py
+#: /resources/lib/plugin/listing.py
 msgctxt "#32600"
 msgid "Next up"
 msgstr ""
 
-#: /resources/lib/content.py
+#: /resources/lib/plugin/listing.py
 msgctxt "#32601"
 msgid "Continue watching"
 msgstr ""
 
-#: /resources/lib/content.py
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32602"
 msgid "Director credits"
 msgstr ""
 
-#: /resources/lib/content.py
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32603"
 msgid "Actor credits"
+msgstr ""
+
+#: /resources/lib/plugin/listing.py, /resources/lib/plugin/handlers.py
+msgctxt "#32604"
+msgid "Writer credits"
+msgstr ""
+
+
+
+#########################################################################################################
+
+#: WINDOWS           328XX
+#: Browse content dialog and Dynamic Editor strings
+
+#########################################################################################################
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32824"
+msgid "Add item..."
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32804"
+msgid "Custom path..."
+msgstr ""
+
+#: /resources/lib/windows/browse.py — navigation and status labels
+msgctxt "#32809"
+msgid "Use this path"
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32810"
+msgid "My playlists"
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32811"
+msgid "Skin playlists"
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32812"
+msgid "Finding playlists..."
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32813"
+msgid "No playlists found"
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32814"
+msgid "No favourites found"
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32815"
+msgid "Getting directory listing..."
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32816"
+msgid "Enter content path"
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32817"
+msgid "Select content"
+msgstr ""
+
+#: /resources/lib/windows/browse.py — menu-mode extra source labels
+msgctxt "#32818"
+msgid "Common"
+msgstr ""
+
+#: /resources/lib/windows/browse.py
+msgctxt "#32819"
+msgid "Kodi commands"
 msgstr ""

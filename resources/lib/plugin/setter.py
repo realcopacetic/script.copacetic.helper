@@ -148,6 +148,10 @@ def apply_videoinfotag(
             else:
                 setter(str(value))
         except Exception:
+            log.debug(
+                f"apply_videoinfotag: Failed to set {key}={value!r} "
+                f"(type={coerce_type})"
+            )
             continue
 
     resume = item.get("resume")
@@ -176,4 +180,7 @@ def apply_videoinfotag(
             try:
                 add_method(detail_cls(**s))
             except TypeError:
+                log.debug(
+                    f"apply_videoinfotag: Bad {kind} stream detail: {s!r}"
+                )
                 continue

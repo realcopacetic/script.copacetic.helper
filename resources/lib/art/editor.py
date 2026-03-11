@@ -248,6 +248,7 @@ class ImageEditor:
         :return: Delta dict of produced fields, or None on failure.
         """
         processed_path = None
+        image = None
         process_method = getattr(self.processor, process, None)
         if not process_method:
             return None
@@ -266,11 +267,19 @@ class ImageEditor:
         else:
             source_path = str(ctx.cached_image_path)
             if not validate_path(source_path):
-                return None
+                # Texture cache miss — try reusing an image already opened
+                # by a prior step (e.g. blur opened via temp file).
+                cached_images = shared["image_cache"].get(art_type, {})
+                if cached_images:
+                    source_path, image = next(iter(cached_images.items()))
+                else:
+                    return None
 
-        image = shared["image_cache"][art_type].get(source_path) or self._image_open(
-            source_path
-        )
+        if image is None:
+            image = shared["image_cache"][art_type].get(source_path) or self._image_open(
+                source_path
+            )
+
         if image is None:
             return None
 

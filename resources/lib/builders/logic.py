@@ -1,6 +1,8 @@
 # author: realcopacetic
 
 import re
+
+from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import condition
 
 
@@ -31,21 +33,21 @@ class RuleEngine:
         """Initializes the RuleEngine with an empty condition cache."""
         self.condition_cache = {}
 
-    def evaluate(self, condition, runtime=False):
+    def evaluate(self, condition_str, runtime=False):
         """
         Evaluates a condition string, using cached results if available.
 
-        :param condition: The condition string to evaluate.
+        :param condition_str: The condition string to evaluate.
         :param runtime: If True, disables result caching.
         :return: Boolean result of the evaluated condition.
         """
-        if not runtime and condition in self.condition_cache:
-            return self.condition_cache[condition]
+        if not runtime and condition_str in self.condition_cache:
+            return self.condition_cache[condition_str]
 
-        result = self._evaluate_condition(condition)
+        result = self._evaluate_condition(condition_str)
 
         if not runtime:
-            self.condition_cache[condition] = result
+            self.condition_cache[condition_str] = result
 
         return result
 
@@ -65,6 +67,10 @@ class RuleEngine:
 
         # Native Kodi XML boolean expression in format xml()
         if condition_str.lower().startswith("xml("):
+            if not condition_str.endswith(")"):
+                log.debug(f"RuleEngine: Malformed xml() condition: {condition_str}")
+                return False
+            
             inner = condition_str[4:-1].strip()
             return condition(inner)
 
@@ -74,6 +80,9 @@ class RuleEngine:
             inner = condition_str[8:-1].strip()
             if inner.isdigit():
                 return condition(f"Control.HasFocus({inner})")
+            
+            # Non-numeric focused() args (e.g. "movies_item") are resolved
+            # at runtime by the Dynamic Editor, not at build time.
             return False
 
         # Use regex matching for all other conditions.
@@ -98,6 +107,8 @@ class RuleEngine:
         :param values_dict: Dictionary of expression values to invert.
         :return: A Kodi-formatted inversion expression string.
         """
+        # "true" entries are filtered because they represent unconditional visibility;
+        # the fallback system assumes at most one expression per group is "true".
         values = [v for v in values_dict.values() if v and v != "false" and v != "true"]
 
         return "true" if not values else f"![{ ' | '.join(values) }]"

@@ -250,8 +250,6 @@ def pick_best_trailer(value: Any) -> str:
     """
     if not isinstance(value, list) or not value:
         return ""
-    
-    log.debug(f'FUCK DEBUG trailers {value=}')
 
     def score(item: Mapping[str, Any]) -> tuple[int, int, int, str]:
         site = str(item.get("site", "")).lower()
@@ -275,7 +273,9 @@ def pick_best_trailer(value: Any) -> str:
     if site == "youtube":
         return f"{YOUTUBE_PLUGIN_BASE}{key}"
 
-    return str(key)
+    # Non-YouTube sources have no plugin handler; skip them.
+    log.debug(f"pick_best_trailer → skipping non-YouTube source: {site}")
+    return ""
 
 
 def build_tmdb_image_url(path: str | None, size: str = "original") -> str:

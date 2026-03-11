@@ -251,6 +251,11 @@ def json_to_canonical(
         if json_key not in raw:
             continue
 
+        # For episodes, store tvshowid as a property isntead of overwriting DbId
+        if json_key == "tvshowid" and content_type == "episode":
+            item["properties"]["tvshowid"] = str(raw[json_key])
+            continue
+
         canonical = JSON_FIELD_MAP.get(json_key)
         if canonical is None:
             continue

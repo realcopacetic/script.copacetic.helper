@@ -86,6 +86,39 @@ def dialog_yesno(heading, message, **kwargs):
 
 
 @action
+def delete_orphans(parent_mapping, child_mapping, **kwargs):
+    """
+    Remove child entries whose parent doesn't match any entry
+    in the parent mapping. Triggers a runtime rebuild if any
+    entries were removed.
+    """
+    from pathlib import Path
+    from resources.lib.builders.builder_config import BUILDER_MAPPINGS
+    from resources.lib.builders.runtime import RuntimeStateManager
+    from resources.lib.shared.json import JSONMerger
+    from resources.lib.shared.utilities import CONFIGS, RUNTIME_STATE, SKINEXTRAS
+
+    mapping_merger = JSONMerger(
+        base_folder=Path(SKINEXTRAS) / "builders",
+        subfolders=["custom_mappings"],
+        grouping_key=None,
+    )
+    mappings = {**BUILDER_MAPPINGS, **dict(mapping_merger.cached_merged_data)}
+    manager = RuntimeStateManager(
+        mappings=mappings,
+        configs_path=CONFIGS,
+        runtime_state_path=RUNTIME_STATE,
+    )
+
+    removed = manager.delete_orphans(parent_mapping, child_mapping)
+    if removed:
+        from resources.lib.builders.build_elements import BuildElements
+
+        BuildElements(run_context="runtime")
+        log.execute("ReloadSkin()")
+
+
+@action
 def globalsearch_input(**kwargs):
     """
     Prompts the user for a global search query and activates the search window.
@@ -98,7 +131,7 @@ def globalsearch_input(**kwargs):
     if kb.isConfirmed():
         text = kb.getText()
         skin_string("globalsearch", value=text)
-        xbmc.executebuiltin("ActivateWindow(1180)")
+        log.execute("ActivateWindow(1180)")
 
 
 @action
@@ -122,7 +155,7 @@ def hex_contrast_check(**kwargs):
         luminosity = image.return_luminosity(rgb)
         best_contrast = "dark" if luminosity > 0.179 else "light"
 
-        xbmc.executebuiltin(f"Skin.SetString(Accent_Color_Contrast,{best_contrast})")
+        log.execute(f"Skin.SetString(Accent_Color_Contrast,{best_contrast})")
 
 
 @action
@@ -405,11 +438,15 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
             try:
                 index = subtitles.index(lang)
             except ValueError as error:
-                log.debug(f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",)
+                log.debug(
+                    f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",
+                )
                 log.execute("Action(NextSubtitle)")
             else:
                 player.setSubtitleStream(index)
-                log.debug(f"subtitle_limiter: Switching to subtitle stream {index} in preferred language: {lang}")
+                log.debug(
+                    f"subtitle_limiter: Switching to subtitle stream {index} in preferred language: {lang}"
+                )
         elif condition("VideoPlayer.SubtitlesEnabled") and user_trigger:
             log.execute("Action(ShowSubtitles)")
     else:
@@ -449,9 +486,11 @@ def dynamic_settings_window(**kwargs):
     from resources.lib.windows.dynamiceditor import DynamicEditor
 
     name = kwargs.get("name", "dynamic_window")
+    parent = kwargs.get("parent")
     window_property(name, value="true")
 
     myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
+    myWindow.parent_filter = parent
     myWindow.doModal()
     del myWindow
 
@@ -461,8 +500,7 @@ def rebuild(**kwargs):
     """ """
     from resources.lib.builders.build_elements import BuildElements
 
-    builder = BuildElements(run_context=kwargs.get("context", "runtime"))
-    builder.process()
+    BuildElements(run_context=kwargs.get("context", "runtime"))
     log.execute("ReloadSkin()")
 
 
@@ -519,7 +557,7 @@ def widget_move(posa, posb, **kwargs):
             if condition(f"Skin.HasSetting(Widget{item[0]}_Content_{content})"):
                 # capture value of bool then reset it in Kodi
                 item[1]["Content"] = content
-                xbmc.executebuiltin(f"Skin.Reset(Widget{item[0]}_Content_{content})")
+                log.execute(f"Skin.Reset(Widget{item[0]}_Content_{content})")
                 break
         for key, value in item[1].items():
             if type(value) == str and not value:
@@ -528,15 +566,13 @@ def widget_move(posa, posb, **kwargs):
                 if condition(f"Skin.HasSetting(Widget{item[0]}_{key})"):
                     # capture value of bool then reset it in Kodi
                     item[1][key] = True
-                    xbmc.executebuiltin(f"Skin.Reset(Widget{item[0]}_{key})")
+                    log.execute(f"Skin.Reset(Widget{item[0]}_{key})")
     # swap values
     swapped_list = [(posa, dicb), (posb, dica)]
     for item in swapped_list:
-        xbmc.executebuiltin(
-            f'Skin.ToggleSetting(Widget{item[0]}_Content_{item[1]["Content"]})'
-        )
+        log.execute(f'Skin.ToggleSetting(Widget{item[0]}_Content_{item[1]["Content"]})')
         for key, value in item[1].items():
             if type(value) == str:
                 skin_string(f"Widget{item[0]}_{key}", value=value)
             elif type(value) == bool and value and "Content" not in key:
-                xbmc.executebuiltin(f"Skin.ToggleSetting(Widget{item[0]}_{key})")
+                log.execute(f"Skin.ToggleSetting(Widget{item[0]}_{key})")
