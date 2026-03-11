@@ -194,6 +194,8 @@ class BaseControlHandler:
     def _set_setting_value(self, value):
         """
         Set a new value for this control at the given list index.
+        Notifies the parent editor if a skin string was changed,
+        so it knows to rebuild on close.
 
         :param value: The new value to store.
         """
@@ -209,6 +211,8 @@ class BaseControlHandler:
                         pass
                 else:
                     skin_string(cfg, value)
+                    if hasattr(self, "parent"):
+                        self.parent.skin_strings_changed = True
                 return
 
         try:
@@ -443,7 +447,7 @@ class ButtonHandler(BaseControlHandler):
                 result = result["path"]
 
             self._set_setting_value(result)
-            if self.control.get("role") == "preset_picker":
+            if self.control.get("role") == "item_picker":
                 self.parent._on_mapping_item_changed()
             else:
                 self.parent._refresh_ui()
