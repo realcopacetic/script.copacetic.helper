@@ -19,6 +19,7 @@ def fetch_and_add(
     parent: str,
     tag_applier: TagApplier | None,
     params: dict[str, Any] | None = None,
+    limit: int | None = None,
     postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> list[DirectoryItem]:
     """
@@ -30,16 +31,24 @@ def fetch_and_add(
     :param sort: Sort specification for JSON-RPC.
     :param parent: Parent name for logging.
     :param tag_applier: Optional tag-applier for the VideoInfoTag.
+    :param limit: Optional maximum number of items to fetch.
     :param postprocess: Optional in-place mutator for the raw item list.
     :param params: Optional extra params to pass to JSON-RPC.
     :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
     """
+    properties = JSON_PROPERTIES.get(media_type)
+    if properties is None:
+        raise ValueError(
+            f"fetch_and_add: unknown media_type {media_type!r}"
+        )
+
     q = json_call(
         method,
-        properties=JSON_PROPERTIES.get(media_type, []),
+        properties=properties,
         sort=sort,
         query_filter={"and": filters},
         params=params or {},
+        limit=limit,
         parent=parent,
     )
     items = q.get("result", {}).get(f"{media_type}s", []) or []

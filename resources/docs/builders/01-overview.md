@@ -115,7 +115,7 @@ All builder input files live under the skin's `extras/builders/` directory:
 ```
 extras/
 └── builders/
-    ├── custom_mappings/       ← Custom mapping definitions (JSON)
+    ├── mappings/              ← Custom mapping definitions (JSON)
     ├── configs/               ← Configs builder inputs (JSON)
     ├── controls/              ← Controls builder inputs (JSON)
     ├── variables/             ← Variables builder inputs (JSON)

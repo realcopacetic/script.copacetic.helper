@@ -426,6 +426,7 @@ class ButtonHandler(BaseControlHandler):
         "browse_single": OnClickActions.browse_single,
         "browse_multiple": OnClickActions.browse_multiple,
         "browse_content": OnClickActions.browse_content,
+        "browse_image": OnClickActions.browse_image,
         "colorpicker": OnClickActions.colorpicker,
         "input": OnClickActions.input,
         "numeric": OnClickActions.numeric,
@@ -454,6 +455,7 @@ class ButtonHandler(BaseControlHandler):
             "mode",
             "sibling_fields",
             "result_field",
+            "folder",
         )
 
         # Fetch items, then resolve display labels from config labels, metadata, or title-case
@@ -508,6 +510,7 @@ class ButtonHandler(BaseControlHandler):
         action_type = {
             "browsesingle": "browse_single",
             "browsemultiple": "browse_multiple",
+            "browseimage": "browse_image",
         }.get(action_type, action_type)
 
         result = self.ACTIONS.get(action_type, OnClickActions.custom)(cfg)

@@ -1,10 +1,12 @@
 # author: realcopacetic
 
+from __future__ import annotations
+
 import json
-import urllib.parse
-import urllib.request
-from typing import Any, Iterable, Mapping, Sequence
-from urllib.error import HTTPError, URLError
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence
+
+if TYPE_CHECKING:
+    import urllib.request
 
 from resources.lib.apis.tmdb.fields import TMDB_PROPERTIES
 from resources.lib.shared import logger as log
@@ -187,6 +189,9 @@ class TmdbClient:
         :param params: Query parameters mapping.
         :return: Prepared urllib Request.
         """
+        import urllib.parse
+        import urllib.request
+
         request_params = {"language": self.language, **(params or {})}
         headers: dict[str, str] = {}
 
@@ -207,6 +212,8 @@ class TmdbClient:
     @staticmethod
     def _safe_url(url: str) -> str:
         """Strip api_key from URL for safe logging."""
+        import urllib.parse
+
         parsed = urllib.parse.urlparse(url)
         params = urllib.parse.parse_qs(parsed.query)
         if "api_key" in params:
@@ -222,6 +229,9 @@ class TmdbClient:
         :param params: Optional query parameters.
         :return: Parsed dict, or empty dict on failure.
         """
+        import urllib.request
+        from urllib.error import HTTPError, URLError
+
         request = self._build_request(path, params)
 
         try:

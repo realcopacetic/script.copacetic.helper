@@ -57,6 +57,31 @@ ART_DB_INDEXES: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 ART_DB_FIELDS: tuple[str, ...] = tuple(name for name, _ in ART_DB_SCHEMA)
 
+ART_FIELDS_INPUT: dict[str, tuple[str, ...]] = {
+    "crop": (),
+    "blur": (ART_FIELD_BLUR_RADIUS,),
+    "analyze": (),
+    "darken": (
+        ART_FIELD_DARKEN_MODE,
+        ART_FIELD_DARKEN_SOURCE,
+        ART_FIELD_DARKEN_RECTS,
+        ART_FIELD_DARKEN_FRAME,
+        ART_FIELD_DARKEN_STRENGTH,
+    ),
+}
+
+ART_FIELDS_RESULT: dict[str, tuple[str, ...]] = {
+    "crop": (ART_FIELD_PROCESSED,),
+    "blur": (ART_FIELD_PROCESSED, ART_FIELD_BLUR_RADIUS),
+    "analyze": (
+        ART_FIELD_COLOR,
+        ART_FIELD_ACCENT,
+        ART_FIELD_CONTRAST,
+        ART_FIELD_LUMINOSITY,
+    ),
+    "darken": (ART_FIELD_DARKEN,),
+}
+
 ART_LISTITEM_KEYS: tuple[str, ...] = (
     ART_FIELD_PROCESSED,
     ART_FIELD_BLUR_RADIUS,

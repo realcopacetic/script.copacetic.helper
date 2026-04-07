@@ -211,7 +211,7 @@ This is a dict-of-lists mapping that models the relationship between Kodi window
 
 ### Custom mappings
 
-Skinners can define additional mappings by placing JSON files in `extras/builders/custom_mappings/`. Each file is a top-level object where keys are mapping names and values are mapping definitions:
+Skinners can define additional mappings by placing JSON files in `extras/builders/mappings/`. Each file is a top-level object where keys are mapping names and values are mapping definitions:
 
 ```json
 {

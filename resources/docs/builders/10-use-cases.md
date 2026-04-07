@@ -206,7 +206,7 @@ Widgets are the most complex use case. The user can add, remove, reorder, and in
 
 ### The mapping
 
-Custom mapping in `extras/builders/custom_mappings/mapping_widgets.json`:
+Custom mapping in `extras/builders/mappings/mapping_widgets.json`:
 
 ```json
 {

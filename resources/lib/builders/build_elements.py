@@ -38,7 +38,7 @@ class BuildElements:
 
         self.mapping_merger = JSONMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
-            subfolders=["custom_mappings"],
+            subfolders=["mappings"],
             grouping_key=None,
         )
         self.all_mappings = {
@@ -142,6 +142,13 @@ class BuildElements:
                 )
 
                 output_target.setdefault(builder, {}).update(processed)
+
+        if values_to_write:
+            for builder, builder_data in values_to_write.items():
+                log.debug(
+                    f"{self.__class__.__name__}: {builder} → "
+                    f"{len(builder_data)} entries generated"
+                )
 
         for builder, builder_data in values_to_write.items():
             self.write_file(builder_data, builder)

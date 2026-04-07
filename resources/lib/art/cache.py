@@ -119,11 +119,12 @@ class ArtworkCacheManager:
         :return: Derived CacheContext with cache_key and dest_thumb.
         """
         token = self._variant_token(expected)
-        cache_key = f"{base.source_url}|{process}" + (f"|{token}" if token else "")
+        key_id = base.cached_file_hash or base.source_url
+        cache_key = f"{key_id}|{process}" + (f"|{token}" if token else "")
 
         # Only need unique filenames for file-writing processes (folder is not None).
         if folder and token:
-            stem = Path(base.cached_thumb).stem
+            stem = base.cached_file_hash or Path(base.cached_thumb).stem
             vhash = self.hash_manager.short_hash_str(token, length=8)
             dest_thumb = f"{stem}__{vhash}{base.suffix}"
         else:
@@ -215,6 +216,9 @@ class ArtworkCacheManager:
     def write_lookup(self, metadata: dict[str, Any]) -> None:
         """
         Persist a cache row into SQLite.
+        Evicts any existing rows for the same source+process+variant — these
+        are stale by definition (a different cache_key for matching variant
+        means the source content has changed).
 
         :param metadata: Processed attributes including keys and hashes.
         """
@@ -229,5 +233,29 @@ class ArtworkCacheManager:
                 f"{cache_key=}, {source_url=}, {process=}"
             )
             return
+
+        new_path = meta.get(policy.ART_FIELD_PROCESSED)
+        variant = {
+            k: v for k, v in meta.items()
+            if k in policy.ART_FIELDS_INPUT.get(process, ())
+        }
+        for row in self.sqlite.find_variants(source_url, process, variant):
+            stale_key = row.get(policy.ART_FIELD_CACHE_KEY)
+            if stale_key == cache_key:
+                continue  # Will be replaced by add_entry below
+            stale_path = row.get(policy.ART_FIELD_PROCESSED)
+            if stale_path and stale_path != new_path:
+                try:
+                    xbmcvfs.delete(stale_path)
+                    log.debug(
+                        f"{self.__class__.__name__} → write_lookup evicted stale "
+                        f"file → {stale_path}"
+                    )
+                except Exception as e:
+                    log.debug(
+                        f"{self.__class__.__name__} → write_lookup could not "
+                        f"delete {stale_path}: {e}"
+                    )
+            self.sqlite.delete_entry(stale_key)
 
         self.sqlite.add_entry(meta)

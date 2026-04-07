@@ -88,7 +88,10 @@ def resolve_rect(
     if anchor_id:
         try:
             a = window.getControl(int(anchor_id))
-            return (a.getX(), a.getY(), a.getWidth(), a.getHeight())
+            # return (a.getX(), a.getY(), a.getWidth(), a.getHeight())
+            rect = (a.getX(), a.getY(), a.getWidth(), a.getHeight())
+            log.debug(f"{name} → {anchor_id=}, raw={rect}")
+            return rect
 
         except Exception as exc:
             log.warning(f"{name}: Failed to read anchor {anchor_id}: {exc}")
@@ -262,21 +265,21 @@ def compute_rect(
             )
             out_y = anchor_y + anchor_h + (opts.vpad or 0)
             return out_x, out_y, target_w, target_h
-        
+
         if mode == "above":
             out_x = align_x(
                 anchor_x, anchor_w, target_w, align=opts.halign, pad=opts.hpad
             )
             out_y = anchor_y - (opts.vpad or 0) - target_h
             return out_x, out_y, target_w, target_h
-        
+
         if mode == "right":
             out_x = anchor_x + anchor_w + (opts.hpad or 0)
             out_y = align_y(
                 anchor_y, anchor_h, target_h, align=opts.valign, pad=opts.vpad
             )
             return out_x, out_y, target_w, target_h
-        
+
         if mode == "left":
             out_x = anchor_x - (opts.hpad or 0) - target_w
             out_y = align_y(
@@ -290,17 +293,18 @@ def compute_rect(
             f"{caller_name}: track_w ({target_w}) exceeds rect width ({width}); clamped"
         )
 
-    if target_w < width:
+    if target_w <= width:
         posx = align_x(posx, width, target_w, align=opts.halign, pad=opts.hpad)
         width = target_w
 
     if target_h > height:
-       log.debug(
+        log.debug(
             f"{caller_name}: track_h ({target_h}) exceeds rect height ({height}); clamped"
         )
 
-    if target_h < height:
+    if target_h <= height:
         posy = align_y(posy, height, target_h, align=opts.valign, pad=opts.vpad)
         height = target_h
 
+    log.debug(f"{caller_name} → final=({posx},{posy},{width},{height})")
     return posx, posy, width, height

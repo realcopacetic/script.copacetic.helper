@@ -42,6 +42,27 @@ MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 from resources.lib.shared import logger as log
 
+"""ADDON"""
+
+
+def reset_dev_state() -> None:
+    """
+    Delete all builder outputs and runtime_state to force a clean rebuild
+    on next service boot. Intended for dev/skinner use.
+    Imports BUILDER_CONFIG locally to avoid a circular dependency.
+
+    :return: None.
+    """
+    from resources.lib.builders.builder_config import BUILDER_CONFIG
+
+    for config in BUILDER_CONFIG.values():
+        write_path = config.get("write_path")
+        if write_path:
+            xbmcvfs.delete(write_path)
+    xbmcvfs.delete(RUNTIME_STATE)
+    log.info(f"reset_dev_state: outputs and runtime_state cleared")
+
+
 """KODI UTILS"""
 
 
@@ -448,7 +469,9 @@ def split_random(string: str, *, separator: str = "/", **kwargs: object) -> str:
 
 
 """TYPE UTILS"""
-def to_float(value: object, default: float  = 0.0) -> float:
+
+
+def to_float(value: object, default: float = 0.0) -> float:
     """
     Safely convert a value to float.
 

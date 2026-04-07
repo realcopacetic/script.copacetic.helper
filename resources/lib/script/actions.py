@@ -4,10 +4,12 @@ from resources.lib.shared.utilities import (
     ADDON,
     DIALOG,
     SKINXML,
+    clear_cache as _clear_cache_util,
     clear_playlists,
     condition,
     infolabel,
     json_call,
+    reset_dev_state,
     skin_string,
     to_int,
     window_property,
@@ -22,6 +24,12 @@ def action(fn):
     """Decorator to auto-register actions to whitelist"""
     REGISTRY[fn.__name__] = fn
     return fn
+
+
+@action
+def clear_cache(**kwargs):
+    """Action: clear processed artwork cache."""
+    _clear_cache_util(**kwargs)
 
 
 @action
@@ -65,6 +73,21 @@ def clear_label(id):
 
 
 @action
+def dev_reset(**kwargs):
+    """
+    Clear runtime_state and all builder outputs immediately, and clear the
+    `dev_reset` setting (idempotent if already off). On next service boot
+    the build pipeline regenerates everything from defaults.
+    """
+    reset_dev_state()
+    ADDON.setSettingBool("dev_reset", False)
+    DIALOG.notification(
+        ADDON.getLocalizedString(32000),
+        ADDON.getLocalizedString(32207),
+        time=4000,
+    )
+
+@action
 def dialog_yesno(heading, message, **kwargs):
     """
     Opens a yes/no dialog and runs a set of Kodi actions based on the result.
@@ -83,6 +106,33 @@ def dialog_yesno(heading, message, **kwargs):
     else:
         for action in no_actions:
             log.execute(action)
+
+
+@action
+def dynamic_settings_window(**kwargs):
+    """
+    Opens a dynamic settings window as a modal dialog and collects
+    any static and dynamic controls that have been expanded from
+    skinner templates and tagged with this window's name.
+    """
+    from resources.lib.windows.dynamiceditor import DynamicEditor
+
+    name = kwargs.get("name", "dynamic_window")
+    mapping = kwargs.get("mapping")
+    window_property(name, value="true")
+    if mapping:
+        window_property(mapping, value="true")
+
+    myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
+    myWindow.parent_filter = kwargs.get("parent")
+    myWindow.mapping_override = mapping
+    myWindow.doModal()
+
+    if mapping:
+        window_property(mapping)
+
+    window_property(name)
+    del myWindow
 
 
 @action
@@ -421,6 +471,38 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
 
 
 @action
+def tmdb_test(**kwargs):
+    """
+    Verify the configured TMDb token by making a test request.
+    Reports success or failure via notification.
+    """
+    from resources.lib.apis.tmdb.client import get_tmdb_client
+
+    client = get_tmdb_client()
+    if not client:
+        DIALOG.notification(
+            ADDON.getLocalizedString(32000),
+            ADDON.getLocalizedString(32208),
+            time=4000,
+        )
+        return
+
+    result = client.get_json("/configuration")
+    if result and "images" in result:
+        DIALOG.notification(
+            ADDON.getLocalizedString(32000),
+            ADDON.getLocalizedString(32209),
+            time=4000,
+        )
+    else:
+        DIALOG.notification(
+            ADDON.getLocalizedString(32000),
+            ADDON.getLocalizedString(32210),
+            time=4000,
+        )
+
+
+@action
 def toggle_addon(id, **kwargs):
     """
     Enables or disables an addon and shows a notification.
@@ -442,41 +524,30 @@ def toggle_addon(id, **kwargs):
         )
         DIALOG.notification(id, ADDON.getLocalizedString(32206))
 
-
-@action
-def dynamic_settings_window(**kwargs):
-    """
-    Opens a dynamic settings window as a modal dialog and collects
-    any static and dynamic controls that have been expanded from
-    skinner templates and tagged with this window's name.
-    """
-    from resources.lib.windows.dynamiceditor import DynamicEditor
-
-    name = kwargs.get("name", "dynamic_window")
-    mapping = kwargs.get("mapping")
-    window_property(name, value="true")
-    if mapping:
-        window_property(mapping, value="true")
-
-    myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
-    myWindow.parent_filter = kwargs.get("parent")
-    myWindow.mapping_override = mapping
-    myWindow.doModal()
-
-    if mapping:
-        window_property(mapping)
-        
-    window_property(name)
-    del myWindow
-
-
 @action
 def rebuild(**kwargs):
-    """ """
+    """
+    Rebuild builder outputs and reload skin.
+
+    :param context: Run context to rebuild ('prep', 'build', 'runtime'). Default 'runtime'.
+    :param full: If 'true', rebuild prep+build with force_rebuild=True and notify (dev use).
+    """
     from resources.lib.builders.build_elements import BuildElements
 
-    BuildElements(run_context=kwargs.get("context", "runtime"))
+    full = kwargs.get("full") == "true"
+    if full:
+        for ctx in ("prep", "build"):
+            BuildElements(run_context=ctx, force_rebuild=True)
+    else:
+        BuildElements(run_context=kwargs.get("context", "runtime"))
+
     log.execute("ReloadSkin()")
+    if full:
+        DIALOG.notification(
+            ADDON.getLocalizedString(32000),
+            ADDON.getLocalizedString(32211),
+            time=4000,
+        )
 
 
 @action

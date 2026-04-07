@@ -20,7 +20,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 
 **Example XML**
 ```xml
-<control type="list" id="9999">
+<control type="list" id="9000">
   <itemlayout />
   <focusedlayout />
   <content>plugin://script.copacetic.helper/?info=artwork</content>
@@ -77,23 +77,23 @@ We exploit that to create a small **invisibility window** where the list is hidd
 **Example XML**
 ```xml
 <include name="metadata_helper">
-  <control type="list" id="9999">
-    <visible>!Control.IsVisible(5007)</visible>
+  <control type="list" id="9000">
+    <visible>!Control.IsVisible(5900)</visible>
     <itemlayout />
     <focusedlayout />
     <content>$VAR[metadata_helper_path]</content>
   </control>
 </include>
 
-<control type="group" id="5007"><!-- debouncer for plugin calls -->
+<control type="group" id="5900"><!-- debouncer for plugin calls -->
   <visible>Container.OnPrevious | Container.OnNext</visible>
   <animation effect="slide" end="0,0" time="128" reversible="false">Hidden</animation>
 </control>
 ```
 
 **How it works**
-- Group `5007` becomes visible for 128 ms after a scroll event.
-- While visible, container `9999` is hidden → the plugin path cannot refire.
+- Group `5900` becomes visible for 128 ms after a scroll event.
+- While visible, container `9000` is hidden → the plugin path cannot refire.
 - Once scrolling stops, the group hides again and the plugin updates exactly once.
 - Use this for helpers that refresh during scroll (e.g. `artwork`, `metadata`, `typewriter`).
 
@@ -155,8 +155,8 @@ In other words — instead of editing the plugin path itself, you **switch which
 Then reference the variable in your container:
 
 ```xml
-<control type="list" id="9999">
-  <visible>!Control.IsVisible(5007)</visible>
+<control type="list" id="9000">
+  <visible>!Control.IsVisible(5900)</visible>
   <itemlayout />
   <focusedlayout />
   <content>$VAR[artwork_helper]</content>

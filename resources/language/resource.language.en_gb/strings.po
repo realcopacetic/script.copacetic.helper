@@ -33,7 +33,7 @@ msgstr ""
 
 #########################################################################################################
 
-#: /resources/settings.xml
++#: /resources/settings.xml, /resources/lib/script/actions.py
 msgctxt "#32000"
 msgid "Copacetic"
 msgstr ""
@@ -68,9 +68,19 @@ msgctxt "#32104"
 msgid "Whenever Kodi's internal database is queried by the addon using JSON-RPC, the queries and responses will also be logged."
 msgstr ""
 
++#: /resources/settings.xml
++msgctxt "#32020"
++msgid "Include verbose builder logs"
++msgstr ""
++
++#: /resources/settings.xml
++msgctxt "#32120"
++msgid "Logs every per-item builder operation (default applications, fallback resolutions). Very noisy — only useful when debugging template/mapping issues."
++msgstr ""
+
 #: /resources/settings.xml
 msgctxt "#32005"
-msgid "Skinners"
+msgid "Developers"
 msgstr ""
 
 #: /resources/settings.xml
@@ -86,6 +96,26 @@ msgstr ""
 #: /resources/settings.xml
 msgctxt "#32107"
 msgid "This will force all skin builder files to be rebuilt every time Kodi starts."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32012"
+msgid "Reset on next start"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32112"
+msgid "Clears runtime_state and all builder outputs on next service start, then rebuilds from defaults. The toggle reverts itself once applied."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32013"
+msgid "Rebuild now"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32113"
+msgid "Rebuild all skin output files immediately and reload the skin. Preserves runtime_state."
 msgstr ""
 
 #: /resources/settings.xml
@@ -118,6 +148,45 @@ msgctxt "#32011"
 msgid "Enter a TMDb v3 API Key or v4 API Read Access Token"
 msgstr ""
 
+#: /resources/settings.xml
+msgctxt "#32014"
+msgid "Test TMDb access"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32114"
+msgid "Verify the current token by making a test request and report the result."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32015"
+msgid "TMDb language"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32115"
+msgid "Language code for TMDb metadata, e.g. 'en-US', 'fr-FR', 'de-DE'. Restart required for changes to take effect."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32016"
+msgid "Enter a TMDb language code"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32017"
+msgid "Cache"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32019"
+msgid "Clear addon cache"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32119"
+msgid "Delete all processed artwork (blurred, cropped) and reset the artwork lookup database. Source artwork is unaffected."
+msgstr ""
 
 
 
@@ -157,6 +226,32 @@ msgstr ""
 msgctxt "#32206"
 msgid "Enabled"
 msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32207"
+msgid "State cleared — restart Kodi to rebuild"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32208"
+msgid "TMDb disabled or token missing"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32209"
+msgid "TMDb token valid"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32210"
+msgid "TMDb test failed — check token and network"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32211"
+msgid "Skin rebuilt"
+msgstr ""
+
 
 
 

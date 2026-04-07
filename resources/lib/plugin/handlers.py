@@ -41,6 +41,7 @@ from resources.lib.shared.utilities import (
     parse_bool,
     set_plugincontent,
     to_int,
+    window_property,
 )
 
 
@@ -150,6 +151,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
+        self.limit = to_int(params.get("limit"), None)
 
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
@@ -204,17 +206,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         target = f"{self.container}.ListItem"
         ctx = resolve_tmdb_context(self.params, target=target)
-        tmdb_id_str = ctx.get("tmdb_id")
-        tmdb_id = to_int(tmdb_id_str, 0)
-        if tmdb_id <= 0:
-            log.debug(
-                f"{self.__class__.__name__} → tmdb: missing or invalid tmdb_id "
-                f"({ctx.get('tmdb_id')!r})"
-            )
-            return
+        tmdb_id = to_int(ctx.get("tmdb_id"), 0)
 
         item = tmdb_to_canonical(
-            kind=(ctx.get("kind") or self.dbtype).lower(),
+            kind=ctx.get("kind") or self.dbtype,
             tmdb_id=tmdb_id,
             season_number=ctx.get("season_number"),
             language=self.params.get("language"),
@@ -325,6 +320,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     randomize=True,
                     keep_main_first=True,
                 )
+            if background_blur := art.get("background", ""):
+                window_property("background_blur", background_blur)
 
             return set_items(
                 [
@@ -431,7 +428,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 percent=resume,
                 opts=PlacementOpts.from_params(self.params),
                 base_id=to_int(self.params.get("base_id"), None),
-                backing_id=to_int(self.params.get("backing_id"), None),
                 progress_id=to_int(self.params.get("progress_id"), None),
                 btn_id=to_int(self.params.get("btn_id"), None),
             )
@@ -483,7 +479,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 label=self.label,
                 opts=PlacementOpts.from_params(self.params),
                 label_id=to_int(self.params.get("label_id"), None),
-                line_step=to_int(self.params.get("line_step"), None),
                 max_lines=to_int(self.params.get("max_lines"), None),
                 alive=guard.alive,
             )
@@ -509,6 +504,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     media_type="movie",
                     filters=filters,
                     sort=self.sort_lastplayed,
+                    limit=self.limit,
                     parent="in_progress",
                     tag_applier=apply_videoinfotag,
                 )
@@ -521,6 +517,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     media_type="episode",
                     filters=filters,
                     sort=self.sort_lastplayed,
+                    limit=self.limit,
                     parent="in_progress",
                     tag_applier=apply_videoinfotag,
                     postprocess=lambda eps: enrich_with_tvshow(
@@ -543,73 +540,76 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             category=ADDON.getLocalizedString(32600),
             sort_method=SORT_METHOD_LASTPLAYED,
         )
-        results_meta = []
-        q = json_call(
+        # 1: All in-progress shows (limit-bounded).
+        shows_q = json_call(
             "VideoLibrary.GetTVShows",
-            properties=["title", "tvshowid", "studio", "mpaa", "lastplayed"],
+            properties=["title", "studio", "mpaa", "lastplayed"],
             sort=self.sort_lastplayed,
-            limit=25,
+            limit=self.limit,
             query_filter={"and": [self.filter_inprogress]},
             parent="next_up",
         )
-        shows = q.get("result", {}).get("tvshows", [])
+        shows = shows_q.get("result", {}).get("tvshows", [])
         if not shows:
             log.debug(f"{self.__class__.__name__} → next_up: No TV shows found.")
-            return
+            return None
 
-        for show in shows:
-            tvshow_id = to_int(show.get("tvshowid"), 0)
-            if tvshow_id <= 0:
-                continue
+        show_meta_by_id: dict[int, dict[str, Any]] = {
+            show["tvshowid"]: {
+                "studio": show.get("studio", []),
+                "mpaa": show.get("mpaa", ""),
+            }
+            for show in shows
+        }
 
-            ep_query = json_call(
-                "VideoLibrary.GetEpisodes",
-                properties=JSON_PROPERTIES["episode"],
-                sort={"order": "ascending", "method": "episode"},
-                limit=1,
-                query_filter={"and": [self.filter_unwatched, self.filter_no_specials]},
-                params={"tvshowid": tvshow_id},
-                parent="next_up",
+        # 2: First unwatched episode per show, in one query.
+        episode_filter = {
+            "and": [
+                self.filter_unwatched,
+                self.filter_no_specials,
+                {
+                    "or": [
+                        {"field": "tvshowid", "operator": "is", "value": str(sid)}
+                        for sid in show_meta_by_id
+                    ]
+                },
+            ]
+        }
+        episodes_q = json_call(
+            "VideoLibrary.GetEpisodes",
+            properties=JSON_PROPERTIES["episode"],
+            sort={"order": "ascending", "method": "season"},
+            query_filter=episode_filter,
+            parent="next_up",
+        )
+        episodes = episodes_q.get("result", {}).get("episodes", [])
+
+        first_unwatched_per_show: dict[int, dict[str, Any]] = {}
+        for ep in episodes:
+            sid = ep.get("tvshowid")
+            if sid in show_meta_by_id and sid not in first_unwatched_per_show:
+                ep["studio"] = show_meta_by_id[sid]["studio"]
+                ep["mpaa"] = show_meta_by_id[sid]["mpaa"]
+                first_unwatched_per_show[sid] = ep
+
+        # Preserve show order (most-recently-played first) by iterating shows.
+        ordered_episodes = [
+            first_unwatched_per_show[show["tvshowid"]]
+            for show in shows
+            if show["tvshowid"] in first_unwatched_per_show
+        ]
+        if not ordered_episodes:
+            log.debug(
+                f"{self.__class__.__name__} → next_up: No unwatched episodes found."
             )
+            return None
 
-            episodes = ep_query.get("result", {}).get("episodes", [])
-            if not episodes:
-                log.debug(
-                    f"{self.__class__.__name__} → next_up: No unwatched episodes for "
-                    f"{show.get('title', '<unknown>')}"
-                )
-                continue
-
-            raw_ep = episodes[0]
-            raw_ep.setdefault("studio", show.get("studio", ""))
-            raw_ep.setdefault("mpaa", show.get("mpaa", ""))
-            canonical = json_to_canonical(raw_ep, "episode")
-
-            dir_items = set_items(
-                [canonical],
-                media_type="episode",
-                tag_applier=apply_videoinfotag,
-            )
-            if not dir_items:
-                continue
-
-            file_path, li, is_folder = dir_items[0]
-            effective_lastplayed, is_new = TvShowHelper.compute_new_unwatched(
-                show.get("lastplayed"),
-                raw_ep.get("firstaired"),
-            )
-            if is_new:
-                li.setProperty(TvShowHelper.NEW_UNWATCHED_PROP, "true")
-
-            results_meta.append((effective_lastplayed, (file_path, li, is_folder)))
-
-        if not results_meta:
-            return
-
-        results_meta.sort(key=lambda r: r[0] or "", reverse=True)
-        results = [entry[1] for entry in results_meta]
-
-        return results or None
+        canonical_items = [json_to_canonical(raw, "episode") for raw in ordered_episodes]
+        return set_items(
+            canonical_items,
+            media_type="episode",
+            tag_applier=apply_videoinfotag,
+        )
 
     @role_endpoint(
         field="actor",

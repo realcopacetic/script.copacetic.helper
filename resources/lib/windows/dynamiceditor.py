@@ -43,7 +43,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self.mapping_merger = JSONMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
-            subfolders=["custom_mappings"],
+            subfolders=["mappings"],
             grouping_key=None,
         )
         self.all_mappings = {
@@ -457,7 +457,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
     def _seed_metadata(self) -> None:
         """
         Write metadata fields from the current preset into runtime state.
-        Skips the ``parent`` field to avoid overwriting parent references.
+        Skips ``parent`` (preserved across preset changes) and non-string
+        fields (structural metadata such as xsp dicts that the user does
+        not override)
         """
         item = self.listitems.get(self.current_listitem)
         if not item:
@@ -471,7 +473,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             .get("metadata", {})
             .get(new_preset, {})
         )
-        updates = {k: v for k, v in metadata.items() if k != "parent"}
+        updates = {
+            k: v for k, v in metadata.items()
+            if k != "parent" and isinstance(v, str)
+        }
         if updates:
             try:
                 self.runtime_manager.update_runtime_settings_batch(
@@ -542,6 +547,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         # Phase 1: Dialog before insert — determines preset and/or field data
         chosen = "custom"
         browse_result = None
+        then_data = None
 
         if governing:
             dialog_result = governing.run_preflight_dialog()
@@ -553,6 +559,33 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 if not isinstance(result, int) or result < 0:
                     return
                 chosen = cfg["items"][result]
+
+                # Optional chained action declared per-item on the picker.
+                # If the chosen item maps to a handler name, run that handler's
+                # onclick action (e.g. browse, input, select, colorpicker)
+                # before inserting. User cancel of the chained action = no
+                # insert.
+                then_map = (
+                    governing.control.get("onclick", {}).get("then", {})
+                )
+                then_name = then_map.get(chosen)
+                log.debug(
+                    f"_on_add then lookup: name={then_name!r}, handlers={list(self.handlers.keys())}"
+                )
+                if then_name:
+                    then_handler = self.handlers.get(then_name)
+                    if then_handler:
+                        then_dialog = then_handler.run_preflight_dialog()
+                        if then_dialog is None:
+                            return
+                        then_result, then_cfg = then_dialog
+                        if then_result is None:
+                            return
+                        then_data = (
+                            then_handler,
+                            then_result,
+                            then_cfg,
+                        )
             else:
                 if result is None:
                     return
@@ -597,6 +630,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             governing.current_listitem = new_id
             governing.source_index = source_insert
             governing.apply_result(browse_result, cfg)
+
+        # Phase 3b: Apply picker chained action result (if any)
+        if then_data is not None:
+            handler, result, handler_cfg = then_data
+            handler.current_listitem = new_id
+            handler.source_index = source_insert
+            handler.apply_result(result, handler_cfg)
 
         # Set current selection before mapping_changed triggers _build_dicts
         self.current_listitem = new_id
@@ -705,7 +745,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             return
 
         self.runtime_manager.reload_state()
-        
+
         if (
             self.runtime_manager.runtime_state != self._runtime_state_snapshot
             or self.skin_strings_changed

@@ -11,11 +11,18 @@ from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.settings import SettingsMonitor
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ArtworkCacheHandler
-from resources.lib.shared.utilities import (ADDON, BLURS, CROPS, TEMPS,
-                                            condition, create_dir,
-                                            get_cache_size, infolabel,
-                                            validate_path)
-
+from resources.lib.shared.utilities import (
+    ADDON,
+    BLURS,
+    CROPS,
+    TEMPS,
+    condition,
+    create_dir,
+    get_cache_size,
+    infolabel,
+    reset_dev_state,
+    validate_path,
+)
 
 class Monitor(xbmc.Monitor):
     """
@@ -75,27 +82,40 @@ class Monitor(xbmc.Monitor):
 
     def _builder_elements(self):
         """
-        Regenerates missing or outdated builder output files for 'prep' and 'buildtime'
-        run contexts.
+        Run the build pipeline.
+        Production: only rebuild outputs that are missing.
+        Dev: clear state if requested, rebuild everything, reload skin.
         """
         dev_mode = ADDON.getSettingBool("dev_mode")
+        dev_reset = ADDON.getSettingBool("dev_reset")
+
+        if dev_mode and dev_reset:
+            reset_dev_state()
+            ADDON.setSettingBool("dev_reset", False)
+            log.info(
+                f"{self.__class__.__name__}: Dev reset consumed — "
+                f"outputs and runtime_state cleared"
+            )
+
+        if dev_mode:
+            for context in ["prep", "build"]:
+                BuildElements(run_context=context, force_rebuild=True)
+            xbmc.executebuiltin("ReloadSkin()")
+            return
 
         for context in ["prep", "build"]:
-            builders = None
-            if not dev_mode:
-                builders = [
-                    builder
-                    for builder, config in BUILDER_CONFIG.items()
-                    if context in config.get("run_contexts", [])
-                    and (write_path := config.get("write_path"))
-                    and not validate_path(write_path)
-                ]
-
-            BuildElements(
-                run_context=context,
-                builders_to_run=builders,
-                force_rebuild=dev_mode,
-            )
+            builders = [
+                builder
+                for builder, config in BUILDER_CONFIG.items()
+                if context in config.get("run_contexts", [])
+                and (write_path := config.get("write_path"))
+                and not validate_path(write_path)
+            ]
+            if builders:
+                BuildElements(
+                    run_context=context,
+                    builders_to_run=builders,
+                )
 
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""
@@ -131,7 +151,7 @@ class Monitor(xbmc.Monitor):
         else:
             del self.player_monitor
             del self.settings
-            del self.slideshow
+            # del self.slideshow
             log.info(f"{self.__class__.__name__}: Stopped")
 
     def onScreensaverActivated(self):

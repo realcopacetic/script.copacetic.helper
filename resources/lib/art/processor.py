@@ -21,31 +21,23 @@ class ImageProcessor:
     """
 
     PROCESS_SPEC: dict[str, dict[str, Any]] = {
-        "crop": {"folder": CROPS, "require": (policy.ART_FIELD_PROCESSED,)},
+        "crop": {
+            "folder": CROPS,
+            "require": policy.ART_FIELDS_RESULT["crop"],
+        },
         "blur": {
             "folder": BLURS,
-            "require": (policy.ART_FIELD_PROCESSED, policy.ART_FIELD_BLUR_RADIUS),
-            "match": (policy.ART_FIELD_BLUR_RADIUS,),
+            "match": policy.ART_FIELDS_INPUT["blur"],
+            "require": policy.ART_FIELDS_RESULT["blur"],
         },
         "analyze": {
             "folder": None,
-            "require": (
-                policy.ART_FIELD_COLOR,
-                policy.ART_FIELD_ACCENT,
-                policy.ART_FIELD_CONTRAST,
-                policy.ART_FIELD_LUMINOSITY,
-            ),
+            "require": policy.ART_FIELDS_RESULT["analyze"],
         },
         "darken": {
             "folder": None,
-            "require": (policy.ART_FIELD_DARKEN,),
-            "match": (
-                policy.ART_FIELD_DARKEN_MODE,
-                policy.ART_FIELD_DARKEN_SOURCE,
-                policy.ART_FIELD_DARKEN_RECTS,
-                policy.ART_FIELD_DARKEN_FRAME,
-                policy.ART_FIELD_DARKEN_STRENGTH,
-            ),
+            "match": policy.ART_FIELDS_INPUT["darken"],
+            "require": policy.ART_FIELDS_RESULT["darken"],
         },
     }
 

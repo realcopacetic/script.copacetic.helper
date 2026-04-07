@@ -18,7 +18,7 @@ def log(message: str, level: int = DEBUG, force: bool = False):
     """
     Logs a message with addon prefix, respecting log level and debug settings.
     If force is true or debug_logging enabled in addon, DEBUG logs are elevated
-    INFO, ensuring they will be logged regardless of Kodi global settings.
+    to INFO, ensuring they will be logged regardless of Kodi global settings.
 
 
     :param message: Message string.
@@ -31,18 +31,56 @@ def log(message: str, level: int = DEBUG, force: bool = False):
 
 
 def debug(message: str, force: bool = False):
+    """
+    Logs a DEBUG-level message. Visible only when Kodi's component log
+    level is debug, unless `debug_logging` is enabled (which elevates it
+    to INFO) or `force` is true.
+
+    :param message: Message string.
+    :param force: If True, logs regardless of settings.
+    """
     log(message, level=DEBUG, force=force)
 
 
 def info(message: str):
+    """
+    Logs an INFO-level message. Always visible at Kodi's default log level.
+
+    :param message: Message string.
+    """
+    log(message, level=INFO)
+
+
+def verbose(message: str):
+    """
+    Logs detailed per-iteration diagnostic output, gated behind the
+    `verbose_logging` setting. Dropped entirely when off.
+
+    :param message: Message string.
+    """
+    if not ADDON.getSettingBool("verbose_logging"):
+        return
+
     log(message, level=INFO)
 
 
 def warning(message: str):
+    """
+    Logs a WARNING-level message. Always visible at Kodi's default log level.
+    Use for unexpected but non-fatal conditions.
+
+    :param message: Message string.
+    """
     log(message, level=WARNING)
 
 
 def error(message: str):
+    """
+    Logs an ERROR-level message. Always visible at Kodi's default log level.
+    Use for failures that prevent intended behaviour from completing.
+
+    :param message: Message string.
+    """
     log(message, level=ERROR)
 
 

@@ -124,6 +124,28 @@ class SQLiteHandler:
             col_names = [desc[0] for desc in cursor.description]
             return dict(zip(col_names, row))
 
+    def _get_many(
+        self,
+        where: str,
+        params: tuple[Any, ...],
+    ) -> list[dict[str, Any]]:
+        """
+        Fetch all rows matching a WHERE clause.
+
+        :param where: SQL WHERE clause (without the WHERE keyword).
+        :param params: SQL parameters for the WHERE clause.
+        :return: List of row dicts (empty if no matches).
+        """
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {self.TABLE_NAME} WHERE {where}", params)
+            rows = cursor.fetchall()
+            if not rows:
+                return []
+            
+            col_names = [desc[0] for desc in cursor.description]
+            return [dict(zip(col_names, row)) for row in rows]
+
     def clear_all(self) -> None:
         """
         Remove all rows from TABLE_NAME.
@@ -199,6 +221,47 @@ class ArtworkCacheHandler(SQLiteHandler):
         """
         return self._get_one(
             where="cache_key = ?",
+            params=(cache_key,),
+        )
+    
+    def find_variants(
+        self,
+        source_url: str,
+        process: str,
+        variant: Mapping[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Find rows for a sourceprocess whose stored variant fields equal `variant`.
+        Used to identify stale rows when writing a new entry: same sourceprocessvariant
+        but a different cache_key implies the underlying content has changed.
+
+        :param source_url: Source URL column value.
+        :param process: Process column value.
+        :param variant: Variant field values to match exactly. None/empty matches all.
+        :return: List of matching row dicts.
+        """
+        rows = self._get_many(
+            where=(
+                f"{policy.ART_FIELD_SOURCE_URL} = ? AND "
+                f"{policy.ART_FIELD_PROCESS} = ?"
+            ),
+            params=(source_url, process),
+        )
+        if not variant:
+            return rows
+        return [
+            r for r in rows
+            if all(r.get(k) == v for k, v in variant.items())
+        ]
+
+    def delete_entry(self, cache_key: str) -> None:
+        """
+        Delete a single row by cache_key.
+
+        :param cache_key: Unique key of the row to remove.
+        """
+        self._delete_where(
+            where=f"{policy.ART_FIELD_CACHE_KEY} = ?",
             params=(cache_key,),
         )
 
