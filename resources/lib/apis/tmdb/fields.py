@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 
 from resources.lib.shared import logger as log
 
@@ -183,6 +183,18 @@ def apply_tmdb_transform(name: str, value: Any) -> Any:
     log.debug(f"apply_tmdb_transform → missing callable for {name=}, {value=}")
     return value
 
+def _iter_mappings(value: Any) -> Iterator[Mapping[str, Any]]:
+    """
+    Iterate Mapping items from a list, skipping non-Mapping entries.
+
+    :param value: Any value, expected to be a list of Mapping items.
+    :yield: Each Mapping in the list, in order.
+    """
+    if not isinstance(value, list):
+        return
+    for item in value:
+        if isinstance(item, Mapping):
+            yield item
 
 def extract_creator_names(value: Any) -> list[str]:
     """
@@ -191,13 +203,8 @@ def extract_creator_names(value: Any) -> list[str]:
     :param value: Raw created_by field value from TMDb JSON.
     :return: List of non-empty creator name strings.
     """
-    if not isinstance(value, list):
-        return []
-
     names: list[str] = []
-    for item in value:
-        if not isinstance(item, Mapping):
-            continue
+    for item in _iter_mappings(value):
         name = item.get("name")
         if isinstance(name, str) and name:
             names.append(name)
@@ -306,13 +313,8 @@ def build_tmdb_image_url_list(
     :param limit: Optional maximum number of URLs to include.
     :return: List of resolved TMDb image URLs.
     """
-    if not isinstance(items, list):
-        return []
-
     urls: list[str] = []
-    for item in items:
-        if not isinstance(item, Mapping):
-            continue
+    for item in _iter_mappings(items):
         file_path = item.get("file_path")
         if not isinstance(file_path, str) or not file_path:
             continue
@@ -333,18 +335,12 @@ def split_tmdb_images_by_language(
     :param preferred_iso: Two-letter ISO code (for example, "en") or None.
     :return: Tuple of (language-matched list, language-none list).
     """
-    if not isinstance(items, list):
-        return ([], [])
-
     lang_items: list[Mapping[str, Any]] = []
     none_items: list[Mapping[str, Any]] = []
 
     pref = (preferred_iso or "").lower()
 
-    for item in items:
-        if not isinstance(item, Mapping):
-            continue
-
+    for item in _iter_mappings(items):
         iso = item.get("iso_639_1")
         if iso is None:
             none_items.append(item)

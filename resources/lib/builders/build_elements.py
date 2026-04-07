@@ -38,7 +38,7 @@ class BuildElements:
 
         self.mapping_merger = JSONMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
-            subfolders=["custom_mappings"],
+            subfolders=["mappings"],
             grouping_key=None,
         )
         self.all_mappings = {

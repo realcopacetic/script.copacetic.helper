@@ -4,6 +4,7 @@ import json
 import re
 from collections import defaultdict
 from itertools import product
+from typing import Any
 from urllib.parse import quote
 
 from resources.lib.builders.logic import RuleEngine
@@ -88,25 +89,25 @@ class BaseBuilder:
 
     def generate_runtimejson_substitutions(self, runtime_items, index_start):
         """
-        Generates substitution dictionaries for runtimejson expansion,
-        injecting index, mapping placeholder, and all runtime values.
+        Generate substitution dictionaries for dynamic template expansion.
+        Each runtime entry contributes its scalar (string) fields to the
+        substitution dict, layered over per-item metadata. Non-string runtime
+        values are skipped — structural metadata (such as encoded xsp
+        strings) is provided exclusively from metadata.
 
         :param runtime_items: List of runtime state items for this mapping.
         :param index_start: Starting index value (default 1).
         :return: List of substitution dictionaries for template expansion.
         """
         key_placeholder = self.placeholders.get("key")
-        runtime_keys = {"mapping_item", "runtime_id"}
         return [
             self._inject_metadata(
                 {
                     key_placeholder: item["mapping_item"],
                     "index": str(index_start + index),
-                    **{k: v for k, v in item.items() if k != "mapping_item"},
                     **{
-                        f"runtime|{k}": v
-                        for k, v in item.items()
-                        if k not in runtime_keys
+                        k: v for k, v in item.items()
+                        if k != "mapping_item" and isinstance(v, str)
                     },
                 },
                 item["mapping_item"],
@@ -194,6 +195,14 @@ class BaseBuilder:
         :return: Substituted value, or empty string if placeholder is unknown.
         """
         key = match.group(1)
+        # Arithmetic: {name+N} / {name-N} resolves against an integer-valued substitution
+        if (m := re.match(r"^(\w+)([+-])(\d+)$", key)) and m.group(1) in substitutions:
+            base, op, offset = m.group(1), m.group(2), int(m.group(3))
+            try:
+                return str(int(substitutions[base]) + (offset if op == "+" else -offset))
+            except (ValueError, TypeError):
+                pass
+
         if key in substitutions:
             return substitutions[key]
         log.debug(
@@ -514,11 +523,11 @@ class ExpressionsBuilder(BaseBuilder):
                 condition = rule.get("condition")
 
                 if condition:
-                    formatted_condition = condition.format(**sub)
+                    formatted_condition = self.substitute(condition, sub)
                     if not self.rules.evaluate(formatted_condition):
                         continue
 
-                value = rule["value"].format(**sub)
+                value = self.substitute(rule["value"], sub)
 
                 if rule["type"] == "assign":
                     return [value]  # short-circuit with override
@@ -540,7 +549,7 @@ class ExpressionsBuilder(BaseBuilder):
         fallback_key = expr_data.get("fallback_key")
         if not fallbacks or not fallback_key:
             return resolved
-        
+
         all_exprs_by_group = defaultdict(list)
         for expr_name in resolved:
             sub = self.group_map.get(expr_name, {})
@@ -733,48 +742,43 @@ class VariablesBuilder(BaseBuilder):
             for variable in self.resolve_values(template_name, subs, data)
         }
 
-    def resolve_values(self, template_name, subs, data):
+    def resolve_values(
+        self,
+        template_name: str,
+        subs: list[dict[str, Any]],
+        data: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """
         Builds one or more variables from template and substitutions.
 
         :param template_name: Name pattern of variable.
         :param subs: Substitution set for this group.
-        :param data: Variable definition including values and index.
+        :param data: Variable definition including values.
         :return: List of variable dicts with name and condition/value pairs.
         """
         values = data.get("values", [])
-        index_range = expand_index(data.get("index"))
-
-        # All subs in this group share the same expanded key, so subs[0] is representative.
-        if not index_range:
-            name = self.substitute(template_name, subs[0])
-            return [self._build_variable(name, values, subs[0])]
-
-        return [
-            self._build_variable(
-                self.substitute(template_name, {**subs[0], "index": str(i)}),
-                values,
-                {**subs[0], "index": str(i)},
-            )
-            for i in index_range
+        name = self.substitute(template_name, subs[0])
+        flattened = [
+            pair for sub in subs for pair in self._resolve_value_pairs(values, sub)
         ]
+        return [{"name": name, "values": flattened}]
 
-    def _build_variable(self, name, values, subs):
+    def _resolve_value_pairs(
+        self,
+        values: list[dict[str, str]],
+        sub: dict[str, Any],
+    ) -> list[dict[str, str]]:
         """
-        Creates a variable dict with condition/value mappings from template.
+        Format a list of condition/value template pairs against a single substitution.
 
-        :param name: Fully formatted variable name.
-        :param values: List of condition/value template pairs.
-        :param subs: Substitution dictionary for formatting.
-        :return: Dict with 'name' and resolved 'values' list.
+        :param values: List of {condition, value} template dicts.
+        :param sub: Substitution dictionary for formatting.
+        :return: List of formatted condition/value dicts.
         """
-        return {
-            "name": name,
-            "values": [
-                {
-                    "condition": self.substitute(v.get("condition", ""), subs),
-                    "value": self.substitute(v.get("value", ""), subs),
-                }
-                for v in values
-            ],
-        }
+        return [
+            {
+                "condition": self.substitute(v.get("condition", ""), sub),
+                "value": self.substitute(v.get("value", ""), sub),
+            }
+            for v in values
+        ]

@@ -106,12 +106,13 @@ class RuntimeStateManager:
         return {
             "runtime_id": str(uuid.uuid4()),
             "mapping_item": item,
-            **metadata,
+            **{k: v for k, v in metadata.items() if isinstance(v, str)},
             **{
                 field: self._resolve_default(
                     template.format(**{placeholders["key"]: item})
                 )
                 for field, template in config_fields.items()
+                if field not in metadata
             },
         }
 

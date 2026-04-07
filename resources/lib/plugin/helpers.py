@@ -118,6 +118,8 @@ class DataHandler:
                 "Writer",
                 "Genre",
                 "Studio",
+                "Plot",
+                "PlotOutline",
             ],
         )
 
@@ -137,6 +139,8 @@ class DataHandler:
             "Genres": split_random(self.infolabels["Genre"]),
             "Studios": self._studio(),
             "Writers": split(self.infolabels["Writer"]),
+            "Plot": self.infolabels["Plot"],
+            "PlotOutline": self.infolabels["PlotOutline"],
         }
 
     def _studio(self) -> str:
@@ -236,7 +240,13 @@ class JumpButton:
 
         btn.setLabel(expected)
         btn.setPosition(btn_posx, btn_posy)
-        log.debug(f"{self.__class__.__name__}: UPDATED → '{expected}'")
+        log.debug(
+            f"{self.__class__.__name__} → DONE → "
+            f"rect=({posx},{posy},{width},{height}) "
+            f"label='{expected}' fraction={fraction:.3f} "
+            f"btn=({btn_posx},{btn_posy}) {btn_w}x{btn_h} "
+            f"axis={'h' if horizontal else 'v'}"
+        )
 
 
 class ProgressBarManager:
@@ -248,7 +258,7 @@ class ProgressBarManager:
     def __init__(
         self,
         target: str,
-        base_id: int = 4030,
+        base_id: int = 4010,
         btn_width: int = 30,
     ) -> None:
         """
@@ -261,9 +271,8 @@ class ProgressBarManager:
         self.window = Window(getCurrentWindowId())
         self.target = target
         self.base_id = int(base_id)
-        self.backing_id = base_id + 1
-        self.progress_id = base_id + 2
-        self.btn_id = base_id + 3
+        self.progress_id = base_id + 1
+        self.btn_id = base_id + 2
         self.btn_width = btn_width
         self.infolabels = get_infolabels(
             self.target,
@@ -329,7 +338,6 @@ class ProgressBarManager:
         *,
         opts: PlacementOpts,
         base_id: int | None = None,
-        backing_id: int | None = None,
         progress_id: int | None = None,
         btn_id: int | None = None,
     ) -> None:
@@ -339,12 +347,10 @@ class ProgressBarManager:
         :param percent: Unified progress percentage (0-100).
         :param opts: Placement options (coords/anchor/inset/track_w/track_h).
         :param base_id: Optional override for base group ID.
-        :param backing_id: Optional override for backing texture ID.
         :param progress_id: Optional override for progress bar ID.
         :param btn_id: Optional override for thumb button ID.
         """
         base_id = to_int(base_id, self.base_id)
-        backing_id = to_int(backing_id, self.backing_id)
         progress_id = to_int(progress_id, self.progress_id)
         btn_id = to_int(btn_id, self.btn_id)
 
@@ -375,20 +381,10 @@ class ProgressBarManager:
         progress.setHeight(height)
 
         try:
-            backing = self.window.getControl(backing_id)
-        except RuntimeError:
-            backing = None
-            log.debug(
-                f"{self.__class__.__name__}: Optional backing_id {backing_id} not found."
-            )
-        else:
-            backing.setWidth(width)
-            backing.setHeight(height)
-
-        try:
             cur_w, cur_h = base.getWidth(), base.getHeight()
         except Exception:
             cur_w = cur_h = 0
+
         new_w = max(cur_w or 0, width)
         new_h = max(cur_h or 0, height)
         if new_w != (cur_w or 0) or new_h != (cur_h or 0):
@@ -403,11 +399,17 @@ class ProgressBarManager:
         else:
             btn_w = button.getWidth() or self.btn_width
             btn_h = button.getHeight() or self.btn_width
-            travel = max(0, width - btn_w)
             fraction = max(0.0, min(1.0, (percent or 0) / 100.0))
-            btn_posx = int(fraction * travel)
+            unwatched_centre = width * (1 + fraction) / 2
+            btn_posx = int(max(0, min(unwatched_centre - btn_w / 2, width - btn_w)))
             btn_posy = int((height - btn_h) / 2)
             button.setPosition(btn_posx, btn_posy)
+        log.debug(
+            f"{self.__class__.__name__} → DONE → "
+            f"rect=({posx},{posy},{width},{height}) "
+            f"percent={percent} "
+            f"btn={'skipped' if button is None else f'({btn_posx},{btn_posy}) {btn_w}x{btn_h}'}"
+        )
 
 
 class TextTruncator:
@@ -709,7 +711,6 @@ class TextTruncator:
         return core[:end].rstrip().strip()
 
 
-
 class TypewriterAnimation:
     """
     Typewriter text effect with PlacementOpts-driven positioning.
@@ -718,21 +719,22 @@ class TypewriterAnimation:
 
     def __init__(
         self,
-        control_id: int = 8760,
+        control_id: int = 4020,
         step_time: float = 0.025,
-        default_line_step: int = 30,
+        default_line_h: int = 30,
         max_lines: int = 3,
     ):
         """
         :param control_id: Default text control id to animate if none is passed.
         :param step_time: Delay per character (seconds).
-        :param default_line_step: Pixels added per wrapped line.
-        :param max_lines: Max number of lines grown if track_h not set.
+        :param default_line_h: Fallback line height (pixels) when ``opts.track_h``
+        is not provided. Must match the rendered line pitch of the target font.
+        :param max_lines: Max number of lines the box may grow to.
         """
         self.window = Window(getCurrentWindowId())
         self.control_id = int(control_id)
         self.step_time = step_time
-        self.default_line_step = default_line_step
+        self.default_line_h = default_line_h
         self.max_lines = max_lines
 
     def update(
@@ -741,7 +743,6 @@ class TypewriterAnimation:
         label: str,
         opts: PlacementOpts,
         label_id: int | None = None,
-        line_step: int | None = None,
         max_lines: int | None = None,
         alive: Callable[[], bool] | None = None,
     ) -> None:
@@ -749,9 +750,10 @@ class TypewriterAnimation:
         Animate label with a typewriter effect using compute_rect placement.
 
         :param label: Text to animate.
-        :param opts: Placement options (coords/anchor_id/inset/track_w/track_h/halign/valign/hpad/vpad).
+        :param opts: Placement options. ``track_h`` sets both the starting height
+        and per-wrap growth increment; must match the rendered line pitch of
+        the target font or text will clip.
         :param label_id: Optional override control id.
-        :param line_step: Pixels added per wrapped line (defaults to default_line_step).
         :param max_lines: Optional cap for number of lines (overrides default).
         :param alive: Optional guard callable; return False to abort animation.
         """
@@ -769,9 +771,6 @@ class TypewriterAnimation:
         log.debug(f"{self.__class__.__name__} → START → '{label}'")
         control_id = to_int(label_id, self.control_id)
 
-        if not _alive():
-            return
-
         try:
             control = self.window.getControl(control_id)
             control.setText("")
@@ -779,25 +778,26 @@ class TypewriterAnimation:
             log.debug(f"{self.__class__.__name__}: Control {control_id} not found")
             return
 
+        if not _alive():
+            return
+
+        line_h = max(1, int(opts.track_h or self.default_line_h))
+        max_lines_eff = max_lines or self.max_lines
+        max_height = line_h * max_lines_eff
+
         posx, posy, width, height = compute_rect(
             window=self.window,
             caller_name=self.__class__.__name__,
             opts=opts,
-            content_h=(
-                (self.default_line_step * self.max_lines) if not opts.track_h else None
-            ),
+            content_h=(max_height if not opts.track_h else None),
         )
 
-        step_h = max(1, int(line_step or self.default_line_step))
-        base_h = max(1, int(opts.track_h or step_h))
-
-        # Bottom-align a one-line box inside the rect (or top/center as requested).
-        posy_aligned = align_y(posy, height, base_h, align=opts.valign, pad=opts.vpad)
+        posy_aligned = align_y(posy, height, line_h, align=opts.valign, pad=0)
         posx_final, posy_final, width_final, height_final = (
             posx,
             posy_aligned,
             width,
-            base_h,
+            line_h,
         )
 
         control.setWidth(width_final)
@@ -808,11 +808,10 @@ class TypewriterAnimation:
             control.setText("")
             return
 
-        # Animate: add step_h per wrap, up to max_lines
-        max_lines_eff = max_lines or self.max_lines
-        max_height = base_h + (max_lines_eff - 1) * step_h
-        current_height = base_h
+        # Animate: add line_h per wrap, up to max_lines
+        current_height = line_h
         current_posy = posy_final
+        grows = 0
 
         control.setVisible(True)
         for i in range(1, len(label) + 1):
@@ -830,13 +829,18 @@ class TypewriterAnimation:
                 and condition(f"Container({control_id}).HasNext")
                 and current_height < max_height
             ):
-                next_h = min(current_height + step_h, max_height)
+                next_h = min(current_height + line_h, max_height)
                 dy = next_h - current_height
+                from_h = current_height
                 current_height = next_h
+                grows += 1
 
-                # Only shift Y to keep the bottom fixed when valign=bottom.
-                if (opts.valign or "center").lower() == "bottom":
+                # Shift Y to keep the alignment anchor fixed as height grows.
+                v = (opts.valign or "center").lower()
+                if v == "bottom":
                     current_posy -= dy
+                elif v == "center":
+                    current_posy -= dy // 2
 
                 control.setHeight(current_height)
                 control.setPosition(posx_final, current_posy)
@@ -846,4 +850,7 @@ class TypewriterAnimation:
                 xbmc.sleep(1)
                 control.setText(sub)
 
-        log.debug(f"{self.__class__.__name__} → DONE → '{label}'")
+        log.debug(
+            f"{self.__class__.__name__} → DONE → '{label}' "
+            f"(len={len(label)} grows={grows} h={current_height}/{max_height} line_h={line_h})"
+        )

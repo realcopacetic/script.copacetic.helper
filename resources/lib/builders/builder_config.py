@@ -36,7 +36,7 @@ BUILDER_CONFIG = {
     },
     "variables": {
         "module": VariablesBuilder,
-        "run_contexts": ["build"],
+        "run_contexts": ["build", "runtime"],
         "write_type": "xml",
         "write_path": VARIABLES,
         "write_handler": XMLHandler,

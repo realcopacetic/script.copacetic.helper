@@ -21,29 +21,47 @@ _STREAM_DETAIL_MAP = {
     "subtitle": ("SubtitleStream", xbmc.SubtitleStreamDetail),
 }
 
-TAG_TYPES: dict[str, str] = {
-    "Artists": "list",
-    "DbId": "int",
-    "Directors": "list",
-    "Duration": "int",
-    "Episode": "int",
-    "Genres": "list",
-    "LastPlayed": "str",
-    "Mpaa": "str",
-    "Playcount": "int",
-    "Plot": "str",
-    "PlotOutline": "str",
-    "Premiered": "str",
-    "Season": "int",
-    "Studios": "list",
-    "TagLine": "str",
-    "Title": "str",
-    "Top250": "int",
-    "TrackNumber": "int",
-    "Trailer": "str",
-    "TvShowTitle": "str",
-    "Writers": "list",
-    "Year": "int",
+# Maps canonical ListItem/VideoInfoTag names to their value type and the
+# corresponding JSON-RPC source field. Used both by apply_videoinfotag (for
+# setter dispatch and type coercion) and by json_to_canonical (via the
+# _JSON_TO_CANONICAL reverse lookup) to translate raw JSON-RPC responses
+# into canonical metadata. ``json: None`` indicates the value is set by
+# other means (e.g. DbId from the response's *id field).
+TAG_TYPES: dict[str, dict[str, str | None]] = {
+    "Album": {"type": "str", "json": "album"},
+    "Artists": {"type": "list", "json": "artist"},
+    "Country": {"type": "list", "json": "country"},
+    "DateAdded": {"type": "str", "json": "dateadded"},
+    "DbId": {"type": "int", "json": None},
+    "Directors": {"type": "list", "json": "director"},
+    "Duration": {"type": "int", "json": "runtime"},
+    "Episode": {"type": "int", "json": "episode"},
+    "FirstAired": {"type": "str", "json": "firstaired"},
+    "Genres": {"type": "list", "json": "genre"},
+    "LastPlayed": {"type": "str", "json": "lastplayed"},
+    "Mpaa": {"type": "str", "json": "mpaa"},
+    "OriginalTitle": {"type": "str", "json": "originaltitle"},
+    "Playcount": {"type": "int", "json": "playcount"},
+    "Plot": {"type": "str", "json": "plot"},
+    "PlotOutline": {"type": "str", "json": "plotoutline"},
+    "Premiered": {"type": "str", "json": "premiered"},
+    "ProductionCode": {"type": "str", "json": "productioncode"},
+    "Rating": {"type": "str", "json": "rating"},
+    "Season": {"type": "int", "json": "season"},
+    "Set": {"type": "str", "json": "set"},
+    "SetId": {"type": "int", "json": "setid"},
+    "SortTitle": {"type": "str", "json": "sorttitle"},
+    "Studios": {"type": "list", "json": "studio"},
+    "TagLine": {"type": "str", "json": "tagline"},
+    "Title": {"type": "str", "json": "title"},
+    "Top250": {"type": "int", "json": "top250"},
+    "TrackNumber": {"type": "int", "json": "track"},
+    "Trailer": {"type": "str", "json": "trailer"},
+    "TvShowTitle": {"type": "str", "json": "showtitle"},
+    "UserRating": {"type": "int", "json": "userrating"},
+    "Votes": {"type": "str", "json": "votes"},
+    "Writers": {"type": "list", "json": "writer"},
+    "Year": {"type": "int", "json": "year"},
 }
 
 
@@ -132,12 +150,20 @@ def apply_videoinfotag(
     tag.setMediaType(str(media_type or item.get("DbType") or ""))
 
     for key, value in item.items():
-        coerce_type = TAG_TYPES.get(key)
+        spec = TAG_TYPES.get(key)
+        coerce_type = spec.get("type") if spec else None
         if not coerce_type:
             continue
 
         setter = getattr(tag, f"set{key}", None)
-        if not setter or value in (None, ""):
+        if not setter:
+            log.debug(
+                f"apply_videoinfotag: no set{key} method on InfoTagVideo; "
+                f"TAG_TYPES entry exists but is unreachable."
+            )
+            continue
+
+        if value in (None, ""):
             continue
 
         try:
@@ -180,7 +206,5 @@ def apply_videoinfotag(
             try:
                 add_method(detail_cls(**s))
             except TypeError:
-                log.debug(
-                    f"apply_videoinfotag: Bad {kind} stream detail: {s!r}"
-                )
+                log.debug(f"apply_videoinfotag: Bad {kind} stream detail: {s!r}")
                 continue
