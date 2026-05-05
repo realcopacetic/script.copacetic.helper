@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import expand_index
+from resources.lib.shared.utilities import evaluate_expression, expand_index
 
 PLACEHOLDER_PATTERN = re.compile(r"{(.*?)}")
 
@@ -79,6 +79,8 @@ class BaseBuilder:
                 None,
             )
             substitutions = self.generate_substitutions(items, dynamic_key)
+
+        self._add_loop_position_flags(substitutions)
 
         yield from (
             {k: v}
@@ -188,22 +190,20 @@ class BaseBuilder:
     def _resolve_placeholder(self, match: re.Match, substitutions: dict[str, str]) -> str:
         """
         Resolve a single placeholder match against the substitution dict.
+        Falls back to numeric expression evaluation for arithmetic and min/max.
 
         :param match: Regex match object from PLACEHOLDER_PATTERN.
         :param substitutions: Dict of key-value substitutions.
         :return: Substituted value, or empty string if placeholder is unknown.
         """
         key = match.group(1)
-        # Arithmetic: {name+N} / {name-N} resolves against an integer-valued substitution
-        if (m := re.match(r"^(\w+)([+-])(\d+)$", key)) and m.group(1) in substitutions:
-            base, op, offset = m.group(1), m.group(2), int(m.group(3))
-            try:
-                return str(int(substitutions[base]) + (offset if op == "+" else -offset))
-            except (ValueError, TypeError):
-                pass
-
+        
         if key in substitutions:
             return substitutions[key]
+
+        result = evaluate_expression(key, substitutions)
+        if result is not None:
+            return result
 
         return ""
 
@@ -238,6 +238,68 @@ class BaseBuilder:
 
         else:
             return template
+        
+    def _resolve_placeholder_strict(
+        self, match: re.Match, tokens: dict[str, str]
+    ) -> str:
+        """
+        Like _resolve_placeholder but leaves unknown placeholders intact.
+        Used for pre-pass substitution of template-level tokens before the
+        per-item expansion runs.
+
+        :param match: Regex match object from PLACEHOLDER_PATTERN.
+        :param tokens: Dict of template-level token values.
+        :return: Substituted value, or the original {placeholder} text if
+            the token is unknown or the expression cannot be evaluated.
+        """
+        key = match.group(1)
+        if key in tokens:
+            return tokens[key]
+        result = evaluate_expression(key, tokens)
+        if result is not None:
+            return result
+        return match.group(0)
+    
+    def substitute_strict(self, template, tokens):
+        """
+        Walk a template tree and substitute only placeholders resolvable from
+        ``tokens``, leaving all others intact. Does not prune empty values —
+        pruning happens in the downstream per-item expansion.
+
+        :param template: Template string, list, or dict to walk.
+        :param tokens: Dict of template-level token values.
+        :return: Tree with template-level placeholders resolved.
+        """
+        if isinstance(template, str):
+            if "{" not in template:
+                return template
+            return PLACEHOLDER_PATTERN.sub(
+                lambda m: self._resolve_placeholder_strict(m, tokens), template
+            )
+        if isinstance(template, list):
+            return [self.substitute_strict(item, tokens) for item in template]
+        if isinstance(template, dict):
+            return {k: self.substitute_strict(v, tokens) for k, v in template.items()}
+        return template
+    
+    @staticmethod
+    def _add_loop_position_flags(substitutions: list[dict[str, str]]) -> None:
+        """
+        Inject loop-position metadata into every substitution dict in place.
+        Adds ``count`` (total substitutions, identical across all entries),
+        ``is_first`` ('true' on the first entry only), and ``is_last``
+        ('true' on the last entry only). Strings are used so the values can
+        be substituted directly into Kodi boolean conditions.
+
+        :param substitutions: List of substitution dictionaries to annotate.
+        """
+        total = len(substitutions)
+        last = total - 1
+        count_str = str(total)
+        for i, sub in enumerate(substitutions):
+            sub["count"] = count_str
+            sub["is_first"] = "true" if i == 0 else "false"
+            sub["is_last"] = "true" if i == last else "false"
 
     def _inject_metadata(self, substitutions, *keys):
         """Merge substitutions with metadata if metadata for any key exists."""
@@ -637,11 +699,16 @@ class IncludesBuilder(BaseBuilder):
     def resolve_values(self, substitutions, include_element):
         """
         Resolves values recursively within the include element with substitutions.
+        Template-level tokens (currently 'count') are pre-substituted across the
+        whole tree before per-item expansion, so they don't trigger multiplication
+        in contains_placeholder.
 
         :param substitutions: List of substitution dictionaries.
         :param include_element: Dictionary representing the include XML structure.
         """
-        return {"include": self.recursive_expand(include_element, substitutions)}
+        template_tokens = {"count": str(len(substitutions))}
+        pre_resolved = self.substitute_strict(include_element, template_tokens)
+        return {"include": self.recursive_expand(pre_resolved, substitutions)}
 
     def contains_placeholder(self, data, substitutions):
         """

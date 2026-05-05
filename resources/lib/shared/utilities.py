@@ -1,11 +1,13 @@
 # author: realcopacetic
 
+import ast
 import json
+import operator
 import sys
 import time
 import urllib.parse as urllib
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import xbmc
 import xbmcvfs
@@ -524,3 +526,82 @@ def parse_bool(s: object, default: bool = False) -> bool:
     if s is None:
         return default
     return str(s).strip().lower() in {"1", "true", "yes", "on"}
+
+
+"""ARITHMETIC"""
+
+_BIN_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+}
+
+_FUNCS = {"min": min, "max": max}
+
+
+def _eval_node(node: ast.AST, names: Mapping[str, Any]) -> Any:
+    """
+    Recursive AST walker for evaluate_expression.
+
+    :param node: AST node to evaluate.
+    :param names: Mapping of identifier to numeric value.
+    :return: Numeric result of the node.
+    :raises ValueError: For unknown names or unsupported syntax.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.Name):
+        if node.id in names:
+            return names[node.id]
+        raise ValueError(f"Unknown name '{node.id}'")
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return -_eval_node(node.operand, names)
+    if isinstance(node, ast.BinOp) and type(node.op) in _BIN_OPS:
+        return _BIN_OPS[type(node.op)](
+            _eval_node(node.left, names), _eval_node(node.right, names)
+        ) 
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in _FUNCS
+        and not node.keywords
+    ):
+        return _FUNCS[node.func.id](*(_eval_node(a, names) for a in node.args))
+    raise ValueError(f"Unsupported expression node: {type(node).__name__}")
+
+
+def evaluate_expression(expr: str, names: Mapping[str, Any]) -> str | None:
+    """
+    Evaluate a small numeric expression against a name table. Supports the
+    four arithmetic operators (, -, *, /), floor division, modulo, unary
+    minus, parenthesised sub-expressions, and the functions min() and max()
+    with any number of arguments.
+
+    :param expr: Expression text (e.g. "count*100", "min(count*100, 800)").
+    :param names: Mapping of identifier to numeric value. String values that
+        parse as integers are accepted; other non-numeric values are ignored.
+    :return: Stringified result (integer when whole), or None if the
+        expression cannot be evaluated against the supplied names.
+    """
+    numeric_names: dict[str, Any] = {}
+    for key, value in names.items():
+        if isinstance(value, (int, float)):
+            numeric_names[key] = value
+        elif isinstance(value, str):
+            try:
+                numeric_names[key] = int(value)
+            except ValueError:
+                continue
+
+    try:
+        tree = ast.parse(expr, mode="eval")
+        result = _eval_node(tree.body, numeric_names)
+    except (SyntaxError, ValueError, TypeError, ZeroDivisionError):
+        return None
+
+    if isinstance(result, float) and result.is_integer():
+        result = int(result)
+    return str(result)
