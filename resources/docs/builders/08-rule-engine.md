@@ -1,14 +1,8 @@
 # Rule Engine
 
-The Rule Engine is the condition evaluator used across multiple builders and the Dynamic Editor. It parses condition strings, evaluates them against current state, and returns boolean results. It supports a set of built-in comparison operators, Kodi native conditions, and a caching system for build-time performance.
+The Rule Engine is the condition evaluator used across multiple builders and the Dynamic Editor. It parses condition strings, evaluates them against current state, and returns boolean results. It supports built-in comparison operators, native Kodi conditions, and result caching.
 
----
-
-## Where it's used
-
-- **Configs builder** — evaluates filter rules to determine which items to exclude/include
-- **Expressions builder** — evaluates rule conditions to determine which values to assign/append
-- **Dynamic Editor** — evaluates visibility conditions on controls at runtime
+It's used by the **configs builder** (filter rule conditions), the **expressions builder** (rule conditions), and the **Dynamic Editor** (control visibility conditions at runtime).
 
 ---
 
@@ -16,37 +10,37 @@ The Rule Engine is the condition evaluator used across multiple builders and the
 
 ### Literal values
 
-The simplest conditions are bare `true` and `false` strings:
+The simplest conditions are bare `true` and `false`:
 
 ```
 "true"   → True
 "false"  → False
 ```
 
-### Kodi native conditions: `xml()`
+### Native Kodi: `xml(...)`
 
 Wrapping a condition in `xml()` delegates evaluation to Kodi's own `getCondVisibility()`:
 
 ```
-xml(Skin.String(movies_view,list))
-xml(Skin.String(movies_layout,poster) + Skin.String(movies_view,list))
+xml(Skin.String(movies_layout,fanart))
+xml(Skin.String(movies_layout,fanart) + Skin.String(movies_details_title,true))
 xml(!Skin.HasSetting(some_toggle))
 ```
 
 Inside the parentheses, you write any valid Kodi boolean expression using `+` (AND), `|` (OR), `!` (NOT), and brackets.
 
-This is evaluated live — it reflects the current state of skin strings, settings, and Kodi conditions. At build time, `xml()` conditions query Kodi's actual state, making them useful for expressions and configs that depend on what the user has currently configured.
+This is evaluated live — it reflects the current state of skin strings, settings, and other Kodi conditions at the moment it runs. At build time, that means whatever the user has currently configured.
 
-### Focus conditions: `focused()`
+### Focus: `focused(...)`
 
-The `focused()` condition checks if a specific control has focus:
+Checks if a specific control has focus:
 
 ```
 focused(movies_item)
 focused(123)
 ```
 
-If the argument is a numeric control ID, it evaluates to `Control.HasFocus(ID)` via Kodi. If it's a string (like a listitem name), it returns false during build but is used by the Dynamic Editor at runtime to match contextual bindings.
+A numeric argument evaluates to `Control.HasFocus(ID)`. A string argument (like a listitem name) returns false at build time but is resolved by the Dynamic Editor at runtime to match contextual bindings.
 
 ### Comparison operators
 
@@ -56,7 +50,7 @@ All other conditions use the format:
 [not] operator(subject, value)
 ```
 
-The optional `not` prefix inverts the result. Available operators:
+The optional `not` prefix inverts the result.
 
 | Operator | Description | Example |
 |---|---|---|
@@ -65,7 +59,7 @@ The optional `not` prefix inverts the result. Available operators:
 | `not_equals` | Strings don't match | `not_equals({layout}, fanart)` |
 | `startswith` | Subject starts with prefix | `startswith({window}, vid)` |
 | `endswith` | Subject ends with suffix | `endswith({path}, .xsp)` |
-| `contains` | Subject contains substring | `contains({content_path}, plugin)` |
+| `contains` | Subject contains substring | `contains({content}, plugin)` |
 | `greaterthan` | Numeric greater than | `greaterthan({limit}, 5)` |
 | `lessthan` | Numeric less than | `lessthan({index}, 10)` |
 | `greaterorequal` | Numeric ≥ | `greaterorequal({index}, 5)` |
@@ -73,13 +67,13 @@ The optional `not` prefix inverts the result. Available operators:
 
 ### The `In` operator
 
-The most commonly used operator. The second argument is a comma-separated list wrapped in square brackets:
+The most common one. The second argument is a comma-separated list wrapped in square brackets:
 
 ```
 In({content_type}, [addons, favourites, albums, songs, images])
 ```
 
-After placeholder substitution, if `{content_type}` is `"albums"`, this becomes:
+After substitution with `{content_type} = "albums"`:
 
 ```
 In(albums, [addons, favourites, albums, songs, images])  → True
@@ -94,11 +88,13 @@ not In({content_type}, [movies, sets, tvshows, seasons])
 not equals({window}, videos)
 ```
 
+> **Note on Kodi limitations:** Kodi's own string comparison operators (`String.IsEqual`, `String.Contains`, etc.) inside `xml()` conditions do **not** resolve `$VAR[...]` references in their operands — only `$INFO` labels and direct skin strings do. If a pattern needs to compare a variable's resolved value, lift the comparison into the rule conditions or template structure rather than relying on `String.IsEqual($VAR[...], ...)`.
+
 ---
 
-## Placeholder substitution in conditions
+## Placeholder substitution
 
-Conditions support `{placeholder}` tokens just like any other template string. They are substituted before evaluation. This is what makes rules dynamic — the same rule definition produces different results for different loop values:
+Conditions support `{placeholder}` tokens like any other template string. Substitution happens before evaluation, so the same rule definition produces different results for different loop values:
 
 ```json
 {
@@ -107,35 +103,36 @@ Conditions support `{placeholder}` tokens just like any other template string. T
 }
 ```
 
-When processing `{content_type} = "songs"`, the condition is `In(songs, [songs])` → true. For any other content type, it's false.
+When processing `{content_type} = "songs"`, the condition becomes `In(songs, [songs])` → true. For any other content type, false.
 
 ---
 
 ## Caching
 
-The Rule Engine caches condition results by default. Once a condition string has been evaluated, subsequent evaluations of the same string return the cached result without re-evaluating.
+The Rule Engine caches condition results by string. Once a condition has been evaluated, subsequent evaluations of the same string return the cached result.
 
-This is safe at build time because conditions are evaluated against a fixed state. However, at runtime in the Dynamic Editor, conditions may need re-evaluation as the user changes settings. For this reason, runtime callers pass `runtime=True`, which bypasses the cache:
-
-```python
-self.rule_engine.evaluate(condition, runtime=True)
-```
+Safe at build time because conditions evaluate against fixed state. The Dynamic Editor bypasses the cache when re-evaluating visibility at runtime, since the user can change settings between evaluations.
 
 ---
 
 ## The `invert()` method
 
-The Rule Engine provides an `invert()` method used by the expressions builder's fallback system. Given a dict of expression values, it produces a Kodi boolean inversion:
+Used by the expressions builder's fallback system. Given a group of expression values, it produces a Kodi boolean inversion that's true when none of them are. For:
 
-```python
-rule_engine.invert({
-    "videos_views_visible_showcase": "Container.Content(movies)",
-    "videos_views_visible_grid": "Container.Content(tvshows)",
-})
-# Returns: "![Container.Content(movies) | Container.Content(tvshows)]"
+```
+{
+  "layout_showcase_visible_videos": "Container.Content(movies)",
+  "layout_grid_visible_videos": "Container.Content(tvshows)"
+}
 ```
 
-Values of `"false"` or `"true"` are filtered out before building the inversion. If no values remain after filtering, it returns `"true"` (the fallback is always visible when nothing else is).
+`invert()` produces:
+
+```
+![Container.Content(movies) | Container.Content(tvshows)]
+```
+
+Values of `"true"` or `"false"` are filtered out before the inversion is built. If everything is filtered, `invert()` returns `"true"` — the fallback is unconditionally visible when nothing else applies.
 
 ---
 
@@ -152,21 +149,21 @@ Values of `"false"` or `"true"` are filtered out before building the inversion. 
 ]
 ```
 
-For albums: condition is true → `fanart` and `poster` are added to the excluded set → only `square` remains.
+For albums: condition is true → `fanart` and `poster` join the excluded set → only `square` remains.
 
 ### Expression rule (assign)
 
 ```json
 "rules": [
   {
-    "condition": "xml(Skin.String({content_type}_view,{item}))",
+    "condition": "xml(Skin.String({content_type}_layout,{item}))",
     "type": "assign",
     "value": "true"
   }
 ]
 ```
 
-For movies with item=list: if `Skin.String(movies_view)` equals "list" → expression is `"true"`. Otherwise processing continues to the next rule (or defaults to `"false"`).
+For `(movies, list)`: if `Skin.String(movies_layout)` equals `"list"` at build time → expression resolves to `"true"`. Otherwise the next rule runs (or it defaults to `"false"`).
 
 ### Visibility condition (Dynamic Editor)
 
@@ -174,7 +171,7 @@ For movies with item=list: if `Skin.String(movies_view)` equals "list" → expre
 "visible": "In({widget_preset}, [custom])"
 ```
 
-At runtime, `{widget_preset}` is resolved from the current entry's `mapping_item`. If it's `"custom"`, the control is visible. Otherwise it's hidden.
+At runtime, `{widget_preset}` is resolved from the focused entry's `mapping_item`. If it's `"custom"`, the control is visible; otherwise hidden.
 
 ---
 
