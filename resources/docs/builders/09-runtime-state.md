@@ -1,62 +1,93 @@
 # Runtime State & the Dynamic Editor
 
-The runtime state system enables user-configurable, multi-instance features like widgets. It stores per-entry settings in a JSON file and provides a visual editor where users can add, remove, reorder, and configure entries. When the user closes the editor, changed outputs are rebuilt and the skin reloads.
+Runtime state powers the multi-instance features: widgets, menus, and anything else where the user adds, removes, reorders, and configures entries. Each entry is stored in `runtime_state.json` with a stable UUID and a set of fields. The Dynamic Editor reads and writes that file through the controls you've defined.
 
 ---
 
 ## runtime_state.json
 
-The runtime state file stores one list per mapping group. Each entry in a list represents a single instance (e.g. one widget slot) with a stable UUID, a mapping item identifier, and values for each configured field.
+One list per mapping. Each entry is a flat dictionary of string fields. Two entries from a real widget list:
 
 ```json
 {
   "widgets": [
     {
-      "runtime_id": "912e32e9-fcde-4f49-8914-62ec8d23c25a",
-      "mapping_item": "next_up",
-      "view": "strip",
-      "layout": "poster"
+      "runtime_id": "f6698793-c695-4325-8fe1-978def805d65",
+      "mapping_item": "latest_movies",
+      "label": "$LOCALIZE[31202]",
+      "target": "videos",
+      "content": "videodb://movies/titles/",
+      "sortby": "dateadded",
+      "sortorder": "descending",
+      "limit": "20",
+      "parent": "bf340cc1-17c5-437f-8f84-76d6676601c6",
+      "layout": "strip",
+      "art": "fanart"
     },
     {
-      "runtime_id": "ede86898-9c53-418c-9351-c24632e99f08",
-      "mapping_item": "in_progress",
-      "view": "showcase",
-      "layout": "square"
-    },
-    {
-      "runtime_id": "c889b495-1fa9-45f8-8e17-28e1adf03e94",
+      "runtime_id": "a956c4b6-d6b3-4754-957e-d5993786a8b9",
       "mapping_item": "custom",
-      "view": "grid",
-      "layout": "poster",
-      "label": "Comedy",
-      "content_path": "videodb://movies/genres/4/"
+      "label": "In-progress movies",
+      "content": "special://skin/extras/playlists/inprogress_movies.xsp",
+      "layout": "strip",
+      "art": "poster",
+      "sortby": "title",
+      "sortorder": "ascending",
+      "limit": "20",
+      "parent": "bf340cc1-17c5-437f-8f84-76d6676601c6"
     }
   ]
 }
 ```
 
-### Entry fields
+Fields on each entry:
 
-| Field | Description |
+| Field | Source |
 |---|---|
-| `runtime_id` | UUID — stable identifier that survives reordering |
-| `mapping_item` | Which item this entry uses (from the mapping's `items` list) |
-| Field names from `config_fields` | e.g. `view`, `layout` — values chosen by the user |
-| Additional fields | e.g. `label`, `content_path` — set by controls like edit fields or browse dialogs |
+| `runtime_id` | UUID — assigned on insert, stable across reorder, rename, and preset changes |
+| `mapping_item` | Which preset this entry uses |
+| Metadata fields | All string-valued metadata for this `mapping_item`, copied onto the entry at insert |
+| `config_field` values | One per entry in the mapping's `config_fields`, initialised from the resolved default |
+| `parent` | Optional — runtime_id of an entry in another mapping group |
+| User edits | Anything edited through the editor overwrites the corresponding field |
 
-### Initialisation
+The same `mapping_item` can appear multiple times — runtime_id keeps them distinct. Non-string metadata (e.g. an `xsp` smart-playlist dict) is intentionally not copied onto the entry; it stays metadata-only and gets merged in by the includes builder at substitution time.
 
-When `runtime_state.json` doesn't exist (first skin install), it is automatically created from the mapping's `default_order` list. For each item in the default order, an entry is built with a fresh UUID and default values for each `config_field` resolved from `configs.json`.
+---
+
+## Initialisation
+
+When `runtime_state.json` doesn't exist yet (first skin install), one entry is created for each item in the mapping's `default_order` (or `items` if no `default_order` is set). New entries get a fresh UUID, the `mapping_item` name, all string metadata for that item, and resolved default values for each `config_field`. Metadata wins over config defaults — if metadata defines `sortby`, the config default doesn't get applied.
+
+---
+
+## Parent references
+
+When a mapping item's metadata sets `parent` to the name of an item in another mapping, that name is replaced with the matching entry's runtime_id at initialisation.
+
+For example, the widget preset `latest_movies` has `"parent": "movies"`. The `movies` item lives in the `mainmenu` mapping. After initialisation:
+
+```json
+{
+  "mainmenu": [
+    { "runtime_id": "bf340cc1-...", "mapping_item": "movies", "..." }
+  ],
+  "widgets": [
+    { "runtime_id": "f6698793-...", "mapping_item": "latest_movies",
+      "parent": "bf340cc1-...", "..." }
+  ]
+}
+```
+
+The widget now points at the menu item by ID. This is what lets includes templates filter widgets to the focused menu item via `{parent}`. If the menu item is later deleted, the orphaned widget is cleaned up automatically.
 
 ---
 
 ## The Dynamic Editor
 
-The Dynamic Editor is a Kodi dialog window that provides the UI for editing runtime state and static skin settings. It has a two-panel layout: a scrollable list on the left (control ID 100) and contextual controls on the right.
+A two-panel Kodi dialog window: a scrollable list on the left (control ID 100), contextual controls on the right.
 
 ### Opening the editor
-
-The editor is launched from a skin XML button via a script action:
 
 ```xml
 RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings)
@@ -64,123 +95,61 @@ RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsett
 
 The `name` parameter matches the window XML filename. The editor loads `controls.json`, filters for controls tagged with that window name, and builds the UI.
 
-### The left-hand list (ID 100)
+Optional: pass `parent=<runtime_id>` to restrict the list to entries whose `parent` matches — used for the "configure widgets for this menu item" flow, where only widgets attached to one menu item should appear.
 
-The list container (control ID 100) is populated from controls with `"control_type": "listitem"` in `controls.json`. These are defined in the controls input JSON like any other control, but instead of appearing in the right-hand panel, they become rows in the list.
+### What you provide in the window XML
 
-For example, this template defines one listitem per content type:
+| Control | ID | Purpose |
+|---|---|---|
+| List container | 100 | Left-hand list. Populated automatically. |
+| Description label | 6 | Bottom of the window. The editor sets it to the focused control's `description`. |
+| Right-hand controls | as declared | Sliders, buttons, radios, edit fields. IDs must match those in `controls.json`. |
+| Management buttons | 410–415 | See below. Hidden by default; the editor shows them when the controls include an `item_picker` role. |
 
-```json
-"{content_type}_item": {
-  "control_type": "listitem",
-  "window": ["viewsettings"],
-  "visible": "true",
-  "label": "{content_type}",
-  "description": "Configure view settings for {content_type}.",
-  "icon": "icons/{content_type}.png"
-}
-```
+### List rows
 
-**For static windows** (e.g. view settings), the controls builder expands this template across the mapping's loop values — so with the `content_types` mapping, you get one entry per content type (movies, tvshows, albums, etc.), each with its own label and icon.
+The left list is populated from controls with `"control_type": "listitem"` in `controls.json`.
 
-**For dynamic windows** (e.g. widget settings), the listitem uses `"mode": "dynamic"` and the list entries come from `runtime_state.json` instead:
+**Static window** (e.g. view settings) — one listitem per loop value in the mapping. With the `content_types` mapping, the `{content_type}_item` template produces `movies_item`, `tvshows_item`, `albums_item`, etc.
+
+**Dynamic window** (e.g. widget settings) — list rows come from `runtime_state.json`. The listitem template defines how rows look; one row per runtime entry, in storage order.
 
 ```json
 "widget_{index}": {
   "mode": "dynamic",
   "control_type": "listitem",
   "window": ["widgetsettings"],
-  "visible": "true",
   "label": "{label}",
   "description": "Select widget to configure."
 }
 ```
 
-This template acts as a stand-in — it defines how each list row should look, but the actual entries come from the runtime state. On first install, the list is populated from the mapping's `default_order`. From there, the user can add more entries, remove existing ones, or reorder them using the management buttons. Each entry's label is resolved from its metadata (e.g. "$LOCALIZE[31201]" for "Next Up") or from user-entered values (e.g. "Comedy" for a custom widget). The template name (`widget_{index}`) doesn't matter for identification — each entry is tracked by its UUID in the runtime state.
+The user reorders, adds, and deletes rows with the management buttons.
 
-### The two linking modes
+### Linking controls to data
 
-The editor supports two fundamentally different ways of connecting controls to data:
+The right-hand controls connect to data in one of two ways. See [Controls Builder](06-controls.md) for full details.
 
-**Static mode (contextual bindings)** — Used for view settings. A single control is shared across all listitems. In the controls JSON input, the skinner writes the binding as a template:
+**Contextual bindings** (static) — one control shared across all listitems, with a different config key bound for each. Used for view settings: a single layout slider that follows the focused content type.
 
-```json
-"view": {
-  "id": 200,
-  "control_type": "sliderex",
-  "contextual_bindings": {
-    "linked_config": "{content_type}_view",
-    "update_trigger": "focused({content_type}_item)"
-  },
-  "label": "View"
-}
-```
+**Field bindings** (dynamic) — one control per runtime field, shared across all entries. The control reads and writes the same field on whichever entry is selected. Used for widget settings: a layout slider that reads the focused widget's `layout` field.
 
-The controls builder expands this across all content types, producing the resolved bindings array in `controls.json`:
+### Management buttons
 
-```json
-"contextual_bindings": [
-  { "linked_config": "movies_view", "update_trigger": "focused(movies_item)" },
-  { "linked_config": "tvshows_view", "update_trigger": "focused(tvshows_item)" },
-  { "linked_config": "albums_view", "update_trigger": "focused(albums_item)" }
-]
-```
-
-At runtime, when the user scrolls the list to "movies", the slider reads from the `movies_view` skin string. Scroll to "albums", and the same slider reads from `albums_view`. One control, many config bindings.
-
-**Dynamic mode (field bindings)** — Used for widget settings. Each control has a `field` that maps to a column in the runtime state:
-
-```json
-"widget_view": {
-  "mode": "dynamic",
-  "field": "view",
-  "id": 201,
-  "control_type": "sliderex",
-  "label": "View"
-}
-```
-
-Every entry in the runtime state shares the same set of controls. When the user scrolls the list, the controls read and write values from the selected entry. For example, with this runtime state:
-
-```json
-[
-  { "runtime_id": "912e...", "mapping_item": "next_up", "view": "strip", "layout": "poster" },
-  { "runtime_id": "ede8...", "mapping_item": "in_progress", "view": "showcase", "layout": "square" }
-]
-```
-
-Selecting the first entry shows "strip" on the View slider. Selecting the second shows "showcase". The same slider control, reading a different entry's `view` field each time.
-
-### How the editor responds to user actions
-
-When the user scrolls the list or interacts with a control, the editor refreshes all controls for the current selection. For each control it reads the current value (from the relevant skin string or runtime state entry), evaluates the visibility condition, and updates the display. When the user changes a value (moving a slider, pressing a button, toggling a radio), the new value is written back to the skin string or runtime state and the UI refreshes.
-
-When the user changes which item a slot uses (via the item picker button), the editor refreshes all controls, resets any field values that are no longer valid for the new item (falling back to the config's default), and updates the list label.
-
-### The editor layout
-
-The editor window XML needs to provide the following controls:
-
-**List container** (ID 100) — the scrollable left-hand list. Populated automatically by the editor from listitems in `controls.json` or entries in `runtime_state.json`.
-
-**Description label** (ID 6) — a text area at the bottom of the window. The editor sets this to the `description` field of whichever listitem or control currently has focus.
-
-**Right-hand controls** — sliders, buttons, radio buttons, and edit fields defined in `controls.json` for this window. These are placed in the window XML by the skinner with the IDs matching those declared in the controls JSON. See [Controls Builder](06-controls.md) for details on defining controls and setting them up in XML.
-
-**Management buttons** (IDs 410–415) — only needed for dynamic windows. These should be present in the window XML but hidden by default; the editor shows them when it detects a control with `role: "item_picker"`.
+Provide controls 410–415 in your window XML. The editor enables and labels them automatically when a control with `role: "item_picker"` is present.
 
 | Button | ID | Action |
 |---|---|---|
-| Add | 410 | Shows the item picker dialog (from the mapping's `items` list), then inserts a new entry after the current position |
-| Delete | 411 | Removes the current entry (disabled when only one entry remains) |
-| Move Up | 412 | Swaps the current entry with the one above |
-| Move Down | 413 | Swaps the current entry with the one below |
-| Reset | 414 | Resets the entire mapping group to `default_order` (with confirmation dialog) |
-| Close | 415 | Saves and closes (triggers rebuild if state changed) |
+| Add | 410 | Pick a preset, then insert a new entry after the current position |
+| Delete | 411 | Remove the current entry (disabled when only one entry remains) |
+| Move Up | 412 | Swap the current entry with the one above |
+| Move Down | 413 | Swap the current entry with the one below |
+| Reset | 414 | Reset the mapping group to `default_order` (with confirmation) |
+| Close | 415 | Save and close |
 
 ### On close
 
-When the editor closes, the current runtime state is compared to a snapshot taken when the window opened. If anything changed, the includes and expressions builders are re-run for the `runtime` context, and `ReloadSkin()` is called so Kodi picks up the new XML. This ensures that changes to widget order, presets, views, or layouts are immediately reflected in the skin.
+If the runtime state changed while the editor was open, the includes and expressions builders re-run for the `runtime` context, and `ReloadSkin()` is called. Changes to widget order, presets, layouts, or art types appear in the skin immediately.
 
 ---
 

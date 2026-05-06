@@ -183,9 +183,7 @@ class BaseBuilder:
                 for item in items
             ]
 
-        raise ValueError(
-            "Missing loop value items and items/index in json/xml templates"
-        )
+        return [{}]
 
     def _resolve_placeholder(self, match: re.Match, substitutions: dict[str, str]) -> str:
         """
@@ -197,7 +195,7 @@ class BaseBuilder:
         :return: Substituted value, or empty string if placeholder is unknown.
         """
         key = match.group(1)
-        
+
         if key in substitutions:
             return substitutions[key]
 
@@ -238,7 +236,7 @@ class BaseBuilder:
 
         else:
             return template
-        
+
     def _resolve_placeholder_strict(
         self, match: re.Match, tokens: dict[str, str]
     ) -> str:
@@ -259,7 +257,7 @@ class BaseBuilder:
         if result is not None:
             return result
         return match.group(0)
-    
+
     def substitute_strict(self, template, tokens):
         """
         Walk a template tree and substitute only placeholders resolvable from
@@ -281,7 +279,7 @@ class BaseBuilder:
         if isinstance(template, dict):
             return {k: self.substitute_strict(v, tokens) for k, v in template.items()}
         return template
-    
+
     @staticmethod
     def _add_loop_position_flags(substitutions: list[dict[str, str]]) -> None:
         """
@@ -781,18 +779,30 @@ class IncludesBuilder(BaseBuilder):
 
 class VariablesBuilder(BaseBuilder):
     """
-    Builder that generates Kodi-style variable definitions with condition/value pairs.
+        Builder that generates Kodi-style variable definitions with condition/value pairs.
+        Two input shapes are supported:
+          • Ordinary: ``{values: [{condition, value}, ...]}`` — one variable per template.
+          • Cluster:  ``{outputs: {key: var_name}, rows: [{condition, key1, key2, ...}]}``
+            — multiple variables sharing a single condition cascade. Rows that omit a
+            given output key contribute nothing to that output's variable.
     """
 
     def group_and_expand(self, template_name, data, substitutions):
         """
         Groups variable templates and resolves multiple indexed variations.
+        Dispatches on input shape: cluster templates (those declaring an
+        ``outputs`` mapping) emit one variable per declared output, all sharing
+        the same row cascade. Ordinary templates emit one variable per
+        template, optionally indexed.
 
         :param template_name: Template for variable name.
         :param data: Rule and value definitions for the variable.
         :param substitutions: List of substitution dicts.
         :return: Dictionary of variable name → value list.
         """
+        if "outputs" in data:
+            return self._expand_cluster(data, substitutions)
+        
         grouped = defaultdict(list)
 
         for sub in substitutions:
@@ -805,6 +815,40 @@ class VariablesBuilder(BaseBuilder):
             for subs in grouped.values()
             for variable in self.resolve_values(template_name, subs, data)
         }
+
+    def _expand_cluster(
+        self,
+        data: dict[str, Any],
+        substitutions: list[dict[str, Any]],
+    ) -> dict[str, list[dict[str, str]]]:
+        """
+        Expand a cluster template into one variable per declared output. Each
+        row contributes to a given output only when that output's key appears
+        in the row, allowing sparse cells across the cascade. Empty-string
+        values produce ``<value condition="..."/>`` self-closing terminators
+        in the emitted XML.
+
+        :param data: Cluster template dict containing ``outputs`` and ``rows``.
+        :param substitutions: Substitution dicts from the loop expansion.
+        :return: Mapping of emitted variable name → list of resolved
+            ``{condition, value}`` dicts.
+        """
+        outputs = data.get("outputs", {})
+        rows = data.get("rows", [])
+        result: dict[str, list[dict[str, str]]] = defaultdict(list)
+
+        for sub in substitutions:
+            for output_key, name_template in outputs.items():
+                emitted_name = self.substitute(name_template, sub)
+                for row in rows:
+                    if output_key not in row:
+                        continue
+                    result[emitted_name].append({
+                        "condition": self.substitute(row.get("condition", "true"), sub),
+                        "value": self.substitute(row[output_key], sub),
+                    })
+
+        return dict(result)
 
     def resolve_values(
         self,
