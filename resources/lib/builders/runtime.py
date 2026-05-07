@@ -137,12 +137,8 @@ class RuntimeStateManager:
 
     def _resolve_parent_refs(self, state: dict) -> None:
         """
-        Replace mapping_item parent references with runtime_ids.
-        For each entry with a ``parent`` field whose value matches a
-        ``mapping_item`` string, substitute the corresponding ``runtime_id``.
-        If multiple mappings share a ``mapping_item`` name, the first
-        encountered match wins. This is safe as long as parent references
-        always target a different mapping group than their own.
+        For each entry whose ``parent`` matches a ``mapping_item`` string,
+        substitute the corresponding ``runtime_id`` (first match wins across mappings).
 
         :param state: Full runtime state dict, mutated in place.
         """

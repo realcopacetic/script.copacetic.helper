@@ -727,12 +727,15 @@ class TypewriterAnimation:
         max_lines: int = 3,
     ):
         """
+        Initialise the animator with default control id, timing, and sizing.
+        Line height must match the rendered font pitch or text will clip.
+
         :param control_id: Default text control id to animate if none is passed.
         :param step_time: Delay per character (seconds).
-        :param default_line_h: Fallback line height (pixels) when ``opts.track_h``
-        is not provided. Must match the rendered line pitch of the target font.
+        :param default_line_h: Fallback line height (px) when ``opts.track_h`` is unset.
         :param max_lines: Max number of lines the box may grow to.
         """
+
         self.window = Window(getCurrentWindowId())
         self.control_id = int(control_id)
         self.step_time = step_time
@@ -750,15 +753,15 @@ class TypewriterAnimation:
     ) -> None:
         """
         Animate label with a typewriter effect using compute_rect placement.
+        ``track_h`` must match the rendered font pitch or text will clip.
 
         :param label: Text to animate.
-        :param opts: Placement options. ``track_h`` sets both the starting height
-        and per-wrap growth increment; must match the rendered line pitch of
-        the target font or text will clip.
+        :param opts: Placement options; ``track_h`` is line height + growth.
         :param label_id: Optional override control id.
         :param max_lines: Optional cap for number of lines (overrides default).
         :param alive: Optional guard callable; return False to abort animation.
         """
+
         monitor = Monitor()
 
         def _alive() -> bool:

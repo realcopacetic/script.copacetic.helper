@@ -77,16 +77,11 @@ class OnClickActions:
     @staticmethod
     def browse_content(cfg):
         """
-        Show a recursive content path browser using JSON-RPC directory lookups.
+        Widget mode returns ``{path, label}``; menu mode also adds
+        ``{type, window, action}`` for menu-item construction.
 
-        Returns a dict or None if cancelled:
-          widget mode: {"path": str, "label": str}
-          menu mode:   {"path": str, "label": str, "type": str,
-                        "window": str, "action": str}
-
-        The caller (ButtonControlHandler.handle_interaction) extracts "path"
-        for the control's own field and, if cfg["label_field"] is set, writes
-        "label" to that sibling runtime field.
+        :param cfg: Onclick config dict (supports ``mode``: "widget" or "menu").
+        :return: Result dict, or None if cancelled.
         """
         from resources.lib.windows.browse import browse_content
 
@@ -99,10 +94,10 @@ class OnClickActions:
         using a transient skin string and a non-existent sentinel
         filename for unambiguous cancel detection.
 
-        :param cfg: Dict supporting:
-                      default (str) — starting path for the browser.
+        :param cfg: Dict with ``folder`` (str) — starting path for the browser.
         :return: Selected path as a string, or None if cancelled.
         """
+
         SCRATCHPAD = "_copacetic_image_picker"
 
         folder = cfg.get("folder", "")

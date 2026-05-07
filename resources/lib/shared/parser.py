@@ -12,9 +12,8 @@ _PLUGIN_KV = re.compile(r"([A-Za-z0-9_.%-]+)=(.*?)(?=&[A-Za-z0-9_.%-]+=|$)")
 def parse_params(argv: list[str], mode: str = "plugin") -> dict[str, str]:
     """
     Unified argv parser for Kodi plugin + script entry points.
-    - Plugin URLs may contain raw '&' inside values.
-    - RunScript splits on commas before Python sees argv, so values with commas
-      arrive as multiple tokens and must be stitched.
+    Plugin URLs may contain raw '&' inside values; RunScript splits on commas
+    so multi-token values must be stitched back together.
 
     :param argv: Raw sys.argv from Kodi entry point.
     :param mode: "plugin" for plugin:// URLs, "script" for RunScript tokens.

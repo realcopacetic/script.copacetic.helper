@@ -91,11 +91,8 @@ class BaseBuilder:
 
     def generate_runtimejson_substitutions(self, runtime_items, index_start):
         """
-        Generate substitution dictionaries for dynamic template expansion.
-        Each runtime entry contributes its scalar (string) fields to the
-        substitution dict, layered over per-item metadata. Non-string runtime
-        values are skipped — structural metadata (such as encoded xsp
-        strings) is provided exclusively from metadata.
+        Each runtime entry contributes its scalar (string) fields layered over
+        per-item metadata; non-string runtime values (e.g. xsp dicts) come from metadata only.
 
         :param runtime_items: List of runtime state items for this mapping.
         :param index_start: Starting index value (default 1).
@@ -247,9 +244,9 @@ class BaseBuilder:
 
         :param match: Regex match object from PLACEHOLDER_PATTERN.
         :param tokens: Dict of template-level token values.
-        :return: Substituted value, or the original {placeholder} text if
-            the token is unknown or the expression cannot be evaluated.
+        :return: Substituted value; original ``{placeholder}`` if unresolved.
         """
+
         key = match.group(1)
         if key in tokens:
             return tokens[key]
@@ -779,21 +776,15 @@ class IncludesBuilder(BaseBuilder):
 
 class VariablesBuilder(BaseBuilder):
     """
-        Builder that generates Kodi-style variable definitions with condition/value pairs.
-        Two input shapes are supported:
-          • Ordinary: ``{values: [{condition, value}, ...]}`` — one variable per template.
-          • Cluster:  ``{outputs: {key: var_name}, rows: [{condition, key1, key2, ...}]}``
-            — multiple variables sharing a single condition cascade. Rows that omit a
-            given output key contribute nothing to that output's variable.
+    Builder that generates Kodi-style variable definitions with condition/value pairs.
+    Supports ordinary shape (``{values: [...]}`` — one variable per template) and cluster
+    shape (``{outputs, rows}`` — multiple variables sharing a single row cascade).
     """
 
     def group_and_expand(self, template_name, data, substitutions):
         """
-        Groups variable templates and resolves multiple indexed variations.
-        Dispatches on input shape: cluster templates (those declaring an
-        ``outputs`` mapping) emit one variable per declared output, all sharing
-        the same row cascade. Ordinary templates emit one variable per
-        template, optionally indexed.
+        Cluster templates emit one variable per declared output sharing a row
+        cascade; ordinary templates emit one variable per template (optionally indexed).
 
         :param template_name: Template for variable name.
         :param data: Rule and value definitions for the variable.
@@ -802,7 +793,7 @@ class VariablesBuilder(BaseBuilder):
         """
         if "outputs" in data:
             return self._expand_cluster(data, substitutions)
-        
+
         grouped = defaultdict(list)
 
         for sub in substitutions:

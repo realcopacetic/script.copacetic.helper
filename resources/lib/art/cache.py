@@ -216,9 +216,8 @@ class ArtworkCacheManager:
     def write_lookup(self, metadata: dict[str, Any]) -> None:
         """
         Persist a cache row into SQLite.
-        Evicts any existing rows for the same source+process+variant — these
-        are stale by definition (a different cache_key for matching variant
-        means the source content has changed).
+        Evicts existing rows for the same source+process+variant — a different
+        cache_key for the same variant means the source content has changed.
 
         :param metadata: Processed attributes including keys and hashes.
         """

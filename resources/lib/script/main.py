@@ -46,6 +46,7 @@ class Main:
         """
         Resolve an action name to a callable from the provided registry.
 
-        Returns None if the action is not registered.
+        :param action: Action name to look up.
+        :return: Registered callable, or None if not found.
         """
         return self._registry.get(action)

@@ -456,10 +456,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _seed_metadata(self) -> None:
         """
-        Write metadata fields from the current preset into runtime state.
         Skips ``parent`` (preserved across preset changes) and non-string
-        fields (structural metadata such as xsp dicts that the user does
-        not override)
+        fields (structural metadata such as xsp dicts).
         """
         item = self.listitems.get(self.current_listitem)
         if not item:
@@ -500,13 +498,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self, mapping_changed: bool = False, list_rebuilt: bool = False
     ) -> None:
         """
-        Common tail after any structural change. Caller is responsible for:
-        - writing to runtime state
-        - calling _build_dicts()
-        - setting self.container_position and self.current_listitem
-        - rebuilding/patching the list if needed
-
-        This method handles: reselect → optional mapping_item_changed → UI refresh.
+        Common tail after any structural change: reselect → optional
+        mapping_item_changed → UI refresh. Caller must handle the state write,
+        ``_build_dicts``, position/current_listitem, and list rebuild.
         """
         if self.listitems:
             self.list_container.selectItem(self.container_position)

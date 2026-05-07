@@ -1,7 +1,9 @@
 # Mappings
-
+ 
 A mapping is the loop definition that drives every builder. It declares what to iterate over, how to name the placeholders, and optionally attaches metadata and config field templates. Every builder input file references a mapping by name.
-
+ 
+> Reference doc — fields and behaviours. If you arrived here cold and want a worked example, start with the [Quickstart](00-quickstart.md) or [Use case 3: Widgets](10-use-cases.md#3-widgets--dynamic-runtime-state-driven).
+ 
 ---
 
 ## Built-in vs custom mappings

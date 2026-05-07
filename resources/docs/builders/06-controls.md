@@ -257,7 +257,11 @@ The `onclick` object on button controls defines what happens when the user press
 | `heading` | Dialog title |
 | `items` | Override items (if omitted, uses the linked config's items) |
 | `then` | Optional chained action (item picker only — see below) |
-| Plus various type-specific options |
+| `folder` | Starting folder for `browse_image` |
+| `result_field` | For dialogs that return dicts: which key from the result becomes the control's own value (default: `path`). See [browse_content](#browse_content-and-sibling-fields). |
+| `sibling_fields` | For dialogs that return dicts: which result keys go to which other controls' fields. |
+| Plus various type-specific options | `browseType`, `shares`, `mask`, `useThumbs`, `treatAsFolder`, `default`, `enableMultiple`, `mode`, `action`, etc. |
+```
 
 ### Action types
 
@@ -268,7 +272,7 @@ The `onclick` object on button controls defines what happens when the user press
 | `browse_single` | Single-select browse dialog |
 | `browse_multiple` | Multi-select browse dialog |
 | `browse_content` | Recursive content path browser (library, playlists, addons, custom paths) |
-| `browse_image` | Image picker dialog |
+| `browse_image` | Image picker dialog. Returns a single path string. See [browse_image](#browse_image) below. |
 | `colorpicker` | Kodi colour picker dialog |
 | `input` | Keyboard input dialog |
 | `numeric` | Numeric input dialog |
@@ -288,6 +292,31 @@ The `browse_content` action returns a dict containing `path`, `label`, and optio
 ```
 
 When the user picks a path, the `label` from the browse result is written to the `widget_label` control's runtime field — but only if that field is currently empty, so a user-set label is preserved.
+
+### `browse_image`
+ 
+Opens Kodi's image browser for picking a single image file. Returns the chosen path as a plain string — not a dict — so `result_field` and `sibling_fields` don't apply. The path is written directly to the control's own field.
+ 
+```json
+"widget_icon": {
+  "mode": "dynamic",
+  "field": "icon",
+  "id": 201,
+  "control_type": "button",
+  "window": ["widgetsettings"],
+  "label": "Icon",
+  "onclick": {
+    "type": "browse_image",
+    "folder": "special://skin/media/icons/genres/"
+  }
+}
+```
+ 
+| Field | Description |
+|---|---|
+| `folder` | Starting path the picker opens at. Use `special://` paths to point at skin-bundled icons. |
+ 
+For finer control over the picker (file masks, thumbnail mode, etc.), use `browse_single` with `browseType: "images"` instead — see the menu icon control in `controls_menus.json` for a worked example.
 
 ### Chained actions: `then`
 

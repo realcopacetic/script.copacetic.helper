@@ -217,12 +217,8 @@ def compute_rect(
     content_h: int | None = None,
 ) -> tuple[int, int, int, int]:
     """
-    Resolve and fit a rect using PlacementOpts.
-    Inside placement (default): align target_w/target_h within the inset rect,
-    clamping to the rect bounds if target exceeds them.
-
-    Outside placement (outside=below|above|left|right): position target adjacent
-    to the raw anchor rect. Inset is not applied in this mode.
+    Inside placement (default): align target within the inset rect, clamped to bounds.
+    Outside placement (below|above|left|right): position adjacent to the raw anchor (no inset).
 
     :param window: Kodi window object.
     :param caller_name: For DEFAULT_COORDS and logs.

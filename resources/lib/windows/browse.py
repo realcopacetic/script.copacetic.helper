@@ -592,15 +592,14 @@ def _derive_window(content_type):
 
 def _build_result(path, label, mode):
     """
-    Build the final return value for a selected path.
+    Build the final return dict for a selected path.
+    Widget mode returns ``{path, label, icon}``; menu mode also adds
+    ``{type, window, action}`` (action strings used as-is for commands).
 
-    Both modes return a dict so callers always have a consistent structure.
-
-    widget: {"path", "label", "icon"}
-    menu:   {"path", "label", "icon", "type", "window", "action"}
-
-    For menu mode, if the path is an action/command string (not a real path),
-    it is used directly as the action without wrapping in ActivateWindow.
+    :param path: Selected path or action string.
+    :param label: Display label for the result.
+    :param mode: "widget" or "menu".
+    :return: Result dict.
     """
     # Action strings (commands, builtins) bypass path-based derivation
     if mode == "menu" and _is_action_string(path):
@@ -708,18 +707,13 @@ def _browse_favourites(heading):
 
 def _browse_level(path, heading, mode="widget"):
     """
-    Show a select dialog for *path* and handle user navigation.
+    Returned label uses heading for endpoints/flat/empty/use-path,
+    item label for files, and propagates from sub-levels for directories.
 
-    Returns:
-        (path, label)  — selected content path and its display label
-        _BACK_SENTINEL — user pressed ".."
-        None           — dialog dismissed (hard cancel)
-
-    Label semantics:
-      - Endpoint / known flat / empty directory → heading (the node name)
-      - "Use this path" selected               → heading
-      - File item selected                     → item["label"]
-      - Directory drilled into                 → label propagated from sub-level
+    :param path: Directory path to browse.
+    :param heading: Dialog heading and fallback label.
+    :param mode: "widget" (default) or "menu".
+    :return: ``(path, label)``, ``_BACK_SENTINEL`` (back), or None.
     """
     s = _get_strings()
 
@@ -895,21 +889,12 @@ def _custom_path():
 
 def browse_content(cfg):
     """
-    Entry point for content path browsing.
+    Entry point for content path browsing. Called from OnClickActions.
+    Widget mode returns ``{path, label, icon}``; menu mode also adds
+    ``{type, window, action}`` for menu-item construction.
 
-    Called from OnClickActions.browse_content().
-
-    :param cfg: Control onclick config dict. Supports:
-                  heading    (str) — dialog title (default: "Select content")
-                  mode       (str) — "widget" (default) or "menu"
-
-    :return:
-      Both modes return a dict, or None if cancelled:
-
-      widget: {"path": str, "label": str, "icon": str}
-
-      menu:   {"path": str, "label": str, "icon": str,
-               "type": str, "window": str, "action": str}
+    :param cfg: Onclick config dict; supports ``heading`` and ``mode``.
+    :return: Result dict, or None if cancelled.
     """
     s = _get_strings()
     heading = cfg.get("heading", s["select_content"])

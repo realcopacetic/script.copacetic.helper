@@ -173,10 +173,8 @@ class ImageEditor:
         self, spec: dict[str, Any], *, opts: ArtOpts
     ) -> dict[str, object] | None:
         """
-        Build expected cache-field matches from PROCESS_SPEC['match'].
-        For darken, delegates to DarkenOpts.match_fields() so the spec stays
-        decoupled from ArtOpts proxy properties.
-        For other processes, falls back to flat getattr (e.g. blur_radius).
+        Darken delegates to DarkenOpts.match_fields() to keep the spec decoupled
+        from ArtOpts proxies; other processes fall back to flat getattr (e.g. blur_radius).
 
         :param spec: Process spec dict (may contain 'match').
         :param opts: Parsed ArtOpts for the current art_type.
