@@ -1,16 +1,12 @@
 # author: realcopacetic
 
 from resources.lib.builders.modules import (
-    ConfigsBuilder,
-    ControlsBuilder,
     ExpressionsBuilder,
     IncludesBuilder,
     VariablesBuilder,
 )
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
-    CONFIGS,
-    CONTROLS,
     EXPRESSIONS,
     INCLUDES,
     VARIABLES,
@@ -18,22 +14,6 @@ from resources.lib.shared.utilities import (
 from resources.lib.shared.xml import XMLHandler, sort_outer_keys
 
 BUILDER_CONFIG = {
-    "configs": {
-        "module": ConfigsBuilder,
-        "run_contexts": ["prep"],
-        "write_type": "json",
-        "write_path": CONFIGS,
-        "write_handler": JSONHandler,
-        "write_kwargs": {},
-    },
-    "controls": {
-        "module": ControlsBuilder,
-        "run_contexts": ["build"],
-        "write_type": "json",
-        "write_path": CONTROLS,
-        "write_handler": JSONHandler,
-        "write_kwargs": {},
-    },
     "variables": {
         "module": VariablesBuilder,
         "run_contexts": ["build", "runtime"],

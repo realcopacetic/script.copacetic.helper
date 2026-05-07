@@ -81,10 +81,7 @@ The built-in `content_types` mapping pairs windows with their content types:
 }
 ```
 
-Output in `configs.json`:
-- `movies_layout` → items `[list, showcase, strip, grid]`, default `list`
-- `songs_layout` → items `[list]`, default `list`
-- ...one per content type
+The Dynamic Editor resolves this template per content type when the viewsettings window opens: `movies_layout` exposes all four layouts; `songs_layout` exposes only `list` (the others are excluded by the rule). Defaults per `defaults: {"*": "list"}`.
 
 ### Step 2: Controls
 
@@ -235,7 +232,7 @@ Built-in presets carry a complete picture of the widget — label, content path,
 }
 ```
 
-`mode: "dynamic"` means values go to runtime state, not skin strings. Output: per-preset entries in `configs.json` like `widget_next_up_layout`, `widget_liked_songs_art`.
+`mode: "dynamic"` means values go to runtime state, not skin strings. The Dynamic Editor resolves these templates per widget preset when the widgetsettings window opens.
 
 ### Step 2: Controls
 

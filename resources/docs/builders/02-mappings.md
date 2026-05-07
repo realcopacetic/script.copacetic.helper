@@ -67,6 +67,18 @@ The `widgets`, `mainmenu`, and `shutdownmenu` mappings in Copacetic are all cust
 
 ---
 
+## The three field types
+
+A dynamic mapping ends up describing three kinds of fields on its runtime entries. They behave differently and the difference matters when you're laying out a feature:
+
+- **Metadata fields** — defined in `metadata`, baked in by the skinner. The user sees them but doesn't pick them. `label`, `target`, `content`, `parent`, `icon` are all metadata for the widget presets. They're copied onto the runtime entry at insert (string values only) and never overwritten by the editor unless you explicitly bind a control to them.
+- **Config-driven fields** — declared in `config_fields`, picked by the user from a constrained list. `layout` and `art` are config-driven for widgets — the user chooses one of the values the configs builder allows for that preset. The default value lands on the entry at insert.
+- **Free-edit fields** — also bound to dynamic controls but with no `config_fields` entry constraining them. The user types or browses for whatever they want. The custom widget's `content` and `label` work this way: they start as empty metadata and the user fills them in via `edit` and `browse_content` controls.
+
+A single field name can shift between categories depending on the preset. For widgets, `label` is metadata for the built-in presets (locked) and free-edit for the `custom` preset (the user names it themselves), because the corresponding control is gated `visible: "In({widget_preset}, [custom])"`.
+
+---
+
 ## `items` — what to loop over
 
 **Flat list** — each item becomes a single substitution using the `key` placeholder:
@@ -169,6 +181,14 @@ All of these are available in template strings: `{label}`, `{target}`, `{content
 Metadata is particularly powerful for the includes builder, where it lets a single XML template produce different output for each item — different content paths, sort orders, art types, and so on.
 
 The `custom` preset is intentionally sparse: empty `content`, no `target`, no sort order. The user fills these in through the Dynamic Editor; the empty fields remain on the entry as overridable slots.
+
+### String values vs structured values
+
+Only string-valued metadata fields get copied onto runtime entries at insert. Non-string values — dicts, lists, numbers — stay metadata-only and don't appear on the entry in `runtime_state.json`. They're still available to the includes builder during substitution, because the builder layers metadata on top of the entry's stored fields when building each substitution dict.
+
+This is why an `xsp` smart-playlist dict can sit on a preset's metadata without polluting the runtime entry: `xsp` is a dict, so it's never copied; the includes builder picks it up from metadata at build time and URL-encodes it onto the `{xsp}` placeholder.
+
+If you want a value to be user-editable, define it as a string in metadata (even if just `""`). If you want it skinner-fixed and structured, use whatever shape you need.
 
 ### XSP metadata
 

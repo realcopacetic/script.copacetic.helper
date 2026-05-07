@@ -1,6 +1,6 @@
 # Controls Builder
 
-The controls builder generates `controls.json`, defining every interactive control that appears in a Dynamic Editor window. It handles three patterns: static controls that expand per-mapping-item, shared controls that bind to different configs based on list focus, and dynamic controls that read/write runtime state fields.
+The controls builder defines every interactive control that appears in a Dynamic Editor window. It handles three patterns: static controls that expand per-mapping-item, shared controls that bind to different configs based on list focus, and dynamic controls that read/write runtime state fields. Templates are resolved on demand when a settings window opens.
 
 The classic case: a settings panel where the user picks options through sliders, buttons, radio buttons, or text fields. The builder expands compact templates into the full set of control definitions the editor needs at runtime.
 
@@ -29,16 +29,16 @@ JSON files placed in `extras/builders/controls/`. Each file declares a mapping a
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/builders/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
-| `control_type` | string | Yes | One of: `listitem`, `button`, `sliderex`, `slider`, `radiobutton`, `edit` |
+| `control_type` | string | Yes | One of: `listitem`, `button`, `sliderex`, `slider`, `radiobutton`, `edit`, `cycle` |
 | `id` | integer | Yes* | Kodi control ID in the XML layout (*not required for listitems) |
-| `id_start` | integer | No | Starting ID for auto-incrementing across expanded controls |
 | `window` | list | Yes | Window XML filenames this control belongs to |
 | `mode` | string | No | `"dynamic"` to share one control across all runtime entries (each entry's field read/written when focused). Default is static, which expands once per item in the mapping. |
 | `field` | string | No | Runtime state field name (for dynamic mode) |
-| `role` | string | No | Special role identifier (e.g. `"item_picker"`) |
+| `role` | string | No | Special role identifier — `"item_picker"` or `"add_action"`. See [Governing roles](#governing-roles-item_picker-and-add_action). |
 | `label` | string | No | Display label (supports `{placeholder}` tokens and `$LOCALIZE[]`) |
 | `label2` | string | No | Secondary label |
 | `description` | string | No | Help text shown at bottom of editor |
+| `icon` | string | No | Listitem icon path (supports `{placeholder}` tokens). Listitems only. |
 | `visible` | string | No | Visibility condition (supports `{placeholder}` tokens) |
 | `onclick` | object | No | Action configuration for button controls |
 | `contextual_bindings` | object | No | Dynamic config binding (for static/shared controls) |
@@ -62,7 +62,9 @@ Listitems define entries in the left-hand list panel. They aren't interactive co
 }
 ```
 
-With the `content_types` mapping, this expands to `movies_item`, `tvshows_item`, `albums_item`, etc.
+With the `content_types` mapping, this expands to `movies_item`, `tvshows_item`, `albums_item`, etc. Each gets a different icon path because `{content_type}` substitutes per row.
+
+The `icon` field is the path Kodi loads for the row's icon image. In dynamic windows the icon usually comes from a runtime field (`"icon": "{icon}"`) so users can pick their own. In static windows it usually comes from the mapping (`"icon": "icons/{content_type}.png"`).
 
 Dynamic listitems use `"mode": "dynamic"` and get their entries from `runtime_state.json`:
 
@@ -72,11 +74,12 @@ Dynamic listitems use `"mode": "dynamic"` and get their entries from `runtime_st
   "control_type": "listitem",
   "window": ["widgetsettings"],
   "label": "{label}",
+  "icon": "{icon}",
   "description": "Select widget to configure."
 }
 ```
 
-The `{label}` token resolves from runtime fields or metadata at runtime — `$LOCALIZE[31201]` for "Next Up" or the user's custom label.
+The `{label}` and `{icon}` tokens resolve from runtime fields or metadata at runtime — `$LOCALIZE[31201]` for "Next Up" or the user's custom label and icon path.
 
 ### `button`
 
@@ -145,11 +148,25 @@ Pass the slider's `id` as a parameter; the button ID is `$PARAM[id]0` to match t
 
 ### `slider`
 
-A standalone slider without the companion button. Works the same as `sliderex` but without the focus-toggle behaviour.
+A standalone slider without the companion button. Works the same as `sliderex` — left/right cycles through allowed values from the linked config — but without the focus-toggle convention. Use this when the surrounding skin XML already provides the labelling, or when the value itself doesn't need a label.
+
+```json
+"limit": {
+  "id": 220,
+  "control_type": "slider",
+  "window": ["widgetsettings"],
+  "contextual_bindings": {
+    "linked_config": "widget_limit",
+    "update_trigger": "focused(widget_item)"
+  }
+}
+```
+
+Unlike `sliderex`, you don't need to follow the `id`-plus-`0` companion-button convention in your window XML.
 
 ### `radiobutton`
 
-A toggle control for boolean settings (true/false):
+A toggle control for boolean settings. Reads the linked config's `items` and treats the first as "on" and the second as "off":
 
 ```json
 "clearlogo": {
@@ -164,6 +181,8 @@ A toggle control for boolean settings (true/false):
   "label": "$LOCALIZE[31443]"
 }
 ```
+
+The radiobutton is automatically disabled when only one value is allowed — useful when filter rules collapse the set to a single option.
 
 ### `edit`
 
@@ -180,6 +199,25 @@ An inline text input. The user types via Kodi's keyboard; the value is saved whe
   "visible": "In({widget_preset}, [custom])"
 }
 ```
+
+### `cycle`
+
+A button that cycles through allowed values on each select press, wrapping at the end. Displays the current value as `label2`. Use this for short ordered lists where a slider feels heavy — sort order is the canonical case:
+
+```json
+"widget_sortorder": {
+  "mode": "dynamic",
+  "field": "sortorder",
+  "id": 207,
+  "control_type": "cycle",
+  "window": ["widgetsettings"],
+  "visible": "In({widget_preset}, [custom])",
+  "label": "Sort order",
+  "description": "Toggle between ascending and descending."
+}
+```
+
+The control auto-disables when fewer than two values are available.
 
 ---
 
@@ -202,7 +240,7 @@ A single control definition produces one control instance, with an array of bind
 | `update_trigger` | Condition that identifies which listitem activates this binding. |
 | `visible` | Optional visibility condition for this binding. |
 
-The builder expands `contextual_bindings` across all substitutions, deduplicating identical results:
+When the editor opens, `contextual_bindings` is resolved across all substitutions and deduplicated:
 
 ```json
 "contextual_bindings": [
@@ -235,15 +273,67 @@ Controls with `"mode": "dynamic"` and a `"field"` value bind directly to a runti
 
 ---
 
-## The item picker role
+## Governing roles: `item_picker` and `add_action`
 
-A control with `"role": "item_picker"` does two things:
+Every dynamic editor needs exactly one **governing control** — a control with `role: "item_picker"` or `role: "add_action"`. These are mutually exclusive. The governing control's presence tells the editor "this window manages runtime state entries", which enables the management buttons (add, delete, move up/down, reset, close). Without one, the editor assumes a static window.
 
-**As a control**, it lets the user pick from the mapping's `items` list — selecting which preset the current entry uses (e.g. "next_up", "latest_movies", "custom").
+The governing control's onclick dialog runs when the user presses Add — before any new entry is inserted. If the user cancels the dialog, nothing is written. The two roles model the two patterns for what "Add" means.
 
-**As a signal**, its presence tells the Dynamic Editor that this window manages runtime state entries. When the editor sees an item picker, it enables the management buttons (add, delete, move up/down, reset, close). Without one, the editor assumes a static window.
+### `item_picker` — pick from a list of presets
 
-When the user picks a different preset, the editor refreshes the other controls, resets invalid field values to defaults, and updates the list label.
+Use when adding a new entry means choosing one of a fixed set of presets. The widget editor works this way: each preset (`next_up`, `latest_movies`, `custom`, …) is a known shape with associated metadata, and adding a widget means picking which preset to instantiate.
+
+```json
+"widget_preset": {
+  "mode": "dynamic",
+  "role": "item_picker",
+  "id": 200,
+  "control_type": "button",
+  "window": ["widgetsettings"],
+  "onclick": { "type": "select", "heading": "Choose widget" },
+  "label": "Choose type"
+}
+```
+
+When the user picks a different preset on an existing entry, the editor refreshes the other controls, resets invalid field values to defaults, and updates the list label. When the user presses Add, the same dialog runs to choose the new entry's preset; the new entry is seeded from that preset's metadata.
+
+### `add_action` — single action per entry
+
+Use when adding a new entry means running a single action whose result *is* the entry. The menu editor works this way: there are no menu "presets" to pick from — adding a menu item means picking what it does (a library path, a script, a window). The result of the browse dialog becomes the new entry's data directly.
+
+```json
+"menu_action": {
+  "mode": "dynamic",
+  "field": "action",
+  "role": "add_action",
+  "id": 201,
+  "control_type": "button",
+  "window": ["menusettings"],
+  "label": "Shortcut",
+  "description": "Set the action for this menu item.",
+  "onclick": {
+    "type": "browse_content",
+    "heading": "Select shortcut",
+    "mode": "menu",
+    "result_field": "action",
+    "sibling_fields": {
+      "label": "menu_label",
+      "icon": "menu_icon"
+    }
+  }
+}
+```
+
+When the user presses Add, this control's `onclick` runs. The result dict is applied to the newly inserted entry: `result_field: "action"` writes the action path to the entry's `action` field, and `sibling_fields` routes `label` and `icon` from the result to other fields.
+
+The same control is used for editing existing entries — pressing it on an existing menu item lets the user pick a new shortcut.
+
+### Picking between them
+
+- The user is choosing from a fixed catalogue of preconfigured options → `item_picker`.
+- The user is configuring something from scratch using a single dialog → `add_action`.
+
+If you need both — a preset list plus a follow-up dialog for some presets — use `item_picker` with the `then` chained-action mechanism described under [Onclick configuration](#chained-actions-then) below.
 
 ---
 
@@ -261,7 +351,6 @@ The `onclick` object on button controls defines what happens when the user press
 | `result_field` | For dialogs that return dicts: which key from the result becomes the control's own value (default: `path`). See [browse_content](#browse_content-and-sibling-fields). |
 | `sibling_fields` | For dialogs that return dicts: which result keys go to which other controls' fields. |
 | Plus various type-specific options | `browseType`, `shares`, `mask`, `useThumbs`, `treatAsFolder`, `default`, `enableMultiple`, `mode`, `action`, etc. |
-```
 
 ### Action types
 

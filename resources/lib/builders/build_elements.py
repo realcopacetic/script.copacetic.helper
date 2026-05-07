@@ -6,9 +6,9 @@ from resources.lib.builders.builder_config import (BUILDER_CONFIG,
                                                    BUILDER_MAPPINGS)
 from resources.lib.builders.runtime import RuntimeStateManager
 from resources.lib.shared import logger as log
-from resources.lib.shared.json import JSONHandler, JSONMerger
-from resources.lib.shared.utilities import (CONFIGS, RUNTIME_STATE, SKINEXTRAS,
-                                            condition, skin_string)
+from resources.lib.shared.json import JSONMerger
+from resources.lib.shared.utilities import (BUILDERS_BASE, RUNTIME_STATE,
+                                            SKINEXTRAS, condition, skin_string)
 from resources.lib.shared.xml import XMLDictConverter, XMLMerger
 
 
@@ -105,7 +105,7 @@ class BuildElements:
         if self.run_context in ("build", "runtime"):
             self.runtime_manager = RuntimeStateManager(
                 mappings=self.all_mappings,
-                configs_path=CONFIGS,
+                base_folder=BUILDERS_BASE,
                 runtime_state_path=RUNTIME_STATE,
             )
             if self.run_context == "build":
@@ -185,25 +185,13 @@ class BuildElements:
 
     def initialize_skinstrings(self):
         """
-        Initializes skin string defaults based on configs.json.
-        This ensures default skin strings are set at build time.
+        Seed default skin strings for static configs that don't yet have a value.
+        Reads resolved defaults from the runtime manager's configs resolver.
         """
-        json_handler = JSONHandler(CONFIGS)
-        configs_data = next(iter(json_handler.data.values()), {})
-
-        if not configs_data:
-            log.warning(
-                f"{self.__class__.__name__}: Configs file missing or empty at {CONFIGS}",
-            )
-            return
-
-        for setting_key, setting_data in configs_data.items():
-            default_value = setting_data.get("default")
-            if setting_data.get("mode") != "static" or default_value is None:
-                continue
-
-            if not condition(f"Skin.String({setting_key})"):
-                skin_string(setting_key, default_value)
+        for cfg_key, default_value in self.runtime_manager.configs.iter_static_defaults():
+            if not condition(f"Skin.String({cfg_key})"):
+                skin_string(cfg_key, default_value)
                 log.debug(
-                    f"{self.__class__.__name__}: Default skinstring '{setting_key}' initialized to '{default_value}'."
-                )
+                    f"{self.__class__.__name__}: Default skinstring "
+                    f"'{cfg_key}' initialized to '{default_value}'."
+                 )

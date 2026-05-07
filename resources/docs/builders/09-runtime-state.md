@@ -63,9 +63,25 @@ When `runtime_state.json` doesn't exist yet (first skin install), one entry is c
 
 ## Parent references
 
-When a mapping item's metadata sets `parent` to the name of an item in another mapping, that name is replaced with the matching entry's runtime_id at initialisation.
+Dynamic mappings can reference each other via `parent`. The canonical use is **hubs**: each menu item owns its own set of widgets, the user configures them through a child editor scoped to whichever menu item they were on, and the skin shows the right widgets when each menu item is focused.
 
-For example, the widget preset `latest_movies` has `"parent": "movies"`. The `movies` item lives in the `mainmenu` mapping. After initialisation:
+The full pattern spans three places — metadata, includes template, and the dialog that opens the child editor scoped to one parent. The metadata side lives here; the other two pieces are covered in [Includes Builder → Hubs](07-includes.md#hubs-filtering-child-entries-by-parent), and you'll usually want to read both pages once when you're wiring up a hub for the first time.
+
+### Tagging an entry to a parent
+
+In the child mapping's metadata, set `parent` to the `mapping_item` name of an entry in another mapping. The `widgets` mapping uses this to attach each widget preset to a menu item:
+
+```json
+"latest_movies": {
+  "label": "$LOCALIZE[31202]",
+  "target": "videos",
+  "content": "videodb://movies/titles/",
+  "sortby": "dateadded",
+  "parent": "movies"
+}
+```
+
+The `movies` item lives in the `mainmenu` mapping. After `runtime_state.json` is initialised, the parent reference is resolved to the corresponding entry's `runtime_id`:
 
 ```json
 {
@@ -79,7 +95,14 @@ For example, the widget preset `latest_movies` has `"parent": "movies"`. The `mo
 }
 ```
 
-The widget now points at the menu item by ID. This is what lets includes templates filter widgets to the focused menu item via `{parent}`. If the menu item is later deleted, the orphaned widget is cleaned up automatically.
+The widget now points at the menu item by ID. This survives reorder and rename of the menu item — the runtime_id is stable. If the menu item is later deleted, the orphaned widget is cleaned up automatically.
+
+### What the parent buys you
+
+Once entries are tagged, the `{parent}` placeholder is available wherever the child mapping is iterated:
+
+- In the **includes builder**, `{parent}` substitutes into the generated XML, where you typically use it to gate visibility on the matching menu item being focused. See [Includes Builder → Hubs](07-includes.md#hubs-filtering-child-entries-by-parent) for the worked include and the visibility expression.
+- In the **Dynamic Editor**, passing `parent=<runtime_id>` when opening the editor filters the entry list to that single hub. See [Opening the editor](#opening-the-editor) below.
 
 ---
 
@@ -95,7 +118,25 @@ RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsett
 
 The `name` parameter matches the window XML filename. The editor loads `controls.json`, filters for controls tagged with that window name, and builds the UI.
 
-Optional: pass `parent=<runtime_id>` to restrict the list to entries whose `parent` matches — used for the "configure widgets for this menu item" flow, where only widgets attached to one menu item should appear.
+To open the editor scoped to a single parent, pass `parent=<runtime_id>`. Only entries whose `parent` field matches will appear in the list, and any new entries inserted from the filtered editor will have their `parent` set automatically.
+
+In Copacetic this powers per-menu-item widget configuration: the menu editor has a button on each menu item that opens the widget editor pre-filtered to the focused menu item's widgets:
+
+```json
+"menu_configure_widgets": {
+  "mode": "dynamic",
+  "id": 204,
+  "control_type": "button",
+  "window": ["menusettings"],
+  "label": "Configure widgets for this menu item",
+  "onclick": {
+    "type": "custom",
+    "action": "RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,parent={runtime_id})"
+  }
+}
+```
+
+`{runtime_id}` is the focused menu item's runtime_id, substituted at the moment the button is pressed. The opened editor only shows widgets whose `parent` field matches.
 
 ### What you provide in the window XML
 
@@ -104,7 +145,7 @@ Optional: pass `parent=<runtime_id>` to restrict the list to entries whose `pare
 | List container | 100 | Left-hand list. Populated automatically. |
 | Description label | 6 | Bottom of the window. The editor sets it to the focused control's `description`. |
 | Right-hand controls | as declared | Sliders, buttons, radios, edit fields. IDs must match those in `controls.json`. |
-| Management buttons | 410–415 | See below. Hidden by default; the editor shows them when the controls include an `item_picker` role. |
+| Management buttons | 410–415 | See below. Hidden by default; the editor shows them when the controls include an `item_picker` or `add_action` role. |
 
 ### List rows
 
@@ -120,6 +161,7 @@ The left list is populated from controls with `"control_type": "listitem"` in `c
   "control_type": "listitem",
   "window": ["widgetsettings"],
   "label": "{label}",
+  "icon": "{icon}",
   "description": "Select widget to configure."
 }
 ```
@@ -136,16 +178,18 @@ The right-hand controls connect to data in one of two ways. See [Controls Builde
 
 ### Management buttons
 
-Provide controls 410–415 in your window XML. The editor enables and labels them automatically when a control with `role: "item_picker"` is present.
+Provide controls 410–415 in your window XML. The editor enables and labels them automatically when a control with `role: "item_picker"` or `role: "add_action"` is present.
 
 | Button | ID | Action |
 |---|---|---|
-| Add | 410 | Pick a preset, then insert a new entry after the current position |
+| Add | 410 | Run the governing handler's dialog (preset picker or add-action), then insert a new entry |
 | Delete | 411 | Remove the current entry (disabled when only one entry remains) |
 | Move Up | 412 | Swap the current entry with the one above |
 | Move Down | 413 | Swap the current entry with the one below |
 | Reset | 414 | Reset the mapping group to `default_order` (with confirmation) |
 | Close | 415 | Save and close |
+
+When the editor is opened with a `parent` filter, the management buttons stay scoped to the filtered set — Add inserts as a child of the same parent, Move keeps the new ordering within the filtered view, and Delete only removes from the visible entries.
 
 ### On close
 

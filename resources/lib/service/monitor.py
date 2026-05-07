@@ -98,24 +98,19 @@ class Monitor(xbmc.Monitor):
             )
 
         if dev_mode:
-            for context in ["prep", "build"]:
-                BuildElements(run_context=context, force_rebuild=True)
+            BuildElements(run_context="build", force_rebuild=True)
             xbmc.executebuiltin("ReloadSkin()")
             return
 
-        for context in ["prep", "build"]:
-            builders = [
-                builder
-                for builder, config in BUILDER_CONFIG.items()
-                if context in config.get("run_contexts", [])
-                and (write_path := config.get("write_path"))
-                and not validate_path(write_path)
-            ]
-            if builders:
-                BuildElements(
-                    run_context=context,
-                    builders_to_run=builders,
-                )
+        builders = [
+            builder
+            for builder, config in BUILDER_CONFIG.items()
+            if "build" in config.get("run_contexts", [])
+            and (write_path := config.get("write_path"))
+            and not validate_path(write_path)
+        ]
+        if builders:
+            BuildElements(run_context="build", builders_to_run=builders)
 
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""

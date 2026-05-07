@@ -10,15 +10,15 @@ If you're new here, start with the [Quickstart](00-quickstart.md) — one featur
 
 ## What the builders produce
 
-| Builder | Input format | Output file | Purpose |
+| Builder | Input format | Output | Purpose |
 |---|---|---|---|
-| **Configs** | JSON | `configs.json` | Resolves which options are valid for each setting |
-| **Controls** | JSON | `controls.json` | Defines the controls that appear in a Dynamic Editor window |
+| **Configs** | JSON | Resolved on demand | Resolves which options are valid for each setting |
+| **Controls** | JSON | Resolved on demand | Defines the controls that appear in a Dynamic Editor window |
 | **Variables** | JSON | `script-copacetic-helper_variables.xml` | Generates Kodi `<variable>` elements |
 | **Expressions** | JSON | `script-copacetic-helper_expressions.xml` | Generates Kodi `<expression>` elements |
 | **Includes** | XML | `script-copacetic-helper_includes.xml` | Generates parameterised `<include>` calls |
 
-Configs and controls produce intermediate JSON used by the Dynamic Editor at runtime. Variables, expressions, and includes produce final XML that Kodi loads as part of the skin.
+Configs and controls don't produce files — their templates are resolved on demand by the Dynamic Editor when a settings window opens. Variables, expressions, and includes produce final XML that Kodi loads as part of the skin.
 
 ---
 
@@ -32,24 +32,25 @@ Configs and controls produce intermediate JSON used by the Dynamic Editor at run
               v              v               v
          configs/        controls/      expressions/, includes/, variables/
               |              |               |
-              v              v               v
-        configs.json    controls.json    XML outputs (variables, expressions, includes)
+              |              |               v
+              |              |         XML outputs (variables, expressions, includes)
               |              |               |
-              +-----+--------+               |
-                    |                        |
-                    v                        |
-          runtime_state.json  <----+         |
-                    ^              |         |
-                    |              |         |
-              Dynamic Editor  -----+         |
-              (reads/writes)                 |
+              +------+-------+               |
+                     |                       |
+                     v                       |
+           runtime_state.json  <----+        |
+                     ^              |        |
+                     |              |        |
+               Dynamic Editor  -----+        |
+               (resolves templates,          |
+                reads/writes state)          |
                                              v
                                        Kodi skin XML
                                        ($VAR / $EXP / <include>)
 ```
 
 - **Mappings** declare the loop values and placeholder names.
-- **Configs and controls** define the editor UI: what options exist, what the user can change.
+- **Configs and controls** define the editor UI: what options exist, what the user can change. Resolved on demand from templates when an editor window opens.
 - **Variables, expressions, and includes** produce the XML the skin actually consumes.
 - **Runtime state** stores user-managed lists (widgets, menus). The Dynamic Editor writes it; includes and expressions read it.
 
@@ -75,10 +76,7 @@ Here's how the `layout` field on a widget slot flows from definition to output. 
 }
 ```
 
-Output in `configs.json`:
-```json
-"widget_next_up_layout": { "items": ["list", "showcase", "strip", "grid"], "default": "strip" }
-```
+The Dynamic Editor resolves this template against each widget preset on demand — so `widget_next_up_layout` returns `["list", "showcase", "strip", "grid"]` with default `"strip"` when the editor opens.
 
 **3. The controls builder** defines a slider control bound to this field:
 
@@ -92,7 +90,7 @@ Output in `configs.json`:
 }
 ```
 
-The Dynamic Editor reads `configs.json` to populate the slider with the allowed layouts, and reads/writes the `layout` field in `runtime_state.json` when the user makes a selection.
+The Dynamic Editor resolves the configs template to populate the slider with the allowed layouts, and reads/writes the `layout` field in `runtime_state.json` when the user makes a selection.
 
 **4. The runtime state** captures the user's choice:
 
@@ -127,11 +125,10 @@ The builders run at different stages of the skin's lifecycle, controlled by **ru
 
 | Context | When it runs | Builders active |
 |---|---|---|
-| `prep` | First boot, or when source files change | Configs |
-| `build` | After prep, or on skin install/update | Controls, Variables, Includes, Expressions |
+| `build` | First boot, on skin install/update, or when source files change | Variables, Includes, Expressions |
 | `runtime` | When the user closes a Dynamic Editor window | Includes, Expressions |
 
-`prep` and `build` are **skinner contexts** — they run during skin development and the outputs are packaged with the skin. When a user installs the skin, `configs.json`, `controls.json`, the three XML files, and a default `runtime_state.json` are already in place.
+`build` is the **skinner context** — it runs during skin development and the XML outputs are packaged with the skin. When a user installs the skin, the three XML files and a default `runtime_state.json` are already in place.
 
 `runtime` is the **user context** — it runs after a user changes settings in a Dynamic Editor (e.g. rearranging widgets, changing a widget's layout). Only the outputs that depend on user configuration get rebuilt, and `ReloadSkin()` is called so changes take effect immediately.
 
@@ -151,7 +148,7 @@ This is the right configuration for shipped skins — end users don't pay the bu
 
 Found at **Settings → Developers → Enable Dev mode** (in the addon settings, not the skin settings).
 
-With dev mode on, the service rebuilds everything — both `prep` and `build` contexts, with `force_rebuild=True` — every time Kodi starts, then calls `ReloadSkin()`. Use this while iterating: every Kodi start gives you a fresh build, no manual step required.
+With dev mode on, the service rebuilds everything in the `build` context with `force_rebuild=True` every time Kodi starts, then calls `ReloadSkin()`. Use this while iterating: every Kodi start gives you a fresh build, no manual step required.
 
 ### Reset on next start
 
@@ -165,7 +162,7 @@ Use this when you've changed a mapping's `default_order`, `config_fields`, or `m
 
 Button at **Settings → Developers → Rebuild now**. Visible only when dev mode is on.
 
-Triggers a full `prep` + `build` immediately and reloads the skin. Preserves `runtime_state.json` (unlike Reset on next start). A notification confirms when it's done.
+Triggers a full `build` immediately and reloads the skin. Preserves `runtime_state.json` (unlike Reset on next start). A notification confirms when it's done.
 
 Under the hood this runs the script action below — wire it into your own button or keymap if you want a quicker path than opening addon settings.
 
@@ -175,10 +172,9 @@ These can be triggered from anywhere — skin XML button onclicks, keymaps, cust
 
 | Script | What it does |
 |---|---|
-| `RunScript(script.copacetic.helper,action=rebuild,full=true)` | Full `prep` + `build` with force-rebuild, then reload. Same as the Rebuild now button. Notifies. |
+| `RunScript(script.copacetic.helper,action=rebuild,full=true)` | Full `build` with force-rebuild, then reload. Same as the Rebuild now button. Notifies. |
 | `RunScript(script.copacetic.helper,action=rebuild,context=runtime)` | Rebuilds runtime-context outputs only (includes + expressions) and reloads. No notification. This is what the Dynamic Editor runs on close. |
-| `RunScript(script.copacetic.helper,action=rebuild,context=prep)` | Rebuilds configs only, then reloads. |
-| `RunScript(script.copacetic.helper,action=rebuild,context=build)` | Rebuilds controls + variables + includes + expressions (without force-rebuild), then reloads. |
+| `RunScript(script.copacetic.helper,action=rebuild,context=build)` | Rebuilds variables + includes + expressions (without force-rebuild), then reloads. |
 | `RunScript(script.copacetic.helper,action=dev_reset)` | Deletes runtime_state.json and all builder outputs. Does not rebuild — restart Kodi (or trigger a rebuild script) afterwards. Notifies. |
 
 The `rebuild` action with no `full` and no `context` defaults to `context=runtime`.
@@ -210,10 +206,7 @@ extras/
 
 Each subfolder can hold any number of input files. The system merges all files in a folder and groups them by their `"mapping"` key, so you can organise inputs however suits your skin — one file per feature, one per mapping, or all in one.
 
-Outputs are written to two locations:
-
-- **XML outputs** → `16x9/` (the skin's resolution folder), where Kodi picks them up as includes
-- **JSON intermediates** → `addon_data/script.copacetic.helper/` (the addon's user data folder)
+The three XML outputs go to `16x9/` (the skin's resolution folder), where Kodi picks them up as includes. The Dynamic Editor's runtime state lives at `addon_data/script.copacetic.helper/runtime_state.json`.
 
 ---
 

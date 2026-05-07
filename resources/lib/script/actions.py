@@ -529,15 +529,15 @@ def rebuild(**kwargs):
     """
     Rebuild builder outputs and reload skin.
 
-    :param context: Run context to rebuild ('prep', 'build', 'runtime'). Default 'runtime'.
-    :param full: If 'true', rebuild prep+build with force_rebuild=True and notify (dev use).
+    :param context: Run context to rebuild ('build', 'runtime'). Default 'runtime'.
+    :param full: If 'true', rebuild with force_rebuild=True and notify (dev use).
     """
     from resources.lib.builders.build_elements import BuildElements
 
     full = kwargs.get("full") == "true"
     if full:
-        for ctx in ("prep", "build"):
-            BuildElements(run_context=ctx, force_rebuild=True)
+        BuildElements(run_context="build", force_rebuild=True)
+
     else:
         BuildElements(run_context=kwargs.get("context", "runtime"))
 

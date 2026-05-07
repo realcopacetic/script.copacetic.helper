@@ -48,12 +48,9 @@ class BaseBuilder:
         mode = element_data.get("mode", "static")
 
         if mode == "dynamic" and not element_data.get("items"):
-            if (
-                self.runtime_manager is not None
-                and (
-                    runtime_items := self.runtime_manager.runtime_state.get(
-                        self.mapping_name
-                    )
+            if self.runtime_manager is not None and (
+                runtime_items := self.runtime_manager.runtime_state.get(
+                    self.mapping_name
                 )
             ):
                 index_list = expand_index(element_data.get("index"))
@@ -66,7 +63,7 @@ class BaseBuilder:
                     f"{self.__class__.__name__}: Skipping dynamic template "
                     f"'{element_name}' — no runtime state for '{self.mapping_name}'"
                 )
-                return    
+                return
         else:
             items = element_data.get("items") or expand_index(element_data.get("index"))
             dynamic_key_mapping = {"items": "item", "index": "index"}
@@ -105,7 +102,8 @@ class BaseBuilder:
                     key_placeholder: item["mapping_item"],
                     "index": str(index_start + index),
                     **{
-                        k: v for k, v in item.items()
+                        k: v
+                        for k, v in item.items()
                         if k != "mapping_item" and isinstance(v, str)
                     },
                 },
@@ -182,7 +180,9 @@ class BaseBuilder:
 
         return [{}]
 
-    def _resolve_placeholder(self, match: re.Match, substitutions: dict[str, str]) -> str:
+    def _resolve_placeholder(
+        self, match: re.Match, substitutions: dict[str, str]
+    ) -> str:
         """
         Resolve a single placeholder match against the substitution dict.
         Falls back to numeric expression evaluation for arithmetic and min/max.
@@ -305,220 +305,6 @@ class BaseBuilder:
         return {**combined_metadata, **substitutions}
 
 
-class ConfigsBuilder(BaseBuilder):
-    """
-    Builder that resolves UI configs based on exclusion/inclusion rules.
-    """
-
-    def group_and_expand(self, template_name, data, substitutions):
-        """
-        Groups and evaluates configs options based on filtering logic.
-
-        :param template_name: Template name for setting key.
-        :param data: Rule and items data.
-        :param substitutions: List of dicts for placeholder substitution.
-        :return: Dictionary of setting key → {items: [...]}
-        """
-        grouped = defaultdict(list)
-        for sub in substitutions:
-            key = template_name.format(**sub)
-            grouped[key].append(sub)
-            self.group_map[key] = sub
-
-        resolved = {
-            key: self.resolve_values(subs, data) for key, subs in grouped.items()
-        }
-
-        return self._apply_defaults(resolved, data)
-
-    def resolve_values(self, subs, data):
-        """
-        Resolves filtered setting values based on rule conditions.
-
-        :param subs: List of substitutions for a single setting group.
-        :param data: Full setting definition, including filter_mode and rules.
-        :return: Dict of final filtered items.
-        """
-        defaults = {
-            "items": [],
-            "mode": "dynamic",
-            "filter_mode": "exclude",
-            "rules": [],
-        }
-        resolved_data = {**defaults, **data}
-
-        # Normalise items: dict → keys list + labels dict
-        raw_items = resolved_data["items"]
-        if isinstance(raw_items, dict):
-            items_list = list(raw_items.keys())
-            labels = {k: v for k, v in raw_items.items() if v}
-        else:
-            items_list = raw_items
-            labels = {}
-
-        excluded = {
-            value
-            for sub in subs
-            for rule in resolved_data["rules"]
-            if self.rules.evaluate(
-                rule["condition"].format(
-                    **self._inject_metadata(
-                        sub, sub.get(self.placeholders.get("key", ""))
-                    )
-                )
-            )
-            for value in rule.get("value", [])
-        }
-        # When filter_mode is "exclude": keep items NOT in excluded set
-        # When filter_mode is "include": keep items that ARE in excluded set
-        resolved_data["items"] = [
-            item
-            for item in items_list
-            if (item not in excluded) == (resolved_data["filter_mode"] == "exclude")
-        ]
-        if labels:
-            resolved_data["labels"] = labels
-
-        prefixes_to_remove = ("filter_mode", "rules", "defaults", "default_key")
-
-        return {
-            key: value
-            for key, value in resolved_data.items()
-            if not key.startswith(prefixes_to_remove)
-        }
-
-    def _apply_defaults(self, resolved, setting_data):
-        """
-        Resolves default values per loop value placeholder, similar to fallbacks.
-        Default will only be applied if it is an allowed config value.
-        If only one config value is allowed, this will overwrite any default.
-
-        :param resolved: Dict of resolved configs.
-        :param setting_data: The full config definition including defaults.
-        :return: Updated resolved settings dict with defaults applied.
-        """
-        defaults = setting_data.get("defaults")
-        default_key = setting_data.get("default_key") or self.placeholders.get("key")
-        if not defaults or not default_key:
-            return resolved
-
-        for setting_name, cfg in resolved.items():
-            sub = self.group_map.get(setting_name, {})
-            lookup_val = sub.get(default_key, "")
-            default_value = defaults.get(lookup_val) or defaults.get("*")
-            allowed = cfg.get("items", [])
-            if default_value not in allowed:
-                default_value = allowed[0] if allowed else None
-                if default_value:
-                    log.debug(
-                        f"{self.__class__.__name__}: [Default override] {setting_name} "
-                        f"default not in allowed items; using '{default_value}'"
-                    )
-            if default_value is not None:
-                cfg["default"] = default_value
-                log.debug(
-                    f"{self.__class__.__name__}: [Default applied] {setting_name} "
-                    f"= {default_value}"
-                )
-
-        return resolved
-
-
-class ControlsBuilder(BaseBuilder):
-    """
-    Builder that generates fully expanded control definitions.
-    Expands placeholders, assigns IDs, and resolves update triggers.
-    """
-
-    def group_and_expand(self, template_name, data, substitutions):
-        """
-        Groups and expands control definitions by key and type.
-
-        :param template_name: Control name template
-        :param data: Control definition template
-        :param substitutions: List of substitution dictionaries
-        :return: Dict of {control_name: resolved_definition}
-        """
-        id_fixed = data.get("id")
-        
-        # Dynamic controls are returned as-is; contextual_bindings
-        # and per-mapping expansion do not apply.
-        if data.get("mode") == "dynamic":
-            return {
-                template_name: {
-                    "mapping": self.mapping_name,
-                    **{k: v for k, v in data.items() if k != "id"},
-                    "id": id_fixed,
-                }
-            }
-
-        if "contextual_bindings" in data:
-            resolved_list = []
-            seen = set()
-            for sub in substitutions:
-                resolved = {
-                    k: (v if (not isinstance(v, str)) else self.substitute(v, sub))
-                    for k, v in data["contextual_bindings"].items()
-                }
-                key = tuple(sorted(resolved.items()))
-                if key not in seen:
-                    seen.add(key)
-                    resolved_list.append(resolved)
-
-            return {
-                template_name: {
-                    "mapping": self.mapping_name,
-                    **{
-                        k: v
-                        for k, v in data.items()
-                        if k not in ("contextual_bindings", "id")
-                    },
-                    "id": id_fixed,
-                    "contextual_bindings": resolved_list,
-                }
-            }
-
-        grouped = defaultdict(list)
-        for sub in substitutions:
-            key = template_name.format(**sub)
-            grouped[key].append(sub)
-            self.group_map[key] = sub
-
-        return {
-            key: self.resolve_values(subs[0], data, data.get("id_start"), i)
-            for i, (key, subs) in enumerate(grouped.items())
-        }
-
-    def resolve_values(self, sub, data, id_start, index):
-        """
-        Resolves fields for a flat (non-dynamic) control.
-
-        :param sub: Substitution dict
-        :param data: Control template
-        :param id_start: Optional starting ID
-        :param index: Index for control ID
-        :return: Resolved control dict
-        """
-        is_runtime = data.get("mode") == "dynamic"
-        _exclude = {"label", "label2", "description"}
-        resolved = {
-            "mapping": self.mapping_name,
-            **{
-                k: (
-                    v
-                    if ((is_runtime and k in _exclude) or not isinstance(v, str))
-                    else self.substitute(v, sub)
-                )
-                for k, v in data.items()
-            },
-        }
-
-        if id_start is not None:
-            resolved["id"] = id_start + index
-
-        return resolved
-
-
 class ExpressionsBuilder(BaseBuilder):
     """
     Builder that processes expression definitions by expanding all possible
@@ -532,7 +318,7 @@ class ExpressionsBuilder(BaseBuilder):
 
         :param element_name: Expression name template.
         :param element_data: Dictionary of rule definitions and items.
-        :return: Generator yielding final expression dict.
+        :return: Generator yielding final expression dict.configs_path=CONFIGS,
         """
         resolved = {}
         for d in super().process_elements(element_name, element_data):
@@ -834,10 +620,14 @@ class VariablesBuilder(BaseBuilder):
                 for row in rows:
                     if output_key not in row:
                         continue
-                    result[emitted_name].append({
-                        "condition": self.substitute(row.get("condition", "true"), sub),
-                        "value": self.substitute(row[output_key], sub),
-                    })
+                    result[emitted_name].append(
+                        {
+                            "condition": self.substitute(
+                                row.get("condition", "true"), sub
+                            ),
+                            "value": self.substitute(row[output_key], sub),
+                        }
+                    )
 
         return dict(result)
 

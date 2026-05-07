@@ -61,6 +61,40 @@ When the same key appears in both stored fields and metadata, the stored field w
 
 ---
 
+## Template body shape
+
+The example above uses `<param>` elements inside the include because that's how Kodi's `<include name="...">` system passes parameters. But the builder doesn't enforce that shape — it walks whatever XML you put inside the outer `<include>` and substitutes placeholders in attributes and text content.
+
+When the include you're targeting takes a different shape, write that shape directly. The mainmenu builder calls a skin include named `mainmenu_items` whose body is a list of `<item>` elements with child elements rather than param attributes:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xml>
+  <mapping>mainmenu</mapping>
+  <includes>
+    <template>
+      <mode>dynamic</mode>
+      <index start="1" />
+      <include name="mainmenu_items">
+        <item id="{index}">
+          <label>{label}</label>
+          <icon>{icon}</icon>
+          <onclick>{action}</onclick>
+          <visible>{visible}</visible>
+          <property name="runtime_id">{runtime_id}</property>
+        </item>
+      </include>
+    </template>
+  </includes>
+</xml>
+```
+
+This produces one `<item>` per runtime entry, each with its label, icon, onclick action, and a `runtime_id` property the skin can read with `Container.ListItem.Property(runtime_id)`. That property is what the menu uses to filter widgets to the focused menu item — see [Hubs: filtering child entries by parent](#hubs-filtering-child-entries-by-parent) below.
+
+The substitution rules are the same regardless of the body shape: any `{placeholder}` in an attribute value or element text is replaced; non-string metadata fields (like an `xsp` dict) aren't surfaced as text but are available to special handling like the `{xsp}` token.
+
+---
+
 ## Pruning
 
 After substitution, any element whose `value` attribute or text content resolves to an empty string is removed entirely. So you can include parameters that only appear when the data has a value for them:
@@ -71,6 +105,8 @@ After substitution, any element whose `value` attribute or text content resolves
 ```
 
 If an entry has no `sortby`, the param is omitted instead of becoming `value=""`.
+
+The same applies to non-`<param>` element shapes — `<onclick>{action}</onclick>` is dropped entirely if `{action}` resolves to an empty string.
 
 ---
 
@@ -95,6 +131,68 @@ If a mapping item's metadata contains an `xsp` key with a structured smart-playl
 ```
 
 Items without an `xsp` get an empty string here, and the param is pruned. `$ESCINFO[]` references inside the XSP are kept unquoted so Kodi resolves them at runtime.
+
+---
+
+## Hubs: filtering child entries by parent
+
+Dynamic mappings can reference each other via `parent` — letting you build hub structures where each menu item owns its own set of widgets. The wiring spans three places: the child mapping's metadata, the includes template, and the dialog that opens the child editor scoped to one parent.
+
+### 1. Tag the child to a parent in metadata
+
+In the child mapping's metadata, set `parent` to the `mapping_item` name of an entry in another mapping. At runtime-state initialisation, that name is replaced with the matching entry's `runtime_id`. This is described in [Runtime State → Parent references](09-runtime-state.md#parent-references).
+
+```json
+"latest_movies": {
+  "label": "$LOCALIZE[31202]",
+  "target": "videos",
+  "content": "videodb://movies/titles/",
+  "parent": "movies"
+}
+```
+
+After initialisation, the `latest_movies` widget entry has `"parent": "<runtime_id of the movies menu item>"`. Once tagged, `{parent}` becomes available as a placeholder for any dynamic includes template iterating that mapping.
+
+### 2. Filter visibility in the child include
+
+In the includes template that emits the child entries, gate visibility on the parent matching whatever the skin currently considers focused. The widgets template uses a Kodi property on the menu container:
+
+```xml
+<param name="visible" value="String.IsEqual(Container(3000).ListItem.Property(runtime_id),{parent})" />
+```
+
+`Container(3000)` here is the menu container. Its listitems have a `runtime_id` property because the mainmenu template wrote one (`<property name="runtime_id">{runtime_id}</property>` — see the body-shape example earlier on this page). The widget is visible only when its `{parent}` matches the focused menu item's `runtime_id`.
+
+The full visibility expression in production also handles the case where the user has hub mode disabled, allowing every widget through:
+
+```xml
+<param name="visible" value="[Integer.IsGreater(Container({index}).NumItems,0) | Container({index}).IsUpdating] + [!Skin.HasSetting(widgets_per_menu) | String.IsEqual(Container(3000).ListItem.Property(runtime_id),{parent})]" />
+```
+
+The first bracketed group keeps empty widgets hidden; the second bracketed group is the hub gate.
+
+### 3. Open the child editor scoped to one parent
+
+The Dynamic Editor accepts a `parent` URL parameter that filters the list to entries with a matching `parent` value. Wire this to a button on the parent's editor — the menu editor uses a control on each menu listitem that opens the widget editor pre-filtered to widgets owned by that menu item:
+
+```json
+"menu_configure_widgets": {
+  "mode": "dynamic",
+  "id": 204,
+  "control_type": "button",
+  "window": ["menusettings"],
+  "label": "Configure widgets for this menu item",
+  "visible": "xml(!String.IsEmpty(Window(home).Property(mainmenu)) + Skin.HasSetting(widgets_per_menu))",
+  "onclick": {
+    "type": "custom",
+    "action": "RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,parent={runtime_id})"
+  }
+}
+```
+
+`{runtime_id}` here is the focused menu item's runtime_id, substituted at the moment the button is pressed. The opened widget editor only shows entries whose `parent` field equals that ID. Adds, deletes, and reorders inside the filtered editor stay scoped — new widgets are inserted with `parent` already set, and they appear adjacent to existing siblings in the runtime state list. See [Runtime State → Opening the editor](09-runtime-state.md#opening-the-editor) for the filter mechanics.
+
+This three-step pattern — tag in metadata, filter in include, scope in dialog — is the whole hub recipe. Same pieces wherever you want one dynamic mapping to own a per-entry set of children.
 
 ---
 

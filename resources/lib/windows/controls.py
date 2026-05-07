@@ -78,6 +78,7 @@ class BaseControlHandler:
         self.current_listitem = None
         self.source_index = None
         self.focus_target_id = None
+        self.parent = None  # set by DynamicEditor.onInit
 
     @property
     def focus_ids(self) -> set[int]:
@@ -142,13 +143,13 @@ class BaseControlHandler:
 
     def _allowed_items(self) -> list[str]:
         """
-        Return the list of values this control may choose from:
+        Return the list of values this control may choose from.
 
         :return: List of approved string values.
         """
         cfg = self._linked_config()
         return (
-            self.runtime_manager.configs_data.get(cfg, {}).get("items", [])
+            self.runtime_manager.resolve_config(cfg).get("items", [])
             if cfg
             else (
                 []
@@ -159,14 +160,14 @@ class BaseControlHandler:
             )
         )
 
-    def config_context(self) -> tuple[str | None, dict]:
+    def _config_context(self) -> tuple[str | None, dict | None]:
         """
         Resolve the linked config and its data for the current control.
 
         :return: Tuple of ``(cfg, cfg_data)`` where cfg_data may be None.
         """
         cfg = self._linked_config()
-        cfg_data = self.runtime_manager.configs_data.get(cfg, {}) if cfg else None
+        cfg_data = self.runtime_manager.resolve_config(cfg) if cfg else None
         return cfg, cfg_data
 
     def _get_setting_value(self) -> str | None:
@@ -181,7 +182,7 @@ class BaseControlHandler:
 
         link = self._get_active_link()
         if cfg := link.get("linked_config"):
-            cfg_data = self.runtime_manager.configs_data.get(cfg, {})
+            cfg_data = self.runtime_manager.resolve_config(cfg)
             mode = cfg_data.get("mode", "static")
             default = cfg_data.get("default", "")
 
@@ -221,7 +222,7 @@ class BaseControlHandler:
         if self._get_setting_value() == value:
             return
 
-        cfg, cfg_data = self.config_context()
+        cfg, cfg_data = self._config_context()
         if cfg_data:
             mode = cfg_data.get("mode", "static")
             if mode == "dynamic" and self.is_dynamic_linked:
@@ -249,9 +250,10 @@ class BaseControlHandler:
 
     def _apply_metadata(self, template: str) -> str:
         """
-        If 'template' contains '{…}', look up the current
-        mapping_item's metadata and do a .format(**meta), otherwise
-        return it unchanged.
+        Substitute metadata placeholders in a template if any are present.
+
+        :param template: Template string with optional ``{field}`` placeholders.
+        :return: Substituted string, or the input unchanged.
         """
         return self.runtime_manager.format_metadata(
             self.control["mapping"], self.source_index, template
@@ -298,11 +300,7 @@ class BaseControlHandler:
         )
         raw_label = link.get("label") or self.control.get("label", "")
         cfg_key = self._linked_config()
-        cfg_labels = (
-            self.runtime_manager.configs_data.get(cfg_key, {}).get("labels", {})
-            if cfg_key
-            else {}
-        )
+        cfg_labels = self.runtime_manager.resolve_config(cfg_key).get("labels", {})
         if "label2" in self.control and self.control["label2"] is not None:
             raw_label2 = self.control["label2"]
         elif "label2" in link:
@@ -396,7 +394,7 @@ class BaseControlHandler:
         allowed = self._allowed_items()
         if allowed and val not in allowed:
             if cfg_key := self._linked_config():
-                cfg_data = self.runtime_manager.configs_data.get(cfg_key, {})
+                cfg_data = self.runtime_manager.resolve_config(cfg_key)
                 default_val = cfg_data.get("default", allowed[0])
             else:
                 default_val = allowed[0]
@@ -461,11 +459,8 @@ class ButtonHandler(BaseControlHandler):
         # Fetch items, then resolve display labels from config labels, metadata, or title-case
         items = onclick.get("items") or self._allowed_items()
         cfg_key = self._linked_config()
-        cfg_labels = (
-            self.runtime_manager.configs_data.get(cfg_key, {}).get("labels", {})
-            if cfg_key
-            else {}
-        )
+        cfg_labels = self.runtime_manager.resolve_config(cfg_key).get("labels", {})
+
         display_items = [
             infolabel(lbl) if isinstance(lbl, str) and lbl.startswith("$") else lbl
             for item in items
@@ -516,7 +511,7 @@ class ButtonHandler(BaseControlHandler):
         result = self.ACTIONS.get(action_type, OnClickActions.custom)(cfg)
         return result, cfg
 
-    def apply_result(self, result: object, cfg: dict) -> object:
+    def apply_result(self, result: object, cfg: dict) -> object | None:
         """
         Write a dialog result to runtime state — siblings and main value.
         Separated from handle_interaction so ``_on_add`` can apply
@@ -584,7 +579,7 @@ class ButtonHandler(BaseControlHandler):
         result, cfg = preflight
         if isinstance(result, int):
             if result < 0:
-                return      
+                return
             items = cfg["items"]
             if 0 <= result < len(items):
                 result = items[result]
@@ -668,6 +663,13 @@ class EditHandler(BaseControlHandler):
     def __init__(
         self, control: dict, instance: object, runtime_manager: RuntimeStateManager
     ) -> None:
+        """
+        Initialise the edit handler with a cached-text guard for save dedup.
+
+        :param control: Control definition.
+        :param instance: Kodi edit control instance.
+        :param runtime_manager: Runtime state manager.
+        """
         super().__init__(control, instance, runtime_manager)
         self._cached_text = ""
 
@@ -798,6 +800,19 @@ class SliderHandler(BaseControlHandler):
 
     _updates_labels = False
 
+    def __init__(
+        self, control: dict, instance: object, runtime_manager: RuntimeStateManager
+    ) -> None:
+        """
+        Initialise the slider handler with a default-disabled enable flag.
+
+        :param control: Control definition.
+        :param instance: Kodi slider control instance.
+        :param runtime_manager: Runtime state manager.
+        """
+        super().__init__(control, instance, runtime_manager)
+        self._enabled = False
+
     def handle_interaction(
         self,
         current_listitem: str,
@@ -820,11 +835,7 @@ class SliderHandler(BaseControlHandler):
 
         if (
             focused_control_id != self.instance.getId()
-            or a_id
-            not in (
-                ACTION_MOVE_LEFT,
-                ACTION_MOVE_RIGHT,
-            )
+            or a_id not in (ACTION_MOVE_LEFT, ACTION_MOVE_RIGHT)
             or not self._get_active_link()
         ):
             return
@@ -872,9 +883,12 @@ class SliderExHandler(SliderHandler):
         runtime_manager: RuntimeStateManager,
     ) -> None:
         """
+        Wire up the slider and its companion label-button.
+
         :param control: Control definition.
         :param slider_instance: Main slider control instance.
         :param button_instance: Associated label button control.
+        :param runtime_manager: Runtime state manager.
         """
         super().__init__(control, slider_instance, runtime_manager)
         self.button_instance = button_instance
