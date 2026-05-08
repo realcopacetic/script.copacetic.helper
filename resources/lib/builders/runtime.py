@@ -40,6 +40,23 @@ def _enumerate_subs(mapping: dict) -> list[dict]:
     return [{}]
 
 
+def load_all_mappings(base_folder: str) -> dict:
+    """
+    Load merged mapping definitions: built-in BUILDER_MAPPINGS plus any
+    custom mappings under ``base_folder/mappings/``. Shared by BuildElements
+    and DynamicEditor so the merge logic lives in one place.
+
+    :param base_folder: Skin extras builders folder root.
+    :return: Mapping name → mapping data dict.
+    """
+    from resources.lib.builders.builder_config import BUILDER_MAPPINGS
+
+    merger = JSONMerger(
+        base_folder=base_folder, subfolders=["mappings"], grouping_key=None
+    )
+    return {**BUILDER_MAPPINGS, **dict(merger.cached_merged_data)}
+
+
 class ConfigsResolver:
     """
     Resolves configs from source templates on demand, with caching.
@@ -48,8 +65,8 @@ class ConfigsResolver:
 
     def __init__(self, mappings: dict, base_folder: str) -> None:
         """
-        Load source templates, build the reverse index, eagerly resolve
-        every key once to surface malformed templates at startup.
+        Load source templates and build the reverse index. Resolution is
+        lazy; entries are resolved on first access and cached.
 
         :param mappings: Dictionary of mapping definitions.
         :param base_folder: Skin extras builders folder containing configs/.
@@ -59,13 +76,6 @@ class ConfigsResolver:
         self._templates = self._load_templates(base_folder)
         self._index = self._build_index()
         self._cache: dict[str, dict] = {}
-        for cfg_key in self._index:
-            try:
-                self.resolve(cfg_key)
-            except Exception as e:
-                log.warning(
-                    f"{self.__class__.__name__}: failed to resolve " f"'{cfg_key}': {e}"
-                )
 
     def _load_templates(self, base_folder: str) -> dict:
         """
@@ -110,11 +120,13 @@ class ConfigsResolver:
     def resolve(self, cfg_key: str) -> dict:
         """
         Resolve a single config entry by its fully-expanded key. Returns the
-        same shape ConfigsBuilder previously wrote to configs.json.
+        same shape ConfigsBuilder previously wrote to configs.json. Failures
+        are logged once and cached as ``{}`` so subsequent calls are stable.
 
         :param cfg_key: Resolved config key (e.g. "movies_layout").
-        :return: Resolved entry dict, or empty dict if cfg_key is unknown.
+        :return: Resolved entry dict, or empty dict if unknown or malformed.
         """
+
         if not cfg_key:
             return {}
         if cfg_key in self._cache:
@@ -123,9 +135,15 @@ class ConfigsResolver:
         if entry is None:
             return {}
         mapping_name, tpl_name, sub = entry
-        result = self._resolve_one(
-            self._templates[(mapping_name, tpl_name)], sub, mapping_name
-        )
+        try:
+            result = self._resolve_one(
+                self._templates[(mapping_name, tpl_name)], sub, mapping_name
+            )
+        except Exception as e:
+            log.warning(
+                f"{self.__class__.__name__}: failed to resolve " f"'{cfg_key}': {e}"
+            )
+            result = {}
         self._cache[cfg_key] = result
         return result
 
@@ -335,15 +353,6 @@ class RuntimeStateManager:
         """
         return self._mappings
 
-    def resolve_config(self, cfg_key: str | None) -> dict:
-        """
-        Resolve a config entry from source templates via the configs resolver.
-
-        :param cfg_key: Resolved config key, or None.
-        :return: Resolved config dict, empty dict if cfg_key is None or unknown.
-        """
-        return self.configs.resolve(cfg_key) if cfg_key else {}
-
     @property
     def runtime_state(self) -> dict:
         """
@@ -389,7 +398,7 @@ class RuntimeStateManager:
         :param cfg_key: Resolved config key.
         :return: Default value or None.
         """
-        cfg = self.resolve_config(cfg_key)
+        cfg = self.configs.resolve(cfg_key)
         return cfg.get("default") or next(iter(cfg.get("items", [])), None)
 
     def _build_default_entry(self, mapping_key: str, item: str) -> dict:

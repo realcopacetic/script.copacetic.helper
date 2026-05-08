@@ -149,7 +149,7 @@ class BaseControlHandler:
         """
         cfg = self._linked_config()
         return (
-            self.runtime_manager.resolve_config(cfg).get("items", [])
+            self.runtime_manager.configs.resolve(cfg).get("items", [])
             if cfg
             else (
                 []
@@ -160,15 +160,15 @@ class BaseControlHandler:
             )
         )
 
-    def _config_context(self) -> tuple[str | None, dict | None]:
+    def _config_context(self) -> tuple[str | None, dict]:
         """
         Resolve the linked config and its data for the current control.
 
-        :return: Tuple of ``(cfg, cfg_data)`` where cfg_data may be None.
+        :return: Tuple of ``(cfg, cfg_data)``; cfg_data is empty when cfg is None.
         """
+
         cfg = self._linked_config()
-        cfg_data = self.runtime_manager.resolve_config(cfg) if cfg else None
-        return cfg, cfg_data
+        return cfg, self.runtime_manager.configs.resolve(cfg)
 
     def _get_setting_value(self) -> str | None:
         """
@@ -182,7 +182,7 @@ class BaseControlHandler:
 
         link = self._get_active_link()
         if cfg := link.get("linked_config"):
-            cfg_data = self.runtime_manager.resolve_config(cfg)
+            cfg_data = self.runtime_manager.configs.resolve(cfg)
             mode = cfg_data.get("mode", "static")
             default = cfg_data.get("default", "")
 
@@ -282,6 +282,7 @@ class BaseControlHandler:
         """
         if instance is None:
             instance = self.instance
+
         link = self._get_active_link()
         current_value = self._get_setting_value()
         if self.field:
@@ -300,7 +301,7 @@ class BaseControlHandler:
         )
         raw_label = link.get("label") or self.control.get("label", "")
         cfg_key = self._linked_config()
-        cfg_labels = self.runtime_manager.resolve_config(cfg_key).get("labels", {})
+        cfg_labels = self.runtime_manager.configs.resolve(cfg_key).get("labels", {})
         if "label2" in self.control and self.control["label2"] is not None:
             raw_label2 = self.control["label2"]
         elif "label2" in link:
@@ -394,7 +395,7 @@ class BaseControlHandler:
         allowed = self._allowed_items()
         if allowed and val not in allowed:
             if cfg_key := self._linked_config():
-                cfg_data = self.runtime_manager.resolve_config(cfg_key)
+                cfg_data = self.runtime_manager.configs.resolve(cfg_key)
                 default_val = cfg_data.get("default", allowed[0])
             else:
                 default_val = allowed[0]
@@ -459,7 +460,7 @@ class ButtonHandler(BaseControlHandler):
         # Fetch items, then resolve display labels from config labels, metadata, or title-case
         items = onclick.get("items") or self._allowed_items()
         cfg_key = self._linked_config()
-        cfg_labels = self.runtime_manager.resolve_config(cfg_key).get("labels", {})
+        cfg_labels = self.runtime_manager.configs.resolve(cfg_key).get("labels", {})
 
         display_items = [
             infolabel(lbl) if isinstance(lbl, str) and lbl.startswith("$") else lbl

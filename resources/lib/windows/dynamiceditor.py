@@ -4,10 +4,8 @@ import copy
 
 import xbmcgui
 
-from resources.lib.builders.builder_config import BUILDER_MAPPINGS
-from resources.lib.builders.runtime import RuntimeStateManager
+from resources.lib.builders.runtime import RuntimeStateManager, load_all_mappings
 from resources.lib.shared import logger as log
-from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import (
     BUILDERS_BASE,
     RUNTIME_STATE,
@@ -37,17 +35,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.mapping_override = None
         self._xml_filename = xmlFilename.lower()
 
-        self._mapping_merger = JSONMerger(
-            base_folder=BUILDERS_BASE,
-            subfolders=["mappings"],
-            grouping_key=None,
-        )
-        self._all_mappings = {
-            **BUILDER_MAPPINGS,
-            **dict(self._mapping_merger.cached_merged_data),
-        }
         self.runtime_manager = RuntimeStateManager(
-            mappings=self._all_mappings,
+            mappings=load_all_mappings(BUILDERS_BASE),
             base_folder=BUILDERS_BASE,
             runtime_state_path=RUNTIME_STATE,
         )
@@ -88,7 +77,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         initial list.
         """
         log.debug(
-            f"DynamicEditor onInit: xml={self._xml_filename} "
+            f"DynamicEditor onInit → xml={self._xml_filename} "
             f"mapping={self.mapping_override}"
         )
 
@@ -105,7 +94,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             f"dynamic={list(self.dynamic_controls)}"
         )
         self._build_dicts()
-        log.debug(f"built dicts: listitems={list(self.listitems)}")
+        log.debug(f"built dicts → listitems={list(self.listitems)}")
         self._runtime_state_snapshot = copy.deepcopy(self.runtime_manager.runtime_state)
         log.debug("snapshot done")
 
@@ -140,20 +129,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             if cid is None:
                 log.debug(f"Skipping dynamic control {control_id}: missing 'id'")
                 continue
-            try:
-                handler = DynamicControlFactory.create_handler(
-                    control,
-                    self.getControl,
-                    self.runtime_manager,
-                )
-                if handler:
-                    handler.parent = self
-                    self.handlers[control_id] = handler
-            except RuntimeError as e:
-                log.warning(
-                    f"Warning: Control ID {cid} ({control_id}) "
-                    f"not found in XML layout: {e}"
-                )
+
+            handler = DynamicControlFactory.create_handler(
+                control,
+                self.getControl,
+                self.runtime_manager,
+            )
+            if handler:
+                handler.parent = self
+                self.handlers[control_id] = handler
 
         # Build focus-ID → handler index for direct dispatch
         self._handler_by_focus_id = {}
@@ -664,23 +648,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._finalize_selection(mapping_changed=True, list_rebuilt=True)
 
     def _on_close(self) -> None:
-        """Trigger a runtime rebuild and close the window."""
-        if self.parent_filter:
-            # Child window — parent will handle rebuild on its own close
-            self.close()
-            return
-
-        self.runtime_manager.reload_state()
-
-        if (
-            self.runtime_manager.runtime_state != self._runtime_state_snapshot
-            or self.skin_strings_changed
-        ):
-            from resources.lib.builders.build_elements import BuildElements
-
-            BuildElements(run_context="runtime")
-            log.execute("ReloadSkin()")
-
+        """Close the window,"""
         self.close()
 
     def _finalize_selection(

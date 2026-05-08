@@ -137,8 +137,8 @@ Done. The user opens the editor, toggles clearlogo for movies, presses Close. Th
 ## What you just did
 
 - One **mapping** (built-in) declared the iteration values.
-- The **configs builder** turned one template into per-content-type setting definitions, filtered by which content types support the feature.
-- The **controls builder** turned one control template into one editable control with bindings for each supported content type.
+- A **configs template** expanded into per-content-type setting definitions, filtered by which content types support the feature. The Dynamic Editor resolves these on demand.
+- A **controls template** expanded into one editable control with bindings for each supported content type, resolved when the editor opens.
 - The user's choices live in **Kodi skin strings** — `Skin.String(movies_clearlogo)` etc. — written by the editor on close.
 - The **expressions builder** turned one template into one expression per window, evaluating the user's choices into a boolean the skin can consume.
 

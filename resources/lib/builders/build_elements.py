@@ -2,13 +2,17 @@
 
 from pathlib import Path
 
-from resources.lib.builders.builder_config import (BUILDER_CONFIG,
-                                                   BUILDER_MAPPINGS)
-from resources.lib.builders.runtime import RuntimeStateManager
+from resources.lib.builders.builder_config import BUILDER_CONFIG
+from resources.lib.builders.runtime import RuntimeStateManager, load_all_mappings
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONMerger
-from resources.lib.shared.utilities import (BUILDERS_BASE, RUNTIME_STATE,
-                                            SKINEXTRAS, condition, skin_string)
+from resources.lib.shared.utilities import (
+    BUILDERS_BASE,
+    RUNTIME_STATE,
+    SKINEXTRAS,
+    condition,
+    skin_string,
+)
 from resources.lib.shared.xml import XMLDictConverter, XMLMerger
 
 
@@ -18,17 +22,16 @@ class BuildElements:
     Handles data merging across mappings and delegates processing to builder modules.
     """
 
-    def __init__(self, run_context="prep", builders_to_run=None, force_rebuild=False):
+    def __init__(self, run_context="build", builders_to_run=None, force_rebuild=False):
         """
         Initializes JSON mergers and loads all static and custom mappings.
         Sets up merged data and mapping configurations.
 
-        :param run_context: Runtime context string ("prep", "build", "boot", or "runtime").
+        :param run_context: Runtime context string ("build" or "runtime").
         :param builders_to_run: List of builders requiring processing.
         :param force_rebuild: Ensures all builders with given run_context are processed.
         """
         self.run_context = run_context
-        self.runtime_manager = None
         self.force_rebuild = force_rebuild
         self.builders_to_run = (
             self._default_builders()
@@ -36,15 +39,7 @@ class BuildElements:
             else builders_to_run
         )
 
-        self.mapping_merger = JSONMerger(
-            base_folder=Path(SKINEXTRAS) / "builders",
-            subfolders=["mappings"],
-            grouping_key=None,
-        )
-        self.all_mappings = {
-            **BUILDER_MAPPINGS,
-            **dict(self.mapping_merger.cached_merged_data),
-        }
+        self.all_mappings = load_all_mappings(BUILDERS_BASE)
 
         self.json_merger = JSONMerger(
             base_folder=Path(SKINEXTRAS) / "builders",
@@ -101,16 +96,15 @@ class BuildElements:
         values_to_write = {}
         values_to_return = {}
 
-        # Initialize runtime states and skin strings after builders finish processing configs.json
-        if self.run_context in ("build", "runtime"):
-            self.runtime_manager = RuntimeStateManager(
-                mappings=self.all_mappings,
-                base_folder=BUILDERS_BASE,
-                runtime_state_path=RUNTIME_STATE,
-            )
-            if self.run_context == "build":
-                self.runtime_manager.initialize_runtime_state()
-                self.initialize_skinstrings()
+        # Initialise runtime state and seed skin strings before builders run
+        self.runtime_manager = RuntimeStateManager(
+            mappings=self.all_mappings,
+            base_folder=BUILDERS_BASE,
+            runtime_state_path=RUNTIME_STATE,
+        )
+        if self.run_context == "build":
+            self.runtime_manager.initialize_runtime_state()
+            self.initialize_skinstrings()
 
         for mapping_name, items_data in self.combined_data():
             mapping_values = self.all_mappings.get(mapping_name, {})
@@ -188,10 +182,13 @@ class BuildElements:
         Seed default skin strings for static configs that don't yet have a value.
         Reads resolved defaults from the runtime manager's configs resolver.
         """
-        for cfg_key, default_value in self.runtime_manager.configs.iter_static_defaults():
+        for (
+            cfg_key,
+            default_value,
+        ) in self.runtime_manager.configs.iter_static_defaults():
             if not condition(f"Skin.String({cfg_key})"):
                 skin_string(cfg_key, default_value)
                 log.debug(
                     f"{self.__class__.__name__}: Default skinstring "
                     f"'{cfg_key}' initialized to '{default_value}'."
-                 )
+                )

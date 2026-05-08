@@ -128,6 +128,20 @@ def dynamic_settings_window(**kwargs):
     myWindow.mapping_override = mapping
     myWindow.doModal()
 
+    # Rebuild if state changed during the session. Top-level only;
+    # child editors defer the rebuild to their parent's close.
+    if not myWindow.parent_filter:
+        myWindow.runtime_manager.reload_state()
+        if (
+            myWindow.runtime_manager.runtime_state
+            != myWindow._runtime_state_snapshot
+            or myWindow.skin_strings_changed
+        ):
+            from resources.lib.builders.build_elements import BuildElements
+
+            BuildElements(run_context="runtime")
+            log.execute("ReloadSkin()")
+
     if mapping:
         window_property(mapping)
 

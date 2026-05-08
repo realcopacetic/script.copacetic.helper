@@ -318,7 +318,7 @@ class ExpressionsBuilder(BaseBuilder):
 
         :param element_name: Expression name template.
         :param element_data: Dictionary of rule definitions and items.
-        :return: Generator yielding final expression dict.configs_path=CONFIGS,
+        :return: Generator yielding final expression dict.
         """
         resolved = {}
         for d in super().process_elements(element_name, element_data):
@@ -599,17 +599,14 @@ class VariablesBuilder(BaseBuilder):
         substitutions: list[dict[str, Any]],
     ) -> dict[str, list[dict[str, str]]]:
         """
-        Expand a cluster template into one variable per declared output. Each
-        row contributes to a given output only when that output's key appears
-        in the row, allowing sparse cells across the cascade. Empty-string
-        values produce ``<value condition="..."/>`` self-closing terminators
-        in the emitted XML.
+        Expand a cluster template into one variable per declared output, sharing
+        a single condition cascade across all outputs.
 
         :param data: Cluster template dict containing ``outputs`` and ``rows``.
         :param substitutions: Substitution dicts from the loop expansion.
-        :return: Mapping of emitted variable name → list of resolved
-            ``{condition, value}`` dicts.
+        :return: Mapping of variable name to list of {condition, value} dicts.
         """
+
         outputs = data.get("outputs", {})
         rows = data.get("rows", [])
         result: dict[str, list[dict[str, str]]] = defaultdict(list)
@@ -620,14 +617,15 @@ class VariablesBuilder(BaseBuilder):
                 for row in rows:
                     if output_key not in row:
                         continue
-                    result[emitted_name].append(
-                        {
-                            "condition": self.substitute(
-                                row.get("condition", "true"), sub
-                            ),
-                            "value": self.substitute(row[output_key], sub),
-                        }
-                    )
+
+                    value_dict = {
+                        "value": self.substitute(row[output_key], sub),
+                    }
+                    if "condition" in row:
+                        value_dict["condition"] = self.substitute(
+                            row["condition"], sub
+                        )
+                    result[emitted_name].append(value_dict)
 
         return dict(result)
 

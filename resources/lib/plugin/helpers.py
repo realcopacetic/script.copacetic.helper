@@ -45,8 +45,8 @@ def merge_metadata(
     ignore_keys: Collection[str] = ("art", "file"),
 ) -> dict[str, Any]:
     """Merge incoming metadata into a base metadata dict.
-
     Mutates ``base`` in place using has_value rules and overwrite policy.
+    
     :param base: Local metadata dict to update in place.
     :param incoming: Metadata dict to merge values from.
     :param prefer_incoming: If true, prefer incoming over non-empty base.
