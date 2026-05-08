@@ -2,7 +2,7 @@
 
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from functools import cached_property, wraps
+from functools import wraps
 from pathlib import Path
 
 from resources.lib.shared import logger as log
@@ -349,16 +349,6 @@ class XMLMerger:
         merged_container = ET.SubElement(merged_root, self.container_tag)
         merged_container.extend(elements)
         return merged_root
-
-    @cached_property
-    def cached_merged_data(self):
-        """
-        Eagerly loads and caches all XML mappings as a dictionary.
-        Useful for random access or repeated lookups.
-
-        :return: Dictionary of {mapping_key: content}
-        """
-        return dict(self.yield_merged_data())
 
 
 class XMLDictConverter:

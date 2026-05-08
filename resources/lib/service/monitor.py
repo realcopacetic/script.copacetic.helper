@@ -15,6 +15,7 @@ from resources.lib.shared.utilities import (
     ADDON,
     BLURS,
     CROPS,
+    RESOLVER_CACHE,
     TEMPS,
     condition,
     create_dir,
@@ -98,19 +99,21 @@ class Monitor(xbmc.Monitor):
             )
 
         if dev_mode:
-            BuildElements(run_context="build", force_rebuild=True)
+            BuildElements(force_rebuild=True).run()
             xbmc.executebuiltin("ReloadSkin()")
             return
 
         builders = [
             builder
             for builder, config in BUILDER_CONFIG.items()
-            if "build" in config.get("run_contexts", [])
-            and (write_path := config.get("write_path"))
+            if (write_path := config.get("write_path"))
             and not validate_path(write_path)
         ]
-        if builders:
-            BuildElements(run_context="build", builders_to_run=builders)
+        cache_missing = not validate_path(RESOLVER_CACHE)
+        if cache_missing:
+            BuildElements(force_rebuild=True).run()
+        elif builders:
+            BuildElements(builders_to_run=builders).run()
 
     def _on_start(self):
         """Begins the monitor loop and attaches the player monitor."""

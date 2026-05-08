@@ -4,7 +4,8 @@ import copy
 
 import xbmcgui
 
-from resources.lib.builders.runtime import RuntimeStateManager, load_all_mappings
+from resources.lib.builders.runtime import RuntimeStateManager
+from resources.lib.builders.templates import load_template_data
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     BUILDERS_BASE,
@@ -12,7 +13,7 @@ from resources.lib.shared.utilities import (
     infolabel,
 )
 from resources.lib.windows.control_factory import DynamicControlFactory
-
+from resources.lib.windows.controls import ButtonHandler
 
 class DynamicEditor(xbmcgui.WindowXMLDialog):
     """
@@ -32,12 +33,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         super().__init__()
         self.parent_filter = None
-        self.mapping_override = None
+        self.mapping = None
+        self.controls_from = []
         self._xml_filename = xmlFilename.lower()
 
+        mappings, configs_data, controls_data = load_template_data(BUILDERS_BASE)
         self.runtime_manager = RuntimeStateManager(
-            mappings=load_all_mappings(BUILDERS_BASE),
-            base_folder=BUILDERS_BASE,
+            mappings=mappings,
+            configs_data=configs_data,
+            controls_data=controls_data,
             runtime_state_path=RUNTIME_STATE,
         )
 
@@ -76,28 +80,19 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         Called by Kodi on window init. Sets up controls and renders the
         initial list.
         """
-        log.debug(
-            f"DynamicEditor onInit → xml={self._xml_filename} "
-            f"mapping={self.mapping_override}"
-        )
-
         self._description_label = self.getControl(6)
-        log.debug("got description_label")
         self._list_container = self.getControl(100)
-        log.debug("got list_container")
 
         # Build listitems and refresh list
         self._scan_controls()
-        log.debug(
-            f"scanned: runtime_tpls={list(self._runtime_tpls)} "
-            f"static_tpls={list(self._static_tpls)} "
-            f"dynamic={list(self.dynamic_controls)}"
-        )
         self._build_dicts()
-        log.debug(f"built dicts → listitems={list(self.listitems)}")
         self._runtime_state_snapshot = copy.deepcopy(self.runtime_manager.runtime_state)
-        log.debug("snapshot done")
-
+        log.debug(
+            f"DynamicEditor onInit → xml={self._xml_filename} "
+            f"mapping={self.mapping} "
+            f"controls_from={self.controls_from} "
+            f"listitems={list(self.listitems)}"
+        )
         if self.listitems:
             self.container_position = 0
             self.current_listitem = next(iter(self.listitems))
@@ -165,7 +160,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._runtime_tpls = {}
         self._static_tpls = {}
 
-        filtered = self.runtime_manager.controls.for_window(self._xml_filename)
+        sources = [self.mapping] + list(self.controls_from)
+        filtered = self.runtime_manager.controls.for_mappings(sources)
         for cid, ctrl in filtered.items():
             if ctrl.get("control_type") == "listitem":
                 bucket = (
@@ -186,13 +182,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 **tpl,
                 **entry,
                 "runtime_index": source_idx,
-                "mapping": self.mapping_override or tpl.get("mapping"),
+                "mapping": tpl["mapping"],
             }
             for tpl in self._runtime_tpls.values()
             for source_idx, entry in enumerate(
-                self.runtime_manager.runtime_state.get(
-                    self.mapping_override or tpl.get("mapping"), []
-                )
+                self.runtime_manager.runtime_state.get(tpl["mapping"], [])
             )
             if not self.parent_filter or entry.get("parent") == self.parent_filter
         }
@@ -484,20 +478,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     f"_on_add then lookup: name={then_name!r}, "
                     f"handlers={list(self.handlers.keys())}"
                 )
-                if then_name:
-                    then_handler = self.handlers.get(then_name)
-                    if then_handler:
-                        then_dialog = then_handler.run_preflight_dialog()
-                        if then_dialog is None:
-                            return
-                        then_result, then_cfg = then_dialog
-                        if then_result is None:
-                            return
-                        then_data = (
-                            then_handler,
-                            then_result,
-                            then_cfg,
-                        )
+                then_handler = self.handlers.get(then_name) if then_name else None
+                if isinstance(then_handler, ButtonHandler):
+                    then_dialog = then_handler.run_preflight_dialog()
+                    if then_dialog is None:
+                        return
+                    then_result, then_cfg = then_dialog
+                    if then_result is None:
+                        return
+                    then_data = (then_handler, then_result, then_cfg)
             else:
                 if result is None:
                     return
@@ -577,7 +566,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         # Clean up children that referenced the deleted entry
         for other_key in self.runtime_manager.runtime_state:
             if other_key != mk:
-                self.runtime_manager.delete_orphans(mk, other_key)
+                self.runtime_manager.delete_orphans(other_key)
 
         self._build_dicts()
 
@@ -626,8 +615,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _on_reset(self) -> None:
         """
-        Reset all entries to defaults after user confirmation.
-        Rebuilds the list and reselects the first item.
++        Reset entries to defaults after user confirmation. Scoped to
++        parent_filter when set; otherwise resets the whole mapping.
         """
         confirmed = xbmcgui.Dialog().yesno(
             "Reset to defaults",
@@ -639,16 +628,39 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.runtime_manager.reload_state()
 
         mk = self.listitems[self.current_listitem]["mapping"]
-        self.runtime_manager.reset_runtime_state_for(mk)
+        if self.parent_filter:
+            mapping = self.runtime_manager.mappings.get(mk, {})
+            metadata = mapping.get("metadata", {})
+            default_order = mapping.get("default_order") or mapping.get("items", [])
+            parent_item = self.runtime_manager.mapping_item_for_runtime_id(
+                self.parent_filter
+            )
+            for item in list(self.listitems.values()):
+                self.runtime_manager.delete_mapping_item(mk, item["runtime_index"])
+            for mi in default_order:
+                if metadata.get(mi, {}).get("parent") == parent_item:
+                    self.runtime_manager.insert_mapping_item(
+                        mk, mi, extra_fields={"parent": self.parent_filter}
+                    )
+        else:
+            self.runtime_manager.reset_runtime_state_for(mk)
 
         self._build_dicts()
+        if not self.listitems:
+            self.current_listitem = None
+            self._on_close()
+            return
+        
         self._refresh_list()
         self.container_position = 0
         self.current_listitem = next(iter(self.listitems))
         self._finalize_selection(mapping_changed=True, list_rebuilt=True)
 
     def _on_close(self) -> None:
-        """Close the window,"""
+        """
+        Close the modal. 
+        Rebuild logic runs in dynamic_settings_window after doModal() returns.
+        """
         self.close()
 
     def _finalize_selection(
@@ -666,12 +678,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self._list_container.selectItem(self.container_position)
 
         if mapping_changed:
-            # Picker path (ButtonHandler.handle_interaction with role=item_picker)
-            # calls _refresh_handlers_after_mapping_change directly with no
-            # _refresh_ui follow-up — so that method must validate+render
-            # handlers as a unit. On _on_add/_on_reset we end up calling both,
-            # which is a second pass through update_value/update_visibility per
-            # handler. The wasted work is microseconds and not worth restructuring.
+            # Picker path calls _refresh_handlers_after_mapping_change directly, so
+            # that method must validate+render as a unit. _on_add/_on_reset hit both
+            # paths — a redundant pass per handler, but it's microseconds.
             self._refresh_handlers_after_mapping_change()
 
         self._update_mgmt_buttons()
@@ -679,32 +688,28 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _seed_metadata(self) -> None:
         """
-        Copy the new preset's string metadata onto the current runtime
-        entry. Skips ``parent`` (preserved across preset changes) and
-        non-string fields (structural metadata such as xsp dicts).
+        Rebuild the current runtime entry for its newly-picked preset.
+        Preserves runtime_id and parent; everything else regenerates
+        from metadata + config_field defaults (same path as insert).
         """
         item = self.listitems.get(self.current_listitem)
         if not item:
             return
         mk = item["mapping"]
-        new_preset = self.runtime_manager.get_runtime_setting(
-            mk, self._source_index, "mapping_item"
-        )
-        metadata = (
-            self.runtime_manager.mappings.get(mk, {})
-            .get("metadata", {})
-            .get(new_preset, {})
-        )
-        updates = {
-            k: v for k, v in metadata.items() if k != "parent" and isinstance(v, str)
+        idx = self._source_index
+        existing = self.runtime_manager.runtime_state.get(mk, [])
+        if not 0 <= idx < len(existing):
+            return
+        new_preset = existing[idx]["mapping_item"]
+        preserve = {
+            "runtime_id": existing[idx]["runtime_id"],
+            **({"parent": existing[idx]["parent"]} if "parent" in existing[idx] else {}),
         }
-        if updates:
-            try:
-                self.runtime_manager.update_runtime_settings_batch(
-                    mk, self._source_index, updates
-                )
-            except IndexError:
-                pass
+        rebuilt = self.runtime_manager.rebuild_mapping_item(
+            mk, new_preset, idx, preserve=preserve
+        )
+        if rebuilt is None:
+            log.debug(f"_seed_metadata: rebuild failed for {mk}[{idx}]={new_preset}")
 
     def _format_and_localize(self, mapping_key: str, idx: int, raw: str) -> str:
         """

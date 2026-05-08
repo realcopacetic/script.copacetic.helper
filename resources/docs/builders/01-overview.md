@@ -61,9 +61,10 @@ Here's how the `layout` field on a widget slot flows from definition to output. 
 **1. The mapping** declares that widgets have a `layout` field, and links it to a config key template:
 
 ```json
-"config_fields": {
-  "layout": "widget_{widget_preset}_layout"
-}
+"config_fields":
+  "global": {
+    "layout": "widget_{widget_preset}_layout"
+  }
 ```
 
 **2. The configs builder** resolves which layouts are available for each preset:
@@ -172,12 +173,9 @@ These can be triggered from anywhere — skin XML button onclicks, keymaps, cust
 
 | Script | What it does |
 |---|---|
-| `RunScript(script.copacetic.helper,action=rebuild,full=true)` | Full `build` with force-rebuild, then reload. Same as the Rebuild now button. Notifies. |
-| `RunScript(script.copacetic.helper,action=rebuild,context=runtime)` | Rebuilds runtime-context outputs only (includes + expressions) and reloads. No notification. This is what the Dynamic Editor runs on close. |
-| `RunScript(script.copacetic.helper,action=rebuild,context=build)` | Rebuilds variables + includes + expressions (without force-rebuild), then reloads. |
-| `RunScript(script.copacetic.helper,action=dev_reset)` | Deletes runtime_state.json and all builder outputs. Does not rebuild — restart Kodi (or trigger a rebuild script) afterwards. Notifies. |
-
-The `rebuild` action with no `full` and no `context` defaults to `context=runtime`.
+| `RunScript(script.copacetic.helper,action=rebuild)` | Regenerates all builder outputs from current runtime state and skin strings, then reloads. Preserves user preferences. This is what the Dynamic Editor runs on close. |
+| `RunScript(script.copacetic.helper,action=rebuild,full=true)` | Full rebuild with `force_rebuild=True`. Re-seeds any unset skin strings and adds missing runtime entries from `default_order`. Reloads and notifies. Same as the Rebuild now button. |
+| `RunScript(script.copacetic.helper,action=rebuild,reset=true)` | Deletes `runtime_state.json` and all builder outputs, then full-rebuilds from defaults. Reloads and notifies. Use after changing a mapping's `default_order`, `config_fields`, or `metadata` if you want a clean slate. |
 
 ### Suggested workflow
 
@@ -280,7 +278,7 @@ Configs, controls, expressions, and includes templates can declare a `"mode"` fi
 
 **Dynamic mode** — the builder iterates once per entry in `runtime_state.json` for the mapping. The number of iterations grows and shrinks with what the user has configured. Setting values are stored as fields on those runtime entries, not as skin strings. Suits multi-instance features where the user adds and removes instances at runtime: widgets, menu items.
 
-The variables builder always expands from its own `items` or `index`; mode doesn't apply.
+All template-driven builders (configs, controls, variables, expressions, includes) honour `mode`. Variables in dynamic mode iterate once per runtime entry — see `params_focus_widgets` in `variables_widgets.json`.
 
 The advantage of dynamic mode over skin strings is there's no predetermined limit on the number of instances. A skinner defines a "custom" widget once and the user can create as many instances as they want — each with its own content path, label, and layout. With skin strings, you'd need to pre-allocate a fixed number of slots.
 

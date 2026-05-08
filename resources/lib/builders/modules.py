@@ -3,11 +3,11 @@
 import json
 import re
 from collections import defaultdict
-from itertools import product
 from typing import Any
 from urllib.parse import quote
 
 from resources.lib.builders.logic import RuleEngine
+from resources.lib.builders.substitution import enumerate_mapping_subs, inject_metadata
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import evaluate_expression, expand_index
 
@@ -22,11 +22,11 @@ class BaseBuilder:
 
     def __init__(self, mapping_name, mapping_values, runtime_manager=None):
         """
-        Initializes builder with placeholders, loop values, and dynamic key.
+        Initialise the builder with the mapping it operates on.
 
         :param mapping_name: Name of the mapping driving this builder.
-        :param mapping_values: Looping values, placeholders and metadata for expansion.
-        :param runtime_manager: Instance of manager class for handling runtime configs
+        :param mapping_values: Mapping definition (items, placeholders, metadata).
+        :param runtime_manager: Runtime state manager for dynamic-mode lookups.
         """
         self.mapping_name = mapping_name
         self.mapping_values = mapping_values
@@ -48,10 +48,8 @@ class BaseBuilder:
         mode = element_data.get("mode", "static")
 
         if mode == "dynamic" and not element_data.get("items"):
-            if self.runtime_manager is not None and (
-                runtime_items := self.runtime_manager.runtime_state.get(
-                    self.mapping_name
-                )
+            if runtime_items := self.runtime_manager.runtime_state.get(
+                self.mapping_name
             ):
                 index_list = expand_index(element_data.get("index"))
                 index_start = int(index_list[0]) if index_list else 1
@@ -86,6 +84,17 @@ class BaseBuilder:
             ).items()
         )
 
+    def generate_substitutions(self, items, dynamic_key):
+        """
+        Generate substitution dicts based on mapping loop structure and
+        per-template items.
+
+        :param items: Per-template values for cross-product (or empty).
+        :param dynamic_key: Placeholder name for the item value.
+        :return: List of substitution dictionaries.
+        """
+        return enumerate_mapping_subs(self.mapping_values, items, dynamic_key)
+
     def generate_runtimejson_substitutions(self, runtime_items, index_start):
         """
         Each runtime entry contributes its scalar (string) fields layered over
@@ -97,7 +106,8 @@ class BaseBuilder:
         """
         key_placeholder = self.placeholders.get("key")
         return [
-            self._inject_metadata(
+            inject_metadata(
+                self.metadata,
                 {
                     key_placeholder: item["mapping_item"],
                     "index": str(index_start + index),
@@ -111,74 +121,6 @@ class BaseBuilder:
             )
             for index, item in enumerate(runtime_items)
         ]
-
-    def generate_substitutions(self, items, dynamic_key):
-        """
-        Generates substitution dicts based on loop structure and items.
-
-        :param items: List of items to loop over.
-        :param dynamic_key: Optional substitution key used in json/xml templates (either "item" or "index")
-        :return: List of substitution dictionaries.
-        """
-        key_name = self.placeholders.get("key")
-        value_name = self.placeholders.get("value")
-
-        if isinstance(self.loop_values, dict) and items:
-            return [
-                self._inject_metadata(
-                    {
-                        key_name: outer_key,
-                        value_name: inner_value,
-                        dynamic_key: item,
-                    },
-                    outer_key,
-                    inner_value,
-                )
-                for outer_key, inner_values in self.loop_values.items()
-                for inner_value, item in product(inner_values, items)
-            ]
-
-        elif isinstance(self.loop_values, dict) and not items:
-            return [
-                self._inject_metadata(
-                    {
-                        key_name: outer_key,
-                        value_name: inner_value,
-                    },
-                    outer_key,
-                    inner_value,
-                )
-                for outer_key, inner_values in self.loop_values.items()
-                for inner_value in inner_values
-            ]
-
-        elif isinstance(self.loop_values, list) and items:
-            return [
-                self._inject_metadata(
-                    {
-                        key_name: loop_value,
-                        dynamic_key: item,
-                    },
-                    loop_value,
-                )
-                for loop_value, item in product(self.loop_values, items)
-            ]
-
-        elif isinstance(self.loop_values, list) and not items:
-            return [
-                self._inject_metadata({key_name: loop_value}, loop_value)
-                for loop_value in self.loop_values
-            ]
-
-        elif not self.loop_values and items:
-            return [
-                {
-                    dynamic_key: item,
-                }
-                for item in items
-            ]
-
-        return [{}]
 
     def _resolve_placeholder(
         self, match: re.Match, substitutions: dict[str, str]
@@ -202,37 +144,21 @@ class BaseBuilder:
 
         return ""
 
-    def substitute(self, template, substitutions):
+    def substitute(self, template: str, substitutions: dict[str, str]) -> str:
         """
-        Formats an object using the provided substitution dictionary.
+        Substitute placeholders in a template string against a substitution dict.
 
         :param template: Template string with placeholders.
         :param substitutions: Dict of key-value substitutions.
-        :return: Fully formatted string.
+        :return: Formatted string.
         """
-        if isinstance(template, str):
-            if not substitutions or ("{" not in template):
-                return template
-
-            return PLACEHOLDER_PATTERN.sub(
-                lambda match: self._resolve_placeholder(match, substitutions),
-                template,
-            )
-
-        elif isinstance(template, list):
-            return [self.substitute(item, substitutions) for item in template]
-
-        elif isinstance(template, dict):
-            substituted_dict = {
-                key: self.substitute(value, substitutions)
-                for key, value in template.items()
-            }
-            return {
-                k: v for k, v in substituted_dict.items() if v not in ("", {}, [], None)
-            }
-
-        else:
+        if not substitutions or ("{" not in template):
             return template
+
+        return PLACEHOLDER_PATTERN.sub(
+            lambda match: self._resolve_placeholder(match, substitutions),
+            template,
+        )
 
     def _resolve_placeholder_strict(
         self, match: re.Match, tokens: dict[str, str]
@@ -246,7 +172,6 @@ class BaseBuilder:
         :param tokens: Dict of template-level token values.
         :return: Substituted value; original ``{placeholder}`` if unresolved.
         """
-
         key = match.group(1)
         if key in tokens:
             return tokens[key]
@@ -295,14 +220,6 @@ class BaseBuilder:
             sub["count"] = count_str
             sub["is_first"] = "true" if i == 0 else "false"
             sub["is_last"] = "true" if i == last else "false"
-
-    def _inject_metadata(self, substitutions, *keys):
-        """Merge substitutions with metadata if metadata for any key exists."""
-        combined_metadata = {}
-        for key in keys:
-            metadata = self.metadata.get(key, {})
-            combined_metadata.update(metadata)
-        return {**combined_metadata, **substitutions}
 
 
 class ExpressionsBuilder(BaseBuilder):
@@ -459,18 +376,11 @@ class IncludesBuilder(BaseBuilder):
         :param data: Dictionary representing XML structure.
         :param substitutions: List of substitution dictionaries.
         """
-        has_placeholder = any(
-            f"{{{key}}}" in template_name for sub in substitutions for key in sub
-        )
-
         grouped = defaultdict(list)
-        if has_placeholder:
-            for sub in substitutions:
-                key = template_name.format(**sub)
-                grouped[key].append(sub)
-                self.group_map[key] = sub
-        else:
-            grouped[template_name] = substitutions
+        for sub in substitutions:
+            key = template_name.format(**sub)
+            grouped[key].append(sub)
+            self.group_map[key] = sub
 
         return {
             key: self.resolve_values(subs, data["include"])
@@ -609,7 +519,16 @@ class VariablesBuilder(BaseBuilder):
 
         outputs = data.get("outputs", {})
         rows = data.get("rows", [])
-        result: dict[str, list[dict[str, str]]] = defaultdict(list)
+        result = defaultdict(list)
+
+        # If neither output names nor row contents reference any placeholder,
+        # the cascade is identical for every sub — emit once.
+        all_constant = (
+            all("{" not in n for n in outputs.values())
+            and "{" not in json.dumps(rows)
+        )
+        if all_constant and substitutions:
+            substitutions = substitutions[:1]
 
         for sub in substitutions:
             for output_key, name_template in outputs.items():
@@ -622,9 +541,7 @@ class VariablesBuilder(BaseBuilder):
                         "value": self.substitute(row[output_key], sub),
                     }
                     if "condition" in row:
-                        value_dict["condition"] = self.substitute(
-                            row["condition"], sub
-                        )
+                        value_dict["condition"] = self.substitute(row["condition"], sub)
                     result[emitted_name].append(value_dict)
 
         return dict(result)

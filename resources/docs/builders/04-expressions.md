@@ -200,9 +200,9 @@ The `videos` window group falls back to `fanart`; all other windows fall back to
 
 Expressions are rebuilt:
 
-- During skin development (`build` context)
-- When the user closes a Dynamic Editor window and runtime state has changed (`runtime` context)
-- Manually via `RunScript(script.copacetic.helper,action=rebuild,context=runtime)`
+- During skin development on every Kodi start (when dev mode is on)
+- When the user closes a Dynamic Editor window and runtime state or skin strings have changed
+- Manually via `RunScript(script.copacetic.helper,action=rebuild)`
 
 Every rebuild includes an automatic `ReloadSkin()` call. Kodi caches include file contents at load time, so writing the new XML to disk isn't enough on its own — even navigating between windows won't pick up the changes. `ReloadSkin()` forces Kodi to re-read all include files.
 

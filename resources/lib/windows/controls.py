@@ -69,9 +69,7 @@ class BaseControlHandler:
         self._link_data_cache = None
         self.is_dynamic_linked = control.get("mode") == "dynamic" and self.field
         self.config_field_template = (
-            runtime_manager.mappings[self.mapping_key]
-            .get("config_fields", {})
-            .get(self.field)
+            runtime_manager.flatten_config_fields(self.mapping_key).get(self.field)
             if self.is_dynamic_linked
             else None
         )
@@ -116,22 +114,18 @@ class BaseControlHandler:
                 sub_map = {ph: current for ph in self.placeholders.values()}
                 sub_map["index"] = self.source_index
                 return {"linked_config": self.config_field_template.format(**sub_map)}
-            except Exception as e:
+            except (IndexError, KeyError) as e:
                 log.debug(f"Failed to resolve dynamic link: {e}")
 
         trigger = f"focused({self.current_listitem})"
-        try:
-            return next(
-                (
-                    link
-                    for link in self.control.get("contextual_bindings", [])
-                    if link.get("update_trigger") == trigger
-                ),
-                {},
-            )
-        except Exception as e:
-            log.debug(f"Fallback contextual_bindings failed: {e}")
-            return {}
+        return next(
+            (
+                link
+                for link in self.control.get("contextual_bindings", [])
+                if link.get("update_trigger") == trigger
+            ),
+            {},
+        )
 
     def _linked_config(self) -> str | None:
         """
@@ -234,7 +228,7 @@ class BaseControlHandler:
                     pass
             else:
                 skin_string(cfg, value)
-                if hasattr(self, "parent"):
+                if self.parent is not None:
                     self.parent.skin_strings_changed = True
             return
 
@@ -462,19 +456,18 @@ class ButtonHandler(BaseControlHandler):
         cfg_key = self._linked_config()
         cfg_labels = self.runtime_manager.configs.resolve(cfg_key).get("labels", {})
 
+        raw_labels = [
+            cfg_labels.get(item)
+            or self.runtime_manager.mappings[self.mapping_key]
+            .get("metadata", {})
+            .get(item, {})
+            .get("label")
+            or item.replace("_", " ").title()
+            for item in items
+        ]
         display_items = [
             infolabel(lbl) if isinstance(lbl, str) and lbl.startswith("$") else lbl
-            for item in items
-            for lbl in [
-                (
-                    cfg_labels.get(item)
-                    or self.runtime_manager.mappings[self.mapping_key]
-                    .get("metadata", {})
-                    .get(item, {})
-                    .get("label")
-                    or item.replace("_", " ").title()
-                )
-            ]
+            for lbl in raw_labels
         ]
         current_value = self._get_setting_value()
         try:
@@ -586,6 +579,17 @@ class ButtonHandler(BaseControlHandler):
                 result = items[result]
 
         if result is not None:
+            # Same-preset re-pick is a no-op — leave the entry untouched
+            if self.control.get("role") == "item_picker":
+                try:
+                    current = self.runtime_manager.get_runtime_setting(
+                        self.mapping_key, self.source_index, "mapping_item"
+                    )
+                    if current == result:
+                        return
+                except (IndexError, KeyError):
+                    pass
+                
             self.apply_result(result, cfg)
             if self.control.get("role") == "item_picker":
                 self.parent._seed_metadata()

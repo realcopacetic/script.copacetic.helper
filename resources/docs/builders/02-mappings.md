@@ -42,8 +42,15 @@ Place JSON files in `extras/builders/mappings/`. Each file is a top-level object
     "placeholders": { "key": "widget_preset" },
     "default_order": ["next_up", "in_progress", "latest_movies", "latest_tvshows"],
     "config_fields": {
-      "layout": "widget_{widget_preset}_layout",
-      "art": "widget_{widget_preset}_art"
+      "global": {
+        "layout": "widget_{widget_preset}_layout",
+        "art": "widget_{widget_preset}_art"
+      },
+      "custom": {
+        "sortby": "widget_custom_sortby",
+        "sortorder": "widget_custom_sortorder",
+        "limit": "widget_custom_limit"
+      }
     },
     "metadata": { "..." }
   }
@@ -224,20 +231,29 @@ Becomes:
 
 ## `config_fields` — linking runtime fields to configs
 
-For mappings with `mode: "dynamic"`, this object defines a template for resolving the config key associated with each runtime field.
+For mappings with `mode: "dynamic"`, `config_fields` declares which configs power which runtime fields. Sections name the *scope* — `global` for fields that apply to every entry, plus per-item sections for fields that only apply to specific presets.
 
 ```json
 {
   "config_fields": {
-    "layout": "widget_{widget_preset}_layout",
-    "art": "widget_{widget_preset}_art"
+    "global": {
+      "layout": "widget_{widget_preset}_layout",
+      "art": "widget_{widget_preset}_art"
+    },
+    "custom": {
+      "sortby": "widget_custom_sortby",
+      "sortorder": "widget_custom_sortorder",
+      "limit": "widget_custom_limit"
+    }
   }
 }
 ```
 
-When a runtime entry has `"mapping_item": "next_up"`, the `layout` field's config key resolves to `widget_next_up_layout`. This is how the Dynamic Editor knows which config to look up for the allowed values.
+Reading top-down: every widget gets a layout and art field. Only the custom widget gets sortby, sortorder, and limit. At entry build time, an entry for `next_up` carries layout and art; an entry for `custom` carries all five. Fields outside any section don't appear on the entry.
 
-The `{widget_preset}` placeholder here is the mapping's `key` placeholder name, substituted with the entry's `mapping_item` at runtime.
+The `{widget_preset}` placeholder in `global` templates is the mapping's `key` placeholder name, substituted with the entry's `mapping_item` at runtime — so the `layout` field for the `next_up` entry resolves to config key `widget_next_up_layout`. Per-item sections name the preset directly (`custom`, etc.); their templates can either include the placeholder or be constant. The Dynamic Editor flattens all sections internally so controls referencing `sortby` find `widget_custom_sortby` regardless of which scope it lives in.
+
+**Placeholder-in-name rule.** A template name with no placeholder resolves to one config shared across every entry that references it. A template name with the mapping's key placeholder resolves to one config per item. Choose based on whether the field's allowed values vary per item — `widget_{widget_preset}_layout` because each preset filters layouts differently, vs `widget_custom_sortby` because there's just one sortby option set. See [Configs Builder → Per-loop variation requires a placeholder in the name](05-configs.md#per-loop-variation-requires-a-placeholder-in-the-name).
 
 ---
 

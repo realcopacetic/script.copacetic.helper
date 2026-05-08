@@ -113,30 +113,61 @@ A two-panel Kodi dialog window: a scrollable list on the left (control ID 100), 
 ### Opening the editor
 
 ```xml
-RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings)
+RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,mapping=widgets)
 ```
 
-The `name` parameter matches the window XML filename. The editor loads `controls.json`, filters for controls tagged with that window name, and builds the UI.
+The `name` parameter matches the window XML filename. The editor filters for controls tagged with that window name, and builds the UI.
 
-To open the editor scoped to a single parent, pass `parent=<runtime_id>`. Only entries whose `parent` field matches will appear in the list, and any new entries inserted from the filtered editor will have their `parent` set automatically.
+To open the editor scoped to a single parent, pass `parent=<runtime_id>`. Only entries whose `parent` field matches appear in the list, and entries inserted from the filtered editor have their `parent` set automatically. See [Includes Builder → Hubs](07-includes.md#hubs-filtering-child-entries-by-parent) for the full hub recipe.
 
-In Copacetic this powers per-menu-item widget configuration: the menu editor has a button on each menu item that opens the widget editor pre-filtered to the focused menu item's widgets:
+### Reusing one window for multiple mappings
+
+If two mappings share the same control shape — same fields, same control types, same window layout — one window XML and one set of `controls/` templates can serve both. The `mapping` kwarg names the mapping this session edits; the optional `controls_from` kwarg names additional mappings whose controls should also be loaded into the window.
+
+The mainmenu and shutdownmenu mappings illustrate this. Both have `label`, `icon`, and `action` fields per entry; both want the same edit/browse/icon-picker controls. `controls_menus.json` declares `mapping: "mainmenu"` — and the same window opens against shutdownmenu by passing it as the session mapping and borrowing the mainmenu controls:
+
+```xml
+RunScript(script.copacetic.helper,action=dynamic_settings_window,name=menusettings,mapping=shutdownmenu,controls_from=mainmenu)
+```
+
+The list shows shutdownmenu entries; adds, deletes, and field edits all write to the shutdownmenu mapping. No second `controls_shutdownmenu.json` needed.
+
+`controls_from` accepts a comma-separated list, so a window can borrow controls from several mappings at once. The session's own mapping is always loaded; `controls_from` is purely additive.
+
+**Constraint.** Every control loaded into the session edits the session's mapping. This works when the borrowed controls' fields match the session mapping's shape (as mainmenu and shutdownmenu do). If a borrowed control references a field the session mapping doesn't have, the field will be created on first write — usually not what you want. Borrow only when the shapes genuinely match.
+
+### Querying editor state from skin XML
+
+While an editor is open it sets two window properties on `Window(home)`:
+
+| Property | Value | When set |
+|---|---|---|
+| `<name>` | `"true"` | Always, while the editor is open |
+| `current_mapping` | The session's `mapping` value | Always, while the editor is open |
+
+Skin conditions branch on either:
+
+```
+!String.IsEmpty(Window(home).Property(menusettings))                  # editor open
+String.IsEmpty(Window(home).Property(current_mapping))                # default (no override)
+String.IsEqual(Window(home).Property(current_mapping),shutdownmenu)   # editing shutdownmenu
+```
+
+Controls that should only appear for a specific session mapping check it explicitly — for example, `menu_configure_widgets` is mainmenu-specific:
 
 ```json
-"menu_configure_widgets": {
-  "mode": "dynamic",
-  "id": 204,
-  "control_type": "button",
-  "window": ["menusettings"],
-  "label": "Configure widgets for this menu item",
-  "onclick": {
-    "type": "custom",
-    "action": "RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,parent={runtime_id})"
-  }
-}
+"visible": "xml(String.IsEqual(Window(home).Property(current_mapping),mainmenu) + Skin.HasSetting(widgets_per_menu))"
 ```
 
-`{runtime_id}` is the focused menu item's runtime_id, substituted at the moment the button is pressed. The opened editor only shows widgets whose `parent` field matches.
+Both properties are cleared when the editor closes.
+
+**Nested editors.** When an editor is opened with `parent=<uuid>` (the hub pattern — opening a child editor scoped to one parent), the `current_mapping` slot is suffixed with the parent uuid: `current_mapping_<uuid>`. This keeps outer and inner editors from colliding on the property when the same window XML is reused at both levels. The window flag stays unsuffixed so skin-level "is this window open" conditions work uniformly across top-level and nested invocations. Conditions inside a control template that already has `{runtime_id}` available (controls iterating a parent mapping) can target the nested slot directly:
+
+```
+String.IsEqual(Window(home).Property(current_mapping_{runtime_id}),submenu)
+```
+
+For top-level conditions, query the unsuffixed slots.
 
 ### What you provide in the window XML
 
@@ -144,12 +175,12 @@ In Copacetic this powers per-menu-item widget configuration: the menu editor has
 |---|---|---|
 | List container | 100 | Left-hand list. Populated automatically. |
 | Description label | 6 | Bottom of the window. The editor sets it to the focused control's `description`. |
-| Right-hand controls | as declared | Sliders, buttons, radios, edit fields. IDs must match those in `controls.json`. |
+| Right-hand controls | as declared | Sliders, buttons, radios, edit fields. IDs must match the `id` declared on each control template. |
 | Management buttons | 410–415 | See below. Hidden by default; the editor shows them when the controls include an `item_picker` or `add_action` role. |
 
 ### List rows
 
-The left list is populated from controls with `"control_type": "listitem"` in `controls.json`.
+The left list is populated from controls with `"control_type": "listitem"` declared for the session's mapping.
 
 **Static window** (e.g. view settings) — one listitem per loop value in the mapping. With the `content_types` mapping, the `{content_type}_item` template produces `movies_item`, `tvshows_item`, `albums_item`, etc.
 
@@ -159,7 +190,6 @@ The left list is populated from controls with `"control_type": "listitem"` in `c
 "widget_{index}": {
   "mode": "dynamic",
   "control_type": "listitem",
-  "window": ["widgetsettings"],
   "label": "{label}",
   "icon": "{icon}",
   "description": "Select widget to configure."

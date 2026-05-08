@@ -5,7 +5,6 @@ from resources.lib.builders.modules import (
     IncludesBuilder,
     VariablesBuilder,
 )
-from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
     EXPRESSIONS,
     INCLUDES,
@@ -16,8 +15,6 @@ from resources.lib.shared.xml import XMLHandler, sort_outer_keys
 BUILDER_CONFIG = {
     "variables": {
         "module": VariablesBuilder,
-        "run_contexts": ["build", "runtime"],
-        "write_type": "xml",
         "write_path": VARIABLES,
         "write_handler": XMLHandler,
         "write_kwargs": {
@@ -29,7 +26,6 @@ BUILDER_CONFIG = {
     },
     "includes": {
         "module": IncludesBuilder,
-        "run_contexts": ["build", "runtime"],
         "read_kwargs": {
             "root_tag": "xml",
             "mapping_tag": "mapping",
@@ -37,7 +33,6 @@ BUILDER_CONFIG = {
             "element_tag": "template",
             "sub_element_tag": "include",
         },
-        "write_type": "xml",
         "write_path": INCLUDES,
         "write_handler": XMLHandler,
         "write_kwargs": {
@@ -47,8 +42,6 @@ BUILDER_CONFIG = {
     },
     "expressions": {
         "module": ExpressionsBuilder,
-        "run_contexts": ["build", "runtime"],
-        "write_type": "xml",
         "write_path": EXPRESSIONS,
         "write_handler": XMLHandler,
         "write_kwargs": {

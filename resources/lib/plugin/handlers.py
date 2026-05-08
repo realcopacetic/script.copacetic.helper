@@ -535,6 +535,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
+        import json as _json_test
+        import xbmc as _xbmc_test
+        _batch_test = [
+            {"jsonrpc": "2.0", "id": 1, "method": "JSONRPC.Ping"},
+            {"jsonrpc": "2.0", "id": 2, "method": "JSONRPC.Ping"},
+        ]
+        _batch_raw = _xbmc_test.executeJSONRPC(_json_test.dumps(_batch_test))
+        log.info(f"BATCH TEST → {_batch_raw}")
+
         set_plugincontent(
             content="episodes",
             category=ADDON.getLocalizedString(32600),

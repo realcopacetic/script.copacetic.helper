@@ -71,22 +71,6 @@ def clear_label(id):
         log.debug(f"clear_label: Label id {id} not found.")
         return
 
-
-@action
-def dev_reset(**kwargs):
-    """
-    Clear runtime_state and all builder outputs immediately, and clear the
-    `dev_reset` setting (idempotent if already off). On next service boot
-    the build pipeline regenerates everything from defaults.
-    """
-    reset_dev_state()
-    ADDON.setSettingBool("dev_reset", False)
-    DIALOG.notification(
-        ADDON.getLocalizedString(32000),
-        ADDON.getLocalizedString(32207),
-        time=4000,
-    )
-
 @action
 def dialog_yesno(heading, message, **kwargs):
     """
@@ -118,14 +102,27 @@ def dynamic_settings_window(**kwargs):
     from resources.lib.windows.dynamiceditor import DynamicEditor
 
     name = kwargs.get("name", "dynamic_window")
-    mapping = kwargs.get("mapping")
+    if not (mapping := kwargs.get("mapping")):
+        log.error("dynamic_settings_window: 'mapping' kwarg is required")
+        return
+
+    controls_from_raw = kwargs.get("controls_from", "")
+    controls_from = (
+        [m.strip() for m in controls_from_raw.split(",") if m.strip()]
+        if controls_from_raw
+        else []
+    )
+    parent_filter = kwargs.get("parent")
+    suffix = f"_{parent_filter}" if parent_filter else ""
+    mapping_slot = f"current_mapping{suffix}"
+
     window_property(name, value="true")
-    if mapping:
-        window_property(mapping, value="true")
+    window_property(mapping_slot, value=mapping)
 
     myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
-    myWindow.parent_filter = kwargs.get("parent")
-    myWindow.mapping_override = mapping
+    myWindow.parent_filter = parent_filter
+    myWindow.mapping = mapping
+    myWindow.controls_from = controls_from
     myWindow.doModal()
 
     # Rebuild if state changed during the session. Top-level only;
@@ -139,12 +136,10 @@ def dynamic_settings_window(**kwargs):
         ):
             from resources.lib.builders.build_elements import BuildElements
 
-            BuildElements(run_context="runtime")
+            BuildElements().run()
             log.execute("ReloadSkin()")
 
-    if mapping:
-        window_property(mapping)
-
+    window_property(mapping_slot)
     window_property(name)
     del myWindow
 
@@ -541,25 +536,29 @@ def toggle_addon(id, **kwargs):
 @action
 def rebuild(**kwargs):
     """
-    Rebuild builder outputs and reload skin.
+    Rebuild builder outputs and reload the skin.
 
-    :param context: Run context to rebuild ('build', 'runtime'). Default 'runtime'.
-    :param full: If 'true', rebuild with force_rebuild=True and notify (dev use).
+    :param full: 'true' for force_rebuild; seeds skin strings, adds missing entries.
+    :param reset: 'true' to delete runtime state and outputs first. Implies full.
     """
     from resources.lib.builders.build_elements import BuildElements
 
+    reset = kwargs.get("reset") == "true"
     full = kwargs.get("full") == "true"
-    if full:
-        BuildElements(run_context="build", force_rebuild=True)
+    
+    if reset:
+        reset_dev_state()
+        ADDON.setSettingBool("dev_reset", False)
+        full = True
 
-    else:
-        BuildElements(run_context=kwargs.get("context", "runtime"))
+    BuildElements(force_rebuild=full).run()
 
     log.execute("ReloadSkin()")
     if full:
+        msg_id = 32207 if reset else 32211
         DIALOG.notification(
             ADDON.getLocalizedString(32000),
-            ADDON.getLocalizedString(32211),
+            ADDON.getLocalizedString(msg_id),
             time=4000,
         )
 

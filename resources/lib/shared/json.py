@@ -1,7 +1,6 @@
 # author: realcopacetic
 
 import json
-from functools import cached_property
 from pathlib import Path
 
 from resources.lib.shared.utilities import log
@@ -117,8 +116,8 @@ class JSONHandler:
 
 class JSONMerger:
     """
-    Merges JSON files across multiple folders, supporting both lazy and eager access.
-    Lazily yields mappings from multiple files or returns a cached dict for fast reuse.
+    Merges JSON files across multiple folders. Lazily yields mappings
+    from multiple files; callers wrap in dict() if they need eager access.
     """
 
     def __init__(self, base_folder, subfolders, grouping_key=None):
@@ -165,13 +164,3 @@ class JSONMerger:
             folder_path = Path(self.base_folder) / subfolder
             for mapping, content in self._merge_json_files(folder_path):
                 yield mapping, content
-
-    @cached_property
-    def cached_merged_data(self):
-        """
-        Eagerly loads and caches all JSON mappings as a dictionary.
-        Useful for random access or repeated lookups.
-
-        :return: Dictionary of {mapping_key: content}
-        """
-        return dict(self.yield_merged_data())

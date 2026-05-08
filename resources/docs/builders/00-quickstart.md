@@ -59,7 +59,7 @@ Drop a file in `extras/builders/configs/`:
 }
 ```
 
-Result in `configs.json`: `movies_clearlogo`, `tvshows_clearlogo`, `artists_clearlogo`, `sets_clearlogo` each get items `[true, false]`. Every other content type gets an empty list — the toggle won't appear for them.
+Result: `movies_clearlogo`, `tvshows_clearlogo`, `artists_clearlogo`, `sets_clearlogo` each resolve to items `[true, false]` when the editor opens. Every other content type resolves to an empty list — the toggle won't appear for them.
 
 [Configs Builder reference →](05-configs.md)
 
@@ -71,7 +71,6 @@ Add a control to your existing `controls_views.json`:
 "clearlogo": {
   "id": 203,
   "control_type": "radiobutton",
-  "window": ["viewsettings"],
   "contextual_bindings": {
     "linked_config": "{content_type}_clearlogo",
     "update_trigger": "focused({content_type}_item)",
@@ -83,7 +82,7 @@ Add a control to your existing `controls_views.json`:
 
 One control. The contextual bindings make it read and write a different config key depending on which `{content_type}_item` listitem the user has focused. Hidden for content types that don't support it.
 
-The values the radiobutton flips between come from `configs.json` — first allowed item ("true") = on, second ("false") = off.
+The values the radiobutton flips between come from the resolved config — first allowed item ("true") = on, second ("false") = off.
 
 [Controls Builder reference →](06-controls.md)
 

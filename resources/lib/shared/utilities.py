@@ -30,9 +30,10 @@ SKIN = xbmcvfs.translatePath("special://skin/")
 SKINEXTRAS = str(Path(SKIN) / "extras")
 SKINXML = str(Path(SKIN) / "16x9")
 
-BUILDERS_BASE = str(Path(SKINEXTRAS) / "builders")
 RUNTIME_STATE = str(Path(ADDONDATA) / "runtime_state.json")
+RESOLVER_CACHE = str(Path(ADDONDATA) / "resolver_cache.json")
 
+BUILDERS_BASE = str(Path(SKINEXTRAS) / "builders")
 VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
 INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_includes.xml")
@@ -61,6 +62,7 @@ def reset_dev_state() -> None:
         if write_path:
             xbmcvfs.delete(write_path)
     xbmcvfs.delete(RUNTIME_STATE)
+    xbmcvfs.delete(RESOLVER_CACHE)
     log.info(f"reset_dev_state: outputs and runtime_state cleared")
 
 

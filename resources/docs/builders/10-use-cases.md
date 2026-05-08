@@ -91,14 +91,12 @@ The Dynamic Editor resolves this template per content type when the viewsettings
   "controls": {
     "{content_type}_item": {
       "control_type": "listitem",
-      "window": ["viewsettings"],
       "label": "{content_type}",
       "icon": "icons/{content_type}.png"
     },
     "layout": {
       "id": 200,
       "control_type": "sliderex",
-      "window": ["viewsettings"],
       "contextual_bindings": {
         "linked_config": "{content_type}_layout",
         "update_trigger": "focused({content_type}_item)"
@@ -158,8 +156,15 @@ A few representative presets from `extras/builders/mappings/mappings_widgets.jso
     "placeholders": { "key": "widget_preset" },
     "default_order": ["random_movies", "latest_movies", "random_tvshows", "latest_tvshows"],
     "config_fields": {
-      "layout": "widget_{widget_preset}_layout",
-      "art": "widget_{widget_preset}_art"
+      "global": {
+        "layout": "widget_{widget_preset}_layout",
+        "art": "widget_{widget_preset}_art"
+      },
+      "custom": {
+        "sortby": "widget_custom_sortby",
+        "sortorder": "widget_custom_sortorder",
+        "limit": "widget_custom_limit"
+      }
     },
     "metadata": {
       "next_up": {
@@ -243,7 +248,6 @@ Built-in presets carry a complete picture of the widget — label, content path,
     "widget_{index}": {
       "mode": "dynamic",
       "control_type": "listitem",
-      "window": ["widgetsettings"],
       "label": "{label}",
       "description": "Select widget to configure."
     },
@@ -252,7 +256,6 @@ Built-in presets carry a complete picture of the widget — label, content path,
       "role": "item_picker",
       "id": 200,
       "control_type": "button",
-      "window": ["widgetsettings"],
       "onclick": {
         "type": "select",
         "heading": "Choose widget",
@@ -265,7 +268,6 @@ Built-in presets carry a complete picture of the widget — label, content path,
       "field": "layout",
       "id": 201,
       "control_type": "sliderex",
-      "window": ["widgetsettings"],
       "label": "Layout"
     },
     "widget_content": {
@@ -273,7 +275,6 @@ Built-in presets carry a complete picture of the widget — label, content path,
       "field": "content",
       "id": 203,
       "control_type": "button",
-      "window": ["widgetsettings"],
       "visible": "In({widget_preset}, [custom])",
       "onclick": {
         "type": "browse_content",
@@ -287,7 +288,6 @@ Built-in presets carry a complete picture of the widget — label, content path,
       "field": "label",
       "id": 204,
       "control_type": "edit",
-      "window": ["widgetsettings"],
       "visible": "In({widget_preset}, [custom])",
       "label": "Widget name"
     }

@@ -162,6 +162,37 @@ If the resolved default isn't in the allowed items (because rules filtered it ou
 
 ---
 
+## Per-loop variation requires a placeholder in the name
+
+Configs are resolved on demand and cached by their **resolved name** — the template name after `{placeholder}` substitution. One name, one cached entry, one set of `items` and `rules` and `default`.
+
+If you want a config to vary across the loop, put the placeholder in the template name:
+
+```json
+"widget_{widget_preset}_layout": {
+  "items": ["list", "showcase", "strip", "grid"],
+  "rules": [
+    { "condition": "In({widget_preset}, [latest_albums])", "value": ["list", "strip"] }
+  ]
+}
+```
+
+Twelve presets, twelve resolved cfg_keys, twelve cached resolutions. The `{widget_preset}` placeholder in `rules` resolves correctly because each cfg_key has its own sub.
+
+A constant template name resolves to one cfg_key:
+
+```json
+"widget_custom_sortby": {
+  "items": ["title", "dateadded", "lastplayed", "..."]
+}
+```
+
+One name, one slot. Don't reference the loop placeholder in `rules` here — the rule would need to resolve differently per loop value, but only one resolution is reachable. The resolver raises `KeyError` to flag the mistake.
+
+The same shape applies to `defaults`: per-key defaults work because they're looked up against the surviving sub at resolve time. With a constant template name only one sub survives, so use `"*"` and skip per-key overrides — anything else is silently a no-op for all but one loop value.
+
+---
+
 ## How the values are used
 
 When the Dynamic Editor opens a settings window, it asks each control what config it's bound to (e.g. `widget_next_up_layout`), then resolves that key against the source templates: filter rules run, defaults are picked, the result is cached. Subsequent reads of the same config are dict lookups.

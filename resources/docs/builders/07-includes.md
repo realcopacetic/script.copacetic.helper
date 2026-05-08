@@ -180,17 +180,16 @@ The Dynamic Editor accepts a `parent` URL parameter that filters the list to ent
   "mode": "dynamic",
   "id": 204,
   "control_type": "button",
-  "window": ["menusettings"],
   "label": "Configure widgets for this menu item",
-  "visible": "xml(!String.IsEmpty(Window(home).Property(mainmenu)) + Skin.HasSetting(widgets_per_menu))",
+  "visible": "xml(String.IsEqual(Window(home).Property(current_mapping),mainmenu) + Skin.HasSetting(widgets_per_menu))",
   "onclick": {
     "type": "custom",
-    "action": "RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,parent={runtime_id})"
+    "action": "RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,mapping=widgets,parent={runtime_id})"
   }
 }
 ```
 
-`{runtime_id}` here is the focused menu item's runtime_id, substituted at the moment the button is pressed. The opened widget editor only shows entries whose `parent` field equals that ID. Adds, deletes, and reorders inside the filtered editor stay scoped — new widgets are inserted with `parent` already set, and they appear adjacent to existing siblings in the runtime state list. See [Runtime State → Opening the editor](09-runtime-state.md#opening-the-editor) for the filter mechanics.
+`{runtime_id}` is the focused menu item's runtime_id, substituted at the moment the button is pressed. The opened editor only shows entries whose `parent` matches; adds, deletes, and reorders inside the filtered editor stay scoped, and new entries are inserted with `parent` already set so they appear adjacent to existing siblings.
 
 This three-step pattern — tag in metadata, filter in include, scope in dialog — is the whole hub recipe. Same pieces wherever you want one dynamic mapping to own a per-entry set of children.
 

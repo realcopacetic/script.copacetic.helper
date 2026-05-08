@@ -1,346 +1,43 @@
 # author: realcopacetic
+"""
+Runtime state management for dynamic editor windows.
+
+RuntimeStateManager owns the runtime_state.json read/write lifecycle and
+holds references to ConfigsResolver and ControlsResolver. The resolvers
+themselves live in resolver.py; loading lives in templates.py.
+"""
 
 import uuid
-from typing import Iterator
 
-from resources.lib.builders.logic import RuleEngine
+from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
 from resources.lib.shared import logger as log
-from resources.lib.shared.json import JSONHandler, JSONMerger
-
-
-def _enumerate_subs(mapping: dict) -> list[dict]:
-    """
-    Enumerate substitution dicts for a mapping with metadata layered on.
-    Mirrors BaseBuilder.generate_substitutions for the no-item, no-index
-    case; no loop-position flags are injected.
-
-    :param mapping: Mapping definition.
-    :return: List of substitution dicts.
-    """
-    loop_values = mapping.get("items")
-    placeholders = mapping.get("placeholders", {})
-    metadata = mapping.get("metadata", {})
-    key_name = placeholders.get("key", "")
-    value_name = placeholders.get("value", "")
-
-    def _inject(sub: dict, *keys: str) -> dict:
-        combined: dict = {}
-        for k in keys:
-            combined.update(metadata.get(k, {}))
-        return {**combined, **sub}
-
-    if isinstance(loop_values, dict):
-        return [
-            _inject({key_name: outer, value_name: inner}, outer, inner)
-            for outer, inner_values in loop_values.items()
-            for inner in inner_values
-        ]
-    if isinstance(loop_values, list):
-        return [_inject({key_name: v}, v) for v in loop_values]
-    return [{}]
-
-
-def load_all_mappings(base_folder: str) -> dict:
-    """
-    Load merged mapping definitions: built-in BUILDER_MAPPINGS plus any
-    custom mappings under ``base_folder/mappings/``. Shared by BuildElements
-    and DynamicEditor so the merge logic lives in one place.
-
-    :param base_folder: Skin extras builders folder root.
-    :return: Mapping name → mapping data dict.
-    """
-    from resources.lib.builders.builder_config import BUILDER_MAPPINGS
-
-    merger = JSONMerger(
-        base_folder=base_folder, subfolders=["mappings"], grouping_key=None
-    )
-    return {**BUILDER_MAPPINGS, **dict(merger.cached_merged_data)}
-
-
-class ConfigsResolver:
-    """
-    Resolves configs from source templates on demand, with caching.
-    Replaces the build-time ConfigsBuilder + configs.json file.
-    """
-
-    def __init__(self, mappings: dict, base_folder: str) -> None:
-        """
-        Load source templates and build the reverse index. Resolution is
-        lazy; entries are resolved on first access and cached.
-
-        :param mappings: Dictionary of mapping definitions.
-        :param base_folder: Skin extras builders folder containing configs/.
-        """
-        self._mappings = mappings
-        self._rules = RuleEngine()
-        self._templates = self._load_templates(base_folder)
-        self._index = self._build_index()
-        self._cache: dict[str, dict] = {}
-
-    def _load_templates(self, base_folder: str) -> dict:
-        """
-        Load all configs templates keyed by (mapping_name, template_name).
-
-        :param base_folder: Builders folder root.
-        :return: Mapping of (mapping_name, template_name) → template data.
-        """
-        merger = JSONMerger(
-            base_folder=base_folder,
-            subfolders=["configs"],
-            grouping_key="mapping",
-        )
-        templates: dict = {}
-        for mapping_name, content in merger.yield_merged_data():
-            for tpl_name, tpl_data in (content.get("configs") or {}).items():
-                templates[(mapping_name, tpl_name)] = tpl_data
-        return templates
-
-    def _build_index(self) -> dict:
-        """
-        Build reverse index resolved_cfg_key → (mapping_name, tpl_name, sub).
-        Iterates every (template × substitution) without resolving rules.
-
-        :return: Index mapping cfg keys to template + sub origin.
-        """
-        index: dict = {}
-        for (mapping_name, tpl_name), _data in self._templates.items():
-            for sub in _enumerate_subs(self._mappings.get(mapping_name, {})):
-                try:
-                    cfg_key = tpl_name.format(**sub)
-                except KeyError as e:
-                    log.debug(
-                        f"{self.__class__.__name__}: template '{tpl_name}' "
-                        f"in mapping '{mapping_name}' references unknown "
-                        f"placeholder {e}; skipping for sub={sub}"
-                    )
-                    continue
-                index[cfg_key] = (mapping_name, tpl_name, sub)
-        return index
-
-    def resolve(self, cfg_key: str) -> dict:
-        """
-        Resolve a single config entry by its fully-expanded key. Returns the
-        same shape ConfigsBuilder previously wrote to configs.json. Failures
-        are logged once and cached as ``{}`` so subsequent calls are stable.
-
-        :param cfg_key: Resolved config key (e.g. "movies_layout").
-        :return: Resolved entry dict, or empty dict if unknown or malformed.
-        """
-
-        if not cfg_key:
-            return {}
-        if cfg_key in self._cache:
-            return self._cache[cfg_key]
-        entry = self._index.get(cfg_key)
-        if entry is None:
-            return {}
-        mapping_name, tpl_name, sub = entry
-        try:
-            result = self._resolve_one(
-                self._templates[(mapping_name, tpl_name)], sub, mapping_name
-            )
-        except Exception as e:
-            log.warning(
-                f"{self.__class__.__name__}: failed to resolve " f"'{cfg_key}': {e}"
-            )
-            result = {}
-        self._cache[cfg_key] = result
-        return result
-
-    def iter_static_defaults(self) -> Iterator[tuple[str, str]]:
-        """
-        Yield (cfg_key, default) for every resolved static-mode entry that
-        has a default. Used by initialize_skinstrings.
-
-        :return: Iterator of (cfg_key, default_value) pairs.
-        """
-        for cfg_key in self._index:
-            cfg = self.resolve(cfg_key)
-            if cfg.get("mode") != "static":
-                continue
-            default = cfg.get("default")
-            if default is not None:
-                yield cfg_key, default
-
-    def _resolve_one(self, data: dict, sub: dict, mapping_name: str) -> dict:
-        """
-        Resolve one template against one sub: filter items by rules, attach
-        labels, choose a default. Same output shape as old resolve_values.
-
-        :param data: Raw template data.
-        :param sub: Substitution dict.
-        :param mapping_name: Mapping owning this template.
-        :return: Resolved entry dict.
-        """
-        defaults_data = {
-            "items": [],
-            "mode": "dynamic",
-            "filter_mode": "exclude",
-            "rules": [],
-        }
-        merged = {**defaults_data, **data}
-
-        raw_items = merged["items"]
-        if isinstance(raw_items, dict):
-            items_list = list(raw_items.keys())
-            labels = {k: v for k, v in raw_items.items() if v}
-        else:
-            items_list = raw_items
-            labels = {}
-
-        excluded = {
-            value
-            for rule in merged["rules"]
-            if self._rules.evaluate(rule["condition"].format(**sub))
-            for value in rule.get("value", [])
-        }
-        items = [
-            item
-            for item in items_list
-            if (item not in excluded) == (merged["filter_mode"] == "exclude")
-        ]
-
-        out: dict = {"items": items, "mode": merged["mode"]}
-        if labels:
-            out["labels"] = labels
-
-        defaults_map = data.get("defaults") or {}
-        if defaults_map:
-            mapping = self._mappings.get(mapping_name, {})
-            default_key = data.get("default_key") or mapping.get(
-                "placeholders", {}
-            ).get("key")
-            lookup = sub.get(default_key, "") if default_key else ""
-            default_value = defaults_map.get(lookup) or defaults_map.get("*")
-            if default_value not in items:
-                default_value = items[0] if items else None
-            if default_value is not None:
-                out["default"] = default_value
-
-        return out
-
-
-class ControlsResolver:
-    """
-    Resolves controls from source templates on demand, cached per window.
-    Replaces the build-time ControlsBuilder + controls.json file.
-    """
-
-    def __init__(self, mappings: dict, base_folder: str) -> None:
-        """
-        Load source controls templates via JSONMerger.
-
-        :param mappings: Dictionary of mapping definitions.
-        :param base_folder: Skin extras builders folder containing controls/.
-        """
-        self._mappings = mappings
-        self._templates = self._load_templates(base_folder)
-        self._cache: dict[str, dict] = {}
-
-    def _load_templates(self, base_folder: str) -> list:
-        """
-        Load source controls templates as (mapping_name, tpl_name, data) tuples.
-
-        :param base_folder: Builders folder root.
-        :return: List of (mapping_name, template_name, template_data) tuples.
-        """
-        merger = JSONMerger(
-            base_folder=base_folder,
-            subfolders=["controls"],
-            grouping_key="mapping",
-        )
-        templates: list = []
-        for mapping_name, content in merger.yield_merged_data():
-            for tpl_name, tpl_data in (content.get("controls") or {}).items():
-                templates.append((mapping_name, tpl_name, tpl_data))
-        return templates
-
-    def for_window(self, xml_filename: str) -> dict:
-        """
-        Return resolved controls visible in the given window. Cached per window.
-
-        :param xml_filename: Lowercase XML filename of the open editor window.
-        :return: Mapping of resolved control name → resolved control dict.
-        """
-        if xml_filename in self._cache:
-            return self._cache[xml_filename]
-        resolved: dict = {}
-        for mapping_name, tpl_name, tpl_data in self._templates:
-            windows = tpl_data.get("window", [])
-            if not any(w in xml_filename for w in windows):
-                continue
-            resolved.update(self._expand(mapping_name, tpl_name, tpl_data))
-        self._cache[xml_filename] = resolved
-        return resolved
-
-    def _expand(self, mapping_name: str, template_name: str, data: dict) -> dict:
-        """
-        Expand one control template into resolved form(s). Dynamic-mode is
-        passthrough; static contextual_bindings expand the bindings list;
-        plain static templates expand template name and string fields.
-
-        :param mapping_name: Mapping owning this template.
-        :param template_name: Template control name.
-        :param data: Template data dict.
-        :return: Mapping of resolved name → resolved control dict.
-        """
-        if data.get("mode") == "dynamic":
-            return {template_name: {"mapping": mapping_name, **data}}
-
-        substitutions = _enumerate_subs(self._mappings.get(mapping_name, {}))
-
-        if "contextual_bindings" in data:
-            resolved_bindings: list = []
-            seen: set = set()
-            for sub in substitutions:
-                resolved = {
-                    k: (v.format(**sub) if isinstance(v, str) else v)
-                    for k, v in data["contextual_bindings"].items()
-                }
-                key = tuple(sorted(resolved.items()))
-                if key not in seen:
-                    seen.add(key)
-                    resolved_bindings.append(resolved)
-            return {
-                template_name: {
-                    "mapping": mapping_name,
-                    **{k: v for k, v in data.items() if k != "contextual_bindings"},
-                    "contextual_bindings": resolved_bindings,
-                }
-            }
-
-        return {
-            template_name.format(**sub): {
-                "mapping": mapping_name,
-                **{
-                    k: (v.format(**sub) if isinstance(v, str) else v)
-                    for k, v in data.items()
-                },
-            }
-            for sub in substitutions
-        }
+from resources.lib.shared.json import JSONHandler
 
 
 class RuntimeStateManager:
     """
     Manages runtime state in runtime_state.json plus configs and controls
-    resolution from source templates. UUIDs provide stable, position-
-    independent item identifiers.
+    resolution. UUIDs provide stable, position-independent item identifiers.
     """
 
     def __init__(
-        self, mappings: dict, base_folder: str, runtime_state_path: str
+        self,
+        mappings: dict,
+        configs_data: dict,
+        controls_data: dict,
+        runtime_state_path: str,
     ) -> None:
         """
         Initialise resolvers and runtime state handler.
 
         :param mappings: Dictionary containing all mappings.
-        :param base_folder: Skin extras builders folder root.
+        :param configs_data: {mapping_name: {tpl_name: tpl_data}}.
+        :param controls_data: {mapping_name: {tpl_name: tpl_data}}.
         :param runtime_state_path: Path to runtime_state.json.
         """
         self._mappings = mappings
-        self.configs = ConfigsResolver(mappings, base_folder)
-        self.controls = ControlsResolver(mappings, base_folder)
+        self.configs = ConfigsResolver(mappings, configs_data)
+        self.controls = ControlsResolver(mappings, controls_data)
         self._runtime_state_handler = JSONHandler(runtime_state_path)
         self._runtime_state_cache: dict | None = None
 
@@ -390,37 +87,28 @@ class RuntimeStateManager:
         """Discard cached state so next access re-reads from disk."""
         self._runtime_state_cache = None
 
-    def _resolve_default(self, cfg_key: str) -> str | None:
-        """
-        Resolve the default value for a config entry, falling back to the
-        first available item if no default is explicitly set.
-
-        :param cfg_key: Resolved config key.
-        :return: Default value or None.
-        """
-        cfg = self.configs.resolve(cfg_key)
-        return cfg.get("default") or next(iter(cfg.get("items", [])), None)
-
     def _build_default_entry(self, mapping_key: str, item: str) -> dict:
         """
-        Build the default entry for a single mapping_item.
+        Build the default entry for a single mapping_item. ``parent`` is
+        copied verbatim as a mapping_item string; ``_resolve_parent_refs``
+        rewrites it to a runtime_id once full state is assembled.
 
         :param mapping_key: Mapping group key.
         :param item: Mapping_item identifier.
         :return: Dict of default fields and metadata.
         """
         placeholders = self.mappings[mapping_key]["placeholders"]
-        config_fields = self.mappings[mapping_key].get("config_fields", {})
+        seed_fields = self._seed_fields_for(mapping_key, item)
         metadata = self.mappings[mapping_key].get("metadata", {}).get(item, {})
         return {
             "runtime_id": str(uuid.uuid4()),
             "mapping_item": item,
             **{k: v for k, v in metadata.items() if isinstance(v, str)},
             **{
-                field: self._resolve_default(
+                field: self.configs.resolve_default(
                     template.format(**{placeholders["key"]: item})
                 )
-                for field, template in config_fields.items()
+                for field, template in seed_fields.items()
                 if field not in metadata
             },
         }
@@ -457,8 +145,15 @@ class RuntimeStateManager:
                 continue
             for entry in entries:
                 mi = entry.get("mapping_item")
-                if mi and mi not in item_to_id:
-                    item_to_id[mi] = entry["runtime_id"]
+                if not mi:
+                    continue
+                if mi in item_to_id:
+                    log.debug(
+                        f"{self.__class__.__name__}: duplicate mapping_item "
+                        f"'{mi}' across mappings; first occurrence wins"
+                    )
+                    continue
+                item_to_id[mi] = entry["runtime_id"]
         for entries in state.values():
             if not isinstance(entries, list):
                 continue
@@ -492,6 +187,21 @@ class RuntimeStateManager:
             )
         return instance[setting_name]
 
+    def mapping_item_for_runtime_id(self, runtime_id: str) -> str | None:
+        """
+        Reverse-lookup: find the mapping_item of the entry with this runtime_id.
+
+        :param runtime_id: UUID to look up.
+        :return: The entry's mapping_item, or None if not found.
+        """
+        for entries in self.runtime_state.values():
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if entry.get("runtime_id") == runtime_id:
+                    return entry.get("mapping_item")
+        return None
+
     def format_metadata(self, mapping_key: str, index: int, template: str) -> str:
         """
         Substitute metadata placeholders in a template against a runtime entry.
@@ -519,8 +229,35 @@ class RuntimeStateManager:
             extra = {key_placeholder: metadata_key} if key_placeholder else {}
             substitutions = {**instance, **metadata, **extra}
             return template.format(**substitutions)
-        except Exception:
+        except (IndexError, KeyError) as e:
+            log.debug(f"{self.__class__.__name__}: format_metadata fallback: {e}")
             return template
+
+    def flatten_config_fields(self, mapping_key: str) -> dict[str, str]:
+        """
+        Flatten scoped config_fields into a single field→template map for
+        registry lookups (control config_field_template resolution).
+
+        :param mapping_key: Mapping group key.
+        :return: Flat field→template map across all sections.
+        """
+        cfg = self.mappings.get(mapping_key, {}).get("config_fields", {})
+        flat: dict[str, str] = {}
+        for section in cfg.values():
+            flat.update(section)
+        return flat
+
+    def _seed_fields_for(self, mapping_key: str, item: str) -> dict[str, str]:
+        """
+        Return the field→template map that applies to a given mapping_item.
+        Combines the 'global' section with the item-specific section.
+
+        :param mapping_key: Mapping group key.
+        :param item: Mapping_item identifier.
+        :return: Field→template map for fields that seed onto this entry.
+        """
+        cfg = self.mappings.get(mapping_key, {}).get("config_fields", {})
+        return {**cfg.get("global", {}), **cfg.get(item, {})}
 
     def update_runtime_setting(
         self, mapping_key: str, index: int, setting_name: str, value: object
@@ -533,18 +270,6 @@ class RuntimeStateManager:
         :param setting_name: Field to update.
         :param value: New value to set.
         """
-        self.update_runtime_settings_batch(mapping_key, index, {setting_name: value})
-
-    def update_runtime_settings_batch(
-        self, mapping_key: str, index: int, updates: dict[str, object]
-    ) -> None:
-        """
-        Update multiple fields on one runtime entry in a single write.
-
-        :param mapping_key: Mapping group key.
-        :param index: Position in the state list.
-        :param updates: Field_name → value pairs to set.
-        """
         state = self.runtime_state
         mapping_list = state.setdefault(mapping_key, [])
         if not 0 <= index < len(mapping_list):
@@ -552,7 +277,7 @@ class RuntimeStateManager:
                 f"{self.__class__.__name__}: Index '{index}' out of range "
                 f"for mapping '{mapping_key}'."
             )
-        mapping_list[index].update(updates)
+        mapping_list[index][setting_name] = value
         self._write_and_invalidate(state)
 
     def insert_mapping_item(
@@ -582,6 +307,34 @@ class RuntimeStateManager:
             lst.insert(index, new_entry)
         self._write_and_invalidate(state)
         return new_entry
+
+    def rebuild_mapping_item(
+        self,
+        mapping_key: str,
+        mapping_item: str,
+        index: int,
+        preserve: dict[str, object],
+    ) -> dict | None:
+        """
+        Replace the entry at ``index`` with a freshly-built entry for
+        ``mapping_item``, carrying forward only the fields in ``preserve``
+        (typically runtime_id and parent).
+
+        :param mapping_key: Mapping group key.
+        :param mapping_item: Preset name to seed from.
+        :param index: Position in the state list.
+        :param preserve: Fields to carry over from the existing entry.
+        :return: The rebuilt entry, or None on failure.
+        """
+        state = self.runtime_state
+        mapping_list = state.setdefault(mapping_key, [])
+        if not 0 <= index < len(mapping_list):
+            return None
+        fresh = self._build_default_entry(mapping_key, mapping_item)
+        fresh.update(preserve)
+        mapping_list[index] = fresh
+        self._write_and_invalidate(state)
+        return fresh
 
     def delete_mapping_item(self, mapping_key: str, index: int) -> None:
         """
@@ -647,13 +400,12 @@ class RuntimeStateManager:
         self._resolve_parent_refs(state)
         self._write_and_invalidate(state)
 
-    def delete_orphans(self, parent_mapping: str, child_mapping: str) -> int:
+    def delete_orphans(self, child_mapping: str) -> int:
         """
         Remove entries in ``child_mapping`` whose ``parent`` references a
         runtime_id that no longer exists anywhere in state. Children with no
         ``parent`` or with parents in other mappings are preserved.
 
-        :param parent_mapping: Mapping key whose deletion triggered this call.
         :param child_mapping: Mapping key whose entries are inspected.
         :return: Number of entries removed.
         """

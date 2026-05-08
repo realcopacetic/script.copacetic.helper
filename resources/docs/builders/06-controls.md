@@ -17,7 +17,6 @@ JSON files placed in `extras/builders/controls/`. Each file declares a mapping a
     "template_name": {
       "control_type": "sliderex",
       "id": 200,
-      "window": ["viewsettings"],
       "label": "Layout",
       "description": "Choose from available layouts.",
       "contextual_bindings": { "..." }
@@ -31,7 +30,6 @@ JSON files placed in `extras/builders/controls/`. Each file declares a mapping a
 | `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/builders/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
 | `control_type` | string | Yes | One of: `listitem`, `button`, `sliderex`, `slider`, `radiobutton`, `edit`, `cycle` |
 | `id` | integer | Yes* | Kodi control ID in the XML layout (*not required for listitems) |
-| `window` | list | Yes | Window XML filenames this control belongs to |
 | `mode` | string | No | `"dynamic"` to share one control across all runtime entries (each entry's field read/written when focused). Default is static, which expands once per item in the mapping. |
 | `field` | string | No | Runtime state field name (for dynamic mode) |
 | `role` | string | No | Special role identifier — `"item_picker"` or `"add_action"`. See [Governing roles](#governing-roles-item_picker-and-add_action). |
@@ -55,7 +53,6 @@ Listitems define entries in the left-hand list panel. They aren't interactive co
 ```json
 "{content_type}_item": {
   "control_type": "listitem",
-  "window": ["viewsettings"],
   "label": "{content_type}",
   "description": "Configure layout settings for {content_type}.",
   "icon": "icons/{content_type}.png"
@@ -72,7 +69,6 @@ Dynamic listitems use `"mode": "dynamic"` and get their entries from `runtime_st
 "widget_{index}": {
   "mode": "dynamic",
   "control_type": "listitem",
-  "window": ["widgetsettings"],
   "label": "{label}",
   "icon": "{icon}",
   "description": "Select widget to configure."
@@ -91,7 +87,6 @@ Buttons trigger an action when pressed. The `onclick` field defines what happens
   "role": "item_picker",
   "id": 200,
   "control_type": "button",
-  "window": ["widgetsettings"],
   "onclick": { "type": "select", "heading": "Choose widget" },
   "label": "Choose type"
 }
@@ -107,7 +102,6 @@ A composite control pairing a slider with a label button. A Kodi slider on its o
 "layout": {
   "id": 200,
   "control_type": "sliderex",
-  "window": ["viewsettings"],
   "contextual_bindings": {
     "linked_config": "{content_type}_layout",
     "update_trigger": "focused({content_type}_item)"
@@ -154,7 +148,6 @@ A standalone slider without the companion button. Works the same as `sliderex` �
 "limit": {
   "id": 220,
   "control_type": "slider",
-  "window": ["widgetsettings"],
   "contextual_bindings": {
     "linked_config": "widget_limit",
     "update_trigger": "focused(widget_item)"
@@ -172,7 +165,6 @@ A toggle control for boolean settings. Reads the linked config's `items` and tre
 "clearlogo": {
   "id": 203,
   "control_type": "radiobutton",
-  "window": ["viewsettings"],
   "contextual_bindings": {
     "linked_config": "{content_type}_clearlogo",
     "update_trigger": "focused({content_type}_item)",
@@ -194,7 +186,6 @@ An inline text input. The user types via Kodi's keyboard; the value is saved whe
   "field": "label",
   "id": 204,
   "control_type": "edit",
-  "window": ["widgetsettings"],
   "label": "Widget name",
   "visible": "In({widget_preset}, [custom])"
 }
@@ -210,7 +201,6 @@ A button that cycles through allowed values on each select press, wrapping at th
   "field": "sortorder",
   "id": 207,
   "control_type": "cycle",
-  "window": ["widgetsettings"],
   "visible": "In({widget_preset}, [custom])",
   "label": "Sort order",
   "description": "Toggle between ascending and descending."
@@ -264,7 +254,6 @@ Controls with `"mode": "dynamic"` and a `"field"` value bind directly to a runti
   "field": "layout",
   "id": 201,
   "control_type": "sliderex",
-  "window": ["widgetsettings"],
   "label": "Layout"
 }
 ```
@@ -289,7 +278,6 @@ Use when adding a new entry means choosing one of a fixed set of presets. The wi
   "role": "item_picker",
   "id": 200,
   "control_type": "button",
-  "window": ["widgetsettings"],
   "onclick": { "type": "select", "heading": "Choose widget" },
   "label": "Choose type"
 }
@@ -308,7 +296,6 @@ Use when adding a new entry means running a single action whose result *is* the 
   "role": "add_action",
   "id": 201,
   "control_type": "button",
-  "window": ["menusettings"],
   "label": "Shortcut",
   "description": "Set the action for this menu item.",
   "onclick": {
@@ -380,7 +367,7 @@ The `browse_content` action returns a dict containing `path`, `label`, and optio
 }
 ```
 
-When the user picks a path, the `label` from the browse result is written to the `widget_label` control's runtime field — but only if that field is currently empty, so a user-set label is preserved.
+When the user picks a path, the `label` from the browse result is written to the `widget_label` control's runtime field. Re-running the dialog overwrites the sibling — picking a new content path means accepting that path's default label too.
 
 ### `browse_image`
  
@@ -392,7 +379,6 @@ Opens Kodi's image browser for picking a single image file. Returns the chosen p
   "field": "icon",
   "id": 201,
   "control_type": "button",
-  "window": ["widgetsettings"],
   "label": "Icon",
   "onclick": {
     "type": "browse_image",
@@ -417,7 +403,6 @@ An `item_picker` button can chain a follow-up action when a specific preset is p
   "role": "item_picker",
   "id": 200,
   "control_type": "button",
-  "window": ["widgetsettings"],
   "onclick": {
     "type": "select",
     "heading": "Choose widget",
