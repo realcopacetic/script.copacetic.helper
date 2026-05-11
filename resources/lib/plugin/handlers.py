@@ -23,7 +23,6 @@ from resources.lib.plugin.helpers import (
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.library import (
     DirectoryItem,
-    TvShowHelper,
     enrich_with_tvshow,
     fetch_and_add,
     role_endpoint,
@@ -531,28 +530,28 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def next_up(self) -> list[DirectoryItem] | None:
         """
-        Build a container of "next up" TV episodes.
+        Build a container of "next up" TV episodes — the lowest unwatched
+        non-special episode for each in-progress show.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
-        import json as _json_test
-        import xbmc as _xbmc_test
-        _batch_test = [
-            {"jsonrpc": "2.0", "id": 1, "method": "JSONRPC.Ping"},
-            {"jsonrpc": "2.0", "id": 2, "method": "JSONRPC.Ping"},
-        ]
-        _batch_raw = _xbmc_test.executeJSONRPC(_json_test.dumps(_batch_test))
-        log.info(f"BATCH TEST → {_batch_raw}")
-
         set_plugincontent(
             content="episodes",
             category=ADDON.getLocalizedString(32600),
             sort_method=SORT_METHOD_LASTPLAYED,
         )
-        # 1: All in-progress shows (limit-bounded).
+        # 1: In-progress shows, ordered by lastplayed desc.
         shows_q = json_call(
             "VideoLibrary.GetTVShows",
-            properties=["title", "studio", "mpaa", "lastplayed"],
+            properties=[
+                "title",
+                "studio",
+                "mpaa",
+                "lastplayed",
+                "episode",
+                "watchedepisodes",
+                "art",
+            ],
             sort=self.sort_lastplayed,
             limit=self.limit,
             query_filter={"and": [self.filter_inprogress]},
@@ -563,57 +562,65 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             log.debug(f"{self.__class__.__name__} → next_up: No TV shows found.")
             return None
 
-        show_meta_by_id: dict[int, dict[str, Any]] = {
-            show["tvshowid"]: {
-                "studio": show.get("studio", []),
-                "mpaa": show.get("mpaa", ""),
-            }
-            for show in shows
-        }
+        pending_ids = {s["tvshowid"] for s in shows}
 
-        # 2: First unwatched episode per show, in one query.
-        episode_filter = {
-            "and": [
-                self.filter_unwatched,
-                self.filter_no_specials,
-                {
-                    "or": [
-                        {"field": "tvshowid", "operator": "is", "value": str(sid)}
-                        for sid in show_meta_by_id
-                    ]
-                },
-            ]
-        }
-        episodes_q = json_call(
+        # 2: Bulk fetch all unwatched non-special episodes library-wide,
+        # episode-level properties only (no art, no streamdetails). Single
+        # MySQL round-trip; Python picks the first per pending show below.
+        props = [
+            p
+            for p in JSON_PROPERTIES["episode"]
+            if p
+            not in (
+                "art",  # show-level art used instead
+                "streamdetails",  # no codec badges on next_up tiles
+                "director",  # JOIN-heavy, not shown on tile
+                "writer",  # JOIN-heavy, not shown on tile
+                "votes",  # not shown on tile
+                "userrating",  # not shown on tile
+                "productioncode",  # not shown on tile
+            )
+        ]
+        bulk_q = json_call(
             "VideoLibrary.GetEpisodes",
-            properties=JSON_PROPERTIES["episode"],
-            sort={"order": "ascending", "method": "season"},
-            query_filter=episode_filter,
+            properties=props,
+            sort={"order": "ascending", "method": "episode"},
+            query_filter={"and": [self.filter_unwatched, self.filter_no_specials]},
             parent="next_up",
         )
-        episodes = episodes_q.get("result", {}).get("episodes", [])
+        bulk_episodes = bulk_q.get("result", {}).get("episodes", [])
 
-        first_unwatched_per_show: dict[int, dict[str, Any]] = {}
-        for ep in episodes:
+        # 3: First episode per pending show. Bulk result is sorted ascending
+        # by episode, so the first hit per tvshowid wins.
+        first_per_show: dict[int, dict] = {}
+        for ep in bulk_episodes:
             sid = ep.get("tvshowid")
-            if sid in show_meta_by_id and sid not in first_unwatched_per_show:
-                ep["studio"] = show_meta_by_id[sid]["studio"]
-                ep["mpaa"] = show_meta_by_id[sid]["mpaa"]
-                first_unwatched_per_show[sid] = ep
+            if sid in pending_ids and sid not in first_per_show:
+                first_per_show[sid] = ep
 
-        # Preserve show order (most-recently-played first) by iterating shows.
-        ordered_episodes = [
-            first_unwatched_per_show[show["tvshowid"]]
-            for show in shows
-            if show["tvshowid"] in first_unwatched_per_show
-        ]
+        # Assemble in pending_shows order to preserve lastplayed desc.
+        # Attach show-level studio/mpaa to each episode.
+        ordered_episodes: list[dict[str, Any]] = []
+        for s in shows:
+            ep = first_per_show.get(s["tvshowid"])
+            if ep is None:
+                # In-progress show with only unwatched specials; bulk query
+                # excludes specials, so nothing to surface for this show.
+                continue
+            ep["studio"] = s.get("studio", [])
+            ep["mpaa"] = s.get("mpaa", "")
+            ep["art"] = {f"tvshow.{k}": v for k, v in s.get("art", {}).items()}
+            ordered_episodes.append(ep)
+
         if not ordered_episodes:
             log.debug(
                 f"{self.__class__.__name__} → next_up: No unwatched episodes found."
             )
             return None
 
-        canonical_items = [json_to_canonical(raw, "episode") for raw in ordered_episodes]
+        canonical_items = [
+            json_to_canonical(raw, "episode") for raw in ordered_episodes
+        ]
         return set_items(
             canonical_items,
             media_type="episode",

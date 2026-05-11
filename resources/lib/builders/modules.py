@@ -46,24 +46,29 @@ class BaseBuilder:
         :return: Generator yielding {name: value} dicts.
         """
         mode = element_data.get("mode", "static")
+        template_items = element_data.get("items")
 
-        if mode == "dynamic" and not element_data.get("items"):
-            if runtime_items := self.runtime_manager.runtime_state.get(
-                self.mapping_name
-            ):
-                index_list = expand_index(element_data.get("index"))
-                index_start = int(index_list[0]) if index_list else 1
-                substitutions = self.generate_runtimejson_substitutions(
-                    runtime_items, index_start
-                )
-            else:
+        if mode == "dynamic":
+            runtime_items = self.runtime_manager.runtime_state.get(self.mapping_name)
+            if not runtime_items:
                 log.debug(
                     f"{self.__class__.__name__}: Skipping dynamic template "
                     f"'{element_name}' — no runtime state for '{self.mapping_name}'"
                 )
                 return
+            index_list = expand_index(element_data.get("index"))
+            index_start = int(index_list[0]) if index_list else 1
+            substitutions = self.generate_runtimejson_substitutions(
+                runtime_items, index_start
+            )
+            if template_items:
+                substitutions = [
+                    {**sub, "item": str(item)}
+                    for sub in substitutions
+                    for item in template_items
+                ]
         else:
-            items = element_data.get("items") or expand_index(element_data.get("index"))
+            items = template_items or expand_index(element_data.get("index"))
             dynamic_key_mapping = {"items": "item", "index": "index"}
             dynamic_key = next(
                 (
@@ -74,6 +79,13 @@ class BaseBuilder:
                 None,
             )
             substitutions = self.generate_substitutions(items, dynamic_key)
+
+        if filter_expr := element_data.get("filter"):
+            substitutions = [
+                sub
+                for sub in substitutions
+                if self.rules.evaluate(self.substitute(filter_expr, sub))
+            ]
 
         self._add_loop_position_flags(substitutions)
 
@@ -403,7 +415,14 @@ class IncludesBuilder(BaseBuilder):
 
     def contains_placeholder(self, data, substitutions):
         """
-        Recursively checks if data contains any placeholders from substitutions.
+        Recursively check whether data contains any placeholder that references
+        a substitution key, including arithmetic placeholders such as
+        ``{index1}``, ``{index-count-1}`` or ``{min(count*100, 800)}``.
+
+        :param data: Data structure (dict, list, or string) to inspect.
+        :param substitutions: List of substitution dictionaries.
+        :return: ``True`` if any ``{...}`` token in ``data`` references a
+            substitution key.
         """
         if isinstance(data, dict):
             return any(
@@ -413,7 +432,14 @@ class IncludesBuilder(BaseBuilder):
         elif isinstance(data, list):
             return any(self.contains_placeholder(item, substitutions) for item in data)
         elif isinstance(data, str):
-            return any(f"{{{p}}}" in data for sub in substitutions for p in sub)
+            if "{" not in data:
+                return False
+            sub_keys = {key for sub in substitutions for key in sub}
+            for match in PLACEHOLDER_PATTERN.finditer(data):
+                tokens = re.findall(r"\b\w+\b", match.group(1))
+                if any(token in sub_keys for token in tokens):
+                    return True
+            return False
         return False
 
     def recursive_expand(self, data, substitutions):

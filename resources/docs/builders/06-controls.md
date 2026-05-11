@@ -88,7 +88,7 @@ Buttons trigger an action when pressed. The `onclick` field defines what happens
   "id": 200,
   "control_type": "button",
   "onclick": { "type": "select", "heading": "Choose widget" },
-  "label": "Choose type"
+  "label": "Change type""
 }
 ```
 
@@ -279,7 +279,7 @@ Use when adding a new entry means choosing one of a fixed set of presets. The wi
   "id": 200,
   "control_type": "button",
   "onclick": { "type": "select", "heading": "Choose widget" },
-  "label": "Choose type"
+  "label": "Change type""
 }
 ```
 
@@ -408,7 +408,7 @@ An `item_picker` button can chain a follow-up action when a specific preset is p
     "heading": "Choose widget",
     "then": { "custom": "widget_content" }
   },
-  "label": "Choose type"
+  "label": "Change type""
 }
 ```
 

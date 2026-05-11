@@ -261,7 +261,7 @@ Built-in presets carry a complete picture of the widget — label, content path,
         "heading": "Choose widget",
         "then": { "custom": "widget_content" }
       },
-      "label": "Choose type"
+      "label": "Change type""
     },
     "widget_layout": {
       "mode": "dynamic",

@@ -122,7 +122,11 @@ class RuntimeStateManager:
         missing = {
             mapping_key: [
                 self._build_default_entry(mapping_key, item)
-                for item in mapping.get("default_order") or mapping.get("items", [])
+                for item in (
+                    mapping["default_order"]
+                    if "default_order" in mapping
+                    else mapping.get("items", [])
+                )
             ]
             for mapping_key, mapping in self.mappings.items()
             if mapping.get("mode") == "dynamic" and mapping_key not in state
@@ -227,6 +231,7 @@ class RuntimeStateManager:
                 .get("key", "")
             )
             extra = {key_placeholder: metadata_key} if key_placeholder else {}
+            extra["mapping"] = mapping_key
             substitutions = {**instance, **metadata, **extra}
             return template.format(**substitutions)
         except (IndexError, KeyError) as e:
@@ -305,6 +310,7 @@ class RuntimeStateManager:
             lst.append(new_entry)
         else:
             lst.insert(index, new_entry)
+        self._resolve_parent_refs(state)
         self._write_and_invalidate(state)
         return new_entry
 
@@ -333,6 +339,7 @@ class RuntimeStateManager:
         fresh = self._build_default_entry(mapping_key, mapping_item)
         fresh.update(preserve)
         mapping_list[index] = fresh
+        self._resolve_parent_refs(state)
         self._write_and_invalidate(state)
         return fresh
 

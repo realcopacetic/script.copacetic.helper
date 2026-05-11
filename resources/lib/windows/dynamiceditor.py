@@ -154,8 +154,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _scan_controls(self) -> None:
         """
-        One-time scan of resolved controls for this window.
-        Separates listitem templates from interactive controls.
+        One-time scan of resolved controls for this window. Rebrands
+        borrowed controls to the session mapping and preserves their
+        original mapping on ``source_mapping`` for native-vs-borrowed checks.ls.
         """
         self._runtime_tpls = {}
         self._static_tpls = {}
@@ -163,6 +164,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         sources = [self.mapping] + list(self.controls_from)
         filtered = self.runtime_manager.controls.for_mappings(sources)
         for cid, ctrl in filtered.items():
+            # Rebrand borrowed controls to the session mapping; preserve
+            # the original on source_mapping for native-vs-borrowed checks.
+            ctrl = {
+                **ctrl,
+                "mapping": self.mapping,
+                "source_mapping": ctrl.get("mapping"),
+            }
             if ctrl.get("control_type") == "listitem":
                 bucket = (
                     self._runtime_tpls
@@ -441,15 +449,17 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self.runtime_manager.reload_state()
 
-        # Find the governing handler — mutually exclusive
+        # Find the governing handler. Prefer one native to the session
+        # mapping; fall back to a borrowed one if none is native.
+        governors = [
+            h
+            for h in self.handlers.values()
+            if h.control.get("role") in ("item_picker", "add_action")
+        ]
         governing = next(
-            (
-                h
-                for h in self.handlers.values()
-                if h.control.get("role") in ("item_picker", "add_action")
-            ),
+            (h for h in governors if h.control.get("source_mapping") == self.mapping),
             None,
-        )
+        ) or next(iter(governors), None)
 
         # Phase 1: Dialog before insert — determines preset and/or field data
         chosen = "custom"
@@ -650,7 +660,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self.current_listitem = None
             self._on_close()
             return
-        
+
         self._refresh_list()
         self.container_position = 0
         self.current_listitem = next(iter(self.listitems))

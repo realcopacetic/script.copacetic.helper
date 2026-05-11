@@ -59,18 +59,15 @@ class RuleEngine:
         :return: True if the condition evaluates successfully, else False.
         """
         # Simple "true" / "false" strings
-        if condition_str == "true":
-            return True
-
-        if condition_str == "false":
-            return False
+        if condition_str in ("true", "false"):
+            return condition_str == "true"
 
         # Native Kodi XML boolean expression in format xml()
         if condition_str.lower().startswith("xml("):
             if not condition_str.endswith(")"):
                 log.debug(f"RuleEngine: Malformed xml() condition: {condition_str}")
                 return False
-            
+
             inner = condition_str[4:-1].strip()
             return condition(inner)
 
@@ -80,10 +77,18 @@ class RuleEngine:
             inner = condition_str[8:-1].strip()
             if inner.isdigit():
                 return condition(f"Control.HasFocus({inner})")
-            
+
             # Non-numeric focused() args (e.g. "movies_item") are resolved
             # at runtime by the Dynamic Editor, not at build time.
             return False
+
+        # Compound expressions: '|' (OR) binds looser than '+' (AND).
+        for operator, combine in (("|", any), ("+", all)):
+            if operator in condition_str:
+                return combine(
+                    self._evaluate_condition(part)
+                    for part in condition_str.split(operator)
+                )
 
         # Use regex matching for all other conditions.
         if match := self.CONDITION_PATTERN.match(condition_str):

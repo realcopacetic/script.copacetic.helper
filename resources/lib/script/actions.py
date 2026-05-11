@@ -101,7 +101,6 @@ def dynamic_settings_window(**kwargs):
     """
     from resources.lib.windows.dynamiceditor import DynamicEditor
 
-    name = kwargs.get("name", "dynamic_window")
     if not (mapping := kwargs.get("mapping")):
         log.error("dynamic_settings_window: 'mapping' kwarg is required")
         return
@@ -112,11 +111,13 @@ def dynamic_settings_window(**kwargs):
         if controls_from_raw
         else []
     )
+    name = kwargs.get("name", "dynamic_window")
     parent_filter = kwargs.get("parent")
     suffix = f"_{parent_filter}" if parent_filter else ""
     mapping_slot = f"current_mapping{suffix}"
 
-    window_property(name, value="true")
+    previous_editor = infolabel("Window(home).Property(active_editor_name)")
+    window_property("active_editor_name", value=name)
     window_property(mapping_slot, value=mapping)
 
     myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
@@ -140,7 +141,7 @@ def dynamic_settings_window(**kwargs):
             log.execute("ReloadSkin()")
 
     window_property(mapping_slot)
-    window_property(name)
+    window_property("active_editor_name", value=previous_editor)
     del myWindow
 
 

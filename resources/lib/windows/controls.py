@@ -651,12 +651,17 @@ class CycleHandler(BaseControlHandler):
     def update_value(self, current_listitem: str, container_position: int) -> None:
         """
         Updates enabled state based on whether there are multiple values to cycle.
+        Snap the saved value to the first allowed item if filtering has made it
+        invalid, then update enabled state.
 
         :param current_listitem: Named ID of the currently selected listitem.
         :param container_position: Current index position in the runtime list.
         """
         super().update_value(current_listitem, container_position)
-        self.instance.setEnabled(len(self._allowed_items()) > 1)
+        values = self._allowed_items()
+        if values and self._get_setting_value() not in values:
+            self._set_setting_value(values[0])
+        self.instance.setEnabled(len(values) > 1)
 
 
 class EditHandler(BaseControlHandler):
@@ -868,6 +873,8 @@ class SliderHandler(BaseControlHandler):
             idx = values.index(current)
         except ValueError:
             idx = 0
+            if values:
+                self._set_setting_value(values[0])
         self.instance.setInt(idx, 0, 1, max(len(values) - 1, 0))
         enabled = len(values) > 1
         self.instance.setEnabled(enabled)

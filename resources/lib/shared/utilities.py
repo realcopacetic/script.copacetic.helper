@@ -42,6 +42,8 @@ DIALOG = Dialog()
 VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
+_LOG_ARRAY_LIMIT = 20
+
 from resources.lib.shared import logger as log
 
 """ADDON"""
@@ -299,7 +301,7 @@ def validate_path(path: str | Path) -> bool:
 """JSON"""
 
 
-def json_call(
+def _build_request(
     method: str,
     properties: list[str] | None = None,
     sort: dict[str, Any] | None = None,
@@ -308,10 +310,10 @@ def json_call(
     params: dict[str, Any] | None = None,
     item: dict[str, Any] | None = None,
     options: dict[str, Any] | None = None,
-    parent: str | None = None,
 ) -> dict[str, Any]:
     """
-    Builds and sends a JSON-RPC request to Kodi with optional debug logging.
+    Assemble a JSON-RPC methodparams body without the outer envelope.
+    Shared between json_call and json_call_batch.
 
     :param method: JSON-RPC method name (e.g., "VideoLibrary.GetMovies").
     :param properties: List of requested fields.
@@ -321,12 +323,9 @@ def json_call(
     :param params: Additional parameters to inject directly into "params".
     :param item: Single "item" object for certain queries.
     :param options: Dictionary of additional JSON-RPC options.
-    :param parent: Name of caller (used in log output).
-    :return: Parsed response as a Python dictionary.
+    :return: Request body dict with "method" and "params" keys.
     """
-    json_string = {
-        "jsonrpc": "2.0",
-        "id": 1,
+    body: dict[str, Any] = {
         "method": method,
         "params": dict(params) if params else {},
     }
@@ -339,19 +338,126 @@ def json_call(
         ("item", item),
     ]:
         if value is not None:
-            json_string["params"][key] = value
+            body["params"][key] = value
 
     if limit is not None:
-        json_string["params"]["limits"] = {"start": 0, "end": int(limit)}
+        body["params"]["limits"] = {"start": 0, "end": int(limit)}
 
-    jsonrpc_call = json.dumps(json_string, ensure_ascii=False)
-    result = json.loads(xbmc.executeJSONRPC(jsonrpc_call))
+    return body
 
+
+def _log_call(parent: str | None, payload: Any, result: Any) -> None:
+    """
+    Conditional debug logging shared between single and batch calls.
+
+    :param parent: Caller name for log output.
+    :param payload: Outgoing request envelope or list of envelopes.
+    :param result: Parsed response from Kodi.
+    """
     if ADDON.getSettingBool("json_logging"):
-        log.debug(f"JSON call for function {parent} " + pretty_print(json_string))
-        log.debug(f"JSON result for function {parent} " + pretty_print(result))
+        log.debug(f"JSON call for function {parent} " + pretty_print(payload))
+        log.debug(
+            f"JSON result for function {parent} "
+            + pretty_print(_truncate_for_log(result))
+        )
 
+
+def _truncate_for_log(payload: Any) -> Any:
+    """
+    Walk a JSON-RPC result and cap any list longer than _LOG_ARRAY_LIMIT
+    to its first N items, replacing the tail with a summary marker.
+    Returns a new structure; does not mutate the input.
+
+    :param payload: Arbitrary JSON-serialisable structure.
+    :return: Same shape with long lists truncated.
+    """
+    if isinstance(payload, dict):
+        return {k: _truncate_for_log(v) for k, v in payload.items()}
+    if isinstance(payload, list):
+        if len(payload) > _LOG_ARRAY_LIMIT:
+            head = [_truncate_for_log(item) for item in payload[:_LOG_ARRAY_LIMIT]]
+            head.append(f"... <{len(payload) - _LOG_ARRAY_LIMIT} more items omitted>")
+            return head
+        return [_truncate_for_log(item) for item in payload]
+    return payload
+
+
+def json_call(
+    method: str,
+    properties: list[str] | None = None,
+    sort: dict[str, Any] | None = None,
+    query_filter: dict[str, Any] | None = None,
+    limit: int | None = None,
+    params: dict[str, Any] | None = None,
+    item: dict[str, Any] | None = None,
+    options: dict[str, Any] | None = None,
+    parent: str | None = None,
+) -> dict[str, Any]:
+    """
+    Send a single JSON-RPC request to Kodi with optional debug logging.
+
+    :param method: JSON-RPC method name (e.g., "VideoLibrary.GetMovies").
+    :param properties: List of requested fields.
+    :param sort: Dictionary describing sort method.
+    :param query_filter: Dictionary for filtering results.
+    :param limit: End limit for results — sets "limits": {"start": 0, "end": limit}.
+    :param params: Additional parameters to inject directly into "params".
+    :param item: Single "item" object for certain queries.
+    :param options: Dictionary of additional JSON-RPC options.
+    :param parent: Name of caller (used in log output).
+    :return: Parsed response as a Python dictionary.
+    """
+    body = _build_request(
+        method, properties, sort, query_filter, limit, params, item, options
+    )
+    envelope = {"jsonrpc": "2.0", "id": 1, **body}
+    result = json.loads(xbmc.executeJSONRPC(json.dumps(envelope, ensure_ascii=False)))
+    _log_call(parent, envelope, result)
     return result
+
+
+def json_call_batch(
+    requests: list[dict[str, Any]],
+    parent: str | None = None,
+) -> list[dict[str, Any] | None]:
+    """
+    Send multiple JSON-RPC requests in a single IPC round-trip.
+
+    Each request dict accepts the same kwargs as json_call, plus an optional
+    ``id`` for response matching (auto-assigned by index if absent). Responses
+    are returned in the same order as the input requests; the spec permits
+    the server to return them out of order, so they are re-keyed by id.
+
+    :param requests: List of request kwarg dicts.
+    :param parent: Caller name for log output.
+    :return: List of response dicts in input order; None at any slot whose id is missing from the response.
+    """
+    if not requests:
+        return []
+
+    envelopes: list[dict[str, Any]] = []
+    ids: list[Any] = []
+    for idx, req in enumerate(requests):
+        request_id = req.get("id", idx)
+        ids.append(request_id)
+        body = _build_request(
+            method=req["method"],
+            properties=req.get("properties"),
+            sort=req.get("sort"),
+            query_filter=req.get("query_filter"),
+            limit=req.get("limit"),
+            params=req.get("params"),
+            item=req.get("item"),
+            options=req.get("options"),
+        )
+        envelopes.append({"jsonrpc": "2.0", "id": request_id, **body})
+
+    raw = xbmc.executeJSONRPC(json.dumps(envelopes, ensure_ascii=False))
+    results = json.loads(raw)
+    _log_call(parent, envelopes, results)
+
+    by_id = {r["id"]: r for r in results if isinstance(r, dict) and "id" in r}
+    return [by_id.get(rid) for rid in ids]
 
 
 def pretty_print(obj: object) -> str:
