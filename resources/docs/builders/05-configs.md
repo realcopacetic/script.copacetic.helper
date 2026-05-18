@@ -8,7 +8,7 @@ The classic case: a "layout" setting that offers `fanart`, `poster`, and `square
 
 ## Input format
 
-JSON files placed in `extras/builders/configs/`. Each file declares a mapping and a `configs` object:
+JSON files placed in `extras/templates/configs/`. Each file declares a mapping and a `configs` object:
 
 ```json
 {
@@ -36,7 +36,7 @@ JSON files placed in `extras/builders/configs/`. Each file declares a mapping an
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `mapping` | string | — | Mapping name. Either built-in (`content_types`), a custom one in `extras/builders/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
+| `mapping` | string | — | Mapping name. Either built-in (`content_types`), a custom one in `extras/templates/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
 | `items` | list or object | `[]` | Master list of all possible values. Use a list for raw values, or an object mapping value → display label — see [Items with display labels](#items-with-display-labels) below. |
 | `mode` | string | `"static"` | `"dynamic"` to store values in `runtime_state.json`. Default is static, which stores values as Kodi skin strings — one per item in the mapping. |
 | `filter_mode` | string | `"exclude"` | `"exclude"` removes matched items; `"include"` keeps only matched items |

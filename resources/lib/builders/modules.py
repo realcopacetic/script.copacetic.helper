@@ -47,38 +47,38 @@ class BaseBuilder:
         """
         mode = element_data.get("mode", "static")
         template_items = element_data.get("items")
+        template_index_data = element_data.get("index")
 
         if mode == "dynamic":
-            runtime_items = self.runtime_manager.runtime_state.get(self.mapping_name)
+            runtime_items = (
+                self.runtime_manager.runtime_state.get(self.mapping_name) or []
+            )
             if not runtime_items:
                 log.debug(
-                    f"{self.__class__.__name__}: Skipping dynamic template "
-                    f"'{element_name}' — no runtime state for '{self.mapping_name}'"
+                    f"{self.__class__.__name__}: No runtime state for "
+                    f"'{self.mapping_name}' — dynamic template '{element_name}' "
+                    f"expands with no per-entry substitutions."
                 )
-                return
-            index_list = expand_index(element_data.get("index"))
+            index_list = expand_index(template_index_data)
             index_start = int(index_list[0]) if index_list else 1
             substitutions = self.generate_runtimejson_substitutions(
                 runtime_items, index_start
             )
-            if template_items:
-                substitutions = [
-                    {**sub, "item": str(item)}
-                    for sub in substitutions
-                    for item in template_items
-                ]
         else:
-            items = template_items or expand_index(element_data.get("index"))
-            dynamic_key_mapping = {"items": "item", "index": "index"}
-            dynamic_key = next(
-                (
-                    dynamic_key_mapping[key]
-                    for key in dynamic_key_mapping
-                    if key in element_data
-                ),
-                None,
-            )
-            substitutions = self.generate_substitutions(items, dynamic_key)
+            substitutions = enumerate_mapping_subs(self.mapping_values)
+            if template_index_data:
+                substitutions = [
+                    {**sub, "index": str(idx)}
+                    for sub in substitutions
+                    for idx in expand_index(template_index_data)
+                ]
+
+        if template_items:
+            substitutions = [
+                {**sub, "item": str(item)}
+                for sub in substitutions
+                for item in template_items
+            ]
 
         if filter_expr := element_data.get("filter"):
             substitutions = [
@@ -95,17 +95,6 @@ class BaseBuilder:
                 element_name, element_data, substitutions
             ).items()
         )
-
-    def generate_substitutions(self, items, dynamic_key):
-        """
-        Generate substitution dicts based on mapping loop structure and
-        per-template items.
-
-        :param items: Per-template values for cross-product (or empty).
-        :param dynamic_key: Placeholder name for the item value.
-        :return: List of substitution dictionaries.
-        """
-        return enumerate_mapping_subs(self.mapping_values, items, dynamic_key)
 
     def generate_runtimejson_substitutions(self, runtime_items, index_start):
         """
@@ -133,6 +122,27 @@ class BaseBuilder:
             )
             for index, item in enumerate(runtime_items)
         ]
+
+    def _group_substitutions(self, template_name, substitutions):
+        """
+        Group substitutions by their expanded template name.
+
+        When every substitution has been filtered out, a template whose
+        name contains no placeholder still yields one empty group — so a
+        constant-named element is emitted even with nothing to expand.
+
+        :param template_name: Template name, possibly with placeholders.
+        :param substitutions: List of substitution dicts (may be empty).
+        :return: Mapping of expanded name → list of substitutions.
+        """
+        grouped = defaultdict(list)
+        for sub in substitutions:
+            key = template_name.format(**sub)
+            grouped[key].append(sub)
+            self.group_map[key] = sub
+        if not grouped and "{" not in template_name:
+            grouped[template_name] = []
+        return grouped
 
     def _resolve_placeholder(
         self, match: re.Match, substitutions: dict[str, str]
@@ -264,12 +274,7 @@ class ExpressionsBuilder(BaseBuilder):
         :param substitutions: List of substitution dicts.
         :return: Dictionary of {expression_key: expression_value}.
         """
-        grouped = defaultdict(list)
-        for sub in substitutions:
-            key = template_name.format(**sub)
-            grouped[key].append(sub)
-            self.group_map[key] = sub
-
+        grouped = self._group_substitutions(template_name, substitutions)
         return {
             key: " | ".join(resolved) if resolved else None
             for key, subs in grouped.items()
@@ -388,14 +393,13 @@ class IncludesBuilder(BaseBuilder):
         :param data: Dictionary representing XML structure.
         :param substitutions: List of substitution dictionaries.
         """
-        grouped = defaultdict(list)
-        for sub in substitutions:
-            key = template_name.format(**sub)
-            grouped[key].append(sub)
-            self.group_map[key] = sub
-
+        grouped = self._group_substitutions(template_name, substitutions)
         return {
-            key: self.resolve_values(subs, data["include"])
+            key: (
+                self.resolve_values(subs, data["include"])
+                if subs
+                else {"include": self._empty_include_shell(data["include"])}
+            )
             for key, subs in grouped.items()
         }
 
@@ -495,6 +499,20 @@ class IncludesBuilder(BaseBuilder):
                 xsp_json = escinfo_pattern.sub(r"\1", xsp_json)
                 meta["xsp"] = f"?xsp={xsp_json}"
 
+    @staticmethod
+    def _empty_include_shell(include_element: dict) -> dict:
+        """
+        Reduce an include element to its attributes only — a named include
+        with an empty body. Emitted when every loop value was filtered out,
+        so an include hardcoded-referenced in skin XML still resolves.
+
+        :param include_element: Include element dict from the template.
+        :return: Dict with only the element's ``@``-prefixed attribute keys.
+        """
+        shell = {k: v for k, v in include_element.items() if k.startswith("@")}
+        shell["description"] = "placeholder"
+        return shell
+
 
 class VariablesBuilder(BaseBuilder):
     """
@@ -516,13 +534,7 @@ class VariablesBuilder(BaseBuilder):
         if "outputs" in data:
             return self._expand_cluster(data, substitutions)
 
-        grouped = defaultdict(list)
-
-        for sub in substitutions:
-            key = template_name.format(**sub)
-            grouped[key].append(sub)
-            self.group_map[key] = sub
-
+        grouped = self._group_substitutions(template_name, substitutions)
         return {
             variable["name"]: variable["values"]
             for subs in grouped.values()
@@ -535,42 +547,64 @@ class VariablesBuilder(BaseBuilder):
         substitutions: list[dict[str, Any]],
     ) -> dict[str, list[dict[str, str]]]:
         """
-        Expand a cluster template into one variable per declared output, sharing
-        a single condition cascade across all outputs.
+        Expand a cluster into one variable per declared output. Subs are
+        grouped by the variable name each produces, then expanded with the
+        same block rules as ordinary templates.
 
-        :param data: Cluster template dict containing ``outputs`` and ``rows``.
+        :param data: Cluster template dict with ``outputs`` and ``rows``.
         :param substitutions: Substitution dicts from the loop expansion.
-        :return: Mapping of variable name to list of {condition, value} dicts.
+        :return: Mapping of variable name to list of value dicts.
         """
-
         outputs = data.get("outputs", {})
-        rows = data.get("rows", [])
-        result = defaultdict(list)
+        blocks = self._as_blocks(data.get("rows", []))
+        result: dict[str, list[dict[str, str]]] = {}
 
-        # If neither output names nor row contents reference any placeholder,
-        # the cascade is identical for every sub — emit once.
-        all_constant = (
-            all("{" not in n for n in outputs.values())
-            and "{" not in json.dumps(rows)
-        )
-        if all_constant and substitutions:
-            substitutions = substitutions[:1]
+        for output_key, name_template in outputs.items():
+            projected = self._project_cluster_output(blocks, output_key)
 
-        for sub in substitutions:
-            for output_key, name_template in outputs.items():
-                emitted_name = self.substitute(name_template, sub)
-                for row in rows:
-                    if output_key not in row:
-                        continue
+            # Constant-named outputs still emit with zero subs; a placeholder
+            # name with no subs has nothing to resolve a name from.
+            if substitutions:
+                subs = substitutions
+            elif "{" not in name_template:
+                subs = [{}]
+            else:
+                continue
 
-                    value_dict = {
-                        "value": self.substitute(row[output_key], sub),
-                    }
-                    if "condition" in row:
-                        value_dict["condition"] = self.substitute(row["condition"], sub)
-                    result[emitted_name].append(value_dict)
+            grouped = defaultdict(list)
+            for sub in subs:
+                grouped[self.substitute(name_template, sub)].append(sub)
 
-        return dict(result)
+            for name, group_subs in grouped.items():
+                result[name] = self._ensure_nonempty(
+                    self._expand_blocks(projected, group_subs)
+                )
+
+        return result
+
+    def _project_cluster_output(
+        self,
+        blocks: list[list[dict[str, str]]],
+        output_key: str,
+    ) -> list[list[dict[str, str]]]:
+        """
+        Project cluster blocks onto one output. Rows not contributing to it
+        (sparse rows) and blocks empty for it are dropped.
+
+        :param blocks: Normalised cluster row blocks.
+        :param output_key: Output name to project onto.
+        :return: List of {condition, value} pair blocks for this output.
+        """
+        projected = []
+        for block in blocks:
+            pairs = [
+                {"condition": row.get("condition", ""), "value": row[output_key]}
+                for row in block
+                if output_key in row
+            ]
+            if pairs:
+                projected.append(pairs)
+        return projected
 
     def resolve_values(
         self,
@@ -579,36 +613,118 @@ class VariablesBuilder(BaseBuilder):
         data: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """
-        Builds one or more variables from template and substitutions.
+        Build one variable from a template and its substitution group.
 
         :param template_name: Name pattern of variable.
-        :param subs: Substitution set for this group.
+        :param subs: Substitution group for this variable (may be empty).
         :param data: Variable definition including values.
-        :return: List of variable dicts with name and condition/value pairs.
+        :return: Single-item list with the resolved variable dict.
         """
-        values = data.get("values", [])
-        name = self.substitute(template_name, subs[0])
-        flattened = [
-            pair for sub in subs for pair in self._resolve_value_pairs(values, sub)
-        ]
-        return [{"name": name, "values": flattened}]
-
-    def _resolve_value_pairs(
-        self,
-        values: list[dict[str, str]],
-        sub: dict[str, Any],
-    ) -> list[dict[str, str]]:
-        """
-        Format a list of condition/value template pairs against a single substitution.
-
-        :param values: List of {condition, value} template dicts.
-        :param sub: Substitution dictionary for formatting.
-        :return: List of formatted condition/value dicts.
-        """
+        name = self.substitute(template_name, subs[0] if subs else {})
+        blocks = self._as_blocks(data.get("values", []))
         return [
             {
-                "condition": self.substitute(v.get("condition", ""), sub),
-                "value": self.substitute(v.get("value", ""), sub),
+                "name": name,
+                "values": self._ensure_nonempty(self._expand_blocks(blocks, subs)),
             }
-            for v in values
         ]
+
+    @staticmethod
+    def _as_blocks(values: list) -> list[list[dict[str, str]]]:
+        """
+        Normalise a values/rows list into blocks. A bare dict becomes a
+        one-row block; a list is an explicit multi-row block.
+
+        :param values: Raw values (ordinary) or rows (cluster) list.
+        :return: List of blocks, each a list of row dicts.
+        """
+        return [v if isinstance(v, list) else [v] for v in values]
+
+    @staticmethod
+    def _ensure_nonempty(values: list) -> list:
+        """
+        Guarantee at least one value row. A ``<variable>`` with no
+        ``<value>`` children is undefined in Kodi (``$VAR[...] is not
+        defined``); a single empty ``<value/>`` keeps the variable defined
+        and resolving to an empty string.
+
+        :param values: Resolved list of value dicts (may be empty).
+        :return: The list, or a single empty value row if it was empty.
+        """
+        return values or [{"value": ""}]
+
+    @staticmethod
+    def _block_has_placeholder(block: list[dict[str, str]]) -> bool:
+        """
+        Report whether a block varies per substitution.
+
+        :param block: A list of {condition, value} pair dicts.
+        :return: True if any field of any row contains a placeholder.
+        """
+        return any(
+            isinstance(field, str) and "{" in field
+            for pair in block
+            for field in pair.values()
+        )
+
+    def _resolve_pair(
+        self, pair: dict[str, str], sub: dict[str, Any]
+    ) -> dict[str, str]:
+        """
+        Format one condition/value pair against a substitution.
+
+        The ``condition`` key is omitted when the pair declares no condition
+        or it substitutes to empty — a conditionless row emits a bare
+        ``<value>``. An empty ``value`` is preserved as an explicit terminator.
+
+        :param pair: A {condition, value} template dict.
+        :param sub: Substitution dictionary for formatting.
+        :return: Formatted value dict.
+        """
+        resolved = {"value": self.substitute(pair.get("value", ""), sub)}
+        condition = self.substitute(pair.get("condition", ""), sub)
+        if condition:
+            resolved["condition"] = condition
+        return resolved
+
+    def _expand_blocks(
+        self,
+        blocks: list[list[dict[str, str]]],
+        subs: list[dict[str, Any]],
+    ) -> list[dict[str, str]]:
+        """
+        Expand blocks into a flat value list, in declared order. A block
+        bearing any placeholder expands once per substitution, as a unit; a
+        placeholder-free block emits once, in place. Duplicate rows are
+        collapsed to first occurrence — see ``_dedup_rows``.
+
+        :param blocks: Normalised list of blocks.
+        :param subs: Substitution group (may be empty).
+        :return: Flat list of formatted value dicts.
+        """
+        flattened = []
+        for block in blocks:
+            if self._block_has_placeholder(block):
+                for sub in subs:
+                    flattened.extend(self._resolve_pair(p, sub) for p in block)
+            else:
+                flattened.extend(self._resolve_pair(p, {}) for p in block)
+        return self._dedup_rows(flattened)
+    
+    @staticmethod
+    def _dedup_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+        """
+        Drop later rows whose (condition, value) duplicates an earlier row.
+        Kodi's cascade picks the first match, so duplicates are dead code.
+
+        :param rows: Flat list of resolved {condition, value} dicts.
+        :return: Filtered list preserving first occurrences.
+        """
+        seen = set()
+        result = []
+        for row in rows:
+            key = (row.get("condition", ""), row["value"])
+            if key not in seen:
+                seen.add(key)
+                result.append(row)
+        return result

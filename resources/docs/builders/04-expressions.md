@@ -8,7 +8,7 @@ The classic case: per-content-type visibility logic. Instead of writing one expr
 
 ## Input format
 
-JSON files placed in `extras/builders/expressions/`. Each file declares a mapping and an `expressions` object:
+JSON files placed in `extras/templates/expressions/`. Each file declares a mapping and an `expressions` object:
 
 ```json
 {
@@ -34,7 +34,7 @@ JSON files placed in `extras/builders/expressions/`. Each file declares a mappin
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/builders/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
+| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/templates/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
 | `items` | list | No | Values to loop over within each mapping group |
 | `index` | object | No | Numeric range (alternative to `items`) |
 | `rules` | list | Yes | Condition/type/value rules to evaluate |

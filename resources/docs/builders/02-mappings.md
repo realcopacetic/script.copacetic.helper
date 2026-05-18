@@ -8,7 +8,7 @@ A mapping is the loop definition that drives every builder. It declares what to 
 
 ## Built-in vs custom mappings
 
-There's one built-in mapping (`content_types`) provided by the addon. Custom mappings are defined in `extras/builders/mappings/`. Custom mappings with the same name as a built-in override it.
+There's one built-in mapping (`content_types`) provided by the addon. Custom mappings are defined in `extras/templates/mappings/`. Custom mappings with the same name as a built-in override it.
 
 ### Built-in: `content_types`
 
@@ -33,7 +33,7 @@ You don't define this; reference it with `"mapping": "content_types"` in any bui
 
 ### Custom mappings
 
-Place JSON files in `extras/builders/mappings/`. Each file is a top-level object where keys are mapping names and values are mapping definitions:
+Place JSON files in `extras/templates/mappings/`. Each file is a top-level object where keys are mapping names and values are mapping definitions:
 
 ```json
 {

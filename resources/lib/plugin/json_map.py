@@ -231,6 +231,21 @@ JSON_PROPERTIES: dict[str, list[str]] = {
     ],
 }
 
+# JOIN-heavy fields with no consumer on widget tiles.
+HEAVY_FIELDS = {"streamdetails", "director", "writer"}
+
+
+def trim_properties(media_type: str, exclude: set[str]) -> list[str]:
+    """Return JSON_PROPERTIES[media_type] minus excluded fields, order preserved.
+
+    :param media_type: Key into JSON_PROPERTIES.
+    :param exclude: Field names to omit.
+    :return: Filtered property list.
+    """
+    return [p for p in JSON_PROPERTIES[media_type] if p not in exclude]
+
+
+
 
 def json_to_canonical(
     raw: dict,

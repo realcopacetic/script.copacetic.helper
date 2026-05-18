@@ -275,6 +275,7 @@ class RuntimeStateManager:
         :param setting_name: Field to update.
         :param value: New value to set.
         """
+        self.reload_state()
         state = self.runtime_state
         mapping_list = state.setdefault(mapping_key, [])
         if not 0 <= index < len(mapping_list):
@@ -332,6 +333,7 @@ class RuntimeStateManager:
         :param preserve: Fields to carry over from the existing entry.
         :return: The rebuilt entry, or None on failure.
         """
+        self.reload_state()
         state = self.runtime_state
         mapping_list = state.setdefault(mapping_key, [])
         if not 0 <= index < len(mapping_list):

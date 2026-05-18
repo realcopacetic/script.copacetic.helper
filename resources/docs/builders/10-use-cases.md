@@ -146,7 +146,7 @@ Multi-instance, user-managed widget slots. The user adds, deletes, reorders, and
 
 ### The mapping
 
-A few representative presets from `extras/builders/mappings/mappings_widgets.json`:
+A few representative presets from `extras/templates/mappings/mappings_widgets.json`:
 
 ```json
 {

@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import math
+import time
 from typing import Any, Callable, Collection, Iterable, Mapping
 
 from xbmc import Monitor
@@ -23,6 +24,7 @@ from resources.lib.shared.utilities import (
     split_random,
     to_int,
     url_encode,
+    window_property,
 )
 
 
@@ -761,24 +763,24 @@ class TypewriterAnimation:
         :param max_lines: Optional cap for number of lines (overrides default).
         :param alive: Optional guard callable; return False to abort animation.
         """
-
         monitor = Monitor()
 
         def _alive() -> bool:
             if monitor.abortRequested():
                 return False
-
-            if alive is not None:
-                ok = alive()
-                if not ok:
-                    log.debug(
-                        f"{self.__class__.__name__}: ABORTED → '{label}' lost focus"
-                    )
-                return ok
-            return True
+            return alive() if alive is not None else True
 
         log.debug(f"{self.__class__.__name__} → START → '{label}'")
         control_id = to_int(label_id, self.control_id)
+
+        # Ownership lease. Isolated typewriter instances share prop
+        owner_key = f"typewriter_current_{control_id}"
+        my_token = str(time.time_ns())
+        home = Window(10000)
+        home.setProperty(owner_key, my_token)
+
+        def _superseded() -> bool:
+            return home.getProperty(owner_key) != my_token
 
         try:
             control = self.window.getControl(control_id)
@@ -787,7 +789,13 @@ class TypewriterAnimation:
             log.debug(f"{self.__class__.__name__}: Control {control_id} not found")
             return
 
+        def _abort(reason: str) -> None:
+            """Clear the control and log why the animation stopped."""
+            control.setText("")
+            log.debug(f"{self.__class__.__name__}: ABORTED → '{label}' {reason}")
+
         if not _alive():
+            _abort("lost focus")
             return
 
         line_h = max(1, int(opts.track_h or self.default_line_h))
@@ -809,12 +817,16 @@ class TypewriterAnimation:
             line_h,
         )
 
+        if _superseded():
+            _abort("superseded")
+            return
+
         control.setWidth(width_final)
         control.setHeight(height_final)
         control.setPosition(posx_final, posy_final)
 
         if not _alive():
-            control.setText("")
+            _abort("lost focus")
             return
 
         # Animate: add line_h per wrap, up to max_lines
@@ -822,16 +834,24 @@ class TypewriterAnimation:
         current_posy = posy_final
         grows = 0
 
-        control.setVisible(True)
+        # Clear before reveal so no render frame shows a stale label.
         control.setText("")
+        control.setVisible(True)
 
         for i in range(1, len(label) + 1):
             if not _alive():
-                control.setText("")
+                _abort("lost focus")
+                return
+
+            if _superseded():
+                _abort("superseded")
                 return
 
             sub = label[:i]
             control.setText(sub)
+
+            # Step wait: paces the animation and, importantly, gives Kodi a
+            # render frame to re-layout the new text before HasNext is read.
             if monitor.waitForAbort(self.step_time):
                 return
 
@@ -856,7 +876,7 @@ class TypewriterAnimation:
                 control.setHeight(current_height)
                 control.setPosition(posx_final, current_posy)
 
-            # Reflow nudge: temporarily append a zero-width space, then revert
+            # Reflow nudge: append a zero-width space then revert, to force wrap.
             control.setText(sub + "\u200b")
             if monitor.waitForAbort(0.001):
                 return

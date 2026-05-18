@@ -86,7 +86,7 @@ class RuleEngine:
         for operator, combine in (("|", any), ("+", all)):
             if operator in condition_str:
                 return combine(
-                    self._evaluate_condition(part)
+                    self._evaluate_condition(part.strip())
                     for part in condition_str.split(operator)
                 )
 

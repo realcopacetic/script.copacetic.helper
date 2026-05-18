@@ -8,7 +8,7 @@ The classic case: a settings panel where the user picks options through sliders,
 
 ## Input format
 
-JSON files placed in `extras/builders/controls/`. Each file declares a mapping and a `controls` object:
+JSON files placed in `extras/templates/controls/`. Each file declares a mapping and a `controls` object:
 
 ```json
 {
@@ -27,7 +27,7 @@ JSON files placed in `extras/builders/controls/`. Each file declares a mapping a
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/builders/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
+| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/templates/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
 | `control_type` | string | Yes | One of: `listitem`, `button`, `sliderex`, `slider`, `radiobutton`, `edit`, `cycle` |
 | `id` | integer | Yes* | Kodi control ID in the XML layout (*not required for listitems) |
 | `mode` | string | No | `"dynamic"` to share one control across all runtime entries (each entry's field read/written when focused). Default is static, which expands once per item in the mapping. |

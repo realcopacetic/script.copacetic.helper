@@ -412,7 +412,6 @@ def rate_song(**kwargs):
         player.updateInfoTag(item)
         """
 
-
 @action
 def set_edit(id, **kwargs):
     """
@@ -537,31 +536,27 @@ def toggle_addon(id, **kwargs):
 @action
 def rebuild(**kwargs):
     """
-    Rebuild builder outputs and reload the skin.
+    Rebuild builder outputs and reload the skin. Regenerates output XML,
+    seeds unset skin strings, and refreshes the resolver cache; existing
+    runtime state is preserved unless reset is requested.
 
-    :param full: 'true' for force_rebuild; seeds skin strings, adds missing entries.
-    :param reset: 'true' to delete runtime state and outputs first. Implies full.
+    :param reset: 'true' to delete runtime state and outputs, then rebuild fresh.
     """
     from resources.lib.builders.build_elements import BuildElements
 
     reset = kwargs.get("reset") == "true"
-    full = kwargs.get("full") == "true"
-    
     if reset:
         reset_dev_state()
         ADDON.setSettingBool("dev_reset", False)
-        full = True
 
-    BuildElements(force_rebuild=full).run()
+    BuildElements(force_rebuild=reset).run()
 
     log.execute("ReloadSkin()")
-    if full:
-        msg_id = 32207 if reset else 32211
-        DIALOG.notification(
-            ADDON.getLocalizedString(32000),
-            ADDON.getLocalizedString(msg_id),
-            time=4000,
-        )
+    DIALOG.notification(
+        ADDON.getLocalizedString(32000),
+        ADDON.getLocalizedString(32207 if reset else 32211),
+        time=4000,
+    )
 
 
 @action

@@ -20,7 +20,11 @@ from resources.lib.plugin.helpers import (
     TypewriterAnimation,
     merge_metadata,
 )
-from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
+from resources.lib.plugin.json_map import (
+    HEAVY_FIELDS,
+    json_to_canonical,
+    trim_properties,
+)
 from resources.lib.plugin.library import (
     DirectoryItem,
     enrich_with_tvshow,
@@ -52,7 +56,6 @@ class _FocusGuard:
 
     __slots__ = (
         "caller_name",
-        "focus_check",
         "expected_identity",
         "identity_getter",
     )
@@ -60,7 +63,6 @@ class _FocusGuard:
     def __init__(
         self,
         caller_name: str,
-        focus_check: Callable[[], bool] | None,
         expected_identity: str | None,
         identity_getter: Callable[[], str],
     ):
@@ -68,12 +70,10 @@ class _FocusGuard:
         Create a guard that checks container focus and item identity.
 
         :param caller_name: Name of the calling handler, used for logging.
-        :param focus_check: Callable evaluating Control.HasFocus; None to skip.
         :param expected_identity: Snapshot identity for the focused item; None to disable identity guarding.
         :param identity_getter: Callable returning current item identity.
         """
         self.caller_name = caller_name
-        self.focus_check = focus_check
         self.expected_identity = expected_identity
         self.identity_getter = identity_getter
 
@@ -83,18 +83,11 @@ class _FocusGuard:
 
         :return: True if guard conditions still hold, otherwise False.
         """
-        if self.focus_check is None and self.expected_identity is None:
+        if self.expected_identity is None:
             return True
 
-        if self.focus_check is not None and not self.focus_check():
-            log.debug(
-                f"PluginHandlers → {self.caller_name}: ABORTED → Container lost focus"
-            )
-            return False
-
         if (
-            self.expected_identity is not None
-            and self.expected_identity.isdigit()
+            self.expected_identity.isdigit()
             and self.expected_identity != self.identity_getter()
         ):
             log.debug(
@@ -108,27 +101,20 @@ class _FocusGuard:
 @contextmanager
 def focus_guard(
     caller_name: str,
-    target: int | None,
-    container: str,
+    identity_container: str,
     expected_identity: str | None,
 ) -> Iterator[_FocusGuard]:
     """
-    Build a focus/identity guard for a plugin operation.
-    Returns a guard object whose ``alive()`` enforces stability checks.
+    Build an identity guard for a plugin operation.
+    Returns a guard object whose ``alive()`` checks the focused item is unchanged.
 
     :param caller_name: Name of the calling handler, used for logging.
-    :param target: Container/control id for Control.HasFocus; None to disable focus guarding.
-    :param container: Container path used to read CurrentItem.
+    :param identity_container: Container path used to read CurrentItem for identity guarding.
     :param expected_identity: Snapshot identity of focused item; None to disable identity guarding.
-    :return: A ``_FocusGuard`` instance for lazy focus/identity validation.
+    :return: A ``_FocusGuard`` instance for lazy identity validation.
     """
-    focus_check = (
-        (lambda: condition(f"Control.HasFocus({target})"))
-        if target is not None
-        else None
-    )
-    identity_getter = lambda: infolabel(f"{container}.CurrentItem")
-    yield _FocusGuard(caller_name, focus_check, expected_identity, identity_getter)
+    identity_getter = lambda: infolabel(f"{identity_container}.CurrentItem")
+    yield _FocusGuard(caller_name, expected_identity, identity_getter)
 
 
 class PluginHandlers(metaclass=PluginInfoRegistry):
@@ -143,9 +129,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.dbtype = params.get("type", "").lower()
         self.dbid = params.get("id", "")
         self.target = to_int(params.get("target"), None)
+        self.focus_target = to_int(params.get("focus_container"), self.target)
         self.expected_identity = params.get("focus_guard")
-        self.container = (
+        self.target_container = (
             f"Container({self.target})" if self.target is not None else "Container"
+        )
+        identity_id = to_int(params.get("identity_container"), self.target)
+        self.identity_container = (
+            f"Container({identity_id})" if identity_id is not None else "Container"
         )
 
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
@@ -188,8 +179,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         caller = sys._getframe(1).f_code.co_name
         return focus_guard(
             caller_name=caller,
-            target=self.target,
-            container=self.container,
+            identity_container=self.identity_container,
             expected_identity=self.expected_identity,
         )
 
@@ -203,7 +193,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param append_artwork: Whether to include TMDb artwork fields.
         :return: canonical item dict or None.
         """
-        target = f"{self.container}.ListItem"
+        target = f"{self.target_container}.ListItem"
         ctx = resolve_tmdb_context(self.params, target=target)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
 
@@ -271,7 +261,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             current_position = to_int(
                 self.expected_identity,
-                to_int(infolabel(f"{self.container}.CurrentItem"), None),
+                to_int(infolabel(f"{self.identity_container}.CurrentItem"), None),
             )
             art_opts = {
                 art_type: ArtOpts.from_params(self.params, art_type)
@@ -290,13 +280,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             art = image_processor(
                 jobs=jobs,
                 art_opts=art_opts,
-                source=f"{self.container}.ListItem",
+                source=f"{self.target_container}.ListItem",
             )
             if not guard.alive():
                 return
 
             multiart_dict = build_multiart_dict(
-                target=f"{self.container}.ListItem",
+                target=f"{self.target_container}.ListItem",
                 multiart_type=self.params.get("multiart"),
                 max_items=self.params.get("multiart_max"),
                 get_extra_multiart=parse_bool(
@@ -363,7 +353,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            target = f"{self.container}.ListItem"
+            target = f"{self.target_container}.ListItem"
             data = DataHandler(
                 target=target,
                 dbtype=self.dbtype,
@@ -407,7 +397,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            pb = ProgressBarManager(target=f"{self.container}.ListItem")
+            pb = ProgressBarManager(target=f"{self.target_container}.ListItem")
             resume, unwatched = pb.calculate()
             result = set_items(
                 [
@@ -443,7 +433,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            target = f"{self.container}.ListItem"
+            target = f"{self.target_container}.ListItem"
             multiart_enabled = parse_bool(self.params.get("multiart", "false"))
             item = self._get_tmdb_item(append_artwork=multiart_enabled)
 
@@ -506,6 +496,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     limit=self.limit,
                     parent="in_progress",
                     tag_applier=apply_videoinfotag,
+                    properties=trim_properties("movie", HEAVY_FIELDS),
                 )
             )
 
@@ -522,6 +513,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     postprocess=lambda eps: enrich_with_tvshow(
                         eps, parent="in_progress"
                     ),
+                    properties=trim_properties("episode", HEAVY_FIELDS),
                 )
             )
 
@@ -567,23 +559,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # 2: Bulk fetch all unwatched non-special episodes library-wide,
         # episode-level properties only (no art, no streamdetails). Single
         # MySQL round-trip; Python picks the first per pending show below.
-        props = [
-            p
-            for p in JSON_PROPERTIES["episode"]
-            if p
-            not in (
-                "art",  # show-level art used instead
-                "streamdetails",  # no codec badges on next_up tiles
-                "director",  # JOIN-heavy, not shown on tile
-                "writer",  # JOIN-heavy, not shown on tile
-                "votes",  # not shown on tile
-                "userrating",  # not shown on tile
-                "productioncode",  # not shown on tile
-            )
-        ]
         bulk_q = json_call(
             "VideoLibrary.GetEpisodes",
-            properties=props,
+            properties=trim_properties("episode", HEAVY_FIELDS | {"art"}),
             sort={"order": "ascending", "method": "episode"},
             query_filter={"and": [self.filter_unwatched, self.filter_no_specials]},
             parent="next_up",
