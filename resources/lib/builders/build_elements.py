@@ -11,7 +11,7 @@ from resources.lib.builders.templates import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import (
-    BUILDERS_BASE,
+    TEMPLATES,
     RUNTIME_STATE,
     SKINEXTRAS,
     condition,
@@ -43,7 +43,7 @@ class BuildElements:
             self.all_mappings,
             self.configs_data,
             self.controls_data,
-        ) = load_template_data_from_source(BUILDERS_BASE)
+        ) = load_template_data_from_source(TEMPLATES)
 
         self.runtime_manager = RuntimeStateManager(
             mappings=self.all_mappings,
@@ -58,7 +58,7 @@ class BuildElements:
         for the selected builders.
         """
         json_merger = JSONMerger(
-            base_folder=Path(SKINEXTRAS) / "builders",
+            base_folder=Path(TEMPLATES),
             subfolders=self.selected,
             grouping_key="mapping",
         )
@@ -69,7 +69,7 @@ class BuildElements:
 
         read_kwargs = BUILDER_CONFIG["includes"]["read_kwargs"]
         xml_merger = XMLMerger(
-            base_folder=Path(SKINEXTRAS) / "builders",
+            base_folder=Path(TEMPLATES),
             subfolders=["includes"],
             **read_kwargs,
         )
@@ -104,9 +104,9 @@ class BuildElements:
     @log.duration
     def run(self):
         """
-        Execute the build pipeline. Full rebuilds regenerate runtime state
-        from defaults and refresh the template cache. Every build seeds any
-        unset skin strings, processes selected builders, writes outputs.
+        Execute the build pipeline. Seeds unset skin strings, runs the
+        selected builders, writes outputs, and refreshes the template
+        cache. Full rebuilds also regenerate runtime state from defaults.
         """
         if self.force_rebuild:
             self.runtime_manager.initialize_runtime_state()
@@ -122,10 +122,9 @@ class BuildElements:
             )
             self._write_file(builder_data, builder)
 
-        if self.force_rebuild:
-            write_template_cache(
-                self.all_mappings, self.configs_data, self.controls_data
-            )
+        write_template_cache(
+            self.all_mappings, self.configs_data, self.controls_data
+        )
 
     def _write_file(self, processed_data, builder_name):
         """

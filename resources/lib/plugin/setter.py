@@ -119,7 +119,7 @@ def build_listitem(
         offscreen=True,
     )
     art = dict(item.get("art", {}))
-    fallback = _DEFAULT_ICONS.get(media_type or "", "DefaultCopacetic.png")
+    fallback = _DEFAULT_ICONS.get(media_type or "", "/icons/Copacetic.png")
     art.setdefault("icon", fallback)
     art.setdefault("thumb", fallback)
     li.setArt(art)

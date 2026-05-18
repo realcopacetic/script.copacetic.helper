@@ -21,6 +21,7 @@ def fetch_and_add(
     params: dict[str, Any] | None = None,
     limit: int | None = None,
     postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
+    properties: list[str] | None = None,
 ) -> list[DirectoryItem]:
     """
     Fetch JSON-RPC library items and build canonical ListItems.
@@ -31,16 +32,16 @@ def fetch_and_add(
     :param sort: Sort specification for JSON-RPC.
     :param parent: Parent name for logging.
     :param tag_applier: Optional tag-applier for the VideoInfoTag.
+    :param params: Optional extra params to pass to JSON-RPC.
     :param limit: Optional maximum number of items to fetch.
     :param postprocess: Optional in-place mutator for the raw item list.
-    :param params: Optional extra params to pass to JSON-RPC.
+    :param properties: Optional property-list override; defaults to the full
+    JSON_PROPERTIES set for media_type.
     :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
     """
-    properties = JSON_PROPERTIES.get(media_type)
+    properties = properties or JSON_PROPERTIES.get(media_type)
     if properties is None:
-        raise ValueError(
-            f"fetch_and_add: unknown media_type {media_type!r}"
-        )
+        raise ValueError(f"fetch_and_add: unknown media_type {media_type!r}")
 
     q = json_call(
         method,
@@ -70,31 +71,31 @@ def fetch_and_add(
 def enrich_with_tvshow(episodes: list[dict[str, Any]], parent: str) -> None:
     """
     Enrich episodes with studio/mpaa from their parent TV show.
-    Required because fields not contained within Video.Fields.Episode enum.
-    Results cached to avoid multiple json requests for the same show.
+    Required because these fields are not in the Video.Fields.Episode enum.
+    Uses a single GetTVShows call rather than one lookup per show.
 
     :param episodes: Episode dicts to enrich (in place).
     :param parent: Parent name for logging.
     """
-    cache = {}
+    wanted = {ep["tvshowid"] for ep in episodes if ep.get("tvshowid")}
+    if not wanted:
+        return
+
+    q = json_call(
+        "VideoLibrary.GetTVShows",
+        properties=["studio", "mpaa"],
+        parent=parent,
+    )
+    meta = {
+        s["tvshowid"]: s
+        for s in q.get("result", {}).get("tvshows", [])
+        if s.get("tvshowid") in wanted
+    }
     for ep in episodes:
-        tvshowid = ep.get("tvshowid")
-        if not tvshowid:
-            continue
-
-        meta = cache.get(tvshowid)
-        if meta is None:
-            details = json_call(
-                "VideoLibrary.GetTVShowDetails",
-                params={"tvshowid": tvshowid},
-                properties=["studio", "mpaa"],
-                parent=parent,
-            )
-            meta = details.get("result", {}).get("tvshowdetails", {}) or {}
-            cache[tvshowid] = meta
-
-        ep["studio"] = meta.get("studio")
-        ep["mpaa"] = meta.get("mpaa")
+        s = meta.get(ep.get("tvshowid"))
+        if s:
+            ep["studio"] = s.get("studio")
+            ep["mpaa"] = s.get("mpaa")
 
 
 def role_credits(

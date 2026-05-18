@@ -33,7 +33,7 @@ SKINXML = str(Path(SKIN) / "16x9")
 RUNTIME_STATE = str(Path(ADDONDATA) / "runtime_state.json")
 RESOLVER_CACHE = str(Path(ADDONDATA) / "resolver_cache.json")
 
-BUILDERS_BASE = str(Path(SKINEXTRAS) / "builders")
+TEMPLATES = str(Path(SKINEXTRAS) / "templates")
 VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
 INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_includes.xml")

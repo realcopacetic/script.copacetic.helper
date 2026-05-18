@@ -229,7 +229,7 @@ msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32207"
-msgid "State cleared — restart Kodi to rebuild"
+msgid "Skin reset and rebuilt"
 msgstr ""
 
 #: /resources/lib/script/actions.py

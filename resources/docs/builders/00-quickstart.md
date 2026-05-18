@@ -34,11 +34,11 @@ The built-in `content_types` mapping ships with the addon — windows mapped to 
 
 Templates that reference `mapping: "content_types"` get `{window}` and `{content_type}` placeholders.
 
-If you needed your own iteration values, you'd add a JSON file under `extras/builders/mappings/`. See [Mappings](02-mappings.md).
+If you needed your own iteration values, you'd add a JSON file under `extras/templates/mappings/`. See [Mappings](02-mappings.md).
 
 ## 2. Configs — what values are allowed
 
-Drop a file in `extras/builders/configs/`:
+Drop a file in `extras/templates/configs/`:
 
 ```json
 {
@@ -94,7 +94,7 @@ Skip if you've already done this for other settings.
 
 ## 5. Expressions — the boolean the skin uses
 
-Drop a file in `extras/builders/expressions/`:
+Drop a file in `extras/templates/expressions/`:
 
 ```json
 {

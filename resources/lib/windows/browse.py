@@ -593,14 +593,15 @@ def _derive_window(content_type):
 def _build_result(path, label, mode):
     """
     Build the final return dict for a selected path.
-    Widget mode returns ``{path, label, icon}``; menu mode also adds
-    ``{type, window, action}`` (action strings used as-is for commands).
+    Widget mode returns ``{path, label, icon, target}``; menu mode adds
+    ``{type, window, action}``.
 
     :param path: Selected path or action string.
     :param label: Display label for the result.
     :param mode: "widget" or "menu".
     :return: Result dict.
     """
+
     # Action strings (commands, builtins) bypass path-based derivation
     if mode == "menu" and _is_action_string(path):
         return {
@@ -614,10 +615,15 @@ def _build_result(path, label, mode):
 
     content_type = _derive_type(path)
     icon = _TYPE_ICON.get(content_type, "DefaultFolder.png")
-    result = {"path": path, "label": label, "icon": icon}
+    window = _derive_window(content_type)
+    result = {
+        "path": path,
+        "label": label,
+        "icon": icon,
+        "target": window.lower(),
+    }
 
     if mode == "menu":
-        window = _derive_window(content_type)
         result.update(
             {
                 "type": content_type,
@@ -890,8 +896,8 @@ def _custom_path():
 def browse_content(cfg):
     """
     Entry point for content path browsing. Called from OnClickActions.
-    Widget mode returns ``{path, label, icon}``; menu mode also adds
-    ``{type, window, action}`` for menu-item construction.
+    Widget mode returns ``{path, label, icon, target}``; menu mode
+    also adds ``{type, window, action}`` for menu-item construction.
 
     :param cfg: Onclick config dict; supports ``heading`` and ``mode``.
     :return: Result dict, or None if cancelled.

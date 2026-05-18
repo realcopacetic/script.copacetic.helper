@@ -155,7 +155,7 @@ With dev mode on, the service rebuilds everything in the `build` context with `f
 
 Sub-toggle of dev mode at **Settings → Developers → Reset on next start**. Visible only when dev mode is on.
 
-When set, the service deletes `runtime_state.json` and every builder output file on the next start, then rebuilds from scratch. The toggle clears itself after being applied.
+When set, the service deletes `runtime_state.json`, the resolver cache, and every builder output file on the next start, then rebuilds from scratch. The toggle clears itself after being applied.
 
 Use this when you've changed a mapping's `default_order`, `config_fields`, or `metadata` and want the runtime state regenerated from defaults rather than carrying over the user's (or your test) existing list.
 
@@ -163,7 +163,7 @@ Use this when you've changed a mapping's `default_order`, `config_fields`, or `m
 
 Button at **Settings → Developers → Rebuild now**. Visible only when dev mode is on.
 
-Triggers a full `build` immediately and reloads the skin. Preserves `runtime_state.json` (unlike Reset on next start). A notification confirms when it's done.
+Rebuilds all skin output files immediately, refreshes the resolver cache, and reloads the skin. Preserves `runtime_state.json` (unlike Reset on next start). A notification confirms when it's done.
 
 Under the hood this runs the script action below — wire it into your own button or keymap if you want a quicker path than opening addon settings.
 
@@ -173,14 +173,13 @@ These can be triggered from anywhere — skin XML button onclicks, keymaps, cust
 
 | Script | What it does |
 |---|---|
-| `RunScript(script.copacetic.helper,action=rebuild)` | Regenerates all builder outputs from current runtime state and skin strings, then reloads. Preserves user preferences. This is what the Dynamic Editor runs on close. |
-| `RunScript(script.copacetic.helper,action=rebuild,full=true)` | Full rebuild with `force_rebuild=True`. Re-seeds any unset skin strings and adds missing runtime entries from `default_order`. Reloads and notifies. Same as the Rebuild now button. |
-| `RunScript(script.copacetic.helper,action=rebuild,reset=true)` | Deletes `runtime_state.json` and all builder outputs, then full-rebuilds from defaults. Reloads and notifies. Use after changing a mapping's `default_order`, `config_fields`, or `metadata` if you want a clean slate. |
+| `RunScript(script.copacetic.helper,action=rebuild)` | Regenerates all builder outputs from current runtime state and skin strings, refreshes the resolver cache, then reloads. Preserves runtime state. Picks up edits to templates, metadata, and configs. Equivalent to the rebuild the Dynamic Editor runs on close, and to the Rebuild now button. |
+| `RunScript(script.copacetic.helper,action=rebuild,reset=true)` | Deletes `runtime_state.json`, all builder outputs, and the resolver cache, then rebuilds from defaults. Reloads and notifies. Loses user/runtime configuration — use when you want a clean slate. |
 
 ### Suggested workflow
 
 1. Turn dev mode on while you're working on the skin.
-2. Edit your builder inputs in `extras/builders/*/`.
+2. Edit your builder inputs in `extras/templates/*/`.
 3. Either restart Kodi or hit Rebuild now — same result, no restart needed for the second.
 4. If you've changed a dynamic mapping's structure (added items, changed `config_fields`, reordered `default_order`), also tick Reset on next start before you restart so runtime state regenerates from your new defaults.
 5. Turn dev mode off before shipping. Users will get the pre-built outputs instantly on first install.
@@ -189,7 +188,7 @@ These can be triggered from anywhere — skin XML button onclicks, keymaps, cust
 
 ## Folder structure
 
-All builder input files live under the skin's `extras/builders/` directory:
+All builder input files live under the skin's `extras/templates/` directory:
 
 ```
 extras/

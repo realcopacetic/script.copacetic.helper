@@ -77,8 +77,8 @@ class OnClickActions:
     @staticmethod
     def browse_content(cfg):
         """
-        Widget mode returns ``{path, label}``; menu mode also adds
-        ``{type, window, action}`` for menu-item construction.
+        Widget mode returns ``{path, label, icon, target}``; menu mode
+        also adds ``{type, window, action}`` for menu-item construction.
 
         :param cfg: Onclick config dict (supports ``mode``: "widget" or "menu").
         :return: Result dict, or None if cancelled.

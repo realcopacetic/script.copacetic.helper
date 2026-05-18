@@ -401,9 +401,13 @@ class XMLDictConverter:
             mode_elem = element.find("mode")
             index_elem = element.find("index")
             items_elem = element.find("items")
+            filter_elem = element.find("filter")
 
             if mode_elem is not None:
                 template_dict["mode"] = mode_elem.text.strip()
+                
+            if filter_elem is not None:
+                template_dict["filter"] = filter_elem.text.strip()
 
             if index_elem is not None:
                 template_dict["index"] = {

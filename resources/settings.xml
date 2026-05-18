@@ -48,7 +48,7 @@
 						<allowempty>true</allowempty>
 					</constraints>
 					<control type="button" format="action">
-						<data>RunScript(script.copacetic.helper,action=rebuild,full=true)</data>
+						<data>RunScript(script.copacetic.helper,action=rebuild)</data>
 					</control>
 					<dependencies>
 						<dependency type="visible" setting="dev_mode">true</dependency>

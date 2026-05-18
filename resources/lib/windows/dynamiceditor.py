@@ -8,7 +8,7 @@ from resources.lib.builders.runtime import RuntimeStateManager
 from resources.lib.builders.templates import load_template_data
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
-    BUILDERS_BASE,
+    TEMPLATES,
     RUNTIME_STATE,
     infolabel,
 )
@@ -37,7 +37,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.controls_from = []
         self._xml_filename = xmlFilename.lower()
 
-        mappings, configs_data, controls_data = load_template_data(BUILDERS_BASE)
+        mappings, configs_data, controls_data = load_template_data(TEMPLATES)
         self.runtime_manager = RuntimeStateManager(
             mappings=mappings,
             configs_data=configs_data,

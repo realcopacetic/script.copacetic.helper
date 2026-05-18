@@ -8,7 +8,7 @@ The classic case: a settings panel where the user picks options through sliders,
 
 ## Input format
 
-JSON files placed in `extras/builders/controls/`. Each file declares a mapping and a `controls` object:
+JSON files placed in `extras/templates/controls/`. Each file declares a mapping and a `controls` object:
 
 ```json
 {
@@ -27,7 +27,7 @@ JSON files placed in `extras/builders/controls/`. Each file declares a mapping a
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/builders/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
+| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/templates/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
 | `control_type` | string | Yes | One of: `listitem`, `button`, `sliderex`, `slider`, `radiobutton`, `edit`, `cycle` |
 | `id` | integer | Yes* | Kodi control ID in the XML layout (*not required for listitems) |
 | `mode` | string | No | `"dynamic"` to share one control across all runtime entries (each entry's field read/written when focused). Default is static, which expands once per item in the mapping. |
@@ -356,18 +356,33 @@ The `onclick` object on button controls defines what happens when the user press
 
 ### `browse_content` and sibling fields
 
-The `browse_content` action returns a dict containing `path`, `label`, and optionally `icon`, `type`, `window`, `action`. Use `sibling_fields` to auto-populate other runtime state fields from the result:
+The `browse_content` action returns a dict containing `path`, `label`, `icon`, and `target`. In menu mode it additionally returns `type`, `window`, and `action`. Use `sibling_fields` to auto-populate other runtime state fields from the result:
 
 ```json
 "onclick": {
   "type": "browse_content",
   "heading": "Select content path",
   "mode": "widget",
-  "sibling_fields": { "label": "widget_label" }
+  "sibling_fields": {
+    "label": "widget_label",
+    "target": "target"
+  }
 }
 ```
 
 When the user picks a path, the `label` from the browse result is written to the `widget_label` control's runtime field. Re-running the dialog overwrites the sibling — picking a new content path means accepting that path's default label too.
+
+The `target` entry above uses a different pattern: there is no control named `target` in the mapping. `sibling_fields` falls back to writing the value directly to a runtime field of the same name when no matching control is defined. Use this for hidden derived fields that the skinner doesn't want to expose as a user-editable control — `target` is one example, since the value is derived from the chosen path and almost always correct.
+
+| Field | Description |
+|---|---|
+| `path` | The selected content path. |
+| `label` | A label for the path (folder name, addon name, etc.). |
+| `icon` | A type-appropriate icon for the result. |
+| `target` | The Kodi window target (`videos`, `music`, `pictures`, `programs`) derived from the path. Use as a hidden sibling field for `<content target>` on idget containers. |
+| `type` | (menu mode) Content type string (`movies`, `tvshows`, `albums`, etc.). |
+| `window` | (menu mode) Capitalised window name (`Videos`, `Music`, etc.) used in `ActivateWindow` calls. |
+| `action` | (menu mode) Fully-formed `ActivateWindow(...)` string ready to use as a menu shortcut. |
 
 ### `browse_image`
  

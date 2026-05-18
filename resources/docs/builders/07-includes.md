@@ -8,7 +8,7 @@ The classic case: a widget container include in your skin XML, instantiated once
 
 ## Input format
 
-Place XML files in `extras/builders/includes/`:
+Place XML files in `extras/templates/includes/`:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -33,7 +33,7 @@ Place XML files in `extras/builders/includes/`:
 
 | Element | Description |
 |---|---|
-| `<mapping>` | Mapping name. Either a built-in mapping (`content_types`) or a custom one defined in `extras/builders/mappings/` — see [Mappings](02-mappings.md). |
+| `<mapping>` | Mapping name. Either a built-in mapping (`content_types`) or a custom one defined in `extras/templates/mappings/` — see [Mappings](02-mappings.md). |
 | `<template>` | One include to expand (multiple per file allowed) |
 | `<mode>` | `"dynamic"` to iterate once per runtime entry (a list the user grows and shrinks — widgets, menus). Default is static, which iterates once per item in the mapping's `items` list or dict — fixed at build time. |
 | `<index>` | Optional `start` attribute for index numbering |
@@ -197,7 +197,7 @@ This three-step pattern — tag in metadata, filter in include, scope in dialog 
 
 ## Example
 
-Single template in `extras/builders/includes/includes_widgets.xml`:
+Single template in `extras/templates/includes/includes_widgets.xml`:
 
 ```xml
 <template>

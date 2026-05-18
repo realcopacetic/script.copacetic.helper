@@ -6,11 +6,11 @@ The variables builder generates Kodi `<variable>` XML elements — each containi
 
 ## Input format
 
-JSON files placed in `extras/builders/variables/`. Each file declares a mapping and a `variables` object.
+JSON files placed in `extras/templates/variables/`. Each file declares a mapping and a `variables` object.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/builders/mappings/`, or `"none"` for templates that only use `index`/`items` — see [Mappings](02-mappings.md). |
+| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/templates/mappings/`, or `"none"` for templates that only use `index`/`items` — see [Mappings](02-mappings.md). |
 
 The variables builder supports two template shapes — **ordinary** (one variable per template) and **cluster** (multiple variables sharing one condition cascade).
 
@@ -44,14 +44,15 @@ The common case: a single template producing one variable per loop iteration.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `index` | object | No | Numeric range: `start`, `end`, optional `step` |
-| `items` | list | No | Explicit list of values to loop over (alternative to `index`) |
-| `values` | list | Yes | Array of `{condition, value}` pairs |
+| `items` | list | No | Explicit list of values to loop over |
+| `values` | list | Yes | Array of `{condition, value}` pairs and/or blocks — see [Blocks](#blocks) |
+| `filter` | string | No | Build-time expression; loop values that fail it are skipped — see [Filtering](#filtering) |
 | `mode` | string | No | `"dynamic"` to iterate once per runtime entry. Default is static, which iterates once per item in the mapping (and/or the template's own `items`/`index`). |
 
-`index` and `items` are mutually exclusive within the template. If neither is present, expansion is driven entirely by the mapping.
+`index` and `items` can be combined for two-axis expansion. When both are present in a static template, the loop produces every (index × item) combination on top of any mapping iteration; both `{index}` and `{item}` are available as placeholders. In dynamic mode `{index}` is reserved for runtime-entry numbering, so `index` declared on a dynamic template is interpreted as a starting value only; `items` still cross-products with runtime entries. If neither is present, expansion is driven entirely by the mapping.
 
-Each entry in `values`:
-- `condition` — A Kodi boolean expression. Use `"true"` for the unconditional fallback.
+Each entry in `values` is a `{condition, value}` pair, or a list of pairs forming a block — see [Blocks](#blocks):
+- `condition` — A Kodi boolean expression. Optional; omit it (or use `"true"`) for an unconditional row.
 - `value` — The value to use when the condition matches. Kodi evaluates conditions top to bottom and uses the first match.
 
 Both fields support `{placeholder}` substitution.
@@ -110,7 +111,9 @@ A cluster template uses `outputs` and `rows` instead of `values`:
 | Field | Type | Description |
 |---|---|---|
 | `outputs` | object | Map of row-key → variable-name template. Each declared output produces one variable per loop iteration. |
-| `rows` | list | Shared cascade. Each row has a `condition` (default `"true"`) and one value per output it contributes to. |
+| `rows` | list | Shared cascade. Each row has an optional `condition` and one value per output it contributes to. Rows may be grouped into blocks — see [Blocks](#blocks). |
+
+A cluster also accepts the loop-control fields from ordinary templates — `index`, `items`, `mode`, and `filter` — which drive how many times the row cascade expands. The `outputs` name templates and `rows` then expand per loop value, the same way an ordinary template's `values` do. `_primary_base_cluster` in `variables_artwork.json` uses `items` this way: each item produces its own pair of output variables.
 
 The example above produces two variables — `label_breadcrumb_left` and `texture_breadcrumb_left` — both following the same condition cascade. Whatever content type the focused container has, both variables resolve from the same matching row. The skin can use them together (`$VAR[label_breadcrumb_left]` next to `$VAR[texture_breadcrumb_left]`) without having to maintain two separate cascades that must stay in sync.
 
@@ -129,6 +132,121 @@ This row contributes to the `label` cascade but not `texture` — useful when on
 ### Empty terminators
 
 A row whose value is the empty string `""` produces a self-closing `<value condition="..."/>` element. Kodi treats this as an explicit unconditional terminator: stop evaluating, return empty. Useful for forcing a clean exit on the fallback row when you don't want any default value.
+
+---
+
+## Filtering
+
+A `filter` narrows which loop values a template expands over. It's an expression evaluated **at build time** by the [Rule Engine](08-rule-engine.md): each substitution is tested, and those that fail are dropped before expansion. It works on both ordinary and cluster templates.
+
+```json
+"label_multiart_home_dualwidgets": {
+  "mode": "dynamic",
+  "index": { "start": 3200 },
+  "filter": "In({widget_preset}, [drilldown, group])",
+  "values": [ "..." ]
+}
+```
+
+Only widgets whose `widget_preset` is `drilldown` or `group` keep their indexed rows; every other configured widget is skipped.
+
+`filter` uses the same grammar as Rule Engine conditions — `In(...)`, `equals(...)`, `not`, `xml(...)` — with `{placeholder}` substitution against the current loop value.
+
+It is distinct from a row's `condition`. `filter` is build-time and decides whether a row is **generated at all**; `condition` is the runtime Kodi expression that decides whether Kodi **uses** a generated row.
+
+When a filter excludes every match, placeholder-bearing rows expand to nothing — but placeholder-free rows still emit, so a constant-named template with a fallback still produces its variable. See [Always-present variables](#always-present-variables).
+
+---
+
+## Blocks
+
+Both `values` (ordinary templates) and `rows` (cluster templates) can mix rows that vary per index or item with rows that are fixed. Each row expands by the same rule:
+
+| Row contains | Expansion |
+|---|---|
+| A `{placeholder}` | Repeated once per index or item value, in place |
+| No placeholder | Emitted once, in place |
+
+Rows resolving to identical `(condition, value)` pairs are collapsed to the first occurrence. This handles the case where a placeholder-bearing row's placeholders are constant across the substitution group — for example, a terminal row whose `{listitem}`/`{position}` placeholders don't vary within a `{type, position}` group. Kodi's `<value>` cascade picks the first matching row, so dropped duplicates would have been dead code anyway.
+
+Rows expand in the order written. A placeholder-free row keeps a fixed position — top, middle, or end of the cascade — so one template can combine indexed rows with a shared fallback:
+
+```json
+{
+  "mapping": "widgets",
+  "variables": {
+    "label_multiart_home_dualwidgets": {
+      "mode": "dynamic",
+      "index": { "start": 3200 },
+      "values": [
+        {
+          "condition": "Control.HasFocus({index}) + !String.IsEmpty(Container({index}).ListItem.Art(poster1))",
+          "value": "poster"
+        },
+        {
+          "condition": "Control.HasFocus({index}) + !String.IsEmpty(Container({index}).ListItem.Art(fanart1))",
+          "value": "fanart"
+        },
+        { "value": "$VAR[label_multiart_home]" }
+      ]
+    }
+  }
+}
+```
+
+With two widgets configured (`3200`, `3201`), each indexed row expands once per widget and the placeholder-free row emits once, last (conditions abbreviated):
+
+```xml
+<variable name="label_multiart_home_dualwidgets">
+  <value condition="Control.HasFocus(3200) + !String.IsEmpty(Container(3200).ListItem.Art(poster1))">poster</value>
+  <value condition="Control.HasFocus(3201) + !String.IsEmpty(Container(3201).ListItem.Art(poster1))">poster</value>
+  <value condition="Control.HasFocus(3200) + !String.IsEmpty(Container(3200).ListItem.Art(fanart1))">fanart</value>
+  <value condition="Control.HasFocus(3201) + !String.IsEmpty(Container(3201).ListItem.Art(fanart1))">fanart</value>
+  <value>$VAR[label_multiart_home]</value>
+</variable>
+```
+
+The indexed rows interleave — `poster` for every widget, then `fanart` for every widget.
+
+### Grouping rows
+
+Wrap rows in a list to keep them together as one block. If any row in a block contains a placeholder, the whole block repeats per index or item as a unit, with its rows kept contiguous and in order:
+
+```json
+"values": [
+  [
+    {
+      "condition": "Control.HasFocus({index}) + !String.IsEmpty(Container({index}).ListItem.Art(poster1))",
+      "value": "poster"
+    },
+    {
+      "condition": "Control.HasFocus({index}) + !String.IsEmpty(Container({index}).ListItem.Art(fanart1))",
+      "value": "fanart"
+    }
+  ],
+  { "value": "$VAR[label_multiart_home]" }
+]
+```
+
+```xml
+<variable name="label_multiart_home_dualwidgets">
+  <value condition="Control.HasFocus(3200) + !String.IsEmpty(Container(3200).ListItem.Art(poster1))">poster</value>
+  <value condition="Control.HasFocus(3200) + !String.IsEmpty(Container(3200).ListItem.Art(fanart1))">fanart</value>
+  <value condition="Control.HasFocus(3201) + !String.IsEmpty(Container(3201).ListItem.Art(poster1))">poster</value>
+  <value condition="Control.HasFocus(3201) + !String.IsEmpty(Container(3201).ListItem.Art(fanart1))">fanart</value>
+  <value>$VAR[label_multiart_home]</value>
+</variable>
+```
+
+Now each widget's rows stay contiguous. A single row written on its own is a one-row block; reach for a multi-row block when a group of indexed rows must stay contiguous relative to each other. Cluster `rows` group into blocks the same way.
+
+### Rows without a condition
+
+Omit `condition` for an unconditional row. It produces a bare `<value>value</value>` with no attribute, the same as `"condition": "true"`. (An empty `value` is a different case — see [Empty terminators](#empty-terminators).)
+
+### Always-present variables
+
+Placeholder-free rows don't depend on any index or item, so they survive even when a template produces no substitutions at all — a dynamic template with no configured entries, or a `filter` that excludes every match. A template whose name has no `{placeholder}` and carries at least one placeholder-free row therefore always produces its variable, so `$VAR[...]` references to it stay safe to use.
 
 ---
 

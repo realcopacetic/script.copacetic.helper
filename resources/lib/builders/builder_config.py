@@ -21,7 +21,7 @@ BUILDER_CONFIG = {
             "root_tag": "includes",
             "element_tag": "variable",
             "sub_element_tag": "value",
-            "transform_func": XMLHandler._simple_dict_to_xml,
+            "transform_func": sort_outer_keys(XMLHandler._simple_dict_to_xml),
         },
     },
     "includes": {
