@@ -255,6 +255,8 @@ The `{widget_preset}` placeholder in `global` templates is the mapping's `key` p
 
 **Placeholder-in-name rule.** A template name with no placeholder resolves to one config shared across every entry that references it. A template name with the mapping's key placeholder resolves to one config per item. Choose based on whether the field's allowed values vary per item — `widget_{widget_preset}_layout` because each preset filters layouts differently, vs `widget_custom_sortby` because there's just one sortby option set. See [Configs Builder → Per-loop variation requires a placeholder in the name](05-configs.md#per-loop-variation-requires-a-placeholder-in-the-name).
 
+**Cross-field dependency.** A config can also depend on another field's resolved value — `limit` on `layout`, `blk_tab_left` on `layout` and `art`. When it does, the depended-on field's placeholder must appear in the config-key name (`limit_{layout}`, `blk_tab_left_{layout}_{art}`) so the resolver waits for that field before resolving this one. See [Configs Builder → Cross-field config dependencies](05-configs.md#cross-field-config-dependencies).
+
 ---
 
 ## `default_order` — initial runtime state
@@ -267,7 +269,7 @@ When `runtime_state.json` is first created, the `default_order` list determines 
 }
 ```
 
-Each item gets a runtime entry with a fresh UUID, the `mapping_item` name, all string-valued metadata for that item, and resolved default values for each `config_field`. See [Runtime State & Dynamic Editor](09-runtime-state.md) for the entry shape.
+Each item gets a runtime entry with a fresh UUID, the `mapping_item` name, and all string-valued metadata for that item. `config_field` values are not stored at insert; they resolve to their config defaults on read until the user sets them. See [Runtime State & Dynamic Editor](09-runtime-state.md) for the entry shape.
 
 If `default_order` isn't set, the full `items` list is used.
 

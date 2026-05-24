@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 from functools import wraps
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.setter import TagApplier, apply_videoinfotag, set_items
@@ -9,6 +9,83 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, json_call, set_plugincontent, to_int
 
 DirectoryItem = tuple[str, Any, bool]
+
+
+def title_filter(titles: Iterable[str], field: str = "title") -> dict[str, Any]:
+    """
+    Build an any-of exact-match filter rule from a collection of titles.
+    De-duplicates and drops empty values.
+
+    :param titles: Titles to match.
+    :param field: Filter field name ("title", or "tvshow" for episode queries).
+    :return: Filter rule dict.
+    """
+    return {
+        "field": field,
+        "operator": "is",
+        "value": sorted({t for t in titles if t}),
+    }
+
+
+def fetch_raw(
+    method: str,
+    media_type: str,
+    filters: list[dict[str, Any]],
+    sort: dict[str, Any] | None,
+    parent: str,
+    params: dict[str, Any] | None = None,
+    limit: int | None = None,
+    properties: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Fetch raw JSON-RPC library items.
+
+    :param method: JSON-RPC method (e.g. "VideoLibrary.GetMovies").
+    :param media_type: Logical content type (e.g. "movie", "episode").
+    :param filters: List of filter dicts to AND together.
+    :param sort: Sort specification for JSON-RPC; None for server default order.
+    :param parent: Parent name for logging.
+    :param params: Optional extra params to pass to JSON-RPC.
+    :param limit: Optional maximum number of items to fetch.
+    :param properties: Property-list override; None selects the full JSON_PROPERTIES set.
+    :return: List of raw item dicts.
+    """
+    if properties is None:
+        properties = JSON_PROPERTIES.get(media_type)
+        if properties is None:
+            raise ValueError(f"fetch_raw: unknown media_type {media_type!r}")
+
+    q = json_call(
+        method,
+        properties=properties,
+        sort=sort,
+        query_filter={"and": filters},
+        params=params or {},
+        limit=limit,
+        parent=parent,
+    )
+    return q.get("result", {}).get(f"{media_type}s", []) or []
+
+
+def build_items(
+    raw_items: list[dict[str, Any]],
+    media_type: str,
+    tag_applier: TagApplier | None,
+) -> list[DirectoryItem]:
+    """
+    Canonicalise raw library dicts and build directory ListItems.
+
+    :param raw_items: Raw JSON-RPC item dicts.
+    :param media_type: Logical content type for canonicalisation.
+    :param tag_applier: Optional tag-applier for the VideoInfoTag.
+    :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
+    """
+    canonical_items = [json_to_canonical(raw, media_type) for raw in raw_items]
+    return set_items(
+        canonical_items,
+        media_type=media_type,
+        tag_applier=tag_applier,
+    )
 
 
 def fetch_and_add(
@@ -39,20 +116,16 @@ def fetch_and_add(
     JSON_PROPERTIES set for media_type.
     :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
     """
-    properties = properties or JSON_PROPERTIES.get(media_type)
-    if properties is None:
-        raise ValueError(f"fetch_and_add: unknown media_type {media_type!r}")
-
-    q = json_call(
+    items = fetch_raw(
         method,
-        properties=properties,
+        media_type,
+        filters,
         sort=sort,
-        query_filter={"and": filters},
-        params=params or {},
-        limit=limit,
         parent=parent,
+        params=params,
+        limit=limit,
+        properties=properties,
     )
-    items = q.get("result", {}).get(f"{media_type}s", []) or []
     if not items:
         log.debug(f"PluginHandlers → {parent}: No {media_type}s found.")
         return []
@@ -60,30 +133,28 @@ def fetch_and_add(
     if postprocess is not None:
         postprocess(items)
 
-    canonical_items = [json_to_canonical(raw, media_type) for raw in items]
-    return set_items(
-        canonical_items,
-        media_type=media_type,
-        tag_applier=tag_applier,
-    )
+    return build_items(items, media_type, tag_applier)
 
 
 def enrich_with_tvshow(episodes: list[dict[str, Any]], parent: str) -> None:
     """
     Enrich episodes with studio/mpaa from their parent TV show.
     Required because these fields are not in the Video.Fields.Episode enum.
-    Uses a single GetTVShows call rather than one lookup per show.
+    Uses a single title-filtered GetTVShows.
 
     :param episodes: Episode dicts to enrich (in place).
     :param parent: Parent name for logging.
     """
+
     wanted = {ep["tvshowid"] for ep in episodes if ep.get("tvshowid")}
     if not wanted:
         return
 
+    rule = title_filter(ep.get("showtitle", "") for ep in episodes)
     q = json_call(
         "VideoLibrary.GetTVShows",
         properties=["studio", "mpaa"],
+        query_filter={"and": [rule]} if rule["value"] else None,
         parent=parent,
     )
     meta = {
@@ -163,6 +234,7 @@ def role_endpoint(
     :param postprocess: Optional in-place postprocessor for episode lists.
     :return: Wrapped handler returning directory items or None.
     """
+
     def decorator(func: Callable) -> Callable[[Any], list[DirectoryItem] | None]:
         @wraps(func)
         def wrapper(self, *args, **kwargs) -> list[DirectoryItem] | None:
@@ -182,6 +254,7 @@ def role_endpoint(
             )
 
         return wrapper
+
     return decorator
 
 

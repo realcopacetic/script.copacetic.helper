@@ -106,12 +106,12 @@ The Dynamic Editor resolves the configs template to populate the slider with the
 **5. The includes builder** reads this entry and substitutes `{layout}` into the template:
 
 ```xml
-<include content="lst_{layout}">
+<include content="ctn_{layout}">
 ```
 
 Output:
 ```xml
-<include content="lst_strip">
+<include content="ctn_strip">
   <!-- ... params from metadata and runtime state ... -->
 </include>
 ```

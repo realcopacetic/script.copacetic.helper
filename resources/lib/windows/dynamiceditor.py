@@ -210,19 +210,35 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             },
         }
 
+    def _apply_row_visuals(self, li, item: dict, runtime_id: str) -> None:
+        """
+        Resolve and apply a row's label and icon via ``format_metadata``,
+        so each supports a metadata, config, or override value identically.
+
+        :param li: List item to populate.
+        :param item: Merged listitem definition (template + entry).
+        :param runtime_id: Stable id stored as the row's content_id.
+        """
+        li.setProperty("content_id", runtime_id)
+        mk, idx = item["mapping"], item["runtime_index"]
+        li.setLabel(
+            self.runtime_manager.format_metadata(
+                mk, idx, item.get("label", ""), localize=True
+            )
+            or ""
+        )
+        if raw_icon := item.get("icon"):
+            icon = self.runtime_manager.format_metadata(mk, idx, raw_icon, localize=True)
+            li.setArt({"icon": icon})
+
     def _refresh_list(self) -> None:
         """
         Rebuild the left-hand list from `self.listitems` and sync dynamic controls.
         """
         self._list_container.reset()
         for runtime_id, item in self.listitems.items():
-            label = self._format_and_localize(
-                item["mapping"], item["runtime_index"], item.get("label", "")
-            )
-            li = xbmcgui.ListItem(label=label)
-            li.setProperty("content_id", runtime_id)
-            if icon := item.get("icon"):
-                li.setArt({"icon": icon})
+            li = xbmcgui.ListItem()
+            self._apply_row_visuals(li, item, runtime_id)
             self._list_container.addItem(li)
 
     def _refresh_list_row(self, idx: int) -> None:
@@ -235,17 +251,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if idx < 0 or idx >= len(keys):
             return
         runtime_id = keys[idx]
-        item_def = self.listitems[runtime_id]
         li = self._list_container.getListItem(idx)
-        li.setProperty("content_id", runtime_id)
-
-        raw = item_def.get("label", "")
-        new_lbl = self._format_and_localize(
-            item_def["mapping"], item_def["runtime_index"], raw
-        )
-        li.setLabel(new_lbl or "")
-        if icon := item_def.get("icon"):
-            li.setArt({"icon": icon})
+        self._apply_row_visuals(li, self.listitems[runtime_id], runtime_id)
 
     def _refresh_ui(self, update_row: bool = True) -> None:
         """
@@ -267,8 +274,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self._refresh_list_row(self.container_position)
 
         item = self.listitems[self.current_listitem]
-        desc = self._format_and_localize(
-            item["mapping"], self._source_index, item.get("description", "")
+        desc = self.runtime_manager.format_metadata(
+            item["mapping"],
+            self._source_index,
+            item.get("description", ""),
+            localize=True,
         )
         self._description_label.setText(desc or "")
 
@@ -370,10 +380,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 else None
             )
             if focused_handler and focused_handler.description:
-                desc = self._format_and_localize(
+                desc = self.runtime_manager.format_metadata(
                     focused_handler.mapping_key,
                     self._source_index,
                     focused_handler.description,
+                    localize=True,
                 )
             else:
                 desc = next(
@@ -720,22 +731,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         )
         if rebuilt is None:
             log.debug(f"_seed_metadata: rebuild failed for {mk}[{idx}]={new_preset}")
-
-    def _format_and_localize(self, mapping_key: str, idx: int, raw: str) -> str:
-        """
-        Format placeholders in `raw` from metadata and translate Kodi infolabels.
-
-        :param mapping_key: Mapping group key.
-        :param idx: Index in the runtime list.
-        :param raw: Template string containing {metadata} tokens.
-        :return: Localized, formatted string.
-        """
-        formatted = (
-            raw
-            if "{" not in raw
-            else self.runtime_manager.format_metadata(mapping_key, idx, raw)
-        )
-        return infolabel(formatted) if formatted.startswith("$") else formatted
 
     def _later_parent_ids(self, child_mapping: str) -> set[str]:
         """

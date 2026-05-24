@@ -310,7 +310,7 @@ A single dynamic template assembles the widget list from runtime state:
   <mode>dynamic</mode>
   <index start="3200" />
   <include name="widget_containers">
-    <include content="lst_{layout}">
+    <include content="ctn_{layout}">
       <param name="id" value="{index}" />
       <param name="visible" value="..." />
       <param name="target" value="{target}" />
@@ -322,4 +322,4 @@ A single dynamic template assembles the widget list from runtime state:
 </template>
 ```
 
-The outer `<include name="widget_containers">` is fixed, so it appears once. The inner `<include content="lst_{layout}">` multiplies — one call per runtime entry, each routing to the matching skin-defined layout include (`lst_strip`, `lst_grid`, `lst_showcase`). On editor close, the includes builder re-runs and the skin reloads. See [Includes Builder](07-includes.md).
+The outer `<include name="widget_containers">` is fixed, so it appears once. The inner `<include content="ctn_{layout}">` multiplies — one call per runtime entry, each routing to the matching skin-defined layout include (`ctn_strip`, `ctn_grid`, `ctn_showcase`). On editor close, the includes builder re-runs and the skin reloads. See [Includes Builder](07-includes.md).

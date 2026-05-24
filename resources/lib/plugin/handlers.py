@@ -1,6 +1,8 @@
 # author: realcopacetic
 
+import random
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any, Callable, Iterator
 
@@ -22,14 +24,16 @@ from resources.lib.plugin.helpers import (
 )
 from resources.lib.plugin.json_map import (
     HEAVY_FIELDS,
-    json_to_canonical,
     trim_properties,
 )
 from resources.lib.plugin.library import (
     DirectoryItem,
+    build_items,
     enrich_with_tvshow,
     fetch_and_add,
+    fetch_raw,
     role_endpoint,
+    title_filter,
 )
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.plugin.registry import PluginInfoRegistry
@@ -40,7 +44,6 @@ from resources.lib.shared.utilities import (
     ADDON,
     condition,
     infolabel,
-    json_call,
     parse_bool,
     set_plugincontent,
     to_int,
@@ -58,6 +61,7 @@ class _FocusGuard:
         "caller_name",
         "expected_identity",
         "identity_getter",
+        "focus_ids",
     )
 
     def __init__(
@@ -65,6 +69,7 @@ class _FocusGuard:
         caller_name: str,
         expected_identity: str | None,
         identity_getter: Callable[[], str],
+        focus_ids: tuple[str, ...] = (),
     ):
         """
         Create a guard that checks container focus and item identity.
@@ -72,10 +77,12 @@ class _FocusGuard:
         :param caller_name: Name of the calling handler, used for logging.
         :param expected_identity: Snapshot identity for the focused item; None to disable identity guarding.
         :param identity_getter: Callable returning current item identity.
+        :param focus_ids: Control ids of which one must hold focus; empty to disable focus guarding.
         """
         self.caller_name = caller_name
         self.expected_identity = expected_identity
         self.identity_getter = identity_getter
+        self.focus_ids = focus_ids
 
     def alive(self) -> bool:
         """
@@ -83,13 +90,19 @@ class _FocusGuard:
 
         :return: True if guard conditions still hold, otherwise False.
         """
-        if self.expected_identity is None:
+        if self.focus_ids and not any(
+            condition(f"Control.HasFocus({fid})") for fid in self.focus_ids
+        ):
+            log.debug(
+                f"PluginHandlers → {self.caller_name}: ABORTED → focus left "
+                f"({', '.join(self.focus_ids)})"
+            )
+            return False
+
+        if not self.expected_identity:
             return True
 
-        if (
-            self.expected_identity.isdigit()
-            and self.expected_identity != self.identity_getter()
-        ):
+        if self.expected_identity != self.identity_getter():
             log.debug(
                 f"PluginHandlers → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus"
             )
@@ -103,18 +116,26 @@ def focus_guard(
     caller_name: str,
     identity_container: str,
     expected_identity: str | None,
+    identity_labels: tuple[str, ...] = (),
+    focus_ids: tuple[str, ...] = (),
 ) -> Iterator[_FocusGuard]:
     """
     Build an identity guard for a plugin operation.
-    Returns a guard object whose ``alive()`` checks the focused item is unchanged.
+    Returns a guard object whose ``alive()`` checks focus and item identity.
 
     :param caller_name: Name of the calling handler, used for logging.
-    :param identity_container: Container path used to read CurrentItem for identity guarding.
+    :param identity_container: Container path for the default CurrentItem identity source.
     :param expected_identity: Snapshot identity of focused item; None to disable identity guarding.
+    :param identity_labels: Infolabel paths overriding the default identity source; live values join with ",".
+    :param focus_ids: Control ids of which one must hold focus; empty to disable focus guarding.
+
     :return: A ``_FocusGuard`` instance for lazy identity validation.
     """
-    identity_getter = lambda: infolabel(f"{identity_container}.CurrentItem")
-    yield _FocusGuard(caller_name, expected_identity, identity_getter)
+    if identity_labels:
+        identity_getter = lambda: ",".join(infolabel(p) for p in identity_labels)
+    else:
+        identity_getter = lambda: infolabel(f"{identity_container}.CurrentItem")
+    yield _FocusGuard(caller_name, expected_identity, identity_getter, focus_ids)
 
 
 class PluginHandlers(metaclass=PluginInfoRegistry):
@@ -129,8 +150,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.dbtype = params.get("type", "").lower()
         self.dbid = params.get("id", "")
         self.target = to_int(params.get("target"), None)
-        self.focus_target = to_int(params.get("focus_container"), self.target)
         self.expected_identity = params.get("focus_guard")
+        self.focus_ids = tuple(filter(None, params.get("focus_ids", "").split(",")))
+        self.identity_labels = tuple(
+            filter(None, params.get("identity_labels", "").split(","))
+        )
         self.target_container = (
             f"Container({self.target})" if self.target is not None else "Container"
         )
@@ -138,10 +162,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.identity_container = (
             f"Container({identity_id})" if identity_id is not None else "Container"
         )
-
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
         self.limit = to_int(params.get("limit"), None)
+        self.randomise = params.get("randomise", "")
 
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
@@ -149,11 +173,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "field": "playcount",
             "operator": "lessthan",
             "value": "1",
-        }
-        self.filter_watched = {
-            "field": "playcount",
-            "operator": "greaterthan",
-            "value": "0",
         }
         self.filter_no_specials = {
             "field": "season",
@@ -181,6 +200,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             caller_name=caller,
             identity_container=self.identity_container,
             expected_identity=self.expected_identity,
+            identity_labels=self.identity_labels,
+            focus_ids=self.focus_ids,
         )
 
     def _get_tmdb_item(
@@ -419,6 +440,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 base_id=to_int(self.params.get("base_id"), None),
                 progress_id=to_int(self.params.get("progress_id"), None),
                 btn_id=to_int(self.params.get("btn_id"), None),
+                img_id=to_int(self.params.get("img_id"), None),
             )
             return result
 
@@ -484,11 +506,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             category=ADDON.getLocalizedString(32601),
             sort_method=SORT_METHOD_LASTPLAYED,
         )
-        results = []
         filters = [self.filter_inprogress]
+        jobs: list[Callable[[], list[DirectoryItem]]] = []
         if self.dbtype != "tvshow":
-            results.extend(
-                fetch_and_add(
+            jobs.append(
+                lambda: fetch_and_add(
                     method="VideoLibrary.GetMovies",
                     media_type="movie",
                     filters=filters,
@@ -501,8 +523,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
 
         if self.dbtype != "movie":
-            results.extend(
-                fetch_and_add(
+            jobs.append(
+                lambda: fetch_and_add(
                     method="VideoLibrary.GetEpisodes",
                     media_type="episode",
                     filters=filters,
@@ -516,6 +538,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     properties=trim_properties("episode", HEAVY_FIELDS),
                 )
             )
+
+        with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+            futures = [pool.submit(job) for job in jobs]
+            results = [item for f in futures for item in f.result()]
 
         return results or None
 
@@ -533,8 +559,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             sort_method=SORT_METHOD_LASTPLAYED,
         )
         # 1: In-progress shows, ordered by lastplayed desc.
-        shows_q = json_call(
+        shows = fetch_raw(
             "VideoLibrary.GetTVShows",
+            "tvshow",
+            [self.filter_inprogress],
+            sort=self.sort_lastplayed,
+            parent="next_up",
+            limit=self.limit,
             properties=[
                 "title",
                 "studio",
@@ -544,29 +575,28 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "watchedepisodes",
                 "art",
             ],
-            sort=self.sort_lastplayed,
-            limit=self.limit,
-            query_filter={"and": [self.filter_inprogress]},
-            parent="next_up",
         )
-        shows = shows_q.get("result", {}).get("tvshows", [])
         if not shows:
             log.debug(f"{self.__class__.__name__} → next_up: No TV shows found.")
             return None
 
         pending_ids = {s["tvshowid"] for s in shows}
 
-        # 2: Bulk fetch all unwatched non-special episodes library-wide,
-        # episode-level properties only (no art, no streamdetails). Single
-        # MySQL round-trip; Python picks the first per pending show below.
-        bulk_q = json_call(
+        # 2: Unwatched non-special episodes for the pending shows only,
+        # episode-level properties (no art, no streamdetails). Single MySQL
+        # round-trip; Python picks the first per pending show below.
+        bulk_episodes = fetch_raw(
             "VideoLibrary.GetEpisodes",
-            properties=trim_properties("episode", HEAVY_FIELDS | {"art"}),
+            "episode",
+            [
+                self.filter_unwatched,
+                self.filter_no_specials,
+                title_filter((s["title"] for s in shows), field="tvshow"),
+            ],
             sort={"order": "ascending", "method": "episode"},
-            query_filter={"and": [self.filter_unwatched, self.filter_no_specials]},
             parent="next_up",
+            properties=trim_properties("episode", HEAVY_FIELDS | {"art"}),
         )
-        bulk_episodes = bulk_q.get("result", {}).get("episodes", [])
 
         # 3: First episode per pending show. Bulk result is sorted ascending
         # by episode, so the first hit per tvshowid wins.
@@ -596,14 +626,79 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             return None
 
-        canonical_items = [
-            json_to_canonical(raw, "episode") for raw in ordered_episodes
-        ]
-        return set_items(
-            canonical_items,
-            media_type="episode",
-            tag_applier=apply_videoinfotag,
+        return build_items(ordered_episodes, "episode", tag_applier=apply_videoinfotag)
+
+    @log.duration
+    def random_movies(self) -> list[DirectoryItem] | None:
+        """Build a seed-stable randomised container of movies."""
+        return self._random_video(
+            method="VideoLibrary.GetMovies",
+            media_type="movie",
+            content="movies",
+            category=31204,
+            parent="random_movies",
+            filters=[
+                {"field": "lastplayed", "operator": "notinthelast", "value": "14 days"}
+            ],
         )
+
+    @log.duration
+    def random_tvshows(self) -> list[DirectoryItem] | None:
+        """Build a seed-stable randomised container of TV shows."""
+        return self._random_video(
+            method="VideoLibrary.GetTVShows",
+            media_type="tvshow",
+            content="tvshows",
+            category=31205,
+            parent="random_tvshows",
+            filters=[],
+        )
+
+    def _random_video(
+        self,
+        *,
+        method: str,
+        media_type: str,
+        content: str,
+        category: int,
+        parent: str,
+        filters: list[dict[str, Any]],
+    ) -> list[DirectoryItem] | None:
+        """
+        Seed-stable random container in two queries: an id+title pool fetch,
+        then one title-filtered details fetch for the shuffled slice.
+        """
+
+        set_plugincontent(content=content, category=ADDON.getLocalizedString(category))
+        id_key = f"{media_type}id"
+        result_key = f"{media_type}s"
+        pool = fetch_raw(
+            method, media_type, filters, sort=None, parent=parent, properties=["title"]
+        )
+        if not pool:
+            return None
+
+        pool.sort(key=lambda item: item[id_key])
+        rng = random.Random(self.randomise) if self.randomise else random
+        rng.shuffle(pool)
+        if self.limit:
+            pool = pool[: self.limit]
+
+        order = {item[id_key]: idx for idx, item in enumerate(pool)}
+        rows = fetch_raw(
+            method,
+            media_type,
+            [title_filter(item["title"] for item in pool)],
+            sort=None,
+            parent=parent,
+            properties=trim_properties(media_type, HEAVY_FIELDS),
+        )
+        rows = [r for r in rows if r[id_key] in order]
+        if not rows:
+            return None
+        rows.sort(key=lambda r: order[r[id_key]])
+
+        return build_items(rows, media_type, tag_applier=apply_videoinfotag)
 
     @role_endpoint(
         field="actor",

@@ -1,21 +1,23 @@
 # author: realcopacetic
 
+import random
+
+import xbmc
+
+from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import ADDON, DIALOG, SKINXML
+from resources.lib.shared.utilities import clear_cache as _clear_cache_util
 from resources.lib.shared.utilities import (
-    ADDON,
-    DIALOG,
-    SKINXML,
-    clear_cache as _clear_cache_util,
     clear_playlists,
     condition,
+    focused_control_id,
     infolabel,
     json_call,
     reset_dev_state,
     skin_string,
     to_int,
     window_property,
-    xbmc,
 )
-from resources.lib.shared import logger as log
 
 REGISTRY = {}
 
@@ -70,6 +72,31 @@ def clear_label(id):
     except RuntimeError:
         log.debug(f"clear_label: Label id {id} not found.")
         return
+
+
+@action
+def container_move(offset: str, **kwargs: dict) -> None:
+    """
+    Move a container by an offset, clamping at the list ends when wrap is
+    false. Targets the id param, else the focused control.
+
+    :param id: Container id; falls back to focused control when absent.
+    :param offset: Signed move distance (default 1).
+    :param wrap: 'false' to clamp at both ends; otherwise Kodi's native wrap.
+    """
+    container = kwargs.get("id") or focused_control_id()
+    if not container:
+        return
+
+    offset = to_int(kwargs.get("offset"), 1)
+    if kwargs.get("wrap") == "false":
+        pos = to_int(infolabel(f"Container({container}).CurrentItem"), 0)
+        total = to_int(infolabel(f"Container({container}).NumItems"), 0)
+        if not (1 <= pos + offset <= total):
+            return
+
+    log.execute(f"Control.Move({container},{offset})")
+
 
 @action
 def dialog_yesno(heading, message, **kwargs):
@@ -131,8 +158,7 @@ def dynamic_settings_window(**kwargs):
     if not myWindow.parent_filter:
         myWindow.runtime_manager.reload_state()
         if (
-            myWindow.runtime_manager.runtime_state
-            != myWindow._runtime_state_snapshot
+            myWindow.runtime_manager.runtime_state != myWindow._runtime_state_snapshot
             or myWindow.skin_strings_changed
         ):
             from resources.lib.builders.build_elements import BuildElements
@@ -188,8 +214,8 @@ def hex_contrast_check(**kwargs):
 @action
 def jumpbutton(**kwargs):
     """Updates the position of the jump scrollbar indicator."""
-    from resources.lib.plugin.helpers import JumpButton
     from resources.lib.plugin.geometry import PlacementOpts
+    from resources.lib.plugin.helpers import JumpButton
 
     jump = JumpButton()
     jump.update(
@@ -374,6 +400,24 @@ def play_radio(**kwargs):
 
 
 @action
+def play_trailer(trailer, **kwargs):
+    """
+    Play a trailer, flagging it so PlayerMonitor applies trailer zoom.
+
+    :param trailer: Player path or plugin URL to play.
+    :param viewport: Optional "WxH" trailer region; enables aspect zoom.
+    :param source_prefix: Optional infolabel prefix for AR lookup.
+    """
+    if not trailer:
+        return
+
+    window_property("trailer_playing", value="true")
+    window_property("trailer_viewport", value=kwargs.get("viewport", ""))
+    window_property("trailer_source", value=kwargs.get("source_prefix", ""))
+    log.execute(f"PlayMedia({trailer},1,noresume)")
+
+
+@action
 def rate_song(**kwargs):
     """
     Sets the user rating for a song and updates skin string for MusicPlayer.
@@ -411,6 +455,23 @@ def rate_song(**kwargs):
         musicInfoTag.setUserRating(rating_threshold)
         player.updateInfoTag(item)
         """
+
+
+@action
+def roll_seed(prop, window_id=10000, **kwargs):
+    """
+    Set a fresh random seed into the named window property.
+
+    :param prop: Window property name to write the seed into.
+    :param window_id: ID of the Kodi window, defaults to 10000 for home.
+    """
+    if not prop:
+        log.debug("roll_seed → 'prop' kwarg is required")
+        return
+    window_property(
+        prop, value=str(random.randrange(2**31)), window_id=to_int(window_id, 10000)
+    )
+
 
 @action
 def set_edit(id, **kwargs):
@@ -533,6 +594,7 @@ def toggle_addon(id, **kwargs):
         )
         DIALOG.notification(id, ADDON.getLocalizedString(32206))
 
+
 @action
 def rebuild(**kwargs):
     """
@@ -557,77 +619,3 @@ def rebuild(**kwargs):
         ADDON.getLocalizedString(32207 if reset else 32211),
         time=4000,
     )
-
-
-@action
-def widget_move(posa, posb, **kwargs):
-    """
-    Swaps widget configuration between two slots (A ↔ B).
-
-    Preserves all known skin settings: content type, view style, scroll, logos, etc.
-
-    :param posa: First widget position index (int).
-    :param posb: Second widget position index (int).
-    """
-    # create list of (widget position, dictionary)
-    content_types = [
-        "Disabled",
-        "InProgress",
-        "NextUp",
-        "LatestMovies",
-        "LatestTVShows",
-        "RandomMovies",
-        "RandomTVShows",
-        "LatestAlbums",
-        "RecentAlbums",
-        "RandomALbums",
-        "LikedSongs",
-        "Favourites",
-        "Custom",
-    ]
-    template = {
-        "View": "",
-        "Display": "",
-        "Content": "",
-        "Custom_Name": "",
-        "Custom_Target": "",
-        "Custom_SortMethod": "",
-        "Custom_SortOrder": "",
-        "Custom_Path": "",
-        "Custom_Limit": "",
-        "Autoscroll": False,
-        "Trailer_Autoplay": False,
-        "Clearlogos_Enabled": False,
-        "Prefer_Keyart": False,
-        "landscape_visible": False,
-    }
-    dica, dicb = {}, {}
-    dica.update(template)
-    dicb.update(template)
-
-    # populate dictionaries with values from Kodi
-    list = [(posa, dica), (posb, dicb)]
-    for item in list:
-        for content in content_types:
-            if condition(f"Skin.HasSetting(Widget{item[0]}_Content_{content})"):
-                # capture value of bool then reset it in Kodi
-                item[1]["Content"] = content
-                log.execute(f"Skin.Reset(Widget{item[0]}_Content_{content})")
-                break
-        for key, value in item[1].items():
-            if type(value) == str and not value:
-                item[1][key] = infolabel(f"Skin.String(Widget{item[0]}_{key})")
-            elif type(value) == bool and not value:
-                if condition(f"Skin.HasSetting(Widget{item[0]}_{key})"):
-                    # capture value of bool then reset it in Kodi
-                    item[1][key] = True
-                    log.execute(f"Skin.Reset(Widget{item[0]}_{key})")
-    # swap values
-    swapped_list = [(posa, dicb), (posb, dica)]
-    for item in swapped_list:
-        log.execute(f'Skin.ToggleSetting(Widget{item[0]}_Content_{item[1]["Content"]})')
-        for key, value in item[1].items():
-            if type(value) == str:
-                skin_string(f"Widget{item[0]}_{key}", value=value)
-            elif type(value) == bool and value and "Content" not in key:
-                log.execute(f"Skin.ToggleSetting(Widget{item[0]}_{key})")

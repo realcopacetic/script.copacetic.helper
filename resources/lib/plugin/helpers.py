@@ -24,7 +24,6 @@ from resources.lib.shared.utilities import (
     split_random,
     to_int,
     url_encode,
-    window_property,
 )
 
 
@@ -275,6 +274,7 @@ class ProgressBarManager:
         self.base_id = int(base_id)
         self.progress_id = base_id + 1
         self.btn_id = base_id + 2
+        self.img_id = base_id + 3
         self.btn_width = btn_width
         self.infolabels = get_infolabels(
             self.target,
@@ -342,6 +342,7 @@ class ProgressBarManager:
         base_id: int | None = None,
         progress_id: int | None = None,
         btn_id: int | None = None,
+        img_id: int | None = None,
     ) -> None:
         """
         Resolve rect, move/size controls, and position the thumb.
@@ -355,6 +356,7 @@ class ProgressBarManager:
         base_id = to_int(base_id, self.base_id)
         progress_id = to_int(progress_id, self.progress_id)
         btn_id = to_int(btn_id, self.btn_id)
+        img_id = to_int(img_id, self.img_id)
 
         try:
             base = self.window.getControl(base_id)
@@ -381,6 +383,14 @@ class ProgressBarManager:
         base.setPosition(posx, posy)
         progress.setWidth(width)
         progress.setHeight(height)
+
+        try:
+            img = self.window.getControl(img_id)
+        except RuntimeError:
+            log.debug(f"{self.__class__.__name__}: Optional img_id {img_id} not found.")
+        else:
+            img.setWidth(width)
+            img.setHeight(height)
 
         try:
             cur_w, cur_h = base.getWidth(), base.getHeight()

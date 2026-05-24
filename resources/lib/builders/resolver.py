@@ -15,106 +15,115 @@ from resources.lib.builders.substitution import enumerate_mapping_subs
 from resources.lib.shared import logger as log
 
 
-class ConfigsResolver:
+class _TemplateResolver:
     """
-    Resolves configs from pre-merged template data on demand, with caching.
-    Replaces the build-time ConfigsBuilder + configs.json file. Takes
-    pre-merged template data; loading is the caller's responsibility.
+    Shared template storage and sub enumeration for resolver classes.
+    """
+
+    def __init__(self, mappings: dict, data: dict) -> None:
+        """
+        Flatten template data into a (mapping_name, tpl_name) → data dict.
+
+        :param mappings: Dictionary of mapping definitions.
+        :param data: {mapping_name: {tpl_name: tpl_data}}.
+        """
+        self._mappings = mappings
+        self._templates = {
+            (mapping_name, tpl_name): tpl_data
+            for mapping_name, templates in data.items()
+            for tpl_name, tpl_data in templates.items()
+        }
+
+    def _subs_for(self, mapping_name: str, tpl_name: str) -> list[dict]:
+        """
+        Return substitution dicts for enumerating this template.
+        Constant-named templates yield a single empty sub.
+
+        :param mapping_name: Mapping owning the template.
+        :param tpl_name: Raw template name (placeholders intact).
+        :return: List of substitution dicts.
+        """
+        if "{" not in tpl_name:
+            return [{}]
+        return enumerate_mapping_subs(self._mappings.get(mapping_name, {}))
+
+
+class ConfigsResolver(_TemplateResolver):
+    """
+    Resolves configs from pre-merged template data on demand. Callers
+    provide the substitution context per resolve; no eager enumeration.
     """
 
     def __init__(self, mappings: dict, configs_data: dict) -> None:
         """
-        Build the reverse index. Resolution is lazy; entries are resolved
-        on first access and cached.
+        Store templates and initialise the rule engine.
 
         :param mappings: Dictionary of mapping definitions.
         :param configs_data: {mapping_name: {tpl_name: tpl_data}}.
         """
-        self._mappings = mappings
+
+        super().__init__(mappings, configs_data)
         self._rules = RuleEngine()
-        self._templates = {
-            (mapping_name, tpl_name): tpl_data
-            for mapping_name, templates in configs_data.items()
-            for tpl_name, tpl_data in templates.items()
-        }
-        self._index = self._build_index()
-        self._cache: dict[str, dict] = {}
 
-    def _build_index(self) -> dict:
+    def resolve(self, mapping_name: str, tpl_name: str, sub: dict) -> dict:
         """
-        Build reverse index resolved_cfg_key → (mapping_name, tpl_name, sub).
-        Iterates every (template × substitution) without resolving rules.
+        Resolve a template against a substitution dict. Tries the
+        formatted template name first (constant-named templates), then
+        falls back to the raw template name (placeholder templates).
 
-        :return: Index mapping cfg keys to template + sub origin.
+        :param mapping_name: Mapping owning the template.
+        :param tpl_name: Raw template name (placeholders intact).
+        :param sub: Substitution dict.
+        :return: Resolved entry dict, or empty dict if no match.
         """
-        index = {}
-        for (mapping_name, tpl_name), _data in self._templates.items():
-            # Constant template name — one entry, empty sub. Rules using
-            # placeholders will KeyError loudly at resolve time.
-            if "{" not in tpl_name:
-                index[tpl_name] = (mapping_name, tpl_name, {})
-                continue
-            for sub in enumerate_mapping_subs(self._mappings.get(mapping_name, {})):
-                try:
-                    cfg_key = tpl_name.format(**sub)
-                except KeyError as e:
-                    log.debug(
-                        f"{self.__class__.__name__}: template '{tpl_name}' "
-                        f"in mapping '{mapping_name}' references unknown "
-                        f"placeholder {e}; skipping for sub={sub}"
-                    )
-                    continue
-                index[cfg_key] = (mapping_name, tpl_name, sub)
-        return index
+        try:
+            formatted = tpl_name.format(**sub)
+        except KeyError:
+            formatted = None
 
-    def resolve(self, cfg_key: str) -> dict:
-        """
-        Resolve a single config entry by its fully-expanded key.
-        Unknown keys are cached as ``{}`` so repeated misses are O(1)
+        if formatted is not None:
+            if data := self._templates.get((mapping_name, formatted)):
+                return self._resolve_one(data, sub, mapping_name)
 
-        :param cfg_key: Resolved config key (e.g. "movies_layout").
-        :return: Resolved entry dict, or empty dict if unknown.
-        """
-        if not cfg_key:
-            return {}
-        if cfg_key in self._cache:
-            return self._cache[cfg_key]
-        entry = self._index.get(cfg_key)
-        if entry is None:
-            self._cache[cfg_key] = {}
-            return {}
-        mapping_name, tpl_name, sub = entry
-        result = self._resolve_one(
-            self._templates[(mapping_name, tpl_name)], sub, mapping_name
-        )
-        self._cache[cfg_key] = result
-        return result
+        if data := self._templates.get((mapping_name, tpl_name)):
+            return self._resolve_one(data, sub, mapping_name)
 
-    def resolve_default(self, cfg_key: str) -> str | None:
+        return {}
+
+    def resolve_default(
+        self, mapping_name: str, tpl_name: str, sub: dict
+    ) -> str | None:
         """
-        Resolve the default value for a config entry, falling back to the
+        Resolve the default for a template+sub, falling back to the
         first available item if no default is explicitly set.
 
-        :param cfg_key: Resolved config key.
+        :param mapping_name: Mapping owning the template.
+        :param tpl_name: Raw template name (placeholders intact).
+        :param sub: Substitution dict.
         :return: Default value, first item, or None.
         """
-        cfg = self.resolve(cfg_key)
+        cfg = self.resolve(mapping_name, tpl_name, sub)
         return cfg.get("default") or next(iter(cfg.get("items", [])), None)
 
     def iter_static_defaults(self) -> Iterator[tuple[str, str]]:
         """
-        Yield (cfg_key, default) for every resolved static-mode entry that
-        has a default. Used by initialize_skinstrings.
+        Yield (cfg_key, default) for every static-mode template with a
+        default. Used by initialize_skinstrings.
 
         :return: Iterator of (cfg_key, default_value) pairs.
         """
-        for cfg_key in self._index:
-            cfg = self.resolve(cfg_key)
-            if cfg.get("mode") != "static":
+        for (mapping_name, tpl_name), data in self._templates.items():
+            if data.get("mode", "static") != "static":
                 continue
-            default = cfg.get("default")
-            if default is not None:
-                yield cfg_key, default
+            for sub in self._subs_for(mapping_name, tpl_name):
+                try:
+                    cfg_key = tpl_name.format(**sub)
+                except KeyError:
+                    continue
+                cfg = self._resolve_one(data, sub, mapping_name)
+                default = cfg.get("default")
+                if default is not None:
+                    yield cfg_key, default
 
     def _resolve_one(self, data: dict, sub: dict, mapping_name: str) -> dict:
         """
@@ -174,25 +183,24 @@ class ConfigsResolver:
         return out
 
 
-class ControlsResolver:
+class ControlsResolver(_TemplateResolver):
     """
     Resolves controls from pre-merged template data on demand.
     """
 
-    def __init__(self, mappings: dict, controls_data: dict) -> None:
+    def __init__(
+        self, mappings: dict, controls_data: dict, configs: "ConfigsResolver"
+    ) -> None:
         """
-        Store templates as a flat list. Resolved on demand per
-        mapping-set; typically called once per editor session.
+        Store templates and hold a reference to configs for pre-resolving
+        contextual_bindings at expansion time.
 
         :param mappings: Dictionary of mapping definitions.
         :param controls_data: {mapping_name: {tpl_name: tpl_data}}.
+        :param configs: ConfigsResolver instance for binding resolution.
         """
-        self._mappings = mappings
-        self._templates = [
-            (mapping_name, tpl_name, tpl_data)
-            for mapping_name, templates in controls_data.items()
-            for tpl_name, tpl_data in templates.items()
-        ]
+        super().__init__(mappings, controls_data)
+        self._configs = configs
 
     def for_mappings(self, mapping_keys: list[str]) -> dict:
         """
@@ -203,7 +211,7 @@ class ControlsResolver:
         """
         keys = set(mapping_keys)
         resolved: dict = {}
-        for mapping_name, tpl_name, tpl_data in self._templates:
+        for (mapping_name, tpl_name), tpl_data in self._templates.items():
             if mapping_name not in keys:
                 continue
             resolved.update(self._expand(mapping_name, tpl_name, tpl_data))
@@ -226,14 +234,24 @@ class ControlsResolver:
         substitutions = enumerate_mapping_subs(self._mappings.get(mapping_name, {}))
 
         if "contextual_bindings" in data:
+            raw_bindings = data["contextual_bindings"]
+            raw_linked = raw_bindings.get("linked_config")
             resolved_bindings: list = []
             seen: set = set()
             for sub in substitutions:
                 resolved = {
                     k: (v.format(**sub) if isinstance(v, str) else v)
-                    for k, v in data["contextual_bindings"].items()
+                    for k, v in raw_bindings.items()
                 }
-                key = tuple(sorted(resolved.items()))
+                if raw_linked:
+                    resolved["config"] = self._configs.resolve(
+                        mapping_name, raw_linked, sub
+                    )
+                key = tuple(
+                    sorted(
+                        (k, v) for k, v in resolved.items() if isinstance(v, str)
+                    )
+                )
                 if key not in seen:
                     seen.add(key)
                     resolved_bindings.append(resolved)

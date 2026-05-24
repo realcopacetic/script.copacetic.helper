@@ -84,20 +84,22 @@ class TrailerZoomController:
 
     def _get_trailer_source(self) -> str:
         """
-        Resolve the active content source prefix for AR lookup.
+        Resolve the source-container prefix for AR lookup, or "" if unset.
 
-        :return: e.g. "ListItem" or "Container(3100)".
+        :return: e.g. "Container(3100).ListItem", or "" when no source given.
         """
         raw = (infolabel("Window(home).Property(trailer_source)") or "").strip()
-        return f"Container({raw}).ListItem" if raw.isdigit() else "ListItem"
+        return f"Container({raw}).ListItem" if raw.isdigit() else raw
 
     def _get_source_ar(self) -> float:
         """
-        Return AR from the listitem/container feeding the trailer.
+        Return AR from the source container's listitem, or 0.0 if unset.
 
         :return: Aspect ratio or 0.0.
         """
         source = self._get_trailer_source()
+        if not source:
+            return 0.0
         return to_float(infolabel(f"{source}.VideoAspect"))
 
     def _get_tvshow_episode_ar(self, tvshow_id: int) -> float:
@@ -159,12 +161,12 @@ class TrailerZoomController:
 
         # TV show fallback
         episode_ar = 0.0
-        dbtype = infolabel(f"{source}.DBType").lower()
-        dbid = to_float(infolabel(f"{source}.DBID"))
-        if dbtype == "tvshow" and dbid > 0 and source_ar <= 0.0:
+        dbtype = infolabel(f"{source}.DBType").lower() if source else ""
+        dbid = to_float(infolabel(f"{source}.DBID")) if source else 0.0
+        if source and dbtype == "tvshow" and dbid > 0 and source_ar <= 0.0:
             episode_ar = self._get_tvshow_episode_ar(int(dbid))
 
-        # Prefer trailer AR if clearly not fake-16:9
+        # Prefer trailer AR if YouTube not reporting as 16:9
         if trailer_ar and abs(trailer_ar - 1.78) > 0.05:
             content_ar = trailer_ar
         elif source_ar > 0.0:

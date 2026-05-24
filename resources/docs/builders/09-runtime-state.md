@@ -6,7 +6,8 @@ Runtime state powers the multi-instance features: widgets, menus, and anything e
 
 ## runtime_state.json
 
-One list per mapping. Each entry is a flat dictionary of string fields. Two entries from a real widget list:
+One list per mapping. Each entry is a flat dictionary of string fields. Two entries from a real widget list.
+An entry only carries fields it needs to: identity, copied metadata strings, and any fields the user has set. Anything the user hasn't touched is absent on disk and resolves to its config default on read. Two entries from a real widget list:
 
 ```json
 {
@@ -19,26 +20,21 @@ One list per mapping. Each entry is a flat dictionary of string fields. Two entr
       "content": "videodb://movies/titles/",
       "sortby": "dateadded",
       "sortorder": "descending",
-      "limit": "20",
       "parent": "bf340cc1-17c5-437f-8f84-76d6676601c6",
-      "layout": "strip",
-      "art": "fanart"
+      "layout": "showcase",
     },
     {
       "runtime_id": "a956c4b6-d6b3-4754-957e-d5993786a8b9",
       "mapping_item": "custom",
       "label": "In-progress movies",
       "content": "special://skin/extras/playlists/inprogress_movies.xsp",
-      "layout": "strip",
-      "art": "poster",
-      "sortby": "title",
-      "sortorder": "ascending",
-      "limit": "20",
       "parent": "bf340cc1-17c5-437f-8f84-76d6676601c6"
     }
   ]
 }
 ```
+
+The first entry has been touched by the user — `layout` is set to `showcase`. The second is untouched; layout, art, sortby, sortorder, limit will all resolve to their config defaults when read.
 
 Fields on each entry:
 
@@ -47,7 +43,7 @@ Fields on each entry:
 | `runtime_id` | UUID — assigned on insert, stable across reorder, rename, and preset changes |
 | `mapping_item` | Which preset this entry uses |
 | Metadata fields | All string-valued metadata for this `mapping_item`, copied onto the entry at insert |
-| `config_field` values | One per entry in the mapping's `config_fields`, initialised from the resolved default |
+| `config_field` values | Absent unless the user has set them. Reads fall back to the field's config default. |
 | `parent` | Optional — runtime_id of an entry in another mapping group |
 | User edits | Anything edited through the editor overwrites the corresponding field |
 
@@ -57,7 +53,7 @@ The same `mapping_item` can appear multiple times — runtime_id keeps them dist
 
 ## Initialisation
 
-When `runtime_state.json` doesn't exist yet (first skin install), one entry is created for each item in the mapping's `default_order` (or `items` if no `default_order` is set). New entries get a fresh UUID, the `mapping_item` name, all string metadata for that item, and resolved default values for each `config_field`. Metadata wins over config defaults — if metadata defines `sortby`, the config default doesn't get applied.
+When `runtime_state.json` doesn't exist yet (first skin install), one entry is created for each item in the mapping's `default_order` (or `items` if no `default_order` is set). New entries get a fresh UUID, the `mapping_item` name, and all string metadata for that item. `config_field` values are not seeded; they resolve to their config defaults on read until the user sets them. Metadata still wins over config defaults — if metadata defines `sortby`, the field is on the entry and the config default never applies.
 
 ---
 

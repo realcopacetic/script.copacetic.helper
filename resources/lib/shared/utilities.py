@@ -12,7 +12,7 @@ from typing import Any, Mapping
 import xbmc
 import xbmcvfs
 from xbmcaddon import Addon
-from xbmcgui import Dialog, Window
+from xbmcgui import Dialog, Window, getCurrentWindowId
 from xbmcplugin import addSortMethod, setContent, setPluginCategory
 
 THUMB_DB = xbmcvfs.translatePath("special://profile/Thumbnails")
@@ -42,7 +42,7 @@ DIALOG = Dialog()
 VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
 MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
-_LOG_ARRAY_LIMIT = 20
+_JSON_RESPONSE_LIMIT = 5
 
 from resources.lib.shared import logger as log
 
@@ -65,7 +65,7 @@ def reset_dev_state() -> None:
             xbmcvfs.delete(write_path)
     xbmcvfs.delete(RUNTIME_STATE)
     xbmcvfs.delete(RESOLVER_CACHE)
-    log.info(f"reset_dev_state: outputs and runtime_state cleared")
+    log.info(f"reset_dev_state → outputs and runtime_state cleared")
 
 
 """KODI UTILS"""
@@ -86,6 +86,15 @@ def condition(condition: str) -> bool:
     :return: Boolean result.
     """
     return xbmc.getCondVisibility(condition)
+
+
+def focused_control_id() -> int:
+    """
+    Return the id of the focused control in the current window.
+
+    :return: Focused control id, or 0 if nothing is focused.
+    """
+    return Window(getCurrentWindowId()).getFocusId()
 
 
 def infolabel(infolabel: str) -> str:
@@ -188,10 +197,10 @@ def window_property(
     window = Window(window_id)
     if value:
         window.setProperty(key, f"{value}")
-        log.debug(f"Window property: Set, {window_id}, {key}, {value}")
+        log.debug(f"Window property → Set, {window_id}, {key}, {value}")
     else:
         window.clearProperty(key)
-        log.debug(f"Window property: Clear, {window_id}, {key}")
+        log.debug(f"Window property → Clear, {window_id}, {key}")
 
 
 """FILE / PATH UTILS"""
@@ -364,7 +373,7 @@ def _log_call(parent: str | None, payload: Any, result: Any) -> None:
 
 def _truncate_for_log(payload: Any) -> Any:
     """
-    Walk a JSON-RPC result and cap any list longer than _LOG_ARRAY_LIMIT
+    Walk a JSON-RPC result and cap any list longer than _JSON_RESPONSE_LIMIT
     to its first N items, replacing the tail with a summary marker.
     Returns a new structure; does not mutate the input.
 
@@ -374,9 +383,9 @@ def _truncate_for_log(payload: Any) -> Any:
     if isinstance(payload, dict):
         return {k: _truncate_for_log(v) for k, v in payload.items()}
     if isinstance(payload, list):
-        if len(payload) > _LOG_ARRAY_LIMIT:
-            head = [_truncate_for_log(item) for item in payload[:_LOG_ARRAY_LIMIT]]
-            head.append(f"... <{len(payload) - _LOG_ARRAY_LIMIT} more items omitted>")
+        if len(payload) > _JSON_RESPONSE_LIMIT:
+            head = [_truncate_for_log(item) for item in payload[:_JSON_RESPONSE_LIMIT]]
+            head.append(f"... <{len(payload) - _JSON_RESPONSE_LIMIT} more items omitted>")
             return head
         return [_truncate_for_log(item) for item in payload]
     return payload
@@ -669,7 +678,7 @@ def _eval_node(node: ast.AST, names: Mapping[str, Any]) -> Any:
     if isinstance(node, ast.BinOp) and type(node.op) in _BIN_OPS:
         return _BIN_OPS[type(node.op)](
             _eval_node(node.left, names), _eval_node(node.right, names)
-        ) 
+        )
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)

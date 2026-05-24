@@ -102,6 +102,10 @@ The builder evaluates every rule's condition for each substitution, collects mat
 
 Two ways to think about it: "start with everything and remove what doesn't apply" (exclude), or "start with nothing and add what does apply" (include).
 
+> [!IMPORTANT]
+> `items` is the authoritative set of values a config can ever resolve to. Every value a rule's `value` adds, and every value a `defaults` entry names, must appear in `items`. The resolver filters `items` against the matched set — so a rule value that isn't in `items` is silently dropped, and a default that isn't in `items` falls back to the first surviving item. The resolved value is always a member of `items`: the default if it survives filtering, otherwise the first remaining item, otherwise `None`. An empty `items` always resolves to `None`, whatever the rules or defaults say.
+
+
 ---
 
 ## Example walkthrough
@@ -164,7 +168,7 @@ If the resolved default isn't in the allowed items (because rules filtered it ou
 
 ## Per-loop variation requires a placeholder in the name
 
-Configs are resolved on demand and cached by their **resolved name** — the template name after `{placeholder}` substitution. One name, one cached entry, one set of `items` and `rules` and `default`.
+Configs are resolved on demand against the calling context. A template name with a placeholder produces one resolved entry per substitution value; a constant name produces one. The resolver tries the substituted name first (e.g. `widget_limit_showcase`), then falls back to the raw template name (e.g. `widget_{widget_preset}_layout`) — so both flavours work and a constant-named entry takes precedence when both exist.
 
 If you want a config to vary across the loop, put the placeholder in the template name:
 
@@ -193,9 +197,57 @@ The same shape applies to `defaults`: per-key defaults work because they're look
 
 ---
 
+## Cross-field config dependencies
+
+A config's allowed values or default sometimes depend on *another field's* resolved value, not just the loop key. Widget `limit` depends on the chosen `layout` — a showcase shows fewer items than a strip; `blk_tab_left` depends on both `layout` and `art`. Fields resolve in dependency order per entry, but only if you declare the dependency, and the only way to declare it is to put that field's placeholder in the config-key name.
+
+> [!WARNING]
+> If a config's `rules` reference a sibling field (`{layout}`, `{art}`, …), that field's placeholder **must** also appear in the config-key name. A constant-named config whose rules reference a sibling field resolves before the sibling is ready and raises `KeyError` — it does not silently fall back.
+
+A placeholder in the name is what tells the resolver to wait. It resolves the field's name against the entry's other resolved fields first; while the name still contains an unresolved placeholder the field is deferred, and it's retried once that placeholder is available. A constant name has nothing to defer on, so it resolves immediately — before `layout`/`art` exist — and the rule conditions that reference them blow up.
+
+Correct — every depended-on field is named:
+
+```json
+// in the mapping's config_fields
+"tab_left": "tab_left_{layout}_{art}"
+```
+
+```json
+// the config — defined once under the placeholdered key
+"tab_left_{layout}_{art}": {
+  "mode": "dynamic",
+  "items": ["540", "600", "840"],
+  "filter_mode": "include",
+  "rules": [
+    { "condition": "equals({layout}, strip) + equals({art}, square)", "value": ["540"] },
+    { "condition": "equals({layout}, strip) + equals({art}, poster)", "value": ["600"] },
+    { "condition": "true", "value": ["840"] }
+  ]
+}
+```
+
+The resolver formats `blk_tab_left_{layout}_{art}` against the entry, finds `layout` and `art` unresolved on the first pass, defers, and comes back once both are filled — so by the time the rules run, `{layout}` and `{art}` carry real values. Every placeholder in the name must be satisfied before the field resolves, so list all the fields you depend on.
+
+Broken — the dependency lives only in the rules:
+
+```json
+"blk_tab_left": {
+  "rules": [
+    { "condition": "equals({layout}, strip)  equals({art}, square)", "value": ["540"] }
+  ]
+}
+```
+
+The name has nothing to defer on, so this resolves ahead of `layout`/`art` and raises `KeyError` on the rule condition.
+
+This is the same placeholder-in-name mechanism as [Per-loop variation](#per-loop-variation-requires-a-placeholder-in-the-name), used for a different reason: there the placeholder is the loop key (`{widget_preset}`) and produces one config per loop value; here it's a sibling field (`{layout}`) and sequences resolution order.
+
+---
+
 ## How the values are used
 
-When the Dynamic Editor opens a settings window, it asks each control what config it's bound to (e.g. `widget_next_up_layout`), then resolves that key against the source templates: filter rules run, defaults are picked, the result is cached. Subsequent reads of the same config are dict lookups.
+When the Dynamic Editor opens a settings window, it asks each control what config it's bound to (e.g. `widget_next_up_layout`), then resolves the template against the entry's current state: filter rules run, defaults are picked. Resolution is fresh each time — there's no cache — so configs that depend on the entry's other fields (e.g. `widget_limit_{layout}`) re-evaluate when the user changes those fields.
 
 Static-mode configs additionally seed Kodi skin string defaults at build time — so on first install, every `<content_type>_layout` skin string already has a sensible default before the user opens any editor.
 

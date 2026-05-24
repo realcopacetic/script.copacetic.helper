@@ -87,38 +87,38 @@ class BaseControlHandler:
         """
         return {self.instance.getId()}
 
-    def _get_active_link(self) -> dict:
+    def _active_link(self) -> dict:
         """
-        Return the cached contextual binding for the current listitem,
-        resolving it on first access.
+        Cached binding for the focused listitem. For dynamic-linked
+        controls, caches both the formatted cfg_key and the resolved
+        config dict; otherwise falls back to contextual_bindings.
 
         :return: Matching binding dictionary, or empty dict.
         """
-        if self._link_data_cache is None:
-            self._link_data_cache = self._resolve_active_link()
-        return self._link_data_cache
+        if self._link_data_cache is not None:
+            return self._link_data_cache
 
-    def _resolve_active_link(self) -> dict:
-        """
-        Resolve the active binding for the current listitem. For dynamic-linked
-        controls, builds the linked_config key from the current mapping_item.
-        For static controls, matches by update_trigger.
-
-        :return: Matching dynamic_link dictionary, or empty dict if no match.
-        """
         if self.is_dynamic_linked and self.config_field_template:
-            try:
-                current = self.runtime_manager.get_runtime_setting(
-                    self.mapping_key, self.source_index, "mapping_item"
-                )
-                sub_map = {ph: current for ph in self.placeholders.values()}
-                sub_map["index"] = self.source_index
-                return {"linked_config": self.config_field_template.format(**sub_map)}
-            except (IndexError, KeyError) as e:
-                log.debug(f"Failed to resolve dynamic link: {e}")
+            sub_map = self.runtime_manager.entry_substitutions(
+                self.mapping_key, self.source_index
+            )
+            if sub_map:
+                try:
+                    cfg_key = self.config_field_template.format(**sub_map)
+                    cfg_data = self.runtime_manager.configs.resolve(
+                        self.mapping_key, self.config_field_template, sub_map
+                    )
+                except KeyError as e:
+                    log.debug(f"Failed to resolve dynamic link: {e}")
+                else:
+                    self._link_data_cache = {
+                        "linked_config": cfg_key,
+                        "config": cfg_data,
+                    }
+                    return self._link_data_cache
 
         trigger = f"focused({self.current_listitem})"
-        return next(
+        self._link_data_cache = next(
             (
                 link
                 for link in self.control.get("contextual_bindings", [])
@@ -126,14 +126,29 @@ class BaseControlHandler:
             ),
             {},
         )
+        return self._link_data_cache
 
-    def _linked_config(self) -> str | None:
+    def _coerce_to_allowed(self) -> str | None:
         """
-        Return the linked_config ID for the currently matched dynamic link.
+        Snap the stored value to the cfg default (or first allowed item if
+        no default) when the current value isn't in the allowed list.
 
-        :return: config ID string or None.
+        :return: The valid value after coercion, or None if no items.
         """
-        return self._get_active_link().get("linked_config")
+        allowed = self._allowed_items()
+        if not allowed:
+            return None
+        current = self._get_setting_value()
+        if current in allowed:
+            return current
+        link = self._active_link()
+        default_val = (
+            link["config"].get("default", allowed[0])
+            if link.get("linked_config")
+            else allowed[0]
+        )
+        self._set_setting_value(default_val)
+        return default_val
 
     def _allowed_items(self) -> list[str]:
         """
@@ -141,9 +156,10 @@ class BaseControlHandler:
 
         :return: List of approved string values.
         """
-        cfg = self._linked_config()
+        link = self._active_link()
+        cfg = link.get("linked_config")
         return (
-            self.runtime_manager.configs.resolve(cfg).get("items", [])
+            link["config"].get("items", [])
             if cfg
             else (
                 []
@@ -153,16 +169,6 @@ class BaseControlHandler:
                 )
             )
         )
-
-    def _config_context(self) -> tuple[str | None, dict]:
-        """
-        Resolve the linked config and its data for the current control.
-
-        :return: Tuple of ``(cfg, cfg_data)``; cfg_data is empty when cfg is None.
-        """
-
-        cfg = self._linked_config()
-        return cfg, self.runtime_manager.configs.resolve(cfg)
 
     def _get_setting_value(self) -> str | None:
         """
@@ -174,9 +180,9 @@ class BaseControlHandler:
         if self.source_index is None or self.source_index < 0:
             return None
 
-        link = self._get_active_link()
+        link = self._active_link()
         if cfg := link.get("linked_config"):
-            cfg_data = self.runtime_manager.configs.resolve(cfg)
+            cfg_data = link["config"]
             mode = cfg_data.get("mode", "static")
             default = cfg_data.get("default", "")
 
@@ -216,106 +222,97 @@ class BaseControlHandler:
         if self._get_setting_value() == value:
             return
 
-        cfg, cfg_data = self._config_context()
+        link = self._active_link()
+        cfg = link.get("linked_config")
+        cfg_data = link.get("config", {})
         if cfg_data:
             mode = cfg_data.get("mode", "static")
             if mode == "dynamic" and self.is_dynamic_linked:
-                try:
-                    self.runtime_manager.update_runtime_setting(
-                        self.mapping_key, self.source_index, self.field, value
-                    )
-                except IndexError:
-                    pass
+                self.runtime_manager.update_runtime_setting(
+                    self.mapping_key, self.source_index, self.field, value
+                )
             else:
                 skin_string(cfg, value)
                 if self.parent is not None:
                     self.parent.skin_strings_changed = True
             return
 
+        self.runtime_manager.update_runtime_setting(
+            self.mapping_key,
+            self.source_index,
+            self.field or "mapping_item",
+            value,
+        )
+
+    def _preset_key(self) -> str | None:
+        """
+        Mapping_item used for metadata lookup; falls back to current value
+        when field has no runtime entry.
+
+        :return: Mapping_item string or current value.
+        """
+        current = self._get_setting_value()
+        if not self.field:
+            return current
         try:
-            self.runtime_manager.update_runtime_setting(
-                self.mapping_key,
-                self.source_index,
-                self.field or "mapping_item",
-                value,
+            return self.runtime_manager.get_runtime_setting(
+                self.mapping_key, self.source_index, "mapping_item"
             )
-        except IndexError:
-            pass
+        except (IndexError, KeyError):
+            return current
 
-    def _apply_metadata(self, template: str) -> str:
+    def _raw_labels(self) -> tuple[str, str]:
         """
-        Substitute metadata placeholders in a template if any are present.
+        Resolve raw label and label2 strings before token substitution.
 
-        :param template: Template string with optional ``{field}`` placeholders.
-        :return: Substituted string, or the input unchanged.
+        :return: ``(raw_label, raw_label2)`` tuple.
         """
-        return self.runtime_manager.format_metadata(
-            self.control["mapping"], self.source_index, template
+        link = self._active_link()
+        current = self._get_setting_value()
+        raw_label = link.get("label") or self.control.get("label", "")
+
+        if self.control.get("label2") is not None:
+            return raw_label, self.control["label2"]
+        if "label2" in link:
+            return raw_label, link["label2"]
+
+        cfg_labels = link.get("config", {}).get("labels", {})
+        meta = (
+            self.runtime_manager.mappings[self.mapping_key]
+            .get("metadata", {})
+            .get(self._preset_key(), {})
         )
-
-    def _resolve_label(self, raw: str) -> str:
-        """
-        Substitute metadata placeholders and resolve Kodi tokens.
-
-        :param raw: Template string with {metadata} and/or $LOCALIZE tokens.
-        :return: Resolved display string.
-        """
-        formatted = self.runtime_manager.format_metadata(
-            self.control["mapping"], self.source_index, raw
+        raw_label2 = (
+            cfg_labels.get(current)
+            or (current if self.field else None)
+            or meta.get(self.field or "label")
+            or current
+            or ""
         )
-        return infolabel(formatted) if formatted.startswith("$") else formatted
+        return raw_label, raw_label2
 
     def set_instance_labels(
         self, focused_control_id: int, instance: object | None = None
     ) -> None:
         """
-        Update the label and secondary label (label2) on a control instance.
+        Update the label and label2 on a control instance.
 
-        :param focused_control_id: GUI control ID that currently has focus.
-        :param instance: The GUI control to update.
+        :param focused_control_id: GUI control ID with current focus.
+        :param instance: Target control instance; defaults to ``self.instance``.
         """
         if instance is None:
             instance = self.instance
 
-        link = self._get_active_link()
-        current_value = self._get_setting_value()
-        if self.field:
-            try:
-                preset_key = self.runtime_manager.get_runtime_setting(
-                    self.mapping_key, self.source_index, "mapping_item"
-                )
-            except (IndexError, KeyError):
-                preset_key = current_value
-        else:
-            preset_key = current_value
-        meta = (
-            self.runtime_manager.mappings[self.mapping_key]
-            .get("metadata", {})
-            .get(preset_key, {})
+        raw_label, raw_label2 = self._raw_labels()
+        label = self.runtime_manager.format_metadata(
+            self.mapping_key, self.source_index, raw_label, localize=True
         )
-        raw_label = link.get("label") or self.control.get("label", "")
-        cfg_key = self._linked_config()
-        cfg_labels = self.runtime_manager.configs.resolve(cfg_key).get("labels", {})
-        if "label2" in self.control and self.control["label2"] is not None:
-            raw_label2 = self.control["label2"]
-        elif "label2" in link:
-            raw_label2 = link["label2"]
-        else:
-            user_val = current_value if self.field else None
-            meta_label = meta.get(self.field or "label")
-            raw_label2 = (
-                cfg_labels.get(current_value)
-                or user_val
-                or meta_label
-                or current_value
-                or ""
-            )
-
-        label, label2 = (self._resolve_label(txt) for txt in (raw_label, raw_label2))
-
+        label2 = self.runtime_manager.format_metadata(
+            self.mapping_key, self.source_index, raw_label2, localize=True
+        )
         colors = {
-            param_name: resolve_color(self.control[color_key])
-            for color_key, param_name in COLOR_KEYS.items()
+            param: resolve_color(self.control[color_key])
+            for color_key, param in COLOR_KEYS.items()
             if self.control.get(color_key)
         }
 
@@ -323,7 +320,7 @@ class BaseControlHandler:
             label2 = f"[COLOR {c}]{label2}[/COLOR]"
 
         instance.setLabel(
-            label=label if label else " ", label2=label2 if label2 else " ", **colors
+            label=label or " ", label2=label2 or " ", **colors
         )
 
     def update_value(self, current_listitem: str, container_position: int) -> None:
@@ -352,10 +349,10 @@ class BaseControlHandler:
         self.current_listitem = current_listitem
         self.source_index = container_position
 
-        link = self._get_active_link()
+        link = self._active_link()
         raw_condition = link.get("visible") or self.control.get("visible", "")
         visible_condition = self.runtime_manager.format_metadata(
-            self.control["mapping"], self.source_index, raw_condition
+            self.mapping_key, self.source_index, raw_condition
         )
         is_visible = (
             self.rule_engine.evaluate(visible_condition, runtime=True)
@@ -371,31 +368,20 @@ class BaseControlHandler:
         self, current_listitem: str, container_position: int, focus_id: int
     ) -> None:
         """
-        If this control has a 'field', refresh its UI and reset its JSON
-        value if no longer allowed, using the declared default when available.
+        Refresh UI and snap the field to a valid value if filtering
+        invalidated the current one.
 
         :param current_listitem: Named ID of the currently selected listitem.
-        :param container_position: Current index position in the runtime list.
+        :param container_position: Current index in the runtime list.
         :param focus_id: GUI control ID that currently has focus.
         """
         self.current_listitem = current_listitem
         self.source_index = container_position
         self._link_data_cache = None
-
         if not self.field:
             return
 
-        val = self._get_setting_value()
-        allowed = self._allowed_items()
-        if allowed and val not in allowed:
-            if cfg_key := self._linked_config():
-                cfg_data = self.runtime_manager.configs.resolve(cfg_key)
-                default_val = cfg_data.get("default", allowed[0])
-            else:
-                default_val = allowed[0]
-
-            self._set_setting_value(default_val)
-
+        self._coerce_to_allowed()
         self.update_value(current_listitem, container_position)
         self.update_visibility(current_listitem, container_position, focus_id)
 
@@ -453,8 +439,8 @@ class ButtonHandler(BaseControlHandler):
 
         # Fetch items, then resolve display labels from config labels, metadata, or title-case
         items = onclick.get("items") or self._allowed_items()
-        cfg_key = self._linked_config()
-        cfg_labels = self.runtime_manager.configs.resolve(cfg_key).get("labels", {})
+        link = self._active_link()
+        cfg_labels = link.get("config", {}).get("labels", {})
 
         raw_labels = [
             cfg_labels.get(item)
@@ -477,7 +463,9 @@ class ButtonHandler(BaseControlHandler):
 
         return {
             "heading": onclick.get("heading", ""),
-            "action": self._apply_metadata(onclick.get("action", "")),
+            "action": self.runtime_manager.format_metadata(
+                self.mapping_key, self.source_index, onclick.get("action", "")
+            ),
             "items": items,
             "display_items": display_items,
             "preselect": preselect,
@@ -522,15 +510,12 @@ class ButtonHandler(BaseControlHandler):
 
                 sibling_cfg = self.parent.dynamic_controls.get(control_name, {})
                 runtime_field = sibling_cfg.get("field", control_name)
-                try:
-                    self.runtime_manager.update_runtime_setting(
-                        self.mapping_key,
-                        self.source_index,
-                        runtime_field,
-                        result[result_key],
-                    )
-                except IndexError:
-                    pass
+                self.runtime_manager.update_runtime_setting(
+                    self.mapping_key,
+                    self.source_index,
+                    runtime_field,
+                    result[result_key],
+                )
 
             result = result.get(cfg.get("result_field", "path"), result["path"])
 
@@ -562,7 +547,7 @@ class ButtonHandler(BaseControlHandler):
         if (
             focused_control_id != self.instance.getId()
             or a_id != ACTION_SELECT_ITEM
-            or (self.config_field_template and not self._get_active_link())
+            or (self.config_field_template and not self._active_link())
         ):
             return
 
@@ -589,7 +574,7 @@ class ButtonHandler(BaseControlHandler):
                         return
                 except (IndexError, KeyError):
                     pass
-                
+
             self.apply_result(result, cfg)
             if self.control.get("role") == "item_picker":
                 self.parent._seed_metadata()
@@ -630,7 +615,7 @@ class CycleHandler(BaseControlHandler):
         if (
             focused_control_id != self.instance.getId()
             or a_id != ACTION_SELECT_ITEM
-            or not self._get_active_link()
+            or not self._active_link()
         ):
             return
 
@@ -650,18 +635,14 @@ class CycleHandler(BaseControlHandler):
 
     def update_value(self, current_listitem: str, container_position: int) -> None:
         """
-        Updates enabled state based on whether there are multiple values to cycle.
-        Snap the saved value to the first allowed item if filtering has made it
-        invalid, then update enabled state.
+        Snap to an allowed value, then update enabled state.
 
         :param current_listitem: Named ID of the currently selected listitem.
-        :param container_position: Current index position in the runtime list.
+        :param container_position: Current index in the runtime list.
         """
         super().update_value(current_listitem, container_position)
-        values = self._allowed_items()
-        if values and self._get_setting_value() not in values:
-            self._set_setting_value(values[0])
-        self.instance.setEnabled(len(values) > 1)
+        self._coerce_to_allowed()
+        self.instance.setEnabled(len(self._allowed_items()) > 1)
 
 
 class EditHandler(BaseControlHandler):
@@ -722,7 +703,7 @@ class EditHandler(BaseControlHandler):
         if (
             focused_control_id != self.instance.getId()
             or a_id not in SAVE_ACTIONS
-            or (self.config_field_template and not self._get_active_link())
+            or (self.config_field_template and not self._active_link())
         ):
             return
 
@@ -744,7 +725,13 @@ class EditHandler(BaseControlHandler):
         """
         super().update_value(current_listitem, container_position)
         current = self._get_setting_value()
-        display = self._resolve_label(current) if current else ""
+        display = (
+            self.runtime_manager.format_metadata(
+                self.mapping_key, self.source_index, current, localize=True
+            )
+            if current
+            else ""
+        )
         self._cached_text = display
         self.instance.setText(display)
 
@@ -777,7 +764,7 @@ class RadioButtonHandler(BaseControlHandler):
         if (
             focused_control_id != self.instance.getId()
             or a_id != ACTION_SELECT_ITEM
-            or not self._get_active_link()
+            or not self._active_link()
         ):
             return
 
@@ -787,6 +774,7 @@ class RadioButtonHandler(BaseControlHandler):
 
         new_value = values[0] if self.instance.isSelected() else values[1]
         self._set_setting_value(new_value)
+        self.parent._refresh_ui()
 
     def update_value(self, current_listitem: str, container_position: int) -> None:
         """
@@ -846,7 +834,7 @@ class SliderHandler(BaseControlHandler):
         if (
             focused_control_id != self.instance.getId()
             or a_id not in (ACTION_MOVE_LEFT, ACTION_MOVE_RIGHT)
-            or not self._get_active_link()
+            or not self._active_link()
         ):
             return
 
@@ -854,27 +842,23 @@ class SliderHandler(BaseControlHandler):
         idx = self.instance.getInt()
         if 0 <= idx < len(values):
             self._set_setting_value(values[idx])
+            self.parent._refresh_ui()
 
     def update_value(self, current_listitem: str, container_position: int) -> None:
         """
-        Updates the slider to reflect the current config value.
+        Snap to an allowed value, then update slider index and enabled state.
 
         :param current_listitem: Named ID of the currently selected listitem.
-        :param container_position: Current index position in the runtime list.
+        :param container_position: Current index in the runtime list.
         """
         super().update_value(current_listitem, container_position)
 
-        if not self._linked_config():
+        if not self._active_link().get("linked_config"):
             return
 
+        current = self._coerce_to_allowed()
         values = self._allowed_items()
-        current = self._get_setting_value()
-        try:
-            idx = values.index(current)
-        except ValueError:
-            idx = 0
-            if values:
-                self._set_setting_value(values[0])
+        idx = values.index(current) if current in values else 0
         self.instance.setInt(idx, 0, 1, max(len(values) - 1, 0))
         enabled = len(values) > 1
         self.instance.setEnabled(enabled)

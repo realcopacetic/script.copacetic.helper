@@ -99,7 +99,8 @@ class BaseBuilder:
     def generate_runtimejson_substitutions(self, runtime_items, index_start):
         """
         Each runtime entry contributes its scalar (string) fields layered over
-        per-item metadata; non-string runtime values (e.g. xsp dicts) come from metadata only.
+        per-item metadata; non-string runtime values (e.g. xsp dicts) come
+        from metadata only. Config-field defaults resolve lazily.
 
         :param runtime_items: List of runtime state items for this mapping.
         :param index_start: Starting index value (default 1).
@@ -114,7 +115,9 @@ class BaseBuilder:
                     "index": str(index_start + index),
                     **{
                         k: v
-                        for k, v in item.items()
+                        for k, v in self.runtime_manager.resolved_entry(
+                            self.mapping_name, index
+                        ).items()
                         if k != "mapping_item" and isinstance(v, str)
                     },
                 },

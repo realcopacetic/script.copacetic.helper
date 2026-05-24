@@ -12,7 +12,7 @@ import uuid
 from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler
-
+from resources.lib.shared.utilities import infolabel
 
 class RuntimeStateManager:
     """
@@ -37,7 +37,7 @@ class RuntimeStateManager:
         """
         self._mappings = mappings
         self.configs = ConfigsResolver(mappings, configs_data)
-        self.controls = ControlsResolver(mappings, controls_data)
+        self.controls = ControlsResolver(mappings, controls_data, self.configs)
         self._runtime_state_handler = JSONHandler(runtime_state_path)
         self._runtime_state_cache: dict | None = None
 
@@ -89,29 +89,82 @@ class RuntimeStateManager:
 
     def _build_default_entry(self, mapping_key: str, item: str) -> dict:
         """
-        Build the default entry for a single mapping_item. ``parent`` is
-        copied verbatim as a mapping_item string; ``_resolve_parent_refs``
-        rewrites it to a runtime_id once full state is assembled.
+        Build the default entry for a single mapping_item: identity plus the
+        structural ``parent`` ref only. All other metadata and config-field
+        defaults resolve lazily at read time via ``resolved_entry``.
 
         :param mapping_key: Mapping group key.
         :param item: Mapping_item identifier.
-        :return: Dict of default fields and metadata.
+        :return: Dict of identity fields (runtime_id, mapping_item, parent).
         """
-        placeholders = self.mappings[mapping_key]["placeholders"]
-        seed_fields = self._seed_fields_for(mapping_key, item)
         metadata = self.mappings[mapping_key].get("metadata", {}).get(item, {})
         return {
             "runtime_id": str(uuid.uuid4()),
             "mapping_item": item,
-            **{k: v for k, v in metadata.items() if isinstance(v, str)},
-            **{
-                field: self.configs.resolve_default(
-                    template.format(**{placeholders["key"]: item})
-                )
-                for field, template in seed_fields.items()
-                if field not in metadata
-            },
+            **({"parent": metadata["parent"]} if "parent" in metadata else {}),
         }
+
+    def resolved_entry(self, mapping_key: str, index: int) -> dict:
+        """
+        Return the entry at ``index`` with config-field defaults layered in
+        for any field not explicitly set. User overrides win over defaults.
+
+        :param mapping_key: Mapping group key.
+        :param index: Position in the state list.
+        :return: Resolved entry dict; empty on lookup failure.
+        """
+        try:
+            entry = self.runtime_state[mapping_key][index]
+        except (IndexError, KeyError):
+            return {}
+        return self._fill_defaults(mapping_key, entry)
+
+    def _fill_defaults(self, mapping_key: str, entry: dict) -> dict:
+        """
+        Resolve a full entry: metadata base, stored entry over it, then
+        config-field defaults filling any field still absent.
+
+        :param mapping_key: Mapping group key.
+        :param entry: Raw entry dict.
+        :return: New dict; metadata + entry + resolved config defaults.
+        """
+        item = entry.get("mapping_item")
+        if not item:
+            return dict(entry)
+
+        metadata = self.mappings[mapping_key].get("metadata", {}).get(item, {})
+        metadata_strings = {k: v for k, v in metadata.items() if isinstance(v, str)}
+        base = {**metadata_strings, **entry}
+
+        seed_fields = self._seed_fields_for(mapping_key, item)
+        pending = {f: t for f, t in seed_fields.items() if f not in base}
+        if not pending:
+            return base
+
+        placeholders = self.mappings[mapping_key].get("placeholders", {})
+        base_subs = {placeholders.get("key", ""): item}
+        base_subs.update({k: v for k, v in base.items() if isinstance(v, str)})
+        resolved = {}
+
+        while pending:
+            progressed = False
+            for field, template in list(pending.items()):
+                sub = {**base_subs, **resolved}
+                try:
+                    template.format(**sub)
+                except KeyError:
+                    continue
+                resolved[field] = self.configs.resolve_default(
+                    mapping_key, template, sub
+                )
+                del pending[field]
+                progressed = True
+            if not progressed:
+                raise ValueError(
+                    f"Unresolvable seed templates in {mapping_key}/{item}: "
+                    f"{list(pending)}"
+                )
+        return {**base, **resolved}
 
     def initialize_runtime_state(self) -> None:
         """
@@ -206,37 +259,77 @@ class RuntimeStateManager:
                     return entry.get("mapping_item")
         return None
 
-    def format_metadata(self, mapping_key: str, index: int, template: str) -> str:
+    def entry_substitutions(
+        self,
+        mapping_key: str,
+        index: int,
+        *,
+        include_metadata: bool = False,
+    ) -> dict:
         """
-        Substitute metadata placeholders in a template against a runtime entry.
+        Build the substitution dict for a runtime entry: resolved string
+        fields, mapping key placeholder, and optionally metadata layered
+        beneath.
+
+        :param mapping_key: Mapping group key.
+        :param index: Position in the state list.
+        :param include_metadata: Layer mapping metadata under entry fields.
+        :return: Substitution dict; empty on lookup failure.
+        """
+        resolved = self.resolved_entry(mapping_key, index)
+        if not resolved:
+            return {}
+
+        mapping = self.mappings.get(mapping_key, {})
+        item = resolved["mapping_item"]
+        base = (
+            dict(mapping.get("metadata", {}).get(item, {})) if include_metadata else {}
+        )
+        base.update({k: v for k, v in resolved.items() if isinstance(v, str)})
+        key_placeholder = mapping.get("placeholders", {}).get("key", "")
+        if key_placeholder:
+            base[key_placeholder] = item
+        base["mapping"] = mapping_key
+        base["index"] = index
+        return base
+
+    def format_metadata(
+        self,
+        mapping_key: str,
+        index: int,
+        template: str,
+        *,
+        localize: bool = False,
+    ) -> str:
+        """
+        Substitute placeholders in a template against a runtime entry,
+        optionally resolving Kodi ``$`` tokens via infolabel.
 
         :param mapping_key: Mapping group key.
         :param index: Position in the state list.
         :param template: Template containing ``{placeholder}`` tokens.
+        :param localize: If True, resolve ``$``-prefixed tokens via infolabel.
         :return: Formatted string, or original on lookup failure.
         """
+
         if not isinstance(template, str) or "{" not in template:
-            return template
-        try:
-            instance = self.runtime_state.get(mapping_key, [])[index]
-            metadata_key = instance.get("mapping_item")
-            metadata = (
-                self.mappings.get(mapping_key, {})
-                .get("metadata", {})
-                .get(metadata_key, {})
-            )
-            key_placeholder = (
-                self.mappings.get(mapping_key, {})
-                .get("placeholders", {})
-                .get("key", "")
-            )
-            extra = {key_placeholder: metadata_key} if key_placeholder else {}
-            extra["mapping"] = mapping_key
-            substitutions = {**instance, **metadata, **extra}
-            return template.format(**substitutions)
-        except (IndexError, KeyError) as e:
-            log.debug(f"{self.__class__.__name__}: format_metadata fallback: {e}")
-            return template
+            formatted = template
+        else:
+            try:
+                formatted = template.format(
+                    **self.entry_substitutions(
+                        mapping_key, index, include_metadata=True
+                    )
+                )
+            except KeyError as e:
+                log.debug(f"{self.__class__.__name__}: format_metadata fallback: {e}")
+                formatted = template
+
+        return (
+            infolabel(formatted)
+            if localize and isinstance(formatted, str) and formatted.startswith("$")
+            else formatted
+        )
 
     def flatten_config_fields(self, mapping_key: str) -> dict[str, str]:
         """

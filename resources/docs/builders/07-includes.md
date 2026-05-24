@@ -19,7 +19,7 @@ Place XML files in `extras/templates/includes/`:
       <mode>dynamic</mode>
       <index start="3200" />
       <include name="widget_containers">
-        <include content="lst_{layout}">
+        <include content="ctn_{layout}">
           <param name="id" value="{index}" />
           <param name="content" value="{content}{xsp}" />
           <param name="label" value="{label}" />
@@ -52,8 +52,7 @@ Inside the template, `{placeholder}` tokens are substituted before output. What'
 
 **Dynamic mode** — the template iterates once per entry in `runtime_state.json` for this mapping. The number of iterations grows and shrinks with what the user has configured (widgets, menu items, etc.). Each entry provides:
 
-- The mapping's key placeholder (e.g. `{widget_preset}`) set to the entry's `mapping_item`
-- All string-valued fields stored on the entry (the user's chosen `layout`, `art`, `sortby`, custom `label`, resolved `parent` runtime_id, etc.)
+- All string-valued fields for the entry — user-set fields directly from state, untouched `config_field` values resolved to their defaults at read time (the user's chosen `layout`, `art`, `sortby`, custom `label`, resolved `parent` runtime_id, etc.)
 - A numeric `{index}`, starting from `<index start="N">` and incrementing once per entry
 - All string-valued metadata for the entry's `mapping_item`
 
@@ -204,7 +203,7 @@ Single template in `extras/templates/includes/includes_widgets.xml`:
   <mode>dynamic</mode>
   <index start="3200" />
   <include name="widget_containers">
-    <include content="lst_{layout}">
+    <include content="ctn_{layout}">
       <param name="id" value="{index}" />
       <param name="visible" value="[Integer.IsGreater(Container({index}).NumItems,0) | Container({index}).IsUpdating] + [!Skin.HasSetting(widgets_per_menu) | String.IsEqual(Container(3000).ListItem.Property(runtime_id),{parent})]" />
       <param name="target" value="{target}" />
@@ -216,20 +215,20 @@ Single template in `extras/templates/includes/includes_widgets.xml`:
 </template>
 ```
 
-The outer `<include name="widget_containers">` has a fixed name, so it appears once in the output. The inner `<include content="lst_{layout}">` contains placeholders, so it multiplies — one call per runtime entry. Each entry's stored `layout` value picks the skin-defined include to call: `lst_strip`, `lst_grid`, `lst_showcase`.
+The outer `<include name="widget_containers">` has a fixed name, so it appears once in the output. The inner `<include content="ctn_{layout}">` contains placeholders, so it multiplies — one call per runtime entry. Each entry's stored `layout` value picks the skin-defined include to call: `ctn_strip`, `ctn_grid`, `ctn_showcase`.
 
 With three configured widgets, the output looks like:
 
 ```xml
 <include name="widget_containers">
-  <include content="lst_strip">
+  <include content="ctn_strip">
     <param name="id" value="3200" />
     <param name="visible" value="..." />
     <param name="sortby" value="title" />
     <param name="content" value="special://skin/extras/playlists/inprogress_movies.xsp" />
     <param name="label" value="In-progress movies" />
   </include>
-  <include content="lst_strip">
+  <include content="ctn_strip">
     <param name="id" value="3201" />
     <param name="visible" value="..." />
     <param name="target" value="videos" />
@@ -237,7 +236,7 @@ With three configured widgets, the output looks like:
     <param name="content" value="videodb://movies/titles/" />
     <param name="label" value="$LOCALIZE[31204]" />
   </include>
-  <include content="lst_strip">
+  <include content="ctn_strip">
     <param name="id" value="3202" />
     <param name="visible" value="..." />
     <param name="target" value="videos" />

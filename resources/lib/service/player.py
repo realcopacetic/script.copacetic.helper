@@ -26,16 +26,13 @@ class PlayerMonitor(Player):
         """
         super().__init__()
         self.sqlite = sqlite_handler or ArtworkCacheHandler()
-        self.image_processor = ImageEditor(self.sqlite).image_processor
         self.zoom = TrailerZoomController()
-        self._cleanup_registry: set[tuple[str, str]] = set()
+        self._cleanup_registry: set[tuple[str, int]] = set()
 
     def onAVStarted(self):
-        """
-        Handle playback start events for video and audio.
-        """
+        """Handle playback start events for video and audio."""
         if self.isPlayingVideo():
-            if condition("String.IsEmpty(Window(home).Property(Trailer_Autoplay))"):
+            if condition("String.IsEmpty(Window(home).Property(trailer_playing))"):
                 self._handle_video_start()
 
             self.zoom.apply_zoom_if_needed()
@@ -45,24 +42,27 @@ class PlayerMonitor(Player):
             self._handle_audio_start()
 
     def onPlayBackStopped(self):
-        """
-        Cleanup managed window properties when playback is stopped by the user.
-        """
+        """Clean up managed properties when playback is stopped by the user."""
         self._cleanup()
 
     def onPlayBackEnded(self):
+        """Cleanup managed window properties when playback ends naturally."""
+        self._cleanup()
+
+    def onPlayBackError(self):
         """
-        Cleanup managed window properties when playback ends naturally.
+        Clean up when requested playback fails.
         """
         self._cleanup()
 
     def _cleanup(self):
-        """
-        Clear all managed window properties and reset the cleanup registry.
-        """
+        """Clear managed properties, the registry, and the trailer flag."""
         for key, window_id in self._cleanup_registry:
             window_property(key, window_id=window_id)
         self._cleanup_registry.clear()
+        window_property("trailer_playing")
+        window_property("trailer_viewport")
+        window_property("trailer_source")
 
     def _handle_video_start(self) -> None:
         """
