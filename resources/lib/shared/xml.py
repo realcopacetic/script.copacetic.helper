@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import os
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from functools import wraps
@@ -213,14 +214,17 @@ class XMLHandler:
 
     def _save_xml(self, tree):
         """
-        Saves an ElementTree to disk with indentation and UTF-8 encoding.
+        Saves an ElementTree to disk atomically (temp file + os.replace)
+        with indentation and UTF-8 encoding.
 
         :param tree: XML ElementTree to write.
         """
+        tmp_path = self.path.with_name(self.path.name + ".tmp")
         try:
-            with open(self.path, "wb") as file:
+            with open(tmp_path, "wb") as file:
                 ET.indent(tree, space="  ")  # Ensures properly formatted XML
                 tree.write(file, encoding="utf-8", xml_declaration=True)
+            os.replace(tmp_path, self.path)
         except IOError as e:
             log.error(f"{self.__class__.__name__}: Error updating XML file --> {e}")
         else:

@@ -504,17 +504,17 @@ class ButtonHandler(BaseControlHandler):
         :return: The resolved value that was written, or None.
         """
         if isinstance(result, dict) and "path" in result:
+            sibling_updates = {}
             for result_key, control_name in cfg.get("sibling_fields", {}).items():
                 if result_key not in result:
                     continue
-
                 sibling_cfg = self.parent.dynamic_controls.get(control_name, {})
                 runtime_field = sibling_cfg.get("field", control_name)
-                self.runtime_manager.update_runtime_setting(
-                    self.mapping_key,
-                    self.source_index,
-                    runtime_field,
-                    result[result_key],
+                sibling_updates[runtime_field] = result[result_key]
+
+            if sibling_updates:
+                self.runtime_manager.update_runtime_settings(
+                    self.mapping_key, self.source_index, sibling_updates
                 )
 
             result = result.get(cfg.get("result_field", "path"), result["path"])

@@ -153,9 +153,9 @@ def dynamic_settings_window(**kwargs):
     myWindow.controls_from = controls_from
     myWindow.doModal()
 
-    # Rebuild if state changed during the session. Top-level only;
-    # child editors defer the rebuild to their parent's close.
-    if not myWindow.parent_filter:
+    # Rebuild if state changed during the session. Outermost editor only;
+    # nested editors defer the rebuild to the enclosing editor's close.
+    if not previous_editor:
         myWindow.runtime_manager.reload_state()
         if (
             myWindow.runtime_manager.runtime_state != myWindow._runtime_state_snapshot

@@ -368,6 +368,18 @@ class RuntimeStateManager:
         :param setting_name: Field to update.
         :param value: New value to set.
         """
+        self.update_runtime_settings(mapping_key, index, {setting_name: value})
+
+    def update_runtime_settings(
+        self, mapping_key: str, index: int, fields: dict[str, object]
+    ) -> None:
+        """
+        Update multiple fields in a runtime state entry with a single write.
+
+        :param mapping_key: Mapping group key.
+        :param index: Position in the state list.
+        :param fields: Field → value pairs to set.
+        """
         self.reload_state()
         state = self.runtime_state
         mapping_list = state.setdefault(mapping_key, [])
@@ -376,7 +388,7 @@ class RuntimeStateManager:
                 f"{self.__class__.__name__}: Index '{index}' out of range "
                 f"for mapping '{mapping_key}'."
             )
-        mapping_list[index][setting_name] = value
+        mapping_list[index].update(fields)
         self._write_and_invalidate(state)
 
     def insert_mapping_item(
