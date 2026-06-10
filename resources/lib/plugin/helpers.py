@@ -5,7 +5,7 @@ import time
 from typing import Any, Callable, Collection, Iterable, Mapping
 
 from xbmc import Monitor
-from xbmcgui import Window, getCurrentWindowId
+from xbmcgui import Window, getCurrentWindowId, getCurrentWindowDialogId
 
 from resources.lib.plugin.geometry import (
     PlacementOpts,
@@ -15,6 +15,7 @@ from resources.lib.plugin.geometry import (
     compute_rect,
 )
 from resources.lib.shared import logger as log
+from resources.lib.shared.text import DEFAULT_ABBREV, sentence_cap
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -25,6 +26,49 @@ from resources.lib.shared.utilities import (
     to_int,
     url_encode,
 )
+
+def reposition_control(
+    control_id: int,
+    *,
+    x: int | None = None,
+    y: int | None = None,
+    w: int | None = None,
+    h: int | None = None,
+) -> None:
+    """
+    Set any provided geometry on a control; unset axes are left untouched.
+    Setters only (no getWidth/getX), so it never reads a control that may be
+    mid-layout. Position needs both x and y; a lone axis is ignored.
+
+    :param control_id: Target control id on the current window.
+    :param x: New left in px, or None to leave unchanged.
+    :param y: New top in px, or None to leave unchanged.
+    :param w: New width in px, or None to leave unchanged.
+    :param h: New height in px, or None to leave unchanged.
+    """
+    dialog_id = getCurrentWindowDialogId()
+    window_id = dialog_id if dialog_id != 9999 else getCurrentWindowId()
+    window = Window(window_id)
+    try:
+        ctrl = window.getControl(control_id)
+    except RuntimeError:
+        log.debug(
+            f"reposition_control: control {control_id} not found "
+            f"in window {window_id}"
+        )
+        return
+
+    log.debug(
+        f"reposition_control: window={window_id} control={control_id} "
+        f"type={type(ctrl).__name__} → x={x} y={y} w={w} h={h}"
+    )
+
+    if w is not None:
+        ctrl.setWidth(w)
+    if h is not None:
+        ctrl.setHeight(h)
+    if x is not None and y is not None:
+        ctrl.setPosition(x, y)
 
 
 def has_value(value: Any) -> bool:
@@ -261,13 +305,15 @@ class ProgressBarManager:
         target: str,
         base_id: int = 4010,
         btn_width: int = 30,
+        btn_height: int | None = None,
     ) -> None:
         """
         Initialize default control IDs and sizing.
 
         :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
         :param base_id: Base group ID that wraps the bar/btn.
-        :param btn_width: Fallback thumb size if control reports zero.
+        :param btn_width: Fallback thumb width if control reports zero.
+        :param btn_height: Fallback thumb height if control reports zero; defaults to btn_width.
         """
         self.window = Window(getCurrentWindowId())
         self.target = target
@@ -276,6 +322,7 @@ class ProgressBarManager:
         self.btn_id = base_id + 2
         self.img_id = base_id + 3
         self.btn_width = btn_width
+        self.btn_height = btn_width if btn_height is None else btn_height
         self.infolabels = get_infolabels(
             self.target,
             [
@@ -410,7 +457,7 @@ class ProgressBarManager:
             log.debug(f"{self.__class__.__name__}: Optional btn_id {btn_id} not found.")
         else:
             btn_w = button.getWidth() or self.btn_width
-            btn_h = button.getHeight() or self.btn_width
+            btn_h = button.getHeight() or self.btn_height
             fraction = max(0.0, min(1.0, (percent or 0) / 100.0))
             unwatched_centre = width * (1 + fraction) / 2
             btn_posx = int(max(0, min(unwatched_centre - btn_w / 2, width - btn_w)))
@@ -425,34 +472,6 @@ class ProgressBarManager:
 
 
 class TextTruncator:
-    _ABBREV_EN = {
-        "mr",
-        "mrs",
-        "ms",
-        "dr",
-        "prof",
-        "sr",
-        "jr",
-        "st",
-        "mt",
-        "ft",
-        "rd",
-        "ave",
-        "blvd",
-        "vs",
-        "etc",
-        "ie",
-        "eg",
-        "inc",
-        "ltd",
-        "dept",
-        "u",
-        "us",
-        "uk",
-        "eu",
-        "u.s",
-        "u.k",
-    }
 
     def __init__(
         self,
@@ -481,7 +500,7 @@ class TextTruncator:
         self.confirm_ms = int(confirm_ms)
         self.safety_chars = int(safety_chars)
         self.ellipsis = ellipsis
-        self.abbrev = abbrev_set or self._ABBREV_EN
+        self.abbrev = abbrev_set or DEFAULT_ABBREV
         self._last_len = 0
 
     def truncate(
@@ -692,37 +711,9 @@ class TextTruncator:
         core = s[: -len(self.ellipsis)].rstrip() if s.endswith(self.ellipsis) else s
 
         # Scan for sentence-ending punctuation.
-        # We'll examine matches of [.!?]\s+ and post-validate.
-        boundaries = []
-        i = 0
-        while i < len(core):
-            ch = core[i]
-            if ch in ".!?":
-                # look ahead over spaces/quotes to the next visible char
-                j = i + 1
-                while j < len(core) and core[j] in " \t\n\r\"'»”’)]}":
-                    j += 1
-
-                # prev token (before punctuation), normalized
-                token = core[:i].rstrip()
-                prev = token.rsplit(" ", 1)[-1].strip(" \"')]}»”’").lower().rstrip(".")
-
-                if len(prev) == 1 and prev.isalpha():
-                    i += 1
-                    continue
-
-                # heuristic: not an abbreviation AND next char is uppercase (if any)
-                next_ok = (j >= len(core)) or core[j].isupper()
-                if prev not in self.abbrev and next_ok:
-                    boundaries.append(i)  # accept this as a sentence boundary
-            i += 1
-
-        if not boundaries:
-            return s  # no safe earlier boundary
-
-        # take the last acceptable boundary
-        end = boundaries[-1] + 1  # include the punctuation
-        return core[:end].rstrip().strip()
+        # Examine matches of [.!?]\s+ and post-validate.
+        capped = sentence_cap(core, self.abbrev)
+        return capped if capped is not None else s
 
 
 class TypewriterAnimation:

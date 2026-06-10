@@ -18,16 +18,43 @@ ART_FIELD_DARKEN: str = "darken"
 ART_FIELD_DARKEN_ELEMENT: str = "darken_element"
 ART_FIELD_DARKEN_ELEMENT1: str = "darken_element1"
 ART_FIELD_DARKEN_ELEMENT2: str = "darken_element2"
+ART_FIELD_DARKEN_ELEMENT_MEAN: str = "darken_element_mean"
+ART_FIELD_DARKEN_ELEMENT_MEAN1: str = "darken_element_mean1"
+ART_FIELD_DARKEN_ELEMENT_MEAN2: str = "darken_element_mean2"
 ART_FIELD_DARKEN_FRAME: str = "darken_frame"
 ART_FIELD_DARKEN_MODE: str = "darken_mode"
 ART_FIELD_DARKEN_RECTS: str = "darken_rects"
 ART_FIELD_DARKEN_STRENGTH: str = "darken_strength"
 ART_FIELD_DARKEN_SOURCE: str = "darken_source"
+ART_FIELD_DARKEN_LABEL: str = "darken_label"
+ART_FIELD_DARKEN_LABEL1: str = "darken_label1"
+ART_FIELD_DARKEN_LABEL2: str = "darken_label2"
+ART_FIELD_DARKEN_LABEL_WIDTH: str = "darken_label_width"
+ART_FIELD_DARKEN_LABEL_WIDTH1: str = "darken_label_width1"
+ART_FIELD_DARKEN_LABEL_WIDTH2: str = "darken_label_width2"
 
 ART_FIELDS_DARKEN_ELEMENT: tuple[str, ...] = (
     ART_FIELD_DARKEN_ELEMENT,
     ART_FIELD_DARKEN_ELEMENT1,
     ART_FIELD_DARKEN_ELEMENT2,
+)
+
+ART_FIELDS_DARKEN_ELEMENT_MEAN: tuple[str, ...] = (
+    ART_FIELD_DARKEN_ELEMENT_MEAN,
+    ART_FIELD_DARKEN_ELEMENT_MEAN1,
+    ART_FIELD_DARKEN_ELEMENT_MEAN2,
+)
+
+ART_FIELDS_DARKEN_LABEL: tuple[str, ...] = (
+    ART_FIELD_DARKEN_LABEL,
+    ART_FIELD_DARKEN_LABEL1,
+    ART_FIELD_DARKEN_LABEL2,
+)
+
+ART_FIELDS_DARKEN_LABEL_WIDTH: tuple[str, ...] = (
+    ART_FIELD_DARKEN_LABEL_WIDTH,
+    ART_FIELD_DARKEN_LABEL_WIDTH1,
+    ART_FIELD_DARKEN_LABEL_WIDTH2,
 )
 
 ART_DB_SCHEMA: tuple[tuple[str, str], ...] = (
@@ -43,11 +70,14 @@ ART_DB_SCHEMA: tuple[tuple[str, str], ...] = (
     (ART_FIELD_LUMINOSITY, "INTEGER"),
     (ART_FIELD_DARKEN, "INTEGER"),
     *((field, "INTEGER") for field in ART_FIELDS_DARKEN_ELEMENT),
+    *((field, "INTEGER") for field in ART_FIELDS_DARKEN_ELEMENT_MEAN),
     (ART_FIELD_DARKEN_FRAME, "TEXT"),
     (ART_FIELD_DARKEN_MODE, "TEXT"),
     (ART_FIELD_DARKEN_RECTS, "TEXT"),
     (ART_FIELD_DARKEN_STRENGTH, "REAL"),
     (ART_FIELD_DARKEN_SOURCE, "TEXT"),
+    *((field, "TEXT") for field in ART_FIELDS_DARKEN_LABEL),
+    *((field, "INTEGER") for field in ART_FIELDS_DARKEN_LABEL_WIDTH),
 )
 ART_DB_UNIQUE: tuple[str, ...] = (ART_FIELD_CACHE_KEY,)
 
@@ -65,6 +95,7 @@ ART_FIELDS_INPUT: dict[str, tuple[str, ...]] = {
         ART_FIELD_DARKEN_MODE,
         ART_FIELD_DARKEN_SOURCE,
         ART_FIELD_DARKEN_RECTS,
+        *ART_FIELDS_DARKEN_LABEL,
         ART_FIELD_DARKEN_FRAME,
         ART_FIELD_DARKEN_STRENGTH,
     ),
@@ -90,7 +121,7 @@ ART_LISTITEM_KEYS: tuple[str, ...] = (
     ART_FIELD_CONTRAST,
     ART_FIELD_LUMINOSITY,
     ART_FIELD_DARKEN,
-) + ART_FIELDS_DARKEN_ELEMENT
+) + ART_FIELDS_DARKEN_ELEMENT + ART_FIELDS_DARKEN_ELEMENT_MEAN + ART_FIELDS_DARKEN_LABEL_WIDTH
 
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
@@ -213,4 +244,5 @@ class ColorConfig:
     contrast_shift: float = 0.3  # Lightness delta (0-1) for generating contrast color
     element_overlay_color: str = "fff0efef"  # Fallback text hex for readability checks
     element_complexity_stddev: float = 20.0  # Luma stdev limit for "simple" backgrounds
-    darken_element_floor: float = 0.4  # floor below which element darken is skipped
+    darken_element_floor: float = 0.18  # floor below which element darken is skipped
+    darken_label_px_per_char: float = 14  # Est. glyph width (px); skinner overrides 

@@ -105,6 +105,19 @@ class ConfigsResolver(_TemplateResolver):
         cfg = self.resolve(mapping_name, tpl_name, sub)
         return cfg.get("default") or next(iter(cfg.get("items", [])), None)
 
+    def dependent_fields(self, mapping_name: str, tpl_name: str) -> list[str]:
+        """
+        Sibling fields a config declares a dependency on, used to sequence
+        entry field resolution order.
+
+        :param mapping_name: Mapping owning the template.
+        :param tpl_name: Config template name.
+        :return: List of field names, empty if none declared.
+        """
+        return (self._templates.get((mapping_name, tpl_name)) or {}).get(
+            "dependent_fields", []
+        )
+    
     def iter_static_defaults(self) -> Iterator[tuple[str, str]]:
         """
         Yield (cfg_key, default) for every static-mode template with a

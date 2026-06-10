@@ -40,23 +40,27 @@ def load_template_data_from_source(base_folder: str) -> tuple[dict, dict, dict]:
     :param base_folder: Skin extras builders folder root.
     :return: (mappings, configs_data, controls_data) as nested dicts.
     """
-    from resources.lib.builders.builder_config import BUILDER_MAPPINGS
+    from resources.lib.builders.builder_config import (
+        CONFIGS_FOLDER,
+        CONTROLS_FOLDER,
+        MAPPINGS_FOLDER,
+    )
 
     mappings_merger = JSONMerger(
-        base_folder=base_folder, subfolders=["mappings"], grouping_key=None
+        base_folder=base_folder, subfolders=[MAPPINGS_FOLDER], grouping_key=None
     )
-    mappings = {**BUILDER_MAPPINGS, **dict(mappings_merger.yield_merged_data())}
+    mappings = dict(mappings_merger.yield_merged_data())
 
     configs_data: dict = {}
     configs_merger = JSONMerger(
-        base_folder=base_folder, subfolders=["configs"], grouping_key="mapping"
+        base_folder=base_folder, subfolders=[CONFIGS_FOLDER], grouping_key="mapping"
     )
     for mapping_name, content in configs_merger.yield_merged_data():
         configs_data.setdefault(mapping_name, {}).update(content.get("configs") or {})
 
     controls_data: dict = {}
     controls_merger = JSONMerger(
-        base_folder=base_folder, subfolders=["controls"], grouping_key="mapping"
+        base_folder=base_folder, subfolders=[CONTROLS_FOLDER], grouping_key="mapping"
     )
     for mapping_name, content in controls_merger.yield_merged_data():
         controls_data.setdefault(mapping_name, {}).update(

@@ -18,7 +18,6 @@ from resources.lib.shared.utilities import (
     validate_path,
 )
 
-
 @dataclass(frozen=True, slots=True)
 class CacheContext:
     """Resolved, immutable cache context for a single artwork URL."""
@@ -164,6 +163,13 @@ class ArtworkCacheManager:
             return temp_path, destination_path
 
         return None, destination_path
+
+    def source_temp_path(self, ctx: CacheContext) -> str | None:
+        """Copy the source artwork to a temp file for processing; return its path."""
+        temp_path = str(Path(self.temp_folder) / ctx.cached_thumb)
+        if validate_path(temp_path) or xbmcvfs.copy(ctx.decoded_url, temp_path):
+            return temp_path
+        return None
 
     def read_lookup(
         self,

@@ -3,11 +3,12 @@
 import json
 import sqlite3
 import time
+from pathlib import Path
 from typing import Any, Mapping
 
 from resources.lib.art import policy
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import LOOKUPS
+from resources.lib.shared.utilities import LOOKUPS, create_dir
 
 TMDB_DB_SCHEMA: tuple[tuple[str, str], ...] = (
     ("dbtype", "TEXT NOT NULL"),
@@ -40,6 +41,7 @@ class SQLiteHandler:
         :return: None.
         """
         self.db_path = db_path or LOOKUPS
+        create_dir(str(Path(self.db_path).parent))
         self._initialize_database()
 
     def _initialize_database(self) -> None:
@@ -142,7 +144,7 @@ class SQLiteHandler:
             rows = cursor.fetchall()
             if not rows:
                 return []
-            
+
             col_names = [desc[0] for desc in cursor.description]
             return [dict(zip(col_names, row)) for row in rows]
 

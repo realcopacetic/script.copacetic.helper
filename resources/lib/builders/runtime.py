@@ -40,6 +40,8 @@ class RuntimeStateManager:
         self.controls = ControlsResolver(mappings, controls_data, self.configs)
         self._runtime_state_handler = JSONHandler(runtime_state_path)
         self._runtime_state_cache: dict | None = None
+        self._resolved_cache: dict[tuple[str, int], dict] = {}
+        self.state_version = 0
 
     @property
     def mappings(self) -> dict:
@@ -82,10 +84,14 @@ class RuntimeStateManager:
         """
         self._runtime_state_handler.write_json(state)
         self._runtime_state_cache = None
+        self._resolved_cache.clear()
+        self.state_version += 1
 
     def reload_state(self) -> None:
         """Discard cached state so next access re-reads from disk."""
         self._runtime_state_cache = None
+        self._resolved_cache.clear()
+        self.state_version += 1
 
     def _build_default_entry(self, mapping_key: str, item: str) -> dict:
         """
@@ -107,17 +113,23 @@ class RuntimeStateManager:
     def resolved_entry(self, mapping_key: str, index: int) -> dict:
         """
         Return the entry at ``index`` with config-field defaults layered in
-        for any field not explicitly set. User overrides win over defaults.
+        for any field not explicitly set. Cached per (mapping, index) until
+        the next state write or reload.
 
         :param mapping_key: Mapping group key.
         :param index: Position in the state list.
         :return: Resolved entry dict; empty on lookup failure.
         """
+        key = (mapping_key, index)
+        if key in self._resolved_cache:
+            return self._resolved_cache[key]
         try:
             entry = self.runtime_state[mapping_key][index]
         except (IndexError, KeyError):
             return {}
-        return self._fill_defaults(mapping_key, entry)
+        resolved = self._fill_defaults(mapping_key, entry)
+        self._resolved_cache[key] = resolved
+        return resolved
 
     def _fill_defaults(self, mapping_key: str, entry: dict) -> dict:
         """
@@ -150,6 +162,11 @@ class RuntimeStateManager:
             progressed = False
             for field, template in list(pending.items()):
                 sub = {**base_subs, **resolved}
+                if any(
+                    d not in sub
+                    for d in self.configs.dependent_fields(mapping_key, template)
+                ):
+                    continue
                 try:
                     template.format(**sub)
                 except KeyError:
@@ -419,6 +436,57 @@ class RuntimeStateManager:
         self._resolve_parent_refs(state)
         self._write_and_invalidate(state)
         return new_entry
+
+    def insert_position_for(
+        self, mapping_key: str, parent_filter: str | None, after_index: int | None
+    ) -> int:
+        """
+        Source index for a new entry: after ``after_index`` when given;
+        else after the last sibling of ``parent_filter``, before the first
+        child of any later parent, or appended at the end.
+
+        :param mapping_key: Mapping group key.
+        :param parent_filter: Parent runtime_id scoping the insert, if any.
+        :param after_index: Source index of the entry to insert after.
+        :return: Source index to pass to insert_mapping_item.
+        """
+        if after_index is not None:
+            return after_index + 1
+        flat = self.runtime_state.get(mapping_key, [])
+        if not parent_filter:
+            return len(flat)
+        last_sibling = next(
+            (
+                i
+                for i in range(len(flat) - 1, -1, -1)
+                if flat[i].get("parent") == parent_filter
+            ),
+            None,
+        )
+        if last_sibling is not None:
+            return last_sibling + 1
+        later_ids = self._later_parent_ids(mapping_key, parent_filter)
+        return next(
+            (i for i, e in enumerate(flat) if e.get("parent") in later_ids),
+            len(flat),
+        )
+
+    def _later_parent_ids(self, child_mapping: str, parent_filter: str) -> set[str]:
+        """
+        Runtime_ids of parent entries ordered after ``parent_filter`` in
+        the parent mapping.
+
+        :param child_mapping: The child mapping key (used to skip self).
+        :param parent_filter: Parent runtime_id to anchor on.
+        :return: Set of runtime_ids for later parents, or empty set.
+        """
+        for key, entries in self.runtime_state.items():
+            if key == child_mapping or not isinstance(entries, list):
+                continue
+            for i, entry in enumerate(entries):
+                if entry.get("runtime_id") == parent_filter:
+                    return {e["runtime_id"] for e in entries[i + 1 :]}
+        return set()
 
     def rebuild_mapping_item(
         self,

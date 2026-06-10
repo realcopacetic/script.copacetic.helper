@@ -23,6 +23,8 @@ class DarkenOpts:
     source: str | None
     rects: str | None
     frame: str | None
+    labels: tuple[str | None, ...]
+    label_px: float | None
 
     def match_fields(self) -> dict[str, object]:
         """
@@ -36,6 +38,11 @@ class DarkenOpts:
                 policy.ART_FIELD_DARKEN_RECTS: self.rects,
                 policy.ART_FIELD_DARKEN_FRAME: self.frame,
                 policy.ART_FIELD_DARKEN_STRENGTH: self.strength,
+                **{
+                    f: lbl
+                    for f, lbl in zip(policy.ART_FIELDS_DARKEN_LABEL, self.labels)
+                    if lbl
+                },
             }.items() if v is not None
         }
 
@@ -62,6 +69,10 @@ class DarkenOpts:
             source=params.get(f"{prefix}_darken_source"),
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
+            labels=tuple(
+                params.get(f"{prefix}_{f}") for f in policy.ART_FIELDS_DARKEN_LABEL
+            ),
+            label_px=to_float(params.get(f"{prefix}_darken_label_px"), None),
         )
 
 

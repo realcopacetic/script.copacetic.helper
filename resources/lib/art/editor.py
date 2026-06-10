@@ -7,12 +7,20 @@ from PIL import Image
 
 from resources.lib.art import policy
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
+from resources.lib.art.io import write_image
 from resources.lib.art.processor import ImageProcessor
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import ArtworkCacheHandler
-from resources.lib.shared.utilities import infolabel, validate_path
+from resources.lib.shared.utilities import (
+    BLURS,
+    CROPS,
+    TEMPS,
+    create_dir,
+    infolabel,
+    validate_path,
+)
 
 
 class ImageEditor:
@@ -32,6 +40,8 @@ class ImageEditor:
         self.temp_folder = self.cache_manager.temp_folder
         self.cfg = policy.ColorConfig()
         self.processor = ImageProcessor(self.cfg)
+        for folder in (BLURS, CROPS, TEMPS):
+            create_dir(folder)
 
     def image_processor(
         self,
@@ -265,11 +275,13 @@ class ImageEditor:
         else:
             source_path = str(ctx.cached_image_path)
             if not validate_path(source_path):
-                # Texture cache miss — try reusing an image already opened
-                # by a prior step (e.g. blur opened via temp file).
+             # Texture cache miss — reuse an image opened by a prior step
+             # (e.g. blur), else copy the source to temp.
                 cached_images = shared["image_cache"].get(art_type, {})
                 if cached_images:
                     source_path, image = next(iter(cached_images.items()))
+                elif temp := self.cache_manager.source_temp_path(ctx):
+                    source_path = temp
                 else:
                     return None
 
@@ -292,23 +304,25 @@ class ImageEditor:
 
         if folder and "image" in result:
             processed_path = destination_path
-            with xbmcvfs.File(processed_path, "wb") as f:
-                self._save_processed_image(f, result)
+            write_image(
+                processed_path, result["image"], result.get("format", "PNG"), self.cfg
+            )
 
             log.debug(
                 f"{self.__class__.__name__} → File processed: "
                 f"{url} → {processed_path}",
             )
-            if self.temp_folder in source_path:
-                try:
-                    xbmcvfs.delete(source_path)
-                    log.debug(
-                        f"{self.__class__.__name__} → Temp file deleted → {source_path}",
-                    )
-                except Exception:
-                    log.debug(
-                        f"{self.__class__.__name__} → Temp file cleanup failed → {source_path}",
-                    )
+            
+        if self.temp_folder in source_path:
+            try:
+                xbmcvfs.delete(source_path)
+                log.debug(
+                    f"{self.__class__.__name__} → Temp file deleted → {source_path}",
+                )
+            except Exception:
+                log.debug(
+                    f"{self.__class__.__name__} → Temp file cleanup failed → {source_path}",
+                )
 
         meta = result.get("metadata") or {}
         return {
@@ -358,31 +372,3 @@ class ImageEditor:
                 f"{self.__class__.__name__}: Unable to open image {url} → {error}",
             )
             return None
-
-    def _save_processed_image(self, fh: Any, result: Mapping[str, Any]) -> None:
-        """
-        Save a processed image result to a file handle.
-        Uses configured JPEG/PNG settings from ColorConfig.
-
-        :param fh: Open binary file handle for writing.
-        :param result: Processor result mapping with 'image' and optional 'format'.
-        """
-        img = result["image"]
-        fmt = result.get("format", "PNG")
-        if fmt == "JPEG":
-            img.save(
-                fh,
-                "JPEG",
-                quality=self.cfg.jpeg_quality,
-                optimize=self.cfg.jpeg_optimize,
-                progressive=self.cfg.jpeg_progressive,
-                subsampling=self.cfg.jpeg_subsampling,
-            )
-            return
-
-        img.save(
-            fh,
-            "PNG",
-            optimize=self.cfg.png_optimize,
-            compress_level=self.cfg.png_compress_level,
-        )

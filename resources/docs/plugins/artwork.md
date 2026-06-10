@@ -2,7 +2,7 @@
 
 The artwork helper processes **clearlogos** and **fanart**, extracts a colour set (dominant, accent, contrast, luminosity), computes an optional **darken** value for overlays, and supports **multiart** families (e.g., `fanart1…fanartN`). Results are returned via **ListItem infolabels** and cached.
 
-- **Caching & DB:** processed paths and static analysis values are saved in a lightweight DB saved in the userdata folder. If the source art changes, the hash changes and the item is **reprocessed**; otherwise values are loaded from DB and files from cache (fast path). Runtime-only values like `fanart_darken` are computed on demand.
+- **Caching & DB:** processed paths and static analysis values are saved in a lightweight DB saved in the userdata folder. If the source art changes, the hash changes and the item is **reprocessed**; otherwise values are loaded from DB and files from cache (fast path). Runtime-only values like `efx_art_darken` are computed on demand.
 
 ---
 
@@ -36,7 +36,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 | `target` | int | Kodi control id | Bind helper to a specific container (pairs with `focus_guard`). |  |
 | `focus_guard` | str | any | Early-abort if focus moved (usually `Container(id).CurrentItem`). |  |
 
-> **Important:** To compute `fanart_darken` with `overlay_source=clearlogo`, include **both** `logo_crop=true` and `bg_blur=true` in the same call so the helper can analyse the fresh clearlogo colour *and* the fanart in the overlay rectangle.
+> **Important:** To compute `efx_art_darken` with `overlay_source=clearlogo`, include **both** `logo_crop=true` and `bg_blur=true` in the same call so the helper can analyse the fresh clearlogo colour *and* the fanart in the overlay rectangle.
 
 ---
 
@@ -53,7 +53,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 - `ListItem.Art(fanart_accent)` → accent fanart colour (ARGB hex)
 - `ListItem.Art(fanart_contrast)` → contrasting fanart colour (ARGB hex)
 - `ListItem.Art(fanart_luminosity)` → fanart brightness (0–1000)
-- `ListItem.Art(fanart_darken)` → darken percent (0–85), when overlay analysis is enabled
+- `ListItem.Art(efx_art_darken)` → darken percent (0–85), when overlay analysis is enabled
 
 - `ListItem.Art(multiart)` → first item of selected art family (if any)
 - `ListItem.Art(multiart1)` … `ListItem.Art(multiartN)` → subsequent items up to `multiart_max`
@@ -73,7 +73,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 - **Darken** (WCAG-informed): in `overlay_rect`, sample brightness using a **grid**, take the **brightest cell**, estimate background luminance, and compare to the **overlay_source**. Returns a darken percentage (capped) to help reach the target ratio.
 - **Red allowance (hue-aware leniency):** red-heavy scenes can appear perceptually darker than WCAG formulae suggest. A hue window around red relaxes the target ratio within guard rails to avoid over-darkening.
 
-> You can **use fadediffuse animations** inside Kodi to darken an image control using the the 0-100 value returned by `ListItem.Art(fanart_darken)`
+> You can **use fadediffuse animations** inside Kodi to darken an image control using the the 0-100 value returned by `ListItem.Art(efx_art_darken)`
 
 **Example XML animations:**
 ```xml
@@ -84,21 +84,21 @@ This will blur the fanart for the Container with id matching `target` (`Containe
     <content>plugin://script.copacetic.helper/?info=artwork&amp;logo_crop=true&amp;bg_blur=true&amp;overlay_enable=true&amp;overlay_source=ffd1cece&amp;overlay_rect=120,660,1680,360</content>
   </control>
 
-	<include name="fanart_darken">
-		<animation effect="fadediffuse" end="ffe6e6e6" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),10) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),20)">Conditional</animation>
-		<animation effect="fadediffuse" end="ffd1d1d1" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),20) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),30)">Conditional</animation>
-		<animation effect="fadediffuse" end="ffbcbcbc" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),30) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),40)">Conditional</animation>
-		<animation effect="fadediffuse" end="ffadadad" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),40) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),50)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff9f9f9f" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),50) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),60)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff939393" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),60) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),70)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff898989" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),70) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),80)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff838383" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),80) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),90)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff808080" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),90) + Integer.IsLess(Container(9300).ListItem.Art(fanart_darken),100)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff666666" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(fanart_darken),100)">Conditional</animation>
+	<include name="efx_art_darken">
+		<animation effect="fadediffuse" end="ffe6e6e6" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),10) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),20)">Conditional</animation>
+		<animation effect="fadediffuse" end="ffd1d1d1" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),20) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),30)">Conditional</animation>
+		<animation effect="fadediffuse" end="ffbcbcbc" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),30) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),40)">Conditional</animation>
+		<animation effect="fadediffuse" end="ffadadad" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),40) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),50)">Conditional</animation>
+		<animation effect="fadediffuse" end="ff9f9f9f" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),50) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),60)">Conditional</animation>
+		<animation effect="fadediffuse" end="ff939393" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),60) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),70)">Conditional</animation>
+		<animation effect="fadediffuse" end="ff898989" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),70) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),80)">Conditional</animation>
+		<animation effect="fadediffuse" end="ff838383" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),80) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),90)">Conditional</animation>
+		<animation effect="fadediffuse" end="ff808080" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),90) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),100)">Conditional</animation>
+		<animation effect="fadediffuse" end="ff666666" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),100)">Conditional</animation>
 	</include>
 
   <control type="image">
-    <include content="fanart_darken_animation" />
+    <include content="efx_art_darken_animation" />
     <texture>$INFO[ListItem.Art(fanart)]</>
 
 ```
@@ -274,7 +274,7 @@ Multiart scans the current item’s artwork fields for a family (e.g. `fanart`, 
 
 ## 6) Overlay requirements (important)
 
-To get `fanart_darken`:
+To get `efx_art_darken`:
 - `overlay_enable=true` must be set.
 - A **text colour** must be known:
   - `overlay_source=clearlogo` → include `logo_crop=true` in the same call (we need the freshly computed dominant colour from the logo).
@@ -308,7 +308,7 @@ Rationale: darken compares **text (logo) vs background (fanart)** within your re
 - **Colour analysis**
   - `*_color` (dominant), `*_accent` (accent), `*_contrast` (contrasting), `*_luminosity` (0–1000 scale).
 - **Overlay**
-  - `fanart_darken` (0–85) when overlay is enabled and inputs are valid.
+  - `efx_art_darken` (0–85) when overlay is enabled and inputs are valid.
 - **Multiart (optional)**
   - `multiart`, `multiart1..N` for the requested family.
 

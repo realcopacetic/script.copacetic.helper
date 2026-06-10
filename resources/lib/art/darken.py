@@ -4,7 +4,7 @@ from typing import Iterable
 
 from PIL import Image, ImageStat
 
-from resources.lib.art.policy import ART_FIELDS_DARKEN_ELEMENT
+from resources.lib.art import policy
 from resources.lib.plugin.opts import DarkenOpts
 from resources.lib.shared import logger as log
 
@@ -48,7 +48,7 @@ class ColorDarken:
         if not ctx:
             return None
 
-        framed, rects, L_text, strength = ctx
+        framed, rects, L_text, strength, label_widths = ctx
         mode = opts.mode or ""
         updates: DarkenUpdates = {}
         updates["darken"] = self._compute_artwork_darken(
@@ -57,6 +57,9 @@ class ColorDarken:
             strength=strength,
             L_text=L_text,
         )
+        for idx, w in enumerate(label_widths):
+            if w is not None and idx < len(policy.ART_FIELDS_DARKEN_LABEL_WIDTH):
+                updates[policy.ART_FIELDS_DARKEN_LABEL_WIDTH[idx]] = w
 
         if mode == "all":
             updates.update(
@@ -118,20 +121,24 @@ class ColorDarken:
     ) -> DarkenUpdates:
         """
         Darken elements on top of artwork (e.g. white text/logo on bright art).
-        Each rect evaluated independently; complex patches skipped (-1).
+        Each rect evaluated independently; complex patches return -1.
+        Also emits a strength-independent mean-luminance companion per rect
+        (darken_element_mean*) when a patch is complex.
 
         :param framed: Framed image.
         :param rects: Scaled rects.
         :param strength: Multiplier (0.0-2.0) controlling effect strength.
-        :return: Dict like {"darken_element": x, "darken_element1": y, ...}.
+        :return: Dict of darken_element*/darken_element_mean* values.
         """
-        keys = ART_FIELDS_DARKEN_ELEMENT
+        keys = policy.ART_FIELDS_DARKEN_ELEMENT
+        mean_keys = policy.ART_FIELDS_DARKEN_ELEMENT_MEAN
         updates: DarkenUpdates = {}
         best = None
         for idx, rect in enumerate(rects[: len(keys)]):
             x, y, w, h = rect
             patch = framed.crop((x, y, x + w, y + h))
             key = keys[idx]
+            updates[mean_keys[idx]] = self._sample_mean_pct(patch)
 
             if not self._is_simple_patch(patch):
                 pct = -1
@@ -162,7 +169,7 @@ class ColorDarken:
         *,
         image: Image.Image,
         opts: DarkenOpts,
-    ) -> tuple[Image.Image, list[Rect], float, float] | None:
+    ) -> tuple[Image.Image, list[Rect], float, float, list[int | None]] | None:
         """
         Resolve image, rects, overlay luminance and strength for darken sampling.
         opts.source is expected to be a resolved hex string at this point —
@@ -170,14 +177,15 @@ class ColorDarken:
 
         :param image: PIL image to sample.
         :param opts: Parsed options.
-        :return: Tuple (framed, rects, L_text, strength) or None.
+        :return: Tuple (framed, rects, L_text, strength, label_widths) or None.
         """
         if not opts.rects:
             return None
 
+        rects_param, label_widths = self._clamp_rects_to_labels(opts)
         framed, rects = self._prepare_image_and_rects(
             image=image,
-            rects=opts.rects,
+            rects=rects_param,
             frame=opts.frame,
         )
         if not rects:
@@ -192,7 +200,38 @@ class ColorDarken:
             else self.color.from_hex(cfg.element_overlay_color)
         )
         L_text = self.color.get_luminosity(text_rgb)
-        return framed, rects, L_text, opts.strength
+        return framed, rects, L_text, opts.strength, label_widths
+
+    def _clamp_rects_to_labels(
+        self, opts: DarkenOpts
+    ) -> tuple[str, list[int | None]]:
+        """
+        Clamp each rect by its parallel label and collect per-rect widths.
+        Rects without a paired label pass through unclamped.
+
+        :param opts: Darken options carrying rects and the label series.
+        :return: (clamped rect string, per-rect width list).
+        """
+        widths: list[int | None] = []
+        if not any(opts.labels):
+            return opts.rects, widths
+
+        cfg = self.color.cfg
+        px = opts.label_px if opts.label_px else cfg.darken_label_px_per_char
+        raw = opts.rects.replace(" ", "")
+        parts = raw.split("),(") if "(" in raw else [raw]
+        clamped: list[str] = []
+        for idx, part in enumerate(parts):
+            label = opts.labels[idx] if idx < len(opts.labels) else None
+            if label:
+                cr, w = self.clamp_rect_to_label(part.strip("()"), label, px)
+                clamped.append(cr)
+                widths.append(w)
+            else:
+                clamped.append(part.strip("()"))
+                widths.append(None)
+        rect_str = f"({'),('.join(clamped)})" if len(clamped) > 1 else clamped[0]
+        return rect_str, widths
 
     def _prepare_image_and_rects(
         self,
@@ -266,6 +305,33 @@ class ColorDarken:
                 out.append((x, y, w, h))
 
         return out
+
+    @staticmethod
+    def clamp_rect_to_label(
+        rect: str, label: str, px_per_char: float
+    ) -> tuple[str, int | None]:
+        """
+        Clamp a single rect's width to an estimated label width (left-anchored).
+
+        :param rect: Single rect "x,y,w,h" in frame coordinates.
+        :param label: Overlay label text for this rect.
+        :param px_per_char: Glyph advance in frame px.
+        :return: (clamped rect string, estimated width or None on bad input).
+        """
+        n = len(label.strip())
+        if n <= 0:
+            return rect, None
+        est = int(round(n * px_per_char))
+        if est <= 0:
+            return rect, None
+        nums = rect.replace(" ", "").strip("()").split(",")
+        if len(nums) != 4:
+            return rect, None
+        try:
+            x, y, w, h = (int(v) for v in nums)
+        except ValueError:
+            return rect, None
+        return f"{x},{y},{min(w, est)},{h}", est
 
     @staticmethod
     def _frame_image(
@@ -366,6 +432,23 @@ class ColorDarken:
             r, g, b = stat.mean
             rgb = (int(r), int(g), int(b))
         return rgb, self.color.get_luminosity(rgb)
+
+    def _sample_mean_pct(self, patch: Image.Image) -> int:
+        """
+        Mean luminance of a patch as a 0-100 percentage (strength-independent).
+        Predicts the value the region collapses toward under a strong blur.
+        Non-mutating: samples a copy so callers can still read ``patch``.
+
+        :param patch: Cropped patch in image coordinates.
+        :return: Mean luminance 0..100.
+        """
+        n = self.color.cfg.avg_downsample
+        small = patch.copy() if patch.mode == "RGB" else patch.convert("RGB")
+        if small.width > n or small.height > n:
+            small.thumbnail((n, n), Image.BOX)
+        r, g, b = ImageStat.Stat(small).mean
+        L = self.color.get_luminosity((round(r), round(g), round(b)))
+        return int(round(L * 100))
 
     def _is_simple_patch(self, patch: Image.Image) -> bool:
         """

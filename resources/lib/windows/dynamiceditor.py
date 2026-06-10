@@ -103,6 +103,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._has_runtime = any(
             ctrl.get("mode") == "dynamic" for ctrl in self.dynamic_controls.values()
         )
+        self._has_governor = any(
+            ctrl.get("role") in ("item_picker", "add_action")
+            for ctrl in self.dynamic_controls.values()
+        )
         if self._has_runtime:
             try:
                 self._mgmt_buttons = []
@@ -114,9 +118,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 log.debug("Management buttons not found; skipping.")
                 self._mgmt_buttons = None
             else:
-                for btn in self._mgmt_buttons:
-                    btn.setVisible(True)
-                self._mgmt_ids = {btn.getId() for btn in self._mgmt_buttons}
+                # Mutation buttons (add/delete/move/reset) require a governing
+                # control; a fixed runtime list shows only Close.
+                self._mgmt_ids = set()
+                for name in self._mgmt_map:
+                    btn = getattr(self, name)
+                    show = self._has_governor or name == "btn_close"
+                    btn.setVisible(show)
+                    if show:
+                        self._mgmt_ids.add(btn.getId())
 
         # Attach handlers to dynamic controls
         for control_id, control in self.dynamic_controls.items():
@@ -264,12 +274,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             return
 
         for h in self.handlers.values():
-            h.update_value(self.current_listitem, self._source_index)
-            h.update_visibility(
-                self.current_listitem,
-                self._source_index,
-                self.getFocusId(),
-            )
+            h.update_value()
+            h.update_visibility(self.getFocusId())
         if update_row:
             self._refresh_list_row(self.container_position)
 
@@ -284,7 +290,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _update_mgmt_buttons(self) -> None:
         """Enable/disable management buttons based on list position and size."""
-        if not self._has_runtime or not self._mgmt_buttons:
+        if not self._has_runtime or not self._mgmt_buttons or not self._has_governor:
             return
 
         has_items = bool(self.listitems)
@@ -299,9 +305,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         resetting any field values that are no longer valid.
         """
         for h in self.handlers.values():
-            h.refresh_after_mapping_item_change(
-                self.current_listitem, self._source_index, self.getFocusId()
-            )
+            h.refresh_after_mapping_item_change(self.getFocusId())
         self._refresh_list_row(self.container_position)
 
     def onAction(self, action: xbmcgui.Action) -> None:
@@ -352,12 +356,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 requested_focus = None
                 focused_handler = self._handler_by_focus_id.get(prev_focus)
                 if focused_handler:
-                    focused_handler.handle_interaction(
-                        self.current_listitem,
-                        self._source_index,
-                        prev_focus,
-                        a_id,
-                    )
+                    focused_handler.handle_interaction(prev_focus, a_id)
                     if focused_handler.focus_target_id is not None:
                         requested_focus = focused_handler.focus_target_id
                         focused_handler.focus_target_id = None
@@ -367,11 +366,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     current_focus = requested_focus
 
                 for h in self.handlers.values():
-                    h.update_visibility(
-                        self.current_listitem,
-                        self._source_index,
-                        current_focus,
-                    )
+                    h.update_visibility(current_focus)
 
             # Description — always update (mgmt buttons have descriptions too)
             focused_handler = (
@@ -514,31 +509,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 browse_result = result
 
         # Phase 2: Insert entry
-        if self.current_listitem:
-            source_insert = self._source_index + 1
-        elif self.parent_filter:
-            flat = self.runtime_manager.runtime_state.get(mk, [])
-            # Try after last existing sibling
-            last_sibling = next(
-                (
-                    i
-                    for i in range(len(flat) - 1, -1, -1)
-                    if flat[i].get("parent") == self.parent_filter
-                ),
-                None,
-            )
-            if last_sibling is not None:
-                source_insert = last_sibling + 1
-            else:
-                # No siblings yet — insert before the first child of any
-                # parent that comes after ours in the parent mapping
-                later_ids = self._later_parent_ids(mk)
-                source_insert = next(
-                    (i for i, e in enumerate(flat) if e.get("parent") in later_ids),
-                    len(flat),
-                )
-        else:
-            source_insert = len(self.runtime_manager.runtime_state.get(mk, []))
+        source_insert = self.runtime_manager.insert_position_for(
+            mk,
+            self.parent_filter,
+            self._source_index if self.current_listitem else None,
+        )
 
         extra = {"parent": self.parent_filter} if self.parent_filter else None
         new_entry = self.runtime_manager.insert_mapping_item(
@@ -547,21 +522,21 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         new_id = new_entry["runtime_id"]
 
+        # Select the new entry first — handlers resolve their target entry
+        # through the editor's selection state, so this must precede apply.
+        self.current_listitem = new_id
+        self._build_dicts()
+
         # Phase 3: Apply browse data (add_action only — picker seeds via metadata)
         if browse_result is not None:
-            governing.current_listitem = new_id
-            governing.source_index = source_insert
             governing.apply_result(browse_result, cfg)
 
         # Phase 3b: Apply picker chained action result (if any)
         if then_data is not None:
             handler, result, handler_cfg = then_data
-            handler.current_listitem = new_id
-            handler.source_index = source_insert
             handler.apply_result(result, handler_cfg)
 
-        # Set current selection before mapping_changed triggers _build_dicts
-        self.current_listitem = new_id
+        # Re-sync listitem visuals with any fields the applies just wrote
         self._build_dicts()
 
         display_keys = list(self.listitems.keys())
@@ -732,18 +707,3 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if rebuilt is None:
             log.debug(f"_seed_metadata: rebuild failed for {mk}[{idx}]={new_preset}")
 
-    def _later_parent_ids(self, child_mapping: str) -> set[str]:
-        """
-        Return the set of runtime_ids for parent entries that come after
-        self.parent_filter in the parent mapping's order.
-
-        :param child_mapping: The child mapping key (used to skip self).
-        :return: Set of runtime_ids for later parents, or empty set.
-        """
-        for key, entries in self.runtime_manager.runtime_state.items():
-            if key == child_mapping or not isinstance(entries, list):
-                continue
-            for i, entry in enumerate(entries):
-                if entry.get("runtime_id") == self.parent_filter:
-                    return {e["runtime_id"] for e in entries[i + 1 :]}
-        return set()

@@ -45,7 +45,7 @@ class BaseBuilder:
         :param element_data: Data dict containing rules and item values.
         :return: Generator yielding {name: value} dicts.
         """
-        mode = element_data.get("mode", "static")
+        mode = element_data.get("mode") or self._mapping_mode()
         template_items = element_data.get("items")
         template_index_data = element_data.get("index")
 

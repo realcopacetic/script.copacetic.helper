@@ -20,6 +20,7 @@ from resources.lib.plugin.helpers import (
     ProgressBarManager,
     TextTruncator,
     TypewriterAnimation,
+    reposition_control,
     merge_metadata,
 )
 from resources.lib.plugin.json_map import (
@@ -47,6 +48,7 @@ from resources.lib.shared.utilities import (
     parse_bool,
     set_plugincontent,
     to_int,
+    to_float,
     window_property,
 )
 
@@ -90,21 +92,28 @@ class _FocusGuard:
 
         :return: True if guard conditions still hold, otherwise False.
         """
-        if self.focus_ids and not any(
-            condition(f"Control.HasFocus({fid})") for fid in self.focus_ids
+        if not (current := infolabel("System.CurrentControlID")):
+            return True
+
+        if (
+            self.focus_ids
+            and current not in self.focus_ids
+            and not any(condition(f"Control.HasFocus({fid})") for fid in self.focus_ids)
         ):
             log.debug(
                 f"PluginHandlers → {self.caller_name}: ABORTED → focus left "
-                f"({', '.join(self.focus_ids)})"
+                f"({', '.join(self.focus_ids)}) to {current}"
             )
             return False
 
         if not self.expected_identity:
             return True
 
-        if self.expected_identity != self.identity_getter():
+        current_identity = self.identity_getter()
+        if current_identity and current_identity != self.expected_identity:
             log.debug(
-                f"PluginHandlers → {self.caller_name}: ABORTED → '{self.expected_identity}' lost focus"
+                f"PluginHandlers → {self.caller_name}: ABORTED → "
+                f"'{self.expected_identity}' lost focus to '{current_identity}'"
             )
             return False
 
@@ -418,7 +427,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            pb = ProgressBarManager(target=f"{self.target_container}.ListItem")
+            pb = ProgressBarManager(
+                target=f"{self.target_container}.ListItem",
+                btn_width=to_int(self.params.get("btn_width"), 30),
+                btn_height=to_int(self.params.get("btn_height"), None),
+            )
             resume, unwatched = pb.calculate()
             result = set_items(
                 [
@@ -443,6 +456,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 img_id=to_int(self.params.get("img_id"), None),
             )
             return result
+
+    @log.duration
+    def reposition(self) -> None:
+        """
+        Set geometry on a control from optional x/y/w/h params. Runs as its
+        own invocation so it only fires once the skin knows the control
+        exists and the value is available.
+        """
+        target_id = to_int(self.params.get("target_id"), None)
+        if not target_id:
+            return
+        reposition_control(
+            target_id,
+            x=to_int(self.params.get("x"), None),
+            y=to_int(self.params.get("y"), None),
+            w=to_int(self.params.get("w"), None),
+            h=to_int(self.params.get("h"), None),
+        )
+
 
     @log.duration
     def tmdb_details(self) -> list[DirectoryItem] | None:
@@ -475,6 +507,39 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 [item],
                 tag_applier=apply_videoinfotag,
             )
+
+    @log.duration
+    def text(self) -> list | None:
+        """
+        Rasterise a string to a cached white PNG mask and return its path.
+
+        :return: Single ListItem carrying Art(text), or None if aborted/empty.
+        """
+        from resources.lib.art.text import TextRenderer
+
+        with self.focus() as guard:
+            if not guard.alive():
+                return
+
+            box_width = to_int(self.params.get("text_width"), 1280)
+            result = TextRenderer().render(
+                text=self.params.get("text", ""),
+                font_path=self.params.get("text_font", ""),
+                font_size=to_int(self.params.get("text_size"), 42),
+                box_width=box_width,
+                max_height=to_int(self.params.get("text_height"), 720),
+                line_height=to_float(self.params.get("text_line_height"), 1.3),
+                letter_spacing=to_float(self.params.get("text_letter_spacing"), 0.0),
+            )
+            if not guard.alive() or not result:
+                return
+
+            path, height = result
+            return set_items(
+                [{"file": "text", "art": {"text": path},
+                  "properties": {"text_height": str(height)}}]
+            )
+
 
     @log.duration
     def typewriter(self) -> None:

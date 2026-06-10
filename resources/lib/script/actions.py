@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import random
+import time
 
 import xbmc
 
@@ -402,18 +403,26 @@ def play_radio(**kwargs):
 @action
 def play_trailer(trailer, **kwargs):
     """
-    Play a trailer, flagging it so PlayerMonitor applies trailer zoom.
+    Play a trailer, flagging it so PlayerMonitor applies trailer zoom and
+    stamping the requested item so stale starts can be cancelled.
 
     :param trailer: Player path or plugin URL to play.
+    :param item: Item label captured skin-side, atomic with the trailer URL.
+    :param item: Item label captured skin-side, atomic with the trailer URL.
     :param viewport: Optional "WxH" trailer region; enables aspect zoom.
     :param source_prefix: Optional infolabel prefix for AR lookup.
     """
     if not trailer:
         return
 
-    window_property("trailer_playing", value="true")
+    source = (kwargs.get("source_prefix") or "").strip()
+    prefix = f"Container({source}).ListItem" if source.isdigit() else source
+    item = kwargs.get("item") or (infolabel(f"{prefix}.Label") if prefix else "")
+    window_property("trailer_state", value="pending")
+    window_property("trailer_pending_since", value=str(time.time()))
     window_property("trailer_viewport", value=kwargs.get("viewport", ""))
-    window_property("trailer_source", value=kwargs.get("source_prefix", ""))
+    window_property("trailer_source", value=source)
+    window_property("trailer_item", value=item)
     log.execute(f"PlayMedia({trailer},1,noresume)")
 
 

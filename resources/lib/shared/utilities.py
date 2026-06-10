@@ -23,6 +23,7 @@ ADDON_ID = ADDON.getAddonInfo("id")
 ADDONDATA = xbmcvfs.translatePath(f"special://profile/addon_data/{ADDON_ID}/")
 BLURS = str(Path(ADDONDATA) / "blur")
 CROPS = str(Path(ADDONDATA) / "crop")
+TEXTS = str(Path(ADDONDATA) / "text")
 TEMPS = str(Path(ADDONDATA) / "temp")
 LOOKUPS = str(Path(ADDONDATA) / "_lookup.db")
 
@@ -208,14 +209,13 @@ def window_property(
 
 def create_dir(path: str) -> None:
     """
-    Creates a directory if it doesn't already exist.
+    Create a directory if absent; no-op if it already exists.
+    xbmcvfs.mkdirs returns True when the path exists or was created.
 
-    :param path: Directory path.
+    :param path: Directory path (local or VFS).
     """
-    try:  # Try makedir to avoid race conditions
-        xbmcvfs.mkdirs(path)
-    except FileExistsError:
-        return
+    if not xbmcvfs.mkdirs(path):
+        log.debug(f"create_dir: could not create {path}")
 
 
 def clear_cache(**kwargs: str) -> None:
@@ -225,7 +225,7 @@ def clear_cache(**kwargs: str) -> None:
     """
     readable_size = get_cache_size()
 
-    for folder in [BLURS, CROPS, TEMPS]:
+    for folder in [BLURS, CROPS, TEXTS, TEMPS]:
         if xbmcvfs.exists(folder):
             xbmcvfs.rmdir(folder, force=True)
             create_dir(folder)
@@ -276,6 +276,19 @@ def get_total_size(path: str | Path) -> int:
         return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
     return 0
 
+def skin_uses_builder() -> bool:
+    """
+    True when the active skin ships the builder folder structure under
+    ``extras/templates/``. Any one canonical subfolder suffices. This is 
+    the helper's per-skin opt-in signal.
+
+    :return: True if the active skin provides builder inputs.
+    """
+    from resources.lib.builders.builder_config import TEMPLATE_SUBFOLDERS
+
+    return any(
+        validate_path(str(Path(TEMPLATES) / sub)) for sub in TEMPLATE_SUBFOLDERS
+    )
 
 def url_encode(value: str) -> str:
     """

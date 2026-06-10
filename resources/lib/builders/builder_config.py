@@ -52,23 +52,13 @@ BUILDER_CONFIG = {
     },
 }
 
-BUILDER_MAPPINGS = {
-    "content_types": {
-        "items": {
-            "addons": ["addons"],
-            "favourites": ["favourites"],
-            "music": ["artists", "albums", "songs"],
-            "pictures": ["images"],
-            "videos": [
-                "movies",
-                "sets",
-                "tvshows",
-                "seasons",
-                "episodes",
-                "videos",
-                "musicvideos",
-            ],
-        },
-        "placeholders": {"key": "window", "value": "content_type"},
-    },
-}
+# Read-side resolver inputs — resolved on demand, never written as builders.
+MAPPINGS_FOLDER = "mappings"
+CONFIGS_FOLDER = "configs"
+CONTROLS_FOLDER = "controls"
+RESOLVER_SUBFOLDERS = (MAPPINGS_FOLDER, CONFIGS_FOLDER, CONTROLS_FOLDER)
+
+# Every template input folder a skin may provide: resolver inputs plus the
+# write-side builders, whose keys are their folder names. Deriving the builder
+# half from BUILDER_CONFIG keeps the opt-in signal in sync when a builder is added.
+TEMPLATE_SUBFOLDERS = (*RESOLVER_SUBFOLDERS, *BUILDER_CONFIG)
