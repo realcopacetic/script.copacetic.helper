@@ -8,6 +8,8 @@ class TrailerZoomController:
     """
     Handle trailer zoom based on viewport and content aspect ratio.
     """
+    SCREEN_AR = 16 / 9  # frame-fitting basis; viewport WxH is in skin coords
+    OVERSCAN = 1.04  # absorb matte variance between trailer encodes and library AR
 
     def apply_zoom_if_needed(self) -> None:
         """
@@ -181,7 +183,8 @@ class TrailerZoomController:
 
     def _compute_zoom(self, content_ar: float, window_ar: float) -> float:
         """
-        Compute zoom factor to fill the viewport.
+        Compute zoom to fill the viewport in both axes — fill-height kills
+        letterbox bars, fill-width kills pillarbox bars — with slight overshoot.
 
         :param content_ar: Content aspect ratio.
         :param window_ar: Viewport aspect ratio.
@@ -190,4 +193,6 @@ class TrailerZoomController:
         if content_ar <= 0.0:
             return 1.0
 
-        return round(content_ar / window_ar, 3)
+        fill_height = content_ar / window_ar
+        fill_width = self.SCREEN_AR / content_ar
+        return round(max(fill_height, fill_width) * self.OVERSCAN, 3)

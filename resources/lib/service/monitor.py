@@ -162,6 +162,7 @@ class Monitor(xbmc.Monitor):
 
     def poller(self):
         """Polling loop that runs background tasks for different windows."""   
+        self.player_monitor.watch_trailer_session()
         if condition("Window.IsVisible(home)"):
             # Run slideshow whenever wait is 0
             # if self.slideshow_wait == 0:
