@@ -13,9 +13,6 @@ from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import (
     TEMPLATES,
     RUNTIME_STATE,
-    SKINEXTRAS,
-    condition,
-    skin_string,
 )
 from resources.lib.shared.xml import XMLDictConverter, XMLMerger
 
@@ -26,17 +23,15 @@ class BuildElements:
     Handles data merging across mappings and delegates processing to builder modules.
     """
 
-    def __init__(self, builders_to_run=None, force_rebuild=False):
+    def __init__(self, builders_to_run=None):
         """
         Load templates and prepare the runtime manager.
 
         :param builders_to_run: Subset of builders to run; default is all.
-        :param force_rebuild: If True, run all builders and reseed state.
         """
-        self.force_rebuild = force_rebuild
         self.selected = (
             list(BUILDER_CONFIG.keys())
-            if (force_rebuild or builders_to_run is None)
+            if builders_to_run is None
             else builders_to_run
         )
         (
@@ -104,15 +99,11 @@ class BuildElements:
     @log.duration
     def run(self):
         """
-        Execute the build pipeline. Seeds unset skin strings, runs the
-        selected builders, writes outputs, and refreshes the template
-        cache. Full rebuilds also regenerate runtime state from defaults.
+        Execute the build pipeline. Runs the selected builders, writes
+        outputs, and refreshes the template cache. Seeds any runtime state
+        mappings missing from disk before builders run.
         """
-        if self.force_rebuild:
-            self.runtime_manager.initialize_runtime_state()
-        
-        self._initialize_skinstrings()
-
+        self.runtime_manager.initialize_runtime_state()
         values_to_write = self._process_builders()
 
         for builder, builder_data in values_to_write.items():
@@ -146,19 +137,3 @@ class BuildElements:
         log.info(
             f"{builder_name.capitalize()} saved to XML file: {write_path}"
         )
-
-    def _initialize_skinstrings(self):
-        """
-        Seed default skin strings for static configs that don't yet have a value.
-        Reads resolved defaults from the runtime manager's configs resolver.
-        """
-        for (
-            cfg_key,
-            default_value,
-        ) in self.runtime_manager.configs.iter_static_defaults():
-            if not condition(f"Skin.String({cfg_key})"):
-                skin_string(cfg_key, default_value)
-                log.debug(
-                    f"{self.__class__.__name__}: Default skinstring "
-                    f"'{cfg_key}' initialized to '{default_value}'."
-                )

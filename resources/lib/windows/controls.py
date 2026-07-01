@@ -16,7 +16,7 @@ from xbmcgui import (
 
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import infolabel, skin_string
+from resources.lib.shared.utilities import infolabel
 from resources.lib.windows.onclick_actions import OnClickActions
 
 if TYPE_CHECKING:
@@ -79,7 +79,6 @@ class BaseControlHandler:
         )
         self._link_data_cache = None
         self._link_cache_key = None
-        self._skin_string_cache: dict[str, str] = {}
         self.is_dynamic_linked = control.get("mode") == "dynamic" and self.field
         self.config_field_template = (
             runtime_manager.flatten_config_fields(self.mapping_key).get(self.field)
@@ -139,15 +138,7 @@ class BaseControlHandler:
                     }
                     return self._link_data_cache
 
-        trigger = f"focused({self.current_listitem})"
-        self._link_data_cache = next(
-            (
-                link
-                for link in self.control.get("contextual_bindings", [])
-                if link.get("update_trigger") == trigger
-            ),
-            {},
-        )
+        self._link_data_cache = {}
         return self._link_data_cache
 
     def _coerce_to_allowed(self) -> str | None:
@@ -203,22 +194,14 @@ class BaseControlHandler:
             return None
 
         link = self._active_link()
-        if cfg := link.get("linked_config"):
-            cfg_data = link["config"]
-            mode = cfg_data.get("mode", "static")
-            default = cfg_data.get("default", "")
-
-            if mode == "dynamic" and self.is_dynamic_linked:
-                try:
-                    return self.runtime_manager.get_runtime_setting(
-                        self.mapping_key, self.source_index, self.field
-                    )
-                except (IndexError, KeyError):
-                    return default
-
-            if cfg in self._skin_string_cache:
-                return self._skin_string_cache[cfg]
-            return infolabel(f"Skin.String({cfg})").strip()
+        if link.get("linked_config"):
+            default = link["config"].get("default", "")
+            try:
+                return self.runtime_manager.get_runtime_setting(
+                    self.mapping_key, self.source_index, self.field
+                )
+            except (IndexError, KeyError):
+                return default
 
         try:
             return self.runtime_manager.get_runtime_setting(
@@ -238,28 +221,17 @@ class BaseControlHandler:
     def _set_setting_value(self, value: str) -> None:
         """
         Set a new value for this control at the given list index.
-        Notifies the parent editor if a skin string was changed,
-        so it knows to rebuild on close.
 
         :param value: The new value to store.
         """
         if self._get_setting_value() == value:
-            return
+           return
 
         link = self._active_link()
-        cfg = link.get("linked_config")
-        cfg_data = link.get("config", {})
-        if cfg_data:
-            mode = cfg_data.get("mode", "static")
-            if mode == "dynamic" and self.is_dynamic_linked:
-                self.runtime_manager.update_runtime_setting(
-                    self.mapping_key, self.source_index, self.field, value
-                )
-            else:
-                skin_string(cfg, value)
-                self._skin_string_cache[cfg] = value
-                if self.parent is not None:
-                    self.parent.skin_strings_changed = True
+        if link.get("config"):
+            self.runtime_manager.update_runtime_setting(
+                self.mapping_key, self.source_index, self.field, value
+            )
             return
 
         self.runtime_manager.update_runtime_setting(
@@ -739,37 +711,19 @@ class SliderHandler(BaseControlHandler):
 
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:
         """
-        Updates the skin string when the user interacts with the slider.
+        Updates the stored value when the user interacts with the slider.
 
         :param focused_control_id: ID of currently focused control.
         :param a_id: Kodi action ID.
         """
         values = self._allowed_items()
-        def _safe(fn):
-            try:
-                return fn()
-            except Exception as e:
-                return f"err:{e}"
-        log.info(
-            f"SLIDER DIAG read → cfg={self._active_link().get('linked_config')} "
-            f"len={len(values)} values={values} "
-            f"getInt={_safe(self.instance.getInt)} "
-            f"getFloat={_safe(self.instance.getFloat)} "
-            f"getPercent={_safe(self.instance.getPercent)} "
-            f"current={self._get_setting_value()} action={a_id}"
-        )
         idx = self.instance.getInt()
         if 0 <= idx < len(values):
             self._set_setting_value(values[idx])
             self.parent._refresh_ui()
 
     def update_value(self) -> None:
-        """
-        Snap to an allowed value, then update slider index and enabled state.
-
-        :param current_listitem: Named ID of the currently selected listitem.
-        :param container_position: Current index in the runtime list.
-        """
+        """Snap to an allowed value, then update slider index and enabled state."""
         super().update_value()
 
         if not self._active_link().get("linked_config"):
@@ -778,11 +732,6 @@ class SliderHandler(BaseControlHandler):
         current = self._coerce_to_allowed()
         values = self._allowed_items()
         idx = values.index(current) if current in values else 0
-        log.info(
-            f"SLIDER DIAG write → cfg={self._active_link().get('linked_config')} "
-            f"len={len(values)} values={values} current={current} idx={idx} "
-            f"setInt=({idx},0,1,{max(len(values) - 1, 0)})"
-        )
         self.instance.setInt(idx, 0, 1, max(len(values) - 1, 0))
         enabled = len(values) > 1
         self.instance.setEnabled(enabled)

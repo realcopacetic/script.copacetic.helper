@@ -6,10 +6,26 @@ The build pipeline writes a consolidated cache to disk after a successful
 build. The Dynamic Editor reads it on open instead of walking source
 folders. Falls back to source on cache miss.
 """
+import xbmc
 
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler, JSONMerger
 from resources.lib.shared.utilities import RESOLVER_CACHE
+
+# Bump when template structure or resolver semantics change in a way that
+# invalidates previously written caches.
+_CACHE_VERSION = "1"
+
+def _cache_stamp() -> str:
+    """Identity of the cache: manual schema version plus the owning skin."""
+    return f"{_CACHE_VERSION}/{xbmc.getSkinDir()}"
+
+def _stamp_control_modes(mappings: dict, controls_data: dict) -> None:
+    """Force every control template's mode to its owning mapping's mode."""
+    for mapping_name, templates in controls_data.items():
+        mode = mappings.get(mapping_name, {}).get("mode", "static")
+        for tpl in templates.values():
+            tpl["mode"] = mode
 
 
 def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
@@ -24,11 +40,17 @@ def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
     handler = JSONHandler(RESOLVER_CACHE)
     if handler.exists:
         cache = next(iter(handler.data.values()), {})
-        return (
-            cache.get("mappings", {}),
-            cache.get("configs", {}),
-            cache.get("controls", {}),
-        )
+        if cache.get("stamp") != _cache_stamp():
+            log.info(
+                "load_template_data: resolver cache stamp mismatch — "
+                "reading templates from source"
+            )
+            return load_template_data_from_source(base_folder)
+        mappings = cache.get("mappings", {})
+        configs_data = cache.get("configs", {})
+        controls_data = cache.get("controls", {})
+        _stamp_control_modes(mappings, controls_data)
+        return mappings, configs_data, controls_data
     return load_template_data_from_source(base_folder)
 
 
@@ -67,6 +89,7 @@ def load_template_data_from_source(base_folder: str) -> tuple[dict, dict, dict]:
             content.get("controls") or {}
         )
 
+    _stamp_control_modes(mappings, controls_data)
     return mappings, configs_data, controls_data
 
 
@@ -82,6 +105,7 @@ def write_template_cache(
     """
     JSONHandler(RESOLVER_CACHE).write_json(
         {
+            "stamp": _cache_stamp(),
             "mappings": mappings,
             "configs": configs_data,
             "controls": controls_data,

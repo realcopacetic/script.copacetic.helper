@@ -8,16 +8,13 @@ fresh per Dynamic Editor session and discarded with the manager that
 owns them.
 """
 
-from typing import Iterator
-
 from resources.lib.builders.logic import RuleEngine
-from resources.lib.builders.substitution import enumerate_mapping_subs
 from resources.lib.shared import logger as log
 
 
 class _TemplateResolver:
     """
-    Shared template storage and sub enumeration for resolver classes.
+    Shared template storage for resolver classes.
     """
 
     def __init__(self, mappings: dict, data: dict) -> None:
@@ -33,19 +30,6 @@ class _TemplateResolver:
             for mapping_name, templates in data.items()
             for tpl_name, tpl_data in templates.items()
         }
-
-    def _subs_for(self, mapping_name: str, tpl_name: str) -> list[dict]:
-        """
-        Return substitution dicts for enumerating this template.
-        Constant-named templates yield a single empty sub.
-
-        :param mapping_name: Mapping owning the template.
-        :param tpl_name: Raw template name (placeholders intact).
-        :return: List of substitution dicts.
-        """
-        if "{" not in tpl_name:
-            return [{}]
-        return enumerate_mapping_subs(self._mappings.get(mapping_name, {}))
 
 
 class ConfigsResolver(_TemplateResolver):
@@ -117,26 +101,6 @@ class ConfigsResolver(_TemplateResolver):
         return (self._templates.get((mapping_name, tpl_name)) or {}).get(
             "dependent_fields", []
         )
-    
-    def iter_static_defaults(self) -> Iterator[tuple[str, str]]:
-        """
-        Yield (cfg_key, default) for every static-mode template with a
-        default. Used by initialize_skinstrings.
-
-        :return: Iterator of (cfg_key, default_value) pairs.
-        """
-        for (mapping_name, tpl_name), data in self._templates.items():
-            if data.get("mode", "static") != "static":
-                continue
-            for sub in self._subs_for(mapping_name, tpl_name):
-                try:
-                    cfg_key = tpl_name.format(**sub)
-                except KeyError:
-                    continue
-                cfg = self._resolve_one(data, sub, mapping_name)
-                default = cfg.get("default")
-                if default is not None:
-                    yield cfg_key, default
 
     def _resolve_one(self, data: dict, sub: dict, mapping_name: str) -> dict:
         """
@@ -150,7 +114,6 @@ class ConfigsResolver(_TemplateResolver):
         """
         template_defaults = {
             "items": [],
-            "mode": "static",
             "filter_mode": "exclude",
             "rules": [],
         }
@@ -176,7 +139,7 @@ class ConfigsResolver(_TemplateResolver):
             if (item not in excluded) == (merged["filter_mode"] == "exclude")
         ]
 
-        out: dict = {"items": items, "mode": merged["mode"]}
+        out: dict = {"items": items}
         if labels:
             out["labels"] = labels
 
@@ -198,22 +161,9 @@ class ConfigsResolver(_TemplateResolver):
 
 class ControlsResolver(_TemplateResolver):
     """
-    Resolves controls from pre-merged template data on demand.
+    Resolves controls from pre-merged template data on demand. All controls
+    are dynamic field-bound; resolution tags each with its owning mapping.
     """
-
-    def __init__(
-        self, mappings: dict, controls_data: dict, configs: "ConfigsResolver"
-    ) -> None:
-        """
-        Store templates and hold a reference to configs for pre-resolving
-        contextual_bindings at expansion time.
-
-        :param mappings: Dictionary of mapping definitions.
-        :param controls_data: {mapping_name: {tpl_name: tpl_data}}.
-        :param configs: ConfigsResolver instance for binding resolution.
-        """
-        super().__init__(mappings, controls_data)
-        self._configs = configs
 
     def for_mappings(self, mapping_keys: list[str]) -> dict:
         """
@@ -223,66 +173,8 @@ class ControlsResolver(_TemplateResolver):
         :return: Mapping of resolved control name → resolved control dict.
         """
         keys = set(mapping_keys)
-        resolved: dict = {}
-        for (mapping_name, tpl_name), tpl_data in self._templates.items():
-            if mapping_name not in keys:
-                continue
-            resolved.update(self._expand(mapping_name, tpl_name, tpl_data))
-        return resolved
-
-    def _expand(self, mapping_name: str, template_name: str, data: dict) -> dict:
-        """
-        Expand one control template into resolved form(s). Dynamic-mode is
-        passthrough; static contextual_bindings expand the bindings list;
-        plain static templates expand template name and string fields.
-
-        :param mapping_name: Mapping owning this template.
-        :param template_name: Template control name.
-        :param data: Template data dict.
-        :return: Mapping of resolved name → resolved control dict.
-        """
-        if data.get("mode") == "dynamic":
-            return {template_name: {"mapping": mapping_name, **data}}
-
-        substitutions = enumerate_mapping_subs(self._mappings.get(mapping_name, {}))
-
-        if "contextual_bindings" in data:
-            raw_bindings = data["contextual_bindings"]
-            raw_linked = raw_bindings.get("linked_config")
-            resolved_bindings: list = []
-            seen: set = set()
-            for sub in substitutions:
-                resolved = {
-                    k: (v.format(**sub) if isinstance(v, str) else v)
-                    for k, v in raw_bindings.items()
-                }
-                if raw_linked:
-                    resolved["config"] = self._configs.resolve(
-                        mapping_name, raw_linked, sub
-                    )
-                key = tuple(
-                    sorted(
-                        (k, v) for k, v in resolved.items() if isinstance(v, str)
-                    )
-                )
-                if key not in seen:
-                    seen.add(key)
-                    resolved_bindings.append(resolved)
-            return {
-                template_name: {
-                    "mapping": mapping_name,
-                    **{k: v for k, v in data.items() if k != "contextual_bindings"},
-                    "contextual_bindings": resolved_bindings,
-                }
-            }
-
         return {
-            template_name.format(**sub): {
-                "mapping": mapping_name,
-                **{
-                    k: (v.format(**sub) if isinstance(v, str) else v)
-                    for k, v in data.items()
-                },
-            }
-            for sub in substitutions
+            tpl_name: {"mapping": mapping_name, **tpl_data}
+            for (mapping_name, tpl_name), tpl_data in self._templates.items()
+            if mapping_name in keys
         }

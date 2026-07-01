@@ -285,9 +285,9 @@ def skin_uses_builder() -> bool:
     :return: True if the active skin provides builder inputs.
     """
     from resources.lib.builders.builder_config import TEMPLATE_SUBFOLDERS
-
+    
     return any(
-        validate_path(str(Path(TEMPLATES) / sub)) for sub in TEMPLATE_SUBFOLDERS
+        validate_path(str(Path(TEMPLATES) / sub) + "/") for sub in TEMPLATE_SUBFOLDERS
     )
 
 def url_encode(value: str) -> str:

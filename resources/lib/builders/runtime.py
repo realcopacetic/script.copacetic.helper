@@ -37,7 +37,7 @@ class RuntimeStateManager:
         """
         self._mappings = mappings
         self.configs = ConfigsResolver(mappings, configs_data)
-        self.controls = ControlsResolver(mappings, controls_data, self.configs)
+        self.controls = ControlsResolver(mappings, controls_data)
         self._runtime_state_handler = JSONHandler(runtime_state_path)
         self._runtime_state_cache: dict | None = None
         self._resolved_cache: dict[tuple[str, int], dict] = {}
