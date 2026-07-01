@@ -47,7 +47,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self.handlers = {}
         self.dynamic_controls = {}
-        self.skin_strings_changed = False
         self._has_runtime = False
         self.container_position = -1
         self.current_listitem = None
@@ -151,7 +150,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 self._handler_by_focus_id[fid] = h
 
         # Set initial focus and refresh UI
-        if not self.listitems and self._has_runtime:
+        if not self.listitems and self._has_runtime and self._has_governor:
             # Empty list (e.g. filtered view with no children) — auto-add
             self._on_add()
             if not self.listitems:
@@ -169,7 +168,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         original mapping on ``source_mapping`` for native-vs-borrowed checks.ls.
         """
         self._runtime_tpls = {}
-        self._static_tpls = {}
 
         sources = [self.mapping] + list(self.controls_from)
         filtered = self.runtime_manager.controls.for_mappings(sources)
@@ -182,12 +180,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 "source_mapping": ctrl.get("mapping"),
             }
             if ctrl.get("control_type") == "listitem":
-                bucket = (
-                    self._runtime_tpls
-                    if ctrl.get("mode") == "dynamic"
-                    else self._static_tpls
-                )
-                bucket[cid] = ctrl
+                self._runtime_tpls[cid] = ctrl
             else:
                 self.dynamic_controls[cid] = ctrl
 
@@ -208,17 +201,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             )
             if not self.parent_filter or entry.get("parent") == self.parent_filter
         }
-        self.listitems = {
-            **runtime_items,
-            **{
-                cid: {
-                    **tpl,
-                    "runtime_index": idx,
-                    "runtime_id": cid,
-                }
-                for idx, (cid, tpl) in enumerate(self._static_tpls.items())
-            },
-        }
+        self.listitems = dict(runtime_items)
 
     def _apply_row_visuals(self, li, item: dict, runtime_id: str) -> None:
         """
@@ -611,8 +594,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _on_reset(self) -> None:
         """
-+        Reset entries to defaults after user confirmation. Scoped to
-+        parent_filter when set; otherwise resets the whole mapping.
+        Reset entries to defaults after user confirmation. Scoped to
+        parent_filter when set; otherwise resets the whole mapping.
         """
         confirmed = xbmcgui.Dialog().yesno(
             "Reset to defaults",

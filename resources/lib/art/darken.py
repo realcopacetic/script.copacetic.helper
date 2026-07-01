@@ -123,7 +123,7 @@ class ColorDarken:
         Darken elements on top of artwork (e.g. white text/logo on bright art).
         Each rect evaluated independently; complex patches return -1.
         Also emits a strength-independent mean-luminance companion per rect
-        (darken_element_mean*) when a patch is complex.
+        (darken_element_mean*).
 
         :param framed: Framed image.
         :param rects: Scaled rects.
@@ -331,7 +331,8 @@ class ColorDarken:
             x, y, w, h = (int(v) for v in nums)
         except ValueError:
             return rect, None
-        return f"{x},{y},{min(w, est)},{h}", est
+        w = min(w, est)
+        return f"{x},{y},{w},{h}", w
 
     @staticmethod
     def _frame_image(

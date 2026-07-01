@@ -74,7 +74,7 @@ class TextRenderer:
             natural = ascent + descent
             advance = round(font_size * line_height * s)
             tracking = font_size * s * (letter_spacing / 100.0)
-            max_lines = max(1, (max_height * s) // advance)
+            max_lines = max(1, (max_height * s - natural) // advance + 1)
 
             lines = self._fit_lines(font, text, box_width * s, max_lines, tracking)
             if not lines:

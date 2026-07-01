@@ -5,7 +5,9 @@ import re
 import urllib.parse as urllib
 
 
-_PLUGIN_KV = re.compile(r"([A-Za-z0-9_.%-]+)=(.*?)(?=&[A-Za-z0-9_.%-]+=|$)")
+_PLUGIN_KV = re.compile(
+    r"([A-Za-z0-9_.%-]+)=(.*?)(?=&[A-Za-z0-9_.%-]+=|$)", re.DOTALL
+)
 """Extract k=v where value runs up to the next &KEY= or end; preserves raw '&' in values."""
 
 

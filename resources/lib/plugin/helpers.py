@@ -721,10 +721,11 @@ class TypewriterAnimation:
     Typewriter text effect with PlacementOpts-driven positioning.
     Height grows per line up to max_lines unless track_h is provided.
     """
+    DEFAULT_CONTROL_ID = 4020
 
     def __init__(
         self,
-        control_id: int = 4020,
+        control_id: int = DEFAULT_CONTROL_ID,
         step_time: float = 0.025,
         default_line_h: int = 30,
         max_lines: int = 3,
@@ -745,6 +746,17 @@ class TypewriterAnimation:
         self.default_line_h = default_line_h
         self.max_lines = max_lines
 
+    @classmethod
+    def reset(cls, label_id: int | None = None) -> None:
+        """
+        Supersede any in-flight run and hide the control.
+        Stale text is safe: only update() reveals the control, and it clears first.
+        :param label_id: Optional override control id.
+        """
+        control_id = to_int(label_id, cls.DEFAULT_CONTROL_ID)
+        Window(10000).setProperty(f"typewriter_current_{control_id}", "scroll")
+        log.execute(f"Control.SetHidden({control_id})")
+
     def update(
         self,
         *,
@@ -752,6 +764,7 @@ class TypewriterAnimation:
         opts: PlacementOpts,
         label_id: int | None = None,
         max_lines: int | None = None,
+        start_delay: float = 0,
         alive: Callable[[], bool] | None = None,
     ) -> None:
         """
@@ -762,6 +775,7 @@ class TypewriterAnimation:
         :param opts: Placement options; ``track_h`` is line height + growth.
         :param label_id: Optional override control id.
         :param max_lines: Optional cap for number of lines (overrides default).
+        :param start_delay: Seconds before typing begins; abort checks apply during the wait.
         :param alive: Optional guard callable; return False to abort animation.
         """
         monitor = Monitor()
@@ -782,6 +796,13 @@ class TypewriterAnimation:
 
         def _superseded() -> bool:
             return home.getProperty(owner_key) != my_token
+        
+        if start_delay > 0:
+            if monitor.waitForAbort(start_delay):
+                return
+            if not _alive() or _superseded():
+                log.debug(f"{self.__class__.__name__}: ABORTED → '{label}' during start_delay")
+                return
 
         try:
             control = self.window.getControl(control_id)

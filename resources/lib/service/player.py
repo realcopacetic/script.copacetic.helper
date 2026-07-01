@@ -37,6 +37,9 @@ class PlayerMonitor(Player):
         if self.isPlayingVideo():
             state = infolabel("Window(home).Property(trailer_state)")
             if state == "pending":
+                window_property(
+                    "trailer_file", value=infolabel("Player.Filenameandpath")
+                )
                 if self._trailer_is_stale():
                     self._orphan_trailer()
                 else:
@@ -158,6 +161,7 @@ class PlayerMonitor(Player):
             "trailer_source",
             "trailer_viewport",
             "trailer_pending_since",
+            "trailer_file",
         ):
             window_property(key)
 
@@ -186,12 +190,13 @@ class PlayerMonitor(Player):
         if state == "playing" and self._source_lost_focus():
             self._orphan_trailer()
             return
-        # If a swallowed skin pause ever leaves an audible zombie, reinstate the
-        # backstop here: if !Player.Paused -> self._pause_session()
-        if state in ("interrupted", "orphaned") and condition(
-            "Player.HasVideo + System.IdleTime(10)"
-        ):
-            log.execute("PlayerControl(Stop)")
+        if state in ("interrupted", "orphaned") and self._is_trailer_playback():
+            if condition("!Player.Paused"):
+                # Swallowed skin pause (queued toggles cancelling out)
+                self._pause_session()
+                return
+            if condition("System.IdleTime(10)"):
+                log.execute("PlayerControl(Stop)")
 
     def _reap_stale_pending(self, max_age: float = 5.0) -> None:
         """
@@ -219,6 +224,16 @@ class PlayerMonitor(Player):
         if not raw.isdigit():
             return False
         return not condition(f"Control.HasFocus({raw}) | Control.HasFocus({raw}0)")
+
+    def _is_trailer_playback(self) -> bool:
+        """
+        True when the playing video is the trailer this session stamped.
+        Fails closed on a missing stamp — never acts on someone's film.
+        """
+        stamped = infolabel("Window(home).Property(trailer_file)")
+        if not stamped or not condition("Player.HasVideo"):
+            return False
+        return infolabel("Player.Filenameandpath") == stamped
 
     def _cleanup(self):
         """Clear managed properties, the registry, and the trailer session."""

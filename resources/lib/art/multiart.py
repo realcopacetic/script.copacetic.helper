@@ -1,13 +1,14 @@
 # author: realcopacetic
 
 import random
-from typing import Iterable, Mapping, Any
+from typing import Callable, Iterable, Mapping
 
+from xbmc import Monitor
 from xbmcgui import Window, getCurrentWindowId
 
 from resources.lib.plugin.helpers import get_infolabels
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import clamp, to_int, infolabel
+from resources.lib.shared.utilities import clamp, to_int, infolabel, window_property
 from resources.lib.apis.tmdb.cache import TmdbCache
 
 DEFAULT_SLOTS = 15
@@ -187,40 +188,61 @@ def sequence_to_multiart_dict(urls: Iterable[str]) -> dict[str, str]:
 
     return result
 
-
-def set_multiart_fadelabel(
-    fadelabel_id: int | str,
+def order_multiart(
     art: dict[str, str],
     *,
     randomize: bool = True,
     keep_main_first: bool = True,
+) -> list[str]:
+    """
+    Resolve the display order for a multiart dict.
+
+    :param art: Dict containing "multiart" and "multiart1..N".
+    :param randomize: Shuffle the non-main entries if True.
+    :param keep_main_first: Keep the main image first (recommended ON).
+    :return: Ordered list of URLs, main first.
+    """
+    main = art.get("multiart")
+    extras = [
+        v for k, v in art.items() if k.startswith("multiart") and k != "multiart" and v
+    ]
+    if randomize:
+        random.shuffle(extras)
+    return [u for u in ([main] if keep_main_first and main else []) + extras if u]
+
+def set_multiart_fadelabel(
+    fadelabel_id: int | str,
+    ordered: list[str],
+    *,
+    alive: Callable[[], bool] | None = None,
 ) -> bool:
     """
     Seed a FadeLabel control with a multiart sequence.
 
     :param fadelabel_id: Control id of the FadeLabel to populate.
-    :param art: Dict containing "multiart" and "multiart1..N".
-    :param randomize: Shuffle extras if True.
-    :param keep_main_first: Keep the first image first (recommended ON).
+    :param ordered: URLs in display order (see order_multiart).
+    :param alive: Focus guard; seeding aborts if it returns False after the park.
     :return: True if labels were set successfully.
     """
     try:
         win = Window(getCurrentWindowId())
         ctrl = win.getControl(to_int(fadelabel_id))
+        if displayed := infolabel(f"Control.GetLabel({fadelabel_id})"):
+            window_property(f"multiart_frozen_{fadelabel_id}", displayed)
         ctrl.setVisible(True)
         ctrl.reset()
+        # Kodi keeps a FadeLabel's rotation index across reset(); it only
+        # clamps to 0 when a render pass sees index >= label count. Park a
+        # single empty label for ~2 frames so the clamp happens. Empirical:
+        # GetLabel can't confirm the render pass, so this is a timed wait —
+        # bump the interval if index-walking ever recurs under load.
+        ctrl.addLabel("")
+        if Monitor().waitForAbort(0.05):
+            return False
+        if alive and not alive():
+            return False
+        ctrl.reset()
 
-        main = art.get("multiart")
-        extras = [
-            v
-            for k, v in art.items()
-            if k.startswith("multiart") and k != "multiart" and v
-        ]
-
-        if randomize:
-            random.shuffle(extras)
-
-        ordered = ([main] if keep_main_first and main else []) + extras
         for label in filter(None, ordered):
             ctrl.addLabel(label)
 

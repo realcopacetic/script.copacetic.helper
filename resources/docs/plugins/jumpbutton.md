@@ -59,7 +59,7 @@ Here’s a simple example of a scrollbar and jump button wrapped in a group:
 Call the JumpButton helper from your container using `RunPlugin`:
 
 ```xml
-<onclick>RunPlugin(plugin://script.copacetic.helper?action=jumpbutton&amp;scroll_id=60&amp;sortletter=$INFO[ListItem.SortLetter]&amp;anchor_id=4000&amp;inset=12,4)</onclick>
+<onclick>RunPlugin(plugin://script.copacetic.helper?info=jumpbutton&amp;scroll_id=60&amp;sortletter=$INFO[ListItem.SortLetter]&amp;anchor_id=4000&amp;inset=12,4)</onclick>
 ```
 
 This moves the button according to the scrollbar fraction and updates its label with the sort letter.

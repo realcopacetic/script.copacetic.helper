@@ -59,20 +59,14 @@ def clean_filename(label=False, **kwargs):
 
 
 @action
-def clear_label(id):
-    from xbmcgui import Window, getCurrentWindowId
+def clear_label(id, **kwargs):
+    """
+    Clear a fadelabel register. Sanctioned for window-unload only —
+    mid-session skin-side clears violate the single-writer doctrine.
+    """
+    from resources.lib.shared.utilities import clear_label
 
-    if not (ctrl_id := to_int(id, None)) > 0:
-        return
-
-    window = Window(getCurrentWindowId())
-    try:
-        ctrl = window.getControl(ctrl_id)
-        ctrl.reset()
-        ctrl.addLabel("")
-    except RuntimeError:
-        log.debug(f"clear_label: Label id {id} not found.")
-        return
+    clear_label(id, hide=False)
 
 
 @action
@@ -159,8 +153,8 @@ def dynamic_settings_window(**kwargs):
     if not previous_editor:
         myWindow.runtime_manager.reload_state()
         if (
-            myWindow.runtime_manager.runtime_state != myWindow._runtime_state_snapshot
-            or myWindow.skin_strings_changed
+            myWindow.runtime_manager.runtime_state
+            != myWindow._runtime_state_snapshot
         ):
             from resources.lib.builders.build_elements import BuildElements
 
@@ -608,8 +602,8 @@ def toggle_addon(id, **kwargs):
 def rebuild(**kwargs):
     """
     Rebuild builder outputs and reload the skin. Regenerates output XML,
-    seeds unset skin strings, and refreshes the resolver cache; existing
-    runtime state is preserved unless reset is requested.
+    seeds missing runtime state mappings, and refreshes the resolver cache;
+    existing runtime state is preserved unless reset is requested.
 
     :param reset: 'true' to delete runtime state and outputs, then rebuild fresh.
     """
@@ -620,7 +614,7 @@ def rebuild(**kwargs):
         reset_dev_state()
         ADDON.setSettingBool("dev_reset", False)
 
-    BuildElements(force_rebuild=reset).run()
+    BuildElements().run()
 
     log.execute("ReloadSkin()")
     DIALOG.notification(

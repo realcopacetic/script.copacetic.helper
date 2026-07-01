@@ -109,9 +109,7 @@ def fetch_tmdb_fields(
     if "{season_number}" in endpoint_template:
         if season_number is None:
             log.debug(
-                "fetch_tmdb_fields → missing season_number for kind=%r, tmdb_id=%r",
-                kind,
-                tmdb_id,
+                f"fetch_tmdb_fields → missing season_number for {kind=}, {tmdb_id=}"
             )
             return {}
         format_kwargs["season_number"] = season_number

@@ -63,6 +63,15 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
     tmdb_id = first("tmdb_id", "UniqueID(tmdb)")
     context["season_number"] = to_int(first("season", "Season"), None)
 
+    if kind == "season" and context["season_number"] is None:
+        # "* All seasons" node: no season number — skip the uniqueid lookup.
+        context["tmdb_id"] = None
+        log.debug(
+            f"resolve_tmdb_context → season without season number for {dbid=}; "
+            f"skipping TMDb lookup"
+        )
+        return dict(context)
+
     if kind in ("season", "episode"):
         lookup_dbid = to_int(
             first("tvshowid", "TvShowDBID")

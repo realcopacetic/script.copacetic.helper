@@ -71,6 +71,29 @@ def reset_dev_state() -> None:
 
 """KODI UTILS"""
 
+def clear_label(label_id: int | str, hide: bool = False) -> None:
+    """
+    Clear a label control, optionally hiding it.
+
+    :param label_id: Control id of the label to clear.
+    :param hide: Also set the control invisible when True.
+    """
+    if (ctrl_id := to_int(label_id, 0)) <= 0:
+        return
+
+    if not condition(f"Control.IsVisible({ctrl_id})"):
+        log.debug(f"clear_label: Control {ctrl_id} not in current window; skipping.")
+        return
+
+    window = Window(getCurrentWindowId())
+    try:
+        ctrl = window.getControl(ctrl_id)
+        if hide:
+            ctrl.setVisible(False)
+        ctrl.reset()
+        ctrl.addLabel("")
+    except RuntimeError:
+        log.debug(f"clear_label: Label id {label_id} not found.")
 
 def clear_playlists() -> None:
     log.debug("Clear playlists")
@@ -285,9 +308,9 @@ def skin_uses_builder() -> bool:
     :return: True if the active skin provides builder inputs.
     """
     from resources.lib.builders.builder_config import TEMPLATE_SUBFOLDERS
-
+    
     return any(
-        validate_path(str(Path(TEMPLATES) / sub)) for sub in TEMPLATE_SUBFOLDERS
+        validate_path(str(Path(TEMPLATES) / sub) + "/") for sub in TEMPLATE_SUBFOLDERS
     )
 
 def url_encode(value: str) -> str:

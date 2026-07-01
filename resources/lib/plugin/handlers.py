@@ -11,7 +11,12 @@ from xbmcplugin import SORT_METHOD_LASTPLAYED
 from resources.lib.apis.tmdb.context import resolve_tmdb_context
 from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 from resources.lib.art.editor import ImageEditor
-from resources.lib.art.multiart import build_multiart_dict, set_multiart_fadelabel
+from resources.lib.art.multiart import (
+    build_multiart_dict,
+    order_multiart,
+    sequence_to_multiart_dict,
+    set_multiart_fadelabel,
+)
 from resources.lib.art.policy import ART_PROCESS_MAP
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
@@ -43,6 +48,7 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
+    clear_label,
     condition,
     infolabel,
     parse_bool,
@@ -293,6 +299,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 self.expected_identity,
                 to_int(infolabel(f"{self.identity_container}.CurrentItem"), None),
             )
+            # Snapshot the cursor before any expensive work: the stamp must echo
+            # the visit this invocation was fired for, not whatever the cursor
+            # says after the last guard checkpoint.
+            fadelabel_key = self.params.get("multiart_fadelabel") or self.params.get(
+                "multiart_register", ""
+            )
+            cursor_snapshot = (
+                infolabel(f"Window(home).Property(artwork_cursor_{fadelabel_key})")
+                if fadelabel_key
+                else ""
+            )
             art_opts = {
                 art_type: ArtOpts.from_params(self.params, art_type)
                 for art_type in ("clearlogo", "background", "icon")
@@ -332,15 +349,42 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             fadelabel_id = self.params.get("multiart_fadelabel")
-            if fadelabel_id and multiart_dict:
-                set_multiart_fadelabel(
-                    fadelabel_id=fadelabel_id,
-                    art=multiart_dict,
-                    randomize=True,
-                    keep_main_first=True,
-                )
+            if fadelabel_id:
+                seeded = False
+                if len(multiart_dict) > 1:
+                    ordered = order_multiart(multiart_dict)
+                    seeded = set_multiart_fadelabel(
+                        fadelabel_id=fadelabel_id,
+                        ordered=ordered,
+                        alive=guard.alive,
+                    )
+                if seeded:
+                    art |= sequence_to_multiart_dict(ordered)
+                elif guard.alive():
+                    clear_label(fadelabel_id, hide=False)
+                    art = {k: v for k, v in art.items() if not k.startswith("multiart")}
+                else:
+                    return
+
             if background_blur := art.get("background", ""):
                 window_property("background_blur", background_blur)
+
+            if self.target is not None:
+                stamp_scope = str(self.target)
+            else:
+                stamp_scope = (
+                    cursor_snapshot.split("/", 1)[0] if "/" in cursor_snapshot else ""
+                )
+
+            prefix = f"{stamp_scope}/" if stamp_scope else ""
+            total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
+            dbid = infolabel(f"{self.identity_container}.ListItem.DBID")
+
+            if current_position is not None and total > 1:
+                prev_pos = total if current_position == 1 else current_position - 1
+                next_pos = 1 if current_position == total else current_position + 1
+            elif current_position is not None:
+                prev_pos, next_pos = current_position - 1, current_position + 1
 
             return set_items(
                 [
@@ -348,9 +392,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         "file": "artwork",
                         "art": art,
                         "properties": (
-                            {
-                                "previous": current_position - 1,
-                                "next": current_position + 1,
+                           {
+                                "previous": f"{prefix}{prev_pos}",
+                                "current": cursor_snapshot or f"{prefix}{current_position}/{dbid}",
+                                "next": f"{prefix}{next_pos}",
+                                "previous_pos": str(prev_pos),
+                                "next_pos": str(next_pos),
                             }
                             if current_position is not None
                             else {}
@@ -545,17 +592,24 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def typewriter(self) -> None:
         """
         Run typewriter animation for the current listitem; guarded against focus changes.
+        A reset=true invocation supersedes any run and hides the control.
         """
+        label_id=to_int(self.params.get("label_id"), None)
+        if parse_bool(self.params.get("reset", "false")):
+            TypewriterAnimation.reset(label_id=label_id)   
+            return
+
         with self.focus() as guard:
             if not guard.alive():
                 return
 
-            t = TypewriterAnimation()
+            t = TypewriterAnimation()            
             t.update(
                 label=self.label,
                 opts=PlacementOpts.from_params(self.params),
-                label_id=to_int(self.params.get("label_id"), None),
+                label_id=label_id,
                 max_lines=to_int(self.params.get("max_lines"), None),
+                start_delay=to_float(self.params.get("start_delay"), 0),
                 alive=guard.alive,
             )
 

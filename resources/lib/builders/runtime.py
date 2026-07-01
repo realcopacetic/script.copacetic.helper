@@ -37,7 +37,7 @@ class RuntimeStateManager:
         """
         self._mappings = mappings
         self.configs = ConfigsResolver(mappings, configs_data)
-        self.controls = ControlsResolver(mappings, controls_data, self.configs)
+        self.controls = ControlsResolver(mappings, controls_data)
         self._runtime_state_handler = JSONHandler(runtime_state_path)
         self._runtime_state_cache: dict | None = None
         self._resolved_cache: dict[tuple[str, int], dict] = {}
@@ -347,20 +347,19 @@ class RuntimeStateManager:
             if localize and isinstance(formatted, str) and formatted.startswith("$")
             else formatted
         )
-
-    def flatten_config_fields(self, mapping_key: str) -> dict[str, str]:
+    
+    def field_template(
+        self, mapping_key: str, item: str | None, field: str
+    ) -> str | None:
         """
-        Flatten scoped config_fields into a single field→template map for
-        registry lookups (control config_field_template resolution).
+        Template governing a field for a given mapping_item.
 
         :param mapping_key: Mapping group key.
-        :return: Flat field→template map across all sections.
+        :param item: Mapping_item name, or None for global-only scope.
+        :param field: Runtime field name.
+        :return: Config template name, or None when the item doesn't carry it.
         """
-        cfg = self.mappings.get(mapping_key, {}).get("config_fields", {})
-        flat: dict[str, str] = {}
-        for section in cfg.values():
-            flat.update(section)
-        return flat
+        return self._seed_fields_for(mapping_key, item).get(field)
 
     def _seed_fields_for(self, mapping_key: str, item: str) -> dict[str, str]:
         """

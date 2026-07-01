@@ -6,6 +6,7 @@ import xbmc
 
 from resources.lib.builders.build_elements import BuildElements
 from resources.lib.builders.builder_config import BUILDER_CONFIG
+from resources.lib.builders.templates import cache_is_current
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ArtworkCacheHandler
@@ -13,9 +14,7 @@ from resources.lib.shared.utilities import (
     ADDON,
     BLURS,
     CROPS,
-    RESOLVER_CACHE,
     TEMPS,
-    create_dir,
     reset_dev_state,
     skin_uses_builder,
     validate_path,
@@ -77,7 +76,7 @@ class Monitor(xbmc.Monitor):
             )
 
         if dev_mode:
-            BuildElements(force_rebuild=True).run()
+            BuildElements().run()
             xbmc.executebuiltin("ReloadSkin()")
             return
 
@@ -87,9 +86,8 @@ class Monitor(xbmc.Monitor):
             if (write_path := config.get("write_path"))
             and not validate_path(write_path)
         ]
-        cache_missing = not validate_path(RESOLVER_CACHE)
-        if cache_missing:
-            BuildElements(force_rebuild=True).run()
+        if not cache_is_current():
+            BuildElements().run()
         elif builders:
             BuildElements(builders_to_run=builders).run()
 
@@ -118,6 +116,7 @@ class Monitor(xbmc.Monitor):
         if skindir != self._skindir:
             self._skindir = skindir
             self._supported = skin_uses_builder()
+        
         return self._supported
 
     def _conditions_met(self):
@@ -132,7 +131,7 @@ class Monitor(xbmc.Monitor):
         """Called when monitor loop exits. Waits for restart or exits cleanly."""
         log.info(f"{self.__class__.__name__}: Idle, waiting...")
         while not self.abortRequested() and not self._conditions_met():
-            self.waitForAbort(2)
+            self.waitForAbort(10)
         if not self.abortRequested():
             self._on_start()
         else:
