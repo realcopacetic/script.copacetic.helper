@@ -1,9 +1,32 @@
 # author: realcopacetic
 
 DEFAULT_ABBREV = {
-    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "mt", "ft", "rd",
-    "ave", "blvd", "vs", "etc", "ie", "eg", "inc", "ltd", "dept",
-    "u", "us", "uk", "eu", "u.s", "u.k",
+    "mr",
+    "mrs",
+    "ms",
+    "dr",
+    "prof",
+    "sr",
+    "jr",
+    "st",
+    "mt",
+    "ft",
+    "rd",
+    "ave",
+    "blvd",
+    "vs",
+    "etc",
+    "ie",
+    "eg",
+    "inc",
+    "ltd",
+    "dept",
+    "u",
+    "us",
+    "uk",
+    "eu",
+    "u.s",
+    "u.k",
 }
 
 

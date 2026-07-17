@@ -4,7 +4,6 @@ import ast
 import json
 import operator
 import sys
-import time
 import urllib.parse as urllib
 from pathlib import Path
 from typing import Any, Mapping
@@ -71,6 +70,7 @@ def reset_dev_state() -> None:
 
 """KODI UTILS"""
 
+
 def clear_label(label_id: int | str, hide: bool = False) -> None:
     """
     Clear a label control, optionally hiding it.
@@ -95,6 +95,7 @@ def clear_label(label_id: int | str, hide: bool = False) -> None:
     except RuntimeError:
         log.debug(f"clear_label: Label id {label_id} not found.")
 
+
 def clear_playlists() -> None:
     log.debug("Clear playlists")
     VIDEOPLAYLIST.clear()
@@ -110,6 +111,25 @@ def condition(condition: str) -> bool:
     :return: Boolean result.
     """
     return xbmc.getCondVisibility(condition)
+
+
+def container_position(container: str, prop: str, value: str) -> int | None:
+    """
+    Live position of the container item whose property matches a value.
+
+    :param container: Container ID to probe.
+    :param prop: Property name to compare.
+    :param value: Value identifying the item.
+    :return: Zero-based container index, or None when absent.
+    """
+    count = to_int(infolabel(f"Container({container}).NumItems"), 0)
+    for index in range(count):
+        found = infolabel(
+            f"Container({container}).ListItemAbsolute({index}).Property({prop})"
+        )
+        if found == value:
+            return index
+    return None
 
 
 def focused_control_id() -> int:
@@ -129,34 +149,6 @@ def infolabel(infolabel: str) -> str:
     :return: Evaluated string value.
     """
     return xbmc.getInfoLabel(infolabel)
-
-
-def wait_for_infolabel(
-    name: str,
-    *,
-    timeout_ms: int = 250,
-    poll_ms: int = 25,
-) -> str:
-    """
-    Wait briefly for an InfoLabel to become non-empty.
-
-    :param name: Fully-qualified InfoLabel name (e.g. "Container.ListItem.DBID").
-    :param timeout_ms: Maximum time to wait in milliseconds.
-    :param poll_ms: Polling interval in milliseconds.
-    :return: First non-empty value observed, or "" if timeout/abort.
-    """
-    monitor = xbmc.Monitor()
-    deadline = time.time() + (timeout_ms / 1000.0)
-
-    value = infolabel(name)
-    if value:
-        return value
-
-    while not value and not monitor.abortRequested() and time.time() < deadline:
-        xbmc.sleep(poll_ms)
-        value = infolabel(name)
-
-    return value or ""
 
 
 def skin_string(key: str, value: str | bool = False) -> None:
@@ -299,19 +291,21 @@ def get_total_size(path: str | Path) -> int:
         return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
     return 0
 
+
 def skin_uses_builder() -> bool:
     """
     True when the active skin ships the builder folder structure under
-    ``extras/templates/``. Any one canonical subfolder suffices. This is 
+    ``extras/templates/``. Any one canonical subfolder suffices. This is
     the helper's per-skin opt-in signal.
 
     :return: True if the active skin provides builder inputs.
     """
     from resources.lib.builders.builder_config import TEMPLATE_SUBFOLDERS
-    
+
     return any(
         validate_path(str(Path(TEMPLATES) / sub) + "/") for sub in TEMPLATE_SUBFOLDERS
     )
+
 
 def url_encode(value: str) -> str:
     """
@@ -421,7 +415,9 @@ def _truncate_for_log(payload: Any) -> Any:
     if isinstance(payload, list):
         if len(payload) > _JSON_RESPONSE_LIMIT:
             head = [_truncate_for_log(item) for item in payload[:_JSON_RESPONSE_LIMIT]]
-            head.append(f"... <{len(payload) - _JSON_RESPONSE_LIMIT} more items omitted>")
+            head.append(
+                f"... <{len(payload) - _JSON_RESPONSE_LIMIT} more items omitted>"
+            )
             return head
         return [_truncate_for_log(item) for item in payload]
     return payload

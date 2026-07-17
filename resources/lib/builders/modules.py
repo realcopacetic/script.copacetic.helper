@@ -48,6 +48,7 @@ class BaseBuilder:
         mode = self.mapping_values.get("mode", "static")
         template_items = element_data.get("items")
         template_index_data = element_data.get("index")
+        template_range_data = element_data.get("range")
 
         if mode == "dynamic":
             runtime_items = (
@@ -67,11 +68,19 @@ class BaseBuilder:
         else:
             substitutions = enumerate_mapping_subs(self.mapping_values)
             if template_index_data:
+                index_list = expand_index(template_index_data)
+                index_start = int(index_list[0]) if index_list else 1
                 substitutions = [
-                    {**sub, "index": str(idx)}
-                    for sub in substitutions
-                    for idx in expand_index(template_index_data)
+                    {**sub, "index": str(index_start + i)}
+                    for i, sub in enumerate(substitutions)
                 ]
+
+        if template_range_data:
+            substitutions = [
+                {**sub, "range": str(r)}
+                for sub in substitutions
+                for r in expand_index(template_range_data)
+            ]
 
         if template_items:
             substitutions = [
@@ -713,7 +722,7 @@ class VariablesBuilder(BaseBuilder):
             else:
                 flattened.extend(self._resolve_pair(p, {}) for p in block)
         return self._dedup_rows(flattened)
-    
+
     @staticmethod
     def _dedup_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
         """

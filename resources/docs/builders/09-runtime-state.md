@@ -1,228 +1,176 @@
-# Runtime State & the Dynamic Editor
+# Runtime State & Dynamic Editor
 
-Runtime state powers the multi-instance features: widgets, menus, and anything else where the user adds, removes, reorders, and configures entries. Each entry is stored in `runtime_state.json` with a stable UUID and a set of fields. The Dynamic Editor reads and writes that file through the controls you've defined.
+Two halves: the **settings file** (`runtime_state.json`) where every user choice lives, and the **editor windows** that write it. The file first — it exists and matters even if you never open a window.
 
 ---
 
-## runtime_state.json
+## The settings file
 
-One list per mapping. Each entry is a flat dictionary of string fields. Two entries from a real widget list.
-An entry only carries fields it needs to: identity, copied metadata strings, and any fields the user has set. Anything the user hasn't touched is absent on disk and resolves to its config default on read. Two entries from a real widget list:
+One list of entries per dynamic mapping:
 
 ```json
 {
   "widgets": [
     {
-      "runtime_id": "f6698793-c695-4325-8fe1-978def805d65",
+      "runtime_id": "e1b39d85-a10b-5672-a48e-296db8bc1e38",
       "mapping_item": "latest_movies",
-      "label": "$LOCALIZE[31202]",
-      "target": "videos",
-      "content": "videodb://movies/titles/",
-      "sortby": "dateadded",
-      "sortorder": "descending",
-      "parent": "bf340cc1-17c5-437f-8f84-76d6676601c6",
-      "layout": "showcase",
-    },
-    {
-      "runtime_id": "a956c4b6-d6b3-4754-957e-d5993786a8b9",
-      "mapping_item": "custom",
-      "label": "In-progress movies",
-      "content": "special://skin/extras/playlists/inprogress_movies.xsp",
-      "parent": "bf340cc1-17c5-437f-8f84-76d6676601c6"
+      "parent": "3ad35bab-f50e-5752-be73-c515e4f6b555",
+      "layout": "strip"
     }
   ]
 }
 ```
 
-The first entry has been touched by the user — `layout` is set to `showcase`. The second is untouched; layout, art, sortby, sortorder, limit will all resolve to their config defaults when read.
+- `runtime_id` — the entry's permanent id.
+- `mapping_item` — which mapping item this is an instance of.
+- `parent` — the owning entry's id, for [hub](07-includes.md#hubs-each-parent-owns-its-own-children) mappings.
+- Everything else — settings the user has actually changed.
 
-Fields on each entry:
+### Life of the file
 
-| Field | Source |
-|---|---|
-| `runtime_id` | UUID — assigned on insert, stable across reorder, rename, and preset changes |
-| `mapping_item` | Which preset this entry uses |
-| Metadata fields | All string-valued metadata for this `mapping_item`, copied onto the entry at insert |
-| `config_field` values | Absent unless the user has set them. Reads fall back to the field's config default. |
-| `parent` | Optional — runtime_id of an entry in another mapping group |
-| User edits | Anything edited through the editor overwrites the corresponding field |
+**Created** on first run: every dynamic mapping gets entries from its `default_order` (or full `items`). Each entry stores its identity plus the item's string metadata — nothing else.
 
-The same `mapping_item` can appear multiple times — runtime_id keeps them distinct. Non-string metadata (e.g. an `xsp` smart-playlist dict) is intentionally not copied onto the entry; it stays metadata-only and gets merged in by the includes builder at substitution time.
+**Settings appear when changed.** An untouched setting isn't stored; it reads its config default live, every time. Two consequences worth knowing: changing a default in your templates instantly reaches every entry the user never overrode, and an entry in the file tells you exactly what the user has deliberately set — nothing more.
+
+**Ids are stable where it counts.** Automatic entries (first creation, and every reset) get the *same* id every time — derived from the mapping and item name, not random. Reset the list and the ids come back identical, so baked XML references and parent links keep working. Entries the *user* adds get random ids, because there's nothing stable to derive them from.
+
+### Parent links
+
+A child item's metadata names its parent by item name (`"parent": "movies"`). When entries are created, that name is swapped for the parent entry's id. From then on the link is by id, so reordering either list changes nothing.
+
+Two maintenance behaviours keep links sane:
+
+- **Reset remaps.** Resetting the *parent* mapping recreates its entries with the same ids — and any children pointing at a surviving parent are re-linked to the fresh entry. Children whose parent didn't survive the reset are removed.
+- **Deletes prune orphans.** Deleting an entry also removes any children in other mappings that pointed at it, so no widget lingers attached to a menu item that's gone.
+
+### Reset vs rebuild
+
+They're different operations and the difference matters:
+
+| | Keeps user choices? | Regenerates output XML? |
+|---|---|---|
+| **Rebuild** (`action=rebuild`, editor close, dev-mode start) | Yes | Yes |
+| **Reset** (`reset=true`, dev-mode "Reset on next start", the editor's Reset button) | No — back to defaults | Yes |
+
+Changed a mapping's `default_order`, `metadata`, or `config_fields` and want the *list itself* regenerated? That's a reset. A rebuild only re-reads what's already in the file.
 
 ---
 
-## Initialisation
+## Opening a settings window
 
-When `runtime_state.json` doesn't exist yet (first skin install), one entry is created for each item in the mapping's `default_order` (or `items` if no `default_order` is set). New entries get a fresh UUID, the `mapping_item` name, and all string metadata for that item. `config_field` values are not seeded; they resolve to their config defaults on read until the user sets them. Metadata still wins over config defaults — if metadata defines `sortby`, the field is on the entry and the config default never applies.
-
----
-
-## Parent references
-
-Dynamic mappings can reference each other via `parent`. The canonical use is **hubs**: each menu item owns its own set of widgets, the user configures them through a child editor scoped to whichever menu item they were on, and the skin shows the right widgets when each menu item is focused.
-
-The full pattern spans three places — metadata, includes template, and the dialog that opens the child editor scoped to one parent. The metadata side lives here; the other two pieces are covered in [Includes Builder → Hubs](07-includes.md#hubs-filtering-child-entries-by-parent), and you'll usually want to read both pages once when you're wiring up a hub for the first time.
-
-### Tagging an entry to a parent
-
-In the child mapping's metadata, set `parent` to the `mapping_item` name of an entry in another mapping. The `widgets` mapping uses this to attach each widget preset to a menu item:
-
-```json
-"latest_movies": {
-  "label": "$LOCALIZE[31202]",
-  "target": "videos",
-  "content": "videodb://movies/titles/",
-  "sortby": "dateadded",
-  "parent": "movies"
-}
 ```
-
-The `movies` item lives in the `mainmenu` mapping. After `runtime_state.json` is initialised, the parent reference is resolved to the corresponding entry's `runtime_id`:
-
-```json
-{
-  "mainmenu": [
-    { "runtime_id": "bf340cc1-...", "mapping_item": "movies", "..." }
-  ],
-  "widgets": [
-    { "runtime_id": "f6698793-...", "mapping_item": "latest_movies",
-      "parent": "bf340cc1-...", "..." }
-  ]
-}
-```
-
-The widget now points at the menu item by ID. This survives reorder and rename of the menu item — the runtime_id is stable. If the menu item is later deleted, the orphaned widget is cleaned up automatically.
-
-### What the parent buys you
-
-Once entries are tagged, the `{parent}` placeholder is available wherever the child mapping is iterated:
-
-- In the **includes builder**, `{parent}` substitutes into the generated XML, where you typically use it to gate visibility on the matching menu item being focused. See [Includes Builder → Hubs](07-includes.md#hubs-filtering-child-entries-by-parent) for the worked include and the visibility expression.
-- In the **Dynamic Editor**, passing `parent=<runtime_id>` when opening the editor filters the entry list to that single hub. See [Opening the editor](#opening-the-editor) below.
-
----
-
-## The Dynamic Editor
-
-A two-panel Kodi dialog window: a scrollable list on the left (control ID 100), contextual controls on the right.
-
-### Opening the editor
-
-```xml
 RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,mapping=widgets)
 ```
 
-The `name` parameter matches the window XML filename. The editor filters for controls tagged with that window name, and builds the UI.
+`name` = your window XML filename. `mapping` = which mapping this window edits. Two optional extras:
 
-To open the editor scoped to a single parent, pass `parent=<runtime_id>`. Only entries whose `parent` field matches appear in the list, and entries inserted from the filtered editor have their `parent` set automatically. See [Includes Builder → Hubs](07-includes.md#hubs-filtering-child-entries-by-parent) for the full hub recipe.
+**`parent=<runtime_id>`** — stamp the session to one hub: only that parent's entries appear, adds arrive with `parent` already set and slot in next to their siblings, and moves, deletes, and Reset stay inside the hub. The full walkthrough — why, the template handshake, and the resolved output — is in [Includes → Hubs](07-includes.md#hubs-each-parent-owns-its-own-children).
 
-### Reusing one window for multiple mappings
+**`controls_from=<mapping>`** — also load another mapping's controls into this window. For when two mappings share a shape and one window serves both — the shutdown menu borrows the main menu's controls:
 
-If two mappings share the same control shape — same fields, same control types, same window layout — one window XML and one set of `controls/` templates can serve both. The `mapping` kwarg names the mapping this session edits; the optional `controls_from` kwarg names additional mappings whose controls should also be loaded into the window.
-
-The mainmenu and shutdownmenu mappings illustrate this. Both have `label`, `icon`, and `action` fields per entry; both want the same edit/browse/icon-picker controls. `controls_menus.json` declares `mapping: "mainmenu"` — and the same window opens against shutdownmenu by passing it as the session mapping and borrowing the mainmenu controls:
-
-```xml
+```
 RunScript(script.copacetic.helper,action=dynamic_settings_window,name=menusettings,mapping=shutdownmenu,controls_from=mainmenu)
 ```
 
-The list shows shutdownmenu entries; adds, deletes, and field edits all write to the shutdownmenu mapping. No second `controls_shutdownmenu.json` needed.
-
-`controls_from` accepts a comma-separated list, so a window can borrow controls from several mappings at once. The session's own mapping is always loaded; `controls_from` is purely additive.
-
-**Constraint.** Every control loaded into the session edits the session's mapping. This works when the borrowed controls' fields match the session mapping's shape (as mainmenu and shutdownmenu do). If a borrowed control references a field the session mapping doesn't have, the field will be created on first write — usually not what you want. Borrow only when the shapes genuinely match.
-
-### Querying editor state from skin XML
-
-While an editor is open it sets two window properties on `Window(home)`:
-
-| Property | Value | When set |
-|---|---|---|
-| `<name>` | `"true"` | Always, while the editor is open |
-| `current_mapping` | The session's `mapping` value | Always, while the editor is open |
-
-Skin conditions branch on either:
-
-```
-!String.IsEmpty(Window(home).Property(menusettings))                  # editor open
-String.IsEmpty(Window(home).Property(current_mapping))                # default (no override)
-String.IsEqual(Window(home).Property(current_mapping),shutdownmenu)   # editing shutdownmenu
-```
-
-Controls that should only appear for a specific session mapping check it explicitly — for example, `menu_configure_widgets` is mainmenu-specific:
-
-```json
-"visible": "xml(String.IsEqual(Window(home).Property(current_mapping),mainmenu) + Skin.HasSetting(widgets_per_menu))"
-```
-
-Both properties are cleared when the editor closes.
-
-**Nested editors.** When an editor is opened with `parent=<uuid>` (the hub pattern — opening a child editor scoped to one parent), the `current_mapping` slot is suffixed with the parent uuid: `current_mapping_<uuid>`. This keeps outer and inner editors from colliding on the property when the same window XML is reused at both levels. The window flag stays unsuffixed so skin-level "is this window open" conditions work uniformly across top-level and nested invocations. Conditions inside a control template that already has `{runtime_id}` available (controls iterating a parent mapping) can target the nested slot directly:
-
-```
-String.IsEqual(Window(home).Property(current_mapping_{runtime_id}),submenu)
-```
-
-For top-level conditions, query the unsuffixed slots.
-
-### What you provide in the window XML
-
-| Control | ID | Purpose |
-|---|---|---|
-| List container | 100 | Left-hand list. Populated automatically. |
-| Description label | 6 | Bottom of the window. The editor sets it to the focused control's `description`. |
-| Right-hand controls | as declared | Sliders, buttons, radios, edit fields. IDs must match the `id` declared on each control template. |
-| Management buttons | 410–415 | See below. Hidden by default; the editor shows them when the controls include an `item_picker` or `add_action` role. |
-
-### List rows
-
-The left list is populated from controls with `"control_type": "listitem"` declared for the session's mapping.
-
-**Static window** (e.g. view settings) — one listitem per loop value in the mapping. With the `content_types` mapping, the `{content_type}_item` template produces `movies_item`, `tvshows_item`, `albums_item`, etc.
-
-**Dynamic window** (e.g. widget settings) — list rows come from `runtime_state.json`. The listitem template defines how rows look; one row per runtime entry, in storage order.
-
-```json
-"widget_{index}": {
-  "mode": "dynamic",
-  "control_type": "listitem",
-  "label": "{label}",
-  "icon": "{icon}",
-  "description": "Select widget to configure."
-}
-```
-
-The user reorders, adds, and deletes rows with the management buttons.
-
-### Linking controls to data
-
-The right-hand controls connect to data in one of two ways. See [Controls Builder](06-controls.md) for full details.
-
-**Contextual bindings** (static) — one control shared across all listitems, with a different config key bound for each. Used for view settings: a single layout slider that follows the focused content type.
-
-**Field bindings** (dynamic) — one control per runtime field, shared across all entries. The control reads and writes the same field on whichever entry is selected. Used for widget settings: a layout slider that reads the focused widget's `layout` field.
-
-### Management buttons
-
-Provide controls 410–415 in your window XML. The editor enables and labels them automatically when a control with `role: "item_picker"` or `role: "add_action"` is present.
-
-| Button | ID | Action |
-|---|---|---|
-| Add | 410 | Run the governing handler's dialog (preset picker or add-action), then insert a new entry |
-| Delete | 411 | Remove the current entry (disabled when only one entry remains) |
-| Move Up | 412 | Swap the current entry with the one above |
-| Move Down | 413 | Swap the current entry with the one below |
-| Reset | 414 | Reset the mapping group to `default_order` (with confirmation) |
-| Close | 415 | Save and close |
-
-When the editor is opened with a `parent` filter, the management buttons stay scoped to the filtered set — Add inserts as a child of the same parent, Move keeps the new ordering within the filtered view, and Delete only removes from the visible entries.
-
-### On close
-
-If the runtime state changed while the editor was open, the includes and expressions builders re-run for the `runtime` context, and `ReloadSkin()` is called. Changes to widget order, presets, layouts, or art types appear in the skin immediately.
+Every control in the session edits the *session's* mapping, whoever it was borrowed from. Only borrow when the fields really match — a borrowed control naming a field the mapping doesn't have will create it on first write.
 
 ---
 
-## Next
+## Fixed vs editable
 
-- [Chaining Builders](10-use-cases.md) — Real-world examples combining multiple builders
+**Fixed list** (view settings): no control has a `role`. One row per automatic entry; the user edits each row's settings but the list itself never changes.
+
+**Editable list** (widgets, menus): one control has `role: "item_picker"` or `"add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). The management buttons appear and the user adds, deletes, and reorders.
+
+The right-hand controls work the same in both: each edits one setting on the highlighted row. Writes happen immediately as the user changes things — Close doesn't "save", it just ends the session.
+
+---
+
+## What your window XML must contain
+
+| Control | ID | Purpose |
+|---|---|---|
+| List | 100 | The left-hand list. Filled automatically. |
+| Textbox / label | 6 | Description text at the bottom. Set automatically. |
+| Your controls | as declared | IDs matching each control template's `id`. A sliderex also needs its button at the id + a trailing `0`. |
+| Colour labels | 420 / 421 | Optional. Hidden labels whose *text* names your focused / unfocused colours; used to tint sliderex value text. White / 50% white if absent. |
+| Management buttons | 410–415 | Only needed for editable lists. Hidden otherwise. |
+
+| Button | ID | Does |
+|---|---|---|
+| Add | 410 | Run the Add control's dialog, then insert. Cancel = nothing written. |
+| Move up | 411 | Swap with the row above |
+| Move down | 412 | Swap with the row below |
+| Delete | 413 | Remove the row (disabled when only one is left) |
+| Reset | 414 | Back to defaults — the whole mapping, or just the open hub — with a confirm dialog |
+| Close | 415 | Save and close |
+
+You only supply focusable buttons; the editor handles the presses.
+
+### A minimal window XML
+
+Strip the styling from this and it won't work; add styling and it will:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<window type="dialog" id="1105">
+  <controls>
+    <control type="list" id="100">
+      <!-- your geometry, itemlayout and focusedlayout; label from ListItem.Label,
+           icon from ListItem.Icon -->
+      <onright>200</onright>
+    </control>
+
+    <control type="grouplist" id="101">
+      <onleft>100</onleft>
+      <!-- one control per template, ids matching: -->
+      <control type="button" id="200" />          <!-- e.g. the Add control -->
+      <control type="slider" id="202" />          <!-- sliderex: slider... -->
+      <control type="button" id="2020" />         <!-- ...plus its label button -->
+      <control type="radiobutton" id="203" />
+      <control type="edit" id="206" />
+    </control>
+
+    <control type="grouplist" id="102">
+      <control type="button" id="410" />  <!-- Add -->
+      <control type="button" id="411" />  <!-- Up -->
+      <control type="button" id="412" />  <!-- Down -->
+      <control type="button" id="413" />  <!-- Delete -->
+      <control type="button" id="414" />  <!-- Reset -->
+      <control type="button" id="415" />  <!-- Close -->
+    </control>
+
+    <control type="textbox" id="6" />     <!-- description -->
+  </controls>
+</window>
+```
+
+Controls a template declares but the XML lacks are skipped and hidden — the window still opens, that control just never appears. (See [Troubleshooting](11-troubleshooting.md).)
+
+---
+
+## Asking about the editor from skin XML
+
+While a window is open, two properties sit on `Window(home)`:
+
+| Property | Value |
+|---|---|
+| `<name>` | `"true"` — "this window is open" |
+| `current_mapping` | the session's mapping |
+
+```
+!String.IsEmpty(Window(home).Property(menusettings))
+String.IsEqual(Window(home).Property(current_mapping),shutdownmenu)
+```
+
+Both clear on close. When an editor is opened *inside* another (with `parent=`), its mapping property gets the parent id as a suffix — `current_mapping_<uuid>` — so inner and outer don't fight over the name. The open flag stays plain. In a template that already has `{runtime_id}`, you can target the inner one directly:
+
+```
+String.IsEqual(Window(home).Property(current_mapping_{runtime_id}),tabs)
+```
+
+---
+
+## On close
+
+If anything changed, the includes and expressions rebuild and `ReloadSkin()` fires — changes show immediately. Nested editors wait for the outermost one to close, so a whole session reloads once.

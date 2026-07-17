@@ -3,9 +3,7 @@
 from resources.lib.plugin.setter import TAG_TYPES
 
 _JSON_TO_CANONICAL: dict[str, str] = {
-    spec["json"]: canonical
-    for canonical, spec in TAG_TYPES.items()
-    if spec.get("json")
+    spec["json"]: canonical for canonical, spec in TAG_TYPES.items() if spec.get("json")
 }
 
 JSON_PROPERTIES: dict[str, list[str]] = {
@@ -243,8 +241,6 @@ def trim_properties(media_type: str, exclude: set[str]) -> list[str]:
     :return: Filtered property list.
     """
     return [p for p in JSON_PROPERTIES[media_type] if p not in exclude]
-
-
 
 
 def json_to_canonical(

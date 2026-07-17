@@ -30,7 +30,7 @@ class OnClickActions:
         return dlg.browse(
             browse_type,
             cfg["heading"],
-            cfg["shares"],
+            cfg.get("shares", "files"),
             cfg.get("mask", ""),
             cfg.get("useThumbs", False),
             cfg.get("treatAsFolder", False),
@@ -49,7 +49,7 @@ class OnClickActions:
         return dlg.browseSingle(
             browse_type,
             cfg["heading"],
-            cfg["shares"],
+            cfg.get("shares", "files"),
             cfg.get("mask", ""),
             cfg.get("useThumbs", False),
             cfg.get("treatAsFolder", False),
@@ -67,7 +67,7 @@ class OnClickActions:
         return dlg.browseMultiple(
             browse_type,
             cfg["heading"],
-            cfg["shares"],
+            cfg.get("shares", "files"),
             cfg.get("mask", ""),
             cfg.get("useThumbs", False),
             cfg.get("treatAsFolder", False),
@@ -90,9 +90,9 @@ class OnClickActions:
     @staticmethod
     def browse_image(cfg):
         """
-        Show Kodi's image browser dialog opened at a configured folder,
-        using a transient skin string and a non-existent sentinel
-        filename for unambiguous cancel detection.
+        Show Kodi's image browser dialog opened at a configured folder.
+        Seeds a transient skin string with the folder path; cancel is
+        detected when the string still equals the seed after close.
 
         :param cfg: Dict with ``folder`` (str) — starting path for the browser.
         :return: Selected path as a string, or None if cancelled.

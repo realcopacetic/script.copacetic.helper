@@ -39,7 +39,6 @@ class TextRenderer:
         max_height: int,
         line_height: float = 1.3,
         letter_spacing: float = 0.0,
-
         supersample: int = 2,
     ) -> tuple[str, int] | None:
         """
@@ -59,15 +58,21 @@ class TextRenderer:
             return None
 
         path = self._cache_path(
-            text, font_path, font_size, box_width, max_height,
-            line_height, letter_spacing, supersample,
+            text,
+            font_path,
+            font_size,
+            box_width,
+            max_height,
+            line_height,
+            letter_spacing,
+            supersample,
         )
 
         try:
             if validate_path(path):
                 with Image.open(path) as im:
                     return path, im.height
-                
+
             s = max(1, supersample)
             font = ImageFont.truetype(xbmcvfs.translatePath(font_path), font_size * s)
             ascent, descent = font.getmetrics()

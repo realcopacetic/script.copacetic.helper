@@ -8,7 +8,6 @@ from xbmcgui import Dialog, DialogProgress
 
 from resources.lib.shared.utilities import ADDON, json_call
 
-
 # ---------------------------------------------------------------------------
 # Localisation
 # ---------------------------------------------------------------------------
@@ -611,6 +610,7 @@ def _build_result(path, label, mode):
             "type": "command",
             "window": "",
             "action": path,
+            "update": "",
         }
 
     content_type = _derive_type(path)
@@ -629,6 +629,7 @@ def _build_result(path, label, mode):
                 "type": content_type,
                 "window": window,
                 "action": 'ActivateWindow(%s,"%s",return)' % (window, path),
+                "update": 'Container.Update("%s")' % path,
             }
         )
 

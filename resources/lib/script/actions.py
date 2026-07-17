@@ -11,6 +11,7 @@ from resources.lib.shared.utilities import clear_cache as _clear_cache_util
 from resources.lib.shared.utilities import (
     clear_playlists,
     condition,
+    container_position,
     focused_control_id,
     infolabel,
     json_call,
@@ -94,6 +95,33 @@ def container_move(offset: str, **kwargs: dict) -> None:
 
 
 @action
+def delete_orphans(**kwargs):
+    """
+    Remove child entries whose parent is missing or ineligible, then
+    rebuild outputs and reload the skin if anything was removed.
+    """
+    child_mapping = kwargs.get("child_mapping")
+    if not child_mapping:
+        log.error("delete_orphans: 'child_mapping' kwarg is required")
+        return
+
+    from resources.lib.builders.build_elements import BuildElements
+
+    build = BuildElements()
+    removed = build.runtime_manager.delete_orphans(
+        child_mapping,
+        require_parent=kwargs.get("require_parent", "").lower() == "true",
+    )
+    log.info(
+        f"delete_orphans: removed {removed} entr"
+        f"{'y' if removed == 1 else 'ies'} from '{child_mapping}'"
+    )
+    if removed:
+        build.run()
+        log.execute("ReloadSkin()")
+
+
+@action
 def dialog_yesno(heading, message, **kwargs):
     """
     Opens a yes/no dialog and runs a set of Kodi actions based on the result.
@@ -146,24 +174,27 @@ def dynamic_settings_window(**kwargs):
     myWindow.parent_filter = parent_filter
     myWindow.mapping = mapping
     myWindow.controls_from = controls_from
-    myWindow.doModal()
+    try:
+        myWindow.doModal()
 
-    # Rebuild if state changed during the session. Outermost editor only;
-    # nested editors defer the rebuild to the enclosing editor's close.
-    if not previous_editor:
-        myWindow.runtime_manager.reload_state()
-        if (
-            myWindow.runtime_manager.runtime_state
-            != myWindow._runtime_state_snapshot
-        ):
-            from resources.lib.builders.build_elements import BuildElements
+        # Rebuild if state changed during the session. Outermost editor only;
+        # nested editors defer the rebuild to the enclosing editor's close.
+        if not previous_editor:
+            myWindow.runtime_manager.reload_state()
+            if (
+                myWindow.runtime_manager.runtime_state
+                != myWindow._runtime_state_snapshot
+            ):
+                from resources.lib.builders.build_elements import BuildElements
 
-            BuildElements().run()
-            log.execute("ReloadSkin()")
-
-    window_property(mapping_slot)
-    window_property("active_editor_name", value=previous_editor)
-    del myWindow
+                BuildElements().run()
+                log.execute("ReloadSkin()")
+    finally:
+        # Always restore properties — a stuck active_editor_name makes every
+        # later top-level session look nested and silently skip rebuilds.
+        window_property(mapping_slot)
+        window_property("active_editor_name", value=previous_editor)
+        del myWindow
 
 
 @action
@@ -418,6 +449,39 @@ def play_trailer(trailer, **kwargs):
     window_property("trailer_source", value=source)
     window_property("trailer_item", value=item)
     log.execute(f"PlayMedia({trailer},1,noresume)")
+
+
+@action
+def focus(target, **kwargs):
+    """
+    Focuses a control, retrying until focus lands or a timeout expires.
+    Optionally first moves a container's selection to the item whose
+    property matches a value, probed live by absolute position.
+
+    :param target: Control ID to focus.
+    :param select_container: Container whose selection to move first.
+    :param select_property: Item property to match in the container.
+    :param select_value: Property value identifying the item.
+    :param timeout: Retry window in milliseconds, defaults to 500.
+    """
+    container = kwargs.get("select_container")
+    prop = kwargs.get("select_property")
+    value = kwargs.get("select_value")
+    if container and prop and value:
+        position = container_position(container, prop, value)
+        if position is None:
+            log.debug(f"focus → no item with {prop}={value} in {container}")
+            return
+        log.execute(f"SetFocus({container},{position},absolute)")
+    monitor = xbmc.Monitor()
+    remaining = max(to_int(kwargs.get("timeout", "500"), 500) // 20, 1)
+    while remaining:
+        log.execute(f"SetFocus({target})")
+        if monitor.waitForAbort(0.02):
+            return
+        if condition(f"Control.HasFocus({target})"):
+            return
+        remaining -= 1
 
 
 @action

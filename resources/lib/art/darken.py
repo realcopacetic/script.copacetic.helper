@@ -202,9 +202,7 @@ class ColorDarken:
         L_text = self.color.get_luminosity(text_rgb)
         return framed, rects, L_text, opts.strength, label_widths
 
-    def _clamp_rects_to_labels(
-        self, opts: DarkenOpts
-    ) -> tuple[str, list[int | None]]:
+    def _clamp_rects_to_labels(self, opts: DarkenOpts) -> tuple[str, list[int | None]]:
         """
         Clamp each rect by its parallel label and collect per-rect widths.
         Rects without a paired label pass through unclamped.
@@ -498,7 +496,9 @@ class ColorDarken:
 
         return min(100, int(round(L_bg * 100 * strength)))
 
-    def _solve_darken_element(self, *, L_bg: float, strength: float, floor: float) -> int:
+    def _solve_darken_element(
+        self, *, L_bg: float, strength: float, floor: float
+    ) -> int:
         """
         Map background luminance to a darken percentage for elements on top of artwork.
         Bright art → element needs heavy darkening toward black; dark art → little or none.

@@ -14,6 +14,11 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import infolabel
 
+# Namespace for deterministic default-entry ids: clean reseeds reproduce
+# identical runtime_ids, keeping baked XML references valid across seeds.
+RUNTIME_ID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "script.copacetic.helper")
+
+
 class RuntimeStateManager:
     """
     Manages runtime state in runtime_state.json plus configs and controls
@@ -93,7 +98,9 @@ class RuntimeStateManager:
         self._resolved_cache.clear()
         self.state_version += 1
 
-    def _build_default_entry(self, mapping_key: str, item: str) -> dict:
+    def _build_default_entry(
+        self, mapping_key: str, item: str, deterministic: bool = False
+    ) -> dict:
         """
         Build the default entry for a single mapping_item: identity plus the
         structural ``parent`` ref only. All other metadata and config-field
@@ -101,11 +108,17 @@ class RuntimeStateManager:
 
         :param mapping_key: Mapping group key.
         :param item: Mapping_item identifier.
+        :param deterministic: Stable uuid5 id (seed/reset paths) vs random uuid4.
         :return: Dict of identity fields (runtime_id, mapping_item, parent).
         """
         metadata = self.mappings[mapping_key].get("metadata", {}).get(item, {})
+        if deterministic:
+            runtime_id = str(uuid.uuid5(RUNTIME_ID_NAMESPACE, f"{mapping_key}/{item}"))
+        else:
+            runtime_id = str(uuid.uuid4())
+
         return {
-            "runtime_id": str(uuid.uuid4()),
+            "runtime_id": runtime_id,
             "mapping_item": item,
             **({"parent": metadata["parent"]} if "parent" in metadata else {}),
         }
@@ -183,15 +196,17 @@ class RuntimeStateManager:
                 )
         return {**base, **resolved}
 
-    def initialize_runtime_state(self) -> None:
+    def initialize_runtime_state(self) -> bool:
         """
         Create runtime_state.json from defaults if absent, or add missing
         mapping entries to an existing file.
+
+        :return: True when state was written (fresh seed or new mappings).
         """
         state = self.runtime_state if self.exists else {}
         missing = {
             mapping_key: [
-                self._build_default_entry(mapping_key, item)
+                self._build_default_entry(mapping_key, item, deterministic=True)
                 for item in (
                     mapping["default_order"]
                     if "default_order" in mapping
@@ -205,36 +220,31 @@ class RuntimeStateManager:
             merged = {**state, **missing}
             self._resolve_parent_refs(merged)
             self._write_and_invalidate(merged)
+            return True
+        return False
 
     def _resolve_parent_refs(self, state: dict) -> None:
         """
-        Resolve string ``parent`` refs to runtime_ids; first match wins
-        across mappings.
+        Resolve string ``parent`` refs against each mapping's declared
+        ``parent_mapping``. Mappings without one are skipped.
 
         :param state: Full runtime state dict, mutated in place.
         """
-        item_to_id: dict = {}
-        for entries in state.values():
+        for key, entries in state.items():
             if not isinstance(entries, list):
                 continue
-            for entry in entries:
-                mi = entry.get("mapping_item")
-                if not mi:
-                    continue
-                if mi in item_to_id:
-                    log.debug(
-                        f"{self.__class__.__name__}: duplicate mapping_item "
-                        f"'{mi}' across mappings; first occurrence wins"
-                    )
-                    continue
-                item_to_id[mi] = entry["runtime_id"]
-        for entries in state.values():
-            if not isinstance(entries, list):
+            parent_mapping = self.mappings.get(key, {}).get("parent_mapping")
+            if not parent_mapping:
                 continue
+            lookup = {
+                e["mapping_item"]: e["runtime_id"]
+                for e in state.get(parent_mapping, [])
+                if e.get("mapping_item")
+            }
             for entry in entries:
                 parent = entry.get("parent")
-                if parent and parent in item_to_id:
-                    entry["parent"] = item_to_id[parent]
+                if parent and parent in lookup:
+                    entry["parent"] = lookup[parent]
 
     def get_runtime_setting(
         self, mapping_key: str, index: int, setting_name: str
@@ -347,7 +357,7 @@ class RuntimeStateManager:
             if localize and isinstance(formatted, str) and formatted.startswith("$")
             else formatted
         )
-    
+
     def field_template(
         self, mapping_key: str, item: str | None, field: str
     ) -> str | None:
@@ -473,18 +483,17 @@ class RuntimeStateManager:
     def _later_parent_ids(self, child_mapping: str, parent_filter: str) -> set[str]:
         """
         Runtime_ids of parent entries ordered after ``parent_filter`` in
-        the parent mapping.
+        the child's declared parent mapping.
 
-        :param child_mapping: The child mapping key (used to skip self).
+        :param child_mapping: The child mapping key.
         :param parent_filter: Parent runtime_id to anchor on.
         :return: Set of runtime_ids for later parents, or empty set.
         """
-        for key, entries in self.runtime_state.items():
-            if key == child_mapping or not isinstance(entries, list):
-                continue
-            for i, entry in enumerate(entries):
-                if entry.get("runtime_id") == parent_filter:
-                    return {e["runtime_id"] for e in entries[i + 1 :]}
+        parent_mapping = self.mappings.get(child_mapping, {}).get("parent_mapping")
+        entries = self.runtime_state.get(parent_mapping, [])
+        for i, entry in enumerate(entries):
+            if entry.get("runtime_id") == parent_filter:
+                return {e["runtime_id"] for e in entries[i + 1 :]}
         return set()
 
     def rebuild_mapping_item(
@@ -526,6 +535,11 @@ class RuntimeStateManager:
         """
         state = self.runtime_state
         lst = state.get(mapping_key, [])
+        if not 0 <= index < len(lst):
+            raise IndexError(
+                f"{self.__class__.__name__}: Index '{index}' out of range "
+                f"for mapping '{mapping_key}'."
+            )
         lst.pop(index)
         self._write_and_invalidate(state)
 
@@ -559,7 +573,8 @@ class RuntimeStateManager:
 
         default_order = mapping.get("default_order") or mapping.get("items", [])
         state[mapping_key] = [
-            self._build_default_entry(mapping_key, item) for item in default_order
+            self._build_default_entry(mapping_key, item, deterministic=True)
+            for item in default_order
         ]
 
         new_by_item = {e["mapping_item"]: e["runtime_id"] for e in state[mapping_key]}
@@ -581,27 +596,26 @@ class RuntimeStateManager:
         self._resolve_parent_refs(state)
         self._write_and_invalidate(state)
 
-    def delete_orphans(self, child_mapping: str) -> int:
+    def delete_orphans(self, child_mapping: str, require_parent: bool = False) -> int:
         """
-        Remove entries in ``child_mapping`` whose ``parent`` references a
-        runtime_id that no longer exists anywhere in state. Children with no
-        ``parent`` or with parents in other mappings are preserved.
+        Remove entries in ``child_mapping`` whose ``parent`` is absent from
+        its declared parent mapping. No-op for mappings without one.
 
         :param child_mapping: Mapping key whose entries are inspected.
+        :param require_parent: Remove entries lacking a parent entirely.
         :return: Number of entries removed.
         """
+        parent_mapping = self.mappings.get(child_mapping, {}).get("parent_mapping")
+        if not parent_mapping:
+            return 0
         state = self.runtime_state
-        live_parent_ids = {
-            entry["runtime_id"]
-            for entries in state.values()
-            if isinstance(entries, list)
-            for entry in entries
-        }
+        live = {e["runtime_id"] for e in state.get(parent_mapping, [])}
         children = state.get(child_mapping, [])
         cleaned = [
             c
             for c in children
-            if c.get("parent") is None or c["parent"] in live_parent_ids
+            if c.get("parent") in live
+            or (not require_parent and c.get("parent") is None)
         ]
         removed = len(children) - len(cleaned)
         if removed:

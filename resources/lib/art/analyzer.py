@@ -187,11 +187,7 @@ class ColorAnalyzer:
         :return: Contrasting (r, g, b).
         """
         h, l, s = self.rgb_to_hls(rgb)
-        l = (
-            min(1.0, l + shift)
-            if l < 0.5
-            else max(0.0, l - shift)
-        )
+        l = min(1.0, l + shift) if l < 0.5 else max(0.0, l - shift)
         return self.hls_to_rgb((h, l, s))
 
     # ---------- public helper methods ----------
@@ -250,7 +246,7 @@ class ColorAnalyzer:
     def from_hex(hex_str: str) -> RGB:
         """
         Convert ARGB/RGB hex to an RGB tuple.
-        
+
         :param hex_str: Hex string with optional leading "#" and optional alpha.
         :return: (r, g, b) tuple in 0..255.
         """

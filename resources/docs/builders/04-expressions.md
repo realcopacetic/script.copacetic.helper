@@ -1,189 +1,110 @@
 # Expressions Builder
 
-The expressions builder generates Kodi `<expression>` elements — named boolean expressions that can be referenced in skin XML with `$EXP[expression_name]`. It supports conditional rules, group-based fallbacks, and automatic boolean inversion.
+Generates Kodi `<expression>` elements — the ones you use with `$EXP[name]`. Two jobs, same machinery:
 
-The classic case: per-content-type visibility logic. Instead of writing one expression per content type for every layout × window combination, you define a compact template and the builder produces all the combinations.
+1. Turn per-item settings into the combined conditions your skin checks ("which content types use fanart?").
+2. Act as build-time shorthand: assemble long Kodi conditions once, under a name, instead of repeating them across your XML.
 
 ---
 
-## Input format
+## Input
 
-JSON files placed in `extras/templates/expressions/`. Each file declares a mapping and an `expressions` object:
+JSON files in `extras/templates/expressions/`:
 
 ```json
 {
   "mapping": "content_types",
   "expressions": {
-    "layout_{item}_include_{window}": {
+    "layout_{item}_visible_{window}": {
       "items": ["list", "showcase", "strip", "grid"],
       "rules": [
         {
-          "condition": "xml(Skin.String({content_type}_layout,{item}))",
-          "type": "assign",
-          "value": "true"
+          "condition": "equals({layout}, {item})",
+          "type": "append",
+          "value": "Container.Content({content_type})"
         }
       ],
       "fallback_key": "window",
       "fallbacks": {
-        "*": { "target_item": "list", "value": "true" }
+        "*": { "target_item": "list", "value": "invert()" }
       }
     }
   }
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `mapping` | string | Yes | Mapping name. Either built-in (`content_types`), a custom one in `extras/templates/mappings/`, or `"none"` — see [Mappings](02-mappings.md). |
-| `items` | list | No | Values to loop over within each mapping group |
-| `index` | object | No | Numeric range (alternative to `items`) |
-| `rules` | list | Yes | Condition/type/value rules to evaluate |
-| `fallback_key` | string | No | Placeholder name used to group expressions for fallback logic |
-| `fallbacks` | object | No | Per-group fallback definitions |
-| `mode` | string | No | `"dynamic"` to iterate once per runtime entry. Default is static, which iterates once per item in the mapping. |
+| Field | What it does |
+|---|---|
+| `mapping` | Mapping name (or `"none"`) |
+| `items` | An extra loop on top of the mapping's — here, one expression per layout per window |
+| `index` | Number range, as an alternative or addition to `items` |
+| `rules` | Condition / type / value rows — see below |
+| `fallback_key` | Which token groups expressions for the fallback step |
+| `fallbacks` | What the catch-all in each group gets |
+| `mode` | `"dynamic"` to loop settings-file entries (the usual choice for user settings) |
+| `filter` | Skip loop passes — see [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes) |
+
+`content_types` is a dynamic mapping, so `{layout}` is each entry's stored value (or its default) at build time.
+
+Note the split: a rule's `condition` is checked **by the builder at build time** ([Rule Engine](08-rule-engine.md)); the rule's `value` is a **Kodi condition** written into the output for Kodi to check at runtime. The builder never evaluates the value.
 
 ---
 
 ## Rules
 
-Each rule has three fields:
-
-| Field | Description |
-|---|---|
-| `condition` | Evaluated by the [Rule Engine](08-rule-engine.md). Supports `{placeholder}` substitution. |
-| `type` | Either `"assign"` or `"append"` |
-| `value` | The expression value to use. Supports `{placeholder}` substitution. |
-
-**`assign`** — if the condition is true, the value becomes the entire expression result and processing stops. Use when only one rule should ever match.
-
-**`append`** — if the condition is true, the value is added to a list. After all rules and substitutions are processed, the collected values are joined with ` | ` (Kodi's OR operator). Use when multiple substitutions should contribute to a combined condition.
-
-If no rules match for a given substitution, the expression defaults to `"false"`.
-
----
-
-## Example: layout include expressions
-
-This template determines which layout include is active for each window:
+**`assign`** — first true rule wins; its value becomes the whole expression:
 
 ```json
-"layout_{item}_include_{window}": {
-  "items": ["list", "showcase", "strip", "grid"],
+{ "condition": "equals({layout}, {item})", "type": "assign", "value": "true" }
+```
+
+`layout_list_include_videos` becomes `true` if *any* content type in the videos window uses layout `list`.
+
+**`append`** — every true rule adds its value; results join with ` | ` (Kodi OR). If movies and tvshows both use fanart:
+
+```xml
+<expression name="art_fanart_visible_videos">Container.Content(movies) | Container.Content(tvshows)</expression>
+```
+
+True exactly when the screen shows a content type set to fanart — rebuilt automatically whenever the user changes a setting.
+
+**No `condition` at all** — the rule always fires. This is the shorthand pattern: no user setting involved, just a long Kodi condition getting a name. The whole `expressions_windows.json` file works this way:
+
+```json
+"window_active_{window}": {
   "rules": [
-    {
-      "condition": "xml(Skin.String({content_type}_layout,{item}))",
-      "type": "assign",
-      "value": "true"
-    }
-  ],
-  "fallback_key": "window",
-  "fallbacks": {
-    "*": { "target_item": "list", "value": "true" }
-  }
+    { "type": "assign", "value": "$EXP[content_visible_{window}] + !$EXP[level_switching]" }
+  ]
 }
 ```
 
-Using the `content_types` mapping (window → content_types), the builder loops every `(window, content_type, item)` combination. For `(videos, movies, list)`:
+One template, one expression per window, each composing other expressions — build-time macros. Values can reference other generated expressions freely; Kodi resolves the `$EXP[...]` chain at runtime.
 
-1. Template name resolves to `layout_list_include_videos`.
-2. The condition checks: is `Skin.String(movies_layout)` set to `"list"`? If yes — and the type is `assign` — the expression becomes `"true"`.
-3. The same expression name is also produced for every other content type in the videos window (`sets`, `tvshows`, `seasons`, etc.). Because `assign` short-circuits, any single matching content type makes the whole expression `"true"`.
-
-Output:
-
-```xml
-<expression name="layout_list_include_videos">true</expression>
-<expression name="layout_showcase_include_videos">false</expression>
-<expression name="layout_strip_include_videos">false</expression>
-<expression name="layout_grid_include_videos">false</expression>
-```
-
----
-
-## Example: layout visibility expressions
-
-The companion template uses `append` instead of `assign` to build a combined visibility condition:
-
-```json
-"layout_{item}_visible_{window}": {
-  "items": ["list", "showcase", "strip", "grid"],
-  "rules": [
-    {
-      "condition": "xml(Skin.String({content_type}_layout,{item}))",
-      "type": "append",
-      "value": "Container.Content({content_type})"
-    }
-  ],
-  "fallback_key": "window",
-  "fallbacks": {
-    "*": { "target_item": "list", "value": "invert()" }
-  }
-}
-```
-
-For `layout_fanart_visible_videos`, suppose the user has set `movies_layout = fanart` and `tvshows_layout = fanart` but everything else to something different. The append rule fires for those two content types, contributing `Container.Content(movies)` and `Container.Content(tvshows)` to the list:
-
-```xml
-<expression name="layout_fanart_visible_videos">
-  Container.Content(movies) | Container.Content(tvshows)
-</expression>
-```
-
-The expression is true exactly when the active container is a content type configured for fanart — automatically generated, automatically updated when the user changes a setting.
+If no rule fires for a pass, the expression is `"false"` (unless a fallback catches it).
 
 ---
 
 ## Fallbacks
 
-When a substitution produces no matches (no rule fires), the expression defaults to `"false"`. Fallbacks let one item in each group act as a catch-all instead.
+Fallbacks make one item per group the catch-all instead of `"false"`.
 
-The fallback system needs to know which expressions belong to a "group" — typically all the items for one window. That's the `fallback_key`: the name of a placeholder whose value defines the group:
-
-```json
-"fallback_key": "window"
-```
-
-With `fallback_key: "window"`, all `layout_*_visible_videos` expressions form one group, all `layout_*_visible_music` form another, and so on.
-
-Within a group, the `fallbacks` object names the **target item** that should act as catch-all and the **value** to put in it.
-
-### Fallback walkthrough
-
-For the visibility template above:
+`fallback_key` names the token that defines the groups. With `"window"`, all `layout_*_visible_videos` are one group, all `layout_*_visible_music` another. `fallbacks` names which item catches, and what it gets:
 
 ```json
-"fallbacks": {
-  "*": { "target_item": "list", "value": "invert()" }
-}
+"fallbacks": { "*": { "target_item": "list", "value": "invert()" } }
 ```
 
-After processing, suppose `layout_showcase_visible_videos` resolves to `Container.Content(movies)` and `layout_grid_visible_videos` resolves to `Container.Content(tvshows)`. Both `layout_list_visible_videos` and `layout_strip_visible_videos` resolved to `"false"`.
-
-The fallback says: in every group, `list` is the catch-all, with value `invert()`. The builder collects the non-false values from the rest of the group and produces:
+**`invert()`** = "true whenever none of the others are". If showcase covers movies and grid covers tvshows, the list expression becomes:
 
 ```xml
-<expression name="layout_list_visible_videos">
-  ![Container.Content(movies) | Container.Content(tvshows)]
-</expression>
+<expression name="layout_list_visible_videos">![Container.Content(movies) | Container.Content(tvshows)]</expression>
 ```
 
-Now `list` is visible for any content type that doesn't have a specific layout assigned.
+List shows for anything without a specific layout. If everything else in the group is false, `invert()` gives plain `"true"`.
 
-### Literal fallback values
+**Literal values** suit on/off gating: `"value": "true"` makes the catch-all unconditionally active when nothing matched.
 
-For include expressions, the fallback typically uses `"value": "true"`:
-
-```json
-"fallbacks": {
-  "*": { "target_item": "list", "value": "true" }
-}
-```
-
-This makes the fallback item's include expression unconditionally true when no other item in the group matched.
-
-### Per-group fallbacks
-
-You can specify different fallback targets for different groups:
+**Different catch-alls per group**, `"*"` as the wildcard:
 
 ```json
 "fallbacks": {
@@ -192,56 +113,20 @@ You can specify different fallback targets for different groups:
 }
 ```
 
-The `videos` window group falls back to `fanart`; all other windows fall back to `square`.
-
 ---
 
-## On-demand rebuilds
+## Where it goes
 
-Expressions are rebuilt:
-
-- During skin development on every Kodi start (when dev mode is on)
-- When the user closes a Dynamic Editor window and runtime state or skin strings have changed
-- Manually via `RunScript(script.copacetic.helper,action=rebuild)`
-
-Every rebuild includes an automatic `ReloadSkin()` call. Kodi caches include file contents at load time, so writing the new XML to disk isn't enough on its own — even navigating between windows won't pick up the changes. `ReloadSkin()` forces Kodi to re-read all include files.
-
----
-
-## Build-time conditions, runtime values
-
-The most important concept: **the builder evaluates conditions at build time, but the output values are themselves conditions that Kodi evaluates at runtime**.
-
-When a rule's condition uses `xml(Skin.String(...))`, the builder checks the current skin string value at build time. If the condition is true, the rule's value — typically a runtime condition like `Container.Content(movies)` — is written into the output. The result is that build-time state (which skin strings are set to what) gets baked into compact runtime conditions. The builder does the combinatorial work once; Kodi gets a simple expression to evaluate every frame.
-
-In Copacetic 1, the equivalent logic was handled with one hand-written expression per (view, layout, content_type) combination plus a master expression to combine them — verbose, error-prone, and painful to maintain. The builder replaces that with a single template that handles every combination automatically.
-
----
-
-## Output format
-
-The builder writes `script-copacetic-helper_expressions.xml`. Output keys are sorted alphabetically (case-insensitive):
-
-```xml
-<?xml version='1.0' encoding='utf-8'?>
-<includes>
-  <expression name="art_fanart_include_videos">true</expression>
-  <expression name="art_fanart_visible_videos">Container.Content(movies) | Container.Content(tvshows)</expression>
-  <expression name="layout_list_include_videos">true</expression>
-  <expression name="layout_list_visible_videos">![Container.Content(movies)]</expression>
-  <expression name="layout_showcase_visible_videos">Container.Content(movies)</expression>
-  <!-- ... -->
-</includes>
-```
-
-Reference them in your skin XML with `$EXP[expression_name]`. Add the file to your skin's `Includes.xml`:
+The builder writes `script-copacetic-helper_expressions.xml`. Include it once:
 
 ```xml
 <include file="script-copacetic-helper_expressions.xml" />
 ```
 
+Then use `$EXP[name]` anywhere. Expressions rebuild on every dev-mode start, whenever a settings window closes with changes, and on a manual rebuild.
+
 ---
 
 ## Next
 
-- [Configs Builder](05-configs.md) — How valid options are resolved per setting
+- [Configs](05-configs.md) — the allowed values these expressions read

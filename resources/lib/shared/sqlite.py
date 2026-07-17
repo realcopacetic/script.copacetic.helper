@@ -184,24 +184,20 @@ class ArtworkCacheHandler(SQLiteHandler):
 
         with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                f"""
+            cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     {cols_sql},
                     UNIQUE ({unique_sql})
                 )
-                """
-            )
+                """)
 
             for idx_name, cols in policy.ART_DB_INDEXES:
                 idx_cols_sql = ", ".join(cols)
-                cursor.execute(
-                    f"""
+                cursor.execute(f"""
                     CREATE INDEX IF NOT EXISTS {idx_name}
                     ON {self.TABLE_NAME}({idx_cols_sql})
-                    """
-                )
+                    """)
 
             conn.commit()
 
@@ -225,7 +221,7 @@ class ArtworkCacheHandler(SQLiteHandler):
             where="cache_key = ?",
             params=(cache_key,),
         )
-    
+
     def find_variants(
         self,
         source_url: str,
@@ -251,10 +247,7 @@ class ArtworkCacheHandler(SQLiteHandler):
         )
         if not variant:
             return rows
-        return [
-            r for r in rows
-            if all(r.get(k) == v for k, v in variant.items())
-        ]
+        return [r for r in rows if all(r.get(k) == v for k, v in variant.items())]
 
     def delete_entry(self, cache_key: str) -> None:
         """
@@ -340,21 +333,17 @@ class TmdbCacheHandler(SQLiteHandler):
 
         with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                f"""
+            cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     {cols_sql},
                     UNIQUE ({unique_sql})
                 )
-                """
-            )
-            cursor.execute(
-                f"""
+                """)
+            cursor.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_tmdb_cache_lookup
                 ON {self.TABLE_NAME}({index_cols_sql})
-                """
-            )
+                """)
             conn.commit()
 
     def get_entry(

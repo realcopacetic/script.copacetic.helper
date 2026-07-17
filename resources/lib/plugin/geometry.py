@@ -80,8 +80,10 @@ def resolve_rect(
         try:
             parts = tuple(map(int, coords.split(",")))
             if len(parts) == 4:
-                return parts        
-            log.debug(f"{name}: coords '{coords}' has {len(parts)} elements, expected 4")
+                return parts
+            log.debug(
+                f"{name}: coords '{coords}' has {len(parts)} elements, expected 4"
+            )
         except Exception as exc:
             log.debug(f"{name}: Invalid coords '{coords}': {exc}")
 

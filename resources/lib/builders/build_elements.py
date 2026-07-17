@@ -30,9 +30,7 @@ class BuildElements:
         :param builders_to_run: Subset of builders to run; default is all.
         """
         self.selected = (
-            list(BUILDER_CONFIG.keys())
-            if builders_to_run is None
-            else builders_to_run
+            list(BUILDER_CONFIG.keys()) if builders_to_run is None else builders_to_run
         )
         (
             self.all_mappings,
@@ -113,9 +111,7 @@ class BuildElements:
             )
             self._write_file(builder_data, builder)
 
-        write_template_cache(
-            self.all_mappings, self.configs_data, self.controls_data
-        )
+        write_template_cache(self.all_mappings, self.configs_data, self.controls_data)
 
     def _write_file(self, processed_data, builder_name):
         """
@@ -134,6 +130,4 @@ class BuildElements:
 
         handler = write_handler(write_path)
         handler.write_xml(processed_data, **write_kwargs)
-        log.info(
-            f"{builder_name.capitalize()} saved to XML file: {write_path}"
-        )
+        log.info(f"{builder_name.capitalize()} saved to XML file: {write_path}")

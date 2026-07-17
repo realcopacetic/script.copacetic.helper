@@ -15,7 +15,6 @@ from resources.lib.apis.tmdb.fields import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, pretty_print
 
-
 _CACHE = TmdbCache()
 IMAGE_LIST_ROLES: dict[str, list[tuple[str, str]]] = {
     "images_posters": [

@@ -188,6 +188,7 @@ def sequence_to_multiart_dict(urls: Iterable[str]) -> dict[str, str]:
 
     return result
 
+
 def order_multiart(
     art: dict[str, str],
     *,
@@ -209,6 +210,7 @@ def order_multiart(
     if randomize:
         random.shuffle(extras)
     return [u for u in ([main] if keep_main_first and main else []) + extras if u]
+
 
 def set_multiart_fadelabel(
     fadelabel_id: int | str,

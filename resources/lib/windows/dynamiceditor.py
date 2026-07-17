@@ -3,6 +3,13 @@
 import copy
 
 import xbmcgui
+from xbmcgui import (
+    ACTION_MOVE_DOWN,
+    ACTION_MOVE_UP,
+    ACTION_NAV_BACK,
+    ACTION_PREVIOUS_MENU,
+    ACTION_SELECT_ITEM,
+)
 
 from resources.lib.builders.runtime import RuntimeStateManager
 from resources.lib.builders.templates import load_template_data
@@ -10,10 +17,10 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     TEMPLATES,
     RUNTIME_STATE,
-    infolabel,
 )
 from resources.lib.windows.control_factory import DynamicControlFactory
 from resources.lib.windows.controls import ButtonHandler
+
 
 class DynamicEditor(xbmcgui.WindowXMLDialog):
     """
@@ -44,22 +51,69 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             controls_data=controls_data,
             runtime_state_path=RUNTIME_STATE,
         )
+        # Snapshot here, not in onInit — the post-doModal rebuild comparison
+        # must work even if onInit aborts (e.g. contract controls missing
+        # from the window XML).
+        self._runtime_state_snapshot = copy.deepcopy(
+            self.runtime_manager.runtime_state
+        )
 
         self.handlers = {}
         self.dynamic_controls = {}
-        self._has_runtime = False
         self.container_position = -1
         self.current_listitem = None
         self._prev_focus_id = -1
-        self._mgmt_buttons = None
+        self._mgmt_buttons = []
         self._mgmt_ids = set()
         self._mgmt_map = {
-            "btn_add": {"id": 410, "description": "Add a new entry."},
-            "btn_delete": {"id": 411, "description": "Delete the selected entry."},
-            "btn_up": {"id": 412, "description": "Move the selected entry up."},
-            "btn_down": {"id": 413, "description": "Move the selected entry down."},
-            "btn_reset": {"id": 414, "description": "Reset all entries to defaults."},
-            "btn_close": {"id": 415, "description": "Save and close."},
+            "btn_add": {
+                "id": 410,
+                "description": "Add a new entry.",
+                "action": self._on_add,
+                "mutation": True,
+                "needs_selection": False,
+                "btn": None,
+            },
+            "btn_up": {
+                "id": 411,
+                "description": "Move the selected entry up.",
+                "action": lambda: self._on_move(-1),
+                "mutation": True,
+                "needs_selection": True,
+                "btn": None,
+            },
+            "btn_down": {
+                "id": 412,
+                "description": "Move the selected entry down.",
+                "action": lambda: self._on_move(1),
+                "mutation": True,
+                "needs_selection": True,
+                "btn": None,
+            },
+            "btn_delete": {
+                "id": 413,
+                "description": "Delete the selected entry.",
+                "action": self._on_delete,
+                "mutation": True,
+                "needs_selection": True,
+                "btn": None,
+            },
+            "btn_reset": {
+                "id": 414,
+                "description": "Reset all entries to defaults.",
+                "action": self._on_reset,
+                "mutation": False,
+                "needs_selection": False,
+                "btn": None,
+            },
+            "btn_close": {
+                "id": 415,
+                "description": "Save and close.",
+                "action": self._on_close,
+                "mutation": False,
+                "needs_selection": False,
+                "btn": None,
+            },
         }
 
     @property
@@ -72,7 +126,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         if self.current_listitem and self.current_listitem in self.listitems:
             return self.listitems[self.current_listitem]["runtime_index"]
-        return self.container_position
+        # No valid selection: never fall back to container_position — under
+        # parent_filter a display index is not a source index, so a write
+        # through it would land on an arbitrary unfiltered entry.
+        return -1
 
     def onInit(self) -> None:
         """
@@ -82,50 +139,47 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._description_label = self.getControl(6)
         self._list_container = self.getControl(100)
 
+        # Colour contract: skin declares palette roles via hidden labels
+        color_map = {"focused": 420, "unfocused": 421}
+        defaults = {"focused": "FFFFFFFF", "unfocused": "80FFFFFF"}
+        self._colors = {}
+        for role, cid in color_map.items():
+            try:
+                value = self.getControl(cid).getLabel().strip()
+            except RuntimeError:
+                value = ""
+            self._colors[role] = value or defaults[role]
+
         # Build listitems and refresh list
         self._scan_controls()
         self._build_dicts()
-        self._runtime_state_snapshot = copy.deepcopy(self.runtime_manager.runtime_state)
-        log.debug(
-            f"DynamicEditor onInit → xml={self._xml_filename} "
-            f"mapping={self.mapping} "
-            f"controls_from={self.controls_from} "
-            f"listitems={list(self.listitems)}"
-        )
         if self.listitems:
             self.container_position = 0
             self.current_listitem = next(iter(self.listitems))
             self._list_container.selectItem(self.container_position)
         self._refresh_list()
 
-        # Initiate management buttons if runtime expansion
-        self._has_runtime = any(
-            ctrl.get("mode") == "dynamic" for ctrl in self.dynamic_controls.values()
-        )
+        # Management buttons — reset/close are universal; mutation buttons
+        # (add/delete/move) require a runtime list with a governing control.
+        # Every editor mapping is runtime-backed, so governor presence is
+        # the sole gate: governed windows manage their entry list, seeded
+        # windows edit fields on a fixed one.
         self._has_governor = any(
             ctrl.get("role") in ("item_picker", "add_action")
             for ctrl in self.dynamic_controls.values()
         )
-        if self._has_runtime:
+        self._mgmt_buttons = []
+        self._mgmt_ids = set()
+        for entry in self._mgmt_map.values():
             try:
-                self._mgmt_buttons = []
-                for name, entry in self._mgmt_map.items():
-                    btn = self.getControl(entry["id"])
-                    setattr(self, name, btn)
-                    self._mgmt_buttons.append(btn)
+                entry["btn"] = self.getControl(entry["id"])
             except RuntimeError:
-                log.debug("Management buttons not found; skipping.")
-                self._mgmt_buttons = None
-            else:
-                # Mutation buttons (add/delete/move/reset) require a governing
-                # control; a fixed runtime list shows only Close.
-                self._mgmt_ids = set()
-                for name in self._mgmt_map:
-                    btn = getattr(self, name)
-                    show = self._has_governor or name == "btn_close"
-                    btn.setVisible(show)
-                    if show:
-                        self._mgmt_ids.add(btn.getId())
+                continue
+            self._mgmt_buttons.append(entry["btn"])
+            show = not entry["mutation"] or self._has_governor
+            entry["btn"].setVisible(show)
+            if show and entry["mutation"]:
+                self._mgmt_ids.add(entry["id"])
 
         # Attach handlers to dynamic controls
         for control_id, control in self.dynamic_controls.items():
@@ -150,7 +204,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 self._handler_by_focus_id[fid] = h
 
         # Set initial focus and refresh UI
-        if not self.listitems and self._has_runtime and self._has_governor:
+        if not self.listitems and self._has_governor:
             # Empty list (e.g. filtered view with no children) — auto-add
             self._on_add()
             if not self.listitems:
@@ -165,7 +219,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         One-time scan of resolved controls for this window. Rebrands
         borrowed controls to the session mapping and preserves their
-        original mapping on ``source_mapping`` for native-vs-borrowed checks.ls.
+        original mapping on ``source_mapping`` for native-vs-borrowed checks.
         """
         self._runtime_tpls = {}
 
@@ -188,20 +242,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         Rebuild listitem entries from runtime state, optionally filtered by parent.
         """
-        runtime_items = {
-            entry["runtime_id"]: {
-                **tpl,
-                **entry,
-                "runtime_index": source_idx,
-                "mapping": tpl["mapping"],
-            }
+        self.listitems = {
+            entry["runtime_id"]: {**tpl, **entry, "runtime_index": source_idx}
             for tpl in self._runtime_tpls.values()
             for source_idx, entry in enumerate(
                 self.runtime_manager.runtime_state.get(tpl["mapping"], [])
             )
             if not self.parent_filter or entry.get("parent") == self.parent_filter
         }
-        self.listitems = dict(runtime_items)
 
     def _apply_row_visuals(self, li, item: dict, runtime_id: str) -> None:
         """
@@ -221,7 +269,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             or ""
         )
         if raw_icon := item.get("icon"):
-            icon = self.runtime_manager.format_metadata(mk, idx, raw_icon, localize=True)
+            icon = self.runtime_manager.format_metadata(
+                mk, idx, raw_icon, localize=True
+            )
             li.setArt({"icon": icon})
 
     def _refresh_list(self) -> None:
@@ -262,25 +312,58 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if update_row:
             self._refresh_list_row(self.container_position)
 
-        item = self.listitems[self.current_listitem]
-        desc = self.runtime_manager.format_metadata(
-            item["mapping"],
-            self._source_index,
-            item.get("description", ""),
-            localize=True,
+        self._set_description(self.getFocusId())
+
+    def _set_description(self, focus_id: int) -> None:
+        """
+        Resolve and set the bottom description for the current focus:
+        handler description, else mgmt-button description, else the
+        selected listitem's description.
+
+        :param focus_id: GUI control ID that currently has focus.
+        """
+        handler = (
+            self._handler_by_focus_id.get(focus_id)
+            if self.current_listitem in self.listitems
+            else None
         )
+        if handler and handler.description:
+            desc = self.runtime_manager.format_metadata(
+                handler.mapping_key,
+                self._source_index,
+                handler.description,
+                localize=True,
+            )
+        else:
+            desc = next(
+                (
+                    entry["description"]
+                    for entry in self._mgmt_map.values()
+                    if entry["id"] == focus_id
+                ),
+                "",
+            )
+        if not desc and self.current_listitem in self.listitems:
+            item = self.listitems[self.current_listitem]
+            desc = self.runtime_manager.format_metadata(
+                item["mapping"],
+                self._source_index,
+                item.get("description", ""),
+                localize=True,
+            )
         self._description_label.setText(desc or "")
 
     def _update_mgmt_buttons(self) -> None:
-        """Enable/disable management buttons based on list position and size."""
-        if not self._has_runtime or not self._mgmt_buttons or not self._has_governor:
+        """Enable/disable mutation buttons based on list position and size."""
+        m = self._mgmt_map
+        if not (self._has_governor and m["btn_delete"]["btn"]):
             return
 
         has_items = bool(self.listitems)
         n = len(self.listitems)
-        self.btn_delete.setEnabled(n > 1)
-        self.btn_up.setEnabled(has_items and self.container_position > 0)
-        self.btn_down.setEnabled(has_items and self.container_position < n - 1)
+        m["btn_delete"]["btn"].setEnabled(n > 1)
+        m["btn_up"]["btn"].setEnabled(has_items and self.container_position > 0)
+        m["btn_down"]["btn"].setEnabled(has_items and self.container_position < n - 1)
 
     def _refresh_handlers_after_mapping_change(self) -> None:
         """
@@ -298,14 +381,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object.
         """
-        from xbmcgui import (
-            ACTION_MOVE_DOWN,
-            ACTION_MOVE_UP,
-            ACTION_NAV_BACK,
-            ACTION_PREVIOUS_MENU,
-            ACTION_SELECT_ITEM,
-        )
-
         a_id = action.getId()
         current_focus = self.getFocusId()
         prev_focus = self._prev_focus_id
@@ -327,6 +402,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         # List or handler interactions
         if current_focus == self._list_container.getId():
+            if prev_focus != current_focus:
+                self._refresh_ui(update_row=False)
             self._on_list_scroll()
         else:
             has_valid_selection = (
@@ -352,49 +429,20 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     h.update_visibility(current_focus)
 
             # Description — always update (mgmt buttons have descriptions too)
-            focused_handler = (
-                self._handler_by_focus_id.get(current_focus)
-                if has_valid_selection
-                else None
-            )
-            if focused_handler and focused_handler.description:
-                desc = self.runtime_manager.format_metadata(
-                    focused_handler.mapping_key,
-                    self._source_index,
-                    focused_handler.description,
-                    localize=True,
-                )
-            else:
-                desc = next(
-                    (
-                        entry["description"]
-                        for entry in self._mgmt_map.values()
-                        if entry["id"] == current_focus
-                    ),
-                    "",
-                )
-            self._description_label.setText(desc)
+            self._set_description(current_focus)
 
-            # Management buttons — outside selection guard so Add works on empty lists
+            # Management buttons — Add works on empty lists; up/down/delete need a selection
             if a_id == ACTION_SELECT_ITEM and self._mgmt_buttons:
-                if current_focus == self.btn_add.getId():
-                    return self._on_add()
-
-                if has_valid_selection:
-                    if current_focus == self.btn_delete.getId():
-                        return self._on_delete()
-
-                    if current_focus == self.btn_up.getId():
-                        return self._on_move(-1)
-
-                    if current_focus == self.btn_down.getId():
-                        return self._on_move(1)
-
-                if current_focus == self.btn_reset.getId():
-                    return self._on_reset()
-
-                if current_focus == self.btn_close.getId():
-                    return self._on_close()
+                entry = next(
+                    (
+                        e
+                        for e in self._mgmt_map.values()
+                        if e["btn"] and e["id"] == current_focus
+                    ),
+                    None,
+                )
+                if entry and (not entry["needs_selection"] or has_valid_selection):
+                    return entry["action"]()
 
         if a_id in (ACTION_NAV_BACK, ACTION_PREVIOUS_MENU):
             if current_focus != self._list_container.getId():
@@ -421,11 +469,35 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._update_mgmt_buttons()
         self._refresh_ui()
 
+    def _begin_mutation(self) -> None:
+        """
+        Re-sync listitems with on-disk state before any index math. Nested
+        editors can mutate other mappings mid-session (delete_orphans), so
+        cached runtime_index values may be stale after a bare reload.
+        """
+        prev_keys = list(self.listitems)
+        self.runtime_manager.reload_state()
+        self._build_dicts()
+        if list(self.listitems) != prev_keys:
+            self._refresh_list()
+        if self.current_listitem and self.current_listitem in self.listitems:
+            self.container_position = list(self.listitems).index(
+                self.current_listitem
+            )
+            self._list_container.selectItem(self.container_position)
+        else:
+            self.current_listitem = None
+            self.container_position = min(
+                self.container_position, len(self.listitems) - 1
+            )
+
     def _on_add(self) -> None:
         """
         Insert a new entry. Runs the governing handler's dialog (item_picker
         or add_action) before inserting, so nothing is written on cancel.
         """
+        self._begin_mutation()
+
         if self.current_listitem:
             mk = self.listitems[self.current_listitem]["mapping"]
         else:
@@ -435,8 +507,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             )
             if not mk:
                 return
-
-        self.runtime_manager.reload_state()
 
         # Find the governing handler. Prefer one native to the session
         # mapping; fall back to a borrowed one if none is native.
@@ -449,8 +519,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             (h for h in governors if h.control.get("source_mapping") == self.mapping),
             None,
         ) or next(iter(governors), None)
+        if governing is None:
+            # Control definitions promised a governor but its XML control
+            # failed to attach — abort rather than silently inserting a
+            # preset the mapping may not define.
+            log.warning("_on_add: no governing handler attached; aborting")
+            return
 
-        # Phase 1: Dialog before insert — determines preset and/or field data
+        # Dialog before insert — determines preset and/or field data
         chosen = "custom"
         browse_result = None
         then_data = None
@@ -473,10 +549,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 # insert.
                 then_map = governing.control.get("onclick", {}).get("then", {})
                 then_name = then_map.get(chosen)
-                log.debug(
-                    f"_on_add then lookup: name={then_name!r}, "
-                    f"handlers={list(self.handlers.keys())}"
-                )
                 then_handler = self.handlers.get(then_name) if then_name else None
                 if isinstance(then_handler, ButtonHandler):
                     then_dialog = then_handler.run_preflight_dialog()
@@ -491,7 +563,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     return
                 browse_result = result
 
-        # Phase 2: Insert entry
+        # Insert entry
         source_insert = self.runtime_manager.insert_position_for(
             mk,
             self.parent_filter,
@@ -510,11 +582,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.current_listitem = new_id
         self._build_dicts()
 
-        # Phase 3: Apply browse data (add_action only — picker seeds via metadata)
+        # Apply browse data (add_action only — picker seeds via metadata)
         if browse_result is not None:
             governing.apply_result(browse_result, cfg)
 
-        # Phase 3b: Apply picker chained action result (if any)
+        # Apply picker chained action result (if any)
         if then_data is not None:
             handler, result, handler_cfg = then_data
             handler.apply_result(result, handler_cfg)
@@ -537,7 +609,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         Delete the selected entry, prune orphaned children across other
         mappings, then re-anchor selection.
         """
-        self.runtime_manager.reload_state()
+        self._begin_mutation()
+        if not self.current_listitem:
+            return
 
         mk = self.listitems[self.current_listitem]["mapping"]
         self.runtime_manager.delete_mapping_item(mk, self._source_index)
@@ -570,7 +644,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if not self.current_listitem or self.current_listitem not in self.listitems:
             return
 
-        self.runtime_manager.reload_state()
+        self._begin_mutation()
+        if not self.current_listitem:
+            return
 
         display_keys = list(self.listitems.keys())
         old_display = self.container_position
@@ -604,9 +680,18 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if not confirmed:
             return
 
-        self.runtime_manager.reload_state()
+        self._begin_mutation()
 
-        mk = self.listitems[self.current_listitem]["mapping"]
+        if self.current_listitem and self.current_listitem in self.listitems:
+            mk = self.listitems[self.current_listitem]["mapping"]
+        else:
+            mk = next(
+                (ctrl["mapping"] for ctrl in self.dynamic_controls.values()),
+                None,
+            )
+            if not mk:
+                return
+
         if self.parent_filter:
             mapping = self.runtime_manager.mappings.get(mk, {})
             metadata = mapping.get("metadata", {})
@@ -614,7 +699,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             parent_item = self.runtime_manager.mapping_item_for_runtime_id(
                 self.parent_filter
             )
-            for item in list(self.listitems.values()):
+            # Delete descending — each removal shifts later indices left, so
+            # ascending deletion with pre-captured indices removes the wrong
+            # entries once two or more children exist.
+            for item in sorted(
+                self.listitems.values(),
+                key=lambda i: i["runtime_index"],
+                reverse=True,
+            ):
                 self.runtime_manager.delete_mapping_item(mk, item["runtime_index"])
             for mi in default_order:
                 if metadata.get(mi, {}).get("parent") == parent_item:
@@ -637,7 +729,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _on_close(self) -> None:
         """
-        Close the modal. 
+        Close the modal.
         Rebuild logic runs in dynamic_settings_window after doModal() returns.
         """
         self.close()
@@ -657,9 +749,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self._list_container.selectItem(self.container_position)
 
         if mapping_changed:
-            # Picker path calls _refresh_handlers_after_mapping_change directly, so
-            # that method must validate+render as a unit. _on_add/_on_reset hit both
-            # paths — a redundant pass per handler, but it's microseconds.
+            # Picker path calls _refresh_handlers_after_mapping_change
+            # directly, so that method must validate+render as a unit; the
+            # extra pass here for _on_add/_on_reset is redundant but cheap.
             self._refresh_handlers_after_mapping_change()
 
         self._update_mgmt_buttons()
@@ -682,11 +774,12 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         new_preset = existing[idx]["mapping_item"]
         preserve = {
             "runtime_id": existing[idx]["runtime_id"],
-            **({"parent": existing[idx]["parent"]} if "parent" in existing[idx] else {}),
+            **(
+                {"parent": existing[idx]["parent"]} if "parent" in existing[idx] else {}
+            ),
         }
         rebuilt = self.runtime_manager.rebuild_mapping_item(
             mk, new_preset, idx, preserve=preserve
         )
         if rebuilt is None:
             log.debug(f"_seed_metadata: rebuild failed for {mk}[{idx}]={new_preset}")
-

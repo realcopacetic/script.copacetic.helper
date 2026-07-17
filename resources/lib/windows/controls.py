@@ -74,12 +74,15 @@ class BaseControlHandler:
         self.mapping_key = control["mapping"]
         self.description = control.get("description")
         self.field = control.get("field")
-        self.placeholders = runtime_manager.mappings.get(self.mapping_key, {}).get(
-            "placeholders", {}
-        )
+        mapping_def = runtime_manager.mappings.get(self.mapping_key, {})
+        self.placeholders = mapping_def.get("placeholders", {})
         self._link_data_cache = None
         self._link_cache_key = None
-        self.is_dynamic_linked = control.get("mode") == "dynamic" and self.field
+        # Storage semantics come from the session mapping, not the control:
+        # controls carry no mode of their own.
+        self.is_dynamic_linked = mapping_def.get("mode") == "dynamic" and bool(
+            self.field
+        )
         self.focus_target_id = None
         self.parent = None  # set by DynamicEditor.onInit
 
@@ -94,9 +97,7 @@ class BaseControlHandler:
             )
         except (IndexError, KeyError):
             item = None
-        return self.runtime_manager.field_template(
-            self.mapping_key, item, self.field
-        )
+        return self.runtime_manager.field_template(self.mapping_key, item, self.field)
 
     @property
     def current_listitem(self) -> str | None:
@@ -196,7 +197,7 @@ class BaseControlHandler:
     def _get_setting_value(self) -> str | None:
         """
         Return the current value for this control at the given list index.
-        First checks for linked_config then falls back to mapping items.
+        Checks the linked config first, then the entry field directly.
 
         :return: The current setting or mapping_item value, or None.
         """
@@ -218,14 +219,8 @@ class BaseControlHandler:
                 self.mapping_key, self.source_index, self.field or "mapping_item"
             )
         except (IndexError, KeyError):
-            if self.field and not self.config_field_template:
-                return None
-
-            default_order = self.runtime_manager.mappings.get(self.mapping_key, {}).get(
-                "default_order", []
-            )
-            if 0 <= self.source_index < len(default_order):
-                return default_order[self.source_index]
+            # Entries are universally seeded, so a miss means an invalid
+            # index — don't mask it with a positional default_order guess.
             return None
 
     def _set_setting_value(self, value: str) -> None:
@@ -235,7 +230,7 @@ class BaseControlHandler:
         :param value: The new value to store.
         """
         if self._get_setting_value() == value:
-           return
+            return
 
         link = self._active_link()
         if link.get("config"):
@@ -299,13 +294,19 @@ class BaseControlHandler:
         return raw_label, raw_label2
 
     def set_instance_labels(
-        self, focused_control_id: int, instance: object | None = None
+        self,
+        focused_control_id: int,
+        instance: object | None = None,
+        label_color: str | None = None,
+        label2_color: str | None = None,
     ) -> None:
         """
         Update the label and label2 on a control instance.
 
         :param focused_control_id: GUI control ID with current focus.
         :param instance: Target control instance; defaults to ``self.instance``.
+        :param label_color: Optional colour wrap for label (palette name or hex), overriding focus styling.
+        :param label2_color: Optional colour wrap for label2 (palette name or hex), overriding focus styling.
         """
         if instance is None:
             instance = self.instance
@@ -323,8 +324,16 @@ class BaseControlHandler:
             if self.control.get(color_key)
         }
 
-        if focused_control_id != instance.getId() and (c := colors.get("textColor")):
+        if (
+            label2_color is None
+            and focused_control_id != instance.getId()
+            and (c := colors.get("textColor"))
+        ):
             label2 = f"[COLOR {c}]{label2}[/COLOR]"
+        if label_color:
+            label = f"[COLOR {label_color}]{label}[/COLOR]"
+        if label2_color:
+            label2 = f"[COLOR {label2_color}]{label2}[/COLOR]"
 
         instance.setLabel(label=label or " ", label2=label2 or " ", **colors)
 
@@ -579,6 +588,7 @@ class CycleHandler(BaseControlHandler):
     Displays the current value as label2. Each press advances
     to the next item in the list, wrapping around at the end.
     """
+
     _needs_link = True
 
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:
@@ -614,6 +624,7 @@ class EditHandler(BaseControlHandler):
     Handles inline edit controls. The label field is used as hint text and keyboard
     heading via setLabel(). Saves on keyboard close or when the user navigates away.
     """
+
     ACCEPTED_ACTIONS = (
         ACTION_SELECT_ITEM,
         ACTION_MOVE_UP,
@@ -644,7 +655,7 @@ class EditHandler(BaseControlHandler):
         :param a_id: Kodi action ID.
         """
         value = self.instance.getText().strip()
-        if not value or value == self._cached_text:
+        if value == self._cached_text:
             return
 
         self._cached_text = value
@@ -671,6 +682,7 @@ class RadioButtonHandler(BaseControlHandler):
     """
     Handles interactions and updates for radiobutton controls.
     """
+
     _needs_link = True
 
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:
@@ -702,6 +714,7 @@ class SliderHandler(BaseControlHandler):
     """
     Handles slider controls mapped to a multi-option config.
     """
+
     _updates_labels = False
     ACCEPTED_ACTIONS = (ACTION_MOVE_LEFT, ACTION_MOVE_RIGHT)
     _needs_link = True
@@ -753,6 +766,7 @@ class SliderExHandler(SliderHandler):
     Composite slider + button control.  Select left/right on the slider,
     or press select to flip focus between slider and its label-button.
     """
+
     ACCEPTED_ACTIONS = (ACTION_SELECT_ITEM, ACTION_MOVE_LEFT, ACTION_MOVE_RIGHT)
 
     def __init__(
@@ -811,7 +825,13 @@ class SliderExHandler(SliderHandler):
         :param focused_control_id: GUI control ID that has current focus.
         """
         super().update_visibility(focused_control_id)
+        slider_focused = focused_control_id == self.instance.getId()
+        colors = self.parent._colors if self.parent else {}
         self.set_instance_labels(
             focused_control_id,
             instance=self.button_instance,
+            label_color=colors.get("focused") if slider_focused else None,
+            label2_color=(
+                colors.get("focused") if slider_focused else colors.get("unfocused")
+            ),
         )

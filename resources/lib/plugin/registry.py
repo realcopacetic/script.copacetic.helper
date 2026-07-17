@@ -2,7 +2,6 @@
 
 from typing import Callable
 
-
 _INFO_TAG = "__plugin_info__"
 _NOINFO_TAG = "__no_info__"
 

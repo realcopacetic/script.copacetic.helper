@@ -175,7 +175,7 @@ def apply_videoinfotag(
                 setter(_as_list(value))
             else:
                 setter(str(value))
-                
+
         except Exception:
             log.debug(
                 f"apply_videoinfotag: Failed to set {key}={value!r} "

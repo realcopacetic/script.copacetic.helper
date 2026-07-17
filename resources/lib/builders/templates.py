@@ -6,6 +6,7 @@ The build pipeline writes a consolidated cache to disk after a successful
 build. The Dynamic Editor reads it on open instead of walking source
 folders. Falls back to source on cache miss.
 """
+
 import xbmc
 
 from resources.lib.shared import logger as log
@@ -14,11 +15,15 @@ from resources.lib.shared.utilities import RESOLVER_CACHE
 
 # Bump when template structure or resolver semantics change in a way that
 # invalidates previously written caches.
-_CACHE_VERSION = "1"
+# 2: control templates no longer carry a stamped mode; storage semantics
+#    derive from the owning mapping's mode.
+_CACHE_VERSION = "2"
+
 
 def _cache_stamp() -> str:
     """Identity of the cache: manual schema version plus the owning skin."""
     return f"{_CACHE_VERSION}/{xbmc.getSkinDir()}"
+
 
 def cache_is_current() -> bool:
     """True when the resolver cache exists and matches the current stamp."""
@@ -27,13 +32,6 @@ def cache_is_current() -> bool:
         return False
     cache = next(iter(handler.data.values()), {})
     return cache.get("stamp") == _cache_stamp()
-
-def _stamp_control_modes(mappings: dict, controls_data: dict) -> None:
-    """Force every control template's mode to its owning mapping's mode."""
-    for mapping_name, templates in controls_data.items():
-        mode = mappings.get(mapping_name, {}).get("mode", "static")
-        for tpl in templates.values():
-            tpl["mode"] = mode
 
 
 def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
@@ -57,7 +55,6 @@ def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
         mappings = cache.get("mappings", {})
         configs_data = cache.get("configs", {})
         controls_data = cache.get("controls", {})
-        _stamp_control_modes(mappings, controls_data)
         return mappings, configs_data, controls_data
     return load_template_data_from_source(base_folder)
 
@@ -93,11 +90,8 @@ def load_template_data_from_source(base_folder: str) -> tuple[dict, dict, dict]:
         base_folder=base_folder, subfolders=[CONTROLS_FOLDER], grouping_key="mapping"
     )
     for mapping_name, content in controls_merger.yield_merged_data():
-        controls_data.setdefault(mapping_name, {}).update(
-            content.get("controls") or {}
-        )
+        controls_data.setdefault(mapping_name, {}).update(content.get("controls") or {})
 
-    _stamp_control_modes(mappings, controls_data)
     return mappings, configs_data, controls_data
 
 

@@ -8,6 +8,7 @@ class TrailerZoomController:
     """
     Handle trailer zoom based on viewport and content aspect ratio.
     """
+
     SCREEN_AR = 16 / 9  # frame-fitting basis; viewport WxH is in skin coords
     OVERSCAN = 1.04  # absorb matte variance between trailer encodes and library AR
 
@@ -122,9 +123,7 @@ class TrailerZoomController:
                 parent="TrailerZoom_episode_ar",
             )
         except Exception as exc:
-            log.debug(
-                f"PlayerMonitor → Trailer zoom → Episode AR JSON error: {exc}"
-            )
+            log.debug(f"PlayerMonitor → Trailer zoom → Episode AR JSON error: {exc}")
             return 0.0
 
         episodes = result.get("result", {}).get("episodes", [])

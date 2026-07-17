@@ -275,8 +275,8 @@ class ImageEditor:
         else:
             source_path = str(ctx.cached_image_path)
             if not validate_path(source_path):
-             # Texture cache miss — reuse an image opened by a prior step
-             # (e.g. blur), else copy the source to temp.
+                # Texture cache miss — reuse an image opened by a prior step
+                # (e.g. blur), else copy the source to temp.
                 cached_images = shared["image_cache"].get(art_type, {})
                 if cached_images:
                     source_path, image = next(iter(cached_images.items()))
@@ -286,9 +286,9 @@ class ImageEditor:
                     return None
 
         if image is None:
-            image = shared["image_cache"][art_type].get(source_path) or self._image_open(
+            image = shared["image_cache"][art_type].get(
                 source_path
-            )
+            ) or self._image_open(source_path)
 
         if image is None:
             return None
@@ -312,7 +312,7 @@ class ImageEditor:
                 f"{self.__class__.__name__} → File processed: "
                 f"{url} → {processed_path}",
             )
-            
+
         if self.temp_folder in source_path:
             try:
                 xbmcvfs.delete(source_path)

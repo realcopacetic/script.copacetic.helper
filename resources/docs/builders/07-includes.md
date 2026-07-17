@@ -1,14 +1,14 @@
 # Includes Builder
 
-The includes builder generates `<include>` calls into your skin XML — typically multiple parameterised instances of an include you've defined yourself. You write one compact template; the builder produces N instances populated with metadata, user settings, or runtime state values.
+Generates repeated XML into your skin. Despite the name, the body of a template can be **any XML** — include calls, `<item>` lists for menus, whole `<control>` trees. You write the shape once; the builder emits one filled-in copy per loop pass.
 
-The classic case: a widget container include in your skin XML, instantiated once per widget the user has configured, each with its own content path, label, sort order, and layout.
+The two classic cases: a widget container include called once per configured widget, and a main-menu `<item>` list built once per menu entry.
 
 ---
 
-## Input format
+## Input
 
-Place XML files in `extras/templates/includes/`:
+XML files in `extras/templates/includes/`:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -31,156 +31,152 @@ Place XML files in `extras/templates/includes/`:
 </xml>
 ```
 
-| Element | Description |
+| Element | What it does |
 |---|---|
-| `<mapping>` | Mapping name. Either a built-in mapping (`content_types`) or a custom one defined in `extras/templates/mappings/` — see [Mappings](02-mappings.md). |
-| `<template>` | One include to expand (multiple per file allowed) |
-| `<mode>` | `"dynamic"` to iterate once per runtime entry (a list the user grows and shrinks — widgets, menus). Default is static, which iterates once per item in the mapping's `items` list or dict — fixed at build time. |
-| `<index>` | Optional `start` attribute for index numbering |
-| `<items>` | Optional comma-separated list to loop over |
-| `<include>` | The include to instantiate, with `name` matching one defined in your skin XML |
+| `<mapping>` | Mapping name |
+| `<template>` | One unit to expand (several per file is fine) |
+| `<mode>` | `dynamic` = one copy per settings-file entry. Default = one per mapping item. |
+| `<index>` | Start number (or range) for `{index}` |
+| `<items>` | An extra comma-separated loop on the template itself |
+| `<filter>` | Skip some loop passes — see below |
+| `<include name="...">` | The **outer** include — the name your skin references. Appears once. |
 
-The `name` attribute on the outer `<include>` is the include you've already defined in your skin — typically with `$PARAM[...]` placeholders for the values that vary between instances. The builder fills those `$PARAM[...]` placeholders from your template, one call per loop iteration or runtime entry.
-
----
-
-## Available placeholders
-
-Inside the template, `{placeholder}` tokens are substituted before output. What's available depends on mode:
-
-**Static mode (default)** — the template iterates once per item in the mapping's `items` list (or dict). Each iteration gets the mapping's loop values, anything declared in `<items>` on the template itself, and all string-valued metadata for the current item. Use this when the set of outputs is known at build time — for example, one config per content type.
-
-**Dynamic mode** — the template iterates once per entry in `runtime_state.json` for this mapping. The number of iterations grows and shrinks with what the user has configured (widgets, menu items, etc.). Each entry provides:
-
-- All string-valued fields for the entry — user-set fields directly from state, untouched `config_field` values resolved to their defaults at read time (the user's chosen `layout`, `art`, `sortby`, custom `label`, resolved `parent` runtime_id, etc.)
-- A numeric `{index}`, starting from `<index start="N">` and incrementing once per entry
-- All string-valued metadata for the entry's `mapping_item`
-
-When the same key appears in both stored fields and metadata, the stored field wins — so a user-edited label overrides the preset's default.
+Everything *inside* the outer include is the body, and the body multiplies: one copy per pass, tokens filled per pass. Tokens work anywhere — element text, attributes, even the `content` name (`ctn_{layout}` routes each entry to your matching layout include: `ctn_strip`, `ctn_grid`, …).
 
 ---
 
-## Template body shape
+## Body shapes
 
-The example above uses `<param>` elements inside the include because that's how Kodi's `<include name="...">` system passes parameters. But the builder doesn't enforce that shape — it walks whatever XML you put inside the outer `<include>` and substitutes placeholders in attributes and text content.
+**Include calls with params** — the widget case above.
 
-When the include you're targeting takes a different shape, write that shape directly. The mainmenu builder calls a skin include named `mainmenu_items` whose body is a list of `<item>` elements with child elements rather than param attributes:
+**Any other XML.** The main menu emits `<item>` elements, not includes:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<xml>
-  <mapping>mainmenu</mapping>
-  <includes>
-    <template>
-      <mode>dynamic</mode>
-      <index start="1" />
-      <include name="mainmenu_items">
-        <item id="{index}">
-          <label>{label}</label>
-          <icon>{icon}</icon>
-          <onclick>{action}</onclick>
-          <visible>{visible}</visible>
-          <property name="runtime_id">{runtime_id}</property>
-        </item>
-      </include>
-    </template>
-  </includes>
-</xml>
+<template>
+  <mode>dynamic</mode>
+  <index start="1" />
+  <include name="mainmenu_items">
+    <item id="{index}">
+      <label>{label}</label>
+      <icon>{icon}</icon>
+      <onclick condition="Window.IsActive({window})">{update}</onclick>
+      <onclick condition="!Window.IsActive({window})">{action}</onclick>
+      <visible>{visible}</visible>
+      <property name="runtime_id">{runtime_id}</property>
+    </item>
+  </include>
+</template>
 ```
 
-This produces one `<item>` per runtime entry, each with its label, icon, onclick action, and a `runtime_id` property the skin can read with `Container.ListItem.Property(runtime_id)`. That property is what the menu uses to filter widgets to the focused menu item — see [Hubs: filtering child entries by parent](#hubs-filtering-child-entries-by-parent) below.
+One `<item>` per menu entry, straight into a container's content block. Attributes (`condition`, `id`), text, nested elements — all substituted. Widget templates go further and emit full `<control>` trees with animations. If you can write it as XML, the builder can repeat it.
 
-The substitution rules are the same regardless of the body shape: any `{placeholder}` in an attribute value or element text is replaced; non-string metadata fields (like an `xsp` dict) aren't surfaced as text but are available to special handling like the `{xsp}` token.
-
----
-
-## Pruning
-
-After substitution, any element whose `value` attribute or text content resolves to an empty string is removed entirely. So you can include parameters that only appear when the data has a value for them:
+**Conditional include calls.** An inner `<include>` can carry a `condition` attribute; it lands in the output for Kodi to evaluate. The views template composes it from tokens *and* `$PARAM[...]` — the token fills at build time, the `$PARAM` when your skin later calls the outer include:
 
 ```xml
-<param name="sortby" value="{sortby}" />
-<param name="sortorder" value="{sortorder}" />
+<include content="tpl_vues" condition="$EXP[layout_{layout}_include_$PARAM[window]]">
 ```
-
-If an entry has no `sortby`, the param is omitted instead of becoming `value=""`.
-
-The same applies to non-`<param>` element shapes — `<onclick>{action}</onclick>` is dropped entirely if `{action}` resolves to an empty string.
 
 ---
 
-## XSP smart playlists
+## Empty means gone (and one exception)
 
-If a mapping item's metadata contains an `xsp` key with a structured smart-playlist dict, the builder URL-encodes it into a query string at startup and exposes it as a `{xsp}` placeholder. Concatenate it with the content path:
+A param, attribute, or element whose value fills in to nothing is dropped from that copy — so your include's `$PARAM` defaults take over, and `<onclick>{update}</onclick>` simply isn't there for entries with no update action.
+
+The exception is the outer include itself: if a filter removes *every* pass, the named include is still written as an empty shell. Your skin XML can reference `<include>widget_containers</include>` unconditionally without breaking when the user has nothing configured.
+
+---
+
+## What the tokens are
+
+**Default (per mapping item):** the mapping's loop names, the template's own `<items>`, `{index}`, and the item's string metadata.
+
+**Dynamic (per settings entry):** all of the above, plus everything stored on the entry (`{layout}`, `{content}`, `{label}`, `{runtime_id}`, `{parent}`, …) — stored values win over metadata. `{index}` counts up from the start number, so containers get sequential IDs (3200, 3201, …). Maths works too: `{index}0` by concatenation, `{index+2002}` by arithmetic.
+
+**`{xsp}`:** if an item's metadata has an `xsp` smart-playlist dict, the builder URL-encodes it and hands it to you as `{xsp}` — stick it on the end of a path: `value="{content}{xsp}"`. Items without one get nothing there, and the param prunes away. `$ESCINFO[]` inside the playlist stays live for Kodi to resolve.
+
+---
+
+## Filtering: skipping loop passes
+
+`<filter>` is a condition checked once per loop pass, before anything is written ([Rule Engine](08-rule-engine.md)). Fail it and that pass doesn't exist in the output.
+
+That's different from a `condition` in the body: **filter decides whether a thing exists; conditions decide what an existing thing does at runtime.**
+
+Its best trick is letting different loop values cover different ranges from one template. The texture variables loop a two-item mapping (`nowrap`, `wrap`) across index −3..6 — but the two variants need different ranges: views draw ten fixed slots, while the wrap-around transition machinery only ever looks one step each way:
 
 ```json
-"latest_movies": {
-  "content": "videodb://movies/titles/",
-  "xsp": {
-    "rules": { "and": [
-      { "field": "playcount", "operator": "lessthan", "value": ["1"] }
-    ]},
-    "type": "movies"
-  }
-}
+"filter": "equals({wrapness}, nowrap) | In({index}, [-1, 0, 1])"
 ```
 
-```xml
-<param name="content" value="{content}{xsp}" />
-```
-
-Items without an `xsp` get an empty string here, and the param is pruned. `$ESCINFO[]` references inside the XSP are kept unquoted so Kodi resolves them at runtime.
+Read it as two ways to survive, OR'd: `nowrap` always passes (all ten indices emit); `wrap` only passes at −1, 0, 1. One template instead of two per family, and no `_wrap-3` outputs that nothing uses.
 
 ---
 
-## Hubs: filtering child entries by parent
+## Hubs: each parent owns its own children
 
-Dynamic mappings can reference each other via `parent` — letting you build hub structures where each menu item owns its own set of widgets. The wiring spans three places: the child mapping's metadata, the includes template, and the dialog that opens the child editor scoped to one parent.
+**The problem this solves.** By default the widgets are one flat list — the same row of widgets whatever menu item is focused. The hub pattern gives each menu item its *own* set: focus Movies, see the movie widgets; focus Music, see the music widgets. Copacetic exposes it as the `widgets_per_menu` skin setting, and the whole thing is wiring between two mappings — no special container tricks.
+
+Four pieces. The first three you write; the fourth is what comes out.
 
 ### 1. Tag the child to a parent in metadata
 
-In the child mapping's metadata, set `parent` to the `mapping_item` name of an entry in another mapping. At runtime-state initialisation, that name is replaced with the matching entry's `runtime_id`. This is described in [Runtime State → Parent references](09-runtime-state.md#parent-references).
+In the child mapping (`widgets`), give an item a `parent` naming an item in the parent mapping (`mainmenu`):
 
 ```json
-"latest_movies": {
-  "label": "$LOCALIZE[31202]",
-  "target": "videos",
-  "content": "videodb://movies/titles/",
-  "parent": "movies"
-}
+"latest_movies": { "label": "$LOCALIZE[31202]", "content": "videodb://movies/titles/", "parent": "movies" }
 ```
 
-After initialisation, the `latest_movies` widget entry has `"parent": "<runtime_id of the movies menu item>"`. Once tagged, `{parent}` becomes available as a placeholder for any dynamic includes template iterating that mapping.
+When the settings file is created, that name is swapped for the movies menu entry's permanent id. From then on the link is by id — reorder either list, rename labels, nothing breaks. `{parent}` is now a token in any dynamic template for the widgets mapping.
 
-### 2. Filter visibility in the child include
+### 2. The parent announces itself; the child checks
 
-In the includes template that emits the child entries, gate visibility on the parent matching whatever the skin currently considers focused. The widgets template uses a Kodi property on the menu container:
+Two halves of one handshake. The menu template writes each row's id onto its listitem (that's the `<property>` line in the menu example above):
 
 ```xml
-<param name="visible" value="String.IsEqual(Container(3000).ListItem.Property(runtime_id),{parent})" />
+<property name="runtime_id">{runtime_id}</property>
 ```
 
-`Container(3000)` here is the menu container. Its listitems have a `runtime_id` property because the mainmenu template wrote one (`<property name="runtime_id">{runtime_id}</property>` — see the body-shape example earlier on this page). The widget is visible only when its `{parent}` matches the focused menu item's `runtime_id`.
-
-The full visibility expression in production also handles the case where the user has hub mode disabled, allowing every widget through:
+And the widget template's visible param compares the focused menu row against its own `{parent}` — letting everything through when hub mode is off:
 
 ```xml
-<param name="visible" value="[Integer.IsGreater(Container({index}).NumItems,0) | Container({index}).IsUpdating] + [!Skin.HasSetting(widgets_per_menu) | String.IsEqual(Container(3000).ListItem.Property(runtime_id),{parent})]" />
+<param name="visible" value="[!Skin.HasSetting(widgets_per_menu) | String.IsEqual(Container(3000).ListItem.Property(runtime_id),{parent})] + [Control.HasFocus({index}) | Control.HasFocus({index}0)]" />
 ```
 
-The first bracketed group keeps empty widgets hidden; the second bracketed group is the hub gate.
+### 3. What the output looks like
 
-### 3. Open the child editor scoped to one parent
+This is the part worth staring at once. From the generated `script-copacetic-helper_includes.xml`, the movies menu item:
 
-The Dynamic Editor accepts a `parent` URL parameter that filters the list to entries with a matching `parent` value. Wire this to a button on the parent's editor — the menu editor uses a control on each menu listitem that opens the widget editor pre-filtered to widgets owned by that menu item:
+```xml
+<item id="1">
+  <label>$LOCALIZE[342]</label>
+  <icon>DefaultMovies.png</icon>
+  <onclick condition="Window.IsActive(Videos)">Container.Update("videodb://movies/titles/")</onclick>
+  <onclick condition="!Window.IsActive(Videos)">ActivateWindow(Videos,"videodb://movies/titles/",return)</onclick>
+  <property name="runtime_id">3ad35bab-f50e-5752-be73-c515e4f6b555</property>
+</item>
+```
+
+…and a widget whose entry carries `"parent": "3ad35bab-..."`:
+
+```xml
+<include content="ctn_strip">
+  <param name="id" value="3200" />
+  <param name="visible" value="[!Skin.HasSetting(widgets_per_menu) | String.IsEqual(Container(3000).ListItem.Property(runtime_id),3ad35bab-f50e-5752-be73-c515e4f6b555)] + [Control.HasFocus(3200) | Control.HasFocus(32000)]" />
+  ...
+</include>
+```
+
+The same id appears in both files: the menu item wears it as a property, the widget checks for it in its visible condition. When the Movies row is focused, `Container(3000).ListItem.Property(runtime_id)` is that id, the comparison is true, and this widget shows. Focus another menu item and it doesn't. That's the entire runtime mechanism — one string equality Kodi evaluates like any other.
+
+### 4. Open the child editor stamped to one parent
+
+The last piece is how the user *builds* each menu item's set. Open the widget editor with `parent=` and the session is stamped to that hub. On the menu editor, this is a button whose action fills `{runtime_id}` from the highlighted menu row:
 
 ```json
 "menu_configure_widgets": {
-  "mode": "dynamic",
-  "id": 204,
+  "id": 205,
   "control_type": "button",
-  "label": "Configure widgets for this menu item",
-  "visible": "xml(String.IsEqual(Window(home).Property(current_mapping),mainmenu) + Skin.HasSetting(widgets_per_menu))",
+  "label": "Configure widgets",
   "onclick": {
     "type": "custom",
     "action": "RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,mapping=widgets,parent={runtime_id})"
@@ -188,81 +184,22 @@ The Dynamic Editor accepts a `parent` URL parameter that filters the list to ent
 }
 ```
 
-`{runtime_id}` is the focused menu item's runtime_id, substituted at the moment the button is pressed. The opened editor only shows entries whose `parent` matches; adds, deletes, and reorders inside the filtered editor stay scoped, and new entries are inserted with `parent` already set so they appear adjacent to existing siblings.
+Highlight Movies, press the button, and the widget editor opens showing *only* the movie widgets. Stamping means:
 
-This three-step pattern — tag in metadata, filter in include, scope in dialog — is the whole hub recipe. Same pieces wherever you want one dynamic mapping to own a per-entry set of children.
+- **Adds inherit the parent.** A new entry arrives with `parent` already set to this hub's id and is inserted next to its siblings in the file — you never see, or set, the link by hand.
+- **Everything stays inside the hub.** Move up/down reorders within this hub's entries; Delete and Reset touch only them. Other hubs' widgets are invisible and untouchable.
+- **The link is maintained for you.** Delete the menu item later and its widgets go with it; reset the menu and surviving links are re-pointed at the fresh entries — see [Runtime State → Parent links](09-runtime-state.md#parent-links).
 
----
-
-## Example
-
-Single template in `extras/templates/includes/includes_widgets.xml`:
-
-```xml
-<template>
-  <mode>dynamic</mode>
-  <index start="3200" />
-  <include name="widget_containers">
-    <include content="ctn_{layout}">
-      <param name="id" value="{index}" />
-      <param name="visible" value="[Integer.IsGreater(Container({index}).NumItems,0) | Container({index}).IsUpdating] + [!Skin.HasSetting(widgets_per_menu) | String.IsEqual(Container(3000).ListItem.Property(runtime_id),{parent})]" />
-      <param name="target" value="{target}" />
-      <param name="sortby" value="{sortby}" />
-      <param name="content" value="{content}{xsp}" />
-      <param name="label" value="{label}" />
-    </include>
-  </include>
-</template>
-```
-
-The outer `<include name="widget_containers">` has a fixed name, so it appears once in the output. The inner `<include content="ctn_{layout}">` contains placeholders, so it multiplies — one call per runtime entry. Each entry's stored `layout` value picks the skin-defined include to call: `ctn_strip`, `ctn_grid`, `ctn_showcase`.
-
-With three configured widgets, the output looks like:
-
-```xml
-<include name="widget_containers">
-  <include content="ctn_strip">
-    <param name="id" value="3200" />
-    <param name="visible" value="..." />
-    <param name="sortby" value="title" />
-    <param name="content" value="special://skin/extras/playlists/inprogress_movies.xsp" />
-    <param name="label" value="In-progress movies" />
-  </include>
-  <include content="ctn_strip">
-    <param name="id" value="3201" />
-    <param name="visible" value="..." />
-    <param name="target" value="videos" />
-    <param name="sortby" value="random" />
-    <param name="content" value="videodb://movies/titles/" />
-    <param name="label" value="$LOCALIZE[31204]" />
-  </include>
-  <include content="ctn_strip">
-    <param name="id" value="3202" />
-    <param name="visible" value="..." />
-    <param name="target" value="videos" />
-    <param name="sortby" value="dateadded" />
-    <param name="content" value="videodb://movies/titles/?xsp=%7B%22rules%22%3A...%7D" />
-    <param name="label" value="$LOCALIZE[31202]" />
-  </include>
-</include>
-```
-
-`{layout}` resolved to `strip` for all three. `{index}` incremented from 3200. The custom widget has no `target`, so that param was pruned. The `latest_movies` widget got its xsp encoded onto the content URL.
+Tag in metadata, handshake in the templates, stamp in the dialog. Same recipe wherever one editable list should own another — menu → widgets is just the built-in example.
 
 ---
 
-## Output
+## Where it goes
 
-The builder writes `script-copacetic-helper_includes.xml`. To use the generated includes, reference the file in your skin's `Includes.xml`:
-
-```xml
-<include file="script-copacetic-helper_includes.xml" />
-```
-
-Then call the generated includes from your skin XML — `<include>widget_containers</include>` for the example above.
+The builder writes `script-copacetic-helper_includes.xml`. Include it once from your skin, then call the generated names (`widget_containers`, `mainmenu_items`, …) like any other include.
 
 ---
 
 ## Next
 
-- [Rule Engine](08-rule-engine.md) — Condition evaluator used by configs, expressions, and controls
+- [Rule Engine](08-rule-engine.md) — the condition language filters and rules use

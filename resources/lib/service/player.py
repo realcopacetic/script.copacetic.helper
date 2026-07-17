@@ -168,7 +168,7 @@ class PlayerMonitor(Player):
     def _pause_session(self) -> None:
         """
         Pause the trailer: silent and frozen, with no teardown and no global
-        side-effect. Absolute (play=False), so idempotent — a session never 
+        side-effect. Absolute (play=False), so idempotent — a session never
         resumes, only plays through or is reaped.
         """
         json_call(

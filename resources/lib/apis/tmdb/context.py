@@ -19,6 +19,7 @@ _DETAILS_LOOKUP_BY_KIND: dict[str, dict[str, str]] = {
     },
 }
 
+
 def _lookup_uniqueid_tmdb(
     *,
     method: str,
@@ -41,10 +42,9 @@ def _lookup_uniqueid_tmdb(
         properties=["uniqueid"],
         parent="resolve_tmdb_context",
     )
-    uniqueid = (
-        response.get("result", {}).get(result_key, {}).get("uniqueid", {}) or {}
-    )
+    uniqueid = response.get("result", {}).get(result_key, {}).get("uniqueid", {}) or {}
     return uniqueid.get("tmdb")
+
 
 def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, Any]:
     """
@@ -54,6 +54,7 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
     :param target: InfoLabel prefix, e.g. f"{self.container}.ListItem".
     :return: Dict containing "kind", "dbid", "tmdb_id", "season_number".
     """
+
     def first(key: str, label: str) -> str | None:
         return params.get(key) or infolabel(f"{target}.{label}") or None
 

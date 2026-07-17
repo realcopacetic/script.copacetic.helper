@@ -386,15 +386,36 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             elif current_position is not None:
                 prev_pos, next_pos = current_position - 1, current_position + 1
 
+            # Self-certify currency when no skin-side cursor writer fired for
+            # this invocation (tablist focus in a dual couple has none): a
+            # passed guard is the same proof atr_artwork_cursor encodes.
+            stamped = (
+                f"{prefix}{current_position}/{dbid}/{self.params.get('visit', '')}"
+                if fadelabel_key
+                and not cursor_snapshot
+                and current_position is not None
+                else ""
+            )
+            if (
+                stamped
+                and guard.alive()
+                and not infolabel(
+                    f"Window(home).Property(artwork_cursor_{fadelabel_key})"
+                )
+            ):
+                window_property(f"artwork_cursor_{fadelabel_key}", stamped)
+
             return set_items(
                 [
                     {
                         "file": "artwork",
                         "art": art,
                         "properties": (
-                           {
+                            {
                                 "previous": f"{prefix}{prev_pos}",
-                                "current": cursor_snapshot or f"{prefix}{current_position}/{dbid}",
+                                "current": cursor_snapshot
+                                or stamped
+                                or f"{prefix}{current_position}/{dbid}",
                                 "next": f"{prefix}{next_pos}",
                                 "previous_pos": str(prev_pos),
                                 "next_pos": str(next_pos),
@@ -522,7 +543,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             h=to_int(self.params.get("h"), None),
         )
 
-
     @log.duration
     def tmdb_details(self) -> list[DirectoryItem] | None:
         """
@@ -583,10 +603,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             path, height = result
             return set_items(
-                [{"file": "text", "art": {"text": path},
-                  "properties": {"text_height": str(height)}}]
+                [
+                    {
+                        "file": "text",
+                        "art": {"text": path},
+                        "properties": {"text_height": str(height)},
+                    }
+                ]
             )
-
 
     @log.duration
     def typewriter(self) -> None:
@@ -594,16 +618,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Run typewriter animation for the current listitem; guarded against focus changes.
         A reset=true invocation supersedes any run and hides the control.
         """
-        label_id=to_int(self.params.get("label_id"), None)
+        label_id = to_int(self.params.get("label_id"), None)
         if parse_bool(self.params.get("reset", "false")):
-            TypewriterAnimation.reset(label_id=label_id)   
+            TypewriterAnimation.reset(label_id=label_id)
             return
 
         with self.focus() as guard:
             if not guard.alive():
                 return
 
-            t = TypewriterAnimation()            
+            t = TypewriterAnimation()
             t.update(
                 label=self.label,
                 opts=PlacementOpts.from_params(self.params),

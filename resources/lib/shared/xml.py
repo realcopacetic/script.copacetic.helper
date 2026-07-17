@@ -409,7 +409,7 @@ class XMLDictConverter:
 
             if mode_elem is not None:
                 template_dict["mode"] = mode_elem.text.strip()
-                
+
             if filter_elem is not None:
                 template_dict["filter"] = filter_elem.text.strip()
 

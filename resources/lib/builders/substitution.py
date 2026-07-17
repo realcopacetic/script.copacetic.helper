@@ -10,9 +10,7 @@ from itertools import product
 from typing import Any
 
 
-def inject_metadata(
-    metadata: dict, substitutions: dict, *keys: str
-) -> dict:
+def inject_metadata(metadata: dict, substitutions: dict, *keys: str) -> dict:
     """
     Layer metadata for the given keys onto a substitution dict.
 
@@ -54,7 +52,8 @@ def enumerate_mapping_subs(
                 inject_metadata(
                     metadata,
                     {key_name: outer, value_name: inner, dynamic_key: item},
-                    outer, inner,
+                    outer,
+                    inner,
                 )
                 for outer, inner_values in loop_values.items()
                 for inner, item in product(inner_values, items)

@@ -27,6 +27,7 @@ from resources.lib.shared.utilities import (
     url_encode,
 )
 
+
 def reposition_control(
     control_id: int,
     *,
@@ -91,7 +92,7 @@ def merge_metadata(
 ) -> dict[str, Any]:
     """Merge incoming metadata into a base metadata dict.
     Mutates ``base`` in place using has_value rules and overwrite policy.
-    
+
     :param base: Local metadata dict to update in place.
     :param incoming: Metadata dict to merge values from.
     :param prefer_incoming: If true, prefer incoming over non-empty base.
@@ -527,6 +528,7 @@ class TextTruncator:
         # quick path: whole text fits
         self._set_and_probe(ctrl, text)
         if self._fits(cond_str):
+            log.debug(f"Trunc: probes={self._probes} mode='fits' final_len={len(text)}")
             return text
 
         base = text.rstrip()
@@ -721,6 +723,7 @@ class TypewriterAnimation:
     Typewriter text effect with PlacementOpts-driven positioning.
     Height grows per line up to max_lines unless track_h is provided.
     """
+
     DEFAULT_CONTROL_ID = 4020
 
     def __init__(
@@ -796,12 +799,14 @@ class TypewriterAnimation:
 
         def _superseded() -> bool:
             return home.getProperty(owner_key) != my_token
-        
+
         if start_delay > 0:
             if monitor.waitForAbort(start_delay):
                 return
             if not _alive() or _superseded():
-                log.debug(f"{self.__class__.__name__}: ABORTED → '{label}' during start_delay")
+                log.debug(
+                    f"{self.__class__.__name__}: ABORTED → '{label}' during start_delay"
+                )
                 return
 
         try:

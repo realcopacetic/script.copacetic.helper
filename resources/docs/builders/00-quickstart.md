@@ -1,51 +1,58 @@
 # Quickstart — Add a Setting End to End
 
-This walks through one tiny feature — a per-content-type **clearlogo toggle** — touching every builder it needs and stopping where it doesn't. Read this before the per-builder reference docs.
+This walks through one small feature — a per-content-type **clearlogo toggle** — touching every builder it needs and skipping the ones it doesn't.
 
-The feature: in the view settings editor, the user toggles "show clearlogo" per content type (movies, tvshows, artists, …). Wherever the skin chooses to render a clearlogo, it checks an expression generated from those toggles.
+The feature: in the view settings window, the user turns "show clearlogo" on or off for each content type (movies, tvshows, artists, …). Wherever your skin draws a clearlogo, it checks an expression built from those choices.
 
-Five files. Five edits. The skin reloads.
+Five edits. The skin reloads.
 
 ---
 
 ## Before you start — turn on dev mode
 
-Open the addon's Settings → Developers → Enable Dev mode. With dev mode on, every Kodi start rebuilds all the builder outputs and reloads the skin, so your edits take effect on the next launch. You can also use **Rebuild now** in the same settings panel (or the equivalent script action) to apply changes without a restart.
+Addon Settings → Developers → **Enable Dev mode**. With it on, every Kodi start rebuilds everything and reloads the skin. **Rebuild now** in the same panel does it without a restart.
 
-Without dev mode, the service only builds outputs that are missing on disk — fine for users, frustrating while iterating.
-
-Full details and other rebuild paths in [Builder System Overview → Development workflow](01-overview.md#development-workflow).
+Without dev mode, the service only builds files that are missing — right for users, annoying while you're iterating.
 
 ---
 
-## 1. The mapping is already there
+## 1. Register the field on the mapping
 
-The built-in `content_types` mapping ships with the addon — windows mapped to their content types:
+The `content_types` mapping ships with the addon. It lists the content types and tags each one with its window:
 
 ```json
 {
-  "items": {
-    "videos": ["movies", "sets", "tvshows", "seasons", "episodes"],
-    "music": ["artists", "albums", "songs"]
-  },
-  "placeholders": { "key": "window", "value": "content_type" }
+  "content_types": {
+    "mode": "dynamic",
+    "items": ["movies", "sets", "tvshows", "seasons", "episodes", "..."],
+    "placeholders": { "key": "content_type" },
+    "config_fields": {
+      "global": { "clearlogo": "{content_type}_clearlogo" }
+    },
+    "metadata": {
+      "movies": { "window": "videos" },
+      "tvshows": { "window": "videos" }
+    }
+  }
 }
 ```
 
-Templates that reference `mapping: "content_types"` get `{window}` and `{content_type}` placeholders.
+Your one edit here: add `"clearlogo": "{content_type}_clearlogo"` under `config_fields.global`. This says: entries in this list have a `clearlogo` setting, and the config named `{content_type}_clearlogo` decides its allowed values.
 
-If you needed your own iteration values, you'd add a JSON file under `extras/templates/mappings/`. See [Mappings](02-mappings.md).
+Any template that says `"mapping": "content_types"` can use `{content_type}` — and `{window}`, via metadata — in its strings.
+
+If you need your own list to loop over, add a file under `extras/templates/mappings/`. See [Mappings](02-mappings.md).
 
 ## 2. Configs — what values are allowed
 
-Drop a file in `extras/templates/configs/`:
+New file in `extras/templates/configs/`:
 
 ```json
 {
   "mapping": "content_types",
   "configs": {
     "{content_type}_clearlogo": {
-      "items": ["true", "false"],
+      "items": { "true": "$LOCALIZE[186]", "false": "$LOCALIZE[106]" },
       "filter_mode": "include",
       "rules": [
         {
@@ -59,42 +66,35 @@ Drop a file in `extras/templates/configs/`:
 }
 ```
 
-Result: `movies_clearlogo`, `tvshows_clearlogo`, `artists_clearlogo`, `sets_clearlogo` each resolve to items `[true, false]` when the editor opens. Every other content type resolves to an empty list — the toggle won't appear for them.
+Result: movies, sets, tvshows, and artists get a true/false choice, shown as "Enabled / Disabled". Every other content type gets an empty list — no toggle for them.
 
-[Configs Builder reference →](05-configs.md)
+[Configs Builder →](05-configs.md)
 
 ## 3. Controls — what the user clicks
 
-Add a control to your existing `controls_views.json`:
+Add one control to your controls file:
 
 ```json
 "clearlogo": {
+  "field": "clearlogo",
   "id": 203,
   "control_type": "radiobutton",
-  "contextual_bindings": {
-    "linked_config": "{content_type}_clearlogo",
-    "update_trigger": "focused({content_type}_item)",
-    "visible": "In({content_type}, [movies, sets, tvshows, artists])"
-  },
+  "visible": "In({content_type}, [movies, sets, tvshows, artists])",
   "label": "Show clearlogo"
 }
 ```
 
-One control. The contextual bindings make it read and write a different config key depending on which `{content_type}_item` listitem the user has focused. Hidden for content types that don't support it.
+One radiobutton. It reads and writes the `clearlogo` setting of whichever row is highlighted in the left-hand list. First allowed value = on, second = off.
 
-The values the radiobutton flips between come from the resolved config — first allowed item ("true") = on, second ("false") = off.
-
-[Controls Builder reference →](06-controls.md)
+[Controls Builder →](06-controls.md)
 
 ## 4. Window XML — where the control lives
 
-This part is your existing skin XML, not a builder input. The viewsettings window has a control with id 203 of type radiobutton. The Dynamic Editor finds it by id and wires it up.
-
-Skip if you've already done this for other settings.
+Your normal skin XML. The viewsettings window needs a radiobutton with id 203; the editor finds it by id and takes over. Skip this step if the window already exists. A copy-paste skeleton is in [Runtime State → Window XML](09-runtime-state.md#a-minimal-window-xml).
 
 ## 5. Expressions — the boolean the skin uses
 
-Drop a file in `extras/templates/expressions/`:
+New file in `extras/templates/expressions/`:
 
 ```json
 {
@@ -103,7 +103,7 @@ Drop a file in `extras/templates/expressions/`:
     "art_clearlogo_visible_{window}": {
       "rules": [
         {
-          "condition": "xml(Skin.String({content_type}_clearlogo,true))",
+          "condition": "equals({clearlogo}, true)",
           "type": "append",
           "value": "Container.Content({content_type})"
         }
@@ -113,55 +113,56 @@ Drop a file in `extras/templates/expressions/`:
 }
 ```
 
-For each window group, this collects every content type whose clearlogo toggle is true and joins them with `|`. After the user enables clearlogo for movies and tvshows, `art_clearlogo_visible_videos` becomes `Container.Content(movies) | Container.Content(tvshows)`.
+For each window, this collects every content type where the toggle is on and joins them with `|`. If the user enables it for movies and tvshows, `art_clearlogo_visible_videos` becomes `Container.Content(movies) | Container.Content(tvshows)`.
 
-[Expressions Builder reference →](04-expressions.md)
+[Expressions Builder →](04-expressions.md)
 
 ## 6. Skin XML — use the result
-
-Anywhere your skin renders a clearlogo, gate it on the expression:
 
 ```xml
 <control type="image">
   <visible>$EXP[art_clearlogo_visible_videos]</visible>
   <texture>$VAR[texture_clearlogo]</texture>
-  <!-- ... -->
 </control>
 ```
 
-Done. The user opens the editor, toggles clearlogo for movies, presses Close. The expressions builder re-runs, the skin reloads, and clearlogos appear on movies but not on episodes.
+Done. The user opens the editor, flips the toggle for movies, presses Close. The builders re-run, the skin reloads, clearlogos appear on movies but not episodes.
+
+---
+
+## One setting, four names
+
+You just gave the same setting four names in four places. This trips everyone up once, so here's the map:
+
+| Name | What it is | Where it lives |
+|---|---|---|
+| `clearlogo` | The **field** — the key stored per entry in the settings file | `config_fields` on the mapping, `field` on the control |
+| `{content_type}_clearlogo` | The **config** — the rules for what values are allowed | The configs file |
+| `clearlogo` (again) | The **control** — the template name for the UI element | The controls file (the name itself is only a label; `field` does the linking) |
+| `203` | The **control ID** — where it sits in your window XML | The controls file and your window XML |
+
+The chain: control `id` finds the XML control → control `field` names the setting → the mapping's `config_fields` points that field at a config → the config decides the values. If a setting misbehaves, walk that chain.
 
 ---
 
 ## What you just did
 
-- One **mapping** (built-in) declared the iteration values.
-- A **configs template** expanded into per-content-type setting definitions, filtered by which content types support the feature. The Dynamic Editor resolves these on demand.
-- A **controls template** expanded into one editable control with bindings for each supported content type, resolved when the editor opens.
-- The user's choices live in **Kodi skin strings** — `Skin.String(movies_clearlogo)` etc. — written by the editor on close.
-- The **expressions builder** turned one template into one expression per window, evaluating the user's choices into a boolean the skin can consume.
+- The **mapping** listed the loop values and registered the new field.
+- A **config** said which values are allowed, per content type.
+- A **control** gave the user a radiobutton for it.
+- The user's choices are stored in the **settings file** (`runtime_state.json`), one entry per content type.
+- The **expressions builder** turned those entries into one expression per window.
 
-That's the static path: skin strings, fixed at build time, edited through the editor.
-
-The other path — runtime state — is what powers the widgets and menu features. Same builders, but configs/controls/expressions flag `mode: "dynamic"` and the values live as fields on entries in `runtime_state.json` instead of as skin strings. The user can grow and shrink the list at runtime. See [Runtime State & Dynamic Editor](09-runtime-state.md) and [the widgets use case](10-use-cases.md#3-widgets--dynamic-runtime-state-driven).
+The view settings window is a **fixed list**: the rows are created automatically and the user can't add or remove them — only change each row's settings. The widget and menu editors are **editable lists**: same machinery, plus one control with a `role` that unlocks Add / Delete / Move buttons. See [Runtime State & Dynamic Editor](09-runtime-state.md) and [the widgets use case](10-use-cases.md#3-widgets--editable-lists).
 
 ---
 
-## Decision guide
+## Where next
 
 | You want | Read |
 |---|---|
-| A per-content-type setting (skin strings, fixed set) | [Use case 2: Views](10-use-cases.md#2-views--static-skin-string-driven) |
-| A user-managed list (add/delete/reorder, runtime fields) | [Use case 3: Widgets](10-use-cases.md#3-widgets--dynamic-runtime-state-driven) |
-| Just generate variables for repeated XML patterns | [Use case 1: Standalone variables](10-use-cases.md#1-standalone-variables) |
-| To understand the whole pipeline before picking | [Builder System Overview](01-overview.md) |
-
----
-
-## Next
- 
-You've now seen one feature, end to end. Different next steps depending on what you want:
- 
-- **Build a real, multi-builder feature.** [Use case 3: Widgets](10-use-cases.md#3-widgets--dynamic-runtime-state-driven) is the second tutorial — same teaching shape, but covers configs, controls, includes, and runtime state.
-- **Understand the whole system.** [Builder System Overview](01-overview.md) covers the pipeline, run contexts, dev workflow, and substitution engine.
-- **Look something up.** Each per-builder doc ([02–08](02-mappings.md)) is reference. Land on the one for the builder you're using; don't read them in order.
+| A per-content-type setting (fixed list) | [Use case 2: Views](10-use-cases.md#2-views--a-fixed-list) |
+| A list the user can add to and reorder | [Use case 3: Widgets](10-use-cases.md#3-widgets--editable-lists) |
+| Just lots of similar variables | [Use case 1: Standalone variables](10-use-cases.md#1-standalone-variables) |
+| The big picture first | [Overview](01-overview.md) |
+| Something's broken | [Troubleshooting](11-troubleshooting.md) |

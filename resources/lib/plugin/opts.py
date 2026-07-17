@@ -18,6 +18,7 @@ class DarkenOpts:
     :param rects: Rect string for sampling in frame coordinates.
     :param frame: Frame size "w,h" as a raw string.
     """
+
     mode: str | None
     strength: float
     source: str | None
@@ -32,7 +33,8 @@ class DarkenOpts:
         Used by ImageEditor._expected_from_spec; values of None are excluded.
         """
         return {
-            k: v for k, v in {
+            k: v
+            for k, v in {
                 policy.ART_FIELD_DARKEN_MODE: self.mode,
                 policy.ART_FIELD_DARKEN_SOURCE: self.source,
                 policy.ART_FIELD_DARKEN_RECTS: self.rects,
@@ -43,7 +45,8 @@ class DarkenOpts:
                     for f, lbl in zip(policy.ART_FIELDS_DARKEN_LABEL, self.labels)
                     if lbl
                 },
-            }.items() if v is not None
+            }.items()
+            if v is not None
         }
 
     @property
@@ -88,6 +91,7 @@ class ArtOpts:
     :param analyze: Enable analysis.
     :param darken: Darken options for this art_type.
     """
+
     url: str | None
     crop: bool
     blur: bool

@@ -3,7 +3,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
-
 ART_FIELD_CACHE_KEY: str = "cache_key"
 ART_FIELD_SOURCE_URL: str = "source_url"
 ART_FIELD_PROCESS: str = "process"
@@ -114,14 +113,19 @@ ART_FIELDS_RESULT: dict[str, tuple[str, ...]] = {
 }
 
 ART_LISTITEM_KEYS: tuple[str, ...] = (
-    ART_FIELD_PROCESSED,
-    ART_FIELD_BLUR_RADIUS,
-    ART_FIELD_COLOR,
-    ART_FIELD_ACCENT,
-    ART_FIELD_CONTRAST,
-    ART_FIELD_LUMINOSITY,
-    ART_FIELD_DARKEN,
-) + ART_FIELDS_DARKEN_ELEMENT + ART_FIELDS_DARKEN_ELEMENT_MEAN + ART_FIELDS_DARKEN_LABEL_WIDTH
+    (
+        ART_FIELD_PROCESSED,
+        ART_FIELD_BLUR_RADIUS,
+        ART_FIELD_COLOR,
+        ART_FIELD_ACCENT,
+        ART_FIELD_CONTRAST,
+        ART_FIELD_LUMINOSITY,
+        ART_FIELD_DARKEN,
+    )
+    + ART_FIELDS_DARKEN_ELEMENT
+    + ART_FIELDS_DARKEN_ELEMENT_MEAN
+    + ART_FIELDS_DARKEN_LABEL_WIDTH
+)
 
 ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
@@ -245,4 +249,4 @@ class ColorConfig:
     element_overlay_color: str = "fff0efef"  # Fallback text hex for readability checks
     element_complexity_stddev: float = 20.0  # Luma stdev limit for "simple" backgrounds
     darken_element_floor: float = 0.18  # floor below which element darken is skipped
-    darken_label_px_per_char: float = 14  # Est. glyph width (px); skinner overrides 
+    darken_label_px_per_char: float = 14  # Est. glyph width (px); skinner overrides

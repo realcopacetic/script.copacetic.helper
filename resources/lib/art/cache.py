@@ -18,6 +18,7 @@ from resources.lib.shared.utilities import (
     validate_path,
 )
 
+
 @dataclass(frozen=True, slots=True)
 class CacheContext:
     """Resolved, immutable cache context for a single artwork URL."""
@@ -241,7 +242,8 @@ class ArtworkCacheManager:
 
         new_path = meta.get(policy.ART_FIELD_PROCESSED)
         variant = {
-            k: v for k, v in meta.items()
+            k: v
+            for k, v in meta.items()
             if k in policy.ART_FIELDS_INPUT.get(process, ())
         }
         for row in self.sqlite.find_variants(source_url, process, variant):

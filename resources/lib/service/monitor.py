@@ -46,7 +46,6 @@ class Monitor(xbmc.Monitor):
         # Run
         self._on_start()
 
-
     def _build_optin_check(self):
         """
         Run the build pipeline once, when the active skin provides builder
@@ -80,14 +79,18 @@ class Monitor(xbmc.Monitor):
             xbmc.executebuiltin("ReloadSkin()")
             return
 
+        build = BuildElements()
+        seeded = build.runtime_manager.initialize_runtime_state()
         builders = [
             builder
             for builder, config in BUILDER_CONFIG.items()
             if (write_path := config.get("write_path"))
             and not validate_path(write_path)
         ]
-        if not cache_is_current():
-            BuildElements().run()
+        if seeded or not cache_is_current():
+            # Fresh ids or changed templates: full rebuild so every output
+            # bakes the same state generation (partial rebuilds mix ids).
+            build.run()
         elif builders:
             BuildElements(builders_to_run=builders).run()
 
@@ -116,7 +119,7 @@ class Monitor(xbmc.Monitor):
         if skindir != self._skindir:
             self._skindir = skindir
             self._supported = skin_uses_builder()
-        
+
         return self._supported
 
     def _conditions_met(self):

@@ -4,7 +4,6 @@ from typing import Any, Iterable, Iterator, Mapping
 
 from resources.lib.shared import logger as log
 
-
 TMDB_PROPERTIES: dict[str, dict[str, Any]] = {
     "movie": {
         "endpoint": "/movie/{id}",
@@ -183,6 +182,7 @@ def apply_tmdb_transform(name: str, value: Any) -> Any:
     log.debug(f"apply_tmdb_transform → missing callable for {name=}, {value=}")
     return value
 
+
 def _iter_mappings(value: Any) -> Iterator[Mapping[str, Any]]:
     """
     Iterate Mapping items from a list, skipping non-Mapping entries.
@@ -195,6 +195,7 @@ def _iter_mappings(value: Any) -> Iterator[Mapping[str, Any]]:
     for item in value:
         if isinstance(item, Mapping):
             yield item
+
 
 def extract_creator_names(value: Any) -> list[str]:
     """

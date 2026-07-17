@@ -1,297 +1,143 @@
 # Mappings
- 
-A mapping is the loop definition that drives every builder. It declares what to iterate over, how to name the placeholders, and optionally attaches metadata and config field templates. Every builder input file references a mapping by name.
- 
-> Reference doc — fields and behaviours. If you arrived here cold and want a worked example, start with the [Quickstart](00-quickstart.md) or [Use case 3: Widgets](10-use-cases.md#3-widgets--dynamic-runtime-state-driven).
- 
+
+A mapping is a named list plus what each item on it knows about itself. Every builder input names the mapping it loops over.
+
+> Reference doc. For a worked example, start with the [Quickstart](00-quickstart.md).
+
 ---
 
-## Built-in vs custom mappings
+## Where they live
 
-There's one built-in mapping (`content_types`) provided by the addon. Custom mappings are defined in `extras/templates/mappings/`. Custom mappings with the same name as a built-in override it.
-
-### Built-in: `content_types`
-
-This is the dict-of-lists mapping that models Kodi's content windows. It drives the views system — generating per-content-type configs, controls, and expressions.
-
-```json
-{
-  "content_types": {
-    "items": {
-      "addons": ["addons"],
-      "favourites": ["favourites"],
-      "music": ["artists", "albums", "songs"],
-      "pictures": ["images"],
-      "videos": ["movies", "sets", "tvshows", "seasons", "episodes", "videos", "musicvideos"]
-    },
-    "placeholders": { "key": "window", "value": "content_type" }
-  }
-}
-```
-
-You don't define this; reference it with `"mapping": "content_types"` in any builder input.
-
-### Custom mappings
-
-Place JSON files in `extras/templates/mappings/`. Each file is a top-level object where keys are mapping names and values are mapping definitions:
+The addon ships one built-in mapping (`content_types`). Your own go in `extras/templates/mappings/` — each file an object of mapping name → definition. Reusing a built-in's name replaces it.
 
 ```json
 {
   "widgets": {
-    "items": ["next_up", "in_progress", "latest_movies", "..."],
+    "mode": "dynamic",
+    "parent_mapping": "mainmenu",
+    "items": ["next_up", "in_progress", "latest_movies", "custom", "..."],
     "placeholders": { "key": "widget_preset" },
-    "default_order": ["next_up", "in_progress", "latest_movies", "latest_tvshows"],
-    "config_fields": {
-      "global": {
-        "layout": "widget_{widget_preset}_layout",
-        "art": "widget_{widget_preset}_art"
-      },
-      "custom": {
-        "sortby": "widget_custom_sortby",
-        "sortorder": "widget_custom_sortorder",
-        "limit": "widget_custom_limit"
-      }
-    },
+    "default_order": ["random_movies", "latest_movies", "random_tvshows", "latest_tvshows"],
+    "config_fields": { "..." },
     "metadata": { "..." }
   }
 }
 ```
 
-The `widgets`, `mainmenu`, and `shutdownmenu` mappings in Copacetic are all custom mappings defined this way.
+| Field | Required | What it does |
+|---|---|---|
+| `items` | Yes | The values to loop over |
+| `placeholders` | Yes | What to call the `{token}` for each value |
+| `mode` | No | `"dynamic"` = this mapping gets entries in the settings file. Default `"static"` = loop values only. See [Overview](01-overview.md#the-three-kinds-of-mapping). |
+| `default_order` | No | Which items get entries when the settings file is first created, in order. Defaults to all of `items`. |
+| `config_fields` | No | Which settings entries have, and which config governs each — see below |
+| `metadata` | No | Facts about each item, usable as `{tokens}` |
+| `parent_mapping` | No | Which mapping's entries own this one's (the hub pattern — [Includes → Hubs](07-includes.md#hubs-each-parent-owns-its-own-children)) |
 
 ---
 
-## Anatomy of a mapping
+## `items`
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `items` | list or dict | Yes | The values to loop over |
-| `placeholders` | object | Yes | Names for substitution tokens |
-| `mode` | string | No | `"dynamic"` if this mapping should be backed by `runtime_state.json` |
-| `default_order` | list | No | Initial ordering for runtime state entries |
-| `config_fields` | object | No | Templates that link runtime fields to config keys |
-| `metadata` | object | No | Per-item key-value data injected into substitutions |
-
----
-
-## The three field types
-
-A dynamic mapping ends up describing three kinds of fields on its runtime entries. They behave differently and the difference matters when you're laying out a feature:
-
-- **Metadata fields** — defined in `metadata`, baked in by the skinner. The user sees them but doesn't pick them. `label`, `target`, `content`, `parent`, `icon` are all metadata for the widget presets. They're copied onto the runtime entry at insert (string values only) and never overwritten by the editor unless you explicitly bind a control to them.
-- **Config-driven fields** — declared in `config_fields`, picked by the user from a constrained list. `layout` and `art` are config-driven for widgets — the user chooses one of the values the configs builder allows for that preset. The default value lands on the entry at insert.
-- **Free-edit fields** — also bound to dynamic controls but with no `config_fields` entry constraining them. The user types or browses for whatever they want. The custom widget's `content` and `label` work this way: they start as empty metadata and the user fills them in via `edit` and `browse_content` controls.
-
-A single field name can shift between categories depending on the preset. For widgets, `label` is metadata for the built-in presets (locked) and free-edit for the `custom` preset (the user names it themselves), because the corresponding control is gated `visible: "In({widget_preset}, [custom])"`.
-
----
-
-## `items` — what to loop over
-
-**Flat list** — each item becomes a single substitution using the `key` placeholder:
+**Flat list** — one loop pass per item:
 
 ```json
-{
-  "items": ["next_up", "in_progress", "latest_movies", "latest_tvshows"],
-  "placeholders": { "key": "widget_preset" }
-}
+"items": ["next_up", "in_progress"],
+"placeholders": { "key": "widget_preset" }
 ```
 
-Produces four substitutions:
-- `{ "widget_preset": "next_up" }`
-- `{ "widget_preset": "in_progress" }`
-- `{ "widget_preset": "latest_movies" }`
-- `{ "widget_preset": "latest_tvshows" }`
+Each pass gets `{widget_preset}` set to the item name.
 
-**Dict of lists** — creates a two-level loop using both `key` and `value` placeholders:
+**Dict of lists** — a two-level loop:
 
 ```json
-{
-  "items": {
-    "videos": ["movies", "sets", "tvshows"],
-    "music": ["artists", "albums", "songs"]
+"items": { "videos": ["movies", "tvshows"], "music": ["albums"] },
+"placeholders": { "key": "window", "value": "content_type" }
+```
+
+Each pass gets both `{window}` and `{content_type}`. For dynamic mappings, prefer a flat list and put the grouping in metadata — that's how `content_types` tags each type with its `window`.
+
+Every pass also gets `{count}`, `{is_first}`, `{is_last}` — see [Overview → Placeholders](01-overview.md#placeholders).
+
+---
+
+## `metadata` — what each item knows
+
+Facts attached to specific items. During that item's loop pass, they're all available as `{tokens}`:
+
+```json
+"metadata": {
+  "next_up": {
+    "label": "$LOCALIZE[31201]",
+    "target": "videos",
+    "content": "plugin://script.copacetic.helper/?info=next_up&limit=20",
+    "icon": "icons/FastForward.png",
+    "parent": "tvshows"
   },
-  "placeholders": { "key": "window", "value": "content_type" }
+  "custom": { "label": "$LOCALIZE[31210]", "content": "" }
 }
 ```
 
-Produces a substitution for every inner value, with its parent key available too:
-- `{ "window": "videos", "content_type": "movies" }`
-- `{ "window": "videos", "content_type": "sets" }`
-- `{ "window": "music", "content_type": "artists" }`
-- ...and so on.
+This is what lets one includes template produce different output per item — each widget preset brings its own content path, label, and icon.
+
+The `custom` preset is nearly empty on purpose. The user fills in `content` and `label` through the editor.
+
+**Strings vs everything else.** Only string values can end up on settings-file entries and be edited. Dicts, lists, and numbers stay in the mapping — the builders can still use them (an `xsp` smart-playlist dict becomes the `{xsp}` token, for example), but they never appear in the settings file. So: user-editable → make it a string, even if just `""`.
 
 ---
 
-## `placeholders` — naming the tokens
+## `config_fields` — the settings each entry has
 
-| Key | Description |
-|---|---|
-| `key` | The primary loop variable name. Always required. |
-| `value` | The secondary loop variable name. Required when `items` is a dict. |
-
-These names are what you use inside `{curly braces}` in template strings. With `"placeholders": { "key": "window", "value": "content_type" }`, you can write template names like `{content_type}_layout` or conditions like `In({content_type}, [songs])`.
-
-In addition to the names you declare here, every substitution also includes `{count}`, `{is_first}`, and `{is_last}` for loop-position-aware templates. See [Builder System Overview](01-overview.md#auto-injected-placeholders).
-
----
-
-## `metadata` — per-item data injection
-
-The `metadata` object attaches arbitrary key-value pairs to specific item names. When a substitution is generated for that item, all its metadata fields are merged into the substitution dictionary, making them available as additional `{placeholder}` tokens.
+Names the settings, and points each at the config that decides its allowed values:
 
 ```json
-{
-  "items": ["next_up", "in_progress", "custom"],
-  "placeholders": { "key": "widget_preset" },
-  "metadata": {
-    "next_up": {
-      "label": "$LOCALIZE[31201]",
-      "target": "videos",
-      "content": "plugin://script.copacetic.helper/?info=next_up",
-      "limit": "20",
-      "parent": "tvshows"
-    },
-    "in_progress": {
-      "label": "$LOCALIZE[31200]",
-      "target": "videos",
-      "content": "plugin://script.copacetic.helper/?info=in_progress",
-      "sortby": "lastplayed",
-      "sortorder": "descending",
-      "limit": "20",
-      "parent": "movies"
-    },
-    "custom": {
-      "label": "$LOCALIZE[31210]",
-      "content": "",
-      "use_custom_click": "true"
-    }
+"config_fields": {
+  "global": {
+    "layout": "{widget_preset}_layout",
+    "art": "{widget_preset}_art"
+  },
+  "custom": {
+    "sortby": "sortby",
+    "sortorder": "sortorder"
   }
 }
 ```
 
-When the builder processes `next_up`, the substitution dictionary becomes:
+`global` = every entry has these. A per-item section = only that item has these. So a `next_up` entry has layout and art; a `custom` entry has all four. Anything not listed doesn't exist as a setting.
 
-```
-{
-  "widget_preset": "next_up",
-  "label": "$LOCALIZE[31201]",
-  "target": "videos",
-  "content": "plugin://script.copacetic.helper/?info=next_up",
-  "limit": "20",
-  "parent": "tvshows"
-}
-```
+The `{widget_preset}` token in a config name is filled with the entry's item name — so `layout` on a `next_up` entry uses config `next_up_layout`.
 
-All of these are available in template strings: `{label}`, `{target}`, `{content}`, etc.
+**Placeholder in the name, or not?** A config name containing the token gets resolved separately per item (each preset filters its layouts differently). A plain name is one shared config (there's only one `sortorder`). More in [Configs](05-configs.md#one-config-per-item-or-one-shared).
 
-Metadata is particularly powerful for the includes builder, where it lets a single XML template produce different output for each item — different content paths, sort orders, art types, and so on.
+### The three kinds of setting
 
-The `custom` preset is intentionally sparse: empty `content`, no `target`, no sort order. The user fills these in through the Dynamic Editor; the empty fields remain on the entry as overridable slots.
+- **Fixed by you** — plain metadata (`target`, `content`, `icon` on the built-in presets). Copied to the entry; the editor leaves them alone unless you bind a control to them.
+- **Picked from a list** — declared in `config_fields`, the user chooses from the config's allowed values (`layout`, `art`).
+- **Typed or browsed** — bound to a control but with no config: the user enters whatever they want (`content` and `label` on the custom widget).
 
-### String values vs structured values
-
-Only string-valued metadata fields get copied onto runtime entries at insert. Non-string values — dicts, lists, numbers — stay metadata-only and don't appear on the entry in `runtime_state.json`. They're still available to the includes builder during substitution, because the builder layers metadata on top of the entry's stored fields when building each substitution dict.
-
-This is why an `xsp` smart-playlist dict can sit on a preset's metadata without polluting the runtime entry: `xsp` is a dict, so it's never copied; the includes builder picks it up from metadata at build time and URL-encodes it onto the `{xsp}` placeholder.
-
-If you want a value to be user-editable, define it as a string in metadata (even if just `""`). If you want it skinner-fixed and structured, use whatever shape you need.
-
-### XSP metadata
-
-The includes builder has special handling for XSP (smart playlist) metadata. Write the smart playlist as a structured dict; the builder URL-encodes it to a query string at startup.
-
-```json
-"latest_movies": {
-  "label": "$LOCALIZE[31202]",
-  "content": "videodb://movies/titles/",
-  "xsp": {
-    "group": { "mixed": "false", "type": "none" },
-    "rules": {
-      "and": [
-        { "field": "playcount", "operator": "lessthan", "value": ["1"] }
-      ]
-    },
-    "type": "movies"
-  },
-  "sortby": "dateadded",
-  "sortorder": "descending"
-}
-```
-
-Becomes:
-
-```
-?xsp=%7B%22group%22%3A%7B%22mixed%22%3A%22false%22%2C%22type%22%3A%22none%22%7D%2C...%7D
-```
-
-`$ESCINFO[]` references inside the XSP are kept unquoted so Kodi resolves them at runtime. The encoded result is exposed as `{xsp}` — concatenate with the content path: `<param name="content" value="{content}{xsp}" />`.
+The same name can be different kinds per item: `label` is fixed for built-in presets and typed for `custom`, just because the edit control is only visible there.
 
 ---
 
-## `config_fields` — linking runtime fields to configs
+## `default_order`
 
-For mappings with `mode: "dynamic"`, `config_fields` declares which configs power which runtime fields. Sections name the *scope* — `global` for fields that apply to every entry, plus per-item sections for fields that only apply to specific presets.
-
-```json
-{
-  "config_fields": {
-    "global": {
-      "layout": "widget_{widget_preset}_layout",
-      "art": "widget_{widget_preset}_art"
-    },
-    "custom": {
-      "sortby": "widget_custom_sortby",
-      "sortorder": "widget_custom_sortorder",
-      "limit": "widget_custom_limit"
-    }
-  }
-}
-```
-
-Reading top-down: every widget gets a layout and art field. Only the custom widget gets sortby, sortorder, and limit. At entry build time, an entry for `next_up` carries layout and art; an entry for `custom` carries all five. Fields outside any section don't appear on the entry.
-
-The `{widget_preset}` placeholder in `global` templates is the mapping's `key` placeholder name, substituted with the entry's `mapping_item` at runtime — so the `layout` field for the `next_up` entry resolves to config key `widget_next_up_layout`. Per-item sections name the preset directly (`custom`, etc.); their templates can either include the placeholder or be constant. The Dynamic Editor flattens all sections internally so controls referencing `sortby` find `widget_custom_sortby` regardless of which scope it lives in.
-
-**Placeholder-in-name rule.** A template name with no placeholder resolves to one config shared across every entry that references it. A template name with the mapping's key placeholder resolves to one config per item. Choose based on whether the field's allowed values vary per item — `widget_{widget_preset}_layout` because each preset filters layouts differently, vs `widget_custom_sortby` because there's just one sortby option set. See [Configs Builder → Per-loop variation requires a placeholder in the name](05-configs.md#per-loop-variation-requires-a-placeholder-in-the-name).
-
-**Cross-field dependency.** A config can also depend on another field's resolved value — `limit` on `layout`, `blk_tab_left` on `layout` and `art`. When it does, the depended-on field's placeholder must appear in the config-key name (`limit_{layout}`, `blk_tab_left_{layout}_{art}`) so the resolver waits for that field before resolving this one. See [Configs Builder → Cross-field config dependencies](05-configs.md#cross-field-config-dependencies).
+Which items get entries when the settings file is first created, and in what order. Entries store only their identity at that point — every setting shows its config default until the user changes it. Which means: change a default in your templates, and every entry the user never touched picks it up.
 
 ---
 
-## `default_order` — initial runtime state
+## Pointing inputs at a mapping
 
-When `runtime_state.json` is first created, the `default_order` list determines which items appear and in what order:
-
-```json
-{
-  "default_order": ["random_movies", "latest_movies", "random_tvshows", "latest_tvshows"]
-}
-```
-
-Each item gets a runtime entry with a fresh UUID, the `mapping_item` name, and all string-valued metadata for that item. `config_field` values are not stored at insert; they resolve to their config defaults on read until the user sets them. See [Runtime State & Dynamic Editor](09-runtime-state.md) for the entry shape.
-
-If `default_order` isn't set, the full `items` list is used.
-
----
-
-## How mappings connect to builder inputs
-
-Every builder input file (JSON or XML) declares which mapping it uses via a `"mapping"` field at the top level:
+Every builder input file names its mapping at the top:
 
 ```json
-{
-  "mapping": "widgets",
-  "configs": { "..." }
-}
+{ "mapping": "widgets", "configs": { "..." } }
 ```
 
-The system groups all inputs by mapping name and processes each group using the corresponding mapping definition. You can spread a mapping's builder inputs across multiple files — configs in one, expressions in another — and they'll all use the same loop values and placeholders.
+Spread one mapping's inputs across as many files as you like — they all share the same loop values.
 
-If a builder input uses `"mapping": "none"`, or omits the key entirely, it runs without any mapping loop values. Useful for templates that only use an `index` range, like variables that just need to expand over a numeric range.
+`"mapping": "none"` (or leaving it out) means no loop values — for templates that only need an `{index}` range.
 
 ---
 
 ## Next
 
-- [Variables Builder](03-variables.md) — See mappings in action with the simplest builder
+- [Variables](03-variables.md) — mappings in action with the simplest builder
