@@ -7,12 +7,14 @@ holds references to ConfigsResolver and ControlsResolver. The resolvers
 themselves live in resolver.py; loading lives in templates.py.
 """
 
+from xbmc import executebuiltin
+
 import uuid
 
 from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler
-from resources.lib.shared.utilities import infolabel
+from resources.lib.shared.utilities import condition, infolabel
 
 # Namespace for deterministic default-entry ids: clean reseeds reproduce
 # identical runtime_ids, keeping baked XML references valid across seeds.
@@ -91,12 +93,62 @@ class RuntimeStateManager:
         self._runtime_state_cache = None
         self._resolved_cache.clear()
         self.state_version += 1
+        self._sync_skin_mirrors(state)
 
     def reload_state(self) -> None:
         """Discard cached state so next access re-reads from disk."""
         self._runtime_state_cache = None
         self._resolved_cache.clear()
         self.state_version += 1
+
+    def reconcile_skin_mirrors(self) -> None:
+        """
+        Reconcile every declared skin mirror against persisted state.
+        Runs once per boot via initialize_runtime_state: writes sync live,
+        but external edits (restores, skin-settings resets) don't.
+        """
+        self._sync_skin_mirrors(self.runtime_state)
+
+    def _sync_skin_mirrors(self, state: dict) -> None:
+        """
+        Mirror declared fields to Kodi skin settings from the given state.
+        Values are read resolved (stored or config default); the first entry
+        carrying a field wins, so declare on single-entry semantics.
+
+        :param state: Full runtime state dict to mirror from.
+        """
+        for mapping_key, mapping in self.mappings.items():
+            declared = mapping.get("skin_mirrors")
+            if not declared:
+                continue
+            entries = state.get(mapping_key, [])
+            for field, skin_name in declared.items():
+                for entry in entries:
+                    resolved = self._fill_defaults(mapping_key, entry)
+                    if field in resolved:
+                        self._apply_skin_mirror(skin_name, resolved[field])
+                        break
+
+    @staticmethod
+    def _apply_skin_mirror(name: str, value: object) -> None:
+        """
+        Idempotently write one mirrored value via Kodi skin builtins.
+        Boolean-shaped values use SetBool/Reset; all others use SetString.
+
+        :param name: Skin setting name.
+        :param value: Mirrored value from runtime state.
+        """
+        text = str(value).lower() if isinstance(value, bool) else str(value)
+        if text in ("true", "false"):
+            desired = text == "true"
+            if condition(f"Skin.HasSetting({name})") != desired:
+                executebuiltin(
+                    f"Skin.SetBool({name})" if desired else f"Skin.Reset({name})"
+                )
+                log.debug(f"skin_mirror: {name} → {text}")
+        elif infolabel(f"Skin.String({name})") != text:
+            executebuiltin(f"Skin.SetString({name},{text})")
+            log.debug(f"skin_mirror: {name} → {text}")
 
     def _build_default_entry(
         self, mapping_key: str, item: str, deterministic: bool = False
@@ -216,12 +268,14 @@ class RuntimeStateManager:
             for mapping_key, mapping in self.mappings.items()
             if mapping.get("mode") == "dynamic" and mapping_key not in state
         }
+        seeded = False
         if missing or not self.exists:
             merged = {**state, **missing}
             self._resolve_parent_refs(merged)
             self._write_and_invalidate(merged)
-            return True
-        return False
+            seeded = True
+        self.reconcile_skin_mirrors()
+        return seeded
 
     def _resolve_parent_refs(self, state: dict) -> None:
         """

@@ -4,6 +4,7 @@ import random
 import time
 
 import xbmc
+import xbmcgui
 
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, DIALOG, SKINXML
@@ -162,6 +163,8 @@ def dynamic_settings_window(**kwargs):
         else []
     )
     name = kwargs.get("name", "dynamic_window")
+    host = kwargs.get("host")
+    host_focus = kwargs.get("host_focus")
     parent_filter = kwargs.get("parent")
     suffix = f"_{parent_filter}" if parent_filter else ""
     mapping_slot = f"current_mapping{suffix}"
@@ -173,9 +176,34 @@ def dynamic_settings_window(**kwargs):
     myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
     myWindow.parent_filter = parent_filter
     myWindow.mapping = mapping
+    myWindow.host = host
+    myWindow.host_focus = host_focus
     myWindow.controls_from = controls_from
     try:
         myWindow.doModal()
+
+        # Host exit router: recorded exit target ⇒ forward to it; none +
+        # host still active ⇒ back-exit, before the rebuild reload can
+        # re-fire the host's forwarding onload.
+        if not previous_editor and host:
+            target = infolabel("Window(home).Property(host_exit_target)")
+            # doModal returns ~200ms before GUI deinit; while any dialog
+            # lives, builtins/infolabels address the corpse — wait it out.
+            monitor = xbmc.Monitor()
+            for _ in range(50):
+                if xbmcgui.getCurrentWindowDialogId() == 9999:
+                    break
+                if monitor.waitForAbort(0.02):
+                    return
+            window_property("host_exit_target")
+            log.debug(f"dynamic_settings_window: host exit — target='{target}'")
+            if target:
+                log.execute(f"ReplaceWindow({target})")
+            elif condition(f"Window.IsActive({host})"):
+                log.execute("Action(Back)")
+            # Clear eagerly: leaving it set until the finally gates quick
+            # re-entry to the host while the rebuild is still running.
+            window_property("active_editor_name", value=previous_editor)
 
         # Rebuild if state changed during the session. Outermost editor only;
         # nested editors defer the rebuild to the enclosing editor's close.
@@ -195,7 +223,6 @@ def dynamic_settings_window(**kwargs):
         window_property(mapping_slot)
         window_property("active_editor_name", value=previous_editor)
         del myWindow
-
 
 @action
 def globalsearch_input(**kwargs):

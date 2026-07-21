@@ -17,6 +17,7 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     TEMPLATES,
     RUNTIME_STATE,
+    infolabel,
 )
 from resources.lib.windows.control_factory import DynamicControlFactory
 from resources.lib.windows.controls import ButtonHandler
@@ -41,6 +42,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         super().__init__()
         self.parent_filter = None
         self.mapping = None
+        self.host = None
+        self.host_focus = None
         self.controls_from = []
         self._xml_filename = xmlFilename.lower()
 
@@ -212,7 +215,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 return
 
         if self.listitems:
-            log.execute(f"SetFocus({self._list_container.getId()})")
+            # Host sessions land on skin-declared host_focus; standalone on the list.
+            if self.host_focus:
+                log.execute(f"SetFocus({self.host_focus})")
+            else:
+                log.execute(f"SetFocus({self._list_container.getId()})")
             self._refresh_ui(update_row=False)
 
     def _scan_controls(self) -> None:
@@ -385,6 +392,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         current_focus = self.getFocusId()
         prev_focus = self._prev_focus_id
 
+        # Exit targets are only recorded by actions on host_focus; seeing
+        # one ⇒ close, the exit router performs the window change.
+        if (
+            self.host
+            and str(current_focus) == str(self.host_focus)
+            and infolabel("Window(home).Property(host_exit_target)")
+        ):
+            return self._on_close()
+
         # Move Up/Down on management buttons
         if (
             a_id in (ACTION_MOVE_UP, ACTION_MOVE_DOWN)
@@ -445,6 +461,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     return entry["action"]()
 
         if a_id in (ACTION_NAV_BACK, ACTION_PREVIOUS_MENU):
+            # Back on host_focus exits the host's system, not into the editor.
+            if self.host_focus and str(current_focus) == str(self.host_focus):
+                return self._on_close()
             if current_focus != self._list_container.getId():
                 log.execute(f"Control.SetFocus({self._list_container.getId()})")
                 return  # don't fall through to super
