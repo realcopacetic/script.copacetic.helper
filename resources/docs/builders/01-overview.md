@@ -56,7 +56,7 @@ How a widget's `layout` setting travels through the system:
 |---|---|
 | First boot / skin install or update | Variables, includes, expressions |
 | User closes a settings window with changes | Includes and expressions rebuild, then `ReloadSkin()` |
-| A settings window opens | Configs and controls are read on the spot — nothing is "built" |
+| A settings window opens | Configs and controls are read from the resolver cache — refreshed by every build; nothing new is "built" |
 
 ---
 
@@ -104,9 +104,11 @@ A mapping's `mode` plus one control decide everything about how it behaves:
 
 "An Add control" means one control in the window carries `role: "item_picker"` or `role: "add_action"` — see [Controls](06-controls.md#the-add-control-item_picker-and-add_action). Its presence is the only thing that separates a fixed list from an editable one.
 
+Put simply: anything that gets a settings window must be `dynamic`. `static` mappings exist only as loop fuel for the builders.
+
 Two useful details:
 
-- **Nothing is stored as a Kodi skin string.** Every user choice is a field on an entry in the settings file.
+- **Nothing is stored as a Kodi skin string.** Every user choice is a field on an entry in the settings file. When skin XML outside the editor needs to read one, declare a [skin mirror](02-mappings.md#skin_mirrors--let-skin-xml-read-a-runtime-value) — the skin setting is a one-way projection; the entry stays the source of truth.
 - **Automatic entries get the same ids every time.** Reset the list and the ids come back identical, so anything referencing them (parent links, baked XML) keeps working. Entries the *user* adds get random ids.
 
 The payoff over old-style pre-allocated skin strings: an editable list has no size limit. You define a "custom" widget once; the user makes as many as they like.

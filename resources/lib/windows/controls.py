@@ -51,9 +51,13 @@ class BaseControlHandler:
     Manages visibility, config references, and dynamic linking.
     """
 
+    # Value controls that accept a declarative onclick ('confirm' gates the
+    # intrinsic write; any other type runs after it). Buttons consume their
+    # onclick inside _on_interact and must stay False.
+    _onclick_capable = False
+    _needs_link = False
     _updates_labels = True
     ACCEPTED_ACTIONS: tuple = (ACTION_SELECT_ITEM,)
-    _needs_link = False
 
     def __init__(
         self, control: dict, instance: object, runtime_manager: RuntimeStateManager
@@ -278,6 +282,11 @@ class BaseControlHandler:
         if "label2" in link:
             return raw_label, link["label2"]
 
+        # Pure navigation controls (no field, no role) get no value echo —
+        # the identity fallback below exists for item pickers.
+        if not self.field and not self.control.get("role"):
+            return raw_label, ""
+
         cfg_labels = link.get("config", {}).get("labels", {})
         meta = (
             self.runtime_manager.mappings[self.mapping_key]
@@ -375,7 +384,81 @@ class BaseControlHandler:
             or not self._link_ok()
         ):
             return
+        onclick = self.control.get("onclick")
+        if onclick and self._onclick_capable and a_id == ACTION_SELECT_ITEM:
+            return self._interact_with_onclick(focused_control_id, a_id, onclick)
         self._on_interact(focused_control_id, a_id)
+
+    def _interact_with_onclick(
+        self, focused_control_id: int, a_id: int, onclick: dict
+    ) -> None:
+        """
+        Run a value control's onclick around its intrinsic write.
+        'confirm' precedes the write and can cancel it; other types run after.
+
+        :param focused_control_id: ID of the focused control.
+        :param a_id: Kodi action ID.
+        :param onclick: Raw onclick definition from the control JSON.
+        """
+        if str(onclick.get("type", "")).lower() != "confirm":
+            self._on_interact(focused_control_id, a_id)
+            return self._run_action_list([onclick])
+
+        raw = onclick.get("condition", "")
+        if raw and not self.rule_engine.evaluate(
+            self.runtime_manager.format_metadata(
+                self.mapping_key, self.source_index, raw
+            ),
+            runtime=True,
+        ):
+            return self._on_interact(focused_control_id, a_id)
+
+        from xbmcgui import Dialog
+
+        fmt = self.runtime_manager.format_metadata
+        confirmed = Dialog().yesno(
+            fmt(
+                self.mapping_key,
+                self.source_index,
+                onclick.get("heading", ""),
+                localize=True,
+            ),
+            fmt(
+                self.mapping_key,
+                self.source_index,
+                onclick.get("message", ""),
+                localize=True,
+            ),
+        )
+        if confirmed:
+            self._on_interact(focused_control_id, a_id)
+            self._run_action_list(onclick.get("yes", []))
+        else:
+            self._run_action_list(onclick.get("no", []))
+        # Kodi flips a radiobutton's drawn selected state natively on the
+        # press, before python runs; re-assert every control from stored
+        # truth so a cancelled confirm doesn't leave the optimistic flip.
+        self.parent._refresh_ui()
+
+    def _run_action_list(self, actions: list | None) -> None:
+        """
+        Run onclick entries through the standard dispatch, for effect only.
+        Dialog results are discarded — these are side effects, not writes.
+
+        :param actions: List of onclick dicts (full onclick vocabulary).
+        """
+        for entry in actions or []:
+            if not isinstance(entry, dict):
+                continue
+            action_type = str(entry.get("type", "custom")).lower()
+            cfg = {
+                **entry,
+                "heading": entry.get("heading", ""),
+                "action": self.runtime_manager.format_metadata(
+                    self.mapping_key, self.source_index, entry.get("action", "")
+                ),
+            }
+            ButtonHandler.ACTIONS.get(action_type, OnClickActions.custom)(cfg)
 
     def _link_ok(self) -> bool:
         """
@@ -589,6 +672,7 @@ class CycleHandler(BaseControlHandler):
     to the next item in the list, wrapping around at the end.
     """
 
+    _onclick_capable = True
     _needs_link = True
 
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:
@@ -664,16 +748,19 @@ class EditHandler(BaseControlHandler):
         self.parent._refresh_list_row(self.parent.container_position)
 
     def update_value(self) -> None:
-        """Updates the edit control to reflect the current stored value."""
+        """Reflect the effective value: stored, else the metadata fallback."""
         super().update_value()
         current = self._get_setting_value()
+        raw = current or (f"{{{self.field}}}" if self.field else "")
         display = (
             self.runtime_manager.format_metadata(
-                self.mapping_key, self.source_index, current, localize=True
+                self.mapping_key, self.source_index, raw, localize=True
             )
-            if current
+            if raw
             else ""
         )
+        if display == f"{{{self.field}}}":
+            display = ""
         self._cached_text = display
         self.instance.setText(display)
 
@@ -683,6 +770,7 @@ class RadioButtonHandler(BaseControlHandler):
     Handles interactions and updates for radiobutton controls.
     """
 
+    _onclick_capable = True
     _needs_link = True
 
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:

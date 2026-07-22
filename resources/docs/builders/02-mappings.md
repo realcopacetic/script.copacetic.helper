@@ -33,6 +33,7 @@ The addon ships one built-in mapping (`content_types`). Your own go in `extras/t
 | `config_fields` | No | Which settings entries have, and which config governs each — see below |
 | `metadata` | No | Facts about each item, usable as `{tokens}` |
 | `parent_mapping` | No | Which mapping's entries own this one's (the hub pattern — [Includes → Hubs](07-includes.md#hubs-each-parent-owns-its-own-children)) |
+| `skin_mirrors` | No | Field → skin-setting pairs kept in sync so skin XML can read a runtime value — see below |
 
 ---
 
@@ -115,6 +116,33 @@ The `{widget_preset}` token in a config name is filled with the entry's item nam
 - **Typed or browsed** — bound to a control but with no config: the user enters whatever they want (`content` and `label` on the custom widget).
 
 The same name can be different kinds per item: `label` is fixed for built-in presets and typed for `custom`, just because the edit control is only visible there.
+
+---
+
+## `skin_mirrors` — let skin XML read a runtime value
+
+Runtime values live in the settings file, which skin XML can't read. When a visibility condition outside the editor needs one — a mapping-wide flag like `widgets_per_menu` gating which widget includes show — declare a mirror:
+
+```json
+"skin_mirrors": { "widgets_per_menu": "widgets_per_menu" }
+```
+
+Field name on the left, Kodi skin-setting name on the right. The addon keeps the skin setting matched to the runtime value:
+
+- **On every write** to the settings file, all declared mirrors re-sync.
+- **On boot**, mirrors are reconciled against the file — this covers edits the live sync never saw (restored backups, wiped settings).
+- Writes are idempotent: nothing touches Kodi unless the value actually changed.
+
+The value is read *resolved* — the stored value, or the config default when the user hasn't touched it. The first entry carrying the field wins, so declare mirrors for single-entry semantics (mapping-wide flags), not per-entry values.
+
+**How to read it from XML** depends on the value's shape:
+
+| Runtime value | Written via | Read with |
+|---|---|---|
+| `"true"` / `"false"` (or bool) | `Skin.SetBool` / `Skin.Reset` | `Skin.HasSetting(name)` |
+| anything else | `Skin.SetString` | `Skin.String(name,value)` / `Skin.String(name)` |
+
+**One direction only.** The runtime value is the source of truth and the mirror is a projection of it. Never write the skin setting from XML — `Skin.ToggleSetting` on a mirrored name will be silently overwritten on the next sync. If the user should change the value, give them an editor control for the field; the mirror follows.
 
 ---
 

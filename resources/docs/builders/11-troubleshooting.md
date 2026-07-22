@@ -20,7 +20,9 @@ If you changed a mapping's `default_order`, `config_fields`, or `metadata` and w
 
 The editor looks up each control by its `id` in your window XML. If the XML control is missing — or is the wrong type (template says `radiobutton`, XML says `button`) — that control is skipped and hidden. The window still opens; the control just never appears. The log gets a warning naming the id.
 
-Check, in order: the `id` matches between template and XML; the `control_type` matches the XML control type; for a `sliderex`, the companion button exists at the slider id + a trailing `0` (202 → 2020).
+Check, in order: the template names a known `control_type` (missing or unknown → the control is skipped); the `id` matches between template and XML; the `control_type` matches the XML control type; for a `sliderex`, the companion button exists at the slider id + a trailing `0` (202 → 2020).
+
+Edited a controls file and the window still shows the old shape? The editor reads templates from the resolver cache, refreshed by every build — run `action=rebuild` (dev mode does this on every start).
 
 If the control exists but is *hidden*, its `visible` condition is false for the highlighted row — check its tokens against that entry's actual settings.
 
@@ -28,7 +30,7 @@ If the control exists but is *hidden*, its `visible` condition is false for the 
 
 ## "The Add/Delete/Move buttons don't appear"
 
-They only show when one of the window's controls has `role: "item_picker"` or `role: "add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). No role, no buttons: the window is a fixed list on purpose.
+Add, Move, and Delete only attach when one of the window's controls has `role: "item_picker"` or `role: "add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). No role, no mutation buttons: the window is a fixed list on purpose. Reset and Close are separate — they work in fixed lists too.
 
 If a control *has* the role but its XML control is missing, the role never attaches — fix the XML control first (previous section).
 
@@ -93,6 +95,18 @@ Untouched settings aren't stored — they read their config default live, so tem
 ## "Something in a nested editor didn't stick until later"
 
 By design: when one editor opens another (the hub pattern), the rebuild and skin reload wait for the **outermost** editor to close, so a whole session reloads once. Close all the way out.
+
+---
+
+## "Management buttons appeared on a fixed list"
+
+Editability comes from a control carrying a `role` — grep your controls JSON for `"role"` first; a copy-pasted picker shape is the usual smuggler. The skin-side management surface is separate and cosmetic: exposing the buttons in window XML shows them, but without a governing role the addon never attaches them and they can't mutate anything.
+
+---
+
+## "Hosted editor: the shell shows with no dialog over it"
+
+The session gate blocked the forward — `active_editor_name` was still set when the shell's onload ran. Normal for a moment while a previous session's rebuild finishes; permanent only if the property is stuck (a crash inside a session before its cleanup). Reopen from anywhere or restart; the property clears with the session. See [Runtime State → Hosting](09-runtime-state.md#hosting--binding-an-editor-to-a-real-window).
 
 ---
 

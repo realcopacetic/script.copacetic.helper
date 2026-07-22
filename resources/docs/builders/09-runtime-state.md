@@ -62,7 +62,7 @@ Changed a mapping's `default_order`, `metadata`, or `config_fields` and want the
 RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,mapping=widgets)
 ```
 
-`name` = your window XML filename. `mapping` = which mapping this window edits. Two optional extras:
+`name` = your window XML filename. `mapping` = which mapping this window edits. Four optional extras:
 
 **`parent=<runtime_id>`** — stamp the session to one hub: only that parent's entries appear, adds arrive with `parent` already set and slot in next to their siblings, and moves, deletes, and Reset stay inside the hub. The full walkthrough — why, the template handshake, and the resolved output — is in [Includes → Hubs](07-includes.md#hubs-each-parent-owns-its-own-children).
 
@@ -74,11 +74,71 @@ RunScript(script.copacetic.helper,action=dynamic_settings_window,name=menusettin
 
 Every control in the session edits the *session's* mapping, whoever it was borrowed from. Only borrow when the fields really match — a borrowed control naming a field the mapping doesn't have will create it on first write.
 
+**`host=<window>` + `host_focus=<control id>`** — bind the session to a real window instead of floating it over whatever was open. The window becomes a shell whose only job is to open the editor — see [Hosting](#hosting--binding-an-editor-to-a-real-window).
+
+---
+
+## Hosting — binding an editor to a real window
+
+The editor is a modal dialog, and sometimes that's the wrong shape: a dialog can't be a destination in the window stack, can't be tab-switched to with `ReplaceWindow`, and closing it lands wherever it was floating. Hosting makes an editor stand in for a real window — the skin-settings surface is the built-in example: `skinsettings` is a shell, and the `copaceticsettings` editor *is* the window as far as the user can tell.
+
+**The invariant:** host visible ⇒ editor open. The shell is never a destination in its own right.
+
+Two Kodi engine facts shape the design, and explain why the exits run through python instead of skin actions:
+
+- `ReplaceWindow` is refused while any modal lives — a skin action list can't close-and-replace a python modal.
+- `doModal()` returns ~200 ms before the GUI finishes tearing the dialog down, and until then builtins and infolabels address the dying dialog. The exit router waits for provable death before touching windows.
+
+### The contract
+
+| Hook | Who writes it | Typical value | Meaning |
+|---|---|---|---|
+| `host` (kwarg) | skin, at invocation | `skinsettings` | Names the shell, so the router can tell back-exit from external teardown |
+| `host_focus` (kwarg) | skin, at invocation | `4610` | Control id where focus lands on open |
+| `active_editor_name` (`Window(home)` property) | python | empty ↔ window name | Session gate — see below |
+| `host_exit_target` (`Window(home)` property) | skin, at moment of intent | empty ↔ a window name | Exit verdict — see below |
+
+**The session gate.** The shell's forwarding onload must be conditioned on the gate, or reloads under a closing dialog re-enter the session:
+
+```xml
+<onload condition="String.IsEmpty(Window(home).Property(active_editor_name))">RunScript(script.copacetic.helper,action=dynamic_settings_window,name=copaceticsettings,mapping=copacetic,host=skinsettings,host_focus=4610)</onload>
+```
+
+**The exit verdict.** Any control in the session may record a forwarding address — write a window name to `host_exit_target` and the editor closes itself; once the dialog is provably dead, the router runs `ReplaceWindow(<target>)`. Close with the verdict *empty* (Back on `host_focus`) and the router leaves the whole system with `Action(Back)`. Two verdicts, nothing else: forward, or leave.
+
+```xml
+<onright>SetProperty(host_exit_target,$INFO[Container(3000).ListItem(1).Property(window)],home)</onright>
+```
+
+The verdict is only read from actions issued while `host_focus` is focused — put the recording control there.
+
+### What the shell needs
+
+A background, an inert focus anchor, and the gated onload. Nothing else — the editor dialog carries the whole UI:
+
+```xml
+<control type="button" id="3"><!-- inert focus anchor -->
+  <visible allowhiddenfocus="true">false</visible>
+</control>
+```
+
+### Polish
+
+Gate the editor window's close fade on the verdict so a forward is instant while a back-exit keeps its fade:
+
+```xml
+<param name="fadeout" value="String.IsEmpty(Window(home).Property(host_exit_target))" />
+```
+
+### Composition
+
+Hosting composes with the other session kwargs. Editors opened *from inside* a hosted session (`parent=`, or plain drill-in buttons) behave as nested sessions: they skip the exit router, and the rebuild waits for the outermost — hosted — session to close, so a whole visit reloads once.
+
 ---
 
 ## Fixed vs editable
 
-**Fixed list** (view settings): no control has a `role`. One row per automatic entry; the user edits each row's settings but the list itself never changes.
+**Fixed list** (view settings): no control has a `role`. One row per automatic entry; the user edits each row's settings but the list itself never changes. The addon enforces this — without a role, the mutation buttons (410–413) are never attached, so Add, Move, and Delete are inert even if the window XML exposes them.
 
 **Editable list** (widgets, menus): one control has `role: "item_picker"` or `"add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). The management buttons appear and the user adds, deletes, and reorders.
 
@@ -94,7 +154,8 @@ The right-hand controls work the same in both: each edits one setting on the hig
 | Textbox / label | 6 | Description text at the bottom. Set automatically. |
 | Your controls | as declared | IDs matching each control template's `id`. A sliderex also needs its button at the id + a trailing `0`. |
 | Colour labels | 420 / 421 | Optional. Hidden labels whose *text* names your focused / unfocused colours; used to tint sliderex value text. White / 50% white if absent. |
-| Management buttons | 410–415 | Only needed for editable lists. Hidden otherwise. |
+| Mutation buttons | 410–413 | Editable lists only — never attached without an Add control. |
+| Reset / Close | 414–415 | Any window. Reset returns settings to defaults; Close ends the session. |
 
 | Button | ID | Does |
 |---|---|---|
@@ -105,7 +166,7 @@ The right-hand controls work the same in both: each edits one setting on the hig
 | Reset | 414 | Back to defaults — the whole mapping, or just the open hub — with a confirm dialog |
 | Close | 415 | Save and close |
 
-You only supply focusable buttons; the editor handles the presses.
+You only supply focusable buttons; the editor handles the presses. Only Add, Move up/down, and Delete require the Add control — Reset and Close work in fixed lists too.
 
 ### A minimal window XML
 
@@ -169,8 +230,10 @@ Both clear on close. When an editor is opened *inside* another (with `parent=`),
 String.IsEqual(Window(home).Property(current_mapping_{runtime_id}),tabs)
 ```
 
+Each row also carries its resolved entry — metadata, stored values, and config defaults — as listitem properties, raw keys not display labels: `String.IsEqual(Container(100).ListItem.Property(layout),strip)`. Properties re-stamp on every edit, so conditions track the session live.
+
 ---
 
 ## On close
 
-If anything changed, the includes and expressions rebuild and `ReloadSkin()` fires — changes show immediately. Nested editors wait for the outermost one to close, so a whole session reloads once.
+If anything changed, the includes and expressions rebuild and `ReloadSkin()` fires — changes show immediately. Nested editors wait for the outermost one to close, so a whole session reloads once. Hosted sessions route their window exit before the rebuild, so the reload lands on the right window.

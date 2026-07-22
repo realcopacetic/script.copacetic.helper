@@ -39,6 +39,8 @@ JSON files in `extras/templates/controls/`:
 
 The allowed values for a `field` come from the mapping's `config_fields` — the control just names the field. (See [One setting, four names](00-quickstart.md#one-setting-four-names) if that chain is fuzzy.)
 
+**label2 defaults.** Controls with a `field` show their current value as label2; the Add control (field-less, with a `role`) shows the highlighted entry's identity. Field-less controls *without* a role — plain navigation buttons — default to an empty label2. Declaring `"label2"` on the control (including `""`) overrides all of this.
+
 ---
 
 ## Control types
@@ -135,7 +137,7 @@ Each press moves to the next allowed value, wrapping at the end. For short lists
 
 ## The Add control: `item_picker` and `add_action`
 
-Give exactly one control a `role` and the window becomes an **editable list**: the Add / Delete / Move / Reset buttons appear and the user manages the entries. No role anywhere → fixed list, no buttons.
+Give exactly one control a `role` and the window becomes an **editable list**: the Add / Move / Delete buttons attach and the user manages the entries. No role anywhere → fixed list: the addon never attaches the mutation buttons, so they're inert even if your window XML exposes them. Reset and Close aren't part of this — they work in every window (see [Runtime State → window XML](09-runtime-state.md#what-your-window-xml-must-contain)).
 
 The role also decides what pressing **Add** does. Two flavours:
 
@@ -187,12 +189,19 @@ A button's `onclick` names an action `type` plus options:
 | Type | What happens |
 |---|---|
 | `select` | Choice dialog over the control's allowed values (shown with their labels) |
+| `confirm` | Yes/no dialog. On a value control it gates the intrinsic write: Yes → write, then the `yes` action list; No/cancel → nothing written, the `no` list runs if declared. `condition` (Rule Engine, against the highlighted entry) limits which transitions confirm. |
 | `browse_content` | The addon's content browser — returns a path plus extras (label, icon, target, …) |
 | `browse_image` | Kodi's image browser, opened at `folder` |
 | `browse` / `browse_single` / `browse_multiple` | Kodi's generic file browsers |
 | `input` / `numeric` | Keyboard / number entry |
 | `colorpicker` | Kodi's colour picker |
 | `custom` | Run a Kodi builtin from `action`. Tokens fill from the highlighted entry, so `parent={runtime_id}` works. |
+
+**Onclick on value controls.** Radiobuttons and cycles accept an `onclick` too,
+Kodi-style. An ordinary type runs *after* the control's own write; `confirm` is
+the one exception — it runs before and can cancel it. `yes`/`no` take lists of
+ordinary onclick objects (same vocabulary, results discarded — they're side
+effects, not writes).
 
 Useful options beyond `heading` and `default`:
 

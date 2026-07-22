@@ -118,8 +118,13 @@ def delete_orphans(**kwargs):
         f"{'y' if removed == 1 else 'ies'} from '{child_mapping}'"
     )
     if removed:
-        build.run()
-        log.execute("ReloadSkin()")
+        if infolabel("Window(home).Property(active_editor_name)"):
+            # Editor session live: its close-time snapshot diff sees these
+            # deletions and rebuilds once — a reload here lands under the modal.
+            log.info("delete_orphans: editor session live — rebuild deferred")
+        else:
+            build.run()
+            log.execute("ReloadSkin()")
 
 
 @action
@@ -223,6 +228,7 @@ def dynamic_settings_window(**kwargs):
         window_property(mapping_slot)
         window_property("active_editor_name", value=previous_editor)
         del myWindow
+
 
 @action
 def globalsearch_input(**kwargs):

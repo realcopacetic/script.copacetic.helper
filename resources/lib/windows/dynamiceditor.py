@@ -57,9 +57,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         # Snapshot here, not in onInit — the post-doModal rebuild comparison
         # must work even if onInit aborts (e.g. contract controls missing
         # from the window XML).
-        self._runtime_state_snapshot = copy.deepcopy(
-            self.runtime_manager.runtime_state
-        )
+        self._runtime_state_snapshot = copy.deepcopy(self.runtime_manager.runtime_state)
 
         self.handlers = {}
         self.dynamic_controls = {}
@@ -281,6 +279,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             )
             li.setArt({"icon": icon})
 
+        # Expose resolved entry (metadata + stored + config defaults) as properties
+        for key, value in self.runtime_manager.resolved_entry(mk, idx).items():
+            if isinstance(value, str):
+                li.setProperty(key, value)
+
     def _refresh_list(self) -> None:
         """
         Rebuild the left-hand list from `self.listitems` and sync dynamic controls.
@@ -480,12 +483,12 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             return
 
         self.container_position = idx
+        self._update_mgmt_buttons()
         content_id = self._list_container.getListItem(idx).getProperty("content_id")
         if not content_id or content_id not in self.listitems:
             return  # placeholder row — don't update handlers
 
         self.current_listitem = content_id
-        self._update_mgmt_buttons()
         self._refresh_ui()
 
     def _begin_mutation(self) -> None:
@@ -500,9 +503,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if list(self.listitems) != prev_keys:
             self._refresh_list()
         if self.current_listitem and self.current_listitem in self.listitems:
-            self.container_position = list(self.listitems).index(
-                self.current_listitem
-            )
+            self.container_position = list(self.listitems).index(self.current_listitem)
             self._list_container.selectItem(self.container_position)
         else:
             self.current_listitem = None
@@ -775,6 +776,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self._update_mgmt_buttons()
         self._refresh_ui(update_row=not list_rebuilt)
+        self._update_mgmt_buttons()
 
     def _seed_metadata(self) -> None:
         """
