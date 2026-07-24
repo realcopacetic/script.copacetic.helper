@@ -1,9 +1,9 @@
 # author: realcopacetic
 
 import sys
-
 import xbmc
 
+from resources.lib.art.slideshow import Slideshow
 from resources.lib.builders.build_elements import BuildElements
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.templates import cache_is_current
@@ -24,8 +24,8 @@ from resources.lib.shared.utilities import (
 class Monitor(xbmc.Monitor):
     """
     Background service monitor. Owns one-time setup (artwork directories,
-    builder outputs) and a lightweight poller for the trailer watchdog.
-    All work is gated on the active skin opting into the helper.
+    builder outputs) and a lightweight poller for the trailer watchdog and
+    global slideshow. All work is gated on the active skin opting in.
     """
 
     def __init__(self):
@@ -43,8 +43,21 @@ class Monitor(xbmc.Monitor):
         # Monitors
         self.sqlite = ArtworkCacheHandler()
         self.player_monitor = None
+        self.slideshow = None
         # Run
-        self._on_start()
+        self._run()
+
+    def _run(self):
+        """
+        Top-level service loop: alternate active polling and idle waiting.
+        Flat by design — the previous _on_start/_on_stop mutual recursion
+        grew the call stack by two frames per idle/resume cycle.
+        """
+        while not self.abortRequested():
+            self._on_start()
+            self._on_stop()
+        del self.player_monitor
+        log.info(f"{self.__class__.__name__}: Stopped")
 
     def _build_optin_check(self):
         """
@@ -102,11 +115,11 @@ class Monitor(xbmc.Monitor):
             log.info(f"{self.__class__.__name__}: Started")
             self.start = False
             self.player_monitor = PlayerMonitor(self.sqlite)
+            self.slideshow = Slideshow(self.sqlite)
         elif self._conditions_met():
             log.info(f"{self.__class__.__name__}: Resumed")
         while not self.abortRequested() and self._conditions_met():
             self.poller()
-        self._on_stop()
 
     def _skin_supported(self):
         """
@@ -131,15 +144,13 @@ class Monitor(xbmc.Monitor):
         return self._skin_supported() and not self.idle
 
     def _on_stop(self):
-        """Called when monitor loop exits. Waits for restart or exits cleanly."""
+        """Called when the polling loop exits. Waits until conditions return."""
+        if self.abortRequested():
+            return
+
         log.info(f"{self.__class__.__name__}: Idle, waiting...")
         while not self.abortRequested() and not self._conditions_met():
             self.waitForAbort(10)
-        if not self.abortRequested():
-            self._on_start()
-        else:
-            del self.player_monitor
-            log.info(f"{self.__class__.__name__}: Stopped")
 
     def onScreensaverActivated(self):
         """Kodi event hook: Pause monitoring when screensaver starts."""
@@ -155,10 +166,5 @@ class Monitor(xbmc.Monitor):
         plus per-window tasks.
         """
         self.player_monitor.watch_trailer_session()
-        # Slideshow reinstatement: own cadence + enable-gate inside
-        # SlideshowMonitor and call a single tick() here, e.g.
-        #   if condition("Window.IsVisible(home)"):
-        #       self.slideshow.tick()
-        # Instantiate it behind the capability gate like player_monitor,
-        # passing self.sqlite; gate the work on Skin.String(slideshow_type).
+        self.slideshow.tick()
         self.waitForAbort(1)
