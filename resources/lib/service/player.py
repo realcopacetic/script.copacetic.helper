@@ -4,6 +4,7 @@ import time
 
 from xbmc import Player
 
+from resources.lib.service.playnext import PlayNextQueue
 from resources.lib.service.trailer import TrailerZoomController
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ArtworkCacheHandler
@@ -30,6 +31,7 @@ class PlayerMonitor(Player):
         super().__init__()
         self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.zoom = TrailerZoomController()
+        self.playnext = PlayNextQueue()
         self._cleanup_registry: set[tuple[str, int]] = set()
 
     def onAVStarted(self):
@@ -91,6 +93,7 @@ class PlayerMonitor(Player):
                 details = query.get("result", {}).get("episodedetails", {})
                 if tvshowid := details.get("tvshowid"):
                     self._set_managed_property("player_tvshowid", value=str(tvshowid))
+                    self.playnext.ensure_successor(dbid, tvshowid)
 
         elif media_type == "movie" and dbid:
             query = json_call(
