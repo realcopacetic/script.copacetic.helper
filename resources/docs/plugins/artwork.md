@@ -35,6 +35,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 | `overlay_target` | float | 3.0–7.0 | Target contrast ratio (WCAG-style; 4.5 typical for normal text). |  |
 | `target` | int | Kodi control id | Bind helper to a specific container (pairs with `focus_guard`). |  |
 | `focus_guard` | str | any | Early-abort if focus moved (usually `Container(id).CurrentItem`). |  |
+| `cursor_key` | str | `3400` (primary) **or** `3401` (secondary) | Identity-currency channel: the payload's `current` property echoes `artwork_cursor_<key>`; effectively required wherever `artwork_current_*` gating is consumed (typewriter, multiart currency, currency-gated art layers). Independent of multiart — seeding gates on `multiart_fadelabel` alone. |  |
 
 > **Important:** To compute `efx_art_darken` with `overlay_source=clearlogo`, include **both** `logo_crop=true` and `bg_blur=true` in the same call so the helper can analyse the fresh clearlogo colour *and* the fanart in the overlay rectangle.
 

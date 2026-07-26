@@ -73,7 +73,7 @@ class JSONHandler:
                 content = json.load(file)
                 data[file_path] = content  # Store JSON content under its filename
         except json.JSONDecodeError as e:
-            log.warning(f"{self.__class__.__name__}: Error parsing {file_path}: {e}")
+            log.error(f"{self.__class__.__name__}: Error parsing {file_path}: {e}")
         except OSError as e:
             log.warning(f"{self.__class__.__name__}: Error reading {file_path}: {e}")
 

@@ -12,6 +12,12 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import evaluate_expression, expand_index
 
 PLACEHOLDER_PATTERN = re.compile(r"{(.*?)}")
+# Tokens Kodi's CGUIInfoLabel::Parse matches literally ($INFO/$ESCINFO/
+# $VAR/$ESCVAR) — must survive URL-encoding to resolve at runtime.
+XSP_LITERAL_PATTERN = re.compile(r"\$(?:ESC)?(?:INFO|VAR)\[[^\]]*\]")
+# Escaped variants supply their own quotes via CInfoPortion::Get (Paramify),
+# so the JSON string quotes around them must be stripped post-encoding.
+XSP_ESC_QUOTES_PATTERN = re.compile(r"%22(\$ESC(?:INFO|VAR)\[[^\]]*\])%22")
 
 
 class BaseBuilder:
@@ -109,7 +115,8 @@ class BaseBuilder:
         """
         Each runtime entry contributes its scalar (string) fields layered over
         per-item metadata; non-string runtime values (e.g. xsp dicts) come
-        from metadata only. Config-field defaults resolve lazily.
+        from metadata only. Gated xsp specs compose here, where the entry's
+        own values are known. Config-field defaults resolve lazily.
 
         :param runtime_items: List of runtime state items for this mapping.
         :param index_start: Starting index value (default 1).
@@ -117,23 +124,83 @@ class BaseBuilder:
         """
         key_placeholder = self.placeholders.get("key")
         return [
-            inject_metadata(
-                self.metadata,
-                {
-                    key_placeholder: item["mapping_item"],
-                    "index": str(index_start + index),
-                    **{
-                        k: v
-                        for k, v in self.runtime_manager.resolved_entry(
-                            self.mapping_name, index
-                        ).items()
-                        if k != "mapping_item" and isinstance(v, str)
-                    },
-                },
-                item["mapping_item"],
-            )
+            self._runtimejson_substitution(index, item, index_start)
             for index, item in enumerate(runtime_items)
         ]
+
+    def _runtimejson_substitution(
+        self, index: int, item: dict, index_start: int
+    ) -> dict:
+        """
+        Build the substitution dict for a single runtime entry: resolved
+        string fields over metadata, plus a composed xsp when the entry's
+        metadata declares a gated spec.
+
+        :param index: Position in the runtime state list.
+        :param item: Raw runtime state entry.
+        :param index_start: Starting index value for the ``index`` token.
+        :return: Substitution dict for template expansion.
+        """
+        mapping_item = item["mapping_item"]
+        resolved = self.runtime_manager.resolved_entry(self.mapping_name, index)
+        sub = inject_metadata(
+            self.metadata,
+            {
+                self.placeholders.get("key"): mapping_item,
+                "index": str(index_start + index),
+                **{
+                    k: v
+                    for k, v in resolved.items()
+                    if k != "mapping_item" and isinstance(v, str)
+                },
+            },
+            mapping_item,
+        )
+        if composed := self.compose_xsp(mapping_item, resolved):
+            sub["xsp"] = composed
+        sub.pop("xsp_gated", None)
+        return sub
+
+    def encode_xsp(self, xsp: dict) -> str:
+        """
+        Encode an xsp dict into a query string, keeping infolabel and
+        variable tokens literal so Kodi resolves them at runtime.
+
+        :param xsp: Smart-playlist definition.
+        :return: URL-encoded ``?xsp=`` query string.
+        """
+        literals = []
+
+        def _stash(match: re.Match) -> str:
+            literals.append(match.group(0))
+            return f"\x00{len(literals) - 1}\x00"
+
+        encoded = quote(XSP_LITERAL_PATTERN.sub(_stash, json.dumps(xsp)))
+        for position, literal in enumerate(literals):
+            encoded = encoded.replace(f"%00{position}%00", literal)
+        encoded = XSP_ESC_QUOTES_PATTERN.sub(r"\1", encoded)
+        return f"?xsp={encoded}"
+
+    def compose_xsp(self, item: str, fields: dict) -> str | None:
+        """
+        Compose an entry's xsp from its metadata ``xsp_gated`` spec: a
+        real xsp dict whose rules may carry a ``gate`` key naming the
+        entry field that must read true for the rule to be included.
+
+        :param item: Mapping_item whose metadata carries the spec.
+        :param fields: Resolved entry fields gating the optional rules.
+        :return: ``?xsp=`` query string, or None when no spec is declared.
+        """
+        spec = self.metadata.get(item, {}).get("xsp_gated")
+        if not spec:
+            return None
+        combinator, rules = next(iter(spec["rules"].items()))
+        kept = [
+            {k: v for k, v in rule.items() if k != "gate"}
+            for rule in rules
+            if "gate" not in rule or str(fields.get(rule["gate"], "")).lower() == "true"
+        ]
+        return self.encode_xsp({**spec, "rules": {combinator: kept}})
 
     def _group_substitutions(self, template_name, substitutions):
         """
@@ -500,16 +567,13 @@ class IncludesBuilder(BaseBuilder):
 
     def _prepare_xsp_urls(self):
         """
-        Encodes XSP dictionaries in metadata into URL-encoded strings.
-        Removes encoded quotes (%22) around $ESCINFO[] references.
+        Encode static XSP dictionaries in metadata into ``?xsp=`` query
+        strings, preserving infolabel and variable tokens.
         """
-        escinfo_pattern = re.compile(r"%22(\$ESCINFO\[.*?\])%22")
 
         for meta in self.metadata.values():
             if "xsp" in meta:
-                xsp_json = quote(json.dumps(meta["xsp"]))
-                xsp_json = escinfo_pattern.sub(r"\1", xsp_json)
-                meta["xsp"] = f"?xsp={xsp_json}"
+                meta["xsp"] = self.encode_xsp(meta["xsp"])
 
     @staticmethod
     def _empty_include_shell(include_element: dict) -> dict:

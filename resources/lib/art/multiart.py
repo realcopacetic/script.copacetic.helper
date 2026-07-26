@@ -217,6 +217,7 @@ def set_multiart_fadelabel(
     ordered: list[str],
     *,
     alive: Callable[[], bool] | None = None,
+    preserve_frozen: bool = True,
 ) -> bool:
     """
     Seed a FadeLabel control with a multiart sequence.
@@ -224,13 +225,20 @@ def set_multiart_fadelabel(
     :param fadelabel_id: Control id of the FadeLabel to populate.
     :param ordered: URLs in display order (see order_multiart).
     :param alive: Focus guard; seeding aborts if it returns False after the park.
+    :param preserve_frozen: Park the displayed frame in multiart_frozen; pass
+        False on cross-container serves, where that frame belongs to the
+        previous region and parking it contaminates the scroll fallback.
     :return: True if labels were set successfully.
     """
     try:
         win = Window(getCurrentWindowId())
         ctrl = win.getControl(to_int(fadelabel_id))
-        if displayed := infolabel(f"Control.GetLabel({fadelabel_id})"):
+        if preserve_frozen and (
+            displayed := infolabel(f"Control.GetLabel({fadelabel_id})")
+        ):
             window_property(f"multiart_frozen_{fadelabel_id}", displayed)
+        elif not preserve_frozen:
+            window_property(f"multiart_frozen_{fadelabel_id}")
         ctrl.setVisible(True)
         ctrl.reset()
         # Kodi keeps a FadeLabel's rotation index across reset(); it only

@@ -299,17 +299,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 self.expected_identity,
                 to_int(infolabel(f"{self.identity_container}.CurrentItem"), None),
             )
-            # Snapshot the cursor before any expensive work: the stamp must echo
-            # the visit this invocation was fired for, not whatever the cursor
-            # says after the last guard checkpoint.
-            fadelabel_key = self.params.get("multiart_fadelabel") or self.params.get(
-                "multiart_register", ""
-            )
+            cursor_key = self.params.get("cursor_key", "")
             cursor_snapshot = (
-                infolabel(f"Window(home).Property(artwork_cursor_{fadelabel_key})")
-                if fadelabel_key
+                infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
+                if cursor_key
                 else ""
             )
+            # Scope of this serve, needed before seeding: the seeder must know
+            # whether the register's previous content is same-container.
+            if self.target is not None:
+                stamp_scope = str(self.target)
+            else:
+                stamp_scope = (
+                    cursor_snapshot.split("/", 1)[0] if "/" in cursor_snapshot else ""
+                )
             art_opts = {
                 art_type: ArtOpts.from_params(self.params, art_type)
                 for art_type in ("clearlogo", "background", "icon")
@@ -350,6 +353,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
             fadelabel_id = self.params.get("multiart_fadelabel")
             if fadelabel_id:
+                seed_scope_key = f"multiart_seed_scope_{fadelabel_id}"
+                same_scope = (
+                    infolabel(f"Window(home).Property({seed_scope_key})") == stamp_scope
+                )
                 seeded = False
                 if len(multiart_dict) > 1:
                     ordered = order_multiart(multiart_dict)
@@ -357,24 +364,22 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         fadelabel_id=fadelabel_id,
                         ordered=ordered,
                         alive=guard.alive,
+                        preserve_frozen=same_scope,
                     )
                 if seeded:
                     art |= sequence_to_multiart_dict(ordered)
                 elif guard.alive():
                     clear_label(fadelabel_id, hide=False)
+                    if not same_scope:
+                        window_property(f"multiart_frozen_{fadelabel_id}")
                     art = {k: v for k, v in art.items() if not k.startswith("multiart")}
                 else:
                     return
+                if guard.alive():
+                    window_property(seed_scope_key, stamp_scope)
 
             if background_blur := art.get("background", ""):
                 window_property("background_blur", background_blur)
-
-            if self.target is not None:
-                stamp_scope = str(self.target)
-            else:
-                stamp_scope = (
-                    cursor_snapshot.split("/", 1)[0] if "/" in cursor_snapshot else ""
-                )
 
             prefix = f"{stamp_scope}/" if stamp_scope else ""
             total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
@@ -391,7 +396,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             # passed guard is the same proof atr_artwork_cursor encodes.
             stamped = (
                 f"{prefix}{current_position}/{dbid}/{self.params.get('visit', '')}"
-                if fadelabel_key
+                if cursor_key
                 and not cursor_snapshot
                 and current_position is not None
                 else ""
@@ -400,10 +405,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 stamped
                 and guard.alive()
                 and not infolabel(
-                    f"Window(home).Property(artwork_cursor_{fadelabel_key})"
+                    f"Window(home).Property(artwork_cursor_{cursor_key})"
                 )
             ):
-                window_property(f"artwork_cursor_{fadelabel_key}", stamped)
+                window_property(f"artwork_cursor_{cursor_key}", stamped)
 
             return set_items(
                 [

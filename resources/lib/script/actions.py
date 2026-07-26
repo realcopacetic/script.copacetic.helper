@@ -231,22 +231,6 @@ def dynamic_settings_window(**kwargs):
 
 
 @action
-def globalsearch_input(**kwargs):
-    """
-    Prompts the user for a global search query and activates the search window.
-    Stores the result in Skin String 'globalsearch'.
-    """
-    kb = xbmc.Keyboard(
-        infolabel("$INFO[Skin.String(globalsearch)]"), infolabel("$LOCALIZE[137]")
-    )
-    kb.doModal()
-    if kb.isConfirmed():
-        text = kb.getText()
-        skin_string("globalsearch", value=text)
-        log.execute("ActivateWindow(1180)")
-
-
-@action
 def hex_contrast_check(**kwargs):
     """
     Calculates contrast for a hex color and sets Skin.String(Accent_Color_Contrast).
