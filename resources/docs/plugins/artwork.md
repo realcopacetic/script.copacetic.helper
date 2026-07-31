@@ -35,7 +35,7 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 | `overlay_target` | float | 3.0–7.0 | Target contrast ratio (WCAG-style; 4.5 typical for normal text). |  |
 | `target` | int | Kodi control id | Bind helper to a specific container (pairs with `focus_guard`). |  |
 | `focus_guard` | str | any | Early-abort if focus moved (usually `Container(id).CurrentItem`). |  |
-| `cursor_key` | str | `3400` (primary) **or** `3401` (secondary) | Identity-currency channel: the payload's `current` property echoes `artwork_cursor_<key>`; effectively required wherever `artwork_current_*` gating is consumed (typewriter, multiart currency, currency-gated art layers). Independent of multiart — seeding gates on `multiart_fadelabel` alone. |  |
+| `cursor_key` | str | any key string (Copacetic uses `primary` / `secondary`) | Identity-currency channel: the payload's `current` property echoes `Window(home).Property(artwork_cursor_<key>)`; effectively required wherever currency gating is consumed (typewriter, multiart currency, currency-gated art layers). Independent of multiart — seeding gates on `multiart_fadelabel` alone. |  |
 
 > **Important:** To compute `efx_art_darken` with `overlay_source=clearlogo`, include **both** `logo_crop=true` and `bg_blur=true` in the same call so the helper can analyse the fresh clearlogo colour *and* the fanart in the overlay rectangle.
 
@@ -60,6 +60,59 @@ This will blur the fanart for the Container with id matching `target` (`Containe
 - `ListItem.Art(multiart1)` … `ListItem.Art(multiartN)` → subsequent items up to `multiart_max`
 
 ---
+
+## Returns (ListItem.Property) — identity stamping
+
+When the invocation resolves a current position, the payload item carries:
+
+- `ListItem.Property(current)` → the identity this serve was for
+- `ListItem.Property(previous)` / `ListItem.Property(next)` → `scope/pos` of the
+  neighbouring positions (1-based, wrapping when the container has more than one item)
+- `ListItem.Property(previous_pos)` / `ListItem.Property(next_pos)` → bare positions
+
+### The identity wire format
+
+One grammar is used everywhere: **`scope/pos/dbid/visit`**. The scope segment is
+omitted entirely when empty; other fields keep their separator slot even when
+empty. Truncated forms of the same grammar appear in `previous`/`next`
+(`scope/pos`) and in the no-cursor fallback for `current` (`scope/pos/dbid`).
+There is no fifth format, and none should be added.
+
+### Writer precedence for `current`
+
+1. **Skin-written cursor** — if `Window(home).Property(artwork_cursor_<cursor_key>)`
+   is set when the handler runs, it is echoed verbatim. The value is **opaque** to
+   the helper: your skin-side writer and comparator only need to agree with each
+   other, so any grammar works — with one exception below.
+2. **Self-certification** — if `cursor_key` is passed but no cursor exists (no
+   skin-side writer fired for this focus event, e.g. tab focus in a paired unit,
+   or a preview state), a passed focus guard is taken as equivalent proof of
+   currency: the helper stamps `scope/pos/dbid/visit` itself, writing it to both
+   the payload and the window property. Skins relying on this path inherit that
+   exact format — their comparator must accept it.
+3. **Fallback** — with no `cursor_key` at all, `current` is `scope/pos/dbid`.
+   Currency comparison is not possible on this form (no visit token), so
+   revisit-suppression semantics are unavailable.
+
+### Scope derivation
+
+`scope` is the `target` container id when `target` is passed. **Without
+`target`, the helper derives scope from the leading `/`-delimited segment of the
+existing cursor value.** This is the single structural assumption placed on a
+skin-written cursor: if you ever invoke without `target`, the first segment must
+identify the container. Always pass `target` and your cursor value is fully
+opaque.
+
+### Timing contract (why the cursor is a window property)
+
+The cursor must be written **synchronously at focus time** by the skin (e.g. from
+a hidden-focus button's `onfocus`), not at handler completion: the write is the
+invalidation edge that flips currency false for the old payload during the
+handler's in-flight window. The helper's self-certified write happens only at
+completion and only when no cursor exists — it is a fallback proof, not a
+substitute for a skin-side writer. Similarly, the `visit` value should be a
+window property latched once per focus event; inlining a live clock into the
+plugin path changes the invocation identity continuously and refires the helper.
 
 ## Processes 
 

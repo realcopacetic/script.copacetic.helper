@@ -159,7 +159,7 @@ A paired tab list (`32020`) and content list (`3202`) should behave as a single 
 
 Guarded handlers don't check once at startup — they re-check before every stage that is expensive or has visible side effects:
 
-- **`artwork`** checks after image processing, after multiart resolution, and immediately **before seeding the multiart FadeLabel** — so a stale invocation can never repopulate a FadeLabel the skin has just cleared.
+- **`artwork`** checks after image processing, after multiart resolution, and immediately **before seeding the multiart FadeLabel** — so a stale invocation can never repopulate a FadeLabel the skin has just cleared. A guard that survives to completion also licenses **self-certification**: when `cursor_key` is passed but no skin-side cursor writer fired for the focus event, the helper writes the identity stamp itself (see *Identity stamping* in the artwork docs).
 - **`metadata`** checks before the JSON-RPC fetch, after TMDb enrichment, and before setting items.
 - **`typewriter`** receives the guard's `alive` callable and checks it **per character**, alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating and again before moving UI controls (the data result is still returned; only the UI update is skipped).

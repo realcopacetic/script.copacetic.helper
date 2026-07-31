@@ -8,7 +8,13 @@ from xbmcgui import Window, getCurrentWindowId
 
 from resources.lib.plugin.helpers import get_infolabels
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import clamp, to_int, infolabel, window_property
+from resources.lib.shared.utilities import (
+    clamp,
+    clear_label,
+    infolabel,
+    to_int,
+    window_property,
+)
 from resources.lib.apis.tmdb.cache import TmdbCache
 
 DEFAULT_SLOTS = 15
@@ -261,3 +267,49 @@ def set_multiart_fadelabel(
         return False
 
     return True
+
+def seed_multiart(
+    *,
+    fadelabel_id: str | None,
+    multiart_dict: dict[str, str],
+    art: dict[str, str],
+    stamp_scope: str,
+    alive: Callable[[], bool],
+) -> dict[str, str] | None:
+    """
+    Seed/clear a multiart register and reconcile multiart art keys.
+    Same-scope serves preserve the frozen snapshot; cross-scope clears it.
+    Sole register-state entry point; only the artwork handler may call it.
+
+    :param fadelabel_id: Register control id; None/empty is a no-op.
+    :param multiart_dict: Candidate multiart family from the listitem.
+    :param art: Processed art dict, updated with multiart keys on seed.
+    :param stamp_scope: Scope of this serve, compared to the seed scope.
+    :param alive: Focus guard callable; False aborts mid-seed.
+    :return: Updated art dict, or None when the guard died mid-seed.
+    """
+    if not fadelabel_id:
+        return art
+    seed_scope_key = f"multiart_seed_scope_{fadelabel_id}"
+    same_scope = infolabel(f"Window(home).Property({seed_scope_key})") == stamp_scope
+    seeded = False
+    if len(multiart_dict) > 1:
+        ordered = order_multiart(multiart_dict)
+        seeded = set_multiart_fadelabel(
+            fadelabel_id=fadelabel_id,
+            ordered=ordered,
+            alive=alive,
+            preserve_frozen=same_scope,
+        )
+    if seeded:
+        art |= sequence_to_multiart_dict(ordered)
+    elif alive():
+        clear_label(fadelabel_id, hide=False)
+        if not same_scope:
+            window_property(f"multiart_frozen_{fadelabel_id}")
+        art = {k: v for k, v in art.items() if not k.startswith("multiart")}
+    else:
+        return None
+    if alive():
+        window_property(seed_scope_key, stamp_scope)
+    return art

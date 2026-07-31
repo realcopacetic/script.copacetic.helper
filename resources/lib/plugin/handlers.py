@@ -13,12 +13,11 @@ from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 from resources.lib.art.editor import ImageEditor
 from resources.lib.art.multiart import (
     build_multiart_dict,
-    order_multiart,
-    sequence_to_multiart_dict,
-    set_multiart_fadelabel,
+    seed_multiart,
 )
 from resources.lib.art.policy import ART_PROCESS_MAP
 from resources.lib.plugin.geometry import PlacementOpts
+from resources.lib.plugin.identity import ArtworkIdentity
 from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
@@ -310,9 +309,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if self.target is not None:
                 stamp_scope = str(self.target)
             else:
-                stamp_scope = (
-                    cursor_snapshot.split("/", 1)[0] if "/" in cursor_snapshot else ""
-                )
+                stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope
             art_opts = {
                 art_type: ArtOpts.from_params(self.params, art_type)
                 for art_type in ("clearlogo", "background", "icon")
@@ -351,54 +348,36 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            fadelabel_id = self.params.get("multiart_fadelabel")
-            if fadelabel_id:
-                seed_scope_key = f"multiart_seed_scope_{fadelabel_id}"
-                same_scope = (
-                    infolabel(f"Window(home).Property({seed_scope_key})") == stamp_scope
-                )
-                seeded = False
-                if len(multiart_dict) > 1:
-                    ordered = order_multiart(multiart_dict)
-                    seeded = set_multiart_fadelabel(
-                        fadelabel_id=fadelabel_id,
-                        ordered=ordered,
-                        alive=guard.alive,
-                        preserve_frozen=same_scope,
-                    )
-                if seeded:
-                    art |= sequence_to_multiart_dict(ordered)
-                elif guard.alive():
-                    clear_label(fadelabel_id, hide=False)
-                    if not same_scope:
-                        window_property(f"multiart_frozen_{fadelabel_id}")
-                    art = {k: v for k, v in art.items() if not k.startswith("multiart")}
-                else:
-                    return
-                if guard.alive():
-                    window_property(seed_scope_key, stamp_scope)
+            art = seed_multiart(
+                fadelabel_id=self.params.get("multiart_fadelabel"),
+                multiart_dict=multiart_dict,
+                art=art,
+                stamp_scope=stamp_scope,
+                alive=guard.alive,
+            )
+            if art is None:
+                return
 
             if background_blur := art.get("background", ""):
                 window_property("background_blur", background_blur)
 
-            prefix = f"{stamp_scope}/" if stamp_scope else ""
             total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
-            dbid = infolabel(f"{self.identity_container}.ListItem.DBID")
 
-            if current_position is not None and total > 1:
-                prev_pos = total if current_position == 1 else current_position - 1
-                next_pos = 1 if current_position == total else current_position + 1
-            elif current_position is not None:
-                prev_pos, next_pos = current_position - 1, current_position + 1
+            identity = ArtworkIdentity(
+                scope=stamp_scope,
+                pos=current_position,
+                dbid=infolabel(f"{self.identity_container}.ListItem.DBID"),
+                visit=self.params.get("visit", ""),
+            )
+            prev_item = identity.neighbour(-1, total)
+            next_item = identity.neighbour(1, total)
 
             # Self-certify currency when no skin-side cursor writer fired for
             # this invocation (tablist focus in a dual couple has none): a
             # passed guard is the same proof atr_artwork_cursor encodes.
             stamped = (
-                f"{prefix}{current_position}/{dbid}/{self.params.get('visit', '')}"
-                if cursor_key
-                and not cursor_snapshot
-                and current_position is not None
+                str(identity)
+                if cursor_key and not cursor_snapshot and current_position is not None
                 else ""
             )
             if (
@@ -417,13 +396,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         "art": art,
                         "properties": (
                             {
-                                "previous": f"{prefix}{prev_pos}",
+                                "previous": prev_item.partial(("scope", "pos")),
                                 "current": cursor_snapshot
                                 or stamped
-                                or f"{prefix}{current_position}/{dbid}",
-                                "next": f"{prefix}{next_pos}",
-                                "previous_pos": str(prev_pos),
-                                "next_pos": str(next_pos),
+                                or identity.partial(("scope", "pos", "dbid")),
+                                "next": next_item.partial(("scope", "pos")),
+                                "previous_pos": str(prev_item.pos),
+                                "next_pos": str(next_item.pos),
                             }
                             if current_position is not None
                             else {}
