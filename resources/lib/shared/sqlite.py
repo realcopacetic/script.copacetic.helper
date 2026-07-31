@@ -294,7 +294,7 @@ class ArtworkCacheHandler(SQLiteHandler):
                 return cur.rowcount or 0
         except Exception:
             log.debug(
-                f"{self.__class__.__name__}: update_fields failed for {cache_key=}"
+                f"{self.__class__.__name__} → update_fields failed for {cache_key=}"
             )
             return 0
 

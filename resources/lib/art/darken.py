@@ -489,7 +489,7 @@ class ColorDarken:
 
         if L_text < 0.2:
             log.debug(
-                f"{self.__class__.__name__}: bg darken aborted → "
+                f"{self.__class__.__name__} → bg darken aborted → "
                 f"element is dark (L_text={L_text:.3f})"
             )
             return 0

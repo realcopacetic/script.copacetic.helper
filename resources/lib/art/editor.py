@@ -82,7 +82,7 @@ class ImageEditor:
             )
         except Exception as error:
             log.error(
-                f"{self.__class__.__name__}: Error during image processing → {error}",
+                f"{self.__class__.__name__} → Error during image processing → {error}",
             )
             return {}
 
@@ -361,7 +361,7 @@ class ImageEditor:
         :return: PIL Image or None if missing/unsupported/unreadable.
         """
         if url.lower().endswith(".svg"):
-            log.debug(f"{self.__class__.__name__}: Skipping unsupported SVG → {url}")
+            log.debug(f"{self.__class__.__name__} → Skipping unsupported SVG → {url}")
             return None
 
         try:
@@ -369,6 +369,6 @@ class ImageEditor:
 
         except (FileNotFoundError, OSError) as error:
             log.error(
-                f"{self.__class__.__name__}: Unable to open image {url} → {error}",
+                f"{self.__class__.__name__} → Unable to open image {url} → {error}",
             )
             return None

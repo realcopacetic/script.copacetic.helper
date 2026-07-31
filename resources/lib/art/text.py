@@ -103,7 +103,7 @@ class TextRenderer:
             write_image(path, out, "PNG", self.cfg)
             return path, out.height
         except Exception as exc:
-            log.error(f"{self.__class__.__name__}: Unable to render text → {exc}")
+            log.error(f"{self.__class__.__name__} → Unable to render text → {exc}")
             return None
 
     def _cache_path(self, *parts: object) -> str:

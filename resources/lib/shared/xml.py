@@ -45,7 +45,7 @@ def xml_functions(func):
         transform_func = kwargs.get("transform_func")
 
         if not transform_func:
-            log.warning(f"{self.__class__.__name__}: No transform function provided!")
+            log.warning(f"{self.__class__.__name__} → No transform function provided!")
             return
 
         # Inject the retrieved parameters into kwargs before calling the original function
@@ -102,7 +102,7 @@ class XMLHandler:
             tree = ET.ElementTree(kwargs["transform_func"](data_dict, **kwargs))
             self._save_xml(tree)
         except Exception as e:
-            log.error(f"{self.__class__.__name__}: Unable to write XML --> {e}")
+            log.error(f"{self.__class__.__name__} → Unable to write XML --> {e}")
 
     @xml_functions
     def update_xml(self, updates, **kwargs):
@@ -125,7 +125,7 @@ class XMLHandler:
             target_root = root.find(kwargs["root_tag"])
             if target_root is None:
                 log.debug(
-                    f"{self.__class__.__name__}: Creating missing root tag '{kwargs['root_tag']}'."
+                    f"{self.__class__.__name__} → Creating missing root tag '{kwargs['root_tag']}'."
                 )
                 target_root = ET.SubElement(root, kwargs["root_tag"])
 
@@ -143,7 +143,7 @@ class XMLHandler:
 
             self._save_xml(tree)
         except Exception as e:
-            log.error(f"{self.__class__.__name__}: Unable to update XML --> {e}")
+            log.error(f"{self.__class__.__name__} → Unable to update XML --> {e}")
 
     def _read_xml(self):
         """
@@ -177,7 +177,7 @@ class XMLHandler:
         """
         if not file_path.exists():
             log.warning(
-                f"{self.__class__.__name__}: File '{file_path}' does not exist."
+                f"{self.__class__.__name__} → File '{file_path}' does not exist."
             )
             return None
 
@@ -186,7 +186,7 @@ class XMLHandler:
                 return ET.parse(file)
         except (ET.ParseError, IOError) as e:
             log.error(
-                f"{self.__class__.__name__}: Error parsing XML file '{file_path}' --> {e}"
+                f"{self.__class__.__name__} → Error parsing XML file '{file_path}' --> {e}"
             )
             return None
 
@@ -208,7 +208,7 @@ class XMLHandler:
         tree = ET.ElementTree(root)
         self._save_xml(tree)
         log.info(
-            f"{self.__class__.__name__}: Created new XML file '{self.path}' with root '{root_tag}'."
+            f"{self.__class__.__name__} → Created new XML file '{self.path}' with root '{root_tag}'."
         )
         return tree
 
@@ -226,10 +226,10 @@ class XMLHandler:
                 tree.write(file, encoding="utf-8", xml_declaration=True)
             os.replace(tmp_path, self.path)
         except IOError as e:
-            log.error(f"{self.__class__.__name__}: Error updating XML file --> {e}")
+            log.error(f"{self.__class__.__name__} → Error updating XML file --> {e}")
         else:
             log.debug(
-                f"{self.__class__.__name__}: XML file '{self.path}' updated successfully."
+                f"{self.__class__.__name__} → XML file '{self.path}' updated successfully."
             )
 
     @staticmethod
@@ -317,7 +317,7 @@ class XMLMerger:
             container = root.find(self.container_tag)
             if container is None:
                 log.debug(
-                    f"{self.__class__.__name__}: No container <{self.container_tag}> in {file_path}. Skipping file."
+                    f"{self.__class__.__name__} → No container <{self.container_tag}> in {file_path}. Skipping file."
                 )
                 continue
             elements = container.findall(self.element_tag)
@@ -333,7 +333,7 @@ class XMLMerger:
             folder_path = self.base_folder / subfolder
             if not folder_path.exists():
                 log.debug(
-                    f"{self.__class__.__name__}: Folder {folder_path} does not exist. Skipping."
+                    f"{self.__class__.__name__} → Folder {folder_path} does not exist. Skipping."
                 )
                 continue
             for mapping_name, elements in self._merge_xml_files(folder_path):
@@ -395,7 +395,7 @@ class XMLDictConverter:
         container = self.root.find(self.container_tag)
         if container is None:
             log.warning(
-                f"{self.__class__.__name__}: Missing container tag <{self.container_tag}>."
+                f"{self.__class__.__name__} → Missing container tag <{self.container_tag}>."
             )
             return output_dict
 
@@ -429,7 +429,7 @@ class XMLDictConverter:
             include_elem = element.find(self.sub_element_tag)
             if include_elem is None or "name" not in include_elem.attrib:
                 log.debug(
-                    f"{self.__class__.__name__}: Missing or invalid {self.sub_element_tag} tag in element."
+                    f"{self.__class__.__name__} → Missing or invalid {self.sub_element_tag} tag in element."
                 )
                 continue
 
@@ -446,7 +446,7 @@ class XMLDictConverter:
 
             except Exception as e:
                 log.debug(
-                    f"{self.__class__.__name__}: Error processing element '{template_key}' → {e}"
+                    f"{self.__class__.__name__} → Error processing element '{template_key}' → {e}"
                 )
                 continue
 
@@ -516,7 +516,7 @@ class XMLDictConverter:
                     root_elem.append(child_elem)
 
             except Exception as e:
-                log.debug(f"{self.__class__.__name__}: Error converting '{key}' → {e}")
+                log.debug(f"{self.__class__.__name__} → Error converting '{key}' → {e}")
 
         return root_elem
 

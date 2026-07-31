@@ -57,7 +57,7 @@ class Monitor(xbmc.Monitor):
             self._on_start()
             self._on_stop()
         del self.player_monitor
-        log.info(f"{self.__class__.__name__}: Stopped")
+        log.info(f"{self.__class__.__name__} → Stopped")
 
     def _build_optin_check(self):
         """
@@ -83,7 +83,7 @@ class Monitor(xbmc.Monitor):
             reset_dev_state()
             ADDON.setSettingBool("dev_reset", False)
             log.info(
-                f"{self.__class__.__name__}: Dev reset consumed — "
+                f"{self.__class__.__name__} → Dev reset consumed — "
                 f"outputs and runtime_state cleared"
             )
 
@@ -112,12 +112,12 @@ class Monitor(xbmc.Monitor):
         log.info(f"{self.__class__.__name__} → Python version: {sys.version}")
         self._build_optin_check()
         if self.start:
-            log.info(f"{self.__class__.__name__}: Started")
+            log.info(f"{self.__class__.__name__} → Started")
             self.start = False
             self.player_monitor = PlayerMonitor(self.sqlite)
             self.slideshow = Slideshow(self.sqlite)
         elif self._conditions_met():
-            log.info(f"{self.__class__.__name__}: Resumed")
+            log.info(f"{self.__class__.__name__} → Resumed")
         while not self.abortRequested() and self._conditions_met():
             self.poller()
 
@@ -148,7 +148,7 @@ class Monitor(xbmc.Monitor):
         if self.abortRequested():
             return
 
-        log.info(f"{self.__class__.__name__}: Idle, waiting...")
+        log.info(f"{self.__class__.__name__} → Idle, waiting...")
         while not self.abortRequested() and not self._conditions_met():
             self.waitForAbort(10)
 

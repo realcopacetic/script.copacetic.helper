@@ -34,7 +34,7 @@ class Main:
     def _parse_argv(self) -> dict[str, str]:
         """
         The parser accepts both plugin-style querystrings and RunScript k=v tokens,
-        preserves literal '+', tolerates raw '&' and commas in values, and percent-decodes.
+        preserves literal '+', tolerates raw '&' and commas in values, and %-decodes.
         """
         try:
             self.params = parse_params(sys.argv, mode="script")

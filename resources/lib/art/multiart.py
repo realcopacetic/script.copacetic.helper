@@ -1,11 +1,13 @@
 # author: realcopacetic
 
+import hashlib
 import random
 from typing import Callable, Iterable, Mapping
 
 from xbmc import Monitor
 from xbmcgui import Window, getCurrentWindowId
 
+from resources.lib.apis.tmdb.cache import TmdbCache
 from resources.lib.plugin.helpers import get_infolabels
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
@@ -15,10 +17,10 @@ from resources.lib.shared.utilities import (
     to_int,
     window_property,
 )
-from resources.lib.apis.tmdb.cache import TmdbCache
 
 DEFAULT_SLOTS = 15
 MAX_SLOTS = 50
+
 
 _TMDB_CACHE = TmdbCache()
 
@@ -268,6 +270,20 @@ def set_multiart_fadelabel(
 
     return True
 
+
+def _multiart_signature(multiart_dict: dict[str, str]) -> str:
+    """
+    Order-independent digest of a multiart candidate set.
+    Compared pre-shuffle: the seeded order is randomised per serve,
+    so identity must be judged on the set, not the sequence.
+
+    :param multiart_dict: Candidate multiart family from the listitem.
+    :return: Hex digest identifying the set.
+    """
+    payload = "\n".join(sorted(multiart_dict.values()))
+    return hashlib.md5(payload.encode("utf-8")).hexdigest()
+
+
 def seed_multiart(
     *,
     fadelabel_id: str | None,
@@ -292,6 +308,22 @@ def seed_multiart(
         return art
     seed_scope_key = f"multiart_seed_scope_{fadelabel_id}"
     same_scope = infolabel(f"Window(home).Property({seed_scope_key})") == stamp_scope
+    sig_key = f"multiart_seed_sig_{fadelabel_id}"
+    signature = _multiart_signature(multiart_dict)
+    # Interruptor guard: a refire that would reseed the identical set into a
+    # live register (announcement invalidation, viewmenu return) is a pure
+    # no-op — the rotation continues untouched. A legitimately cleared
+    # register has an empty label and never skips; a scope change never skips.
+    if (
+        len(multiart_dict) > 1
+        and same_scope
+        and infolabel(f"Window(home).Property({sig_key})") == signature
+        and infolabel(f"Control.GetLabel({fadelabel_id})")
+    ):
+        log.debug(
+            f"seed_multiart → skip: register {fadelabel_id} already carries this set"
+        )
+        return art
     seeded = False
     if len(multiart_dict) > 1:
         ordered = order_multiart(multiart_dict)
@@ -303,6 +335,9 @@ def seed_multiart(
         )
     if seeded:
         art |= sequence_to_multiart_dict(ordered)
+        log.debug(
+            f"seed_multiart → seeded register {fadelabel_id} ({len(ordered)} items)"
+        )
     elif alive():
         clear_label(fadelabel_id, hide=False)
         if not same_scope:
@@ -312,4 +347,8 @@ def seed_multiart(
         return None
     if alive():
         window_property(seed_scope_key, stamp_scope)
+        if seeded:
+            window_property(sig_key, signature)
+        else:
+            window_property(sig_key)
     return art

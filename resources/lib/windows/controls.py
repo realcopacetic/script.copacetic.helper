@@ -447,10 +447,12 @@ class BaseControlHandler:
 
         :param actions: List of onclick dicts (full onclick vocabulary).
         """
+        ran_runtime_script = False
         for entry in actions or []:
             if not isinstance(entry, dict):
                 continue
             action_type = str(entry.get("type", "custom")).lower()
+            ran_runtime_script = ran_runtime_script or action_type == "runtime_script"
             cfg = {
                 **entry,
                 "heading": entry.get("heading", ""),
@@ -459,6 +461,8 @@ class BaseControlHandler:
                 ),
             }
             ButtonHandler.ACTIONS.get(action_type, OnClickActions.custom)(cfg)
+        if ran_runtime_script:
+            self.parent._resync_session()
 
     def _link_ok(self) -> bool:
         """
@@ -510,6 +514,7 @@ class ButtonHandler(BaseControlHandler):
         "input": OnClickActions.input,
         "numeric": OnClickActions.numeric,
         "custom": OnClickActions.custom,
+        "runtime_script": OnClickActions.runtime_script,
     }
 
     def _build_cfg(self, onclick: dict) -> dict:
@@ -535,6 +540,7 @@ class ButtonHandler(BaseControlHandler):
             "sibling_fields",
             "result_field",
             "folder",
+            "kwargs",
         )
 
         # Fetch items, then resolve display labels from config labels, metadata, or title-case
@@ -633,6 +639,13 @@ class ButtonHandler(BaseControlHandler):
         """
         preflight = self.run_preflight_dialog()
         if preflight is None:
+            return
+
+        # Script actions mutate runtime state in-process during preflight;
+        # resync the session instead of entering the value-apply path.
+        onclick_type = str((self.control.get("onclick") or {}).get("type", ""))
+        if onclick_type.lower() == "runtime_script":
+            self.parent._resync_session()
             return
 
         result, cfg = preflight

@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 
 # VS Code
-.vscode
 .venv
 
 # Windows image file caches

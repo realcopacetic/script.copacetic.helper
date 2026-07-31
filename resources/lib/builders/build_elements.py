@@ -106,7 +106,7 @@ class BuildElements:
 
         for builder, builder_data in values_to_write.items():
             log.debug(
-                f"{self.__class__.__name__}: {builder} → "
+                f"{self.__class__.__name__} → {builder} → "
                 f"{len(builder_data)} entries generated"
             )
             self._write_file(builder_data, builder)

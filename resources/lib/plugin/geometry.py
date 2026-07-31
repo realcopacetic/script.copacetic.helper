@@ -82,10 +82,10 @@ def resolve_rect(
             if len(parts) == 4:
                 return parts
             log.debug(
-                f"{name}: coords '{coords}' has {len(parts)} elements, expected 4"
+                f"{name} → coords '{coords}' has {len(parts)} elements, expected 4"
             )
         except Exception as exc:
-            log.debug(f"{name}: Invalid coords '{coords}': {exc}")
+            log.debug(f"{name} → invalid coords '{coords}': {exc}")
 
     if anchor_id:
         try:
@@ -96,7 +96,7 @@ def resolve_rect(
             return rect
 
         except Exception as exc:
-            log.warning(f"{name}: Failed to read anchor {anchor_id}: {exc}")
+            log.warning(f"{name} → failed to read anchor {anchor_id}: {exc}")
 
     return DEFAULT_COORDS.get(name, (0, 0, 0, 0))
 
@@ -254,7 +254,7 @@ def compute_rect(
     if mode and opts.anchor_id:
         if opts.inset:
             log.debug(
-                f"{caller_name}: 'inset' is ignored when 'outside' placement is active"
+                f"{caller_name} → 'inset' is ignored when 'outside' placement is active"
             )
 
         if mode == "below":
@@ -288,7 +288,7 @@ def compute_rect(
     # Inside placement (default)
     if target_w > width:
         log.debug(
-            f"{caller_name}: track_w ({target_w}) exceeds rect width ({width}); clamped"
+            f"{caller_name} → track_w ({target_w}) exceeds rect width ({width}); clamped"
         )
 
     if target_w <= width:
@@ -297,7 +297,7 @@ def compute_rect(
 
     if target_h > height:
         log.debug(
-            f"{caller_name}: track_h ({target_h}) exceeds rect height ({height}); clamped"
+            f"{caller_name} → track_h ({target_h}) exceeds rect height ({height}); clamped"
         )
 
     if target_h <= height:

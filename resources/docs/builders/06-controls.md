@@ -196,12 +196,51 @@ A button's `onclick` names an action `type` plus options:
 | `input` / `numeric` | Keyboard / number entry |
 | `colorpicker` | Kodi's colour picker |
 | `custom` | Run a Kodi builtin from `action`. Tokens fill from the highlighted entry, so `parent={runtime_id}` works. |
+| `runtime_script` | Run a registered helper action from `action` (bare name, e.g. `seed_keyboard_layout`), with optional `kwargs`. For actions that **mutate runtime state**: runs in-process and synchronously, then the session resyncs from disk — list, selection, and handlers all adopt whatever the action wrote. |
 
 **Onclick on value controls.** Radiobuttons and cycles accept an `onclick` too,
 Kodi-style. An ordinary type runs *after* the control's own write; `confirm` is
 the one exception — it runs before and can cancel it. `yes`/`no` take lists of
 ordinary onclick objects (same vocabulary, results discarded — they're side
 effects, not writes).
+
+### `runtime_script` vs `custom`
+
+Both can trigger helper actions, but they declare different execution
+contracts — pick by what the action *does*, not by preference:
+
+- **`runtime_script`** — the action mutates runtime state. It runs on the session's
+  thread against current disk state (editor writes are immediate, so disk is
+  the truth), and the resync afterwards is one shared path everywhere the
+  onclick vocabulary is accepted: buttons and `confirm` `yes`/`no` lists
+  alike. The list redraw is unconditional — deterministic runtime_ids mean a
+  reseed can change every value without changing a single key. Selection
+  survives when its entry still exists; a wholesale reseed re-anchors to the
+  top. If the action's own dialog is cancelled, nothing is written and the
+  resync is a harmless redraw.
+
+- **`custom`** — fire-and-forget Kodi builtins, and the *only* correct choice
+  for actions that need their own interpreter: `dynamic_settings_window`
+  buttons must stay `custom`, because opening a modal in-process would nest
+  `doModal` on the handler callback thread — the exact hazard `RunScript`
+  exists to avoid.
+
+A `custom` `RunScript` that mutates runtime state is a race against the open
+session and will surface as stale lists, skipped rebuilds, or partial
+clobbers. If you find one, migrate it:
+
+```json
+{ "type": "custom", "action": "RunScript(script.copacetic.helper,action=delete_orphans,child_mapping=widgets,require_parent=true)" }
+```
+
+becomes
+
+```json
+{ "type": "runtime_script", "action": "delete_orphans", "kwargs": { "child_mapping": "widgets", "require_parent": "true" } }
+```
+
+Keep `kwargs` values as strings for `RunScript` parity — actions parse string
+parameters either way.
 
 Useful options beyond `heading` and `default`:
 

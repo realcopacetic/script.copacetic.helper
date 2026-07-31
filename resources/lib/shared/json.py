@@ -73,9 +73,9 @@ class JSONHandler:
                 content = json.load(file)
                 data[file_path] = content  # Store JSON content under its filename
         except json.JSONDecodeError as e:
-            log.error(f"{self.__class__.__name__}: Error parsing {file_path}: {e}")
+            log.error(f"{self.__class__.__name__} → Error parsing {file_path}: {e}")
         except OSError as e:
-            log.warning(f"{self.__class__.__name__}: Error reading {file_path}: {e}")
+            log.warning(f"{self.__class__.__name__} → Error reading {file_path}: {e}")
 
     def reload(self):
         """
@@ -97,11 +97,11 @@ class JSONHandler:
             os.replace(tmp_path, self.path)
         except (IOError, TypeError, ValueError) as e:
             log.error(
-                f"{self.__class__.__name__}: Error updating JSON file '{self.path}' --> {e}",
+                f"{self.__class__.__name__} → Error updating JSON file '{self.path}' --> {e}",
             )
         else:
             log.info(
-                f"{self.__class__.__name__}: JSON file '{self.path}' updated successfully."
+                f"{self.__class__.__name__} → JSON file '{self.path}' updated successfully."
             )
 
     def validate_json(self, content):
@@ -149,7 +149,7 @@ class JSONMerger:
                 key = content.get(self.grouping_key)
                 if not key:
                     log.debug(
-                        f"{self.__class__.__name__}: Missing '{self.grouping_key}' key in {file_path}. Skipping file."
+                        f"{self.__class__.__name__} → Missing '{self.grouping_key}' key in {file_path}. Skipping file."
                     )
                     continue
                 filtered = {k: v for k, v in content.items() if k != self.grouping_key}

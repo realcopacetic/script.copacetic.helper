@@ -168,6 +168,19 @@ class OnClickActions:
         log.execute(cfg["action"])
 
     @staticmethod
+    def runtime_script(cfg):
+        """
+        Run a registered helper action in-process, so session resync can
+        follow synchronously. Lazy import avoids a module cycle.
+        """
+        from resources.lib.script.actions import REGISTRY
+
+        fn = REGISTRY.get(cfg.get("action", ""))
+        if fn:
+            fn(**cfg.get("kwargs", {}))
+        return None
+
+    @staticmethod
     def input(cfg):
         """
         Show a keyboard input dialog and return the entered string,

@@ -49,7 +49,7 @@ def tmdb_to_canonical(
     :return: Canonical TMDb item dict or empty dict.
     """
     if tmdb_id <= 0:
-        log.debug(f"TmdbClient → invalid {tmdb_id=} for {kind=}")
+        log.debug(f"tmdb_to_canonical → invalid {tmdb_id=} for {kind=}")
         return {}
 
     language_key = language or ADDON.getSetting("tmdb_language") or "en-US"

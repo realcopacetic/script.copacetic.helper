@@ -28,7 +28,7 @@ def get_tmdb_client(language: str = "en-US") -> "TmdbClient | None":
 
     token = (ADDON.getSetting("tmdb_access_token") or "").strip()
     if not token:
-        log.warning("TMDb disabled or missing token.")
+        log.warning("get_tmdb_client → TMDb disabled or missing token.")
         return None
 
     return TmdbClient(token=token, language=language)
@@ -241,19 +241,19 @@ class TmdbClient:
 
         except HTTPError as exc:
             log.error(
-                f"{self.__class__.__name__}: HTTPError {exc.code} "
+                f"{self.__class__.__name__} → HTTPError {exc.code} "
                 f"for URL={self._safe_url(request.full_url)!r}: {exc.reason}"
             )
 
         except URLError as exc:
             log.error(
-                f"{self.__class__.__name__}: URLError for URL={self._safe_url(request.full_url)!r}: "
-                f"{exc.reason}"
+                f"{self.__class__.__name__} → URLError for "
+                f"URL={self._safe_url(request.full_url)!r}: {exc.reason}"
             )
 
         except Exception as exc:  # noqa: BLE001
             log.error(
-                f"{self.__class__.__name__}: Unexpected TMDb error "
+                f"{self.__class__.__name__} → Unexpected TMDb error "
                 f"for URL={self._safe_url(request.full_url)!r}: {exc!r}"
             )
 

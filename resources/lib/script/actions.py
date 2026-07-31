@@ -7,8 +7,16 @@ import xbmc
 import xbmcgui
 
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import ADDON, DIALOG, SKINXML
+from resources.lib.shared.keyboard import keyboard_layout_trees, layout_characters
+from resources.lib.shared.utilities import (
+    ADDON,
+    DIALOG,
+    RUNTIME_STATE,
+    SKINXML,
+    TEMPLATES,
+)
 from resources.lib.shared.utilities import clear_cache as _clear_cache_util
+from resources.lib.shared.utilities import clear_label as _clear_label_util
 from resources.lib.shared.utilities import (
     clear_playlists,
     condition,
@@ -17,7 +25,6 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     reset_dev_state,
-    skin_string,
     to_int,
     window_property,
 )
@@ -66,9 +73,7 @@ def clear_label(id, **kwargs):
     Clear a fadelabel register. Sanctioned for window-unload only —
     mid-session skin-side clears violate the single-writer doctrine.
     """
-    from resources.lib.shared.utilities import clear_label
-
-    clear_label(id, hide=False)
+    _clear_label_util(id, hide=False)
 
 
 @action
@@ -391,8 +396,6 @@ def play_radio(**kwargs):
 
     :param id: Optional song ID (defaults to ListItem.DBID).
     """
-    import random
-
     clear_playlists()
 
     dbid = int(kwargs.get("id", xbmc.getInfoLabel("ListItem.DBID")))
@@ -558,18 +561,82 @@ def roll_seed(prop, window_id=10000, **kwargs):
 
 
 @action
+def seed_keyboard_layout(layout=None, **kwargs):
+    """
+    Reseed the keyboard mapping from a Kodi keyboardlayout, chosen via
+    dialog when not passed. The editor's close-time snapshot comparison
+    handles rebuild and reload.
+
+    :param layout: Kodi layout identifier; prompts with a picker when absent.
+    """
+    from resources.lib.builders.runtime import RuntimeStateManager
+    from resources.lib.builders.templates import load_template_data
+
+    trees = keyboard_layout_trees()
+    if layout is None:
+        choices = [
+            f"{element.get('language')} {element.get('layout')}"
+            for _, tree in sorted(trees.items())
+            for element in tree.getroot().findall("layout")
+            if not element.get("codingtable")
+        ]
+        picked = DIALOG.select("Keyboard layout", choices)
+        if picked < 0:
+            return
+        layout = choices[picked]
+
+    mappings, configs_data, controls_data = load_template_data(TEMPLATES)
+    manager = RuntimeStateManager(
+        mappings=mappings,
+        configs_data=configs_data,
+        controls_data=controls_data,
+        runtime_state_path=RUNTIME_STATE,
+    )
+    manager.reseed_entries("keyboard", layout_characters(layout, trees))
+
+
+@action
 def set_edit(id, **kwargs):
     """
-    Focuses a Kodi control, sends text, and confirms it.
+    Focuses a Kodi edit control and sets its text via Input.SendText.
 
-    :param id: Control ID to focus.
-    :param return_id: Unused, reserved for future use.
-    :param text: Text to send.
+    :param id: Control ID to write to.
+    :param return_id: Optional control to refocus after the write.
+    :param text: Text payload for set/append modes.
+    :param mode: set (default) | append | backspace | space | clear.
     """
+    mode = kwargs.get("mode", "set")
     text = str(kwargs.get("text", ""))
-    log.execute(f"SetFocus({id})")
-    xbmc.Monitor().waitForAbort(0.05)
+    current = infolabel(f"Control.GetLabel({id}).index(1)")
+    if mode == "append":
+        text = current + text
+    elif mode == "backspace":
+        text = current[:-1]
+    elif mode == "space":
+        text = current + " "
+    elif mode == "clear":
+        text = ""
+    window_property("edit_scripted_write", value="true")
+    log.execute(f"SetFocus({id})", wait=True)
     json_call("Input.SendText", params={"text": text, "done": True}, parent="set_edit")
+    return_id = kwargs.get("return_id")
+    if return_id:
+        log.execute(f"SetFocus({return_id})", wait=True)
+    window_property("edit_scripted_write")
+
+
+@action
+def set_search_query(id, **kwargs):
+    """
+    Mirror an edit control's text into the search_query property, cleared
+    below min_length. Sole writer for the search rails' path values.
+
+    :param id: Edit control id to read.
+    :param min_length: Minimum characters before the query is published.
+    """
+    min_length = to_int(kwargs.get("min_length"), 3)
+    text = infolabel(f"Control.GetLabel({id}).index(1)")
+    window_property("search_query", value=text if len(text) >= min_length else False)
 
 
 @action
@@ -610,13 +677,15 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
                 index = subtitles.index(lang)
             except ValueError as error:
                 log.debug(
-                    f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not available, toggling through available streams instead → {error}",
+                    f"subtitle_limiter: Error - Preferred subtitle stream ({lang}) not "
+                    f"available, toggling through available streams instead → {error}",
                 )
                 log.execute("Action(NextSubtitle)")
             else:
                 player.setSubtitleStream(index)
                 log.debug(
-                    f"subtitle_limiter: Switching to subtitle stream {index} in preferred language: {lang}"
+                    f"subtitle_limiter: Switching to subtitle stream {index} in "
+                    f"preferred language: {lang}"
                 )
         elif condition("VideoPlayer.SubtitlesEnabled") and user_trigger:
             log.execute("Action(ShowSubtitles)")

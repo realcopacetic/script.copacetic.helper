@@ -2,7 +2,9 @@
 
 import ast
 import json
+import math
 import operator
+import random
 import sys
 import urllib.parse as urllib
 from pathlib import Path
@@ -13,6 +15,8 @@ import xbmcvfs
 from xbmcaddon import Addon
 from xbmcgui import Dialog, Window, getCurrentWindowId
 from xbmcplugin import addSortMethod, setContent, setPluginCategory
+
+from resources.lib.shared import logger as log
 
 THUMB_DB = xbmcvfs.translatePath("special://profile/Thumbnails")
 
@@ -44,7 +48,6 @@ MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 _JSON_RESPONSE_LIMIT = 5
 
-from resources.lib.shared import logger as log
 
 """ADDON"""
 
@@ -607,8 +610,6 @@ def split_random(string: str, *, separator: str = "/", **kwargs: object) -> str:
     :param separator: Delimiter used to split top-level genres (default: "/").
     :return: Cleaned and formatted random genre."
     """
-    import random
-
     primary = random.choice(string.split(separator)).strip()
     if "Hip-Hop" in primary:
         primary = "Hip Hop"
@@ -687,7 +688,7 @@ _BIN_OPS = {
     ast.Mod: operator.mod,
 }
 
-_FUNCS = {"min": min, "max": max}
+_FUNCS = {"min": min, "max": max, "ceil": math.ceil, "sqrt": math.sqrt}
 
 
 def _eval_node(node: ast.AST, names: Mapping[str, Any]) -> Any:
@@ -725,8 +726,8 @@ def evaluate_expression(expr: str, names: Mapping[str, Any]) -> str | None:
     """
     Evaluate a small numeric expression against a name table. Supports the
     four arithmetic operators (, -, *, /), floor division, modulo, unary
-    minus, parenthesised sub-expressions, and the functions min() and max()
-    with any number of arguments.
+    minus, parenthesised sub-expressions, and the functions min(), max(),
+    ceil() and sqrt() with positional of arguments.
 
     :param expr: Expression text (e.g. "count*100", "min(count*100, 800)").
     :param names: Mapping of identifier to numeric value. String values that
@@ -734,6 +735,7 @@ def evaluate_expression(expr: str, names: Mapping[str, Any]) -> str | None:
     :return: Stringified result (integer when whole), or None if the
         expression cannot be evaluated against the supplied names.
     """
+
     numeric_names: dict[str, Any] = {}
     for key, value in names.items():
         if isinstance(value, (int, float)):
