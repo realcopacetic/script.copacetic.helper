@@ -44,6 +44,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.mapping = None
         self.host = None
         self.host_focus = None
+        self.focus_item = None
         self.controls_from = []
         self._xml_filename = xmlFilename.lower()
 
@@ -157,8 +158,15 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if self.listitems:
             self.container_position = 0
             self.current_listitem = next(iter(self.listitems))
-            self._list_container.selectItem(self.container_position)
+            if self.focus_item:
+                for pos, (rid, entry) in enumerate(self.listitems.items()):
+                    if entry.get("mapping_item") == self.focus_item:
+                        self.container_position = pos
+                        self.current_listitem = rid
+                        break
         self._refresh_list()
+        if self.listitems:
+            self._list_container.selectItem(self.container_position)
 
         # Management buttons — reset/close are universal; mutation buttons
         # (add/delete/move) require a runtime list with a governing control.
@@ -510,6 +518,21 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self.container_position = min(
                 self.container_position, len(self.listitems) - 1
             )
+
+    def _resync_session(self) -> None:
+        """
+        Adopt on-disk state after an in-process script mutation: reload,
+        rebuild, redraw. List refresh is unconditional — deterministic ids
+        mean values can change under identical keys. Selection survives
+        when its entry still exists; otherwise re-anchor to the top.
+        """
+        self._begin_mutation()
+        self._build_dicts()
+        self._refresh_list()
+        if self.current_listitem is None and self.listitems:
+            self.container_position = 0
+            self.current_listitem = next(iter(self.listitems))
+        self._finalize_selection(mapping_changed=True, list_rebuilt=True)
 
     def _on_add(self) -> None:
         """

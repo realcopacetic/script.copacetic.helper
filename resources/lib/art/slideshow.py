@@ -92,8 +92,9 @@ class Slideshow:
             return
         item = self.art.pop(random.randrange(len(self.art)))
         self.seen.add(item["fanart"])
-        if slide := self._process(item):
-            self._publish(slide)
+        with log.muted():
+            if slide := self._process(item):
+                self._publish(slide)
 
     def _config(self) -> tuple[str, str]:
         """
@@ -166,7 +167,7 @@ class Slideshow:
             self.art = fresh
         if len(self.art) > self.BATCH_SIZE:
             self.art = random.sample(self.art, self.BATCH_SIZE)
-        log.debug(f"{self.__class__.__name__}: Fetched {len(self.art)} items")
+        log.debug(f"{self.__class__.__name__} → Fetched {len(self.art)} items")
 
     def _art_types(self, stype: str) -> list[str]:
         """

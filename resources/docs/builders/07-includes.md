@@ -36,7 +36,8 @@ XML files in `extras/templates/includes/`:
 | `<mapping>` | Mapping name |
 | `<template>` | One unit to expand (several per file is fine) |
 | `<mode>` | `dynamic` = one copy per settings-file entry. Default = one per mapping item. |
-| `<index>` | Start number (or range) for `{index}` |
+| `<index>` | Start number for `{index}` — numbers the passes, never multiplies them |
+| `<range>` | Numeric loop (`start`, `end`, optional `step`) — every pass repeats once per value as `{range}` |
 | `<items>` | An extra comma-separated loop on the template itself |
 | `<filter>` | Skip some loop passes — see below |
 | `<include name="...">` | The **outer** include — the name your skin references. Appears once. |
@@ -102,10 +103,10 @@ The exception is the outer include itself: if a filter removes *every* pass, the
 
 That's different from a `condition` in the body: **filter decides whether a thing exists; conditions decide what an existing thing does at runtime.**
 
-Its best trick is letting different loop values cover different ranges from one template. The texture variables loop a two-item mapping (`nowrap`, `wrap`) across index −3..6 — but the two variants need different ranges: views draw ten fixed slots, while the wrap-around transition machinery only ever looks one step each way:
+Its best trick is letting different loop values cover different ranges from one template. The texture variables loop a two-item mapping (`nowrap`, `wrap`) across range −3..6 — but the two variants need different ranges: views draw ten fixed slots, while the wrap-around transition machinery only ever looks one step each way:
 
 ```json
-"filter": "equals({wrapness}, nowrap) | In({index}, [-1, 0, 1])"
+"filter": "equals({wrapness}, nowrap) | In({range}, [-1, 0, 1])"
 ```
 
 Read it as two ways to survive, OR'd: `nowrap` always passes (all ten indices emit); `wrap` only passes at −1, 0, 1. One template instead of two per family, and no `_wrap-3` outputs that nothing uses.

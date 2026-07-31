@@ -74,7 +74,7 @@ class ImageProcessor:
         try:
             return {"image": image.crop(box), "format": "PNG"}
         except Exception as exc:
-            log.error(f"{self.__class__.__name__}: Unable to crop image → {exc}")
+            log.error(f"{self.__class__.__name__} → Unable to crop image → {exc}")
             return None
 
     @log.duration
@@ -101,7 +101,7 @@ class ImageProcessor:
                 "metadata": {"blur_radius": radius},
             }
         except Exception as exc:
-            log.error(f"{self.__class__.__name__}: Unable to blur image → {exc}")
+            log.error(f"{self.__class__.__name__} → Unable to blur image → {exc}")
             return None
 
     @log.duration
@@ -123,7 +123,7 @@ class ImageProcessor:
                 )
             }
         except Exception as exc:
-            log.error(f"{self.__class__.__name__}: Unable to analyze image → {exc}")
+            log.error(f"{self.__class__.__name__} → Unable to analyze image → {exc}")
             return None
 
     @log.duration
@@ -149,7 +149,7 @@ class ImageProcessor:
                 darken_opts = dataclasses.replace(darken_opts, source=color)
             else:
                 log.debug(
-                    f"{self.__class__.__name__}: darken source=clearlogo but no "
+                    f"{self.__class__.__name__} → darken source=clearlogo but no "
                     f"clearlogo color in shared results — falling back to element_overlay_color"
                 )
 
@@ -159,5 +159,5 @@ class ImageProcessor:
                 or {}
             }
         except Exception as exc:
-            log.error(f"{self.__class__.__name__}: Unable to darken image → {exc}")
+            log.error(f"{self.__class__.__name__} → Unable to darken image → {exc}")
             return None

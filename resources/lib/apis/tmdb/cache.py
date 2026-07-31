@@ -43,7 +43,7 @@ class TmdbCache:
             return payload
 
         log.debug(
-            f"TmdbCache.get → unexpected payload type for "
+            f"{self.__class__.__name__} → unexpected payload type for "
             f"{dbtype=}, {tmdb_id=}, {language=}: {type(payload)!r}"
         )
         return None
@@ -100,6 +100,6 @@ class TmdbCache:
             )
         except Exception as exc:  # noqa: BLE001
             log.debug(
-                f"TmdbCache.set → cache upsert failed for "
+                f"{self.__class__.__name__} → cache upsert failed for "
                 f"{dbtype=}, {tmdb_id=}, {language=}: {exc}"
             )

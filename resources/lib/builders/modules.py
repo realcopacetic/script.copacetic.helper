@@ -62,7 +62,7 @@ class BaseBuilder:
             )
             if not runtime_items:
                 log.debug(
-                    f"{self.__class__.__name__}: No runtime state for "
+                    f"{self.__class__.__name__} → No runtime state for "
                     f"'{self.mapping_name}' — dynamic template '{element_name}' "
                     f"expands with no per-entry substitutions."
                 )
@@ -430,7 +430,7 @@ class ExpressionsBuilder(BaseBuilder):
 
             if not target_expr:
                 log.verbose(
-                    f"{self.__class__.__name__}: [Fallback skipped] No match for fallback_item '{fallback_item}' in group '{group_key}'",
+                    f"{self.__class__.__name__} → [Fallback skipped] No match for fallback_item '{fallback_item}' in group '{group_key}'",
                 )
                 continue
 
@@ -448,7 +448,7 @@ class ExpressionsBuilder(BaseBuilder):
             ) or "true"
 
             log.verbose(
-                f"{self.__class__.__name__}: [Fallback applied] {target_expr} = {resolved[target_expr]} (group: {group_key}, others: {list(others.keys())})",
+                f"{self.__class__.__name__} → [Fallback applied] {target_expr} = {resolved[target_expr]} (group: {group_key}, others: {list(others.keys())})",
             )
 
         return resolved

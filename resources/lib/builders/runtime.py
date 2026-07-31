@@ -314,13 +314,13 @@ class RuntimeStateManager:
         mapping_list = self.runtime_state.get(mapping_key, [])
         if not 0 <= index < len(mapping_list):
             raise IndexError(
-                f"{self.__class__.__name__}: Index '{index}' out of range "
+                f"{self.__class__.__name__} → Index '{index}' out of range "
                 f"for mapping '{mapping_key}'."
             )
         instance = mapping_list[index]
         if setting_name not in instance:
             raise KeyError(
-                f"{self.__class__.__name__}: Runtime setting '{setting_name}' "
+                f"{self.__class__.__name__} → Runtime setting '{setting_name}' "
                 f"not found in mapping '{mapping_key}' at index '{index}'."
             )
         return instance[setting_name]
@@ -349,14 +349,15 @@ class RuntimeStateManager:
     ) -> dict:
         """
         Build the substitution dict for a runtime entry: resolved string
-        fields, mapping key placeholder, and optionally metadata layered
-        beneath.
+        fields, mapping key placeholder, optional metadata beneath, and
+        sibling entries' fields as non-overriding fallbacks.
 
         :param mapping_key: Mapping group key.
         :param index: Position in the state list.
         :param include_metadata: Layer mapping metadata under entry fields.
         :return: Substitution dict; empty on lookup failure.
         """
+
         resolved = self.resolved_entry(mapping_key, index)
         if not resolved:
             return {}
@@ -372,6 +373,12 @@ class RuntimeStateManager:
             base[key_placeholder] = item
         base["mapping"] = mapping_key
         base["index"] = index
+        for i in range(len(self.runtime_state.get(mapping_key, []))):
+            if i == index:
+                continue
+            for k, v in (self.resolved_entry(mapping_key, i) or {}).items():
+                if isinstance(v, str):
+                    base.setdefault(k, v)
         return base
 
     def format_metadata(
@@ -403,7 +410,7 @@ class RuntimeStateManager:
                     )
                 )
             except KeyError as e:
-                log.debug(f"{self.__class__.__name__}: format_metadata fallback: {e}")
+                log.debug(f"{self.__class__.__name__} → format_metadata fallback: {e}")
                 formatted = template
 
         return (
@@ -465,7 +472,7 @@ class RuntimeStateManager:
         mapping_list = state.setdefault(mapping_key, [])
         if not 0 <= index < len(mapping_list):
             raise IndexError(
-                f"{self.__class__.__name__}: Index '{index}' out of range "
+                f"{self.__class__.__name__} → Index '{index}' out of range "
                 f"for mapping '{mapping_key}'."
             )
         mapping_list[index].update(fields)
@@ -591,7 +598,7 @@ class RuntimeStateManager:
         lst = state.get(mapping_key, [])
         if not 0 <= index < len(lst):
             raise IndexError(
-                f"{self.__class__.__name__}: Index '{index}' out of range "
+                f"{self.__class__.__name__} → Index '{index}' out of range "
                 f"for mapping '{mapping_key}'."
             )
         lst.pop(index)
@@ -649,6 +656,41 @@ class RuntimeStateManager:
 
         self._resolve_parent_refs(state)
         self._write_and_invalidate(state)
+
+    def reseed_entries(
+        self,
+        mapping_key: str,
+        values: list[str],
+        field: str = "value",
+        item_prefix: str = "slot",
+    ) -> bool:
+        """
+        Replace a mapping's runtime entries with one entry per value, built
+        from sequential ``{item_prefix}N`` mapping_items. Fails loudly when
+        the roster cannot accommodate the value count.
+
+        :param mapping_key: Mapping group key.
+        :param values: Field values, one entry created per value in order.
+        :param field: Entry field to receive each value.
+        :param item_prefix: Roster item name prefix for sequential items.
+        :return: True when entries were written.
+        """
+        roster = set(self.mappings.get(mapping_key, {}).get("items", []))
+        entries = []
+        for i, value in enumerate(values, start=1):
+            item = f"{item_prefix}{i}"
+            if item not in roster:
+                raise KeyError(
+                    f"{self.__class__.__name__} → '{item}' not in roster for "
+                    f"'{mapping_key}' — {len(values)} values exceed capacity."
+                )
+            entry = self._build_default_entry(mapping_key, item, deterministic=True)
+            entry[field] = value
+            entries.append(entry)
+        state = self.runtime_state
+        state[mapping_key] = entries
+        self._write_and_invalidate(state)
+        return bool(entries)
 
     def delete_orphans(self, child_mapping: str, require_parent: bool = False) -> int:
         """

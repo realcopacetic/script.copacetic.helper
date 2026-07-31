@@ -4,7 +4,7 @@ import random
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Generator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
@@ -17,16 +17,16 @@ from resources.lib.art.multiart import (
 )
 from resources.lib.art.policy import ART_PROCESS_MAP
 from resources.lib.plugin.geometry import PlacementOpts
-from resources.lib.plugin.identity import ArtworkIdentity
 from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
     ProgressBarManager,
     TextTruncator,
     TypewriterAnimation,
-    reposition_control,
     merge_metadata,
+    reposition_control,
 )
+from resources.lib.plugin.identity import ArtworkIdentity
 from resources.lib.plugin.json_map import (
     HEAVY_FIELDS,
     trim_properties,
@@ -41,19 +41,19 @@ from resources.lib.plugin.library import (
     title_filter,
 )
 from resources.lib.plugin.opts import ArtOpts
-from resources.lib.plugin.registry import PluginInfoRegistry
+from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
-    clear_label,
     condition,
+    focused_control_id,
     infolabel,
     parse_bool,
     set_plugincontent,
-    to_int,
     to_float,
+    to_int,
     window_property,
 )
 
@@ -97,8 +97,9 @@ class _FocusGuard:
 
         :return: True if guard conditions still hold, otherwise False.
         """
-        if not (current := infolabel("System.CurrentControlID")):
+        if not (focus_id := focused_control_id()):
             return True
+        current = str(focus_id)
 
         if (
             self.focus_ids
@@ -106,7 +107,7 @@ class _FocusGuard:
             and not any(condition(f"Control.HasFocus({fid})") for fid in self.focus_ids)
         ):
             log.debug(
-                f"PluginHandlers → {self.caller_name}: ABORTED → focus left "
+                f"{LOG_TAG} → {self.caller_name}: ABORTED → focus left "
                 f"({', '.join(self.focus_ids)}) to {current}"
             )
             return False
@@ -117,7 +118,7 @@ class _FocusGuard:
         current_identity = self.identity_getter()
         if current_identity and current_identity != self.expected_identity:
             log.debug(
-                f"PluginHandlers → {self.caller_name}: ABORTED → "
+                f"{LOG_TAG} → {self.caller_name}: ABORTED → "
                 f"'{self.expected_identity}' lost focus to '{current_identity}'"
             )
             return False
@@ -132,7 +133,7 @@ def focus_guard(
     expected_identity: str | None,
     identity_labels: tuple[str, ...] = (),
     focus_ids: tuple[str, ...] = (),
-) -> Iterator[_FocusGuard]:
+) -> Generator[_FocusGuard, None, None]:
     """
     Build an identity guard for a plugin operation.
     Returns a guard object whose ``alive()`` checks focus and item identity.
@@ -256,6 +257,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         default_text: str | None = None,
     ) -> None:
         """Attach a truncated label to a metadata dict.
+        Text precedence: truncate_label param, truncate_label_id
+        probe control, default_text, then plot infolabel.
 
         :param data: Metadata dict to update in place.
         :param target: ListItem infolabel prefix for plot fallback.
@@ -265,8 +268,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not truncate_id:
             return
 
+        label_id = to_int(self.params.get("truncate_label_id", 0))
         truncate_label = (
             self.params.get("truncate_label")
+            or (infolabel(f"Control.GetLabel({label_id})") if label_id else "")
             or default_text
             or infolabel(f"{target}.Plot")
         )
@@ -295,8 +300,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             current_position = to_int(
-                self.expected_identity,
-                to_int(infolabel(f"{self.identity_container}.CurrentItem"), None),
+                infolabel(f"{self.identity_container}.CurrentItem"), None
             )
             cursor_key = self.params.get("cursor_key", "")
             cursor_snapshot = (
@@ -373,19 +377,21 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             next_item = identity.neighbour(1, total)
 
             # Self-certify currency when no skin-side cursor writer fired for
-            # this invocation (tablist focus in a dual couple has none): a
-            # passed guard is the same proof atr_artwork_cursor encodes.
+            # this invocation, or the register predates this subject (preview
+            # swaps fire no writer): a passed guard is the same proof
+            # atr_artwork_cursor encodes. If a writer landed mid-run, it wins.
             stamped = (
                 str(identity)
-                if cursor_key and not cursor_snapshot and current_position is not None
+                if cursor_key
+                and current_position is not None
+                and cursor_snapshot != str(identity)
                 else ""
             )
             if (
                 stamped
                 and guard.alive()
-                and not infolabel(
-                    f"Window(home).Property(artwork_cursor_{cursor_key})"
-                )
+                and infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
+                == cursor_snapshot
             ):
                 window_property(f"artwork_cursor_{cursor_key}", stamped)
 
@@ -397,8 +403,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         "properties": (
                             {
                                 "previous": prev_item.partial(("scope", "pos")),
-                                "current": cursor_snapshot
-                                or stamped
+                                "current": stamped
+                                or cursor_snapshot
                                 or identity.partial(("scope", "pos", "dbid")),
                                 "next": next_item.partial(("scope", "pos")),
                                 "previous_pos": str(prev_item.pos),
@@ -605,12 +611,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         label_id = to_int(self.params.get("label_id"), None)
         if parse_bool(self.params.get("reset", "false")):
             TypewriterAnimation.reset(label_id=label_id)
+            window_property("typewriter_dbid")
             return
 
         with self.focus() as guard:
             if not guard.alive():
                 return
 
+            window_property(
+                "typewriter_dbid",
+                value=infolabel(f"{self.identity_container}.ListItem.DBID"),
+            )
             t = TypewriterAnimation()
             t.update(
                 label=self.label,

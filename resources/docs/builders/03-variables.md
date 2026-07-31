@@ -19,14 +19,14 @@ JSON files in `extras/templates/variables/`:
 {
   "mapping": "none",
   "variables": {
-    "texture_primary_poster{index}": {
-      "index": { "start": -3, "end": 6 },
+    "texture_primary_poster{range}": {
+      "range": { "start": -3, "end": 6 },
       "values": [
         {
-          "condition": "!String.IsEmpty(ListItemNoWrap({index}).Art(poster))",
-          "value": "$INFO[ListItem({index}).Art(poster)]"
+          "condition": "!String.IsEmpty(ListItemNoWrap({range}).Art(poster))",
+          "value": "$INFO[ListItem({range}).Art(poster)]"
         },
-        { "value": "$INFO[ListItem({index}).Icon]" }
+        { "value": "$INFO[ListItem({range}).Icon]" }
       ]
     }
   }
@@ -37,13 +37,14 @@ Ten variables out — `texture_primary_poster-3` through `...poster6` — each w
 
 | Field | What it does |
 |---|---|
-| `index` | Number range: `start`, `end`, optional `step` |
+| `index` | Numbers the loop passes: pass N gets `{index}` = `start` + N. Never multiplies — one value per existing pass. |
+| `range` | A numeric loop: `start`, `end`, optional `step`. Multiplies — every existing pass repeats once per value, available as `{range}`. |
 | `items` | An explicit list to loop over — each value becomes `{item}` |
 | `values` | The rows — `{condition, value}` dicts, or lists of them (blocks, below) |
 | `filter` | Skip loop passes at build time — see [Filtering](#filtering) |
 | `mode` | `"dynamic"` = loop the settings-file entries instead of the mapping's items |
 
-`index` and `items` combine: with both, you get every index × item pairing, and both `{index}` and `{item}` are available. In dynamic mode, `{index}` numbers the settings entries, so a declared `index` is just the starting value; `items` still multiplies with the entries. With neither, the mapping alone drives the loop.
+**`index` numbers the passes; `range` and `items` multiply them.** Expansion order: the mapping's items make the passes → `index` stamps each with a number → `range` repeats every pass per value → `items` repeats every pass per value → `filter` prunes. So `range` and `items` combine into every pairing, while `index` alone never adds passes — a template with `mapping: "none"` and only an `index` emits exactly one variable. In dynamic mode, `{index}` numbers the settings entries, and a declared `index` sets its starting value.
 
 Rows: `condition` is optional — leave it off for an unconditional row (a bare `<value>`). Kodi reads top to bottom and uses the first match, exactly like a hand-written variable.
 
@@ -173,7 +174,7 @@ Details:
 
 Only drilldown and group widgets get their rows; other configured widgets are skipped entirely.
 
-Don't confuse it with a row's `condition`: **filter decides at build time whether rows exist; condition decides at runtime whether Kodi uses them.** The two-axis trick — one loop value passing everywhere, another only in a range — is covered in [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes) and works identically here; `texture_primary_poster{suffix}{index}` in `variables_textures.json` is the live example.
+Don't confuse it with a row's `condition`: **filter decides at build time whether rows exist; condition decides at runtime whether Kodi uses them.** The two-axis trick — one loop value passing everywhere, another only in a range — is covered in [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes) and works identically here; `texture_primary_poster{suffix}{range}` in `variables_textures.json` is the live example.
 
 ---
 

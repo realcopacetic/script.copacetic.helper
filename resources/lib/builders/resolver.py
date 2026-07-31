@@ -90,7 +90,7 @@ class ConfigsResolver(_TemplateResolver):
         default = cfg.get("default") or next(iter(cfg.get("items", [])), None)
         if default is None:
             log.warning(
-                f"{self.__class__.__name__}: '{tpl_name}' resolved no items "
+                f"{self.__class__.__name__} → '{tpl_name}' resolved no items "
                 f"for '{mapping_name}/{sub.get('mapping_item', '?')}' — "
                 f"field will be absent from substitutions."
             )

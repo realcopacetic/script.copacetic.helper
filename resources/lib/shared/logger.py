@@ -1,6 +1,8 @@
 # author: realcopacetic
 
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import wraps
 from typing import Any, Callable
 
@@ -13,6 +15,21 @@ INFO = xbmc.LOGINFO
 WARNING = xbmc.LOGWARNING
 ERROR = xbmc.LOGERROR
 
+_MUTED: ContextVar[bool] = ContextVar("log_muted", default=False)
+
+
+@contextmanager
+def muted():
+    """
+    Drop DEBUG-level logs in the current context for the duration of the block.
+    force=True and INFO/WARNING/ERROR lines pass through unaffected.
+    """
+    token = _MUTED.set(True)
+    try:
+        yield
+    finally:
+        _MUTED.reset(token)
+
 
 def log(message: str, level: int = DEBUG, force: bool = False):
     """
@@ -20,11 +37,12 @@ def log(message: str, level: int = DEBUG, force: bool = False):
     If force is true or debug_logging enabled in addon, DEBUG logs are elevated
     to INFO, ensuring they will be logged regardless of Kodi global settings.
 
-
     :param message: Message string.
     :param level: Kodi log level constant.
     :param force: If True, logs regardless of settings.
     """
+    if level == DEBUG and not force and _MUTED.get():
+        return
     if (ADDON.getSettingBool("debug_logging") or force) and level == DEBUG:
         level = INFO
     xbmc.log(f"{ADDON_ID} → {message}", level)
@@ -84,14 +102,16 @@ def error(message: str):
     log(message, level=ERROR)
 
 
-def execute(action: str) -> None:
+def execute(action: str, wait: bool = False) -> None:
     """
     Logs and executes a built-in Kodi command.
 
     :param action: Built-in Kodi command string.
+    :param wait: Block until the main thread has processed the command.
     """
+
     log(f"Executed action: {action}", DEBUG)
-    xbmc.executebuiltin(action)
+    xbmc.executebuiltin(action, wait)
 
 
 def duration(func: Callable[..., Any]) -> Callable[..., Any]:

@@ -4,6 +4,7 @@ from functools import wraps
 from typing import Any, Callable, Iterable
 
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
+from resources.lib.plugin.registry import LOG_TAG
 from resources.lib.plugin.setter import TagApplier, apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, json_call, set_plugincontent, to_int
@@ -127,7 +128,7 @@ def fetch_and_add(
         properties=properties,
     )
     if not items:
-        log.debug(f"PluginHandlers → {parent}: No {media_type}s found.")
+        log.debug(f"{LOG_TAG} → {parent}: No {media_type}s found.")
         return []
 
     if postprocess is not None:

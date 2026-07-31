@@ -262,7 +262,7 @@ class JumpButton:
         try:
             btn = self.window.getControl(self.btn_id)
         except RuntimeError:
-            log.debug(f"{self.__class__.__name__}: Button {self.btn_id} not found.")
+            log.debug(f"{self.__class__.__name__} → Button {self.btn_id} not found.")
             return
 
         btn_w = btn.getWidth() or self.btn_width
@@ -411,7 +411,7 @@ class ProgressBarManager:
             progress = self.window.getControl(progress_id)
         except RuntimeError:
             log.debug(
-                f"{self.__class__.__name__}: base_id {base_id} or progress_id {progress_id} not found."
+                f"{self.__class__.__name__} → base_id {base_id} or progress_id {progress_id} not found."
             )
             return
 
@@ -423,7 +423,7 @@ class ProgressBarManager:
 
         if width <= 0 or height <= 0:
             log.debug(
-                f"{self.__class__.__name__}: Zero-size rect → ({posx},{posy},{width},{height}); aborting."
+                f"{self.__class__.__name__} → Zero-size rect → ({posx},{posy},{width},{height}); aborting."
             )
             return
 
@@ -435,7 +435,9 @@ class ProgressBarManager:
         try:
             img = self.window.getControl(img_id)
         except RuntimeError:
-            log.debug(f"{self.__class__.__name__}: Optional img_id {img_id} not found.")
+            log.debug(
+                f"{self.__class__.__name__} → Optional img_id {img_id} not found."
+            )
         else:
             img.setWidth(width)
             img.setHeight(height)
@@ -455,7 +457,9 @@ class ProgressBarManager:
             button = self.window.getControl(btn_id)
         except RuntimeError:
             button = None
-            log.debug(f"{self.__class__.__name__}: Optional btn_id {btn_id} not found.")
+            log.debug(
+                f"{self.__class__.__name__} → Optional btn_id {btn_id} not found."
+            )
         else:
             btn_w = button.getWidth() or self.btn_width
             btn_h = button.getHeight() or self.btn_height
@@ -575,7 +579,7 @@ class TextTruncator:
             return self.window.getControl(self.measure_ctrl_id)
         except Exception:
             log.debug(
-                f"{self.__class__.__name__}: measure control {self.measure_ctrl_id} not found"
+                f"{self.__class__.__name__} → measure control {self.measure_ctrl_id} not found"
             )
             return None
 
@@ -805,7 +809,7 @@ class TypewriterAnimation:
                 return
             if not _alive() or _superseded():
                 log.debug(
-                    f"{self.__class__.__name__}: ABORTED → '{label}' during start_delay"
+                    f"{self.__class__.__name__} → ABORTED → '{label}' during start_delay"
                 )
                 return
 
@@ -813,13 +817,13 @@ class TypewriterAnimation:
             control = self.window.getControl(control_id)
             control.setText("")
         except Exception:
-            log.debug(f"{self.__class__.__name__}: Control {control_id} not found")
+            log.debug(f"{self.__class__.__name__} → Control {control_id} not found")
             return
 
         def _abort(reason: str) -> None:
             """Clear the control and log why the animation stopped."""
             control.setText("")
-            log.debug(f"{self.__class__.__name__}: ABORTED → '{label}' {reason}")
+            log.debug(f"{self.__class__.__name__} → ABORTED → '{label}' {reason}")
 
         if not _alive():
             _abort("lost focus")

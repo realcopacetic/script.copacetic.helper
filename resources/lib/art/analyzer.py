@@ -109,7 +109,7 @@ class ColorAnalyzer:
                 return dominant_rgb
         except Exception as exc:
             log.debug(
-                f"{self.__class__.__name__}: accent preproc failed → {exc}",
+                f"{self.__class__.__name__} → accent preproc failed → {exc}",
             )
             return dominant_rgb
 
@@ -123,7 +123,7 @@ class ColorAnalyzer:
                 return dominant_rgb
         except Exception as exc:
             log.debug(
-                f"{self.__class__.__name__}: accent quantize failed → {exc}",
+                f"{self.__class__.__name__} → accent quantize failed → {exc}",
             )
             return dominant_rgb
 
@@ -161,7 +161,7 @@ class ColorAnalyzer:
             return max(candidates or [dominant_rgb], key=score)
         except Exception as exc:
             log.debug(
-                f"{self.__class__.__name__}: accent scoring failed → {exc}",
+                f"{self.__class__.__name__} → accent scoring failed → {exc}",
             )
             return dominant_rgb
 

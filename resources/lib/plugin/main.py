@@ -6,9 +6,9 @@ import xbmcplugin
 
 from resources.lib.plugin.handlers import PluginHandlers
 from resources.lib.plugin.listing import PluginListing
-from resources.lib.plugin.registry import collect_info_handlers
-from resources.lib.shared.parser import parse_params
+from resources.lib.plugin.registry import LOG_TAG, collect_info_handlers
 from resources.lib.shared import logger as log
+from resources.lib.shared.parser import parse_params
 
 
 class Main:
@@ -44,7 +44,7 @@ class Main:
             log.debug(f"Ignoring unknown info: {self.info}")
             return
 
-        log.debug(f"PluginHandlers initialized with params: {self.params}")
+        log.debug(f"{LOG_TAG} initialized with params: {self.params}")
         items = fn()
         if not isinstance(items, (list, tuple)):
             items = []

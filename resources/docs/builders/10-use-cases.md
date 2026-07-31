@@ -14,13 +14,13 @@ Lots of similar `<variable>` elements from one template and a number range:
 {
   "mapping": "none",
   "variables": {
-    "texture_primary_poster{index}": {
-      "index": { "start": -3, "end": 6 },
+    "texture_primary_poster{range}": {
+      "range": { "start": -3, "end": 6 },
       "values": [
-        { "condition": "!String.IsEmpty(ListItemNoWrap({index}).Art(keyart)) + $EXP[art_keyart_visible]",
-          "value": "$INFO[ListItem({index}).Art(keyart)]" },
-        { "condition": "!String.IsEmpty(ListItemNoWrap({index}).Art(poster))",
-          "value": "$INFO[ListItem({index}).Art(poster)]" }
+        { "condition": "!String.IsEmpty(ListItemNoWrap({range}).Art(keyart)) + $EXP[art_keyart_visible]",
+          "value": "$INFO[ListItem({range}).Art(keyart)]" },
+        { "condition": "!String.IsEmpty(ListItemNoWrap({range}).Art(poster))",
+          "value": "$INFO[ListItem({range}).Art(poster)]" }
       ]
     }
   }
