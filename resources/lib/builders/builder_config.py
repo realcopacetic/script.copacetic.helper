@@ -37,7 +37,7 @@ BUILDER_CONFIG = {
         "write_handler": XMLHandler,
         "write_kwargs": {
             "root_tag": "includes",
-            "transform_func": XMLHandler._complex_dict_to_xml,
+            "transform_func": sort_outer_keys(XMLHandler._complex_dict_to_xml),
         },
     },
     "expressions": {
