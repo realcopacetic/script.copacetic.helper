@@ -71,28 +71,70 @@ class BuildElements:
 
     def _process_builders(self):
         """
-        Run each selected builder against its inputs.
+        Run each selected builder against its inputs, partitioning template
+        elements by their effective mapping (``templates_from`` override).
 
         :return: Dict of {builder_name: {key: value}}.
         """
         values_to_write = {}
         for mapping_name, items_data in self._merged_inputs():
-            mapping_values = self.all_mappings.get(mapping_name, {})
             for builder, builder_elements in (items_data or {}).items():
                 builder_info = BUILDER_CONFIG.get(builder)
                 if not builder_info or not builder_info["module"]:
                     continue
-                builder_instance = builder_info["module"](
-                    mapping_name, mapping_values, self.runtime_manager
-                )
-                processed = {
-                    k: v
-                    for key, value in builder_elements.items()
-                    for d in builder_instance.process_elements(key, value)
-                    for k, v in d.items()
-                }
-                values_to_write.setdefault(builder, {}).update(processed)
+                partitioned = self._partition_by_mapping(mapping_name, builder_elements)
+                target = values_to_write.setdefault(builder, {})
+                for effective, elements in partitioned.items():
+                    builder_instance = builder_info["module"](
+                        effective,
+                        self.all_mappings.get(effective, {}),
+                        self.runtime_manager,
+                        registry=self.all_mappings,
+                    )
+                    processed = {
+                        k: v
+                        for key, value in elements.items()
+                        for d in builder_instance.process_elements(key, value)
+                        for k, v in d.items()
+                    }
+                    self._merge_processed(target, processed, builder)
         return values_to_write
+
+    @staticmethod
+    def _partition_by_mapping(default_mapping, elements):
+        """
+        Group template elements by effective mapping. ``templates_from``
+        accepts a mapping name or a list (one expansion per listed mapping).
+
+        :param default_mapping: The input file's declared mapping.
+        :param elements: {template_name: template_data} for one file group.
+        :return: {mapping_name: {template_name: template_data}}.
+        """
+        grouped: dict[str, dict] = {}
+        for name, data in elements.items():
+            declared = data.get("templates_from") or default_mapping
+            targets = [declared] if isinstance(declared, str) else declared
+            for mapping in targets:
+                grouped.setdefault(mapping, {})[name] = data
+        return grouped
+
+    @staticmethod
+    def _merge_processed(target, processed, builder):
+        """
+        Merge builder output, warning on same-name collisions with
+        differing values (Kodi resolves first-wins; the build is last-wins).
+
+        :param target: Accumulated output dict for this builder, mutated.
+        :param processed: New output to merge in.
+        :param builder: Builder name for the log line.
+        """
+        for key, value in processed.items():
+            if key in target and target[key] != value:
+                log.warning(
+                    f"BuildElements → duplicate {builder} output '{key}' "
+                    f"overwritten — disambiguate names via tokens"
+                )
+            target[key] = value
 
     @log.duration
     def run(self):

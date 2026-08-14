@@ -68,6 +68,18 @@ Unresolvable tokens are left as-is on purpose, so they're visible instead of sil
 
 ---
 
+## "A whole family of variables vanished after I touched a mapping"
+
+A filter on those templates is failing every pass — usually a condition that's well-formed but always false: a typo'd operator (`!equals`), a token that rendered to something the rule never matches, an `In(...)` list that isn't bracketed. The engine doesn't log these. Diff the generated output against the last good build; the missing names tell you which template's filter to check. (An unresolved `{placeholder}` in a filter is the one case that *does* stop the build, naming the template.)
+
+---
+
+## "The build stops with an unknown mapping / item / field error"
+
+`items_from`, `templates_from`, and `{@mapping:item.field}` references are checked loudly — a name that doesn't resolve stops the build with a message naming the reference. Check: the mapping file exists and its top-level key matches the name used; for foreign references, the item and field exist in that mapping's `metadata` and the field is a string. If you renamed or deleted a mapping, grep the templates for borrowers before rebuilding — and delete the resolver cache so the editor doesn't keep serving the old shape.
+
+---
+
 ## "A param vanished from my include output"
 
 Its value resolved to empty, and empty means dropped — that's the pruning rule, so your include's `$PARAM` defaults apply. If the param should have had a value, the entry or metadata doesn't actually contain it.

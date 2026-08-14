@@ -402,16 +402,23 @@ class XMLDictConverter:
         for element in container.findall(self.element_tag):
             template_dict = {}
 
-            mode_elem = element.find("mode")
             index_elem = element.find("index")
             items_elem = element.find("items")
             filter_elem = element.find("filter")
 
-            if mode_elem is not None:
-                template_dict["mode"] = mode_elem.text.strip()
-
             if filter_elem is not None:
                 template_dict["filter"] = filter_elem.text.strip()
+
+            from_elem = element.find("templates_from")
+            if from_elem is not None:
+                raw = from_elem.text.strip()
+                template_dict["templates_from"] = (
+                    [m.strip() for m in raw.split(",")] if "," in raw else raw
+                )
+
+            items_from_elem = element.find("items_from")
+            if items_from_elem is not None:
+                template_dict["items_from"] = items_from_elem.text.strip()
 
             if index_elem is not None:
                 template_dict["index"] = {

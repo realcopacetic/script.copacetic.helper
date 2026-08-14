@@ -32,6 +32,8 @@ The addon ships one built-in mapping (`content_types`). Your own go in `extras/t
 | `default_order` | No | Which items get entries when the settings file is first created, in order. Defaults to all of `items`. |
 | `config_fields` | No | Which settings entries have, and which config governs each — see below |
 | `metadata` | No | Facts about each item, usable as `{tokens}` |
+| `tokens` | No | Shared snippets for templates that borrow this mapping via `templates_from` — see below |
+| `runtime_fields` | No | Which fields are stored on entries without the item-name prefix — `{"*": [...], "<item>": [...]}`, per-item lists unioned with the wildcard. Unset = every runtime field keeps the prefix. |
 | `parent_mapping` | No | Which mapping's entries own this one's (the hub pattern — [Includes → Hubs](07-includes.md#hubs-each-parent-owns-its-own-children)) |
 | `skin_mirrors` | No | Field → skin-setting pairs kept in sync so skin XML can read a runtime value — see below |
 
@@ -83,6 +85,39 @@ This is what lets one includes template produce different output per item — ea
 The `custom` preset is nearly empty on purpose. The user fills in `content` and `label` through the editor.
 
 **Strings vs everything else.** Only string values can end up on settings-file entries and be edited. Dicts, lists, and numbers stay in the mapping — the builders can still use them (an `xsp` smart-playlist dict becomes the `{xsp}` token, for example), but they never appear in the settings file. So: user-editable → make it a string, even if just `""`.
+
+---
+
+## `tokens` — shared snippets for borrowing templates
+
+Where `metadata` attaches facts to *items*, `tokens` attaches them to the *mapping itself* — one set of text snippets that any template borrowing this mapping via [`templates_from`](03-variables.md#templates_from--one-template-several-mappings) gets filled in.
+
+Use them when two mappings need the same template but speak different Kodi grammar. Widgets and search both have focus and paging — but the conditions differ:
+
+```json
+"widgets": {
+  "tokens": {
+    "scope": "widgets",
+    "scope_filter": "In({widget_preset}, [drilldown, group])",
+    "focus": "Control.HasFocus({index}) | Control.HasFocus({index}0)",
+    "onnext": "Container({index}).OnNext | Container({index}0).OnNext"
+  }
+}
+```
+
+A template that writes `{focus}` gets the right grammar for whichever mapping it's expanding for. Tokens can contain other placeholders (`{index}` here) — those resolve on each loop pass as usual.
+
+Tokens are rendered against each pass before they're added to it, so anything they contain resolves per pass — including `{@mapping:{item}.field}` reaches. The widgets mapping reads its slot count from the views mapping this way: `"slot_range": "{@views:{layout}.slot_range}"`, filled per entry from that entry's `layout`. They sit *under* the pass's own values: an item's metadata or an entry field of the same name wins over a token.
+
+**Standing in for another mapping's placeholder.** A token named after a placeholder the template expects — but this mapping's passes don't supply — fills it. The `views` mapping declares `"region": "primary"` as a token; any `…_{region}` template borrowed by views then expands all eight view containers under the single name `…_primary`, and an `append` rule ORs them into one rollup. That's how `container_hasfocus_primary` is `Control.HasFocus(50) | … | Control.HasFocus(57)` from the same template that gives secondary and each widget their own expression.
+
+**Splice fields.** Metadata is plain text, so a field can carry a fragment meant for concatenation — `"visible_extra": " + !Container.Content(genres)"` on the list view, `""` on the rest — and the template writes `{hasfocus}{visible_extra}`. Leading operator and space live in the field; empty means nothing added.
+
+**Documenting a template.** Builders ignore keys they don't know, so a `"note"` string on a template is the place to record why a rule is shaped the way it is.
+
+**Safe to drop anywhere in a condition.** A token whose value contains a top-level `|` or `+` is automatically wrapped in `[...]` when substituted, so `!{focus}` or `{focus} + {onnext}` can't change meaning through operator precedence. Already-bracketed values pass through untouched.
+
+**tokens vs metadata:** tokens vary by *mapping* ("how widgets talk" vs "how search talks"); metadata keys vary by *item* ("what next_up knows"). A borrowing template sees the mapping's tokens; an item's loop pass sees that item's metadata. Both are just `{placeholders}` by the time your template uses them.
 
 ---
 
@@ -163,6 +198,8 @@ Every builder input file names its mapping at the top:
 Spread one mapping's inputs across as many files as you like — they all share the same loop values.
 
 `"mapping": "none"` (or leaving it out) means no loop values — for templates that only need an `{index}` range.
+
+**Token fallback across entries.** When a label, description, or onclick token isn't on the highlighted entry, it falls back to the first *other* entry in the same mapping that has it (the highlighted entry always wins on collision). Handy for mappings where each entry carries different fields — a button on one row can read a flag stored on another. Editor-side only: build templates never fall back across entries, so a `{token}` in an includes or variables template still needs to exist on the entry being expanded.
 
 ---
 

@@ -1,11 +1,15 @@
 # author: realcopacetic
 
-import math
-import time
-from typing import Any, Callable, Collection, Iterable, Mapping
+from __future__ import annotations
 
+import io
+import time
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, Callable, Collection, Iterable, Mapping
+
+import xbmcvfs
 from xbmc import Monitor
-from xbmcgui import Window, getCurrentWindowId, getCurrentWindowDialogId
+from xbmcgui import Window, getCurrentWindowDialogId, getCurrentWindowId
 
 from resources.lib.plugin.geometry import (
     PlacementOpts,
@@ -15,7 +19,9 @@ from resources.lib.plugin.geometry import (
     compute_rect,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.text import DEFAULT_ABBREV, sentence_cap
+from resources.lib.shared.hash import HashManager
+from resources.lib.shared.sqlite import TruncateCacheHandler
+from resources.lib.shared.text import fit_lines
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -26,6 +32,12 @@ from resources.lib.shared.utilities import (
     to_int,
     url_encode,
 )
+
+if TYPE_CHECKING:
+    from PIL import ImageFont
+
+# Bump when fit_lines/wrap_text change so stale clamp results are superseded.
+_CLAMP_VERSION = "1"
 
 
 def reposition_control(
@@ -476,250 +488,79 @@ class ProgressBarManager:
         )
 
 
-class TextTruncator:
+@lru_cache(maxsize=8)
+def _load_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont | None:
+    """Load a font via direct path, falling back to a VFS read for
+    resource:// and other non-filesystem paths.
 
-    def __init__(
-        self,
-        measure_ctrl_id: int,
-        sleep_ms: int = 6,
-        confirm_ms: int = 3,
-        safety_chars: int = 3,
-        ellipsis: str = "...",
-        abbrev_set: set[str] | None = None,
-    ) -> None:
-        """
-        Configure a truncator that probes a hidden measuring TextBox.
-        Timing, punctuation safety and abbreviation rules are customizable.
+    :param font_path: special://, resource://, or absolute font path.
+    :param font_size: Font size in skin-coordinate pixels.
+    :return: Loaded font, or None if unreadable.
+    """
+    t0 = time.perf_counter()
+    from PIL import ImageFont
 
-        :param measure_ctrl_id: ID of the TextBox control used to detect overflow.
-        :param sleep_ms: Delay (ms) before each overflow check to let layout settle.
-        :param confirm_ms: Extra delay (ms) for a second "fits" confirmation.
-        :param safety_chars: Conservative backoff (chars) from the probe index.
-        :param ellipsis: Ellipsis string to append to truncated output.
-        :param abbrev_set: Lowercased abbreviations to suppress sentence caps.
-        """
-        self.measure_ctrl_id = int(measure_ctrl_id or 0)
-        self.window = Window(getCurrentWindowId())
-        self.sleep_ms = int(sleep_ms)
-        self.monitor = Monitor()
-        self.confirm_ms = int(confirm_ms)
-        self.safety_chars = int(safety_chars)
-        self.ellipsis = ellipsis
-        self.abbrev = abbrev_set or DEFAULT_ABBREV
-        self._last_len = 0
+    log.debug(f"_load_font → PIL import {(time.perf_counter() - t0) * 1000:.0f}ms")
+    try:
+        return ImageFont.truetype(xbmcvfs.translatePath(font_path), font_size)
+    except OSError:
+        pass
+    handle = xbmcvfs.File(font_path)
+    try:
+        data = handle.readBytes()
+    finally:
+        handle.close()
+    if not data:
+        log.warning(f"_load_font → unreadable: {font_path}")
+        return None
+    try:
+        return ImageFont.truetype(io.BytesIO(data), font_size)
+    except OSError:
+        log.warning(f"_load_font → not a valid font: {font_path}")
+        return None
 
-    def truncate(
-        self, text: str, min_safe: int | None = None, smart_cap: bool = False
-    ) -> str:
-        """
-        Return the longest prefix that fits the measuring control.
-        Uses coarse refinement around min_safe or bounded binary search.
 
-        :param text: Full input string to measure and truncate.
-        :param min_safe: Seed character count known to usually fit (optional).
-        :param smart_cap: If True, prefer ending at a full sentence boundary.
-        :return: Truncated string (or original if already fits).
-        """
-        if not text or not self.measure_ctrl_id:
-            return ""
-        ctrl = self._get_ctrl()
-        if ctrl is None:
-            return text
+def clamp_text(
+    *,
+    text: str,
+    font_path: str,
+    font_size: int,
+    max_width: int,
+    max_lines: int,
+) -> str:
+    """Clamp text to max_lines when wrapped at max_width with the given font.
+    Metric-only: measures glyph advances via FreeType, no GUI roundtrips.
 
-        self._probes = 0
-        cond_str = f"Container({self.measure_ctrl_id}).HasNext"
-
-        # quick path: whole text fits
-        self._set_and_probe(ctrl, text)
-        if self._fits(cond_str):
-            log.debug(f"Trunc: probes={self._probes} mode='fits' final_len={len(text)}")
-            return text
-
-        base = text.rstrip()
-        if base.endswith(self.ellipsis):
-            base = base[: -len(self.ellipsis)].rstrip()
-        n = len(base)
-
-        if min_safe and min_safe > 0:
-            out = self._refine_coarse(ctrl, cond_str, base, min_safe=min_safe, n=n)
-        else:
-            out = self._search_bounded(ctrl, cond_str, base, n=n)
-
-        mode = "coarse" if (min_safe and min_safe > 0) else "binary"
-        delta = self._last_len - (min_safe or 0)
-        log.debug(
-            f"Trunc: probes={self._probes} "
-            f"{mode=} "
-            f"{min_safe or 0=} "
-            f"final_len={self._last_len} "
-            f"{delta=}"
-        )
-
-        return self._smart_sentence_cap(out, min_safe) if smart_cap else out
-
-    def _set_and_probe(self, ctrl, text: str) -> None:
-        """
-        Set TextBox text and count it as a measurement probe.
-        Used to track UI roundtrips for diagnostics.
-
-        :param ctrl: Measuring TextBox control instance.
-        :param text: Candidate string to set into the control.
-        """
-        ctrl.setText(text)
-        self._probes += 1
-
-    def _get_ctrl(self):
-        """
-        Fetch and return the measuring TextBox control.
-        Handles failures gracefully with a log.
-
-        :return: Control instance or None if not found.
-        """
-        try:
-            return self.window.getControl(self.measure_ctrl_id)
-        except Exception:
-            log.debug(
-                f"{self.__class__.__name__} → measure control {self.measure_ctrl_id} not found"
+    :param text: Full input string.
+    :param font_path: special://, resource://, or absolute font path.
+    :param font_size: Font size in skin-coordinate pixels.
+    :param max_width: Wrap width in skin-coordinate pixels.
+    :param max_lines: Maximum rendered lines to keep.
+    :return: Single unwrapped string; Kodi re-wraps it at render time.
+    """
+    cache = TruncateCacheHandler()
+    key = HashManager.short_hash_str(
+        "|".join(
+            (
+                _CLAMP_VERSION,
+                font_path,
+                str(font_size),
+                str(max_width),
+                str(max_lines),
+                text,
             )
-            return None
+        ),
+        length=16,
+    )
+    if (cached := cache.get_entry(key)) is not None:
+        return cached
 
-    def _fits(self, cond_str: str) -> bool:
-        """
-        Check if the current TextBox content fits (no overflow).
-        Applies a short sleep and a confirm pass to avoid stale reads.
-
-        :param cond_str: Boolean condition string (e.g. "Container(id).HasNext").
-        :return: True if fits, False if overflowing.
-        """
-        # "double-check on fits" to avoid stale false negatives
-        if self.monitor.waitForAbort(self.sleep_ms / 1000):
-            return False
-        if condition(cond_str):
-            return False
-        if self.monitor.waitForAbort(self.confirm_ms / 1000):
-            return False
-        return not condition(cond_str)
-
-    def _slice(self, src: str, upto: int) -> str:
-        """
-        Produce a safe ellipsized slice near 'upto'.
-        Prefers word boundary, trims trailing punctuation, then appends ellipsis.
-
-        :param src: Source text to slice from.
-        :param upto: Target cut index before safety backoff is applied.
-        :return: Candidate string with ellipsis (or original if short).
-        """
-        upto = max(0, upto - self.safety_chars)
-        if upto >= len(src):
-            return src
-        cut = src.rfind(" ", 0, max(1, upto))  # prefer word boundary
-        if cut == -1:
-            cut = upto
-        stem = src[:cut].rstrip()
-        # tidy trailing punctuation → avoid ", …" or "….", etc.
-        stem = stem.rstrip(".,;:!?…-–—")
-        stem = stem.rstrip("\"')]}»”’")
-        return stem + self.ellipsis
-
-    @log.duration
-    def _refine_coarse(
-        self, ctrl, cond_str: str, base: str, *, min_safe: int, n: int
-    ) -> str:
-        """
-        Refine around a known-safe seed length using ladder steps.
-        Grows then shrinks in coarse steps to converge quickly.
-
-        :param ctrl: Measuring TextBox control instance.
-        :param cond_str: Boolean condition string for overflow checks.
-        :param base: Preprocessed text (no trailing ellipsis/whitespace).
-        :param min_safe: Seed length assumed to be close to the limit.
-        :param n: Total length of the base string.
-        :return: Best-fitting candidate discovered near the seed.
-        """
-        guess = max(1, min(min_safe, n))
-        steps = (30, 12, 6)
-
-        cand = self._slice(base, guess)
-        self._set_and_probe(ctrl, cand)
-        if self._fits(cond_str):
-            best, cur = cand, guess
-            # grow ladder
-            for step in steps:
-                while True:
-                    nxt = min(n, cur + step)
-                    if nxt == cur:
-                        break
-                    cand = self._slice(base, nxt)
-                    self._set_and_probe(ctrl, cand)
-                    if self._fits(cond_str):
-                        best, cur = cand, nxt
-                    else:
-                        break
-            self._last_len = len(best)
-            return best
-
-        # shrink ladder
-        best, cur = "", guess
-        for step in steps:
-            while True:
-                nxt = max(1, cur - step)
-                if nxt == cur:
-                    break
-                cand = self._slice(base, nxt)
-                self._set_and_probe(ctrl, cand)
-                if self._fits(cond_str):
-                    best, cur = cand, nxt
-                    break
-                cur = nxt
-        return best or self._slice(base, max(1, guess // 2))
-
-    @log.duration
-    def _search_bounded(self, ctrl, cond_str: str, base: str, *, n: int) -> str:
-        """
-        Find the fit point with a bounded binary search.
-        Searches [0..n) with conservative iteration caps.
-
-        :param ctrl: Measuring TextBox control instance.
-        :param cond_str: Boolean condition string for overflow checks.
-        :param base: Preprocessed text (no trailing ellipsis/whitespace).
-        :param n: Total length of the base string.
-        :return: Best-fitting candidate or a minimal fallback.
-        """
-        max_iters = min(15, math.ceil(math.log2(max(2, n))) + 1)
-        lo, hi, best, iters = 0, n, "", 0
-        while lo < hi and iters < max_iters:
-            iters += 1
-            mid = (lo + hi) // 2
-            cand = self._slice(base, mid)
-            self._set_and_probe(ctrl, cand)
-            if self._fits(cond_str):
-                best, lo = cand, mid + 1
-            else:
-                hi = mid
-        if not best:
-            best = self._slice(base, 1)
-        self._last_len = len(best)
-        return best
-
-    def _smart_sentence_cap(self, s: str, min_safe: int | None = None) -> str:
-        """
-        Prefer cutting at the last full sentence within the candidate.
-        Skips common abbreviations and requires next-token capitalization.
-
-        :param s: Candidate result (possibly ending with an ellipsis).
-        :param min_safe: Optional seed used to gate very short strings.
-        :return: Sentence-capped string (with/without ellipsis as appropriate).
-        """
-        if len(s) < max(60, (min_safe // 2) if min_safe else 0):
-            return s
-
-        # Work on the core without ellipsis; we’ll re-append later.
-        core = s[: -len(self.ellipsis)].rstrip() if s.endswith(self.ellipsis) else s
-
-        # Scan for sentence-ending punctuation.
-        # Examine matches of [.!?]\s+ and post-validate.
-        capped = sentence_cap(core, self.abbrev)
-        return capped if capped is not None else s
+    font = _load_font(font_path, font_size)
+    if font is None:
+        return text
+    result = " ".join(fit_lines(font, text, max_width, max_lines))
+    cache.upsert_entry(key, result)
+    return result
 
 
 class TypewriterAnimation:

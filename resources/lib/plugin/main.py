@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import sys
+import time
 
 import xbmcplugin
 
@@ -18,7 +19,8 @@ class Main:
     back to Kodi using xbmcplugin.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, t0: float | None = None) -> None:
+        self._t0 = t0
         self._parse_argv()
         self.info = self.params.get("info")
         if self.info:
@@ -44,7 +46,10 @@ class Main:
             log.debug(f"Ignoring unknown info: {self.info}")
             return
 
-        log.debug(f"{LOG_TAG} initialized with params: {self.params}")
+        imports_ms = (time.perf_counter() - self._t0) * 1000 if self._t0 else -1
+        log.debug(
+            f"{LOG_TAG} initialized ({imports_ms:.0f}ms imports) with params: {self.params}"
+        )
         items = fn()
         if not isinstance(items, (list, tuple)):
             items = []

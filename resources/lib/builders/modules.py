@@ -7,17 +7,30 @@ from typing import Any
 from urllib.parse import quote
 
 from resources.lib.builders.logic import RuleEngine
-from resources.lib.builders.substitution import enumerate_mapping_subs, inject_metadata
+from resources.lib.builders.substitution import (
+    TokenError,
+    enumerate_mapping_subs,
+    inject_metadata,
+    render,
+    token_words,
+)
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import evaluate_expression, expand_index
+from resources.lib.shared.utilities import expand_index
 
-PLACEHOLDER_PATTERN = re.compile(r"{(.*?)}")
 # Tokens Kodi's CGUIInfoLabel::Parse matches literally ($INFO/$ESCINFO/
 # $VAR/$ESCVAR) — must survive URL-encoding to resolve at runtime.
 XSP_LITERAL_PATTERN = re.compile(r"\$(?:ESC)?(?:INFO|VAR)\[[^\]]*\]")
 # Escaped variants supply their own quotes via CInfoPortion::Get (Paramify),
 # so the JSON string quotes around them must be stripped post-encoding.
 XSP_ESC_QUOTES_PATTERN = re.compile(r"%22(\$ESC(?:INFO|VAR)\[[^\]]*\])%22")
+
+_TRUE_LEAD = re.compile(r"(^|\[)true \+ ")
+
+
+def elide_true(condition: str) -> str:
+    """Strip identity ``true`` conjuncts from a rendered Kodi condition."""
+    stripped = _TRUE_LEAD.sub(r"\1", condition)
+    return "" if stripped == "true" else stripped
 
 
 class BaseBuilder:
@@ -26,22 +39,31 @@ class BaseBuilder:
     Used by all specialized builder types to generate template values.
     """
 
-    def __init__(self, mapping_name, mapping_values, runtime_manager=None):
+    def __init__(
+        self, mapping_name, mapping_values, runtime_manager=None, registry=None
+    ):
         """
         Initialise the builder with the mapping it operates on.
 
         :param mapping_name: Name of the mapping driving this builder.
         :param mapping_values: Mapping definition (items, placeholders, metadata).
         :param runtime_manager: Runtime state manager for dynamic-mode lookups.
+        :param registry: Read-only whole-mapping registry for foreign references.
         """
+
         self.mapping_name = mapping_name
-        self.mapping_values = mapping_values
         self.loop_values = mapping_values.get("items")
         self.placeholders = mapping_values.get("placeholders", {})
-        self.metadata = mapping_values.get("metadata", {})
+        self.metadata = {
+            item: dict(fields)
+            for item, fields in mapping_values.get("metadata", {}).items()
+        }
+        self.mapping_values = {**mapping_values, "metadata": self.metadata}
         self.runtime_manager = runtime_manager
+        self.registry = registry
         self.rules = RuleEngine()
         self.group_map = {}
+        self._prepare_xsp_urls()
 
     def process_elements(self, element_name, element_data):
         """
@@ -80,6 +102,19 @@ class BaseBuilder:
                     {**sub, "index": str(index_start + i)}
                     for i, sub in enumerate(substitutions)
                 ]
+        if mapping_tokens := self.mapping_values.get("tokens"):
+            substitutions = [
+                {
+                    **{
+                        key: self._delimit(
+                            self.substitute_loud(value, sub, f"token '{key}'")
+                        )
+                        for key, value in mapping_tokens.items()
+                    },
+                    **sub,
+                }
+                for sub in substitutions
+            ]
 
         if template_range_data:
             substitutions = [
@@ -88,6 +123,10 @@ class BaseBuilder:
                 for r in expand_index(template_range_data)
             ]
 
+        if items_from := element_data.get("items_from"):
+            substitutions = self._cross_foreign_roster(
+                substitutions, items_from, element_name
+            )
         if template_items:
             substitutions = [
                 {**sub, "item": str(item)}
@@ -96,11 +135,19 @@ class BaseBuilder:
             ]
 
         if filter_expr := element_data.get("filter"):
-            substitutions = [
-                sub
-                for sub in substitutions
-                if self.rules.evaluate(self.substitute(filter_expr, sub))
-            ]
+            kept = []
+            for sub in substitutions:
+                rendered = self.substitute_loud(
+                    filter_expr, sub, f"filter of '{element_name}'"
+                )
+                if "{" in rendered:
+                    raise TokenError(
+                        f"filter of '{element_name}' did not fully resolve: "
+                        f"'{rendered}' (mapping '{self.mapping_name}')"
+                    )
+                if self.rules.evaluate(rendered):
+                    kept.append(sub)
+            substitutions = kept
 
         self._add_loop_position_flags(substitutions)
 
@@ -110,6 +157,26 @@ class BaseBuilder:
                 element_name, element_data, substitutions
             ).items()
         )
+
+    @staticmethod
+    def _delimit(value: str) -> str:
+        """
+        Encapsulate condition-like token values in ``[]`` when a boolean
+        operator sits at bracket depth zero, mirroring Kodi's own wrapping
+        of skin ``<expression>`` bodies (GUIIncludes.cpp).
+
+        :param value: Raw token value from the mapping.
+        :return: Value, wrapped if it needs self-delimiting.
+        """
+        depth = 0
+        for ch in value:
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+            elif ch in "|+" and depth == 0:
+                return f"[{value}]"
+        return value
 
     def generate_runtimejson_substitutions(self, runtime_items, index_start):
         """
@@ -158,7 +225,6 @@ class BaseBuilder:
         )
         if composed := self.compose_xsp(mapping_item, resolved):
             sub["xsp"] = composed
-        sub.pop("xsp_gated", None)
         return sub
 
     def encode_xsp(self, xsp: dict) -> str:
@@ -181,18 +247,34 @@ class BaseBuilder:
         encoded = XSP_ESC_QUOTES_PATTERN.sub(r"\1", encoded)
         return f"?xsp={encoded}"
 
+    @staticmethod
+    def _xsp_is_gated(spec) -> bool:
+        """
+        True when an xsp spec dict carries any rule with a ``gate`` field,
+        meaning it composes per-entry at runtime rather than encoding at
+        build time.
+
+        :param spec: Candidate xsp spec.
+        :return: True for gated dict specs.
+        """
+        if not isinstance(spec, dict):
+            return False
+        rules = next(iter(spec.get("rules", {}).values()), [])
+        return any("gate" in rule for rule in rules)
+
     def compose_xsp(self, item: str, fields: dict) -> str | None:
         """
-        Compose an entry's xsp from its metadata ``xsp_gated`` spec: a
-        real xsp dict whose rules may carry a ``gate`` key naming the
-        entry field that must read true for the rule to be included.
+        Compose an entry's xsp from a gated metadata ``xsp`` spec: a real
+        xsp dict whose rules carry ``gate`` keys naming the entry fields
+        that must read true for those rules to be included. Plain (ungated)
+        specs return None and pass through untouched.
 
         :param item: Mapping_item whose metadata carries the spec.
         :param fields: Resolved entry fields gating the optional rules.
         :return: ``?xsp=`` query string, or None when no spec is declared.
         """
-        spec = self.metadata.get(item, {}).get("xsp_gated")
-        if not spec:
+        spec = self.metadata.get(item, {}).get("xsp")
+        if not self._xsp_is_gated(spec):
             return None
         combinator, rules = next(iter(spec["rules"].items()))
         kept = [
@@ -202,13 +284,65 @@ class BaseBuilder:
         ]
         return self.encode_xsp({**spec, "rules": {combinator: kept}})
 
+    def _prepare_xsp_urls(self):
+        """
+        Encode static XSP dictionaries in the builder-local metadata copy
+        into ``?xsp=`` query strings, preserving infolabel and variable
+        tokens. Gated specs are left as dicts for per-entry composition.
+        The shared registry is never touched.
+        """
+
+        for meta in self.metadata.values():
+            if "xsp" in meta and not self._xsp_is_gated(meta["xsp"]):
+                meta["xsp"] = self.encode_xsp(meta["xsp"])
+
+    def _cross_foreign_roster(self, substitutions, foreign_name, element_name):
+        """
+        Cross-multiply substitutions with a foreign mapping's item roster,
+        injected under the foreign mapping's own placeholder names.
+
+        :param substitutions: Current substitution dicts.
+        :param foreign_name: Foreign mapping whose items form the axis.
+        :param element_name: Template name for error context.
+        :return: Cross-multiplied substitution dicts.
+        """
+        if not self.registry or foreign_name not in self.registry:
+            raise TokenError(
+                f"items_from '{foreign_name}' unknown (template '{element_name}')"
+            )
+        foreign = self.registry[foreign_name]
+        placeholders = foreign.get("placeholders", {})
+        key_name = placeholders.get("key")
+        value_name = placeholders.get("value")
+        roster = foreign.get("items") or []
+        if not key_name:
+            raise TokenError(
+                f"items_from '{foreign_name}' declares no key placeholder "
+                f"(template '{element_name}')"
+            )
+        if isinstance(roster, dict):
+            if not value_name:
+                raise TokenError(
+                    f"items_from '{foreign_name}' has a dict roster but no "
+                    f"value placeholder (template '{element_name}')"
+                )
+            pairs = [
+                {key_name: outer, value_name: inner}
+                for outer, inners in roster.items()
+                for inner in inners
+            ]
+        else:
+            pairs = [{key_name: item} for item in roster]
+        return [{**sub, **pair} for sub in substitutions for pair in pairs]
+
     def _group_substitutions(self, template_name, substitutions):
         """
         Group substitutions by their expanded template name.
 
         When every substitution has been filtered out, a template whose
-        name contains no placeholder still yields one empty group — so a
-        constant-named element is emitted even with nothing to expand.
+        name resolves without any per-item placeholder (literal, or only
+        mapping-level tokens) still yields one empty group — so a
+        hand-referenced element is emitted even with nothing to expand.
 
         :param template_name: Template name, possibly with placeholders.
         :param substitutions: List of substitution dicts (may be empty).
@@ -216,70 +350,62 @@ class BaseBuilder:
         """
         grouped = defaultdict(list)
         for sub in substitutions:
-            key = template_name.format(**sub)
+            key = self.substitute_loud(template_name, sub, f"name '{template_name}'")
             grouped[key].append(sub)
             self.group_map[key] = sub
-        if not grouped and "{" not in template_name:
-            grouped[template_name] = []
+        if not grouped and (name := self._token_only_name(template_name)):
+            grouped[name] = []
         return grouped
 
-    def _resolve_placeholder(
-        self, match: re.Match, substitutions: dict[str, str]
-    ) -> str:
+    def _token_only_name(self, template_name: str) -> str | None:
         """
-        Resolve a single placeholder match against the substitution dict.
-        Falls back to numeric expression evaluation for arithmetic and min/max.
+        Render a name against mapping-level tokens alone.
 
-        :param match: Regex match object from PLACEHOLDER_PATTERN.
-        :param substitutions: Dict of key-value substitutions.
-        :return: Substituted value, or empty string if placeholder is unknown.
+        :param template_name: Template name, possibly with placeholders.
+        :return: Fully resolved name, or None if item placeholders remain.
         """
-        key = match.group(1)
-
-        if key in substitutions:
-            return substitutions[key]
-
-        result = evaluate_expression(key, substitutions)
-        if result is not None:
-            return result
-
-        return ""
+        tokens = self.mapping_values.get("tokens") or {}
+        constant = {k: v for k, v in tokens.items() if "{" not in v}
+        try:
+            name = self.substitute(template_name, constant)
+        except TokenError:
+            return None
+        return name if "{" not in name else None
 
     def substitute(self, template: str, substitutions: dict[str, str]) -> str:
         """
-        Substitute placeholders in a template string against a substitution dict.
+        Lenient value substitution: unknown tokens resolve to empty string.
 
         :param template: Template string with placeholders.
         :param substitutions: Dict of key-value substitutions.
         :return: Formatted string.
         """
-        if not substitutions or ("{" not in template):
-            return template
-
-        return PLACEHOLDER_PATTERN.sub(
-            lambda match: self._resolve_placeholder(match, substitutions),
+        return render(
             template,
+            substitutions,
+            mode="value",
+            registry=self.registry,
+            context=f" (mapping '{self.mapping_name}')",
         )
 
-    def _resolve_placeholder_strict(
-        self, match: re.Match, tokens: dict[str, str]
+    def substitute_loud(
+        self, template: str, substitutions: dict[str, str], what: str
     ) -> str:
         """
-        Like _resolve_placeholder but leaves unknown placeholders intact.
-        Used for pre-pass substitution of template-level tokens before the
-        per-item expansion runs.
+        Loud substitution for names and filters: unknown tokens raise.
 
-        :param match: Regex match object from PLACEHOLDER_PATTERN.
-        :param tokens: Dict of template-level token values.
-        :return: Substituted value; original ``{placeholder}`` if unresolved.
+        :param template: Template string with placeholders.
+        :param substitutions: Dict of key-value substitutions.
+        :param what: Caller description for the error message.
+        :return: Formatted string.
         """
-        key = match.group(1)
-        if key in tokens:
-            return tokens[key]
-        result = evaluate_expression(key, tokens)
-        if result is not None:
-            return result
-        return match.group(0)
+        return render(
+            template,
+            substitutions,
+            mode="name",
+            registry=self.registry,
+            context=f" in {what} (mapping '{self.mapping_name}')",
+        )
 
     def substitute_strict(self, template, tokens):
         """
@@ -292,10 +418,12 @@ class BaseBuilder:
         :return: Tree with template-level placeholders resolved.
         """
         if isinstance(template, str):
-            if "{" not in template:
-                return template
-            return PLACEHOLDER_PATTERN.sub(
-                lambda m: self._resolve_placeholder_strict(m, tokens), template
+            return render(
+                template,
+                tokens,
+                mode="leave",
+                registry=self.registry,
+                context=f" (mapping '{self.mapping_name}')",
             )
         if isinstance(template, list):
             return [self.substitute_strict(item, tokens) for item in template]
@@ -381,6 +509,7 @@ class ExpressionsBuilder(BaseBuilder):
                         continue
 
                 value = self.substitute(rule["value"], sub)
+                value = elide_true(value) or value
 
                 if rule["type"] == "assign":
                     return [value]  # short-circuit with override
@@ -460,10 +589,6 @@ class IncludesBuilder(BaseBuilder):
     Handles recursive multi-level expansions for dynamic XML generation.
     """
 
-    def __init__(self, mapping_name, mapping_values, runtime_manager=None):
-        super().__init__(mapping_name, mapping_values, runtime_manager)
-        self._prepare_xsp_urls()
-
     def group_and_expand(self, template_name, data, substitutions):
         """
         Groups substitutions by expanded template names and expands values.
@@ -518,11 +643,7 @@ class IncludesBuilder(BaseBuilder):
             if "{" not in data:
                 return False
             sub_keys = {key for sub in substitutions for key in sub}
-            for match in PLACEHOLDER_PATTERN.finditer(data):
-                tokens = re.findall(r"\b\w+\b", match.group(1))
-                if any(token in sub_keys for token in tokens):
-                    return True
-            return False
+            return any(word in sub_keys for word in token_words(data))
         return False
 
     def recursive_expand(self, data, substitutions):
@@ -565,16 +686,6 @@ class IncludesBuilder(BaseBuilder):
 
         return data
 
-    def _prepare_xsp_urls(self):
-        """
-        Encode static XSP dictionaries in metadata into ``?xsp=`` query
-        strings, preserving infolabel and variable tokens.
-        """
-
-        for meta in self.metadata.values():
-            if "xsp" in meta:
-                meta["xsp"] = self.encode_xsp(meta["xsp"])
-
     @staticmethod
     def _empty_include_shell(include_element: dict) -> dict:
         """
@@ -613,8 +724,8 @@ class VariablesBuilder(BaseBuilder):
         grouped = self._group_substitutions(template_name, substitutions)
         return {
             variable["name"]: variable["values"]
-            for subs in grouped.values()
-            for variable in self.resolve_values(template_name, subs, data)
+            for name, subs in grouped.items()
+            for variable in self.resolve_values(name, subs, data)
         }
 
     def _expand_cluster(
@@ -758,7 +869,7 @@ class VariablesBuilder(BaseBuilder):
         :return: Formatted value dict.
         """
         resolved = {"value": self.substitute(pair.get("value", ""), sub)}
-        condition = self.substitute(pair.get("condition", ""), sub)
+        condition = elide_true(self.substitute(pair.get("condition", ""), sub))
         if condition:
             resolved["condition"] = condition
         return resolved

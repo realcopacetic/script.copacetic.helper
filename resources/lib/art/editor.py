@@ -1,14 +1,15 @@
 # author: realcopacetic
 
-from typing import Any, Iterable, Mapping
+from __future__ import annotations
+
+import time
+from functools import cached_property
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
 import xbmcvfs
-from PIL import Image
 
 from resources.lib.art import policy
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
-from resources.lib.art.io import write_image
-from resources.lib.art.processor import ImageProcessor
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
@@ -21,6 +22,32 @@ from resources.lib.shared.utilities import (
     infolabel,
     validate_path,
 )
+
+if TYPE_CHECKING:
+    from PIL import Image
+
+    from resources.lib.art.processor import ImageProcessor
+
+PROCESS_SPEC: dict[str, dict[str, Any]] = {
+    "crop": {
+        "folder": CROPS,
+        "require": policy.ART_FIELDS_RESULT["crop"],
+    },
+    "blur": {
+        "folder": BLURS,
+        "match": policy.ART_FIELDS_INPUT["blur"],
+        "require": policy.ART_FIELDS_RESULT["blur"],
+    },
+    "analyze": {
+        "folder": None,
+        "require": policy.ART_FIELDS_RESULT["analyze"],
+    },
+    "darken": {
+        "folder": None,
+        "match": policy.ART_FIELDS_INPUT["darken"],
+        "require": policy.ART_FIELDS_RESULT["darken"],
+    },
+}
 
 
 class ImageEditor:
@@ -39,9 +66,20 @@ class ImageEditor:
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.temp_folder = self.cache_manager.temp_folder
         self.cfg = policy.ColorConfig()
-        self.processor = ImageProcessor(self.cfg)
         for folder in (BLURS, CROPS, TEMPS):
             create_dir(folder)
+
+    @cached_property
+    def processor(self) -> ImageProcessor:
+        """PIL-backed processor, built on first cache miss only."""
+        t0 = time.perf_counter()
+        from resources.lib.art.processor import ImageProcessor
+
+        log.debug(
+            f"{self.__class__.__name__} → PIL import "
+            f"{(time.perf_counter() - t0) * 1000:.0f}ms"
+        )
+        return ImageProcessor(self.cfg)
 
     def image_processor(
         self,
@@ -128,7 +166,7 @@ class ImageEditor:
             if not opts.enabled(process):
                 continue
 
-            spec = self.processor.PROCESS_SPEC[process]
+            spec = PROCESS_SPEC[process]
             require = spec.get("require")
             folder = spec.get("folder")
             expected = self._expected_from_spec(spec, opts=opts)
@@ -255,6 +293,8 @@ class ImageEditor:
         :param folder: Output folder name if this process writes files.
         :return: Delta dict of produced fields, or None on failure.
         """
+        from resources.lib.art.io import write_image
+
         processed_path = None
         image = None
         process_method = getattr(self.processor, process, None)
@@ -363,6 +403,8 @@ class ImageEditor:
         if url.lower().endswith(".svg"):
             log.debug(f"{self.__class__.__name__} → Skipping unsupported SVG → {url}")
             return None
+
+        from PIL import Image
 
         try:
             return Image.open(xbmcvfs.translatePath(url))

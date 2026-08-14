@@ -87,8 +87,12 @@ Templates use `{curly_brace}` tokens. The builder fills them in, once per loop p
 - `{index}` when the template declares an index range
 - `{count}`, `{is_first}`, `{is_last}` — total loop size and position, as `"true"`/`"false"` strings you can drop straight into Kodi conditions
 - Simple maths on numbers: `{index+2002}` — handy for derived control IDs
+- A borrowed mapping's `tokens`, when the template uses `templates_from` — see [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings)
+- `{@mapping:item.field}` — reach into *any* mapping's metadata directly, no loop required: `{@windows:{window}.window_is}` reads the `window_is` field from the windows item named by `{window}` (inner tokens fill first). Unknown mapping, item, or field stops the build loudly — a typo can't silently become an empty string.
 
 A token that can't be filled in is left as-is, so mistakes show up in the output instead of disappearing.
+
++**Who wins when names collide.** Each pass builds one dictionary of values, and lookups go: the pass's own values first — loop names, item metadata, entry fields (dynamic mode) — then the borrowed mapping's `tokens` underneath. A token never overrides something the pass already knows. Tokens are themselves rendered against the pass before they're added, so they can contain placeholders and `{@…}` reaches (`"slot_range": "{@views:{layout}.slot_range}"` on the widgets mapping fills from each entry's `layout`). `{@…}` values, by contrast, are looked up and pasted literally — anything inside them is *not* rendered again, so `"range": "{slot_range}"` on a borrowed item stays as those eleven characters. Rule of thumb: caller-dependent placeholders go in the caller's tokens, never in the borrowed field. And a token can stand in for a placeholder the template expects but the pass doesn't supply — see [Mappings → tokens](02-mappings.md#tokens--shared-snippets-for-borrowing-templates).
 
 ---
 

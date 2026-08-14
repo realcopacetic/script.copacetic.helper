@@ -65,6 +65,7 @@ JSON_PROPERTIES: dict[str, list[str]] = {
     ],
     "episode": [
         "title",
+        "genre",
         "plot",
         "votes",
         "rating",

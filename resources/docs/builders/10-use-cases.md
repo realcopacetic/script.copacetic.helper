@@ -243,3 +243,74 @@ Note `dependent_fields`: the art options react to the chosen layout ([Configs �
 ```
 
 The outer include appears once; the inner call multiplies — one per widget, each routed to your matching layout include (`ctn_strip`, `ctn_grid`, …). When the user closes the editor, this rebuilds and the skin reloads.
+
+---
+
+## 4. Regions — one cascade, per-item deltas
+
+**Builders:** variables + expressions. **Mappings:** `regions` (static), borrowed alongside `widgets`, `search`, `views`.
+
+The skin has several places that show "the current item": the media view (**primary**), the secondary strip (**secondary**), the home hub's widgets, and the search rails. They need the same cascades — which clearlogo, is the container updating, is the typewriter ready — but each one addresses its list differently. Writing four copies of every cascade is the maintenance trap `templates_from` exists for; the regions mapping is where the per-place differences live.
+
+### The mapping
+
+```json
+"regions": {
+  "mode": "static",
+  "items": [ "hub", "primary", "secondary" ],
+  "placeholders": { "key": "region" },
+  "tokens": {
+    "guard": "true",
+    "id_filter": "equals({region}, secondary)",
+    "texture_prefix": "{region}"
+  },
+  "metadata": {
+    "primary":   { "listitem": "ListItem",                 "onnext": "[Container.OnNext + Integer.IsGreater(Container.NumItems,1)] | $EXP[container_onnext_widgets]", "window": "videos" },
+    "secondary": { "listitem": "Container(3100).ListItem", "onnext": "Container(3100).OnNext + Integer.IsGreater(Container(3100).NumItems,1)", "hasfocus": "Control.HasFocus(3100) | Control.HasFocus(4100)", "updating": "Container(3100).IsUpdating" }
+  }
+}
+```
+
+Static: nothing stored, no editor. `tokens` are the mapping-wide defaults; `metadata` is what differs per region. The widgets and search mappings declare the *same token names* (`guard`, `listitem`, `onnext`, `updating`, …) with their own grammar — `Container({index}).ListItem`, `Control.HasFocus({index}) | $EXP[search_preview_{index}]` — so a template written against those names works for all of them.
+
+### One template, four families
+
+```json
+"container_updating_{region}": {
+  "templates_from": [ "regions", "widgets", "search", "views" ],
+  "index": { "start": 3200 },
+  "filter": "{id_filter}",
+  "rules": [ { "type": "append", "value": "{updating}" } ]
+}
+```
+
+What comes out:
+
+| Borrowed from | `{region}` is | Output |
+|---|---|---|
+| regions (secondary only, via `id_filter`) | the item name | `container_updating_secondary` = `Container(3100).IsUpdating` |
+| widgets | the token `"widgets"` | `container_updating_widgets` = one `[…]` per configured widget, ORed |
+| search | the token `"search"` | `container_updating_search` = one per rail, ORed |
+| views | the token `"primary"` | `container_updating_primary` = `Container(50).IsUpdating | … | Container(57).IsUpdating` |
+
+The last row is the trick worth learning: `views` sets `"region": "primary"` as a *token*, so all eight view containers land under one name and `append` rolls them up. Primary's rollup falls out of the same rule as everyone else's — no separate template.
+
+### The same for variables
+
+```json
+"art_clearlogo_{region}": {
+  "templates_from": [ "regions", "widgets", "search" ],
+  "index": { "start": 3200 },
+  "filter": "{region_filter}",
+  "values": [ [
+    { "condition": "{guard} + !String.IsEmpty({listitem}.Art(clearlogo))", "value": "$INFO[{listitem}.Art(clearlogo)]" },
+    { "condition": "{guard} + !String.IsEmpty({listitem}.Art(tvshow.clearlogo))", "value": "$INFO[{listitem}.Art(tvshow.clearlogo)]" }
+  ] ]
+}
+```
+
+For primary, `{guard}` is `true` and gets elided; for a widget it's the focus test, so each widget's rows only match while that widget has focus. `{listitem}` is bare `ListItem` for primary and `Container(3200).ListItem` for the first widget. One cascade, no copies.
+
+### When to use it
+
+Reach for a static mapping with `tokens` + `metadata` when the *deltas are per item* and the cascade is shared. If two places differ in **structure** — different rows, not different snippets — they're two templates. And keep the token vocabulary small and consistent across the borrowed mappings: a template only works where every name it uses is defined.

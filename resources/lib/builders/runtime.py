@@ -12,6 +12,7 @@ from xbmc import executebuiltin
 import uuid
 
 from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
+from resources.lib.builders.substitution import TokenError, render
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import condition, infolabel
@@ -233,8 +234,8 @@ class RuntimeStateManager:
                 ):
                     continue
                 try:
-                    template.format(**sub)
-                except KeyError:
+                    render(template, sub, mode="name", registry=self.mappings)
+                except TokenError:
                     continue
                 resolved[field] = self.configs.resolve_default(
                     mapping_key, template, sub

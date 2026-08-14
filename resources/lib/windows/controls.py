@@ -806,8 +806,7 @@ class RadioButtonHandler(BaseControlHandler):
         super().update_value()
         allowed = self._allowed_items()
         current = self._coerce_to_allowed()
-        first = allowed[0] if allowed else "true"
-        self.instance.setSelected(current == first)
+        self.instance.setSelected(current == "true")
         self.instance.setEnabled(len(allowed) > 1)
 
 

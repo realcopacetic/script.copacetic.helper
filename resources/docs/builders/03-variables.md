@@ -40,6 +40,8 @@ Ten variables out — `texture_primary_poster-3` through `...poster6` — each w
 | `index` | Numbers the loop passes: pass N gets `{index}` = `start` + N. Never multiplies — one value per existing pass. |
 | `range` | A numeric loop: `start`, `end`, optional `step`. Multiplies — every existing pass repeats once per value, available as `{range}`. |
 | `items` | An explicit list to loop over — each value becomes `{item}` |
+| `items_from` | Loop a *different* mapping's items instead of typing a list — see below |
+| `templates_from` | Stamp this template once per listed mapping, filling each one's `tokens` — see below |
 | `values` | The rows — `{condition, value}` dicts, or lists of them (blocks, below) |
 | `filter` | Skip loop passes at build time — see [Filtering](#filtering) |
 | `mode` | `"dynamic"` = loop the settings-file entries instead of the mapping's items |
@@ -158,9 +160,52 @@ This emits two variables — `label_breadcrumb_left_videos` and `texture_breadcr
 Details:
 
 - **The template name isn't a variable.** Only the `outputs` names are emitted. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
-- **Loop controls work here too.** `index`, `items`, `mode`, and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. `_primary_base_cluster` in `variables_textures.json` loops `items: [poster, fanart, square]` — each art type gets its own main/fallback pair from one cascade.
+- **Loop controls work here too.** `index`, `items`, `items_from`, `templates_from`, `mode`, and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. `_{texture_prefix}_base_cluster` in `variables_ladders.json` borrows regions, widgets and search *and* loops `items: [poster, fanart, square]` — every container gets a main/fallback pair per art type from one cascade.
 - **Sparse rows.** A row can feed some outputs and skip others — just leave the key off. That output's cascade simply doesn't have that row. Useful when one output's chain is a subset of another's.
 - **Blocks apply.** `rows` groups with `[...]` the same way `values` does.
+
+---
+
+## `items_from` — borrow another mapping's list
+
+`items` with a typed list is fine until the list already exists as a mapping. `items_from` names a mapping and loops its items instead — under that mapping's *own* placeholder names:
+
+```json
+"vue_grid_{grid_layout}_visible_{window}": {
+  "items_from": "grid",
+  "..."
+}
+```
+
+Each pass carries `{grid_layout}` (the grid mapping's declared key) alongside the file mapping's tokens. Like `items`, it multiplies: every existing pass repeats once per borrowed item. Dict rosters work too — both the key and value placeholders inject. One list, one owner: when the roster changes, every template borrowing it follows.
+
+**Reading the borrowed item's metadata.** `{@mapping:item.field}` pulls one string field from another mapping's `metadata`; the item part can itself be a placeholder, so `{@texture_wrapness:{wrapness}.nowrap}` resolves per pass. The lookup is loud — unknown mapping, item, or field stops the build.
+
+**The value comes back literal.** Substitution scans the *template text* once, innermost first; a value returned by a foreign lookup is pasted in and not rescanned. A `{placeholder}` inside the borrowed field is therefore dead text in the caller: `"range": "{slot_range}"` on a `texture_wrapness` item stays `{slot_range}` wherever it lands, and a filter like `In({range}, {@texture_wrapness:{wrapness}.range})` silently fails every pass. Keep borrowed fields to constants; anything that depends on the caller belongs in the caller's own tokens or metadata.
+
+---
+
+## `templates_from` — one template, several mappings
+
+`items_from` borrows a mapping's *list*. `templates_from` borrows the whole template *for* each listed mapping — it expands once per mapping named, with that mapping's [`tokens`](02-mappings.md#tokens--shared-snippets-for-borrowing-templates) filled in:
+
+```json
+"art_clearlogo_{scope}": {
+  "templates_from": [ "widgets", "search" ],
+  "index": { "start": 3200 },
+  "filter": "{scope_filter}",
+  "values": [
+    { "condition": "{focus} + !String.IsEmpty(Container({index}).ListItem.Art(clearlogo))",
+      "value": "$INFO[Container({index}).ListItem.Art(clearlogo)]" }
+  ]
+}
+```
+
+One row set; two families out — `art_clearlogo_widgets` per widget, `art_clearlogo_search` per search rail — each speaking its mapping's focus grammar via `{focus}`, each pruned by its own `{scope_filter}`.
+
+`templates_from` *replaces* the file's `mapping` as the loop source. If the file's own mapping should expand too, list it: `expressions_regions.json` declares `"mapping": "regions"` and `"templates_from": ["regions", "widgets", "search", "views"]`. A file that only borrows can say `"mapping": "none"`.
+
+When to reach for it: several mappings need *the same cascade* and differ only in a handful of snippets. Put the snippets in each mapping's `tokens`, write the cascade once. If the cascades differ in *structure* — different rows, not different snippets — they're different templates; don't force it. And when the deltas vary by **item** rather than by mapping, use a static mapping whose `metadata` carries them instead — the regions pattern, [use case 4](10-use-cases.md#4-regions--one-cascade-per-item-deltas).
 
 ---
 
@@ -174,7 +219,7 @@ Details:
 
 Only drilldown and group widgets get their rows; other configured widgets are skipped entirely.
 
-Don't confuse it with a row's `condition`: **filter decides at build time whether rows exist; condition decides at runtime whether Kodi uses them.** The two-axis trick — one loop value passing everywhere, another only in a range — is covered in [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes) and works identically here; `texture_primary_poster{suffix}{range}` in `variables_textures.json` is the live example.
+Don't confuse it with a row's `condition`: **filter decides at build time whether rows exist; condition decides at runtime whether Kodi uses them.** The two-axis trick — different loop values covering different ranges — is covered in [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes) and works identically here; the wrapness ladders in `variables_ladders.json` are the live example.
 
 ---
 

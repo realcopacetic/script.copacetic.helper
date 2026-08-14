@@ -1,36 +1,26 @@
 # author: realcopacetic
 
+from __future__ import annotations
+
 import random
 import sys
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any, Callable, Generator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
-from resources.lib.apis.tmdb.context import resolve_tmdb_context
-from resources.lib.apis.tmdb.transform import tmdb_to_canonical
-from resources.lib.art.editor import ImageEditor
-from resources.lib.art.multiart import (
-    build_multiart_dict,
-    seed_multiart,
-)
-from resources.lib.art.policy import ART_PROCESS_MAP
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
     JumpButton,
     ProgressBarManager,
-    TextTruncator,
     TypewriterAnimation,
+    clamp_text,
     merge_metadata,
     reposition_control,
 )
 from resources.lib.plugin.identity import ArtworkIdentity
-from resources.lib.plugin.json_map import (
-    HEAVY_FIELDS,
-    trim_properties,
-)
+from resources.lib.plugin.json_map import HEAVY_FIELDS, trim_properties
 from resources.lib.plugin.library import (
     DirectoryItem,
     build_items,
@@ -40,11 +30,9 @@ from resources.lib.plugin.library import (
     role_endpoint,
     title_filter,
 )
-from resources.lib.plugin.opts import ArtOpts
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
-from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
     condition,
@@ -229,6 +217,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param append_artwork: Whether to include TMDb artwork fields.
         :return: canonical item dict or None.
         """
+        from resources.lib.apis.tmdb.context import resolve_tmdb_context
+        from resources.lib.apis.tmdb.transform import tmdb_to_canonical
+
         target = f"{self.target_container}.ListItem"
         ctx = resolve_tmdb_context(self.params, target=target)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
@@ -258,14 +249,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     ) -> None:
         """Attach a truncated label to a metadata dict.
         Text precedence: truncate_label param, truncate_label_id
-        probe control, default_text, then plot infolabel.
+        probe control, default_text, then plot infolabel. Geometry is
+        measured plugin-side against the declared skin font.
 
         :param data: Metadata dict to update in place.
         :param target: ListItem infolabel prefix for plot fallback.
         :param default_text: Optional plot to use before infolabel fallback.
         """
-        truncate_id = to_int(self.params.get("truncate_id", 0))
-        if not truncate_id:
+        truncate_width = to_int(self.params.get("truncate_width", 0))
+        truncate_font = self.params.get("truncate_font", "")
+        truncate_size = to_int(self.params.get("truncate_size", 0))
+        if not truncate_width:
+            return
+        if not truncate_font or truncate_size <= 0:
+            log.warning(
+                f"{self.__class__.__name__} → truncate_width without "
+                f"truncate_font/truncate_size; skipping"
+            )
             return
 
         label_id = to_int(self.params.get("truncate_label_id", 0))
@@ -278,11 +278,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not truncate_label:
             return
 
-        trunc = TextTruncator(measure_ctrl_id=truncate_id)
-        truncated = trunc.truncate(
+        truncated = clamp_text(
             text=truncate_label,
-            min_safe=to_int(self.params.get("truncate_min_safe", 0)),
-            smart_cap=parse_bool(self.params.get("truncate_smart_cap", "false")),
+            font_path=truncate_font,
+            font_size=truncate_size,
+            max_width=truncate_width,
+            max_lines=to_int(self.params.get("truncate_lines"), 3),
         )
 
         props = data.setdefault("properties", {})
@@ -295,6 +296,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
+        from resources.lib.art.editor import ImageEditor
+        from resources.lib.art.multiart import build_multiart_dict, seed_multiart
+        from resources.lib.art.policy import ART_PROCESS_MAP
+        from resources.lib.plugin.opts import ArtOpts
+        from resources.lib.shared.sqlite import ArtworkCacheHandler
+
         with self.focus() as guard:
             if not guard.alive():
                 return
@@ -362,8 +369,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if art is None:
                 return
 
-            if background_blur := art.get("background", ""):
-                window_property("background_blur", background_blur)
+            prop_key = self.params.get("prop_key", "")
+            for field, prop in (
+                ("background", "background_blur"),
+                ("background_darken", "background_darken"),
+                ("icon_darken", "icon_darken"),
+            ):
+                if value := art.get(field, ""):
+                    window_property(f"{prop}_{prop_key}" if prop_key else prop, value)
 
             total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 
@@ -383,6 +396,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             stamped = (
                 str(identity)
                 if cursor_key
+                and "visit" in self.params
                 and current_position is not None
                 and cursor_snapshot != str(identity)
                 else ""
@@ -518,19 +532,28 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def reposition(self) -> None:
         """
-        Set geometry on a control from optional x/y/w/h params. Runs as its
-        own invocation so it only fires once the skin knows the control
-        exists and the value is available.
+        Set geometry on a control from optional x/y/w/h params. ``fit=W,H``
+        with ``src=w,h`` derives h as the aspect-keep height of src in the
+        fit box, overriding a literal h.
         """
+
         target_id = to_int(self.params.get("target_id"), None)
         if not target_id:
             return
+        h = to_int(self.params.get("h"), None)
+        if fit := self.params.get("fit"):
+            fit_w, fit_h = (to_int(v, 0) for v in fit.split(","))
+            src_w, src_h = (
+                to_int(v, 0) for v in self.params.get("src", ",").split(",")
+            )
+            if fit_w and src_w and src_h:
+                h = min(fit_h, round(fit_w * src_h / src_w))
         reposition_control(
             target_id,
             x=to_int(self.params.get("x"), None),
             y=to_int(self.params.get("y"), None),
             w=to_int(self.params.get("w"), None),
-            h=to_int(self.params.get("h"), None),
+            h=h,
         )
 
     @log.duration
@@ -614,6 +637,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_property("typewriter_dbid")
             return
 
+        visit = self.params.get("visit")
+        if visit and visit != infolabel("Window(home).Property(artwork_visit)"):
+            return  # replay of a cached probe URL (e.g. post-ReloadSkin); the live URL re-fires
+
         with self.focus() as guard:
             if not guard.alive():
                 return
@@ -639,6 +666,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
+        from concurrent.futures import ThreadPoolExecutor
+
         set_plugincontent(
             content="videos",
             category=ADDON.getLocalizedString(32601),

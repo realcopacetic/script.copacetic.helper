@@ -37,7 +37,10 @@ JSON files in `extras/templates/expressions/`:
 |---|---|
 | `mapping` | Mapping name (or `"none"`) |
 | `items` | An extra loop on top of the mapping's — here, one expression per layout per window |
+| `items_from` | Loop another mapping's items, under its own placeholder names — same behaviour as [Variables → items_from](03-variables.md#items_from--borrow-another-mappings-list) |
+| `templates_from` | Stamp the template once per listed mapping with its `tokens` filled — [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings) |
 | `index` | Number range, as an alternative or addition to `items` |
+| `range` | Numeric loop (`start`, `end`, optional `step`) — multiplies every pass, available as `{range}`; `ready_typewriter_{region}_{range}` uses it |
 | `rules` | Condition / type / value rows — see below |
 | `fallback_key` | Which token groups expressions for the fallback step |
 | `fallbacks` | What the catch-all in each group gets |
@@ -68,12 +71,14 @@ Note the split: a rule's `condition` is checked **by the builder at build time**
 
 True exactly when the screen shows a content type set to fanart — rebuilt automatically whenever the user changes a setting.
 
+A value that begins `true + ` (a `{guard}` token that rendered `true`, say) has that prefix stripped, so regions with no guard emit clean conditions. Only a *leading* `true + ` is elided — put the guard first in the value.
+
 **No `condition` at all** — the rule always fires. This is the shorthand pattern: no user setting involved, just a long Kodi condition getting a name. The whole `expressions_windows.json` file works this way:
 
 ```json
 "window_active_{window}": {
   "rules": [
-    { "type": "assign", "value": "$EXP[content_visible_{window}] + !$EXP[level_switching]" }
+    { "type": "assign", "value": "$EXP[content_visible_{window}] + !$EXP[container_switchingto_primary]" }
   ]
 }
 ```
@@ -81,6 +86,8 @@ True exactly when the screen shows a content type set to fanart — rebuilt auto
 One template, one expression per window, each composing other expressions — build-time macros. Values can reference other generated expressions freely; Kodi resolves the `$EXP[...]` chain at runtime.
 
 If no rule fires for a pass, the expression is `"false"` (unless a fallback catches it).
+
+Two more tools rules can use. Values can reach across mappings with `{@mapping:item.field}` ([Overview → Placeholders](01-overview.md#placeholders)) — the grid vues compose `$EXP[art_{@grid:{grid_layout}.art}_visible_{window}]` without looping the grid mapping itself. And rule *conditions* can test the loop item's name — `In({region}, [secondary])` — so one template emits structurally different expressions per item of a static mapping: each item takes the first rule whose condition matches it, `assign` short-circuiting past the rest.
 
 ---
 

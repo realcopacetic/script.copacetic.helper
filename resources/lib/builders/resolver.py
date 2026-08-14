@@ -9,6 +9,7 @@ owns them.
 """
 
 from resources.lib.builders.logic import RuleEngine
+from resources.lib.builders.substitution import TokenError, render
 from resources.lib.shared import logger as log
 
 
@@ -61,16 +62,16 @@ class ConfigsResolver(_TemplateResolver):
         :return: Resolved entry dict, or empty dict if no match.
         """
         try:
-            formatted = tpl_name.format(**sub)
-        except KeyError:
+            formatted = render(tpl_name, sub, mode="name", registry=self._mappings)
+        except TokenError:
             formatted = None
 
         if formatted is not None:
             if data := self._templates.get((mapping_name, formatted)):
-                return self._resolve_one(data, sub, mapping_name)
+                return self._resolve_one(data, sub, mapping_name, formatted)
 
         if data := self._templates.get((mapping_name, tpl_name)):
-            return self._resolve_one(data, sub, mapping_name)
+            return self._resolve_one(data, sub, mapping_name, tpl_name)
 
         return {}
 
@@ -94,7 +95,14 @@ class ConfigsResolver(_TemplateResolver):
                 f"for '{mapping_name}/{sub.get('mapping_item', '?')}' — "
                 f"field will be absent from substitutions."
             )
-        return default
+            return default
+        return render(
+            default,
+            sub,
+            mode="name",
+            registry=self._mappings,
+            context=f" in config default ('{mapping_name}/{tpl_name}')",
+        )
 
     def dependent_fields(self, mapping_name: str, tpl_name: str) -> list[str]:
         """
@@ -109,7 +117,9 @@ class ConfigsResolver(_TemplateResolver):
             "dependent_fields", []
         )
 
-    def _resolve_one(self, data: dict, sub: dict, mapping_name: str) -> dict:
+    def _resolve_one(
+        self, data: dict, sub: dict, mapping_name: str, tpl_name: str
+    ) -> dict:
         """
         Resolve one template against one sub: filter items by rules, attach
         labels, choose a default.
@@ -117,8 +127,10 @@ class ConfigsResolver(_TemplateResolver):
         :param data: Raw template data.
         :param sub: Substitution dict.
         :param mapping_name: Mapping owning this template.
+        :param tpl_name: Resolved template name, for error context.
         :return: Resolved entry dict.
         """
+
         template_defaults = {
             "items": [],
             "filter_mode": "exclude",
@@ -137,7 +149,15 @@ class ConfigsResolver(_TemplateResolver):
         excluded = {
             value
             for rule in merged["rules"]
-            if self._rules.evaluate(rule["condition"].format(**sub))
+            if self._rules.evaluate(
+                render(
+                    rule["condition"],
+                    sub,
+                    mode="name",
+                    registry=self._mappings,
+                    context=f" in config rule (mapping '{mapping_name}')",
+                )
+            )
             for value in rule.get("value", [])
         }
         items = [
@@ -145,6 +165,12 @@ class ConfigsResolver(_TemplateResolver):
             for item in items_list
             if (item not in excluded) == (merged["filter_mode"] == "exclude")
         ]
+        if not items and items_list and merged["filter_mode"] == "include":
+            raise ValueError(
+                f"ConfigsResolver → include-mode config "
+                f"'{mapping_name}/{tpl_name}' matched no items for "
+                f"{sub.get('mapping_item', sub)} — add a 'true' catch-all rule"
+            )
 
         out: dict = {"items": items}
         if labels:

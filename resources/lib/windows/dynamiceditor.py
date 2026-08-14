@@ -18,6 +18,7 @@ from resources.lib.shared.utilities import (
     TEMPLATES,
     RUNTIME_STATE,
     infolabel,
+    window_property,
 )
 from resources.lib.windows.control_factory import DynamicControlFactory
 from resources.lib.windows.controls import ButtonHandler
@@ -138,6 +139,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         Called by Kodi on window init. Sets up controls and renders the
         initial list.
         """
+        window_property("editor_label", value=infolabel("System.CurrentWindow"))
         self._description_label = self.getControl(6)
         self._list_container = self.getControl(100)
 

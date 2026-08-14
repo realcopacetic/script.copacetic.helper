@@ -17,7 +17,10 @@ from resources.lib.shared.utilities import RESOLVER_CACHE
 # invalidates previously written caches.
 # 2: control templates no longer carry a stamped mode; storage semantics
 #    derive from the owning mapping's mode.
-_CACHE_VERSION = "2"
+# 3: cache stores pristine source mappings (xsp as dicts, never pre-encoded);
+#    mapping schema gains optional 'tokens'.
+# 4: 'xsp' merged into 'xsp'; gating detected by 'gate' fields in rules.
+_CACHE_VERSION = "4"
 
 
 def _cache_stamp() -> str:

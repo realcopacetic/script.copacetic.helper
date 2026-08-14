@@ -8,6 +8,8 @@ ART_FIELD_SOURCE_URL: str = "source_url"
 ART_FIELD_PROCESS: str = "process"
 ART_FIELD_HASH: str = "cached_file_hash"
 ART_FIELD_PROCESSED: str = "processed_path"
+ART_FIELD_WIDTH: str = "width"
+ART_FIELD_HEIGHT: str = "height"
 ART_FIELD_BLUR_RADIUS: str = "blur_radius"
 ART_FIELD_COLOR: str = "color"
 ART_FIELD_ACCENT: str = "accent"
@@ -62,6 +64,8 @@ ART_DB_SCHEMA: tuple[tuple[str, str], ...] = (
     (ART_FIELD_PROCESS, "TEXT NOT NULL"),
     (ART_FIELD_PROCESSED, "TEXT"),
     (ART_FIELD_HASH, "TEXT"),
+    (ART_FIELD_WIDTH, "INTEGER"),
+    (ART_FIELD_HEIGHT, "INTEGER"),
     (ART_FIELD_BLUR_RADIUS, "INTEGER"),
     (ART_FIELD_COLOR, "TEXT"),
     (ART_FIELD_ACCENT, "TEXT"),
@@ -101,7 +105,7 @@ ART_FIELDS_INPUT: dict[str, tuple[str, ...]] = {
 }
 
 ART_FIELDS_RESULT: dict[str, tuple[str, ...]] = {
-    "crop": (ART_FIELD_PROCESSED,),
+    "crop": (ART_FIELD_PROCESSED, ART_FIELD_WIDTH, ART_FIELD_HEIGHT),
     "blur": (ART_FIELD_PROCESSED, ART_FIELD_BLUR_RADIUS),
     "analyze": (
         ART_FIELD_COLOR,
@@ -115,6 +119,8 @@ ART_FIELDS_RESULT: dict[str, tuple[str, ...]] = {
 ART_LISTITEM_KEYS: tuple[str, ...] = (
     (
         ART_FIELD_PROCESSED,
+        ART_FIELD_WIDTH,
+        ART_FIELD_HEIGHT,
         ART_FIELD_BLUR_RADIUS,
         ART_FIELD_COLOR,
         ART_FIELD_ACCENT,

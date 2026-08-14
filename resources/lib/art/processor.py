@@ -11,7 +11,6 @@ from resources.lib.art.darken import ColorDarken
 from resources.lib.art.policy import ColorConfig
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import BLURS, CROPS
 
 
 class ImageProcessor:
@@ -19,27 +18,6 @@ class ImageProcessor:
     Performs artwork transforms (crop/blur/analyze) and extracts color metadata.
     Uses ColorAnalyzer for hex/contrast/luminosity.
     """
-
-    PROCESS_SPEC: dict[str, dict[str, Any]] = {
-        "crop": {
-            "folder": CROPS,
-            "require": policy.ART_FIELDS_RESULT["crop"],
-        },
-        "blur": {
-            "folder": BLURS,
-            "match": policy.ART_FIELDS_INPUT["blur"],
-            "require": policy.ART_FIELDS_RESULT["blur"],
-        },
-        "analyze": {
-            "folder": None,
-            "require": policy.ART_FIELDS_RESULT["analyze"],
-        },
-        "darken": {
-            "folder": None,
-            "match": policy.ART_FIELDS_INPUT["darken"],
-            "require": policy.ART_FIELDS_RESULT["darken"],
-        },
-    }
 
     def __init__(self, cfg: ColorConfig) -> None:
         """Initialize the processor with a color analyzer."""
@@ -57,11 +35,12 @@ class ImageProcessor:
     @log.duration
     def crop(self, image: Image.Image, **_: Any) -> dict[str, Any] | None:
         """
-        Crop/resize clearlogos, normalize mode for PNG, extract color metadata.
+        Crop/resize clearlogos to alpha bounds, export PNG with its dimensions.
 
         :param image: Input PIL Image.
-        :return: Dict with {"image", "format"} or None on failure.
+        :return: Dict with {"image", "format", "metadata"} or None on failure.
         """
+
         image = self._ensure_mode(image, "RGBA")
         thumb_size = self.cfg.crop_target_size
         if image.width > thumb_size[0] or image.height > thumb_size[1]:
@@ -72,7 +51,15 @@ class ImageProcessor:
             return None  # invalid clearlogo
 
         try:
-            return {"image": image.crop(box), "format": "PNG"}
+            cropped = image.crop(box)
+            return {
+                "image": cropped,
+                "format": "PNG",
+                "metadata": {
+                    policy.ART_FIELD_WIDTH: cropped.width,
+                    policy.ART_FIELD_HEIGHT: cropped.height,
+                },
+            }
         except Exception as exc:
             log.error(f"{self.__class__.__name__} → Unable to crop image → {exc}")
             return None

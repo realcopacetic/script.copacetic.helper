@@ -181,6 +181,7 @@ def dynamic_settings_window(**kwargs):
     mapping_slot = f"current_mapping{suffix}"
 
     previous_editor = infolabel("Window(home).Property(active_editor_name)")
+    previous_label = infolabel("Window(home).Property(editor_label)")
     window_property("active_editor_name", value=name)
     window_property(mapping_slot, value=mapping)
 
@@ -234,6 +235,7 @@ def dynamic_settings_window(**kwargs):
         # later top-level session look nested and silently skip rebuilds.
         window_property(mapping_slot)
         window_property("active_editor_name", value=previous_editor)
+        window_property("editor_label", value=previous_label)
         del myWindow
 
 

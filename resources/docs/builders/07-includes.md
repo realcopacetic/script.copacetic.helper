@@ -39,6 +39,8 @@ XML files in `extras/templates/includes/`:
 | `<index>` | Start number for `{index}` — numbers the passes, never multiplies them |
 | `<range>` | Numeric loop (`start`, `end`, optional `step`) — every pass repeats once per value as `{range}` |
 | `<items>` | An extra comma-separated loop on the template itself |
+| `<items_from>` | Loop another mapping's items under its own placeholder names — [Variables → items_from](03-variables.md#items_from--borrow-another-mappings-list) |
+| `<templates_from>` | Comma-separated mappings; the template expands once per mapping with its `tokens` filled — [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings). `includes_scoped.xml` emits `dly_{scope}_focus_latches` for widgets and search from one body. |
 | `<filter>` | Skip some loop passes — see below |
 | `<include name="...">` | The **outer** include — the name your skin references. Appears once. |
 
@@ -95,6 +97,14 @@ The exception is the outer include itself: if a filter removes *every* pass, the
 
 **`{xsp}`:** if an item's metadata has an `xsp` smart-playlist dict, the builder URL-encodes it and hands it to you as `{xsp}` — stick it on the end of a path: `value="{content}{xsp}"`. Items without one get nothing there, and the param prunes away. `$ESCINFO[]` inside the playlist stays live for Kodi to resolve.
 
+**Gated xsp rules.** A rule inside the dict can carry `"gate": "<field>"` — that rule is only included when the entry's field reads `"true"`:
+
+```json
+{ "field": "plot", "operator": "contains", "value": ["$ESCINFO[...]"], "gate": "query_plot" }
+```
+
+Ungated rules always survive. A gated spec isn't encoded at build time — it composes per entry, against the entry's *current* values, so a user toggle changes the playlist on the next rebuild without touching the template.
+
 ---
 
 ## Filtering: skipping loop passes
@@ -103,13 +113,13 @@ The exception is the outer include itself: if a filter removes *every* pass, the
 
 That's different from a `condition` in the body: **filter decides whether a thing exists; conditions decide what an existing thing does at runtime.**
 
-Its best trick is letting different loop values cover different ranges from one template. The texture variables loop a two-item mapping (`nowrap`, `wrap`) across range −3..6 — but the two variants need different ranges: views draw ten fixed slots, while the wrap-around transition machinery only ever looks one step each way:
+Its best trick is letting different loop values cover different ranges from one template. The texture ladders borrow a two-item mapping (`nowrap`, `wrap`) across range −3..3 — but the two variants need different ranges: each view declares how many slots it draws (`slot_range` metadata), while the wrap-around transition machinery only ever looks one step each way:
 
 ```json
-"filter": "equals({wrapness}, nowrap) | In({range}, [-1, 0, 1])"
+"filter": "equals({wrapness}, nowrap) + In({range}, {slot_range}) | equals({wrapness}, wrap) + In({range}, [-1, 0, 1])"
 ```
 
-Read it as two ways to survive, OR'd: `nowrap` always passes (all ten indices emit); `wrap` only passes at −1, 0, 1. One template instead of two per family, and no `_wrap-3` outputs that nothing uses.
+Read it as two domains, OR'd: `nowrap` passes wherever the view's declared range says; `wrap` only at −1, 0, 1. One template instead of two per family, and no `_wrap-3` outputs that nothing uses. `{slot_range}` is a string that *is* a rule-engine list (`"[-3, -2, -1, 0, 1, 2, 3]"`) — metadata can carry condition fragments, not just values.
 
 ---
 

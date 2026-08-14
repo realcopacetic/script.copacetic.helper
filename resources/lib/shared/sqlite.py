@@ -23,6 +23,14 @@ TMDB_DB_FIELDS: tuple[str, ...] = tuple(name for name, _ in TMDB_DB_SCHEMA)
 TMDB_UNIQUE: tuple[str, ...] = ("dbtype", "tmdb_id", "language")
 TMDB_LOOKUP_INDEX: tuple[str, ...] = TMDB_UNIQUE
 
+TRUNCATE_DB_SCHEMA: tuple[tuple[str, str], ...] = (
+    ("cache_key", "TEXT NOT NULL UNIQUE"),
+    ("result", "TEXT NOT NULL"),
+    ("created_at", "INTEGER NOT NULL"),
+)
+
+TRUNCATE_DB_FIELDS: tuple[str, ...] = tuple(name for name, _ in TRUNCATE_DB_SCHEMA)
+
 
 class SQLiteHandler:
     """
@@ -426,3 +434,45 @@ class TmdbCacheHandler(SQLiteHandler):
             payload_json,
         )
         self._insert_or_replace(TMDB_DB_FIELDS, row)
+
+
+class TruncateCacheHandler(SQLiteHandler):
+    """Stores clamp_text results keyed by a hash of text and geometry."""
+
+    TABLE_NAME = "truncate_cache"
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def _initialize_database(self) -> None:
+        """Create the truncate cache table."""
+        cols_sql = ",\n".join(f"{name} {decl}" for name, decl in TRUNCATE_DB_SCHEMA)
+        with self._connect() as conn:
+            conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    {cols_sql}
+                )
+                """)
+            conn.commit()
+
+    def get_entry(self, cache_key: str) -> str | None:
+        """
+        Retrieve a cached clamp result.
+
+        :param cache_key: Hash of text, font, size, width and line count.
+        :return: Clamped string, or None.
+        """
+        row = self._get_one(where="cache_key = ?", params=(cache_key,))
+        return row["result"] if row else None
+
+    def upsert_entry(self, cache_key: str, result: str) -> None:
+        """
+        Insert or replace a clamp result.
+
+        :param cache_key: Hash of text, font, size, width and line count.
+        :param result: Clamped string to store.
+        """
+        self._insert_or_replace(
+            TRUNCATE_DB_FIELDS, (cache_key, result, int(time.time()))
+        )
