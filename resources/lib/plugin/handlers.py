@@ -161,9 +161,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.target_container = (
             f"Container({self.target})" if self.target is not None else "Container"
         )
-        identity_id = to_int(params.get("identity_container"), self.target)
+        self.identity_id = to_int(params.get("identity_container"), self.target)
         self.identity_container = (
-            f"Container({identity_id})" if identity_id is not None else "Container"
+            f"Container({self.identity_id})"
+            if self.identity_id is not None
+            else "Container"
         )
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
@@ -288,6 +290,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         props = data.setdefault("properties", {})
         props["truncated_label"] = truncated
+
+    def _require(self, *names: str) -> bool:
+        """
+        Warn and return False when any named URL param is absent.
+
+        :param names: Required param names.
+        :return: True when all present.
+        """
+        if missing := [n for n in names if not self.params.get(n)]:
+            log.warning(f"{self.params.get('info')} → {', '.join(missing)} required")
+            return False
+        return True
 
     @log.duration
     def artwork(self) -> list[DirectoryItem] | None:
@@ -421,6 +435,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                                 or cursor_snapshot
                                 or identity.partial(("scope", "pos", "dbid")),
                                 "next": next_item.partial(("scope", "pos")),
+                                "current_pos": str(current_position),
                                 "previous_pos": str(prev_item.pos),
                                 "next_pos": str(next_item.pos),
                             }
@@ -437,10 +452,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Update jump button overlay using params and placement options.
         No focus guard as needs to remain responsive to scroll.
         """
-        jump = JumpButton()
+        target_id = to_int(self.params.get("target_id"), None)
+        if not self._require("target_id"):
+            return
+
+        jump = JumpButton(
+            container=self.target_container,
+            btn_id=target_id,
+        )
         jump.update(
             sortletter=self.params.get("sortletter"),
-            scroll_id=self.params.get("scroll_id"),
             opts=PlacementOpts.from_params(self.params),
         )
 
@@ -499,10 +520,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
+            target_id = to_int(self.params.get("target_id"), None)
+            if not self._require("target_id"):
+                return
+
             pb = ProgressBarManager(
                 target=f"{self.target_container}.ListItem",
-                btn_width=to_int(self.params.get("btn_width"), 30),
-                btn_height=to_int(self.params.get("btn_height"), None),
+                base_id=target_id,
             )
             resume, unwatched = pb.calculate()
             result = set_items(
@@ -522,7 +546,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             pb.update(
                 percent=resume,
                 opts=PlacementOpts.from_params(self.params),
-                base_id=to_int(self.params.get("base_id"), None),
                 progress_id=to_int(self.params.get("progress_id"), None),
                 btn_id=to_int(self.params.get("btn_id"), None),
                 img_id=to_int(self.params.get("img_id"), None),
@@ -538,7 +561,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
 
         target_id = to_int(self.params.get("target_id"), None)
-        if not target_id:
+        if not self._require("target_id"):
             return
         h = to_int(self.params.get("h"), None)
         if fit := self.params.get("fit"):
@@ -546,8 +569,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             src_w, src_h = (
                 to_int(v, 0) for v in self.params.get("src", ",").split(",")
             )
-            if fit_w and src_w and src_h:
-                h = min(fit_h, round(fit_w * src_h / src_w))
+            if not (fit_w and src_w and src_h):
+                log.warning("reposition → fit requires src=w,h")
+                return
+            h = min(fit_h, round(fit_w * src_h / src_w))
         reposition_control(
             target_id,
             x=to_int(self.params.get("x"), None),
@@ -631,10 +656,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Run typewriter animation for the current listitem; guarded against focus changes.
         A reset=true invocation supersedes any run and hides the control.
         """
-        label_id = to_int(self.params.get("label_id"), None)
+        target_id = to_int(self.params.get("target_id"), None)
+        if not self._require("target_id"):
+            return
+
         if parse_bool(self.params.get("reset", "false")):
-            TypewriterAnimation.reset(label_id=label_id)
-            window_property("typewriter_dbid")
+            TypewriterAnimation.reset(target_id=target_id)
+            window_property("typewriter_container")
+            window_property("typewriter_pos")
+            return
+        if not self.label:
+            log.warning("typewriter → label required")
             return
 
         visit = self.params.get("visit")
@@ -646,14 +678,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             window_property(
-                "typewriter_dbid",
-                value=infolabel(f"{self.identity_container}.ListItem.DBID"),
+                "typewriter_container",
+                value=str(self.identity_id) if self.identity_id is not None else "",
             )
-            t = TypewriterAnimation()
+            window_property(
+                "typewriter_pos",
+                value=infolabel(f"{self.identity_container}.CurrentItem"),
+            )
+            t = TypewriterAnimation(control_id=target_id)
             t.update(
                 label=self.label,
                 opts=PlacementOpts.from_params(self.params),
-                label_id=label_id,
                 max_lines=to_int(self.params.get("max_lines"), None),
                 start_delay=to_float(self.params.get("start_delay"), 0),
                 alive=guard.alive,
