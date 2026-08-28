@@ -221,55 +221,47 @@ class JumpButton:
     Positioning is fully driven by compute_rect + PlacementOpts.
     """
 
-    def __init__(
-        self, scroll_id: int = 60, btn_id: int = 62, btn_width: int = 30
-    ) -> None:
+    def __init__(self, container: str, btn_id: int) -> None:
         """
-        Initializes the control IDs used for the scrollbar and indicator button.
+        Initialize the fraction source and the indicator button id.
 
-        :param scroll_id: Scrollbar control ID to read "cur/total" from.
-        :param btn_id: Indicator button control ID to position.
-        :param btn_width: Fallback button width/height when control returns 0.
+        :param container: InfoLabel prefix of the list ("Container" or "Container(id)").
+        :param btn_id: Indicator button control ID.
         """
+
         self.window = Window(getCurrentWindowId())
-        self.scroll_id = scroll_id
+        self.container = container
         self.btn_id = btn_id
-        self.btn_width = btn_width
 
-    def _fraction_from_scrollbar(self, scroll_id: int) -> float:
+    def _fraction(self) -> float:
         """
-        Compute a 0..1 fraction from Control.GetLabel(scroll_id) formatted as "cur/total".
+        Cursor fraction from CurrentItem / NumItems of the list (1-based, move-synchronous).
 
-        :param scroll_id: Scrollbar control ID.
-        :return: Fractional position in range [0.0, 1.0], or 0.0 if invalid.
+        :return: 0.0 at first item, 1.0 at last; 0.0 when fewer than two items.
         """
-        raw = infolabel(f"Control.GetLabel({scroll_id})").strip()
-        if not raw or "/" not in raw:
-            return 0
-        try:
-            cur, total = map(int, raw.split("/"))
-            return (cur / total) if total else 0
-        except Exception:
-            return 0
 
-    def update(
-        self, *, sortletter: str | None, scroll_id: str | None, opts: PlacementOpts
-    ) -> None:
+        cur = to_int(infolabel(f"{self.container}.CurrentItem"), 0)
+        total = to_int(infolabel(f"{self.container}.NumItems"), 0)
+        return (cur - 1) / (total - 1) if total > 1 else 0.0
+
+    def update(self, *, sortletter: str | None, opts: PlacementOpts) -> None:
         """
         Update indicator label and position along the resolved track.
 
         :param sortletter: Custom label or fallback to ListItem.SortLetter if None.
-        :param scroll_id: Scrollbar control ID override for this update.
         :param opts: Placement options (coords/anchor_id/inset/track_w/track_h/…).
         """
-        expected = sortletter or infolabel("ListItem.SortLetter")
-        fraction = self._fraction_from_scrollbar(to_int(scroll_id, self.scroll_id))
+        expected = sortletter or infolabel(f"{self.container}.ListItem.SortLetter")
+        fraction = self._fraction()
 
-        posx, posy, width, height = compute_rect(
+        rect = compute_rect(
             window=self.window,
             caller_name=self.__class__.__name__,
             opts=opts,
         )
+        if rect is None:
+            return
+        posx, posy, width, height = rect
 
         try:
             btn = self.window.getControl(self.btn_id)
@@ -277,8 +269,13 @@ class JumpButton:
             log.debug(f"{self.__class__.__name__} → Button {self.btn_id} not found.")
             return
 
-        btn_w = btn.getWidth() or self.btn_width
-        btn_h = btn.getHeight() or self.btn_width
+        btn_w = btn.getWidth()
+        btn_h = btn.getHeight()
+        if not (btn_w and btn_h):
+            log.warning(
+                f"{self.__class__.__name__} → target_id {self.btn_id} has no size; set width/height in XML"
+            )
+            return
         horizontal = width >= height
 
         if horizontal:
@@ -316,26 +313,21 @@ class ProgressBarManager:
     def __init__(
         self,
         target: str,
-        base_id: int = 4010,
-        btn_width: int = 30,
-        btn_height: int | None = None,
+        base_id: int,
     ) -> None:
         """
         Initialize default control IDs and sizing.
 
         :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
-        :param base_id: Base group ID that wraps the bar/btn.
-        :param btn_width: Fallback thumb width if control reports zero.
-        :param btn_height: Fallback thumb height if control reports zero; defaults to btn_width.
+        :param base_id: Base group ID that wraps the bar/btn; sub-controls default to +1/+2/+3.
         """
+
         self.window = Window(getCurrentWindowId())
         self.target = target
-        self.base_id = int(base_id)
+        self.base_id = base_id
         self.progress_id = base_id + 1
         self.btn_id = base_id + 2
         self.img_id = base_id + 3
-        self.btn_width = btn_width
-        self.btn_height = btn_width if btn_height is None else btn_height
         self.infolabels = get_infolabels(
             self.target,
             [
@@ -399,7 +391,6 @@ class ProgressBarManager:
         percent: float,
         *,
         opts: PlacementOpts,
-        base_id: int | None = None,
         progress_id: int | None = None,
         btn_id: int | None = None,
         img_id: int | None = None,
@@ -409,11 +400,10 @@ class ProgressBarManager:
 
         :param percent: Unified progress percentage (0-100).
         :param opts: Placement options (coords/anchor/inset/track_w/track_h).
-        :param base_id: Optional override for base group ID.
         :param progress_id: Optional override for progress bar ID.
         :param btn_id: Optional override for thumb button ID.
         """
-        base_id = to_int(base_id, self.base_id)
+        base_id = self.base_id
         progress_id = to_int(progress_id, self.progress_id)
         btn_id = to_int(btn_id, self.btn_id)
         img_id = to_int(img_id, self.img_id)
@@ -427,11 +417,14 @@ class ProgressBarManager:
             )
             return
 
-        posx, posy, width, height = compute_rect(
+        rect = compute_rect(
             window=self.window,
             caller_name=self.__class__.__name__,
             opts=opts,
         )
+        if rect is None:
+            return
+        posx, posy, width, height = rect
 
         if width <= 0 or height <= 0:
             log.debug(
@@ -473,8 +466,14 @@ class ProgressBarManager:
                 f"{self.__class__.__name__} → Optional btn_id {btn_id} not found."
             )
         else:
-            btn_w = button.getWidth() or self.btn_width
-            btn_h = button.getHeight() or self.btn_height
+            btn_w, btn_h = button.getWidth(), button.getHeight()
+            if not (btn_w and btn_h):
+                log.warning(
+                    f"{self.__class__.__name__} → btn_id {btn_id} has no size; set width/height in XML"
+                )
+                button = None
+
+        if button is not None:
             fraction = max(0.0, min(1.0, (percent or 0) / 100.0))
             unwatched_centre = width * (1 + fraction) / 2
             btn_posx = int(max(0, min(unwatched_centre - btn_w / 2, width - btn_w)))
@@ -569,11 +568,9 @@ class TypewriterAnimation:
     Height grows per line up to max_lines unless track_h is provided.
     """
 
-    DEFAULT_CONTROL_ID = 4020
-
     def __init__(
         self,
-        control_id: int = DEFAULT_CONTROL_ID,
+        control_id: int,
         step_time: float = 0.025,
         default_line_h: int = 30,
         max_lines: int = 3,
@@ -582,26 +579,28 @@ class TypewriterAnimation:
         Initialise the animator with default control id, timing, and sizing.
         Line height must match the rendered font pitch or text will clip.
 
-        :param control_id: Default text control id to animate if none is passed.
+        :param control_id: Text control id to animate.
         :param step_time: Delay per character (seconds).
         :param default_line_h: Fallback line height (px) when ``opts.track_h`` is unset.
         :param max_lines: Max number of lines the box may grow to.
         """
 
         self.window = Window(getCurrentWindowId())
-        self.control_id = int(control_id)
+        self.control_id = control_id
         self.step_time = step_time
         self.default_line_h = default_line_h
         self.max_lines = max_lines
 
     @classmethod
-    def reset(cls, label_id: int | None = None) -> None:
+    def reset(cls, target_id: int) -> None:
         """
         Supersede any in-flight run and hide the control.
         Stale text is safe: only update() reveals the control, and it clears first.
-        :param label_id: Optional override control id.
+
+        :param target_id: Text control id to hide.
         """
-        control_id = to_int(label_id, cls.DEFAULT_CONTROL_ID)
+
+        control_id = target_id
         Window(10000).setProperty(f"typewriter_current_{control_id}", "scroll")
         log.execute(f"Control.SetHidden({control_id})")
 
@@ -610,7 +609,6 @@ class TypewriterAnimation:
         *,
         label: str,
         opts: PlacementOpts,
-        label_id: int | None = None,
         max_lines: int | None = None,
         start_delay: float = 0,
         alive: Callable[[], bool] | None = None,
@@ -621,7 +619,6 @@ class TypewriterAnimation:
 
         :param label: Text to animate.
         :param opts: Placement options; ``track_h`` is line height + growth.
-        :param label_id: Optional override control id.
         :param max_lines: Optional cap for number of lines (overrides default).
         :param start_delay: Seconds before typing begins; abort checks apply during the wait.
         :param alive: Optional guard callable; return False to abort animation.
@@ -634,7 +631,7 @@ class TypewriterAnimation:
             return alive() if alive is not None else True
 
         log.debug(f"{self.__class__.__name__} → START → '{label}'")
-        control_id = to_int(label_id, self.control_id)
+        control_id = self.control_id
 
         # Ownership lease. Isolated typewriter instances share prop
         owner_key = f"typewriter_current_{control_id}"
@@ -674,12 +671,16 @@ class TypewriterAnimation:
         max_lines_eff = max_lines or self.max_lines
         max_height = line_h * max_lines_eff
 
-        posx, posy, width, height = compute_rect(
+        rect = compute_rect(
             window=self.window,
             caller_name=self.__class__.__name__,
             opts=opts,
             content_h=(max_height if not opts.track_h else None),
         )
+        if rect is None:
+            _abort("no rect")
+            return
+        posx, posy, width, height = rect
 
         posy_aligned = align_y(posy, height, line_h, align=opts.valign, pad=0)
         posx_final, posy_final, width_final, height_final = (

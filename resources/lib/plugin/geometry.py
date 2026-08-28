@@ -9,12 +9,6 @@ from typing import Mapping, Optional
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import clamp, parse_bool, to_int
 
-DEFAULT_COORDS: dict[str, tuple[int, int, int, int]] = {
-    "TypewriterAnimation": (0, 0, 1920, 1080),
-    "ProgressBarManager": (780, 1048, 360, 4),
-    "JumpButton": (120, 1048, 1680, 4),
-}
-
 
 def parse_inset(s: str | None) -> tuple[int, int, int, int]:
     """
@@ -64,16 +58,17 @@ def resolve_rect(
     coords: str | None,
     anchor_id: int | None,
     caller_name: str | None = None,
-) -> tuple[int, int, int, int]:
+) -> tuple[int, int, int, int] | None:
     """
-    Resolve base rect: coords → anchor → default.
+    Resolve base rect: coords → anchor; None (after a warning) when neither yields one.
 
     :param window: Kodi window object for control lookup.
     :param coords: CSV "x,y,w,h" absolute override (highest priority).
     :param anchor_id: Control to derive (x,y,w,h) from if coords not provided.
-    :param caller_name: Used for DEFAULT_COORDS lookup and logs.
-    :return: (x, y, w, h) rect.
+    :param caller_name: Used for logs.
+    :return: (x, y, w, h) rect, or None.
     """
+
     name = caller_name or "resolve_rect"
 
     if coords:
@@ -97,8 +92,10 @@ def resolve_rect(
 
         except Exception as exc:
             log.warning(f"{name} → failed to read anchor {anchor_id}: {exc}")
+            return
 
-    return DEFAULT_COORDS.get(name, (0, 0, 0, 0))
+    log.warning(f"{name} → anchor_id or coords required")
+    return None
 
 
 def axis_travel(start: int, span: int, item_size: int, fraction: float) -> int:
@@ -217,25 +214,29 @@ def compute_rect(
     opts: PlacementOpts,
     content_w: int | None = None,
     content_h: int | None = None,
-) -> tuple[int, int, int, int]:
+) -> tuple[int, int, int, int] | None:
     """
     Inside placement (default): align target within the inset rect, clamped to bounds.
     Outside placement (below|above|left|right): position adjacent to the raw anchor (no inset).
 
     :param window: Kodi window object.
-    :param caller_name: For DEFAULT_COORDS and logs.
+    :param caller_name: For logs.
     :param opts: Placement options container.
     :param content_w: Optional intrinsic content width.
     :param content_h: Optional intrinsic content height.
     :return: Final (x, y, w, h) rect.
     """
+
     # Resolve base rect
-    posx, posy, width, height = resolve_rect(
+    rect = resolve_rect(
         coords=opts.coords,
         window=window,
         anchor_id=opts.anchor_id,
         caller_name=caller_name,
     )
+    if rect is None:
+        return None
+    posx, posy, width, height = rect
 
     # Keep raw anchor bounds for 'outside' placement
     anchor_x, anchor_y, anchor_w, anchor_h = posx, posy, width, height

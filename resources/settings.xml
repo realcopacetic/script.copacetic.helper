@@ -83,6 +83,7 @@
 						<allowempty>true</allowempty>
 					</constraints>
 					<control type="button" format="action">
+						<close>true</close>
 						<data>RunScript(script.copacetic.helper,action=tmdb_test)</data>
 					</control>
 					<dependencies>
