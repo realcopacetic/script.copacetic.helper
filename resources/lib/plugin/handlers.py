@@ -373,24 +373,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
+            folder = infolabel(f"{self.identity_container}.FolderPath")
             art = seed_multiart(
                 fadelabel_id=self.params.get("multiart_fadelabel"),
                 multiart_dict=multiart_dict,
                 art=art,
-                stamp_scope=stamp_scope,
+                seed_scope=f"{stamp_scope}@{folder}",
                 alive=guard.alive,
             )
             if art is None:
                 return
 
             prop_key = self.params.get("prop_key", "")
-            for field, prop in (
-                ("background", "background_blur"),
-                ("background_darken", "background_darken"),
-                ("icon_darken", "icon_darken"),
+            for field, prop, hold_last in (
+                ("background", "background_blur", True),
+                ("background_darken", "background_darken", False),
+                ("icon_darken", "icon_darken", False),
             ):
-                if value := art.get(field, ""):
-                    window_property(f"{prop}_{prop_key}" if prop_key else prop, value)
+                value = art.get(field, "")
+                if hold_last and not value:
+                    continue
+                window_property(f"{prop}_{prop_key}" if prop_key else prop, value)
 
             total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 
@@ -452,10 +455,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Update jump button overlay using params and placement options.
         No focus guard as needs to remain responsive to scroll.
         """
-        target_id = to_int(self.params.get("target_id"), None)
         if not self._require("target_id"):
             return
 
+        target_id = to_int(self.params.get("target_id"), None)
         jump = JumpButton(
             container=self.target_container,
             btn_id=target_id,
@@ -520,10 +523,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not guard.alive():
                 return
 
-            target_id = to_int(self.params.get("target_id"), None)
             if not self._require("target_id"):
                 return
 
+            target_id = to_int(self.params.get("target_id"), None)
             pb = ProgressBarManager(
                 target=f"{self.target_container}.ListItem",
                 base_id=target_id,
@@ -559,10 +562,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         with ``src=w,h`` derives h as the aspect-keep height of src in the
         fit box, overriding a literal h.
         """
-
-        target_id = to_int(self.params.get("target_id"), None)
         if not self._require("target_id"):
             return
+
+        target_ids = [to_int(v, None) for v in self.params["target_id"].split(",")]
         h = to_int(self.params.get("h"), None)
         if fit := self.params.get("fit"):
             fit_w, fit_h = (to_int(v, 0) for v in fit.split(","))
@@ -573,13 +576,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 log.warning("reposition → fit requires src=w,h")
                 return
             h = min(fit_h, round(fit_w * src_h / src_w))
-        reposition_control(
-            target_id,
-            x=to_int(self.params.get("x"), None),
-            y=to_int(self.params.get("y"), None),
-            w=to_int(self.params.get("w"), None),
-            h=h,
-        )
+        for target_id in target_ids:
+            reposition_control(
+                target_id,
+                x=to_int(self.params.get("x"), None),
+                y=to_int(self.params.get("y"), None),
+                w=to_int(self.params.get("w"), None),
+                h=h,
+            )
 
     @log.duration
     def tmdb_details(self) -> list[DirectoryItem] | None:
@@ -656,10 +660,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Run typewriter animation for the current listitem; guarded against focus changes.
         A reset=true invocation supersedes any run and hides the control.
         """
-        target_id = to_int(self.params.get("target_id"), None)
         if not self._require("target_id"):
             return
 
+        target_id = to_int(self.params.get("target_id"), None)
         if parse_bool(self.params.get("reset", "false")):
             TypewriterAnimation.reset(target_id=target_id)
             window_property("typewriter_container")

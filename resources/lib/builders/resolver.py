@@ -146,7 +146,7 @@ class ConfigsResolver(_TemplateResolver):
             items_list = raw_items
             labels = {}
 
-        excluded = {
+        matched = [
             value
             for rule in merged["rules"]
             if self._rules.evaluate(
@@ -159,12 +159,14 @@ class ConfigsResolver(_TemplateResolver):
                 )
             )
             for value in rule.get("value", [])
-        }
-        items = [
-            item
-            for item in items_list
-            if (item not in excluded) == (merged["filter_mode"] == "exclude")
         ]
+        if merged["filter_mode"] == "exclude":
+            items = [item for item in items_list if item not in matched]
+        else:
+            # include: rule order is priority order, so a trailing `true`
+            # catch-all behaves as an else branch (resolve_default takes items[0])
+            items = list(dict.fromkeys(v for v in matched if v in items_list))
+
         if not items and items_list and merged["filter_mode"] == "include":
             raise ValueError(
                 f"ConfigsResolver → include-mode config "
