@@ -26,11 +26,11 @@ from resources.lib.shared.utilities import (
     condition,
     infolabel,
     json_call,
+    plugin_path,
     return_label,
     split,
     split_random,
     to_int,
-    url_encode,
     window_property,
 )
 
@@ -39,6 +39,9 @@ if TYPE_CHECKING:
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
 _CLAMP_VERSION = "1"
+
+# Skin authoring height; Kodi rasterises fonts at size * ScreenHeight / this.
+_SKIN_HEIGHT = 1080
 
 
 def reposition_control(
@@ -189,9 +192,8 @@ class DataHandler:
         :return: Dictionary with art, resume, contributors, etc.
         """
         label = return_label(self.infolabels["Label"])
-        encoded_label = url_encode(label)
         return {
-            "file": encoded_label,
+            "file": plugin_path("metadata"),
             "label": label,
             "label2": label,
             "Directors": split_random(self.infolabels["Director"]),
@@ -496,18 +498,24 @@ class ProgressBarManager:
 @lru_cache(maxsize=8)
 def _load_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont | None:
     """Load a font via direct path, falling back to a VFS read for
-    resource:// and other non-filesystem paths.
+    resource:// and other non-filesystem paths. BASIC layout: Kodi applies
+    no GPOS kerning, so neither may the measurement.
 
     :param font_path: special://, resource://, or absolute font path.
-    :param font_size: Font size in skin-coordinate pixels.
+    :param font_size: Font size in rendered pixels.
     :return: Loaded font, or None if unreadable.
     """
+
     t0 = time.perf_counter()
     from PIL import ImageFont
 
     log.debug(f"_load_font → PIL import {(time.perf_counter() - t0) * 1000:.0f}ms")
     try:
-        return ImageFont.truetype(xbmcvfs.translatePath(font_path), font_size)
+        return ImageFont.truetype(
+            xbmcvfs.translatePath(font_path),
+            font_size,
+            layout_engine=ImageFont.LAYOUT_BASIC,
+        )
     except OSError:
         pass
     handle = xbmcvfs.File(font_path)
@@ -519,10 +527,44 @@ def _load_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont | None:
         log.warning(f"_load_font → unreadable: {font_path}")
         return None
     try:
-        return ImageFont.truetype(io.BytesIO(data), font_size)
+        return ImageFont.truetype(
+            io.BytesIO(data), font_size, layout_engine=ImageFont.LAYOUT_BASIC
+        )
     except OSError:
         log.warning(f"_load_font → not a valid font: {font_path}")
         return None
+
+
+class KodiMetric:
+    """
+    Line width as CGUIFontTTF computes it: per-glyph advances rounded at the
+    rendered size, summed without kerning, scaled back to skin units.
+    """
+
+    def __init__(self, font: ImageFont.FreeTypeFont, scale: float) -> None:
+        """
+        Wrap a font rasterised at skin size * scale.
+
+        :param font: Font loaded at the rendered pixel size.
+        :param scale: ScreenHeight / skin height.
+        """
+        self.font = font
+        self.scale = scale
+        self.advances: dict[str, int] = {}
+
+    def getlength(self, text: str) -> float:
+        """
+        Width of text in skin-coordinate pixels.
+
+        :param text: Single line to measure.
+        :return: Sum of rounded rendered advances divided by scale.
+        """
+        total = 0
+        for ch in text:
+            if (advance := self.advances.get(ch)) is None:
+                advance = self.advances[ch] = round(self.font.getlength(ch))
+            total += advance
+        return total / self.scale
 
 
 def clamp_text(
@@ -534,7 +576,7 @@ def clamp_text(
     max_lines: int,
 ) -> str:
     """Clamp text to max_lines when wrapped at max_width with the given font.
-    Metric-only: measures glyph advances via FreeType, no GUI roundtrips.
+    Measures with Kodi's rule (KodiMetric) at the current GUI scale.
 
     :param text: Full input string.
     :param font_path: special://, resource://, or absolute font path.
@@ -543,6 +585,8 @@ def clamp_text(
     :param max_lines: Maximum rendered lines to keep.
     :return: Single unwrapped string; Kodi re-wraps it at render time.
     """
+
+    scale = to_int(infolabel("System.ScreenHeight")) / _SKIN_HEIGHT
     cache = TruncateCacheHandler()
     key = HashManager.short_hash_str(
         "|".join(
@@ -550,6 +594,7 @@ def clamp_text(
                 _CLAMP_VERSION,
                 font_path,
                 str(font_size),
+                f"{scale:.4f}",
                 str(max_width),
                 str(max_lines),
                 text,
@@ -560,10 +605,10 @@ def clamp_text(
     if (cached := cache.get_entry(key)) is not None:
         return cached
 
-    font = _load_font(font_path, font_size)
+    font = _load_font(font_path, round(font_size * scale))
     if font is None:
         return text
-    result = " ".join(fit_lines(font, text, max_width, max_lines))
+    result = " ".join(fit_lines(KodiMetric(font, scale), text, max_width, max_lines))
     cache.upsert_entry(key, result)
     return result
 

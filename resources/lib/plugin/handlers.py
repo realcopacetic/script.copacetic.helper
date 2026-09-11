@@ -39,6 +39,7 @@ from resources.lib.shared.utilities import (
     focused_control_id,
     infolabel,
     parse_bool,
+    plugin_path,
     set_plugincontent,
     to_float,
     to_int,
@@ -429,7 +430,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return set_items(
                 [
                     {
-                        "file": "artwork",
+                        "file": plugin_path("artwork"),
                         "art": art,
                         "properties": (
                             {
@@ -535,7 +536,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             result = set_items(
                 [
                     {
-                        "file": "progress",
+                        "file": plugin_path("progress"),
                         "resume": {"position": resume, "total": 100},
                         "properties": {"unwatchedepisodes": str(unwatched)},
                     }
@@ -647,7 +648,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return set_items(
                 [
                     {
-                        "file": "text",
+                        "file": plugin_path("text"),
                         "art": {"text": path},
                         "properties": {"text_height": str(height)},
                     }

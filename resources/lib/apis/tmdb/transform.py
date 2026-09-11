@@ -7,13 +7,13 @@ from resources.lib.apis.tmdb.client import fetch_tmdb_fields
 from resources.lib.apis.tmdb.fields import (
     TMDB_FIELD_MAP,
     apply_tmdb_transform,
+    assign_image_list_to_art,
     build_tmdb_image_url,
     build_tmdb_image_url_list,
-    assign_image_list_to_art,
     split_tmdb_images_by_language,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import ADDON, pretty_print
+from resources.lib.shared.utilities import ADDON, plugin_path, pretty_print
 
 _CACHE = TmdbCache()
 IMAGE_LIST_ROLES: dict[str, list[tuple[str, str]]] = {
@@ -106,7 +106,7 @@ def _build_tmdb_canonical_item(
     :return: Canonical item dict for downstream handlers.
     """
     item: dict[str, Any] = {
-        "file": "tmdb",
+        "file": plugin_path("tmdb"),
         "art": {},
         "properties": {},
     }

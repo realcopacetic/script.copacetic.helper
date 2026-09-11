@@ -295,6 +295,17 @@ def get_total_size(path: str | Path) -> int:
     return 0
 
 
+def plugin_path(role: str) -> str:
+    """
+    Path for a non-playable helper item. The plugin:// scheme makes Kodi's
+    thumb loader skip local-art lookup and ffmpeg stream-detail extraction.
+
+    :param role: Item role, e.g. "artwork" or "metadata".
+    :return: plugin://<addon id>/<role>.
+    """
+    return f"plugin://{ADDON_ID}/{role}"
+
+
 def skin_uses_builder() -> bool:
     """
     True when the active skin ships the builder folder structure under
