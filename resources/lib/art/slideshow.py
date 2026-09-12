@@ -252,6 +252,7 @@ class Slideshow:
                 analyze=False,
                 blur_radius=None,
                 darken=None,
+                edge_trim=0.0,
             )
             jobs["clearlogo"] = ("crop",)
         processed = self.image_processor(jobs=jobs, art_opts=art_opts)

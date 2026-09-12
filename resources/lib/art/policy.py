@@ -216,10 +216,10 @@ class ColorConfig:
 
     # --- Image Processing ---
     blur_radius: int = 50  # Default Gaussian blur radius in pixels
-    jpeg_quality: int = 80  # JPEG export quality (1-95)
+    jpeg_quality: int = 90  # JPEG export quality (1-95)
     jpeg_optimize: bool = False  # Enable JPEG optimization (slower save, smaller file)
     jpeg_progressive: bool = False  # Enable progressive JPEG encoding
-    jpeg_subsampling: str = "4:2:0"  # Chroma subsampling ("4:4:4" for max detail)
+    jpeg_subsampling: str = "4:4:4"  # Chroma subsampling ("4:4:4" for max detail)
     png_optimize: bool = False  # Enable PNG optimization
     png_compress_level: int = 3  # PNG zlib compression (0 fastest, 9 smallest)
 

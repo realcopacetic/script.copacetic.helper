@@ -90,6 +90,7 @@ class ArtOpts:
     :param blur_radius: Blur radius override.
     :param analyze: Enable analysis.
     :param darken: Darken options for this art_type.
+    :param edge_trim: Border to discard before blurring, percent per side.
     """
 
     url: str | None
@@ -98,6 +99,7 @@ class ArtOpts:
     analyze: bool
     blur_radius: int | None
     darken: DarkenOpts | None
+    edge_trim: float
 
     def enabled(self, process: str) -> bool:
         """
@@ -132,4 +134,5 @@ class ArtOpts:
                 if art_type in ("background", "icon")
                 else None
             ),
+            edge_trim=to_float(params.get(f"{art_type}_edge_trim"), 0.0),
         )

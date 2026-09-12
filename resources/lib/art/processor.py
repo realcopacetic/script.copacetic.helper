@@ -32,6 +32,22 @@ class ImageProcessor:
         """
         return image if image.mode == target else image.convert(target)
 
+    @staticmethod
+    def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+        """
+        Downsample to cover a box, aspect kept, never upscaling.
+
+        :param image: Input PIL Image.
+        :param size: Box (w, h) the result must cover.
+        :return: Resized image, or the input when it already fits.
+        """
+        scale = max(size[0] / image.width, size[1] / image.height)
+        if scale >= 1:
+            return image
+        return image.resize(
+            (round(image.width * scale), round(image.height * scale)), Image.BOX
+        )
+
     @log.duration
     def crop(self, image: Image.Image, **_: Any) -> dict[str, Any] | None:
         """
@@ -75,9 +91,11 @@ class ImageProcessor:
         :param opts: Parsed ArtOpts for this art_type.
         :return: Dict with {"image", "format"} or None on failure.
         """
-        thumb_size = self.cfg.blur_target_size
-        if image.width > thumb_size[0] or image.height > thumb_size[1]:
-            image.thumbnail(thumb_size, Image.BOX)
+        if opts.edge_trim:
+            dx = round(image.width * opts.edge_trim / 100)
+            dy = round(image.height * opts.edge_trim / 100)
+            image = image.crop((dx, dy, image.width - dx, image.height - dy))
+        image = self._cover(image, self.cfg.blur_target_size)
 
         radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
         try:
