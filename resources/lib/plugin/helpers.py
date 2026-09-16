@@ -182,6 +182,7 @@ class DataHandler:
                 "Studio",
                 "Plot",
                 "PlotOutline",
+                "Trailer",
             ],
         )
 
@@ -202,6 +203,7 @@ class DataHandler:
             "Writers": split(self.infolabels["Writer"]),
             "Plot": self.infolabels["Plot"],
             "PlotOutline": self.infolabels["PlotOutline"],
+            "Trailer": self.infolabels["Trailer"],
         }
 
     def _studio(self) -> str:
@@ -402,6 +404,7 @@ class ProgressBarManager:
         progress_id: int | None = None,
         btn_id: int | None = None,
         img_id: int | None = None,
+        img_h: int | None = None,
     ) -> None:
         """
         Resolve rect, move/size controls, and position the thumb.
@@ -410,6 +413,8 @@ class ProgressBarManager:
         :param opts: Placement options (coords/anchor/inset/track_w/track_h).
         :param progress_id: Optional override for progress bar ID.
         :param btn_id: Optional override for thumb button ID.
+        :param img_id: Optional override for track image ID.
+        :param img_h: Track image height, centred on the bar; defaults to the bar height.
         """
         base_id = self.base_id
         progress_id = to_int(progress_id, self.progress_id)
@@ -452,8 +457,10 @@ class ProgressBarManager:
                 f"{self.__class__.__name__} → Optional img_id {img_id} not found."
             )
         else:
+            img_h = to_int(img_h, height)
             img.setWidth(width)
-            img.setHeight(height)
+            img.setHeight(img_h)
+            img.setPosition(img.getX(), align_y(0, height, img_h, "center", 0))
 
         try:
             cur_w, cur_h = base.getWidth(), base.getHeight()

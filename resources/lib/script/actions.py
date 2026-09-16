@@ -443,7 +443,6 @@ def play_trailer(trailer, **kwargs):
 
     :param trailer: Player path or plugin URL to play.
     :param item: Item label captured skin-side, atomic with the trailer URL.
-    :param item: Item label captured skin-side, atomic with the trailer URL.
     :param viewport: Optional "WxH" trailer region; enables aspect zoom.
     :param source_prefix: Optional infolabel prefix for AR lookup.
     """
@@ -458,7 +457,7 @@ def play_trailer(trailer, **kwargs):
     window_property("trailer_viewport", value=kwargs.get("viewport", ""))
     window_property("trailer_source", value=source)
     window_property("trailer_item", value=item)
-    log.execute(f"PlayMedia({trailer},1,noresume)")
+    log.execute(f'PlayMedia("{trailer}",1,noresume)')
 
 
 @action

@@ -290,6 +290,7 @@ def seed_multiart(
     multiart_dict: dict[str, str],
     art: dict[str, str],
     seed_scope: str,
+    seed_item: str,
     alive: Callable[[], bool],
 ) -> dict[str, str] | None:
     """
@@ -302,6 +303,7 @@ def seed_multiart(
     :param multiart_dict: Candidate multiart family from the listitem.
     :param art: Processed art dict, updated with multiart keys on seed.
     :param seed_scope: Listing identity of this serve (region@folder).
+    :param seed_item: Item identity of this serve (pos/dbid); keys the skip.
     :param alive: Focus guard callable; False aborts mid-seed.
     :return: Updated art dict, or None when the guard died mid-seed.
     """
@@ -311,11 +313,13 @@ def seed_multiart(
     seed_scope_key = f"multiart_seed_scope_{fadelabel_id}"
     same_scope = infolabel(f"Window(home).Property({seed_scope_key})") == seed_scope
     sig_key = f"multiart_seed_sig_{fadelabel_id}"
-    signature = _multiart_signature(multiart_dict)
-    # Interruptor guard: a refire that would reseed the identical set into a
-    # live register (announcement invalidation, viewmenu return) is a pure
-    # no-op — the rotation continues untouched. A legitimately cleared
-    # register has an empty label and never skips; a scope change never skips.
+    signature = f"{seed_item}:{_multiart_signature(multiart_dict)}"
+    # Interruptor guard: a refire that would reseed the identical set for the
+    # SAME item into a live register (announcement invalidation, viewmenu
+    # return) is a pure no-op — the rotation continues untouched. A new item
+    # always reseeds, even into an identical set, so every arrival restarts on
+    # the main image. A legitimately cleared register has an empty label and
+    # never skips; a scope change never skips.
     if (
         len(multiart_dict) > 1
         and same_scope

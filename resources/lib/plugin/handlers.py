@@ -375,11 +375,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return
 
             folder = infolabel(f"{self.identity_container}.FolderPath")
+            dbid = infolabel(f"{self.identity_container}.ListItem.DBID")
             art = seed_multiart(
                 fadelabel_id=self.params.get("multiart_fadelabel"),
                 multiart_dict=multiart_dict,
                 art=art,
                 seed_scope=f"{stamp_scope}@{folder}",
+                seed_item=f"{current_position}/{dbid}",
                 alive=guard.alive,
             )
             if art is None:
@@ -401,7 +403,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             identity = ArtworkIdentity(
                 scope=stamp_scope,
                 pos=current_position,
-                dbid=infolabel(f"{self.identity_container}.ListItem.DBID"),
+                dbid=dbid,
                 visit=self.params.get("visit", ""),
             )
             prev_item = identity.neighbour(-1, total)
@@ -494,12 +496,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if enrich_with_tmdb:
                 tmdb_item = self._get_tmdb_item(append_artwork=False)
                 if tmdb_item:
+                    # Library trailer outranks TMDb's YouTube URL: local file,
+                    # no plugin dependency. Merge fills it only when absent.
+                    trailer = data["Trailer"]
                     data = merge_metadata(
                         base=data,
                         incoming=tmdb_item,
                         prefer_incoming=True,
                         ignore_keys=("art", "file"),
                     )
+                    data["Trailer"] = trailer or data["Trailer"]
 
             if not guard.alive():
                 return
@@ -553,6 +559,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 progress_id=to_int(self.params.get("progress_id"), None),
                 btn_id=to_int(self.params.get("btn_id"), None),
                 img_id=to_int(self.params.get("img_id"), None),
+                img_h=to_int(self.params.get("img_h"), None),
             )
             return result
 
