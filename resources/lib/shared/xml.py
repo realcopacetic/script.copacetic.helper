@@ -403,6 +403,7 @@ class XMLDictConverter:
             template_dict = {}
 
             index_elem = element.find("index")
+            range_elem = element.find("range")
             items_elem = element.find("items")
             filter_elem = element.find("filter")
 
@@ -428,6 +429,12 @@ class XMLDictConverter:
                     template_dict["index"][f"{self.ATTR_PREFIX}end"] = index_elem.get(
                         "end"
                     )
+            if range_elem is not None:
+                template_dict["range"] = {
+                    f"{self.ATTR_PREFIX}{attr}": range_elem.get(attr)
+                    for attr in ("start", "end", "step")
+                    if range_elem.get(attr)
+                }
 
             if items_elem is not None:
                 items = [item.strip() for item in items_elem.text.split(",")]
