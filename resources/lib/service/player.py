@@ -108,12 +108,24 @@ class PlayerMonitor(Player):
     def _handle_audio_start(self) -> None:
         """
         Set music-related window properties on audio start.
+        Splits the player's artist list into player_artist_1..3 for exact matching.
         """
+
         tag = self.getMusicInfoTag()
         self._set_managed_property("player_userrating", value=str(tag.getUserRating()))
         self._set_managed_property("player_artist", value=tag.getArtist())
         self._set_managed_property("player_albumartist", value=tag.getAlbumArtist())
         self._set_managed_property("player_album", value=tag.getAlbum())
+
+        query = json_call(
+            "Player.GetItem",
+            params={"playerid": 0, "properties": ["artist"]},
+            parent="now_playing_song",
+        )
+        artists = query.get("result", {}).get("item", {}).get("artist", [])
+        for index in range(3):
+            artist = artists[index] if index < len(artists) else ""
+            self._set_managed_property(f"player_artist_{index + 1}", value=artist)
 
     def _set_managed_property(
         self, key: str, value: str = "", window_id: int = 10000
