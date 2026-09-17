@@ -654,6 +654,7 @@ class IncludesBuilder(BaseBuilder):
         :param data: Data structure (dict, list, or string) with potential placeholders.
         :param substitutions: List of substitution dictionaries.
         """
+
         if isinstance(data, dict):
             expanded_dict = {
                 key: self.recursive_expand(value, substitutions)

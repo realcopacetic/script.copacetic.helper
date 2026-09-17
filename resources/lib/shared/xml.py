@@ -2,7 +2,6 @@
 
 import os
 import xml.etree.ElementTree as ET
-from collections import defaultdict
 from functools import wraps
 from pathlib import Path
 
@@ -362,6 +361,7 @@ class XMLDictConverter:
 
     ATTR_PREFIX = "@"
     TEXT_KEY = "#text"
+    CHILD_KEY = "#children"
 
     def __init__(self, root_element, **kwargs):
         """
@@ -403,6 +403,7 @@ class XMLDictConverter:
             template_dict = {}
 
             index_elem = element.find("index")
+            range_elem = element.find("range")
             items_elem = element.find("items")
             filter_elem = element.find("filter")
 
@@ -428,6 +429,12 @@ class XMLDictConverter:
                     template_dict["index"][f"{self.ATTR_PREFIX}end"] = index_elem.get(
                         "end"
                     )
+            if range_elem is not None:
+                template_dict["range"] = {
+                    f"{self.ATTR_PREFIX}{attr}": range_elem.get(attr)
+                    for attr in ("start", "end", "step")
+                    if range_elem.get(attr)
+                }
 
             if items_elem is not None:
                 items = [item.strip() for item in items_elem.text.split(",")]
@@ -461,7 +468,9 @@ class XMLDictConverter:
 
     def element_to_dict(self, element):
         """
-        Recursively converts an XML element into a dictionary.
+        Recursively converts an XML element into a dictionary. Children are
+        kept in document order under ``#children``, so sibling layer order
+        survives the round trip.
 
         :param element: XML element to convert.
         :return: Dictionary representation of the element.
@@ -474,13 +483,9 @@ class XMLDictConverter:
         children = list(element)
 
         if children:
-            child_dict = defaultdict(list)
-            for child in children:
-                child_data = self.element_to_dict(child)
-                tag, value = next(iter(child_data.items()))
-                child_dict[tag].append(value)
-
-            node_dict[element.tag].update(child_dict)
+            node_dict[element.tag][self.CHILD_KEY] = [
+                self.element_to_dict(child) for child in children
+            ]
 
         text = (element.text or "").strip()
         if text:
@@ -552,6 +557,9 @@ class XMLDictConverter:
                     elem.set(k[len(self.ATTR_PREFIX) :], v)
                 elif k == self.TEXT_KEY:
                     elem.text = v
+                elif k == self.CHILD_KEY:
+                    for child_item in v:
+                        elem.append(self.dict_to_element(child_item))
                 elif isinstance(v, list):
                     for child_item in v:
                         child = self.dict_to_element({k: child_item})

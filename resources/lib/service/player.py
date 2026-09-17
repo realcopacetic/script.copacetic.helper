@@ -116,6 +116,7 @@ class PlayerMonitor(Player):
         self._set_managed_property("player_artist", value=tag.getArtist())
         self._set_managed_property("player_albumartist", value=tag.getAlbumArtist())
         self._set_managed_property("player_album", value=tag.getAlbum())
+        self._set_managed_property("player_disc", value=str(tag.getDisc()))
 
         query = json_call(
             "Player.GetItem",
