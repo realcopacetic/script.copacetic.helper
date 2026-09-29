@@ -19,3 +19,6 @@
 *.PDF	 diff=astextplain
 *.rtf	 diff=astextplain
 *.RTF	 diff=astextplain
+
+# Dev-only verification harness, kept out of release archives
+/tests export-ignore
