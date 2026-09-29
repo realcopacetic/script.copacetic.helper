@@ -23,6 +23,8 @@ PARAM = re.compile(r"\$PARAM\[([^\[\]]*)\]")
 KINDS = {"VAR": "variable", "EXP": "expression"}
 DEFINITIONS = ("include", "expression", "variable")
 LAYOUTS = {"itemlayout", "focusedlayout"}
+GENERATED = "script-copacetic-helper_"
+UNMIGRATED = ("_addonbrowser", "_pictures")  # pre-built for windows not yet migrated
 C2_SHELLS = ("tpl_window", "blk_modal_", "tpl_modal_", "img_modal_", "blk_hud_")
 ERRORS = {
     "parse",
@@ -157,6 +159,7 @@ class Skin:
         self.defaults = {}
         self.params = {}
         self.duplicates = defaultdict(list)
+        self.reached = set()
         self.loaded = []
         self._load("Includes.xml")
         for name, root in self.roots.items():
@@ -353,21 +356,39 @@ class Skin:
     def check_window(self, name: str) -> None:
         """
         Check what Kodi resolves when window ``name`` loads: its includes expanded,
-        then every ``$VAR``/``$EXP`` reachable from it, transitively.
+        then every ``$VAR``/``$EXP`` reachable from it or its include conditions.
         """
         root = clone(self.roots[name])
         self.check_calls(root)
         self.expand(root, budget=[100_000])
-        queue, seen = [root], set()
+        queue = [root]
+        for branch in {b for node in root.iter() for b in getattr(node, "branch", ())}:
+            src, _, condition = branch.partition(" ")
+            queue.append(Node("include", {"condition": condition}))
+            queue[-1].src = src
         while queue:
             for node, value in values(queue.pop()):
                 for token, ref in REF.findall(value):
                     self.check_reference(token, ref, node.src)
                     kind, ref = KINDS[token], ref.split(",")[0]
-                    if (kind, ref) not in seen and ref in self.defs[kind]:
-                        seen.add((kind, ref))
+                    if (kind, ref) not in self.reached and ref in self.defs[kind]:
+                        self.reached.add((kind, ref))
                         queue.append(self.defs[kind][ref])
         self.check_ids(name, self.roots[name])
+
+    def check_unreferenced(self) -> None:
+        """
+        Report generated variables and expressions that no linted window reaches,
+        through its values or its include conditions.
+        """
+        for kind in KINDS.values():
+            for name, node in self.defs[kind].items():
+                if (
+                    node.src.startswith(GENERATED)
+                    and not name.endswith(UNMIGRATED)
+                    and (kind, name) not in self.reached
+                ):
+                    self.report("unreferenced-definition", node.src, f"{kind} {name}")
 
     def lint(self, windows: list[str] | None = None) -> set[Finding]:
         """
@@ -387,6 +408,8 @@ class Skin:
             self.check_calls(root)
             if root.tag == "window":
                 self.check_ids(name, root)
+        if windows is not None:
+            self.check_unreferenced()
         for (cid, srcs), windows in self.duplicates.items():
             where = ", ".join(
                 f"{src} ×{n}" if n > 1 else src for src, n in Counter(srcs).items()
