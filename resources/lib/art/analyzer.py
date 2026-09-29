@@ -56,7 +56,7 @@ class ColorAnalyzer:
                 return (0, 0, 0)
             swatches, counts = self._quantize_palette(rgb_small)
             total = sum(c for c, _ in counts) or 1
-            filtered: list[tuple[int, int]] = []
+            filtered = []
             for c, idx in counts:
                 r, g, b = swatches[idx]
                 near_white = (
@@ -116,9 +116,7 @@ class ColorAnalyzer:
         # --- Step 2: Quantize palette ---
         try:
             swatches, counts = self._quantize_palette(rgb_small)
-            count_map: dict[RGB, int] = {
-                swatches[idx]: c for c, idx in counts if idx < len(swatches)
-            }
+            count_map = {swatches[idx]: c for c, idx in counts if idx < len(swatches)}
             if not count_map:
                 return dominant_rgb
         except Exception as exc:

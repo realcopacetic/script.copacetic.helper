@@ -33,7 +33,7 @@ class RuleEngine:
         """Initializes the RuleEngine with an empty condition cache."""
         self.condition_cache = {}
 
-    def evaluate(self, condition_str, runtime=False):
+    def evaluate(self, condition_str: str, runtime: bool = False) -> bool:
         """
         Evaluates a condition string, using cached results if available.
 
@@ -51,7 +51,7 @@ class RuleEngine:
 
         return result
 
-    def _evaluate_condition(self, condition_str):
+    def _evaluate_condition(self, condition_str: str) -> bool:
         """
         Parses and evaluates a condition string using regex and evaluators.
 
@@ -105,7 +105,7 @@ class RuleEngine:
 
         return False
 
-    def invert(self, values_dict):
+    def invert(self, values_dict: dict[str, str]) -> str:
         """
         Builds a Kodi boolean inversion expression from a dictionary of values.
 

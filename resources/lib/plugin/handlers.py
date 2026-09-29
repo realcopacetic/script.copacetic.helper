@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 import sys
 from contextlib import contextmanager
-from typing import Any, Callable, Generator
+from typing import Any, Callable, ContextManager, Generator
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
@@ -196,7 +196,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "value": self.exclude_value,
         }
 
-    def focus(self):
+    def focus(self) -> ContextManager[_FocusGuard]:
         """
         Return a pre-filled focus guard for the calling handler.
         Auto-detects the handler name from the call frame.
@@ -251,9 +251,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         default_text: str | None = None,
     ) -> None:
         """Attach a truncated label to a metadata dict.
-        Text precedence: truncate_label param, truncate_label_id
-        probe control, default_text, then plot infolabel. Geometry is
-        measured plugin-side against the declared skin font.
+        Text precedence: truncate_label, truncate_label_id probe, default_text, Plot.
+        Geometry is measured plugin-side against the declared skin font.
 
         :param data: Metadata dict to update in place.
         :param target: ListItem infolabel prefix for plot fallback.
@@ -721,7 +720,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             sort_method=SORT_METHOD_LASTPLAYED,
         )
         filters = [self.filter_inprogress]
-        jobs: list[Callable[[], list[DirectoryItem]]] = []
+        jobs = []
         if self.dbtype != "tvshow":
             jobs.append(
                 lambda: fetch_and_add(
@@ -814,7 +813,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         # 3: First episode per pending show. Bulk result is sorted ascending
         # by episode, so the first hit per tvshowid wins.
-        first_per_show: dict[int, dict] = {}
+        first_per_show = {}
         for ep in bulk_episodes:
             sid = ep.get("tvshowid")
             if sid in pending_ids and sid not in first_per_show:
@@ -822,7 +821,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         # Assemble in pending_shows order to preserve lastplayed desc.
         # Attach show-level studio/mpaa to each episode.
-        ordered_episodes: list[dict[str, Any]] = []
+        ordered_episodes = []
         for s in shows:
             ep = first_per_show.get(s["tvshowid"])
             if ep is None:
@@ -923,7 +922,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         ],
         parent="actor_credits",
     )
-    def actor_credits(self):
+    def actor_credits(self) -> list[DirectoryItem] | None:
         """
         Build a container of movies and TV shows featuring ``self.label``.
         """
@@ -938,7 +937,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         ],
         parent="director_credits",
     )
-    def director_credits(self):
+    def director_credits(self) -> list[DirectoryItem] | None:
         """
         Build a container of movies and music videos directed by ``self.label``.
         """
@@ -954,7 +953,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         parent="writer_credits",
         postprocess=lambda eps: enrich_with_tvshow(eps, parent="writer_credits"),
     )
-    def writer_credits(self):
+    def writer_credits(self) -> list[DirectoryItem] | None:
         """
         Build a container of movies and episodes written by ``self.label``.
         """

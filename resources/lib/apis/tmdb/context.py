@@ -1,12 +1,12 @@
 # resources/lib/apis/tmdb/context.py
 # author: realcopacetic
 
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Mapping
 
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import infolabel, json_call, to_int
 
-_DETAILS_LOOKUP_BY_KIND: dict[str, dict[str, str]] = {
+_DETAILS_LOOKUP_BY_KIND = {
     "movie": {
         "method": "VideoLibrary.GetMovieDetails",
         "id_key": "movieid",
@@ -58,7 +58,7 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
     def first(key: str, label: str) -> str | None:
         return params.get(key) or infolabel(f"{target}.{label}") or None
 
-    context: MutableMapping[str, Any] = {}
+    context = {}
     context["kind"] = kind = (first("type", "DBType") or "").lower() or None
     context["dbid"] = dbid = to_int(first("id", "DBID"), None)
     tmdb_id = first("tmdb_id", "UniqueID(tmdb)")

@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+
 DEFAULT_ELLIPSIS = "..."
 DEFAULT_ABBREV = {
     "mr",
@@ -107,7 +108,7 @@ def wrap_text(font, text: str, max_width: int, tracking: float = 0.0) -> list[st
     :param tracking: Extra pixels inserted between adjacent glyphs.
     :return: List of wrapped lines.
     """
-    lines: list[str] = []
+    lines = []
     cur = ""
     for word in text.split():
         trial = f"{cur} {word}".strip()

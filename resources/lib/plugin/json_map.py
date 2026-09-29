@@ -2,11 +2,11 @@
 
 from resources.lib.plugin.setter import TAG_TYPES
 
-_JSON_TO_CANONICAL: dict[str, str] = {
+_JSON_TO_CANONICAL = {
     spec["json"]: canonical for canonical, spec in TAG_TYPES.items() if spec.get("json")
 }
 
-JSON_PROPERTIES: dict[str, list[str]] = {
+JSON_PROPERTIES = {
     "album": [
         "title",
         "description",
@@ -257,7 +257,7 @@ def json_to_canonical(
     :param allowed: Optional whitelist of canonical tag names.
     :return: Canonical metadata dictionary ready for ``set_items()``.
     """
-    item: dict[str, str | int | list] = {
+    item = {
         "file": raw.get("file", ""),
         "art": raw.get("art", {}) or {},
         "properties": {},

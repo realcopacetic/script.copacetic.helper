@@ -42,7 +42,7 @@ def _extract_path(data: Mapping[str, Any], path: Sequence[str]) -> Any:
     :param path: Iterable of nested keys.
     :return: Extracted value or None.
     """
-    current: Any = data
+    current = data
     for key in path:
         if not isinstance(current, Mapping):
             return None
@@ -103,8 +103,8 @@ def fetch_tmdb_fields(
         log.debug(f"fetch_tmdb_fields → unknown {kind=}")
         return {}
 
-    endpoint_template: str = kind_map["endpoint"]
-    format_kwargs: dict[str, Any] = {"id": tmdb_id}
+    endpoint_template = kind_map["endpoint"]
+    format_kwargs = {"id": tmdb_id}
 
     if "{season_number}" in endpoint_template:
         if season_number is None:
@@ -134,7 +134,7 @@ def fetch_tmdb_fields(
         log.debug(f"fetch_tmdb_fields → no valid fields requested for {kind=}")
         return {}
 
-    params: dict[str, Any] = {}
+    params = {}
     if append_blocks:
         params["append_to_response"] = ",".join(sorted(set(append_blocks)))
 
@@ -148,7 +148,7 @@ def fetch_tmdb_fields(
     if not data:
         return {}
 
-    result: dict[str, Any] = {}
+    result = {}
     for name in requested:
         path = field_map[name]
         value = _extract_path(data, path)
@@ -193,7 +193,7 @@ class TmdbClient:
         import urllib.request
 
         request_params = {"language": self.language, **(params or {})}
-        headers: dict[str, str] = {}
+        headers = {}
 
         if self.is_v4:
             # v4 read access token via Bearer header.

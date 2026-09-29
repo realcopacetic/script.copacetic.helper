@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
     from resources.lib.art.processor import ImageProcessor
 
-PROCESS_SPEC: dict[str, dict[str, Any]] = {
+PROCESS_SPEC = {
     "crop": {
         "folder": CROPS,
         "require": policy.ART_FIELDS_RESULT["crop"],

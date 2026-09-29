@@ -11,7 +11,7 @@ from resources.lib.shared.utilities import (
 
 
 class SettingsMonitor:
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = {
             "filelists.showparentdiritems": False,
             "videolibrary.showallitems": False,
@@ -43,7 +43,7 @@ class SettingsMonitor:
         }
         self.settings_to_change = {}
 
-    def get_defaults(self, **kwargs):
+    def get_defaults(self, **kwargs: str) -> None:
         self.settings_to_change.clear()
         window_property("Settings_To_Change")
         cats = {
@@ -85,7 +85,7 @@ class SettingsMonitor:
         item_count = cat_count + len(self.settings_to_change)
         window_property("Settings_To_Change", value=item_count)
 
-    def set_defaults(self, **kwargs):
+    def set_defaults(self, **kwargs: str) -> None:
         count = 0
         for item in list(self.settings_to_change.items()):
             if condition(f"Skin.HasSetting({item[0]})"):

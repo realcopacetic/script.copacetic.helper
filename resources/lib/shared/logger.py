@@ -4,7 +4,7 @@ import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 import xbmc
 
@@ -15,11 +15,11 @@ INFO = xbmc.LOGINFO
 WARNING = xbmc.LOGWARNING
 ERROR = xbmc.LOGERROR
 
-_MUTED: ContextVar[bool] = ContextVar("log_muted", default=False)
+_MUTED = ContextVar("log_muted", default=False)
 
 
 @contextmanager
-def muted():
+def muted() -> Iterator[None]:
     """
     Drop DEBUG-level logs in the current context for the duration of the block.
     force=True and INFO/WARNING/ERROR lines pass through unaffected.
@@ -31,7 +31,7 @@ def muted():
         _MUTED.reset(token)
 
 
-def log(message: str, level: int = DEBUG, force: bool = False):
+def log(message: str, level: int = DEBUG, force: bool = False) -> None:
     """
     Logs a message with addon prefix, respecting log level and debug settings.
     If force is true or debug_logging enabled in addon, DEBUG logs are elevated
@@ -48,7 +48,7 @@ def log(message: str, level: int = DEBUG, force: bool = False):
     xbmc.log(f"{ADDON_ID} → {message}", level)
 
 
-def debug(message: str, force: bool = False):
+def debug(message: str, force: bool = False) -> None:
     """
     Logs a DEBUG-level message. Visible only when Kodi's component log
     level is debug, unless `debug_logging` is enabled (which elevates it
@@ -60,7 +60,7 @@ def debug(message: str, force: bool = False):
     log(message, level=DEBUG, force=force)
 
 
-def info(message: str):
+def info(message: str) -> None:
     """
     Logs an INFO-level message. Always visible at Kodi's default log level.
 
@@ -69,7 +69,7 @@ def info(message: str):
     log(message, level=INFO)
 
 
-def verbose(message: str):
+def verbose(message: str) -> None:
     """
     Logs detailed per-iteration diagnostic output, gated behind the
     `verbose_logging` setting. Dropped entirely when off.
@@ -82,7 +82,7 @@ def verbose(message: str):
     log(message, level=INFO)
 
 
-def warning(message: str):
+def warning(message: str) -> None:
     """
     Logs a WARNING-level message. Always visible at Kodi's default log level.
     Use for unexpected but non-fatal conditions.
@@ -92,7 +92,7 @@ def warning(message: str):
     log(message, level=WARNING)
 
 
-def error(message: str):
+def error(message: str) -> None:
     """
     Logs an ERROR-level message. Always visible at Kodi's default log level.
     Use for failures that prevent intended behaviour from completing.

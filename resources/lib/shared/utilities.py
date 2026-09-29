@@ -186,12 +186,10 @@ def set_bool(setting_id: str) -> None:
     log.execute(f"Skin.SetBool({setting_id})")
 
 
-def toggle_bool(setting_id: str):
+def toggle_bool(setting_id: str) -> None:
     """
     Toggles a boolean skin setting using Kodi built-in functions.
-
-    If the setting is currently enabled (Skin.HasSetting), it will reset (clear it).
-    If the setting is currently disabled, it will set it to True.
+    Resets it if Skin.HasSetting is true, otherwise sets it to True.
 
     :param setting_id: The skin setting ID (e.g., "mysetting").
     """
@@ -378,7 +376,7 @@ def _build_request(
     :param options: Dictionary of additional JSON-RPC options.
     :return: Request body dict with "method" and "params" keys.
     """
-    body: dict[str, Any] = {
+    body = {
         "method": method,
         "params": dict(params) if params else {},
     }
@@ -476,22 +474,19 @@ def json_call_batch(
     parent: str | None = None,
 ) -> list[dict[str, Any] | None]:
     """
-    Send multiple JSON-RPC requests in a single IPC round-trip.
-
-    Each request dict accepts the same kwargs as json_call, plus an optional
-    ``id`` for response matching (auto-assigned by index if absent). Responses
-    are returned in the same order as the input requests; the spec permits
-    the server to return them out of order, so they are re-keyed by id.
+    Send multiple JSON-RPC requests in a single IPC round-trip. Each request dict
+    takes json_call's kwargs plus an optional ``id`` (default: its index). The
+    server may reorder responses, so they are re-keyed by id into input order.
 
     :param requests: List of request kwarg dicts.
     :param parent: Caller name for log output.
-    :return: List of response dicts in input order; None at any slot whose id is missing from the response.
+    :return: Responses in input order; None where a response id is missing.
     """
     if not requests:
         return []
 
-    envelopes: list[dict[str, Any]] = []
-    ids: list[Any] = []
+    envelopes = []
+    ids = []
     for idx, req in enumerate(requests):
         request_id = req.get("id", idx)
         ids.append(request_id)
@@ -735,19 +730,16 @@ def _eval_node(node: ast.AST, names: Mapping[str, Any]) -> Any:
 
 def evaluate_expression(expr: str, names: Mapping[str, Any]) -> str | None:
     """
-    Evaluate a small numeric expression against a name table. Supports the
-    four arithmetic operators (, -, *, /), floor division, modulo, unary
-    minus, parenthesised sub-expressions, and the functions min(), max(),
-    ceil() and sqrt() with positional of arguments.
+    Evaluate a small numeric expression against a name table. Supports + - * /,
+    //, %, unary minus, parentheses, and min(), max(), ceil(), sqrt() with
+    positional arguments.
 
     :param expr: Expression text (e.g. "count*100", "min(count*100, 800)").
-    :param names: Mapping of identifier to numeric value. String values that
-        parse as integers are accepted; other non-numeric values are ignored.
-    :return: Stringified result (integer when whole), or None if the
-        expression cannot be evaluated against the supplied names.
+    :param names: Identifier to numeric value; integer strings parsed, others ignored.
+    :return: Stringified result (int when whole), or None if it cannot be evaluated.
     """
 
-    numeric_names: dict[str, Any] = {}
+    numeric_names = {}
     for key, value in names.items():
         if isinstance(value, (int, float)):
             numeric_names[key] = value

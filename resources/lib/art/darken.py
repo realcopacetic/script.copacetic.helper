@@ -50,7 +50,7 @@ class ColorDarken:
 
         framed, rects, L_text, strength, label_widths = ctx
         mode = opts.mode or ""
-        updates: DarkenUpdates = {}
+        updates = {}
         updates["darken"] = self._compute_artwork_darken(
             framed=framed,
             rects=rects,
@@ -121,9 +121,8 @@ class ColorDarken:
     ) -> DarkenUpdates:
         """
         Darken elements on top of artwork (e.g. white text/logo on bright art).
-        Each rect evaluated independently; complex patches return -1.
-        Also emits a strength-independent mean-luminance companion per rect
-        (darken_element_mean*).
+        Each rect evaluated independently; complex patches return -1. Also emits a
+        strength-independent mean-luminance companion per rect (darken_element_mean*).
 
         :param framed: Framed image.
         :param rects: Scaled rects.
@@ -132,7 +131,7 @@ class ColorDarken:
         """
         keys = policy.ART_FIELDS_DARKEN_ELEMENT
         mean_keys = policy.ART_FIELDS_DARKEN_ELEMENT_MEAN
-        updates: DarkenUpdates = {}
+        updates = {}
         best = None
         for idx, rect in enumerate(rects[: len(keys)]):
             x, y, w, h = rect
@@ -210,7 +209,7 @@ class ColorDarken:
         :param opts: Darken options carrying rects and the label series.
         :return: (clamped rect string, per-rect width list).
         """
-        widths: list[int | None] = []
+        widths = []
         if not any(opts.labels):
             return opts.rects, widths
 
@@ -218,7 +217,7 @@ class ColorDarken:
         px = opts.label_px if opts.label_px else cfg.darken_label_px_per_char
         raw = opts.rects.replace(" ", "")
         parts = raw.split("),(") if "(" in raw else [raw]
-        clamped: list[str] = []
+        clamped = []
         for idx, part in enumerate(parts):
             label = opts.labels[idx] if idx < len(opts.labels) else None
             if label:
@@ -288,7 +287,7 @@ class ColorDarken:
 
         value = value.replace(" ", "")
         parts = [p.strip("()") for p in value.split("),(")] if "(" in value else [value]
-        out: list[Rect] = []
+        out = []
         for rect_str in parts:
             nums = rect_str.strip("()").split(",")
             if len(nums) != 4:
@@ -385,7 +384,7 @@ class ColorDarken:
         """
         sx = img_w / float(ref_w or 1)
         sy = img_h / float(ref_h or 1)
-        out: list[Rect] = []
+        out = []
         for bx, by, bw, bh in rects:
             x = int(round(bx * sx))
             y = int(round(by * sy))
@@ -474,10 +473,8 @@ class ColorDarken:
     ) -> int:
         """
         Map background luminance to a darken percentage for artwork behind elements.
-        Aborts if the overlay element is already dark (L_text < 0.2) since no
-        darkening is needed when a dark element sits on a bright background.
-        Bright art → high value; dark art → low or zero.
-        The skin XML maps the 0-100 output to opacity/tint steps.
+        Bright art → high, dark art → low or zero; aborts if the element is already
+        dark (L_text < 0.2). The skin XML maps 0-100 to opacity/tint steps.
 
         :param L_bg: Background luminance (0..1).
         :param L_text: Overlay element luminance (0..1) — abort gate only.
@@ -501,10 +498,8 @@ class ColorDarken:
     ) -> int:
         """
         Map background luminance to a darken percentage for elements on top of artwork.
-        Bright art → element needs heavy darkening toward black; dark art → little or none.
-        Returns 0 if L_bg is below floor — background is dark enough that a light
-        element already has sufficient contrast without any darkening.
-        The skin XML maps the 0-100 output to opacity/tint steps.
+        Bright art → heavy darkening, dark art → little or none; 0 below floor, where a
+        light element already contrasts enough. The skin XML maps 0-100 to tint steps.
 
         :param L_bg: Background luminance (0..1).
         :param strength: Multiplier (0.0-2.0) controlling effect strength.

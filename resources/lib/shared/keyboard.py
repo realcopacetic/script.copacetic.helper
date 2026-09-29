@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+
 import xbmcvfs
 
 from resources.lib.shared.xml import XMLHandler
@@ -44,7 +45,7 @@ def layout_characters(layout_id: str, trees: dict) -> list[str]:
             if not layout.get("codingtable")
         ]
 
-    def characters(layout):
+    def characters(layout) -> tuple[list[str], list[str]]:
         letters, digits = [], []
         keyboard = layout.find("keyboard")
         for row in keyboard.findall("row") if keyboard is not None else []:

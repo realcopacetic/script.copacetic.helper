@@ -74,14 +74,14 @@ def load_template_data_from_source(base_folder: str) -> tuple[dict, dict, dict]:
     )
     mappings = dict(mappings_merger.yield_merged_data())
 
-    configs_data: dict = {}
+    configs_data = {}
     configs_merger = JSONMerger(
         base_folder=base_folder, subfolders=[CONFIGS_FOLDER], grouping_key="mapping"
     )
     for mapping_name, content in configs_merger.yield_merged_data():
         configs_data.setdefault(mapping_name, {}).update(content.get("configs") or {})
 
-    controls_data: dict = {}
+    controls_data = {}
     controls_merger = JSONMerger(
         base_folder=base_folder, subfolders=[CONTROLS_FOLDER], grouping_key="mapping"
     )

@@ -43,10 +43,9 @@ class DynamicControlFactory:
         runtime_manager: RuntimeStateManager,
     ) -> BaseControlHandler | None:
         """
-        Build a handler for one control. Returns None if the control_type is
-        unknown, any required XML control is missing, or any fetched instance
-        is the wrong xbmcgui type. Mismatched or partially-fetched controls
-        are hidden and disabled so dead slots don't trap focus.
+        Build a handler for one control, or None if the control_type is unknown,
+        a required XML control is missing, or an instance has the wrong type.
+        Failed controls are hidden and disabled so dead slots don't trap focus.
 
         :param control: Control definition dict from JSON.
         :param get_control_func: Window's getControl method for fetching by id.
@@ -63,7 +62,7 @@ class DynamicControlFactory:
         if control_type == "sliderex":
             ids.append(int(f"{control['id']}0"))
 
-        instances: list[xbmcgui.Control] = []
+        instances = []
         try:
             for i in ids:
                 instances.append(get_control_func(i))

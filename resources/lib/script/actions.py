@@ -39,13 +39,13 @@ def action(fn):
 
 
 @action
-def clear_cache(**kwargs):
+def clear_cache(**kwargs: str) -> None:
     """Action: clear processed artwork cache."""
     _clear_cache_util(**kwargs)
 
 
 @action
-def clean_filename(label=False, **kwargs):
+def clean_filename(label: str | bool = False, **kwargs: str) -> None:
     """
     Cleans a filename by removing extensions and formatting characters.
 
@@ -68,7 +68,7 @@ def clean_filename(label=False, **kwargs):
 
 
 @action
-def clear_label(id, **kwargs):
+def clear_label(id: int | str, **kwargs: str) -> None:
     """
     Clear a fadelabel register. Sanctioned for window-unload only —
     mid-session skin-side clears violate the single-writer doctrine.
@@ -77,7 +77,7 @@ def clear_label(id, **kwargs):
 
 
 @action
-def container_move(offset: str, **kwargs: dict) -> None:
+def container_move(offset: str, **kwargs: str) -> None:
     """
     Move a container by an offset, clamping at the list ends when wrap is
     false. Targets the id param, else the focused control.
@@ -101,7 +101,7 @@ def container_move(offset: str, **kwargs: dict) -> None:
 
 
 @action
-def delete_orphans(**kwargs):
+def delete_orphans(**kwargs: str) -> None:
     """
     Remove child entries whose parent is missing or ineligible, then
     rebuild outputs and reload the skin if anything was removed.
@@ -133,7 +133,7 @@ def delete_orphans(**kwargs):
 
 
 @action
-def dialog_yesno(heading, message, **kwargs):
+def dialog_yesno(heading: str, message: str, **kwargs: str) -> None:
     """
     Opens a yes/no dialog and runs a set of Kodi actions based on the result.
 
@@ -154,7 +154,7 @@ def dialog_yesno(heading, message, **kwargs):
 
 
 @action
-def dynamic_settings_window(**kwargs):
+def dynamic_settings_window(**kwargs: str) -> None:
     """
     Opens a dynamic settings window as a modal dialog and collects
     any static and dynamic controls that have been expanded from
@@ -240,7 +240,7 @@ def dynamic_settings_window(**kwargs):
 
 
 @action
-def hex_contrast_check(**kwargs):
+def hex_contrast_check(**kwargs: str) -> None:
     """
     Calculates contrast for a hex color and sets Skin.String(Accent_Color_Contrast).
 
@@ -264,11 +264,11 @@ def hex_contrast_check(**kwargs):
 
 
 @action
-def play_album(**kwargs):
+def play_album(**kwargs: str) -> None:
     """
     Starts playback of an album by ID.
 
-    :param id: Album ID (int).
+    :param id: Album ID.
     """
     clear_playlists()
 
@@ -283,7 +283,7 @@ def play_album(**kwargs):
 
 
 @action
-def play_album_from_track(**kwargs):
+def play_album_from_track(**kwargs: str) -> None:
     """
     Plays an album starting from a specific track.
 
@@ -317,7 +317,7 @@ def play_album_from_track(**kwargs):
 
 
 @action
-def play_items(id, **kwargs):
+def play_items(id: str, **kwargs: str) -> None:
     """
     Plays all media items in a container by index.
 
@@ -380,7 +380,7 @@ def play_items(id, **kwargs):
 
 
 @action
-def play_radio(**kwargs):
+def play_radio(**kwargs: str) -> None:
     """
     Builds a randomized genre-based playlist based on current song ID.
 
@@ -436,7 +436,7 @@ def play_radio(**kwargs):
 
 
 @action
-def play_trailer(trailer, **kwargs):
+def play_trailer(trailer: str, **kwargs: str) -> None:
     """
     Play a trailer, flagging it so PlayerMonitor applies trailer zoom and
     stamping the requested item so stale starts can be cancelled.
@@ -461,7 +461,7 @@ def play_trailer(trailer, **kwargs):
 
 
 @action
-def focus(target, **kwargs):
+def focus(target: str, **kwargs: str) -> None:
     """
     Focuses a control, retrying until focus lands or a timeout expires.
     Optionally first moves a container's selection to the item whose
@@ -494,7 +494,7 @@ def focus(target, **kwargs):
 
 
 @action
-def rate_song(**kwargs):
+def rate_song(**kwargs: str) -> None:
     """
     Sets the user rating for a song and updates skin string for MusicPlayer.
 
@@ -534,7 +534,7 @@ def rate_song(**kwargs):
 
 
 @action
-def roll_seed(prop, window_id=10000, **kwargs):
+def roll_seed(prop: str, window_id: int | str = 10000, **kwargs: str) -> None:
     """
     Set a fresh random seed into the named window property.
 
@@ -550,7 +550,7 @@ def roll_seed(prop, window_id=10000, **kwargs):
 
 
 @action
-def seed_keyboard_layout(layout=None, **kwargs):
+def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
     """
     Reseed the keyboard mapping from a Kodi keyboardlayout, chosen via
     dialog when not passed. The editor's close-time snapshot comparison
@@ -585,7 +585,7 @@ def seed_keyboard_layout(layout=None, **kwargs):
 
 
 @action
-def set_edit(id, **kwargs):
+def set_edit(id: str, **kwargs: str) -> None:
     """
     Focuses a Kodi edit control and sets its text via Input.SendText.
 
@@ -615,7 +615,7 @@ def set_edit(id, **kwargs):
 
 
 @action
-def set_search_query(id, **kwargs):
+def set_search_query(id: str, **kwargs: str) -> None:
     """
     Mirror an edit control's text into the search_query property, cleared
     below min_length. Sole writer for the search rails' path values.
@@ -629,7 +629,7 @@ def set_search_query(id, **kwargs):
 
 
 @action
-def shuffle_artist(**kwargs):
+def shuffle_artist(**kwargs: str) -> None:
     """
     Starts shuffled playback for a given artist.
 
@@ -647,7 +647,7 @@ def shuffle_artist(**kwargs):
 
 
 @action
-def subtitle_limiter(lang, user_trigger=True, **kwargs):
+def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) -> None:
     """
     Switches to preferred subtitle stream or toggles through them.
 
@@ -683,7 +683,7 @@ def subtitle_limiter(lang, user_trigger=True, **kwargs):
 
 
 @action
-def tmdb_test(**kwargs):
+def tmdb_test(**kwargs: str) -> None:
     """
     Verify the configured TMDb token by making a test request.
     Reports success or failure via notification.
@@ -715,7 +715,7 @@ def tmdb_test(**kwargs):
 
 
 @action
-def toggle_addon(id, **kwargs):
+def toggle_addon(id: str, **kwargs: str) -> None:
     """
     Enables or disables an addon and shows a notification.
 
@@ -738,7 +738,7 @@ def toggle_addon(id, **kwargs):
 
 
 @action
-def rebuild(**kwargs):
+def rebuild(**kwargs: str) -> None:
     """
     Rebuild builder outputs and reload the skin. Regenerates output XML,
     seeds missing runtime state mappings, and refreshes the resolver cache;

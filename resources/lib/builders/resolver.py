@@ -174,7 +174,7 @@ class ConfigsResolver(_TemplateResolver):
                 f"{sub.get('mapping_item', sub)} — add a 'true' catch-all rule"
             )
 
-        out: dict = {"items": items}
+        out = {"items": items}
         if labels:
             out["labels"] = labels
 

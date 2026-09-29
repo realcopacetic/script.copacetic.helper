@@ -8,7 +8,7 @@ from resources.lib.shared import logger as log
 
 TagApplier = Callable[[ListItem, dict, str | None], None]
 
-_DEFAULT_ICONS: dict[str, str] = {
+_DEFAULT_ICONS = {
     "movie": "DefaultMovies.png",
     "tvshow": "DefaultTVShows.png",
     "episode": "DefaultTVShows.png",
@@ -27,7 +27,7 @@ _STREAM_DETAIL_MAP = {
 # _JSON_TO_CANONICAL reverse lookup) to translate raw JSON-RPC responses
 # into canonical metadata. ``json: None`` indicates the value is set by
 # other means (e.g. DbId from the response's *id field).
-TAG_TYPES: dict[str, dict[str, str | None]] = {
+TAG_TYPES = {
     "Album": {"type": "str", "json": "album"},
     "Artists": {"type": "list", "json": "artist"},
     "Countries": {"type": "list", "json": "country"},

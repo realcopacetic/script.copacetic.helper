@@ -557,7 +557,7 @@ class KodiMetric:
         """
         self.font = font
         self.scale = scale
-        self.advances: dict[str, int] = {}
+        self.advances = {}
 
     def getlength(self, text: str) -> float:
         """

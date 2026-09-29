@@ -51,9 +51,9 @@ class Slideshow:
         """
         self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.image_processor = ImageEditor(self.sqlite).image_processor
-        self.art: list[dict] = []
-        self.seen: set[str] = set()
-        self.profile: tuple[str, str] | None = None
+        self.art = []
+        self.seen = set()
+        self.profile = None
         self.next_slide_at = 0.0
 
     def tick(self) -> None:
@@ -243,7 +243,7 @@ class Slideshow:
         if "background_blur" not in params:  # declaration absent: plain blur
             params["background_blur"] = "true"
         art_opts = {"background": ArtOpts.from_params(params, "background")}
-        jobs: dict[str, tuple[str, ...]] = {"background": ("blur", "darken")}
+        jobs = {"background": ("blur", "darken")}
         if clearlogo:
             art_opts["clearlogo"] = ArtOpts(
                 url=url_decode_path(clearlogo),

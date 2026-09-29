@@ -67,7 +67,7 @@ class XMLHandler:
     Supports structured transformations of flat or nested dictionary data into Kodi-compatible XML.
     """
 
-    def __init__(self, path, root_tag="includes"):
+    def __init__(self, path: str | Path, root_tag: str = "includes") -> None:
         """
         Initializes the handler with a file path and default root element.
 
@@ -90,7 +90,7 @@ class XMLHandler:
         return self._data
 
     @xml_functions
-    def write_xml(self, data_dict, **kwargs):
+    def write_xml(self, data_dict, **kwargs) -> None:
         """
         Writes an XML file using the specified transform function and dictionary data.
 
@@ -104,7 +104,7 @@ class XMLHandler:
             log.error(f"{self.__class__.__name__} → Unable to write XML --> {e}")
 
     @xml_functions
-    def update_xml(self, updates, **kwargs):
+    def update_xml(self, updates: dict[str, str], **kwargs) -> None:
         """
         Modifies or adds elements in an existing XML file using transformation settings.
 
@@ -149,8 +149,7 @@ class XMLHandler:
         Reads and returns the XML data. If the file path is a directory,
         merges XML files into a single tree, or returns a dictionary of trees if merging isn't possible.
 
-        :return: Dictionary of {file_name: ElementTree} if a folder,
-                  or a single ElementTree if it's a file.
+        :return: {file_name: ElementTree} if a folder, else a single ElementTree.
         """
         if not self.path.exists():
             return {}
@@ -167,7 +166,7 @@ class XMLHandler:
             # Handle single file
             return self._parse_single_xml(self.path)
 
-    def _parse_single_xml(self, file_path):
+    def _parse_single_xml(self, file_path: Path) -> ET.ElementTree | None:
         """
         Parse a single XML file and return its ElementTree.
 
@@ -189,7 +188,12 @@ class XMLHandler:
             )
             return None
 
-    def _create_new_xml(self, root_tag, element_tag, default_structure=None):
+    def _create_new_xml(
+        self,
+        root_tag: str,
+        element_tag: str,
+        default_structure: dict[str, str] | None = None,
+    ) -> ET.ElementTree:
         """
         Creates and saves a new XML file with the specified structure.
 
@@ -211,7 +215,7 @@ class XMLHandler:
         )
         return tree
 
-    def _save_xml(self, tree):
+    def _save_xml(self, tree: ET.ElementTree) -> None:
         """
         Saves an ElementTree to disk atomically (temp file + os.replace)
         with indentation and UTF-8 encoding.
@@ -232,7 +236,7 @@ class XMLHandler:
             )
 
     @staticmethod
-    def _simple_dict_to_xml(data_dict, **kwargs):
+    def _simple_dict_to_xml(data_dict, **kwargs) -> ET.Element:
         """
         Converts flat or nested dictionaries into a Kodi-compatible XML Element.
 
@@ -269,7 +273,7 @@ class XMLHandler:
         return root
 
     @staticmethod
-    def _complex_dict_to_xml(data_dict, **kwargs):
+    def _complex_dict_to_xml(data_dict, **kwargs) -> ET.Element:
         """
         Converts structured dictionaries from XMLDictConverter back into XML elements.
 
@@ -287,7 +291,12 @@ class XMLMerger:
     Outputs a single aggregated ET.Element per mapping.
     """
 
-    def __init__(self, base_folder, subfolders=None, **read_kwargs):
+    def __init__(
+        self,
+        base_folder: str | Path,
+        subfolders: list[str] | None = None,
+        **read_kwargs: str,
+    ) -> None:
         """
         Initialises class with kwargs passed from BUILDER_CONFIG for each
         individual xml builder.
@@ -302,7 +311,7 @@ class XMLMerger:
         self.container_tag = read_kwargs.get("container_tag", "includes")
         self.element_tag = read_kwargs.get("element_tag", "template")
 
-    def _merge_xml_files(self, folder_path):
+    def _merge_xml_files(self, folder_path: Path):
         """
         Lazily merges XML elements from a single folder.
 
@@ -338,7 +347,7 @@ class XMLMerger:
             for mapping_name, elements in self._merge_xml_files(folder_path):
                 yield mapping_name, self._build_merged_xml(mapping_name, elements)
 
-    def _build_merged_xml(self, mapping, elements):
+    def _build_merged_xml(self, mapping: str, elements: list[ET.Element]) -> ET.Element:
         """
         Builds a single merged ET.Element for a given mapping.
 
@@ -363,7 +372,7 @@ class XMLDictConverter:
     TEXT_KEY = "#text"
     CHILD_KEY = "#children"
 
-    def __init__(self, root_element, **kwargs):
+    def __init__(self, root_element: ET.Element | None, **kwargs) -> None:
         """
         Initialises class with kwargs passed from BUILDER_CONFIG for each
         individual xml builder.
@@ -466,7 +475,7 @@ class XMLDictConverter:
 
         return output_dict
 
-    def element_to_dict(self, element):
+    def element_to_dict(self, element: ET.Element):
         """
         Recursively converts an XML element into a dictionary. Children are
         kept in document order under ``#children``, so sibling layer order
@@ -496,7 +505,7 @@ class XMLDictConverter:
 
         return node_dict
 
-    def dict_to_xml(self, data_dict):
+    def dict_to_xml(self, data_dict) -> ET.Element:
         """
         Converts a structured dictionary back into an XML Element,
         explicitly handling lists to avoid unwanted wrappers.
@@ -532,7 +541,7 @@ class XMLDictConverter:
 
         return root_elem
 
-    def dict_to_element(self, data, parent_tag=None):
+    def dict_to_element(self, data, parent_tag: str | None = None) -> ET.Element:
         """
         Recursively converts dictionary elements into XML elements without
         creating extra wrapper tags for lists.

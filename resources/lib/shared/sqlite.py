@@ -10,7 +10,7 @@ from resources.lib.art import policy
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import LOOKUPS, create_dir
 
-TMDB_DB_SCHEMA: tuple[tuple[str, str], ...] = (
+TMDB_DB_SCHEMA = (
     ("dbtype", "TEXT NOT NULL"),
     ("tmdb_id", "INTEGER NOT NULL"),
     ("language", "TEXT NOT NULL"),
@@ -18,18 +18,18 @@ TMDB_DB_SCHEMA: tuple[tuple[str, str], ...] = (
     ("payload", "TEXT NOT NULL"),
 )
 
-TMDB_DB_FIELDS: tuple[str, ...] = tuple(name for name, _ in TMDB_DB_SCHEMA)
+TMDB_DB_FIELDS = tuple(name for name, _ in TMDB_DB_SCHEMA)
 
-TMDB_UNIQUE: tuple[str, ...] = ("dbtype", "tmdb_id", "language")
-TMDB_LOOKUP_INDEX: tuple[str, ...] = TMDB_UNIQUE
+TMDB_UNIQUE = ("dbtype", "tmdb_id", "language")
+TMDB_LOOKUP_INDEX = TMDB_UNIQUE
 
-TRUNCATE_DB_SCHEMA: tuple[tuple[str, str], ...] = (
+TRUNCATE_DB_SCHEMA = (
     ("cache_key", "TEXT NOT NULL UNIQUE"),
     ("result", "TEXT NOT NULL"),
     ("created_at", "INTEGER NOT NULL"),
 )
 
-TRUNCATE_DB_FIELDS: tuple[str, ...] = tuple(name for name, _ in TRUNCATE_DB_SCHEMA)
+TRUNCATE_DB_FIELDS = tuple(name for name, _ in TRUNCATE_DB_SCHEMA)
 
 
 class SQLiteHandler:
@@ -39,7 +39,7 @@ class SQLiteHandler:
     Subclasses must set TABLE_NAME, implement _initialize_database().
     """
 
-    TABLE_NAME: str | None = None
+    TABLE_NAME = None
 
     def __init__(self, db_path: str | None = None) -> None:
         """

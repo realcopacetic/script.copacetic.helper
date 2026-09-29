@@ -15,8 +15,7 @@ from resources.lib.shared.parser import parse_params
 class Main:
     """Entry point for plugins.
 
-    Parses argv, dispatches content via `info`, and writes directory items
-    back to Kodi using xbmcplugin.
+    Parses argv, dispatches via `info`, and writes directory items with xbmcplugin.
     """
 
     def __init__(self, t0: float | None = None) -> None:

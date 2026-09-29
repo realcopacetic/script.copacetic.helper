@@ -22,7 +22,7 @@ def inject_metadata(metadata: dict, substitutions: dict, *keys: str) -> dict:
     :param keys: Item keys whose metadata should be merged in order.
     :return: New dict with metadata fields below substitutions.
     """
-    combined: dict = {}
+    combined = {}
     for k in keys:
         combined.update(metadata.get(k, {}))
     return {**combined, **substitutions}
@@ -213,7 +213,7 @@ def token_words(text: str) -> list[str]:
     :param text: Template text.
     :return: Words found inside brace regions.
     """
-    words: list[str] = []
+    words = []
     i = 0
     while i < len(text):
         start = text.find("{", i)

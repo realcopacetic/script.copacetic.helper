@@ -24,7 +24,7 @@ class PluginInfoRegistry(type):
     unless explicitly marked with @no_info or prefixed with '_'.
     """
 
-    def __new__(mcls, name, bases, namespace):
+    def __new__(mcls: type, name: str, bases: tuple[type, ...], namespace) -> type:
         for k, v in namespace.items():
             if (
                 callable(v)

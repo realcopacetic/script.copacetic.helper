@@ -23,7 +23,7 @@ class BuildElements:
     Handles data merging across mappings and delegates processing to builder modules.
     """
 
-    def __init__(self, builders_to_run=None):
+    def __init__(self, builders_to_run: list[str] | None = None):
         """
         Load templates and prepare the runtime manager.
 
@@ -101,7 +101,7 @@ class BuildElements:
         return values_to_write
 
     @staticmethod
-    def _partition_by_mapping(default_mapping, elements):
+    def _partition_by_mapping(default_mapping: str, elements):
         """
         Group template elements by effective mapping. ``templates_from``
         accepts a mapping name or a list (one expansion per listed mapping).
@@ -110,7 +110,7 @@ class BuildElements:
         :param elements: {template_name: template_data} for one file group.
         :return: {mapping_name: {template_name: template_data}}.
         """
-        grouped: dict[str, dict] = {}
+        grouped = {}
         for name, data in elements.items():
             declared = data.get("templates_from") or default_mapping
             targets = [declared] if isinstance(declared, str) else declared
@@ -119,7 +119,7 @@ class BuildElements:
         return grouped
 
     @staticmethod
-    def _merge_processed(target, processed, builder):
+    def _merge_processed(target, processed, builder: str) -> None:
         """
         Merge builder output, warning on same-name collisions with
         differing values (Kodi resolves first-wins; the build is last-wins).
@@ -137,7 +137,7 @@ class BuildElements:
             target[key] = value
 
     @log.duration
-    def run(self):
+    def run(self) -> None:
         """
         Execute the build pipeline. Runs the selected builders, writes
         outputs, and refreshes the template cache. Seeds any runtime state
@@ -155,7 +155,7 @@ class BuildElements:
 
         write_template_cache(self.all_mappings, self.configs_data, self.controls_data)
 
-    def _write_file(self, processed_data, builder_name):
+    def _write_file(self, processed_data, builder_name: str) -> None:
         """
         Write builder output to disk using the handler in BUILDER_CONFIG.
 

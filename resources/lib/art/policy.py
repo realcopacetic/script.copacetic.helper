@@ -3,62 +3,62 @@
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
-ART_FIELD_CACHE_KEY: str = "cache_key"
-ART_FIELD_SOURCE_URL: str = "source_url"
-ART_FIELD_PROCESS: str = "process"
-ART_FIELD_HASH: str = "cached_file_hash"
-ART_FIELD_PROCESSED: str = "processed_path"
-ART_FIELD_WIDTH: str = "width"
-ART_FIELD_HEIGHT: str = "height"
-ART_FIELD_BLUR_RADIUS: str = "blur_radius"
-ART_FIELD_COLOR: str = "color"
-ART_FIELD_ACCENT: str = "accent"
-ART_FIELD_CONTRAST: str = "contrast"
-ART_FIELD_LUMINOSITY: str = "luminosity"
-ART_FIELD_DARKEN: str = "darken"
-ART_FIELD_DARKEN_ELEMENT: str = "darken_element"
-ART_FIELD_DARKEN_ELEMENT1: str = "darken_element1"
-ART_FIELD_DARKEN_ELEMENT2: str = "darken_element2"
-ART_FIELD_DARKEN_ELEMENT_MEAN: str = "darken_element_mean"
-ART_FIELD_DARKEN_ELEMENT_MEAN1: str = "darken_element_mean1"
-ART_FIELD_DARKEN_ELEMENT_MEAN2: str = "darken_element_mean2"
-ART_FIELD_DARKEN_FRAME: str = "darken_frame"
-ART_FIELD_DARKEN_MODE: str = "darken_mode"
-ART_FIELD_DARKEN_RECTS: str = "darken_rects"
-ART_FIELD_DARKEN_STRENGTH: str = "darken_strength"
-ART_FIELD_DARKEN_SOURCE: str = "darken_source"
-ART_FIELD_DARKEN_LABEL: str = "darken_label"
-ART_FIELD_DARKEN_LABEL1: str = "darken_label1"
-ART_FIELD_DARKEN_LABEL2: str = "darken_label2"
-ART_FIELD_DARKEN_LABEL_WIDTH: str = "darken_label_width"
-ART_FIELD_DARKEN_LABEL_WIDTH1: str = "darken_label_width1"
-ART_FIELD_DARKEN_LABEL_WIDTH2: str = "darken_label_width2"
+ART_FIELD_CACHE_KEY = "cache_key"
+ART_FIELD_SOURCE_URL = "source_url"
+ART_FIELD_PROCESS = "process"
+ART_FIELD_HASH = "cached_file_hash"
+ART_FIELD_PROCESSED = "processed_path"
+ART_FIELD_WIDTH = "width"
+ART_FIELD_HEIGHT = "height"
+ART_FIELD_BLUR_RADIUS = "blur_radius"
+ART_FIELD_COLOR = "color"
+ART_FIELD_ACCENT = "accent"
+ART_FIELD_CONTRAST = "contrast"
+ART_FIELD_LUMINOSITY = "luminosity"
+ART_FIELD_DARKEN = "darken"
+ART_FIELD_DARKEN_ELEMENT = "darken_element"
+ART_FIELD_DARKEN_ELEMENT1 = "darken_element1"
+ART_FIELD_DARKEN_ELEMENT2 = "darken_element2"
+ART_FIELD_DARKEN_ELEMENT_MEAN = "darken_element_mean"
+ART_FIELD_DARKEN_ELEMENT_MEAN1 = "darken_element_mean1"
+ART_FIELD_DARKEN_ELEMENT_MEAN2 = "darken_element_mean2"
+ART_FIELD_DARKEN_FRAME = "darken_frame"
+ART_FIELD_DARKEN_MODE = "darken_mode"
+ART_FIELD_DARKEN_RECTS = "darken_rects"
+ART_FIELD_DARKEN_STRENGTH = "darken_strength"
+ART_FIELD_DARKEN_SOURCE = "darken_source"
+ART_FIELD_DARKEN_LABEL = "darken_label"
+ART_FIELD_DARKEN_LABEL1 = "darken_label1"
+ART_FIELD_DARKEN_LABEL2 = "darken_label2"
+ART_FIELD_DARKEN_LABEL_WIDTH = "darken_label_width"
+ART_FIELD_DARKEN_LABEL_WIDTH1 = "darken_label_width1"
+ART_FIELD_DARKEN_LABEL_WIDTH2 = "darken_label_width2"
 
-ART_FIELDS_DARKEN_ELEMENT: tuple[str, ...] = (
+ART_FIELDS_DARKEN_ELEMENT = (
     ART_FIELD_DARKEN_ELEMENT,
     ART_FIELD_DARKEN_ELEMENT1,
     ART_FIELD_DARKEN_ELEMENT2,
 )
 
-ART_FIELDS_DARKEN_ELEMENT_MEAN: tuple[str, ...] = (
+ART_FIELDS_DARKEN_ELEMENT_MEAN = (
     ART_FIELD_DARKEN_ELEMENT_MEAN,
     ART_FIELD_DARKEN_ELEMENT_MEAN1,
     ART_FIELD_DARKEN_ELEMENT_MEAN2,
 )
 
-ART_FIELDS_DARKEN_LABEL: tuple[str, ...] = (
+ART_FIELDS_DARKEN_LABEL = (
     ART_FIELD_DARKEN_LABEL,
     ART_FIELD_DARKEN_LABEL1,
     ART_FIELD_DARKEN_LABEL2,
 )
 
-ART_FIELDS_DARKEN_LABEL_WIDTH: tuple[str, ...] = (
+ART_FIELDS_DARKEN_LABEL_WIDTH = (
     ART_FIELD_DARKEN_LABEL_WIDTH,
     ART_FIELD_DARKEN_LABEL_WIDTH1,
     ART_FIELD_DARKEN_LABEL_WIDTH2,
 )
 
-ART_DB_SCHEMA: tuple[tuple[str, str], ...] = (
+ART_DB_SCHEMA = (
     (ART_FIELD_CACHE_KEY, "TEXT NOT NULL"),
     (ART_FIELD_SOURCE_URL, "TEXT NOT NULL"),
     (ART_FIELD_PROCESS, "TEXT NOT NULL"),
@@ -82,15 +82,13 @@ ART_DB_SCHEMA: tuple[tuple[str, str], ...] = (
     *((field, "TEXT") for field in ART_FIELDS_DARKEN_LABEL),
     *((field, "INTEGER") for field in ART_FIELDS_DARKEN_LABEL_WIDTH),
 )
-ART_DB_UNIQUE: tuple[str, ...] = (ART_FIELD_CACHE_KEY,)
+ART_DB_UNIQUE = (ART_FIELD_CACHE_KEY,)
 
-ART_DB_INDEXES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("idx_source_url", (ART_FIELD_SOURCE_URL,)),
-)
+ART_DB_INDEXES = (("idx_source_url", (ART_FIELD_SOURCE_URL,)),)
 
-ART_DB_FIELDS: tuple[str, ...] = tuple(name for name, _ in ART_DB_SCHEMA)
+ART_DB_FIELDS = tuple(name for name, _ in ART_DB_SCHEMA)
 
-ART_FIELDS_INPUT: dict[str, tuple[str, ...]] = {
+ART_FIELDS_INPUT = {
     "crop": (),
     "blur": (ART_FIELD_BLUR_RADIUS,),
     "analyze": (),
@@ -104,7 +102,7 @@ ART_FIELDS_INPUT: dict[str, tuple[str, ...]] = {
     ),
 }
 
-ART_FIELDS_RESULT: dict[str, tuple[str, ...]] = {
+ART_FIELDS_RESULT = {
     "crop": (ART_FIELD_PROCESSED, ART_FIELD_WIDTH, ART_FIELD_HEIGHT),
     "blur": (ART_FIELD_PROCESSED, ART_FIELD_BLUR_RADIUS),
     "analyze": (
@@ -116,7 +114,7 @@ ART_FIELDS_RESULT: dict[str, tuple[str, ...]] = {
     "darken": (ART_FIELD_DARKEN,),
 }
 
-ART_LISTITEM_KEYS: tuple[str, ...] = (
+ART_LISTITEM_KEYS = (
     (
         ART_FIELD_PROCESSED,
         ART_FIELD_WIDTH,
@@ -133,12 +131,12 @@ ART_LISTITEM_KEYS: tuple[str, ...] = (
     + ART_FIELDS_DARKEN_LABEL_WIDTH
 )
 
-ART_SOURCE_KEYS: dict[str, tuple[str, ...]] = {
+ART_SOURCE_KEYS = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
     "clearlogo": ("clearlogo", "clearlogo-alt", "clearlogo-billboard"),
 }
 
-ART_PROCESS_MAP: dict[str, tuple[str, ...]] = {
+ART_PROCESS_MAP = {
     "clearlogo": ("crop", "analyze"),
     "background": ("blur", "analyze", "darken"),
     "icon": ("blur", "analyze", "darken"),

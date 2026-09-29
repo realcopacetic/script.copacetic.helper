@@ -28,7 +28,7 @@ class Monitor(xbmc.Monitor):
     global slideshow. All work is gated on the active skin opting in.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initializes the monitor, sets up handlers, and begins polling."""
         # Poller
         self.start = True
@@ -47,7 +47,7 @@ class Monitor(xbmc.Monitor):
         # Run
         self._run()
 
-    def _run(self):
+    def _run(self) -> None:
         """
         Top-level service loop: alternate active polling and idle waiting.
         Flat by design — the previous _on_start/_on_stop mutual recursion
@@ -59,7 +59,7 @@ class Monitor(xbmc.Monitor):
         del self.player_monitor
         log.info(f"{self.__class__.__name__} → Stopped")
 
-    def _build_optin_check(self):
+    def _build_optin_check(self) -> None:
         """
         Run the build pipeline once, when the active skin provides builder
         inputs. Presence of the builder folder structure is the opt-in:
@@ -70,7 +70,7 @@ class Monitor(xbmc.Monitor):
         self._builder_elements()
         self._build_done = True
 
-    def _builder_elements(self):
+    def _builder_elements(self) -> None:
         """
         Run the build pipeline.
         Production: only rebuild outputs that are missing.
@@ -107,7 +107,7 @@ class Monitor(xbmc.Monitor):
         elif builders:
             BuildElements(builders_to_run=builders).run()
 
-    def _on_start(self):
+    def _on_start(self) -> None:
         """Begins the monitor loop and attaches the player monitor."""
         log.info(f"{self.__class__.__name__} → Python version: {sys.version}")
         self._build_optin_check()
@@ -121,12 +121,12 @@ class Monitor(xbmc.Monitor):
         while not self.abortRequested() and self._conditions_met():
             self.poller()
 
-    def _skin_supported(self):
+    def _skin_supported(self) -> bool:
         """
         True when the active skin opts into the helper. Re-evaluates the
         capability check only when the skin changes; cached otherwise.
 
-        :return: Boolean
+        :return: True when the skin opts in.
         """
         skindir = xbmc.getSkinDir()
         if skindir != self._skindir:
@@ -135,15 +135,15 @@ class Monitor(xbmc.Monitor):
 
         return self._supported
 
-    def _conditions_met(self):
+    def _conditions_met(self) -> bool:
         """
         Polling continues while the skin opts in and the service isn't idle.
 
-        :return: Boolean
+        :return: True while the polling loop should keep running.
         """
         return self._skin_supported() and not self.idle
 
-    def _on_stop(self):
+    def _on_stop(self) -> None:
         """Called when the polling loop exits. Waits until conditions return."""
         if self.abortRequested():
             return
@@ -152,15 +152,15 @@ class Monitor(xbmc.Monitor):
         while not self.abortRequested() and not self._conditions_met():
             self.waitForAbort(10)
 
-    def onScreensaverActivated(self):
+    def onScreensaverActivated(self) -> None:
         """Kodi event hook: Pause monitoring when screensaver starts."""
         self.idle = True
 
-    def onScreensaverDeactivated(self):
+    def onScreensaverDeactivated(self) -> None:
         """Kodi event hook: Resume monitoring when screensaver ends."""
         self.idle = False
 
-    def poller(self):
+    def poller(self) -> None:
         """
         Polling loop: trailer session watchdog and global slideshow,
         plus per-window tasks.

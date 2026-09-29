@@ -32,9 +32,9 @@ class PlayerMonitor(Player):
         self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.zoom = TrailerZoomController()
         self.playnext = PlayNextQueue()
-        self._cleanup_registry: set[tuple[str, int]] = set()
+        self._cleanup_registry = set()
 
-    def onAVStarted(self):
+    def onAVStarted(self) -> None:
         """Handle playback start events for video and audio."""
         if self.isPlayingVideo():
             state = infolabel("Window(home).Property(trailer_state)")
@@ -56,15 +56,15 @@ class PlayerMonitor(Player):
         if self.isPlayingAudio():
             self._handle_audio_start()
 
-    def onPlayBackStopped(self):
+    def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
         self._cleanup()
 
-    def onPlayBackEnded(self):
+    def onPlayBackEnded(self) -> None:
         """Cleanup managed window properties when playback ends naturally."""
         self._cleanup()
 
-    def onPlayBackError(self):
+    def onPlayBackError(self) -> None:
         """
         Clean up when requested playback fails and clear the refire stamp
         so the item can retry on its next focus.
@@ -251,7 +251,7 @@ class PlayerMonitor(Player):
             return False
         return infolabel("Player.Filenameandpath") == stamped
 
-    def _cleanup(self):
+    def _cleanup(self) -> None:
         """Clear managed properties, the registry, and the trailer session."""
         for key, window_id in self._cleanup_registry:
             window_property(key, window_id=window_id)

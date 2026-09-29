@@ -266,7 +266,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             if not self.parent_filter or entry.get("parent") == self.parent_filter
         }
 
-    def _apply_row_visuals(self, li, item: dict, runtime_id: str) -> None:
+    def _apply_row_visuals(
+        self, li: xbmcgui.ListItem, item: dict, runtime_id: str
+    ) -> None:
         """
         Resolve and apply a row's label and icon via ``format_metadata``,
         so each supports a metadata, config, or override value identically.
@@ -523,10 +525,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _resync_session(self) -> None:
         """
-        Adopt on-disk state after an in-process script mutation: reload,
-        rebuild, redraw. List refresh is unconditional — deterministic ids
-        mean values can change under identical keys. Selection survives
-        when its entry still exists; otherwise re-anchor to the top.
+        Adopt on-disk state after an in-process mutation: reload, rebuild, redraw.
+        The list always refreshes, as deterministic ids let values change under
+        identical keys. Selection survives if its entry still exists, else re-anchors.
         """
         self._begin_mutation()
         self._build_dicts()

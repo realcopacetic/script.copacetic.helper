@@ -13,7 +13,7 @@ class JSONHandler:
     Supports merging multiple JSON sources via filename-based keys.
     """
 
-    def __init__(self, path):
+    def __init__(self, path: str | Path) -> None:
         """
         Initializes the handler and loads content from a file or folder.
 
@@ -34,7 +34,7 @@ class JSONHandler:
         return self._data
 
     @property
-    def exists(self):
+    def exists(self) -> bool:
         """
         Returns True if the target path (file or directory) exists.
         """
@@ -59,7 +59,7 @@ class JSONHandler:
             self._load_single_file(self.path, data)
         return data
 
-    def _load_single_file(self, file_path, data):
+    def _load_single_file(self, file_path: Path, data) -> None:
         """
         Parses a JSON file and updates the provided dictionary with the content.
         The dictionary is mutable and modified in place, so no explicit return value
@@ -77,13 +77,13 @@ class JSONHandler:
         except OSError as e:
             log.warning(f"{self.__class__.__name__} → Error reading {file_path}: {e}")
 
-    def reload(self):
+    def reload(self) -> None:
         """
         Forces a reload of the JSON data from disk.
         """
         self._data = self._load_json()
 
-    def write_json(self, content):
+    def write_json(self, content) -> None:
         """
         Writes a JSON-serializable dictionary to disk atomically (temp file
         + os.replace), so a crash mid-write cannot truncate the target.
@@ -104,7 +104,7 @@ class JSONHandler:
                 f"{self.__class__.__name__} → JSON file '{self.path}' updated successfully."
             )
 
-    def validate_json(self, content):
+    def validate_json(self, content) -> bool:
         """
         Validates if the provided content is JSON-serializable.
 
@@ -124,7 +124,12 @@ class JSONMerger:
     from multiple files; callers wrap in dict() if they need eager access.
     """
 
-    def __init__(self, base_folder, subfolders, grouping_key=None):
+    def __init__(
+        self,
+        base_folder: str | Path,
+        subfolders: list[str],
+        grouping_key: str | None = None,
+    ) -> None:
         """
         Initializes the merger with folder structure and optional grouping key.
 
@@ -136,7 +141,7 @@ class JSONMerger:
         self.subfolders = subfolders or []
         self.grouping_key = grouping_key
 
-    def _merge_json_files(self, folder_path):
+    def _merge_json_files(self, folder_path: Path):
         """
         Lazily merges JSON data from a single folder.
 

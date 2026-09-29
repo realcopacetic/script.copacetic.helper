@@ -57,7 +57,7 @@ class BaseControlHandler:
     _onclick_capable = False
     _needs_link = False
     _updates_labels = True
-    ACCEPTED_ACTIONS: tuple = (ACTION_SELECT_ITEM,)
+    ACCEPTED_ACTIONS = (ACTION_SELECT_ITEM,)
 
     def __init__(
         self, control: dict, instance: object, runtime_manager: RuntimeStateManager

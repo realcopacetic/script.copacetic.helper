@@ -20,7 +20,7 @@ class OnClickActions:
     """
 
     @staticmethod
-    def browse(cfg):
+    def browse(cfg: dict) -> str | list[str]:
         """
         Show a browse dialog and return the selected path.
         """
@@ -39,7 +39,7 @@ class OnClickActions:
         )
 
     @staticmethod
-    def browse_single(cfg):
+    def browse_single(cfg: dict) -> str:
         """
         Show a single-select browse dialog and return the chosen path.
         """
@@ -57,7 +57,7 @@ class OnClickActions:
         )
 
     @staticmethod
-    def browse_multiple(cfg):
+    def browse_multiple(cfg: dict) -> list[str]:
         """
         Show a multi-select browse dialog and return chosen paths.
         """
@@ -75,12 +75,12 @@ class OnClickActions:
         )
 
     @staticmethod
-    def browse_content(cfg):
+    def browse_content(cfg: dict) -> dict | None:
         """
         Widget mode returns ``{path, label, icon, target}``; menu mode
         also adds ``{type, window, action}`` for menu-item construction.
 
-        :param cfg: Onclick config dict (supports ``mode``: "widget" or "menu").
+        :param cfg: Onclick config; ``mode`` is "widget" or "menu".
         :return: Result dict, or None if cancelled.
         """
         from resources.lib.windows.browse import browse_content
@@ -88,14 +88,14 @@ class OnClickActions:
         return browse_content(cfg)
 
     @staticmethod
-    def browse_image(cfg):
+    def browse_image(cfg: dict) -> str | None:
         """
         Show Kodi's image browser dialog opened at a configured folder.
         Seeds a transient skin string with the folder path; cancel is
         detected when the string still equals the seed after close.
 
-        :param cfg: Dict with ``folder`` (str) — starting path for the browser.
-        :return: Selected path as a string, or None if cancelled.
+        :param cfg: Onclick config; ``folder`` is the browser's starting path.
+        :return: Selected path, or None if cancelled.
         """
 
         SCRATCHPAD = "_copacetic_image_picker"
@@ -148,7 +148,7 @@ class OnClickActions:
         return None if (not result or result == folder) else result
 
     @staticmethod
-    def colorpicker(cfg):
+    def colorpicker(cfg: dict) -> str | None:
         """
         Show a colour picker dialog and return the selected hex colour string,
         or None if cancelled.
@@ -161,14 +161,14 @@ class OnClickActions:
         return result if result else None
 
     @staticmethod
-    def custom(cfg):
+    def custom(cfg: dict) -> None:
         """
         Execute a custom Kodi built-in command.
         """
         log.execute(cfg["action"])
 
     @staticmethod
-    def runtime_script(cfg):
+    def runtime_script(cfg: dict) -> None:
         """
         Run a registered helper action in-process, so session resync can
         follow synchronously. Lazy import avoids a module cycle.
@@ -181,7 +181,7 @@ class OnClickActions:
         return None
 
     @staticmethod
-    def input(cfg):
+    def input(cfg: dict) -> str | None:
         """
         Show a keyboard input dialog and return the entered string,
         or None if cancelled.
@@ -195,7 +195,7 @@ class OnClickActions:
         return result if result != "" else None
 
     @staticmethod
-    def numeric(cfg):
+    def numeric(cfg: dict) -> str | None:
         """
         Show a numeric input dialog and return the entered value as a string,
         or None if cancelled.
@@ -209,7 +209,7 @@ class OnClickActions:
         return result if result != "" else None
 
     @staticmethod
-    def select(cfg):
+    def select(cfg: dict) -> int:
         """
         Show a selection dialog and return the chosen index.
         """

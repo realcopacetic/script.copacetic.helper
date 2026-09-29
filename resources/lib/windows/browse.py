@@ -13,7 +13,7 @@ from resources.lib.shared.utilities import ADDON, json_call
 # ---------------------------------------------------------------------------
 
 
-def _L(string_id):
+def _L(string_id: int) -> str:
     """
     Resolve an addon localised string by ID.
 
@@ -31,7 +31,7 @@ _menu_extra = None
 _addon_sources = None
 
 
-def _get_strings():
+def _get_strings() -> dict[str, str]:
     """
     Build and cache the localised strings dict.
 
@@ -68,7 +68,7 @@ def _get_strings():
     return _strings
 
 
-def _get_top_level():
+def _get_top_level() -> list[tuple[str, str | None]]:
     """
     Build and cache the top-level source list.
 
@@ -88,7 +88,7 @@ def _get_top_level():
     return _top_level
 
 
-def _get_menu_extra():
+def _get_menu_extra() -> list[tuple[str, str | None]]:
     """
     Build and cache the menu-mode extra source list.
 
@@ -106,7 +106,7 @@ def _get_menu_extra():
     return _menu_extra
 
 
-def _get_addon_sources():
+def _get_addon_sources() -> list[tuple[str, str]]:
     """
     Build and cache the addon source list.
 
@@ -447,13 +447,10 @@ _LIBRARY_PATH_MAP = {
 # ---------------------------------------------------------------------------
 
 
-def _is_endpoint(path):
+def _is_endpoint(path: str) -> bool:
     """
-    Return True if path is a content endpoint that should be returned directly
-    without fetching or drilling into.
-
-    - videodb:// / musicdb://  — direct database content paths
-    - *.xsp / *.m3u            — smart playlist / music playlist files
+    Return True if path is a content endpoint, returned directly without fetching or
+    drilling into: videodb:// / musicdb:// database paths and *.xsp / *.m3u playlists.
     """
     return (
         any(path.startswith(p) for p in _ENDPOINT_PREFIXES)
@@ -462,7 +459,7 @@ def _is_endpoint(path):
     )
 
 
-def _is_known_flat(path):
+def _is_known_flat(path: str) -> bool:
     """
     Return True if path is a known flat content node (titles, recently added,
     etc.). These are returned as endpoints without fetching.
@@ -470,7 +467,7 @@ def _is_known_flat(path):
     return any(path.endswith(suffix) for suffix in _FLAT_XML_SUFFIXES)
 
 
-def _is_flat_content(items):
+def _is_flat_content(items) -> bool:
     """
     Return True if fetched items represent flat content rather than navigation
     nodes. Fallback for paths not covered by _is_known_flat.
@@ -480,7 +477,7 @@ def _is_flat_content(items):
     )
 
 
-def _build_library_path(item_type, item_id):
+def _build_library_path(item_type: str, item_id: int) -> str | None:
     """
     Construct a videodb/musicdb path for an individual library item.
 
@@ -494,7 +491,7 @@ def _build_library_path(item_type, item_id):
     return template.format(id=item_id)
 
 
-def _is_action_string(path):
+def _is_action_string(path: str) -> bool:
     """
     Return True if path is an action/command string rather than a real path.
     Action strings don't start with any known URL scheme.
@@ -505,7 +502,7 @@ def _is_action_string(path):
     return not any(path.startswith(scheme) for scheme in _PATH_SCHEMES)
 
 
-def _fetch_raw(path):
+def _fetch_raw(path: str):
     """Fetch a directory listing without a progress dialog."""
     params = {"directory": path}
     if not path.startswith("special://"):
@@ -519,7 +516,7 @@ def _fetch_raw(path):
     return result.get("result", {}).get("files", [])
 
 
-def _get_directory(path, heading):
+def _get_directory(path: str, heading: str):
     """Fetch a directory listing via JSON-RPC, showing a progress dialog."""
     params = {"directory": path}
     if not path.startswith("special://"):
@@ -537,7 +534,7 @@ def _get_directory(path, heading):
     return result.get("result", {}).get("files", [])
 
 
-def _walk_playlists(path):
+def _walk_playlists(path: str):
     """
     Recursively collect .xsp and .m3u items from *path*.
     """
@@ -551,7 +548,7 @@ def _walk_playlists(path):
     return items
 
 
-def _read_xsp_type(path):
+def _read_xsp_type(path: str) -> str:
     """
     Read the smartplaylist type attribute from an .xsp file.
     Returns the type string or "unknown" on any failure.
@@ -568,7 +565,7 @@ def _read_xsp_type(path):
     return "unknown"
 
 
-def _derive_type(path):
+def _derive_type(path: str) -> str:
     """Derive the content type string for a path."""
     if path.endswith(".xsp"):
         return _read_xsp_type(path)
@@ -578,7 +575,7 @@ def _derive_type(path):
     return "unknown"
 
 
-def _derive_window(content_type):
+def _derive_window(content_type: str) -> str:
     """Return the Kodi window name for a given content type."""
     if content_type in _MUSIC_TYPES:
         return "Music"
@@ -589,7 +586,7 @@ def _derive_window(content_type):
     return "Videos"
 
 
-def _build_result(path, label, mode):
+def _build_result(path: str, label: str, mode: str) -> dict[str, str]:
     """
     Build the final return dict for a selected path.
     Widget mode returns ``{path, label, icon, target}``; menu mode adds
@@ -641,7 +638,9 @@ def _build_result(path, label, mode):
 # ---------------------------------------------------------------------------
 
 
-def _browse_static_list(shortcuts, heading):
+def _browse_static_list(
+    shortcuts: list[tuple[str, str, str]], heading: str
+) -> tuple[str, str, str] | None:
     """
     Show a flat select dialog of static shortcut entries.
 
@@ -662,7 +661,7 @@ def _browse_static_list(shortcuts, heading):
     return action, label, icon
 
 
-def _browse_favourites(heading):
+def _browse_favourites(heading: str) -> tuple[str, str, str] | None:
     """
     Show user's Kodi favourites as selectable shortcuts.
 
@@ -712,7 +711,7 @@ def _browse_favourites(heading):
 # ---------------------------------------------------------------------------
 
 
-def _browse_level(path, heading, mode="widget"):
+def _browse_level(path: str, heading: str, mode: str = "widget"):
     """
     Returned label uses heading for endpoints/flat/empty/use-path,
     item label for files, and propagates from sub-levels for directories.
@@ -787,7 +786,7 @@ def _browse_level(path, heading, mode="widget"):
         return result  # (path, label) or None — propagate as-is
 
 
-def _browse_playlist_list(playlist_items, heading):
+def _browse_playlist_list(playlist_items, heading: str):
     """
     Show a flat select dialog listing *playlist_items*.
 
@@ -806,7 +805,7 @@ def _browse_playlist_list(playlist_items, heading):
     return item["file"], item["label"]
 
 
-def _browse_playlists(media, heading):
+def _browse_playlists(media: str, heading: str) -> tuple[str, str] | None:
     """
     Show a 'My Playlists / Skin Playlists' sub-picker, then a flat playlist list.
     Returns (path, label), or None.
@@ -848,7 +847,7 @@ def _browse_playlists(media, heading):
         return result  # (path, label) or None
 
 
-def _browse_addons(heading, mode="widget"):
+def _browse_addons(heading: str, mode: str = "widget") -> tuple[str, str] | None:
     """
     Show the add-on type picker, then browse the chosen source.
     Returns (path, label), or None.
@@ -874,7 +873,7 @@ def _browse_addons(heading, mode="widget"):
         return result  # (path, label) or None
 
 
-def _custom_path():
+def _custom_path() -> tuple[str, str] | None:
     """
     Open a keyboard dialog and return (path, "") or None.
     Label is empty — the user typed a raw path with no associated name.
@@ -894,7 +893,7 @@ def _custom_path():
 # ---------------------------------------------------------------------------
 
 
-def browse_content(cfg):
+def browse_content(cfg) -> dict[str, str] | None:
     """
     Entry point for content path browsing. Called from OnClickActions.
     Widget mode returns ``{path, label, icon, target}``; menu mode

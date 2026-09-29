@@ -58,7 +58,7 @@ def build_multiart_dict(
         get_extra_multiart=get_extra_multiart,
     )
 
-    tmdb_seq: list[str] = []
+    tmdb_seq = []
     if tmdb_art:
         tmdb_seq = multiart_sequence_from_dict(
             art=tmdb_art,
@@ -166,8 +166,8 @@ def merge_multiart_sequences(
     :param secondary: Fallback sequence; duplicates of primary are dropped.
     :return: Deduplicated list with primary URLs first.
     """
-    merged: list[str] = []
-    seen: set[str] = set()
+    merged = []
+    seen = set()
 
     for url in (*primary, *secondary):
         if url and url not in seen:
@@ -179,18 +179,14 @@ def merge_multiart_sequences(
 
 def sequence_to_multiart_dict(urls: Iterable[str]) -> dict[str, str]:
     """
-    Turn a list of URLs into the standard multiart dict:
-
-        urls[0] → "multiart"
-        urls[1] → "multiart1"
-        urls[2] → "multiart2"
-        ...
+    Turn a list of URLs into the standard multiart dict: urls[0] → "multiart",
+    urls[1] → "multiart1", urls[2] → "multiart2", and so on.
     """
     seq = [u for u in urls if u]
     if not seq:
         return {}
 
-    result: dict[str, str] = {"multiart": seq[0]}
+    result = {"multiart": seq[0]}
     for index, url in enumerate(seq[1:], start=1):
         result[f"multiart{index}"] = url
 
@@ -228,14 +224,14 @@ def set_multiart_fadelabel(
     preserve_frozen: bool = True,
 ) -> bool:
     """
-    Seed a FadeLabel control with a multiart sequence.
+    Seed a FadeLabel control with a multiart sequence. Parking the displayed frame
+    in multiart_frozen is skipped on cross-container serves, where it belongs to the
+    previous region and would contaminate the scroll fallback.
 
     :param fadelabel_id: Control id of the FadeLabel to populate.
     :param ordered: URLs in display order (see order_multiart).
     :param alive: Focus guard; seeding aborts if it returns False after the park.
-    :param preserve_frozen: Park the displayed frame in multiart_frozen; pass
-        False on cross-container serves, where that frame belongs to the
-        previous region and parking it contaminates the scroll fallback.
+    :param preserve_frozen: Park the displayed frame in multiart_frozen; False skips it.
     :return: True if labels were set successfully.
     """
     try:
@@ -294,10 +290,9 @@ def seed_multiart(
     alive: Callable[[], bool],
 ) -> dict[str, str] | None:
     """
-    Seed/clear a multiart register and reconcile multiart art keys.
-    Register identity is the listing (region + folder), not the item:
-    same-listing serves preserve the frozen snapshot, any other clears it.
-    Sole register-state entry point; only the artwork handler may call it.
+    Seed/clear a multiart register and reconcile multiart art keys. Register identity
+    is the listing (region + folder), not the item: same-listing serves preserve the
+    frozen snapshot, any other clears it. Sole entry point (artwork handler only).
 
     :param fadelabel_id: Register control id; None/empty is a no-op.
     :param multiart_dict: Candidate multiart family from the listitem.

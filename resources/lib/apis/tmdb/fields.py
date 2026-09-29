@@ -4,7 +4,7 @@ from typing import Any, Iterable, Iterator, Mapping
 
 from resources.lib.shared import logger as log
 
-TMDB_PROPERTIES: dict[str, dict[str, Any]] = {
+TMDB_PROPERTIES = {
     "movie": {
         "endpoint": "/movie/{id}",
         "append": ["images", "videos"],
@@ -53,7 +53,7 @@ TMDB_PROPERTIES: dict[str, dict[str, Any]] = {
     },
 }
 
-TMDB_FIELD_MAP: dict[str, dict[str, Any]] = {
+TMDB_FIELD_MAP = {
     "backdrop_path": {
         "target": "art",
         "label": "fanart",
@@ -155,7 +155,7 @@ TMDB_FIELD_MAP: dict[str, dict[str, Any]] = {
 
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 YOUTUBE_PLUGIN_BASE = "plugin://plugin.video.youtube/play/?video_id="
-TMDB_TRANSFORMS: tuple[str, ...] = (
+TMDB_TRANSFORMS = (
     "year_from_date",
     "first_runtime_from_list",
     "pick_best_trailer",
@@ -204,7 +204,7 @@ def extract_creator_names(value: Any) -> list[str]:
     :param value: Raw created_by field value from TMDb JSON.
     :return: List of non-empty creator name strings.
     """
-    names: list[str] = []
+    names = []
     for item in _iter_mappings(value):
         name = item.get("name")
         if isinstance(name, str) and name:
@@ -314,7 +314,7 @@ def build_tmdb_image_url_list(
     :param limit: Optional maximum number of URLs to include.
     :return: List of resolved TMDb image URLs.
     """
-    urls: list[str] = []
+    urls = []
     for item in _iter_mappings(items):
         file_path = item.get("file_path")
         if not isinstance(file_path, str) or not file_path:
@@ -336,8 +336,8 @@ def split_tmdb_images_by_language(
     :param preferred_iso: Two-letter ISO code (for example, "en") or None.
     :return: Tuple of (language-matched list, language-none list).
     """
-    lang_items: list[Mapping[str, Any]] = []
-    none_items: list[Mapping[str, Any]] = []
+    lang_items = []
+    none_items = []
 
     pref = (preferred_iso or "").lower()
 

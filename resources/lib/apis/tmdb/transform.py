@@ -16,7 +16,7 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, plugin_path, pretty_print
 
 _CACHE = TmdbCache()
-IMAGE_LIST_ROLES: dict[str, list[tuple[str, str]]] = {
+IMAGE_LIST_ROLES = {
     "images_posters": [
         ("poster", "lang"),
         ("keyart", "none"),
@@ -105,7 +105,7 @@ def _build_tmdb_canonical_item(
     :param language: TMDb language key used for fetching.
     :return: Canonical item dict for downstream handlers.
     """
-    item: dict[str, Any] = {
+    item = {
         "file": plugin_path("tmdb"),
         "art": {},
         "properties": {},

@@ -113,8 +113,7 @@ def fetch_and_add(
     :param params: Optional extra params to pass to JSON-RPC.
     :param limit: Optional maximum number of items to fetch.
     :param postprocess: Optional in-place mutator for the raw item list.
-    :param properties: Optional property-list override; defaults to the full
-    JSON_PROPERTIES set for media_type.
+    :param properties: Optional property-list override; defaults to JSON_PROPERTIES.
     :return: List of (file, xbmcgui.ListItem, isFolder) tuples.
     """
     items = fetch_raw(

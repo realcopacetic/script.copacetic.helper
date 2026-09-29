@@ -40,7 +40,11 @@ class BaseBuilder:
     """
 
     def __init__(
-        self, mapping_name, mapping_values, runtime_manager=None, registry=None
+        self,
+        mapping_name: str,
+        mapping_values,
+        runtime_manager=None,
+        registry=None,
     ):
         """
         Initialise the builder with the mapping it operates on.
@@ -65,7 +69,7 @@ class BaseBuilder:
         self.group_map = {}
         self._prepare_xsp_urls()
 
-    def process_elements(self, element_name, element_data):
+    def process_elements(self, element_name: str, element_data):
         """
         Processes a template element by generating and expanding substitutions.
 
@@ -178,12 +182,11 @@ class BaseBuilder:
                 return f"[{value}]"
         return value
 
-    def generate_runtimejson_substitutions(self, runtime_items, index_start):
+    def generate_runtimejson_substitutions(self, runtime_items, index_start: int):
         """
-        Each runtime entry contributes its scalar (string) fields layered over
-        per-item metadata; non-string runtime values (e.g. xsp dicts) come
-        from metadata only. Gated xsp specs compose here, where the entry's
-        own values are known. Config-field defaults resolve lazily.
+        Layer each entry's scalar (string) fields over per-item metadata; non-string
+        runtime values (e.g. xsp dicts) come from metadata only. Gated xsp specs
+        compose here, where entry values are known; config defaults resolve lazily.
 
         :param runtime_items: List of runtime state items for this mapping.
         :param index_start: Starting index value (default 1).
@@ -264,9 +267,8 @@ class BaseBuilder:
 
     def compose_xsp(self, item: str, fields: dict) -> str | None:
         """
-        Compose an entry's xsp from a gated metadata ``xsp`` spec: a real
-        xsp dict whose rules carry ``gate`` keys naming the entry fields
-        that must read true for those rules to be included. Plain (ungated)
+        Compose an entry's xsp from a gated ``xsp`` spec, whose rules carry ``gate``
+        keys naming entry fields that must read true to include them. Plain (ungated)
         specs return None and pass through untouched.
 
         :param item: Mapping_item whose metadata carries the spec.
@@ -284,19 +286,23 @@ class BaseBuilder:
         ]
         return self.encode_xsp({**spec, "rules": {combinator: kept}})
 
-    def _prepare_xsp_urls(self):
+    def _prepare_xsp_urls(self) -> None:
         """
-        Encode static XSP dictionaries in the builder-local metadata copy
-        into ``?xsp=`` query strings, preserving infolabel and variable
-        tokens. Gated specs are left as dicts for per-entry composition.
-        The shared registry is never touched.
+        Encode static xsp dicts in the builder-local metadata copy into ``?xsp=``
+        strings, preserving infolabel and variable tokens. Gated specs stay dicts
+        for per-entry composition. The shared registry is never touched.
         """
 
         for meta in self.metadata.values():
             if "xsp" in meta and not self._xsp_is_gated(meta["xsp"]):
                 meta["xsp"] = self.encode_xsp(meta["xsp"])
 
-    def _cross_foreign_roster(self, substitutions, foreign_name, element_name):
+    def _cross_foreign_roster(
+        self,
+        substitutions,
+        foreign_name: str,
+        element_name: str,
+    ):
         """
         Cross-multiply substitutions with a foreign mapping's item roster,
         injected under the foreign mapping's own placeholder names.
@@ -335,14 +341,11 @@ class BaseBuilder:
             pairs = [{key_name: item} for item in roster]
         return [{**sub, **pair} for sub in substitutions for pair in pairs]
 
-    def _group_substitutions(self, template_name, substitutions):
+    def _group_substitutions(self, template_name: str, substitutions):
         """
-        Group substitutions by their expanded template name.
-
-        When every substitution has been filtered out, a template whose
-        name resolves without any per-item placeholder (literal, or only
-        mapping-level tokens) still yields one empty group — so a
-        hand-referenced element is emitted even with nothing to expand.
+        Group substitutions by their expanded template name. When all were filtered
+        out, a name with no per-item placeholder (literal or mapping tokens) still
+        yields one empty group, so a hand-referenced element is emitted regardless.
 
         :param template_name: Template name, possibly with placeholders.
         :param substitutions: List of substitution dicts (may be empty).
@@ -407,7 +410,7 @@ class BaseBuilder:
             context=f" in {what} (mapping '{self.mapping_name}')",
         )
 
-    def substitute_strict(self, template, tokens):
+    def substitute_strict(self, template, tokens: dict[str, str]):
         """
         Walk a template tree and substitute only placeholders resolvable from
         ``tokens``, leaving all others intact. Does not prune empty values —
@@ -434,11 +437,9 @@ class BaseBuilder:
     @staticmethod
     def _add_loop_position_flags(substitutions: list[dict[str, str]]) -> None:
         """
-        Inject loop-position metadata into every substitution dict in place.
-        Adds ``count`` (total substitutions, identical across all entries),
-        ``is_first`` ('true' on the first entry only), and ``is_last``
-        ('true' on the last entry only). Strings are used so the values can
-        be substituted directly into Kodi boolean conditions.
+        Inject loop-position strings into every substitution dict in place: ``count``
+        (the total), ``is_first`` and ``is_last`` ('true' on the first/last entry only),
+        so they substitute directly into Kodi boolean conditions.
 
         :param substitutions: List of substitution dictionaries to annotate.
         """
@@ -457,7 +458,7 @@ class ExpressionsBuilder(BaseBuilder):
     variations and handles conditional logic.
     """
 
-    def process_elements(self, element_name, element_data):
+    def process_elements(self, element_name: str, element_data):
         """
         Overrides BaseBuilder class, calling super().process_elements then
         applying fallback logic after substitution.
@@ -472,7 +473,12 @@ class ExpressionsBuilder(BaseBuilder):
 
         yield self._apply_fallbacks(resolved, element_data)
 
-    def group_and_expand(self, template_name, data, substitutions):
+    def group_and_expand(
+        self,
+        template_name: str,
+        data,
+        substitutions,
+    ) -> dict[str, str | None]:
         """
         Groups substitutions and resolves values based on expression rules.
 
@@ -488,7 +494,7 @@ class ExpressionsBuilder(BaseBuilder):
             for resolved in [self.resolve_values(subs, data)]
         }
 
-    def resolve_values(self, subs, data):
+    def resolve_values(self, subs, data) -> list[str]:
         """
         Resolves rules for each substitution group and returns values.
 
@@ -519,7 +525,9 @@ class ExpressionsBuilder(BaseBuilder):
                     raise ValueError(f"Unsupported rule type: {rule['type']}")
         return resolved if resolved else ["false"]
 
-    def _apply_fallbacks(self, resolved, expr_data):
+    def _apply_fallbacks(
+        self, resolved: dict[str, str | None], expr_data
+    ) -> dict[str, str | None]:
         """
         Applies fallback values to expression groups when needed.
 
@@ -589,13 +597,19 @@ class IncludesBuilder(BaseBuilder):
     Handles recursive multi-level expansions for dynamic XML generation.
     """
 
-    def group_and_expand(self, template_name, data, substitutions):
+    def group_and_expand(
+        self,
+        template_name: str,
+        data,
+        substitutions,
+    ):
         """
         Groups substitutions by expanded template names and expands values.
 
         :param template_name: Template string possibly containing placeholders.
         :param data: Dictionary representing XML structure.
         :param substitutions: List of substitution dictionaries.
+        :return: Dictionary of {include_name: expanded include element}.
         """
         grouped = self._group_substitutions(template_name, substitutions)
         return {
@@ -609,19 +623,19 @@ class IncludesBuilder(BaseBuilder):
 
     def resolve_values(self, substitutions, include_element):
         """
-        Resolves values recursively within the include element with substitutions.
-        Template-level tokens (currently 'count') are pre-substituted across the
-        whole tree before per-item expansion, so they don't trigger multiplication
-        in contains_placeholder.
+        Resolves the include element recursively with substitutions. Template-level
+        tokens (currently 'count') are pre-substituted tree-wide before per-item
+        expansion, so they don't trigger multiplication in contains_placeholder.
 
         :param substitutions: List of substitution dictionaries.
         :param include_element: Dictionary representing the include XML structure.
+        :return: Dictionary holding the expanded ``include`` element.
         """
         template_tokens = {"count": str(len(substitutions))}
         pre_resolved = self.substitute_strict(include_element, template_tokens)
         return {"include": self.recursive_expand(pre_resolved, substitutions)}
 
-    def contains_placeholder(self, data, substitutions):
+    def contains_placeholder(self, data, substitutions) -> bool:
         """
         Recursively check whether data contains any placeholder that references
         a substitution key, including arithmetic placeholders such as
@@ -629,8 +643,7 @@ class IncludesBuilder(BaseBuilder):
 
         :param data: Data structure (dict, list, or string) to inspect.
         :param substitutions: List of substitution dictionaries.
-        :return: ``True`` if any ``{...}`` token in ``data`` references a
-            substitution key.
+        :return: True if any ``{...}`` token in ``data`` references a substitution key.
         """
         if isinstance(data, dict):
             return any(
@@ -653,6 +666,7 @@ class IncludesBuilder(BaseBuilder):
 
         :param data: Data structure (dict, list, or string) with potential placeholders.
         :param substitutions: List of substitution dictionaries.
+        :return: The data with placeholders expanded and empty entries removed.
         """
 
         if isinstance(data, dict):
@@ -709,7 +723,12 @@ class VariablesBuilder(BaseBuilder):
     shape (``{outputs, rows}`` — multiple variables sharing a single row cascade).
     """
 
-    def group_and_expand(self, template_name, data, substitutions):
+    def group_and_expand(
+        self,
+        template_name: str,
+        data,
+        substitutions,
+    ):
         """
         Cluster templates emit one variable per declared output sharing a row
         cascade; ordinary templates emit one variable per template (optionally indexed).
@@ -745,7 +764,7 @@ class VariablesBuilder(BaseBuilder):
         """
         outputs = data.get("outputs", {})
         blocks = self._as_blocks(data.get("rows", []))
-        result: dict[str, list[dict[str, str]]] = {}
+        result = {}
 
         for output_key, name_template in outputs.items():
             projected = self._project_cluster_output(blocks, output_key)
@@ -831,10 +850,9 @@ class VariablesBuilder(BaseBuilder):
     @staticmethod
     def _ensure_nonempty(values: list) -> list:
         """
-        Guarantee at least one value row. A ``<variable>`` with no
-        ``<value>`` children is undefined in Kodi (``$VAR[...] is not
-        defined``); a single empty ``<value/>`` keeps the variable defined
-        and resolving to an empty string.
+        Guarantee at least one value row: a ``<variable>`` with no ``<value>`` children
+        is undefined in Kodi (``$VAR[...] is not defined``), so a single empty
+        ``<value/>`` keeps it defined, resolving to an empty string.
 
         :param values: Resolved list of value dicts (may be empty).
         :return: The list, or a single empty value row if it was empty.
@@ -859,11 +877,9 @@ class VariablesBuilder(BaseBuilder):
         self, pair: dict[str, str], sub: dict[str, Any]
     ) -> dict[str, str]:
         """
-        Format one condition/value pair against a substitution.
-
-        The ``condition`` key is omitted when the pair declares no condition
-        or it substitutes to empty — a conditionless row emits a bare
-        ``<value>``. An empty ``value`` is preserved as an explicit terminator.
+        Format one condition/value pair against a substitution. ``condition`` is
+        omitted if absent or empty after substitution, giving a bare ``<value>``;
+        an empty ``value`` is preserved as an explicit terminator.
 
         :param pair: A {condition, value} template dict.
         :param sub: Substitution dictionary for formatting.
@@ -881,10 +897,9 @@ class VariablesBuilder(BaseBuilder):
         subs: list[dict[str, Any]],
     ) -> list[dict[str, str]]:
         """
-        Expand blocks into a flat value list, in declared order. A block
-        bearing any placeholder expands once per substitution, as a unit; a
-        placeholder-free block emits once, in place. Duplicate rows are
-        collapsed to first occurrence — see ``_dedup_rows``.
+        Expand blocks into a flat list in declared order. A block with any placeholder
+        expands once per substitution, as a unit; a placeholder-free block emits once,
+        in place. Duplicate rows collapse to first occurrence (see ``_dedup_rows``).
 
         :param blocks: Normalised list of blocks.
         :param subs: Substitution group (may be empty).
