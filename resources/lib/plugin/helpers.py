@@ -329,7 +329,7 @@ class ProgressBarManager:
         Initialize default control IDs and sizing.
 
         :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
-        :param base_id: Base group ID that wraps the bar/btn; sub-controls default to +1/+2/+3.
+        :param base_id: Base group ID that wraps the bar/btn; sub-controls default to +1/+2/+3/+4.
         """
 
         self.window = Window(getCurrentWindowId())
@@ -338,6 +338,7 @@ class ProgressBarManager:
         self.progress_id = base_id + 1
         self.btn_id = base_id + 2
         self.img_id = base_id + 3
+        self.trailer_id = base_id + 4
         self.infolabels = get_infolabels(
             self.target,
             [
@@ -449,6 +450,16 @@ class ProgressBarManager:
         base.setPosition(posx, posy)
         progress.setWidth(width)
         progress.setHeight(height)
+
+        try:
+            trailer = self.window.getControl(self.trailer_id)
+        except RuntimeError:
+            log.debug(
+                f"{self.__class__.__name__} → Optional trailer_id {self.trailer_id} not found."
+            )
+        else:
+            trailer.setWidth(width)
+            trailer.setHeight(height)
 
         try:
             img = self.window.getControl(img_id)
