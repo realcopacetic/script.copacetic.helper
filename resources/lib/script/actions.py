@@ -206,10 +206,11 @@ def dynamic_settings_window(**kwargs: str) -> None:
                 if monitor.waitForAbort(0.02):
                     return
             window_property("host_exit_target")
-            # Before forwarding: the arriving window must not see a live editor_label.
-            window_property("editor_label", value=previous_label)
             log.debug(f"dynamic_settings_window: host exit — target='{target}'")
             if target:
+                # Arriving window must not see a live editor_label; a Back exit
+                # keeps it until the finally so the shell strip stays hidden.
+                window_property("editor_label", value=previous_label)
                 log.execute(f"ReplaceWindow({target})")
             elif condition(f"Window.IsActive({host})"):
                 log.execute("Action(Back)")
