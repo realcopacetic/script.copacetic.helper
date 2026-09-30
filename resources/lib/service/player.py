@@ -4,7 +4,7 @@ import time
 
 from xbmc import Player
 
-from resources.lib.service.playnext import PlayNextQueue
+from resources.lib.service import playnext
 from resources.lib.service.trailer import TrailerZoomController
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
@@ -25,7 +25,6 @@ class PlayerMonitor(Player):
         """Initialise player monitor and helpers."""
         super().__init__()
         self.zoom = TrailerZoomController()
-        self.playnext = PlayNextQueue()
         self._cleanup_registry = set()
 
     def onAVStarted(self) -> None:
@@ -87,7 +86,7 @@ class PlayerMonitor(Player):
                 details = query.get("result", {}).get("episodedetails", {})
                 if tvshowid := details.get("tvshowid"):
                     self._set_managed_property("player_tvshowid", value=str(tvshowid))
-                    self.playnext.ensure_successor(dbid, tvshowid)
+                    playnext.ensure_successor(dbid, tvshowid)
 
         elif media_type == "movie" and dbid:
             query = json_call(
