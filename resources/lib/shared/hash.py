@@ -11,14 +11,14 @@ class HashManager:
         :param file_path: Absolute file path on disk.
         :return: SHA-256 hex digest, or None if file is missing.
         """
-        file_path = Path(file_path)
-        if not file_path.exists():
+        digest = hashlib.sha256()
+        try:
+            with open(file_path, "rb") as f:
+                while chunk := f.read(1 << 16):
+                    digest.update(chunk)
+        except FileNotFoundError:
             return None
-        hash_func = hashlib.sha256()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_func.update(chunk)
-        return hash_func.hexdigest()
+        return digest.hexdigest()
 
     @staticmethod
     def validate_hash(current_hash: str | None, stored_hash: str | None) -> bool:

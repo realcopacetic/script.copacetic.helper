@@ -60,18 +60,13 @@ class ArtworkCacheManager:
         decoded_url = url_decode_path(url)
         cached_thumb = self.get_cached_thumb(decoded_url, suffix)
         cached_image_path = Path(THUMB_DB) / cached_thumb[0] / cached_thumb
-        cached_file_hash = (
-            self.hash_manager.compute_hash(cached_image_path)
-            if validate_path(cached_image_path)
-            else None
-        )
         return CacheContext(
             source_url=url,
             decoded_url=decoded_url,
             suffix=suffix,
             cached_thumb=cached_thumb,
             cached_image_path=cached_image_path,
-            cached_file_hash=cached_file_hash,
+            cached_file_hash=self.hash_manager.compute_hash(cached_image_path),
             cache_key=url,
             dest_thumb=cached_thumb,
         )
