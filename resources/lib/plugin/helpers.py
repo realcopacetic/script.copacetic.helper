@@ -88,13 +88,7 @@ def reposition_control(
 
 def has_value(value: Any) -> bool:
     """Whether a value should be preserved and not overwritten."""
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return value != ""
-    if isinstance(value, (list, dict)):
-        return bool(value)
-    return True  # ints, bools, floats: treat all as meaningful
+    return value not in (None, "", [], {})
 
 
 def merge_metadata(
@@ -113,30 +107,19 @@ def merge_metadata(
     :param ignore_keys: Top-level keys to skip entirely when merging.
     :return: Updated base metadata dict.
     """
-    incoming_props = incoming.get("properties")
-    if isinstance(incoming_props, Mapping):
-        local_props = base.setdefault("properties", {})
-        for key, incoming_val in incoming_props.items():
-            local_val = local_props.get(key)
-            if prefer_incoming:
-                if has_value(incoming_val):
-                    local_props[key] = incoming_val
-            else:
-                if not has_value(local_val) and has_value(incoming_val):
-                    local_props[key] = incoming_val
 
-    for key, incoming_val in incoming.items():
-        if key == "properties" or key in ignore_keys:
-            continue
+    def _merge(dst: dict, src: Mapping, skip: Collection[str] = ()) -> None:
+        for key, value in src.items():
+            if (
+                key not in skip
+                and has_value(value)
+                and (prefer_incoming or not has_value(dst.get(key)))
+            ):
+                dst[key] = value
 
-        local_val = base.get(key)
-        if prefer_incoming:
-            if has_value(incoming_val):
-                base[key] = incoming_val
-        else:
-            if not has_value(local_val) and has_value(incoming_val):
-                base[key] = incoming_val
-
+    if isinstance(props := incoming.get("properties"), Mapping):
+        _merge(base.setdefault("properties", {}), props)
+    _merge(base, incoming, skip=("properties", *ignore_keys))
     return base
 
 
