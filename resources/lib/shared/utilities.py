@@ -39,9 +39,6 @@ VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
 INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_includes.xml")
 
-DIALOG = Dialog()
-VIDEOPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
-MUSICPLAYLIST = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
 
 _JSON_RESPONSE_LIMIT = 5
 
@@ -98,9 +95,10 @@ def clear_label(label_id: int | str, hide: bool = False) -> None:
 
 def clear_playlists() -> None:
     log.debug("Clear playlists")
-    VIDEOPLAYLIST.clear()
-    MUSICPLAYLIST.clear()
-    MUSICPLAYLIST.unshuffle()
+    xbmc.PlayList(xbmc.PLAYLIST_VIDEO).clear()
+    music = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
+    music.clear()
+    music.unshuffle()
 
 
 def condition(condition: str) -> bool:
@@ -217,7 +215,7 @@ def clear_cache(**kwargs: str) -> None:
 
     log.info(f"Artwork cache cleared by user. {readable_size} saved.")
     message = f"{ADDON.getLocalizedString(32201)}, {readable_size} {ADDON.getLocalizedString(32202)}."
-    DIALOG.notification(ADDON_ID, message)
+    Dialog().notification(ADDON_ID, message)
 
     get_cache_size()
 

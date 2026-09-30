@@ -9,7 +9,6 @@ import xbmcgui
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     ADDON,
-    DIALOG,
     SKINXML,
 )
 from resources.lib.shared.utilities import clear_cache as _clear_cache_util
@@ -143,7 +142,7 @@ def dialog_yesno(heading: str, message: str, **kwargs: str) -> None:
     yes_actions = kwargs.get("yes_actions", "").split("|")
     no_actions = kwargs.get("no_actions", "Null").split("|")
 
-    if DIALOG.yesno(heading, message):
+    if xbmcgui.Dialog().yesno(heading, message):
         for action in yes_actions:
             log.execute(action)
     else:
@@ -527,7 +526,7 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
             for element in tree.getroot().findall("layout")
             if not element.get("codingtable")
         ]
-        picked = DIALOG.select("Keyboard layout", choices)
+        picked = xbmcgui.Dialog().select("Keyboard layout", choices)
         if picked < 0:
             return
         layout = choices[picked]
@@ -644,7 +643,7 @@ def tmdb_test(**kwargs: str) -> None:
 
     client = get_tmdb_client()
     if not client:
-        DIALOG.notification(
+        xbmcgui.Dialog().notification(
             ADDON.getLocalizedString(32000),
             ADDON.getLocalizedString(32208),
             time=4000,
@@ -653,13 +652,13 @@ def tmdb_test(**kwargs: str) -> None:
 
     result = client.get_json("/configuration")
     if result and "images" in result:
-        DIALOG.notification(
+        xbmcgui.Dialog().notification(
             ADDON.getLocalizedString(32000),
             ADDON.getLocalizedString(32209),
             time=4000,
         )
     else:
-        DIALOG.notification(
+        xbmcgui.Dialog().notification(
             ADDON.getLocalizedString(32000),
             ADDON.getLocalizedString(32210),
             time=4000,
@@ -679,14 +678,14 @@ def toggle_addon(id: str, **kwargs: str) -> None:
             params={"addonid": id, "enabled": False},
             parent="toggle_addon",
         )
-        DIALOG.notification(id, ADDON.getLocalizedString(32205))
+        xbmcgui.Dialog().notification(id, ADDON.getLocalizedString(32205))
     else:
         json_call(
             "Addons.SetAddonEnabled",
             params={"addonid": id, "enabled": True},
             parent="toggle_addon",
         )
-        DIALOG.notification(id, ADDON.getLocalizedString(32206))
+        xbmcgui.Dialog().notification(id, ADDON.getLocalizedString(32206))
 
 
 @action
@@ -708,7 +707,7 @@ def rebuild(**kwargs: str) -> None:
     BuildElements().run()
 
     log.execute("ReloadSkin()")
-    DIALOG.notification(
+    xbmcgui.Dialog().notification(
         ADDON.getLocalizedString(32000),
         ADDON.getLocalizedString(32207 if reset else 32211),
         time=4000,
