@@ -209,19 +209,24 @@ class PlayerMonitor(Player):
 
     def _reap_stale_pending(self, max_age: float = 5.0) -> None:
         """
-        Clear a pending request whose playback never started or errored
-        (e.g. a hung plugin URL), but only when nothing is playing — a
-        trailer that has since arrived is left for onAVStarted to confirm.
+        Retire a pending request that never started (e.g. a failed plugin
+        resolve): the paused trailer it was to replace goes back to the reaper,
+        else clear to idle. A video that has since arrived is left for onAVStarted.
 
         :param max_age: Seconds a pending request may sit before reaping.
         """
-        if condition("Player.HasMedia"):
-            return
         since = to_float(infolabel("Window(home).Property(trailer_pending_since)"))
         if since <= 0.0 or time.time() - since < max_age:
             return
+        zombie = self._is_trailer_playback()
+        if not zombie and condition("Player.HasMedia"):
+            return
         log.debug("PlayerMonitor: Reaping stale pending trailer request")
-        self._clear_trailer_props()
+        window_property("trailer_played_item")
+        if zombie:
+            window_property("trailer_state", value="orphaned")
+        else:
+            self._clear_trailer_props()
 
     def _source_lost_focus(self) -> bool:
         """
