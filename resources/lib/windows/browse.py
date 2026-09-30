@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import xml.etree.ElementTree as ETree
+from functools import cache
 
 import xbmc
 import xbmcvfs
@@ -23,105 +24,93 @@ def _L(string_id: int) -> str:
     return ADDON.getLocalizedString(string_id)
 
 
-# Module-level caches — populated on first use so Kodi's language system
-# is fully initialised before any getLocalizedString() calls.
-_strings = None
-_top_level = None
-_menu_extra = None
-_addon_sources = None
+# The getters below are cached on first use so Kodi's language system is
+# fully initialised before any getLocalizedString() calls.
 
 
+@cache
 def _get_strings() -> dict[str, str]:
     """
     Build and cache the localised strings dict.
 
     :return: Dict of string keys to localised values.
     """
-    global _strings
-    if _strings is None:
-        _strings = {
-            "video_library": xbmc.getLocalizedString(14236),  # Video library
-            "music_library": xbmc.getLocalizedString(14237),  # Music library
-            "video_playlists": xbmc.getLocalizedString(20012),  # Video playlists
-            "music_playlists": xbmc.getLocalizedString(20011),  # Music playlists
-            "addons": xbmc.getLocalizedString(24001),  # Add-ons
-            "custom_path": _L(32804),  # Custom path...
-            "video_addons": xbmc.getLocalizedString(1037),  # Video add-ons
-            "music_addons": xbmc.getLocalizedString(1038),  # Music add-ons
-            "program_addons": xbmc.getLocalizedString(1043),  # Program add-ons
-            "picture_addons": xbmc.getLocalizedString(1039),  # Picture add-ons
-            "back": "..",
-            "use_this_path": _L(32809),  # Use this path
-            "my_playlists": _L(32810),  # My playlists
-            "skin_playlists": _L(32811),  # Skin playlists
-            "finding_playlists": _L(32812),  # Finding playlists...
-            "no_playlists_found": _L(32813),  # No playlists found
-            "no_favourites_found": _L(32814),  # No favourites found
-            "getting_directory": _L(32815),  # Getting directory listing...
-            "enter_path": _L(32816),  # Enter content path
-            "select_content": _L(32817),  # Select content
-            "common": _L(32818),  # Common
-            "settings": xbmc.getLocalizedString(5),  # Settings
-            "favourites": xbmc.getLocalizedString(1036),  # Favourites
-            "kodi_commands": _L(32819),  # Kodi commands
-        }
-    return _strings
+    return {
+        "video_library": xbmc.getLocalizedString(14236),  # Video library
+        "music_library": xbmc.getLocalizedString(14237),  # Music library
+        "video_playlists": xbmc.getLocalizedString(20012),  # Video playlists
+        "music_playlists": xbmc.getLocalizedString(20011),  # Music playlists
+        "addons": xbmc.getLocalizedString(24001),  # Add-ons
+        "custom_path": _L(32804),  # Custom path...
+        "video_addons": xbmc.getLocalizedString(1037),  # Video add-ons
+        "music_addons": xbmc.getLocalizedString(1038),  # Music add-ons
+        "program_addons": xbmc.getLocalizedString(1043),  # Program add-ons
+        "picture_addons": xbmc.getLocalizedString(1039),  # Picture add-ons
+        "back": "..",
+        "use_this_path": _L(32809),  # Use this path
+        "my_playlists": _L(32810),  # My playlists
+        "skin_playlists": _L(32811),  # Skin playlists
+        "finding_playlists": _L(32812),  # Finding playlists...
+        "no_playlists_found": _L(32813),  # No playlists found
+        "no_favourites_found": _L(32814),  # No favourites found
+        "getting_directory": _L(32815),  # Getting directory listing...
+        "enter_path": _L(32816),  # Enter content path
+        "select_content": _L(32817),  # Select content
+        "common": _L(32818),  # Common
+        "settings": xbmc.getLocalizedString(5),  # Settings
+        "favourites": xbmc.getLocalizedString(1036),  # Favourites
+        "kodi_commands": _L(32819),  # Kodi commands
+    }
 
 
+@cache
 def _get_top_level() -> list[tuple[str, str | None]]:
     """
     Build and cache the top-level source list.
 
     :return: List of (label, path) tuples.
     """
-    global _top_level
-    if _top_level is None:
-        s = _get_strings()
-        _top_level = [
-            (s["video_library"], "library://video/"),
-            (s["music_library"], "library://music/"),
-            (s["video_playlists"], None),
-            (s["music_playlists"], None),
-            (s["addons"], None),
-            (s["custom_path"], None),
-        ]
-    return _top_level
+    s = _get_strings()
+    return [
+        (s["video_library"], "library://video/"),
+        (s["music_library"], "library://music/"),
+        (s["video_playlists"], None),
+        (s["music_playlists"], None),
+        (s["addons"], None),
+        (s["custom_path"], None),
+    ]
 
 
+@cache
 def _get_menu_extra() -> list[tuple[str, str | None]]:
     """
     Build and cache the menu-mode extra source list.
 
     :return: List of (label, path) tuples.
     """
-    global _menu_extra
-    if _menu_extra is None:
-        s = _get_strings()
-        _menu_extra = [
-            (s["common"], None),
-            (s["settings"], None),
-            (s["favourites"], None),
-            (s["kodi_commands"], None),
-        ]
-    return _menu_extra
+    s = _get_strings()
+    return [
+        (s["common"], None),
+        (s["settings"], None),
+        (s["favourites"], None),
+        (s["kodi_commands"], None),
+    ]
 
 
+@cache
 def _get_addon_sources() -> list[tuple[str, str]]:
     """
     Build and cache the addon source list.
 
     :return: List of (label, path) tuples.
     """
-    global _addon_sources
-    if _addon_sources is None:
-        s = _get_strings()
-        _addon_sources = [
-            (s["video_addons"], "addons://sources/video"),
-            (s["music_addons"], "addons://sources/audio"),
-            (s["program_addons"], "addons://sources/executable"),
-            (s["picture_addons"], "addons://sources/image"),
-        ]
-    return _addon_sources
+    s = _get_strings()
+    return [
+        (s["video_addons"], "addons://sources/video"),
+        (s["music_addons"], "addons://sources/audio"),
+        (s["program_addons"], "addons://sources/executable"),
+        (s["picture_addons"], "addons://sources/image"),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -518,20 +507,11 @@ def _fetch_raw(path: str):
 
 def _get_directory(path: str, heading: str):
     """Fetch a directory listing via JSON-RPC, showing a progress dialog."""
-    params = {"directory": path}
-    if not path.startswith("special://"):
-        params["media"] = "files"
-
     progress = DialogProgress()
     progress.create(heading, _get_strings()["getting_directory"])
-    result = json_call(
-        "Files.GetDirectory",
-        properties=["thumbnail"],
-        params=params,
-        parent="browse_content",
-    )
+    files = _fetch_raw(path)
     progress.close()
-    return result.get("result", {}).get("files", [])
+    return files
 
 
 def _walk_playlists(path: str):
