@@ -14,14 +14,15 @@ class TrailerZoomController:
 
     def apply_zoom_if_needed(self) -> None:
         """
-        Apply zoom when a trailer viewport is active.
+        Reset the view mode, then zoom past burned-in bars when an inset
+        trailer viewport is active.
         """
+        self._reset_zoom()
         ar_window = self._get_viewport_ar()
         if ar_window <= 0.0:
             log.debug("PlayerMonitor: Trailer zoom skipped → no active viewport")
             return
 
-        self._reset_zoom()
         content_ar = self._get_content_ar()
         zoom = self._compute_zoom(content_ar=content_ar, window_ar=ar_window)
 
@@ -57,11 +58,11 @@ class TrailerZoomController:
 
     def _reset_zoom(self) -> None:
         """
-        Reset Kodi view mode zoom to neutral.
+        Reset to the normal view mode, overriding any zoom Kodi stored per file.
         """
         json_call(
             method="Player.SetViewMode",
-            params={"viewmode": {"zoom": 1.0}},
+            params={"viewmode": "normal"},
             parent="TrailerZoom_reset",
         )
 
