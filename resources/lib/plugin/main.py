@@ -45,11 +45,7 @@ class Main:
         log.debug(
             f"{LOG_TAG} initialized ({imports_ms:.0f}ms imports) with params: {self.params}"
         )
-        items = fn()
-        if not isinstance(items, (list, tuple)):
-            items = []
-
-        self._additems(items)
+        self._additems(fn() or [])
 
     def run_listing(self) -> None:
         """Emit the default plugin directory (top-level categories)."""
