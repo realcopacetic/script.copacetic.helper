@@ -307,67 +307,6 @@ def validate_path(path: str | Path) -> bool:
 """JSON"""
 
 
-def _build_request(
-    method: str,
-    properties: list[str] | None = None,
-    sort: dict[str, Any] | None = None,
-    query_filter: dict[str, Any] | None = None,
-    limit: int | None = None,
-    params: dict[str, Any] | None = None,
-    item: dict[str, Any] | None = None,
-    options: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """
-    Assemble a JSON-RPC methodparams body without the outer envelope.
-    Shared between json_call and json_call_batch.
-
-    :param method: JSON-RPC method name (e.g., "VideoLibrary.GetMovies").
-    :param properties: List of requested fields.
-    :param sort: Dictionary describing sort method.
-    :param query_filter: Dictionary for filtering results.
-    :param limit: End limit for results — sets "limits": {"start": 0, "end": limit}.
-    :param params: Additional parameters to inject directly into "params".
-    :param item: Single "item" object for certain queries.
-    :param options: Dictionary of additional JSON-RPC options.
-    :return: Request body dict with "method" and "params" keys.
-    """
-    body = {
-        "method": method,
-        "params": dict(params) if params else {},
-    }
-
-    for key, value in [
-        ("properties", properties),
-        ("sort", sort),
-        ("filter", query_filter),
-        ("options", options),
-        ("item", item),
-    ]:
-        if value is not None:
-            body["params"][key] = value
-
-    if limit is not None:
-        body["params"]["limits"] = {"start": 0, "end": int(limit)}
-
-    return body
-
-
-def _log_call(parent: str | None, payload: Any, result: Any) -> None:
-    """
-    Conditional debug logging shared between single and batch calls.
-
-    :param parent: Caller name for log output.
-    :param payload: Outgoing request envelope or list of envelopes.
-    :param result: Parsed response from Kodi.
-    """
-    if ADDON.getSettingBool("json_logging"):
-        log.debug(f"JSON call for function {parent} " + pretty_print(payload))
-        log.debug(
-            f"JSON result for function {parent} "
-            + pretty_print(_truncate_for_log(result))
-        )
-
-
 def _truncate_for_log(payload: Any) -> Any:
     """
     Walk a JSON-RPC result and cap any list longer than _JSON_RESPONSE_LIMIT
@@ -397,7 +336,7 @@ def json_call(
     query_filter: dict[str, Any] | None = None,
     limit: int | None = None,
     params: dict[str, Any] | None = None,
-    item: dict[str, Any] | None = None,
+    item: dict[str, Any] | list[dict[str, Any]] | None = None,
     options: dict[str, Any] | None = None,
     parent: str | None = None,
 ) -> dict[str, Any]:
@@ -410,59 +349,33 @@ def json_call(
     :param query_filter: Dictionary for filtering results.
     :param limit: End limit for results — sets "limits": {"start": 0, "end": limit}.
     :param params: Additional parameters to inject directly into "params".
-    :param item: Single "item" object for certain queries.
+    :param item: "item" object, or a list of them for Playlist.Add.
     :param options: Dictionary of additional JSON-RPC options.
     :param parent: Name of caller (used in log output).
     :return: Parsed response as a Python dictionary.
     """
-    body = _build_request(
-        method, properties, sort, query_filter, limit, params, item, options
-    )
-    envelope = {"jsonrpc": "2.0", "id": 1, **body}
-    result = json.loads(xbmc.executeJSONRPC(json.dumps(envelope, ensure_ascii=False)))
-    _log_call(parent, envelope, result)
-    return result
+    params = dict(params) if params else {}
+    for key, value in (
+        ("properties", properties),
+        ("sort", sort),
+        ("filter", query_filter),
+        ("options", options),
+        ("item", item),
+    ):
+        if value is not None:
+            params[key] = value
+    if limit is not None:
+        params["limits"] = {"start": 0, "end": int(limit)}
 
-
-def json_call_batch(
-    requests: list[dict[str, Any]],
-    parent: str | None = None,
-) -> list[dict[str, Any] | None]:
-    """
-    Send multiple JSON-RPC requests in a single IPC round-trip. Each request dict
-    takes json_call's kwargs plus an optional ``id`` (default: its index). The
-    server may reorder responses, so they are re-keyed by id into input order.
-
-    :param requests: List of request kwarg dicts.
-    :param parent: Caller name for log output.
-    :return: Responses in input order; None where a response id is missing.
-    """
-    if not requests:
-        return []
-
-    envelopes = []
-    ids = []
-    for idx, req in enumerate(requests):
-        request_id = req.get("id", idx)
-        ids.append(request_id)
-        body = _build_request(
-            method=req["method"],
-            properties=req.get("properties"),
-            sort=req.get("sort"),
-            query_filter=req.get("query_filter"),
-            limit=req.get("limit"),
-            params=req.get("params"),
-            item=req.get("item"),
-            options=req.get("options"),
+    request = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    result = json.loads(xbmc.executeJSONRPC(json.dumps(request, ensure_ascii=False)))
+    if ADDON.getSettingBool("json_logging"):
+        log.debug(f"JSON call for function {parent} " + pretty_print(request))
+        log.debug(
+            f"JSON result for function {parent} "
+            + pretty_print(_truncate_for_log(result))
         )
-        envelopes.append({"jsonrpc": "2.0", "id": request_id, **body})
-
-    raw = xbmc.executeJSONRPC(json.dumps(envelopes, ensure_ascii=False))
-    results = json.loads(raw)
-    _log_call(parent, envelopes, results)
-
-    by_id = {r["id"]: r for r in results if isinstance(r, dict) and "id" in r}
-    return [by_id.get(rid) for rid in ids]
+    return result
 
 
 def pretty_print(obj: object) -> str:
