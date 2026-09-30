@@ -441,6 +441,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def metadata(self) -> list[DirectoryItem] | None:
         """
         Fetch/attach cleaned metadata to a helper list item; aborts if focus changes.
+        random_pick=true publishes one random director and genre, and
+        genre_aliases=substring:name,... renames that genre pick.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
