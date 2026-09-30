@@ -206,6 +206,8 @@ def dynamic_settings_window(**kwargs: str) -> None:
                 if monitor.waitForAbort(0.02):
                     return
             window_property("host_exit_target")
+            # Before forwarding: the arriving window must not see a live editor_label.
+            window_property("editor_label", value=previous_label)
             log.debug(f"dynamic_settings_window: host exit — target='{target}'")
             if target:
                 log.execute(f"ReplaceWindow({target})")
