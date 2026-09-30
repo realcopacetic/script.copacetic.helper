@@ -108,48 +108,21 @@ class TrailerZoomController:
 
     def _get_tvshow_episode_ar(self, tvshow_id: int) -> float:
         """
-        Return aspect ratio of the first episode for a tvshow.
+        Return the display aspect ratio of a TV show's first episode.
 
         :param tvshow_id: Kodi tvshow database id.
         :return: Aspect ratio value or 0.0.
         """
-        try:
-            result = json_call(
-                method="VideoLibrary.GetEpisodes",
-                params={
-                    "tvshowid": tvshow_id,
-                    "properties": ["streamdetails"],
-                    "limits": {"start": 0, "end": 1},
-                },
-                parent="TrailerZoom_episode_ar",
-            )
-        except Exception as exc:
-            log.debug(f"PlayerMonitor → Trailer zoom → Episode AR JSON error: {exc}")
-            return 0.0
-
-        episodes = result.get("result", {}).get("episodes", [])
-        if not episodes:
-            return 0.0
-
-        video_streams = episodes[0].get("streamdetails", {}).get("video", [])
-        if not video_streams:
-            return 0.0
-
-        width = video_streams[0].get("width")
-        height = video_streams[0].get("height")
-        if not width or not height:
-            return 0.0
-
-        try:
-            ar = round(float(width) / float(height), 3)
-        except (TypeError, ValueError, ZeroDivisionError):
-            ar = 0.0
-
-        log.debug(
-            f"PlayerMonitor → Trailer zoom → Episode AR → {tvshow_id=}, "
-            f"{width=}, {height=}, {ar=}"
+        result = json_call(
+            "VideoLibrary.GetEpisodes",
+            properties=["streamdetails"],
+            limit=1,
+            params={"tvshowid": tvshow_id},
+            parent="TrailerZoom_episode_ar",
         )
-        return ar
+        episodes = result.get("result", {}).get("episodes", [])
+        streams = episodes[0]["streamdetails"]["video"] if episodes else []
+        return streams[0]["aspect"] if streams else 0.0
 
     def _get_content_ar(self) -> float:
         """
