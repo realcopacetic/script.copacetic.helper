@@ -58,20 +58,18 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
     def first(key: str, label: str) -> str | None:
         return params.get(key) or infolabel(f"{target}.{label}") or None
 
-    context = {}
-    context["kind"] = kind = (first("type", "DBType") or "").lower() or None
-    context["dbid"] = dbid = to_int(first("id", "DBID"), None)
+    kind = (first("type", "DBType") or "").lower() or None
+    dbid = to_int(first("id", "DBID"), None)
     tmdb_id = first("tmdb_id", "UniqueID(tmdb)")
-    context["season_number"] = to_int(first("season", "Season"), None)
+    season_number = to_int(first("season", "Season"), None)
 
-    if kind == "season" and context["season_number"] is None:
+    if kind == "season" and season_number is None:
         # "* All seasons" node: no season number — skip the uniqueid lookup.
-        context["tmdb_id"] = None
         log.debug(
             f"resolve_tmdb_context → season without season number for {dbid=}; "
             f"skipping TMDb lookup"
         )
-        return dict(context)
+        return {"kind": kind, "dbid": dbid, "season_number": None, "tmdb_id": None}
 
     if kind in ("season", "episode"):
         lookup_dbid = to_int(
@@ -82,7 +80,7 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
         lookup_kind = "tvshow"
         if kind == "episode":
             # No /tv/{id}/episode endpoint — escalate to show-level fetch.
-            context["kind"] = "tvshow"
+            kind = "tvshow"
             tmdb_id = None
     else:
         lookup_dbid = dbid
@@ -97,10 +95,14 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
             result_key=lookup["result_key"],
         )
 
-    context["tmdb_id"] = tmdb_id or None
+    tmdb_id = tmdb_id or None
     log.debug(
-        f"resolve_tmdb_context → kind={context.get('kind')!r}, "
-        f"dbid={context.get('dbid')}, tmdb_id={context.get('tmdb_id')}, "
-        f"season_number={context.get('season_number')}, target='{target}'"
+        f"resolve_tmdb_context → {kind=}, {dbid=}, {tmdb_id=}, "
+        f"{season_number=}, target='{target}'"
     )
-    return dict(context)
+    return {
+        "kind": kind,
+        "dbid": dbid,
+        "season_number": season_number,
+        "tmdb_id": tmdb_id,
+    }
