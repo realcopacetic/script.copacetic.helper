@@ -7,7 +7,6 @@ import xbmc
 import xbmcgui
 
 from resources.lib.shared import logger as log
-from resources.lib.shared.keyboard import keyboard_layout_trees, layout_characters
 from resources.lib.shared.utilities import (
     ADDON,
     DIALOG,
@@ -560,6 +559,7 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
     """
     from resources.lib.builders.runtime import RuntimeStateManager
     from resources.lib.builders.templates import load_template_data
+    from resources.lib.shared.keyboard import keyboard_layout_trees, layout_characters
 
     trees = keyboard_layout_trees()
     if layout is None:
