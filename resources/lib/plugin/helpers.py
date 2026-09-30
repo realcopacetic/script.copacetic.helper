@@ -21,6 +21,7 @@ from resources.lib.plugin.geometry import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.text import fit_lines
 from resources.lib.shared.utilities import (
+    clamp,
     condition,
     infolabel,
     json_call,
@@ -345,12 +346,11 @@ class ProgressBarManager:
             ],
         )
 
-    def calculate(self) -> tuple[int, str]:
+    def calculate(self) -> tuple[float, str]:
         """
         Compute percent and unwatched label for the item referenced by ``target``.
 
-        :param set_target: Container id string holding movie set, or None.
-        :return: (percent float [0-100], unwatched label as string)
+        :return: (percent [0-100], unwatched label as string)
         """
 
         unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
@@ -388,7 +388,7 @@ class ProgressBarManager:
                 return 0, ""
 
             watched = sum(1 for m in movies if m.get("playcount"))
-            return (watched / total * 100), (total - watched)
+            return watched / total * 100, str(total - watched)
 
         return 0, unwatched
 
@@ -468,14 +468,9 @@ class ProgressBarManager:
             img.setHeight(img_h)
             img.setPosition(img.getX(), align_y(0, height, img_h, "center", 0))
 
-        try:
-            cur_w, cur_h = base.getWidth(), base.getHeight()
-        except Exception:
-            cur_w = cur_h = 0
-
-        new_w = max(cur_w or 0, width)
-        new_h = max(cur_h or 0, height)
-        if new_w != (cur_w or 0) or new_h != (cur_h or 0):
+        cur_w, cur_h = base.getWidth(), base.getHeight()
+        new_w, new_h = max(cur_w, width), max(cur_h, height)
+        if (new_w, new_h) != (cur_w, cur_h):
             base.setWidth(new_w)
             base.setHeight(new_h)
 
@@ -495,7 +490,7 @@ class ProgressBarManager:
                 button = None
 
         if button is not None:
-            fraction = max(0.0, min(1.0, (percent or 0) / 100.0))
+            fraction = clamp((percent or 0) / 100.0, 0.0, 1.0)
             unwatched_centre = width * (1 + fraction) / 2
             btn_posx = int(max(0, min(unwatched_centre - btn_w / 2, width - btn_w)))
             btn_posy = int((height - btn_h) / 2)
