@@ -7,7 +7,7 @@ from typing import Callable, Iterable, Mapping
 from xbmc import Monitor
 from xbmcgui import Window, getCurrentWindowId
 
-from resources.lib.apis.tmdb.cache import TmdbCache
+from resources.lib.apis.tmdb.cache import TmdbCache, tmdb_language
 from resources.lib.plugin.helpers import get_infolabels
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
@@ -28,7 +28,7 @@ def build_multiart_dict(
     multiart_type: str | None,
     max_items: int | str | None,
     get_extra_multiart: bool,
-    language: str,
+    language: str | None,
 ) -> dict[str, str]:
     """
     Build a combined multiart dictionary from local artwork and optional TMDb artwork.
@@ -37,7 +37,7 @@ def build_multiart_dict(
     :param multiart_type: Base art type (e.g. "fanart", "poster", "keyart").
     :param max_items: Maximum number of multiart slots to read.
     :param get_extra_multiart: Whether to augment local artwork with TMDb artwork.
-    :param language: TMDb language code (e.g. "en-US") used for cache lookup.
+    :param language: TMDb language override; None uses tmdb_language()'s default.
     :return: A dict mapping "multiart" and "multiartN" keys to artwork URLs.
     """
     if not multiart_type:
@@ -70,14 +70,14 @@ def build_multiart_dict(
 def _get_tmdb_art(
     *,
     target: str,
-    language: str,
+    language: str | None,
     get_extra_multiart: bool,
 ) -> dict[str, str]:
     """
     Internal helper to return the TMDb 'art' mapping for the current ListItem.
 
     :param target: Infolabel prefix used to resolve UniqueID(tmdb) and DBType.
-    :param language: TMDb language code (e.g. "en-US") used for cache lookup.
+    :param language: TMDb language override; None uses tmdb_language()'s default.
     :param get_extra_multiart: Whether TMDb artwork should be fetched.
     :return: A dict containing TMDb artwork fields, or {} if unavailable.
     """
@@ -93,7 +93,12 @@ def _get_tmdb_art(
         return {}
 
     try:
-        art = TmdbCache().get_field(resolved_dbtype, tmdb_id, language, "art") or {}
+        art = (
+            TmdbCache().get_field(
+                resolved_dbtype, tmdb_id, tmdb_language(language), "art"
+            )
+            or {}
+        )
         return art
     except Exception as exc:  # noqa: BLE001
         log.debug(

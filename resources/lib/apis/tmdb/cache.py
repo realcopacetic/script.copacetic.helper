@@ -2,8 +2,17 @@
 
 from typing import Any
 
-from resources.lib.shared.sqlite import TmdbCacheHandler
 from resources.lib.shared import logger as log
+from resources.lib.shared.sqlite import TmdbCacheHandler
+from resources.lib.shared.utilities import ADDON
+
+
+def tmdb_language(language: str | None = None) -> str:
+    """
+    Language TMDb data is fetched and cached under: the explicit value, else
+    the add-on's tmdb_language setting, else "en-US".
+    """
+    return language or ADDON.getSetting("tmdb_language") or "en-US"
 
 
 class TmdbCache:

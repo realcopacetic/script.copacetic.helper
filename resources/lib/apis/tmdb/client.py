@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence
 if TYPE_CHECKING:
     import urllib.request
 
+from resources.lib.apis.tmdb.cache import tmdb_language
 from resources.lib.apis.tmdb.fields import TMDB_PROPERTIES
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON
@@ -15,11 +16,11 @@ from resources.lib.shared.utilities import ADDON
 TMDB_API_BASE = "https://api.themoviedb.org/3"
 
 
-def get_tmdb_client(language: str = "en-US") -> "TmdbClient | None":
+def get_tmdb_client(language: str | None = None) -> "TmdbClient | None":
     """
     Create a TmdbClient instance if TMDb access is enabled.
 
-    :param language: TMDb language code (e.g. "en-US").
+    :param language: TMDb language code; None uses tmdb_language()'s default.
     :return: TmdbClient or None if disabled or misconfigured.
     """
     enabled = ADDON.getSetting("tmdb_access") == "true"
@@ -31,7 +32,7 @@ def get_tmdb_client(language: str = "en-US") -> "TmdbClient | None":
         log.warning("get_tmdb_client → TMDb disabled or missing token.")
         return None
 
-    return TmdbClient(token=token, language=language)
+    return TmdbClient(token=token, language=tmdb_language(language))
 
 
 def _extract_path(data: Mapping[str, Any], path: Sequence[str]) -> Any:
@@ -94,7 +95,7 @@ def fetch_tmdb_fields(
         )
         return {}
 
-    client = get_tmdb_client(language=language or "en-US")
+    client = get_tmdb_client(language=language)
     if not client:
         return {}
 
@@ -163,7 +164,7 @@ class TmdbClient:
     Minimal TMDb HTTP client with v3/v4 authentication support.
     """
 
-    def __init__(self, token: str, language: str = "en-US") -> None:
+    def __init__(self, token: str, language: str) -> None:
         """
         Initialize the client with API authentication + default language.
 

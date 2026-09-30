@@ -333,7 +333,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             get_extra_multiart=parse_bool(
                 self.params.get("get_extra_multiart", "false")
             ),
-            language="en-US",
+            language=self.params.get("language"),
         )
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
@@ -449,11 +449,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         target = f"{self.target_container}.ListItem"
+        aliases = self.params.get("genre_aliases", "")
         data = DataHandler(
             target=target,
             dbtype=self.dbtype,
             dbid=self.dbid,
-        ).fetch_data()
+        ).fetch_data(
+            random_pick=parse_bool(self.params.get("random_pick")),
+            genre_aliases=[p.split(":", 1) for p in aliases.split(",") if p],
+        )
 
         if not guard.alive():
             return
@@ -810,16 +814,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     @log.duration
     def random_movies(self) -> list[DirectoryItem] | None:
-        """Build a seed-stable randomised container of movies."""
+        """
+        Build a seed-stable randomised container of movies.
+        exclude_played_days=N leaves out movies played in the last N days.
+        """
+        days = to_int(self.params.get("exclude_played_days"))
+        played = {
+            "field": "lastplayed",
+            "operator": "notinthelast",
+            "value": f"{days} days",
+        }
         return self._random_video(
             method="VideoLibrary.GetMovies",
             media_type="movie",
             content="movies",
             category=32605,
             parent="random_movies",
-            filters=[
-                {"field": "lastplayed", "operator": "notinthelast", "value": "14 days"}
-            ],
+            filters=[played] if days else [],
         )
 
     @log.duration

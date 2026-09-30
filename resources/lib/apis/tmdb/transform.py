@@ -2,7 +2,7 @@
 
 from typing import Any, Mapping
 
-from resources.lib.apis.tmdb.cache import TmdbCache
+from resources.lib.apis.tmdb.cache import TmdbCache, tmdb_language
 from resources.lib.apis.tmdb.client import fetch_tmdb_fields
 from resources.lib.apis.tmdb.fields import (
     TMDB_FIELD_MAP,
@@ -13,7 +13,7 @@ from resources.lib.apis.tmdb.fields import (
     split_tmdb_images_by_language,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import ADDON, plugin_path
+from resources.lib.shared.utilities import plugin_path
 
 _CACHE = TmdbCache()
 IMAGE_LIST_ROLES = {
@@ -52,7 +52,7 @@ def tmdb_to_canonical(
         log.debug(f"tmdb_to_canonical → invalid {tmdb_id=} for {kind=}")
         return {}
 
-    language_key = language or ADDON.getSetting("tmdb_language") or "en-US"
+    language_key = tmdb_language(language)
     cache_language = language_key if append_artwork else f"{language_key}|noart"
     cache_kind = (
         f"season_{season_number}"

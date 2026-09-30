@@ -8,7 +8,7 @@ import random
 import sys
 import urllib.parse as urllib
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 import xbmc
 import xbmcvfs
@@ -473,18 +473,24 @@ def split(
     return parts[number] if 0 <= number < len(parts) else parts[0]
 
 
-def split_random(string: str, *, separator: str = "/", **kwargs: object) -> str:
+def split_random(
+    string: str,
+    *,
+    separator: str = "/",
+    aliases: Iterable[tuple[str, str]] = (),
+    **kwargs: object,
+) -> str:
     """
     Randomly selects and cleans a genre substring from a compound string.
-    Handles edge case "Hip-Hop" → "Hip Hop"
+    A pick containing an alias key becomes that alias (e.g. "Hip-Hop" → "Hip Hop").
 
     :param string: Genre string (e.g., "Action / Hip-Hop & R&B").
     :param separator: Delimiter used to split top-level genres (default: "/").
+    :param aliases: (substring, replacement) pairs for the whole pick, in order.
     :return: Cleaned and formatted random genre."
     """
     primary = random.choice(string.split(separator)).strip()
-    if "Hip-Hop" in primary:
-        primary = "Hip Hop"
+    primary = next((name for key, name in aliases if key in primary), primary)
 
     subs = [s.strip() for s in primary.split("&")]
     picked = random.choice(subs)

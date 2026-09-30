@@ -184,19 +184,33 @@ class DataHandler:
             ],
         )
 
-    def fetch_data(self) -> dict[str, object]:
+    def fetch_data(
+        self,
+        *,
+        random_pick: bool = False,
+        genre_aliases: Iterable[tuple[str, str]] = (),
+    ) -> dict[str, object]:
         """
         Build a normalized metadata dictionary.
 
+        :param random_pick: Publish one random director and genre instead of all.
+        :param genre_aliases: (substring, name) pairs renaming the picked genre.
         :return: Dictionary with art, resume, contributors, etc.
         """
         label = return_label(self.infolabels["Label"])
+        directors, genres = self.infolabels["Director"], self.infolabels["Genre"]
         return {
             "file": plugin_path("metadata"),
             "label": label,
             "label2": label,
-            "Directors": split_random(self.infolabels["Director"]),
-            "Genres": split_random(self.infolabels["Genre"]),
+            "Directors": (
+                split_random(directors) if random_pick else directors.split(" / ")
+            ),
+            "Genres": (
+                split_random(genres, aliases=genre_aliases)
+                if random_pick
+                else genres.split(" / ")
+            ),
             "Studios": self._studio(),
             "Writers": split(self.infolabels["Writer"]),
             "Plot": self.infolabels["Plot"],
