@@ -1,7 +1,17 @@
 # author: realcopacetic
 
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import infolabel, json_call, to_float
+from resources.lib.shared.utilities import infolabel, json_call, to_float, to_int
+
+
+def trailer_source() -> str:
+    """
+    Infolabel prefix of the item the trailer was requested for, or "".
+
+    :return: e.g. "Container(3200).ListItem" for a container id, else as stored.
+    """
+    source = infolabel("Window(home).Property(trailer_source)")
+    return f"Container({source}).ListItem" if source.isdigit() else source
 
 
 class TrailerZoomController:
@@ -14,24 +24,17 @@ class TrailerZoomController:
 
     def apply_zoom_if_needed(self) -> None:
         """
-        Reset the view mode, then zoom past burned-in bars when an inset
-        trailer viewport is active.
+        Set a new trailer's view mode: zoomed past burned-in bars when an
+        inset trailer viewport is active, else normal.
         """
-        self._reset_zoom()
-        ar_window = self._get_viewport_ar()
-        if ar_window <= 0.0:
-            log.debug("PlayerMonitor: Trailer zoom skipped → no active viewport")
-            return
-
-        content_ar = self._get_content_ar()
-        zoom = self._compute_zoom(content_ar=content_ar, window_ar=ar_window)
-
-        if zoom > 1.0:
-            self._apply_zoom(zoom)
-
-        log.debug(
-            f"PlayerMonitor → Trailer zoom → {content_ar=}, {ar_window=}, {zoom=}"
-        )
+        zoom = 1.0
+        if (ar_window := self._get_viewport_ar()) > 0.0:
+            content_ar = self._get_content_ar()
+            zoom = self._compute_zoom(content_ar=content_ar, window_ar=ar_window)
+            log.debug(
+                f"PlayerMonitor → Trailer zoom → {content_ar=}, {ar_window=}, {zoom=}"
+            )
+        self._set_zoom(zoom)
 
     def _get_viewport_ar(self) -> float:
         """
@@ -56,26 +59,17 @@ class TrailerZoomController:
             )
             return 0.0
 
-    def _reset_zoom(self) -> None:
+    def _set_zoom(self, zoom: float) -> None:
         """
-        Reset to the normal view mode, overriding any zoom Kodi stored per file.
+        Zoom by a factor above 1.0, else select the normal view mode, which
+        overrides any zoom Kodi stored for the file.
+
+        :param zoom: Zoom factor; 1.0 or less means none.
         """
         json_call(
             method="Player.SetViewMode",
-            params={"viewmode": "normal"},
-            parent="TrailerZoom_reset",
-        )
-
-    def _apply_zoom(self, zoom: float) -> None:
-        """
-        Apply a zoom factor via JSON-RPC.
-
-        :param zoom: Zoom factor to apply.
-        """
-        json_call(
-            method="Player.SetViewMode",
-            params={"viewmode": {"zoom": zoom}},
-            parent="TrailerZoom_apply",
+            params={"viewmode": {"zoom": zoom} if zoom > 1.0 else "normal"},
+            parent="TrailerZoom",
         )
 
     def _get_trailer_dar(self) -> float:
@@ -85,26 +79,6 @@ class TrailerZoomController:
         :return: DAR value or 0.0.
         """
         return to_float(infolabel("Player.Process(VideoDAR)"))
-
-    def _get_trailer_source(self) -> str:
-        """
-        Resolve the source-container prefix for AR lookup, or "" if unset.
-
-        :return: e.g. "Container(3100).ListItem", or "" when no source given.
-        """
-        raw = (infolabel("Window(home).Property(trailer_source)") or "").strip()
-        return f"Container({raw}).ListItem" if raw.isdigit() else raw
-
-    def _get_source_ar(self) -> float:
-        """
-        Return AR from the source container's listitem, or 0.0 if unset.
-
-        :return: Aspect ratio or 0.0.
-        """
-        source = self._get_trailer_source()
-        if not source:
-            return 0.0
-        return to_float(infolabel(f"{source}.VideoAspect"))
 
     def _get_tvshow_episode_ar(self, tvshow_id: int) -> float:
         """
@@ -126,20 +100,15 @@ class TrailerZoomController:
 
     def _get_content_ar(self) -> float:
         """
-        Select the most reliable content aspect ratio.
+        Select the most reliable content aspect ratio: the trailer's own unless
+        it reports 16:9, else the library item's, else a TV show's first episode.
 
         :return: Aspect ratio value or 0.0.
         """
-        source = self._get_trailer_source()
+        source = trailer_source()
         trailer_ar = self._get_trailer_dar()
-        source_ar = self._get_source_ar()
-
-        # TV show fallback
+        source_ar = to_float(infolabel(f"{source}.VideoAspect")) if source else 0.0
         episode_ar = 0.0
-        dbtype = infolabel(f"{source}.DBType").lower() if source else ""
-        dbid = to_float(infolabel(f"{source}.DBID")) if source else 0.0
-        if source and dbtype == "tvshow" and dbid > 0 and source_ar <= 0.0:
-            episode_ar = self._get_tvshow_episode_ar(int(dbid))
 
         # Prefer trailer AR if YouTube not reporting as 16:9
         if trailer_ar and abs(trailer_ar - 1.78) > 0.05:
@@ -147,6 +116,9 @@ class TrailerZoomController:
         elif source_ar > 0.0:
             content_ar = source_ar
         else:
+            dbid = to_int(infolabel(f"{source}.DBID")) if source else 0
+            if dbid > 0 and infolabel(f"{source}.DBType").lower() == "tvshow":
+                episode_ar = self._get_tvshow_episode_ar(dbid)
             content_ar = episode_ar
 
         log.debug(

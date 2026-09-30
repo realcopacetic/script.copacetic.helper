@@ -5,7 +5,7 @@ import time
 from xbmc import Player
 
 from resources.lib.service import playnext
-from resources.lib.service.trailer import TrailerZoomController
+from resources.lib.service.trailer import TrailerZoomController, trailer_source
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     condition,
@@ -141,7 +141,7 @@ class PlayerMonitor(Player):
         source container lost focus.
         """
         expected = infolabel("Window(home).Property(trailer_item)")
-        source = self.zoom._get_trailer_source()
+        source = trailer_source()
         if not expected or not source:
             return False
         raw = infolabel("Window(home).Property(trailer_source)")

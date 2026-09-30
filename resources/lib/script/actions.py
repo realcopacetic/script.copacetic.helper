@@ -377,19 +377,16 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     :param trailer: Player path or plugin URL to play.
     :param item: Item label captured skin-side, atomic with the trailer URL.
     :param viewport: Optional "WxH" trailer region; enables aspect zoom.
-    :param source_prefix: Optional infolabel prefix for AR lookup.
+    :param source_prefix: Optional container id or infolabel prefix of the item.
     """
     if not trailer:
         return
 
-    source = (kwargs.get("source_prefix") or "").strip()
-    prefix = f"Container({source}).ListItem" if source.isdigit() else source
-    item = kwargs.get("item") or (infolabel(f"{prefix}.Label") if prefix else "")
     window_property("trailer_state", value="pending")
     window_property("trailer_pending_since", value=str(time.time()))
     window_property("trailer_viewport", value=kwargs.get("viewport", ""))
-    window_property("trailer_source", value=source)
-    window_property("trailer_item", value=item)
+    window_property("trailer_source", value=kwargs.get("source_prefix", ""))
+    window_property("trailer_item", value=kwargs.get("item", ""))
     log.execute(f'PlayMedia("{trailer}",1,noresume)')
 
 
