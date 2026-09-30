@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import random
-import sys
-from contextlib import contextmanager
-from typing import Any, Callable, ContextManager, Generator
+from typing import Any, Callable
 
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
@@ -115,33 +113,6 @@ class _FocusGuard:
         return True
 
 
-@contextmanager
-def focus_guard(
-    caller_name: str,
-    identity_container: str,
-    expected_identity: str | None,
-    identity_labels: tuple[str, ...] = (),
-    focus_ids: tuple[str, ...] = (),
-) -> Generator[_FocusGuard, None, None]:
-    """
-    Build an identity guard for a plugin operation.
-    Returns a guard object whose ``alive()`` checks focus and item identity.
-
-    :param caller_name: Name of the calling handler, used for logging.
-    :param identity_container: Container path for the default CurrentItem identity source.
-    :param expected_identity: Snapshot identity of focused item; None to disable identity guarding.
-    :param identity_labels: Infolabel paths overriding the default identity source; live values join with ",".
-    :param focus_ids: Control ids of which one must hold focus; empty to disable focus guarding.
-
-    :return: A ``_FocusGuard`` instance for lazy identity validation.
-    """
-    if identity_labels:
-        identity_getter = lambda: ",".join(infolabel(p) for p in identity_labels)
-    else:
-        identity_getter = lambda: infolabel(f"{identity_container}.CurrentItem")
-    yield _FocusGuard(caller_name, expected_identity, identity_getter, focus_ids)
-
-
 class PluginHandlers(metaclass=PluginInfoRegistry):
     """
     High-level plugin actions (artwork, metadata, typewriter) with focus guarding.
@@ -196,18 +167,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "value": self.exclude_value,
         }
 
-    def focus(self) -> ContextManager[_FocusGuard]:
+    def _guard(self) -> _FocusGuard:
         """
-        Return a pre-filled focus guard for the calling handler.
-        Auto-detects the handler name from the call frame.
+        Focus/identity guard for the running handler, logged under its info name.
         """
-        caller = sys._getframe(1).f_code.co_name
-        return focus_guard(
-            caller_name=caller,
-            identity_container=self.identity_container,
-            expected_identity=self.expected_identity,
-            identity_labels=self.identity_labels,
-            focus_ids=self.focus_ids,
+        if self.identity_labels:
+            getter = lambda: ",".join(infolabel(p) for p in self.identity_labels)
+        else:
+            getter = lambda: infolabel(f"{self.identity_container}.CurrentItem")
+        return _FocusGuard(
+            self.params.get("info", ""), self.expected_identity, getter, self.focus_ids
         )
 
     def _get_tmdb_item(
@@ -316,140 +285,140 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.plugin.opts import ArtOpts
         from resources.lib.shared.sqlite import ArtworkCacheHandler
 
-        with self.focus() as guard:
-            if not guard.alive():
-                return
+        guard = self._guard()
+        if not guard.alive():
+            return
 
-            current_position = to_int(
-                infolabel(f"{self.identity_container}.CurrentItem"), None
-            )
-            cursor_key = self.params.get("cursor_key", "")
-            cursor_snapshot = (
-                infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
-                if cursor_key
-                else ""
-            )
-            # Scope of this serve, needed before seeding: the seeder must know
-            # whether the register's previous content is same-container.
-            if self.target is not None:
-                stamp_scope = str(self.target)
-            else:
-                stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope
-            art_opts = {
-                art_type: ArtOpts.from_params(self.params, art_type)
-                for art_type in ("clearlogo", "background", "icon")
-            }
-            jobs = {
-                art_type: [p for p in processes if opts.enabled(p)]
-                for art_type, processes in ART_PROCESS_MAP.items()
-                if (opts := art_opts.get(art_type)) and opts.url
-            }
-            if not jobs:
-                log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
-                return
+        current_position = to_int(
+            infolabel(f"{self.identity_container}.CurrentItem"), None
+        )
+        cursor_key = self.params.get("cursor_key", "")
+        cursor_snapshot = (
+            infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
+            if cursor_key
+            else ""
+        )
+        # Scope of this serve, needed before seeding: the seeder must know
+        # whether the register's previous content is same-container.
+        if self.target is not None:
+            stamp_scope = str(self.target)
+        else:
+            stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope
+        art_opts = {
+            art_type: ArtOpts.from_params(self.params, art_type)
+            for art_type in ("clearlogo", "background", "icon")
+        }
+        jobs = {
+            art_type: [p for p in processes if opts.enabled(p)]
+            for art_type, processes in ART_PROCESS_MAP.items()
+            if (opts := art_opts.get(art_type)) and opts.url
+        }
+        if not jobs:
+            log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
+            return
 
-            image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
-            art = image_processor(
-                jobs=jobs,
-                art_opts=art_opts,
-                source=f"{self.target_container}.ListItem",
-            )
-            if not guard.alive():
-                return
+        image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
+        art = image_processor(
+            jobs=jobs,
+            art_opts=art_opts,
+            source=f"{self.target_container}.ListItem",
+        )
+        if not guard.alive():
+            return
 
-            multiart_dict = build_multiart_dict(
-                target=f"{self.target_container}.ListItem",
-                multiart_type=self.params.get("multiart"),
-                max_items=self.params.get("multiart_max"),
-                get_extra_multiart=parse_bool(
-                    self.params.get("get_extra_multiart", "false")
-                ),
-                language="en-US",
-            )
-            art |= multiart_dict
-            log.debug(
-                f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
-            )
-            if not guard.alive():
-                return
+        multiart_dict = build_multiart_dict(
+            target=f"{self.target_container}.ListItem",
+            multiart_type=self.params.get("multiart"),
+            max_items=self.params.get("multiart_max"),
+            get_extra_multiart=parse_bool(
+                self.params.get("get_extra_multiart", "false")
+            ),
+            language="en-US",
+        )
+        art |= multiart_dict
+        log.debug(
+            f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
+        )
+        if not guard.alive():
+            return
 
-            folder = infolabel(f"{self.identity_container}.FolderPath")
-            dbid = infolabel(f"{self.identity_container}.ListItem.DBID")
-            art = seed_multiart(
-                fadelabel_id=self.params.get("multiart_fadelabel"),
-                multiart_dict=multiart_dict,
-                art=art,
-                seed_scope=f"{stamp_scope}@{folder}",
-                seed_item=f"{current_position}/{dbid}",
-                alive=guard.alive,
-            )
-            if art is None:
-                return
+        folder = infolabel(f"{self.identity_container}.FolderPath")
+        dbid = infolabel(f"{self.identity_container}.ListItem.DBID")
+        art = seed_multiart(
+            fadelabel_id=self.params.get("multiart_fadelabel"),
+            multiart_dict=multiart_dict,
+            art=art,
+            seed_scope=f"{stamp_scope}@{folder}",
+            seed_item=f"{current_position}/{dbid}",
+            alive=guard.alive,
+        )
+        if art is None:
+            return
 
-            prop_key = self.params.get("prop_key", "")
-            for field, prop, hold_last in (
-                ("background", "background_blur", True),
-                ("background_darken", "background_darken", False),
-                ("icon_darken", "icon_darken", False),
-            ):
-                value = art.get(field, "")
-                if hold_last and not value:
-                    continue
-                window_property(f"{prop}_{prop_key}" if prop_key else prop, value)
+        prop_key = self.params.get("prop_key", "")
+        for field, prop, hold_last in (
+            ("background", "background_blur", True),
+            ("background_darken", "background_darken", False),
+            ("icon_darken", "icon_darken", False),
+        ):
+            value = art.get(field, "")
+            if hold_last and not value:
+                continue
+            window_property(f"{prop}_{prop_key}" if prop_key else prop, value)
 
-            total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
+        total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 
-            identity = ArtworkIdentity(
-                scope=stamp_scope,
-                pos=current_position,
-                dbid=dbid,
-                visit=self.params.get("visit", ""),
-            )
-            prev_item = identity.neighbour(-1, total)
-            next_item = identity.neighbour(1, total)
+        identity = ArtworkIdentity(
+            scope=stamp_scope,
+            pos=current_position,
+            dbid=dbid,
+            visit=self.params.get("visit", ""),
+        )
+        prev_item = identity.neighbour(-1, total)
+        next_item = identity.neighbour(1, total)
 
-            # Self-certify currency when no skin-side cursor writer fired for
-            # this invocation, or the register predates this subject (preview
-            # swaps fire no writer): a passed guard is the same proof
-            # atr_artwork_cursor encodes. If a writer landed mid-run, it wins.
-            stamped = (
-                str(identity)
-                if cursor_key
-                and "visit" in self.params
-                and current_position is not None
-                and cursor_snapshot != str(identity)
-                else ""
-            )
-            if (
-                stamped
-                and guard.alive()
-                and infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
-                == cursor_snapshot
-            ):
-                window_property(f"artwork_cursor_{cursor_key}", stamped)
+        # Self-certify currency when no skin-side cursor writer fired for
+        # this invocation, or the register predates this subject (preview
+        # swaps fire no writer): a passed guard is the same proof
+        # atr_artwork_cursor encodes. If a writer landed mid-run, it wins.
+        stamped = (
+            str(identity)
+            if cursor_key
+            and "visit" in self.params
+            and current_position is not None
+            and cursor_snapshot != str(identity)
+            else ""
+        )
+        if (
+            stamped
+            and guard.alive()
+            and infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
+            == cursor_snapshot
+        ):
+            window_property(f"artwork_cursor_{cursor_key}", stamped)
 
-            return set_items(
-                [
-                    {
-                        "file": plugin_path("artwork"),
-                        "art": art,
-                        "properties": (
-                            {
-                                "previous": prev_item.partial(("scope", "pos")),
-                                "current": stamped
-                                or cursor_snapshot
-                                or identity.partial(("scope", "pos", "dbid")),
-                                "next": next_item.partial(("scope", "pos")),
-                                "current_pos": str(current_position),
-                                "previous_pos": str(prev_item.pos),
-                                "next_pos": str(next_item.pos),
-                            }
-                            if current_position is not None
-                            else {}
-                        ),
-                    }
-                ]
-            )
+        return set_items(
+            [
+                {
+                    "file": plugin_path("artwork"),
+                    "art": art,
+                    "properties": (
+                        {
+                            "previous": prev_item.partial(("scope", "pos")),
+                            "current": stamped
+                            or cursor_snapshot
+                            or identity.partial(("scope", "pos", "dbid")),
+                            "next": next_item.partial(("scope", "pos")),
+                            "current_pos": str(current_position),
+                            "previous_pos": str(prev_item.pos),
+                            "next_pos": str(next_item.pos),
+                        }
+                        if current_position is not None
+                        else {}
+                    ),
+                }
+            ]
+        )
 
     @log.duration
     def jumpbutton(self) -> None:
@@ -477,45 +446,45 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
-        with self.focus() as guard:
-            if not guard.alive():
-                return
+        guard = self._guard()
+        if not guard.alive():
+            return
 
-            target = f"{self.target_container}.ListItem"
-            data = DataHandler(
-                target=target,
-                dbtype=self.dbtype,
-                dbid=self.dbid,
-            ).fetch_data()
+        target = f"{self.target_container}.ListItem"
+        data = DataHandler(
+            target=target,
+            dbtype=self.dbtype,
+            dbid=self.dbid,
+        ).fetch_data()
 
-            if not guard.alive():
-                return
+        if not guard.alive():
+            return
 
-            enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb", "false"))
-            if enrich_with_tmdb:
-                tmdb_item = self._get_tmdb_item(append_artwork=False)
-                if tmdb_item:
-                    # Library trailer outranks TMDb's YouTube URL: local file,
-                    # no plugin dependency. Merge fills it only when absent.
-                    trailer = data["Trailer"]
-                    data = merge_metadata(
-                        base=data,
-                        incoming=tmdb_item,
-                        prefer_incoming=True,
-                        ignore_keys=("art", "file"),
-                    )
-                    data["Trailer"] = trailer or data["Trailer"]
+        enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb", "false"))
+        if enrich_with_tmdb:
+            tmdb_item = self._get_tmdb_item(append_artwork=False)
+            if tmdb_item:
+                # Library trailer outranks TMDb's YouTube URL: local file,
+                # no plugin dependency. Merge fills it only when absent.
+                trailer = data["Trailer"]
+                data = merge_metadata(
+                    base=data,
+                    incoming=tmdb_item,
+                    prefer_incoming=True,
+                    ignore_keys=("art", "file"),
+                )
+                data["Trailer"] = trailer or data["Trailer"]
 
-            if not guard.alive():
-                return
+        if not guard.alive():
+            return
 
-            self._apply_truncated_label(
-                data,
-                target=target,
-                default_text=data.get("Plot"),
-            )
+        self._apply_truncated_label(
+            data,
+            target=target,
+            default_text=data.get("Plot"),
+        )
 
-            return set_items([data], tag_applier=apply_videoinfotag)
+        return set_items([data], tag_applier=apply_videoinfotag)
 
     @log.duration
     def progressbar(self) -> list[DirectoryItem] | None:
@@ -525,42 +494,42 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
-        with self.focus() as guard:
-            if not guard.alive():
-                return
+        guard = self._guard()
+        if not guard.alive():
+            return
 
-            if not self._require("target_id"):
-                return
+        if not self._require("target_id"):
+            return
 
-            target_id = to_int(self.params.get("target_id"), None)
-            pb = ProgressBarManager(
-                target=f"{self.target_container}.ListItem",
-                base_id=target_id,
-            )
-            resume, unwatched = pb.calculate()
-            result = set_items(
-                [
-                    {
-                        "file": plugin_path("progress"),
-                        "resume": {"position": resume, "total": 100},
-                        "properties": {"unwatchedepisodes": str(unwatched)},
-                    }
-                ],
-                tag_applier=apply_videoinfotag,
-            )
+        target_id = to_int(self.params.get("target_id"), None)
+        pb = ProgressBarManager(
+            target=f"{self.target_container}.ListItem",
+            base_id=target_id,
+        )
+        resume, unwatched = pb.calculate()
+        result = set_items(
+            [
+                {
+                    "file": plugin_path("progress"),
+                    "resume": {"position": resume, "total": 100},
+                    "properties": {"unwatchedepisodes": str(unwatched)},
+                }
+            ],
+            tag_applier=apply_videoinfotag,
+        )
 
-            if not guard.alive():
-                return result
-
-            pb.update(
-                percent=resume,
-                opts=PlacementOpts.from_params(self.params),
-                progress_id=to_int(self.params.get("progress_id"), None),
-                btn_id=to_int(self.params.get("btn_id"), None),
-                img_id=to_int(self.params.get("img_id"), None),
-                img_h=to_int(self.params.get("img_h"), None),
-            )
+        if not guard.alive():
             return result
+
+        pb.update(
+            percent=resume,
+            opts=PlacementOpts.from_params(self.params),
+            progress_id=to_int(self.params.get("progress_id"), None),
+            btn_id=to_int(self.params.get("btn_id"), None),
+            img_id=to_int(self.params.get("img_id"), None),
+            img_h=to_int(self.params.get("img_h"), None),
+        )
+        return result
 
     @log.duration
     def reposition(self) -> None:
@@ -599,30 +568,30 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of (file, xbmcgui.ListItem, isFolder) tuples or None.
         """
-        with self.focus() as guard:
-            if not guard.alive():
-                return
+        guard = self._guard()
+        if not guard.alive():
+            return
 
-            target = f"{self.target_container}.ListItem"
-            multiart_enabled = parse_bool(self.params.get("multiart", "false"))
-            item = self._get_tmdb_item(append_artwork=multiart_enabled)
+        target = f"{self.target_container}.ListItem"
+        multiart_enabled = parse_bool(self.params.get("multiart", "false"))
+        item = self._get_tmdb_item(append_artwork=multiart_enabled)
 
-            if not item:
-                return
+        if not item:
+            return
 
-            if not guard.alive():
-                return
+        if not guard.alive():
+            return
 
-            self._apply_truncated_label(
-                item,
-                target=target,
-                default_text=item.get("Plot"),
-            )
+        self._apply_truncated_label(
+            item,
+            target=target,
+            default_text=item.get("Plot"),
+        )
 
-            return set_items(
-                [item],
-                tag_applier=apply_videoinfotag,
-            )
+        return set_items(
+            [item],
+            tag_applier=apply_videoinfotag,
+        )
 
     @log.duration
     def text(self) -> list | None:
@@ -633,33 +602,33 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.art.text import TextRenderer
 
-        with self.focus() as guard:
-            if not guard.alive():
-                return
+        guard = self._guard()
+        if not guard.alive():
+            return
 
-            box_width = to_int(self.params.get("text_width"), 1280)
-            result = TextRenderer().render(
-                text=self.params.get("text", ""),
-                font_path=self.params.get("text_font", ""),
-                font_size=to_int(self.params.get("text_size"), 42),
-                box_width=box_width,
-                max_height=to_int(self.params.get("text_height"), 720),
-                line_height=to_float(self.params.get("text_line_height"), 1.3),
-                letter_spacing=to_float(self.params.get("text_letter_spacing"), 0.0),
-            )
-            if not guard.alive() or not result:
-                return
+        box_width = to_int(self.params.get("text_width"), 1280)
+        result = TextRenderer().render(
+            text=self.params.get("text", ""),
+            font_path=self.params.get("text_font", ""),
+            font_size=to_int(self.params.get("text_size"), 42),
+            box_width=box_width,
+            max_height=to_int(self.params.get("text_height"), 720),
+            line_height=to_float(self.params.get("text_line_height"), 1.3),
+            letter_spacing=to_float(self.params.get("text_letter_spacing"), 0.0),
+        )
+        if not guard.alive() or not result:
+            return
 
-            path, height = result
-            return set_items(
-                [
-                    {
-                        "file": plugin_path("text"),
-                        "art": {"text": path},
-                        "properties": {"text_height": str(height)},
-                    }
-                ]
-            )
+        path, height = result
+        return set_items(
+            [
+                {
+                    "file": plugin_path("text"),
+                    "art": {"text": path},
+                    "properties": {"text_height": str(height)},
+                }
+            ]
+        )
 
     @log.duration
     def typewriter(self) -> None:
@@ -684,26 +653,26 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if visit and visit != infolabel("Window(home).Property(artwork_visit)"):
             return  # replay of a cached probe URL (e.g. post-ReloadSkin); the live URL re-fires
 
-        with self.focus() as guard:
-            if not guard.alive():
-                return
+        guard = self._guard()
+        if not guard.alive():
+            return
 
-            window_property(
-                "typewriter_container",
-                value=str(self.identity_id) if self.identity_id is not None else "",
-            )
-            window_property(
-                "typewriter_pos",
-                value=infolabel(f"{self.identity_container}.CurrentItem"),
-            )
-            t = TypewriterAnimation(control_id=target_id)
-            t.update(
-                label=self.label,
-                opts=PlacementOpts.from_params(self.params),
-                max_lines=to_int(self.params.get("max_lines"), None),
-                start_delay=to_float(self.params.get("start_delay"), 0),
-                alive=guard.alive,
-            )
+        window_property(
+            "typewriter_container",
+            value=str(self.identity_id) if self.identity_id is not None else "",
+        )
+        window_property(
+            "typewriter_pos",
+            value=infolabel(f"{self.identity_container}.CurrentItem"),
+        )
+        t = TypewriterAnimation(control_id=target_id)
+        t.update(
+            label=self.label,
+            opts=PlacementOpts.from_params(self.params),
+            max_lines=to_int(self.params.get("max_lines"), None),
+            start_delay=to_float(self.params.get("start_delay"), 0),
+            alive=guard.alive,
+        )
 
     @log.duration
     def in_progress(self) -> list[DirectoryItem] | None:

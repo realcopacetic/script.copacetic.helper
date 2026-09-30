@@ -4,33 +4,17 @@ from typing import Callable
 
 LOG_TAG = "plugin"
 _INFO_TAG = "__plugin_info__"
-_NOINFO_TAG = "__no_info__"
-
-
-def no_info(fn: Callable) -> Callable:
-    """
-    Decorator to opt a method out of being an info handler.
-
-    :param fn: Method to mark as excluded.
-    :return: Same method, tagged as no-info.
-    """
-    setattr(fn, _NOINFO_TAG, True)
-    return fn
 
 
 class PluginInfoRegistry(type):
     """
     Metaclass that auto-tags all public methods as plugin info handlers,
-    unless explicitly marked with @no_info or prefixed with '_'.
+    unless prefixed with '_'.
     """
 
     def __new__(mcls: type, name: str, bases: tuple[type, ...], namespace) -> type:
         for k, v in namespace.items():
-            if (
-                callable(v)
-                and not k.startswith("_")
-                and not getattr(v, _NOINFO_TAG, False)
-            ):
+            if callable(v) and not k.startswith("_"):
                 setattr(v, _INFO_TAG, k)
         return super().__new__(mcls, name, bases, namespace)
 
