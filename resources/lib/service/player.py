@@ -3,6 +3,7 @@
 import time
 
 from xbmc import Player
+from xbmcgui import getCurrentWindowDialogId
 
 from resources.lib.service import playnext
 from resources.lib.service.trailer import TrailerZoomController, trailer_source
@@ -136,23 +137,21 @@ class PlayerMonitor(Player):
 
     def _trailer_is_stale(self) -> bool:
         """
-        True when focus has left the item this trailer was requested for.
-        Fails open on unreadable labels — never on certainty that the
-        source container lost focus.
+        True when focus has left the controls or the item the trailer was
+        requested for. The label check fails open on an unreadable label or
+        under a modal dialog, which Python info lookups read first.
         """
-        expected = infolabel("Window(home).Property(trailer_item)")
-        source = trailer_source()
-        if not expected or not source:
-            return False
-        raw = infolabel("Window(home).Property(trailer_source)")
-        if raw.isdigit() and not condition(
-            f"Control.HasFocus({raw}) | Control.HasFocus({raw}0)"
+        ids = infolabel("Window(home).Property(trailer_focus_ids)")
+        if ids and not condition(
+            " | ".join(f"Control.HasFocus({i})" for i in ids.split(","))
         ):
             return True
-        current = infolabel(f"{source}.Label")
-        if not current:
+        source = trailer_source()
+        expected = infolabel("Window(home).Property(trailer_item)")
+        if not (source and expected) or getCurrentWindowDialogId() != 9999:
             return False
-        return current != expected
+        current = infolabel(f"{source}.Label")
+        return bool(current) and current != expected
 
     def _orphan_trailer(self) -> None:
         """
@@ -168,6 +167,7 @@ class PlayerMonitor(Player):
             "trailer_state",
             "trailer_item",
             "trailer_source",
+            "trailer_focus_ids",
             "trailer_viewport",
             "trailer_pending_since",
             "trailer_file",
@@ -189,14 +189,13 @@ class PlayerMonitor(Player):
     def watch_trailer_session(self) -> None:
         """
         Poller hook: reap a wedged pending request; demote a playing session
-        whose source container lost focus; reap a demoted session once the
-        user has settled.
+        whose item lost focus; reap a demoted session once the user has settled.
         """
         state = infolabel("Window(home).Property(trailer_state)")
         if state == "pending":
             self._reap_stale_pending()
             return
-        if state == "playing" and self._source_lost_focus():
+        if state == "playing" and self._trailer_is_stale():
             self._orphan_trailer()
             return
         if state in ("interrupted", "orphaned") and self._is_trailer_playback():
@@ -227,17 +226,6 @@ class PlayerMonitor(Player):
             window_property("trailer_state", value="orphaned")
         else:
             self._clear_trailer_props()
-
-    def _source_lost_focus(self) -> bool:
-        """
-        True when a container-id trailer_source no longer holds focus.
-
-        :return: False for non-container sources (bare ListItem in videos).
-        """
-        raw = infolabel("Window(home).Property(trailer_source)")
-        if not raw.isdigit():
-            return False
-        return not condition(f"Control.HasFocus({raw}) | Control.HasFocus({raw}0)")
 
     def _is_trailer_playback(self) -> bool:
         """

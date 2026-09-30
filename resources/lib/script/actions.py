@@ -376,6 +376,7 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
 
     :param trailer: Player path or plugin URL to play.
     :param item: Item label captured skin-side, atomic with the trailer URL.
+    :param focus_ids: Optional comma-separated control ids that must keep focus.
     :param viewport: Optional "WxH" trailer region; enables aspect zoom.
     :param source_prefix: Optional container id or infolabel prefix of the item.
     """
@@ -387,6 +388,7 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     window_property("trailer_viewport", value=kwargs.get("viewport", ""))
     window_property("trailer_source", value=kwargs.get("source_prefix", ""))
     window_property("trailer_item", value=kwargs.get("item", ""))
+    window_property("trailer_focus_ids", value=kwargs.get("focus_ids", ""))
     log.execute(f'PlayMedia("{trailer}",1,noresume)')
 
 
