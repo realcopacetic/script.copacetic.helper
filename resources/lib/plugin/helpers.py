@@ -652,18 +652,16 @@ class TypewriterAnimation:
         self.default_line_h = default_line_h
         self.max_lines = max_lines
 
-    @classmethod
-    def reset(cls, target_id: int) -> None:
+    @staticmethod
+    def reset(target_id: int) -> None:
         """
         Supersede any in-flight run and hide the control.
         Stale text is safe: only update() reveals the control, and it clears first.
 
         :param target_id: Text control id to hide.
         """
-
-        control_id = target_id
-        Window(10000).setProperty(f"typewriter_current_{control_id}", "scroll")
-        log.execute(f"Control.SetHidden({control_id})")
+        Window(10000).setProperty(f"typewriter_current_{target_id}", "scroll")
+        log.execute(f"Control.SetHidden({target_id})")
 
     def update(
         self,
@@ -744,22 +742,15 @@ class TypewriterAnimation:
             _abort("no rect")
             return
         posx, posy, width, height = rect
-
-        posy_aligned = align_y(posy, height, line_h, align=opts.valign, pad=0)
-        posx_final, posy_final, width_final, height_final = (
-            posx,
-            posy_aligned,
-            width,
-            line_h,
-        )
+        posy = align_y(posy, height, line_h, align=opts.valign, pad=0)
 
         if _superseded():
             _abort("superseded")
             return
 
-        control.setWidth(width_final)
-        control.setHeight(height_final)
-        control.setPosition(posx_final, posy_final)
+        control.setWidth(width)
+        control.setHeight(line_h)
+        control.setPosition(posx, posy)
 
         if not _alive():
             _abort("lost focus")
@@ -767,7 +758,8 @@ class TypewriterAnimation:
 
         # Animate: add line_h per wrap, up to max_lines
         current_height = line_h
-        current_posy = posy_final
+        current_posy = posy
+        valign = (opts.valign or "center").lower()
         grows = 0
 
         # Clear before reveal so no render frame shows a stale label.
@@ -803,14 +795,13 @@ class TypewriterAnimation:
                 grows += 1
 
                 # Shift Y to keep the alignment anchor fixed as height grows.
-                v = (opts.valign or "center").lower()
-                if v == "bottom":
+                if valign == "bottom":
                     current_posy -= dy
-                elif v == "center":
+                elif valign == "center":
                     current_posy -= dy // 2
 
                 control.setHeight(current_height)
-                control.setPosition(posx_final, current_posy)
+                control.setPosition(posx, current_posy)
 
             # Reflow nudge: append a zero-width space then revert, to force wrap.
             control.setText(sub + "\u200b")
