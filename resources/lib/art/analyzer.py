@@ -9,6 +9,7 @@ from resources.lib.shared import logger as log
 
 RGB = tuple[int, int, int]
 HLS = tuple[float, float, float]
+Palette = tuple[list[RGB], list[tuple[int, int]]]
 
 
 class ColorAnalyzer:
@@ -28,8 +29,11 @@ class ColorAnalyzer:
     @log.duration
     def analyze(self, image: Image.Image) -> dict[str, float | str]:
         """Extract dominant + accent; compute luminosity and a contrast colour (hex)."""
-        dominant = self.extract_dominant_color(image)
-        accent = self.extract_accent_color(image, dominant_rgb=dominant)
+        im_small = self._sample_image(image)
+        rgb_small = self._opaque_rgb(im_small)
+        palette = None if rgb_small is None else self._quantize_palette(rgb_small)
+        dominant = self.extract_dominant_color(palette)
+        accent = self.extract_accent_color(im_small, palette, dominant_rgb=dominant)
         contrast_rgb = self.get_contrasting_color(
             dominant, shift=self.cfg.contrast_shift
         )
@@ -41,20 +45,18 @@ class ColorAnalyzer:
         }
 
     @log.duration
-    def extract_dominant_color(self, image: Image.Image) -> RGB:
+    def extract_dominant_color(self, palette: Palette | None) -> RGB:
         """
-        Dominant colour via downsample + adaptive palette; ignores transparent pixels.
-        Uses Pillow's ADAPTIVE palette on a small sample for speed/stability.
+        Dominant colour of the sample's adaptive palette; near-white/black
+        swatches count only when truly dominant.
 
-        :param image: Input PIL image (any mode).
+        :param palette: _quantize_palette result; None if no opaque pixels.
         :return: Dominant colour as (r, g, b).
         """
+        if palette is None:
+            return (0, 0, 0)
+        swatches, counts = palette
         try:
-            im_small = self._sample_image(image)
-            rgb_small = self._opaque_rgb(im_small)
-            if rgb_small is None:
-                return (0, 0, 0)
-            swatches, counts = self._quantize_palette(rgb_small)
             total = sum(c for c, _ in counts) or 1
             filtered = []
             for c, idx in counts:
@@ -84,61 +86,41 @@ class ColorAnalyzer:
             return (0, 0, 0)
 
     @log.duration
-    def extract_accent_color(self, image: Image.Image, dominant_rgb: RGB) -> RGB:
+    def extract_accent_color(
+        self,
+        im_small: Image.Image,
+        palette: Palette | None,
+        dominant_rgb: RGB,
+    ) -> RGB:
         """
         Pick a secondary hue distinct from the dominant color.
 
-        :param image: Input image to analyze.
+        :param im_small: Downsampled image from _sample_image.
+        :param palette: _quantize_palette result; None if no opaque pixels.
         :param dominant_rgb: The primary (dominant) RGB color.
-        :return: Accent RGB tuple, or dominant_rgb on failure.
+        :return: Accent RGB tuple, or dominant_rgb when none stands out.
         """
         # --- Step 0: Early uniformity check ---
-        try:
-            im_small = self._sample_image(image)
-            stat = ImageStat.Stat(im_small.convert("RGB"))
-            if max((v**0.5 for v in stat.var)) < self.cfg.accent_stdev_floor:
-                return dominant_rgb
-        except Exception:
-            pass
-
-        # --- Step 1: Safe preprocessing ---
-        try:
-            im_small = self._sample_image(image)
-            rgb_small = self._opaque_rgb(im_small)
-            if rgb_small is None:
-                return dominant_rgb
-        except Exception as exc:
-            log.debug(
-                f"{self.__class__.__name__} → accent preproc failed → {exc}",
-            )
+        stat = ImageStat.Stat(im_small.convert("RGB"))
+        if max((v**0.5 for v in stat.var)) < self.cfg.accent_stdev_floor:
             return dominant_rgb
 
-        # --- Step 2: Quantize palette ---
-        try:
-            swatches, counts = self._quantize_palette(rgb_small)
-            count_map = {swatches[idx]: c for c, idx in counts if idx < len(swatches)}
-            if not count_map:
-                return dominant_rgb
-        except Exception as exc:
-            log.debug(
-                f"{self.__class__.__name__} → accent quantize failed → {exc}",
-            )
+        # --- Step 1: Palette counts ---
+        if palette is None:
+            return dominant_rgb
+        swatches, counts = palette
+        count_map = {swatches[idx]: c for c, idx in counts if idx < len(swatches)}
+        if not count_map:
             return dominant_rgb
 
-        # --- Step 2.5: Dominant-share early exit ---
-        try:
-            total = float(sum(count_map.values()) or 1)
-            # Find the cluster closest to dominant so we measure its actual share
-            nearest = min(count_map, key=lambda c: self._rgb_dist(c, dominant_rgb))
-            dominant_share = count_map.get(nearest, 0) / total
-            if dominant_share >= self.cfg.accent_dom_share_cutoff:
-                return dominant_rgb
-        except Exception:
-            # Non-fatal; continue to normal scoring
-            pass
+        # --- Step 2: Dominant-share early exit ---
+        total = float(sum(count_map.values()) or 1)
+        # Find the cluster closest to dominant so we measure its actual share
+        nearest = min(count_map, key=lambda c: self._rgb_dist(c, dominant_rgb))
+        if count_map[nearest] / total >= self.cfg.accent_dom_share_cutoff:
+            return dominant_rgb
 
         # --- Step 3: Score swatches ---
-        total = sum(count_map.values()) or 1
         w = self.cfg.accent_weight
         min_dist = self.cfg.accent_min_dist
         freq_floor = float(self.cfg.accent_freq_floor)
@@ -310,9 +292,7 @@ class ColorAnalyzer:
             return out
         return im_small.convert("RGB")
 
-    def _quantize_palette(
-        self, rgb_small: Image.Image
-    ) -> tuple[list[RGB], list[tuple[int, int]]]:
+    def _quantize_palette(self, rgb_small: Image.Image) -> Palette:
         """
         Quantize to an adaptive palette and return swatches and counts.
 
