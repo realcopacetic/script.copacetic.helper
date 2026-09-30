@@ -12,16 +12,13 @@ from typing import Any, Mapping
 
 import xbmc
 import xbmcvfs
-from xbmcaddon import Addon
 from xbmcgui import Dialog, Window, getCurrentWindowId
 from xbmcplugin import addSortMethod, setContent, setPluginCategory
 
 from resources.lib.shared import logger as log
+from resources.lib.shared.logger import ADDON, ADDON_ID
 
 THUMB_DB = xbmcvfs.translatePath("special://profile/Thumbnails")
-
-ADDON = Addon()
-ADDON_ID = ADDON.getAddonInfo("id")
 
 ADDONDATA = xbmcvfs.translatePath(f"special://profile/addon_data/{ADDON_ID}/")
 BLURS = str(Path(ADDONDATA) / "blur")

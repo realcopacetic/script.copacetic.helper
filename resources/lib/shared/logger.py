@@ -7,8 +7,10 @@ from functools import wraps
 from typing import Any, Callable, Iterator
 
 import xbmc
+from xbmcaddon import Addon
 
-from resources.lib.shared.utilities import ADDON, ADDON_ID
+ADDON = Addon()
+ADDON_ID = ADDON.getAddonInfo("id")
 
 DEBUG = xbmc.LOGDEBUG
 INFO = xbmc.LOGINFO

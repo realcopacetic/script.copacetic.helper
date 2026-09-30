@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-from resources.lib.shared.utilities import log
+from resources.lib.shared import logger as log
 
 
 class JSONHandler:

@@ -8,12 +8,12 @@ import xbmc
 import xbmcvfs
 
 from resources.lib.art import policy
+from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
 from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     TEMPS,
     THUMB_DB,
-    log,
     url_decode_path,
     validate_path,
 )
