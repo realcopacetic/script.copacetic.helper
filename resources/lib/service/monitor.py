@@ -12,9 +12,6 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
-    BLURS,
-    CROPS,
-    TEMPS,
     reset_dev_state,
     skin_uses_builder,
     validate_path,
@@ -36,10 +33,6 @@ class Monitor(xbmc.Monitor):
         self._build_done = False
         self._skindir = None
         self._supported = False
-        # Setup
-        self.blur_folder = BLURS
-        self.crop_folder = CROPS
-        self.temp_folder = TEMPS
         # Monitors
         self.sqlite = ArtworkCacheHandler()
         self.player_monitor = None
@@ -114,7 +107,7 @@ class Monitor(xbmc.Monitor):
         if self.start:
             log.info(f"{self.__class__.__name__} → Started")
             self.start = False
-            self.player_monitor = PlayerMonitor(self.sqlite)
+            self.player_monitor = PlayerMonitor()
             self.slideshow = Slideshow(self.sqlite)
         elif self._conditions_met():
             log.info(f"{self.__class__.__name__} → Resumed")

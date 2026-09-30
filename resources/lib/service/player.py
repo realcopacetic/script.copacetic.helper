@@ -7,7 +7,6 @@ from xbmc import Player
 from resources.lib.service.playnext import PlayNextQueue
 from resources.lib.service.trailer import TrailerZoomController
 from resources.lib.shared import logger as log
-from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -22,14 +21,9 @@ class PlayerMonitor(Player):
     Player monitor for operations to be performed on playback start/stop.
     """
 
-    def __init__(self, sqlite_handler: ArtworkCacheHandler | None = None) -> None:
-        """
-        Initialise player monitor and helpers.
-
-        :param sqlite_handler: Optional SQLite handler instance.
-        """
+    def __init__(self) -> None:
+        """Initialise player monitor and helpers."""
         super().__init__()
-        self.sqlite = sqlite_handler or ArtworkCacheHandler()
         self.zoom = TrailerZoomController()
         self.playnext = PlayNextQueue()
         self._cleanup_registry = set()

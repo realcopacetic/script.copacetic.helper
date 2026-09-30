@@ -225,7 +225,6 @@ class ColorConfig:
     palette_size: int = 8  # Colors in the adaptive palette (lower is faster)
     sample_size: int = 64  # Downsampled square size for palette extraction
     avg_downsample: int = 32  # Downsampled square size for luminance/mean sampling
-    avg_grid: int = 6  # NxN grid resolution for locating the brightest patch
     bg_sampling_topk: float = 0.10  # Fraction of brightest pixels used for background L
 
     # --- Color Filtering ---

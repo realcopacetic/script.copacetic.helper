@@ -103,47 +103,6 @@ class XMLHandler:
         except Exception as e:
             log.error(f"{self.__class__.__name__} → Unable to write XML --> {e}")
 
-    @xml_functions
-    def update_xml(self, updates: dict[str, str], **kwargs) -> None:
-        """
-        Modifies or adds elements in an existing XML file using transformation settings.
-
-        :param updates: Dictionary of key → value updates to apply.
-        :param kwargs: Includes transform_func, root_tag, element_tag, etc.
-        """
-        try:
-            tree = self._read_xml()
-            if tree is None:
-                log.info(f"XML file '{self.path}' not found, creating a new one.")
-                self.write_xml(updates, **kwargs)
-                return
-
-            root = tree.getroot()
-
-            # Find or create the correct root tag
-            target_root = root.find(kwargs["root_tag"])
-            if target_root is None:
-                log.debug(
-                    f"{self.__class__.__name__} → Creating missing root tag '{kwargs['root_tag']}'."
-                )
-                target_root = ET.SubElement(root, kwargs["root_tag"])
-
-            # Modify or add elements under the correct root
-            for key, value in updates.items():
-                existing_element = target_root.find(
-                    f".//{kwargs['element_tag']}[@name='{key}']"
-                )
-                if existing_element is not None:
-                    existing_element.text = value  # Modify existing element
-                else:
-                    ET.SubElement(target_root, kwargs["element_tag"], name=key).text = (
-                        value  # Add new element
-                    )
-
-            self._save_xml(tree)
-        except Exception as e:
-            log.error(f"{self.__class__.__name__} → Unable to update XML --> {e}")
-
     def _read_xml(self):
         """
         Reads and returns the XML data. If the file path is a directory,
@@ -187,33 +146,6 @@ class XMLHandler:
                 f"{self.__class__.__name__} → Error parsing XML file '{file_path}' --> {e}"
             )
             return None
-
-    def _create_new_xml(
-        self,
-        root_tag: str,
-        element_tag: str,
-        default_structure: dict[str, str] | None = None,
-    ) -> ET.ElementTree:
-        """
-        Creates and saves a new XML file with the specified structure.
-
-        :param root_tag: Root element tag name.
-        :param element_tag: Child tag name for each item in the structure.
-        :param default_structure: Optional dictionary of name → text value.
-        :return: ElementTree instance.
-        """
-        root = ET.Element(root_tag)
-        default_structure = default_structure or {}
-
-        for key, value in default_structure.items():
-            ET.SubElement(root, element_tag, name=key).text = value
-
-        tree = ET.ElementTree(root)
-        self._save_xml(tree)
-        log.info(
-            f"{self.__class__.__name__} → Created new XML file '{self.path}' with root '{root_tag}'."
-        )
-        return tree
 
     def _save_xml(self, tree: ET.ElementTree) -> None:
         """

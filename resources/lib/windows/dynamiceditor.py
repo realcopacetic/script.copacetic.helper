@@ -41,7 +41,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.host_focus = None
         self.focus_item = None
         self.controls_from = []
-        self._xml_filename = xmlFilename.lower()
 
         self.runtime_manager = RuntimeStateManager.from_templates()
         # Snapshot here, not in onInit — the post-doModal rebuild comparison

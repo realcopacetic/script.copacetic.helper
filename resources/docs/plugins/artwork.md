@@ -208,7 +208,6 @@ plugin path changes the invocation identity continuously and refires the helper.
 - `palette_size` — number of colours in adaptive palette.
 - `sample_size` — downsample size when building the palette (square).
 - `avg_downsample` — downsample size for averaging RGB in a patch.
-- `avg_grid` — grid resolution (G×G) to locate the brightest cell prior to averaging.
 
 **Filtering thresholds**
 - `skip_whites` — ignore near-white swatches unless overwhelmingly dominant.

@@ -170,18 +170,6 @@ class ColorAnalyzer:
         return self.hls_to_rgb((h, l, s))
 
     # ---------- public helper methods ----------
-    def brightest_mean_rgb(self, im: Image.Image) -> RGB:
-        """
-        Return mean RGB of the brightest patch in the image.
-        Brightness is located via a coarse grid, then averaged on the winning cell.
-
-        :param im: Input PIL image.
-        :return: RGB mean of the brightest patch.
-        """
-        return self._brightest_patch_rgb(
-            im, grid=self.cfg.avg_grid, pass2=self.cfg.avg_downsample
-        )
-
     def plain_mean_rgb(self, im: Image.Image) -> RGB:
         """
         Return mean RGB of the full image.
@@ -337,44 +325,3 @@ class ColorAnalyzer:
         """
         c = channel_0_255 / 255.0
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-
-    def _brightest_patch_rgb(self, im: Image.Image, *, grid: int, pass2: int) -> RGB:
-        """
-        Find the brightest grid cell (by luminance) and return its average RGB.
-
-        :param im: Input PIL image (any mode).
-        :param grid: Grid resolution (GxG) to locate brightest cell.
-        :param pass2: Downsample size used for mean on the winning patch.
-        :return: Average (r, g, b) of the brightest cell.
-        """
-        if im.mode != "RGB":
-            im = im.convert("RGB")
-
-        # --- Pass 1: locate brightest cell cheaply (each pixel ≈ cell average) ---
-        small = im.resize((grid, grid), Image.BOX)
-
-        max_idx = 0
-        max_y = -1.0
-        for idx, (r, g, b) in enumerate(small.getdata()):
-            y = self.luma709((r, g, b))
-            if y > max_y:
-                max_y = y
-                max_idx = idx
-
-        cx, cy = (max_idx % grid), (max_idx // grid)
-
-        # --- Map the winning cell back to original coordinates and crop ----------
-        W, H = im.size
-        cell_w = W / grid
-        cell_h = H / grid
-        left = int(round(cx * cell_w))
-        top = int(round(cy * cell_h))
-        right = int(round((cx + 1) * cell_w))
-        bottom = int(round((cy + 1) * cell_h))
-        patch = im.crop((left, top, right, bottom))
-
-        # --- Pass 2: precise average on the chosen patch -------------------------
-        tiny = patch.resize((pass2, pass2), Image.BOX)
-        stat = ImageStat.Stat(tiny.convert("RGB"))
-        r, g, b = stat.mean
-        return int(r), int(g), int(b)

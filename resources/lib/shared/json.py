@@ -104,19 +104,6 @@ class JSONHandler:
                 f"{self.__class__.__name__} → JSON file '{self.path}' updated successfully."
             )
 
-    def validate_json(self, content) -> bool:
-        """
-        Validates if the provided content is JSON-serializable.
-
-        :param content: Python object to validate.
-        :return: True if valid, False otherwise.
-        """
-        try:
-            json.dumps(content)  # Check if serializable
-            return True
-        except (TypeError, ValueError):
-            return False
-
 
 class JSONMerger:
     """

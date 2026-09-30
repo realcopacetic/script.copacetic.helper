@@ -165,38 +165,6 @@ def skin_string(key: str, value: str | bool = False) -> None:
         log.execute(f"Skin.SetString({key},)")
 
 
-def reset_bool(setting_id: str) -> None:
-    """
-    Resets (clears) a boolean skin setting with optional logging.
-
-    :param setting_id: The skin setting ID (e.g., "mysetting").
-    """
-    log.execute(f"Skin.Reset({setting_id})")
-
-
-def set_bool(setting_id: str) -> None:
-    """
-    Sets a boolean skin setting to True with optional logging.
-
-    :param setting_id: The skin setting ID (e.g., "mysetting").
-    """
-    log.execute(f"Skin.SetBool({setting_id})")
-
-
-def toggle_bool(setting_id: str) -> None:
-    """
-    Toggles a boolean skin setting using Kodi built-in functions.
-    Resets it if Skin.HasSetting is true, otherwise sets it to True.
-
-    :param setting_id: The skin setting ID (e.g., "mysetting").
-    """
-    (
-        reset_bool(setting_id)
-        if condition(f"Skin.HasSetting({setting_id})")
-        else set_bool(setting_id)
-    )
-
-
 def window_property(
     key: str, value: str | bool = False, window_id: int = 10000
 ) -> None:
@@ -314,16 +282,6 @@ def skin_uses_builder() -> bool:
     return any(
         validate_path(str(Path(TEMPLATES) / sub) + "/") for sub in TEMPLATE_SUBFOLDERS
     )
-
-
-def url_encode(value: str) -> str:
-    """
-    URL-encode a string for safe use in query parameters.
-
-    :param value: Raw string to encode.
-    :return: Encoded string.
-    """
-    return urllib.quote_plus(value)
 
 
 def url_decode_path(path: str) -> str:

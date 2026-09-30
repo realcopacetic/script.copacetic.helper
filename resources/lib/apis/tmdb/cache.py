@@ -73,9 +73,6 @@ class TmdbCache:
             return {}
         return value
 
-    def get_art(self, dbtype: str, tmdb_id: int, language: str):
-        return self.get_field(dbtype, tmdb_id, language, "art")
-
     def set(
         self,
         dbtype: str,

@@ -21,17 +21,6 @@ class HashManager:
         return digest.hexdigest()
 
     @staticmethod
-    def validate_hash(current_hash: str | None, stored_hash: str | None) -> bool:
-        """
-        Validate that two hashes match.
-
-        :param current_hash: Newly computed digest (or None).
-        :param stored_hash: Persisted digest (or None).
-        :return: True if hashes match, else False.
-        """
-        return current_hash == stored_hash
-
-    @staticmethod
     def compute_hash_str(value: str) -> str:
         """
         Compute a SHA-256 digest for a UTF-8 string.
