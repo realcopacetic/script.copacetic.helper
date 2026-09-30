@@ -264,7 +264,8 @@ class Skin:
     def expand(self, node: Node, budget: list[int]) -> None:
         """
         Resolve includes under ``node`` in place like ``ResolveIncludes``:
-        ``<nested/>`` filled, params substituted, conditions recorded, not evaluated.
+        ``<nested/>`` filled, params substituted, literal ``false`` conditions
+        skipped, other conditions recorded, not evaluated.
 
         :param node: Element whose include children are replaced.
         :param budget: Remaining expansions, shared to stop include recursion.
@@ -273,6 +274,9 @@ class Skin:
         while index < len(node):
             call = node[index]
             name = include_name(call) if call.tag == "include" else None
+            if name is not None and call.get("condition", "").lower() == "false":
+                del node[index]  # Kodi skips it before looking the name up
+                continue
             if name not in self.defs["include"] or "file" in call.attrib:
                 if name is not None and "file" not in call.attrib:
                     self.report("undefined-include", call.src, name or "(no name)")
