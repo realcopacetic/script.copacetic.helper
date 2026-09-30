@@ -152,13 +152,14 @@ def infolabel(infolabel: str) -> str:
 def skin_string(key: str, value: str | bool = False) -> None:
     """
     Sets or clears a Kodi skin string with optional logging.
-    If `value` is a value, it sets the string. If it's False or empty, it clears it.
+    The value is quoted whole so SplitParams keeps commas (e.g. folder paths).
 
     :param key: Skin string key.
-    :param value: Value to assign.
+    :param value: Value to assign; False or empty clears the string.
     """
     if value:
-        log.execute(f"Skin.SetString({key}, {value})")
+        value = str(value).replace("\\", "\\\\").replace('"', '\\"')
+        log.execute(f'Skin.SetString({key},"{value}")')
     else:
         log.execute(f"Skin.SetString({key},)")
 
