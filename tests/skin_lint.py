@@ -158,6 +158,7 @@ class Skin:
         self.defs = {kind: {} for kind in DEFINITIONS}
         self.defaults = {}
         self.params = {}
+        self.calls = defaultdict(lambda: (set(), set()))
         self.duplicates = defaultdict(list)
         self.reached = set()
         self.loaded = []
@@ -228,12 +229,24 @@ class Skin:
             if name not in self.defs["include"]:
                 self.report("undefined-include", call.src, name or "(no name)")
                 continue
-            self.check_params(call, name)
+            self.record_call(call, name)
 
-    def check_params(self, call: Node, name: str) -> None:
-        """Report params passed to ``name`` that its definition never mentions."""
-        for param in params_of(call, "value").keys() - self.params[name]:
-            self.report("unknown-param", call.src, f"{name}: no param {param!r}")
+    def record_call(self, call: Node, name: str) -> None:
+        """Record the include ``call`` reached and the params it passed."""
+        targets, passed = self.calls[call.src]
+        targets.add(name)
+        passed.update(params_of(call, "value"))
+
+    def check_params(self) -> None:
+        """
+        Report params a call site passes that no include it reached mentions:
+        a call named by ``$PARAM`` passes what any of its targets needs.
+        """
+        for src, (targets, passed) in self.calls.items():
+            known = set().union(*(self.params[name] for name in targets))
+            for param in passed - known:
+                names = "/".join(sorted(targets))
+                self.report("unknown-param", src, f"{names}: no param {param!r}")
 
     def check_ids(self, window: str, root: Node) -> None:
         """
@@ -282,7 +295,7 @@ class Skin:
                     self.report("undefined-include", call.src, name or "(no name)")
                 index += 1
                 continue
-            self.check_params(call, name)
+            self.record_call(call, name)
             budget[0] -= 1
             if budget[0] < 0:
                 self.report("include-recursion", call.src, name)
@@ -414,6 +427,7 @@ class Skin:
                 self.check_ids(name, root)
         if windows is not None:
             self.check_unreferenced()
+        self.check_params()
         for (cid, srcs), windows in self.duplicates.items():
             where = ", ".join(
                 f"{src} ×{n}" if n > 1 else src for src, n in Counter(srcs).items()
