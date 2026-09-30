@@ -13,7 +13,7 @@ from resources.lib.apis.tmdb.fields import (
     split_tmdb_images_by_language,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import ADDON, plugin_path, pretty_print
+from resources.lib.shared.utilities import ADDON, plugin_path
 
 _CACHE = TmdbCache()
 IMAGE_LIST_ROLES = {
@@ -62,9 +62,7 @@ def tmdb_to_canonical(
 
     cached = _CACHE.get(cache_kind, tmdb_id, cache_language)
     if cached:
-        log.debug(
-            f"tmdb_to_canonical → Cache returned → {pretty_print(cached)}",
-        )
+        log.debug(f"tmdb_to_canonical → cache hit {cache_kind}/{tmdb_id}")
         return cached
 
     raw = fetch_tmdb_fields(
@@ -78,7 +76,7 @@ def tmdb_to_canonical(
     if not raw:
         return {}
 
-    log.debug(f"tmdb_to_canonical → Fresh payload returned → {pretty_print(raw)}")
+    log.debug(f"tmdb_to_canonical → fetched {cache_kind}/{tmdb_id}")
     item = _build_tmdb_canonical_item(
         kind=kind,
         tmdb_id=tmdb_id,

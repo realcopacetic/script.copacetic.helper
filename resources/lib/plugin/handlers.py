@@ -336,9 +336,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             language="en-US",
         )
         art |= multiart_dict
-        log.debug(
-            f"{self.__class__.__name__} → Artwork returned from ImageEditor {art}"
-        )
+        log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
         if not guard.alive():
             return
 

@@ -3,7 +3,7 @@
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
-from functools import wraps
+from functools import cache, wraps
 from typing import Any, Callable, Iterator
 
 import xbmc
@@ -33,6 +33,15 @@ def muted() -> Iterator[None]:
         _MUTED.reset(token)
 
 
+@cache
+def debug_logging() -> bool:
+    """
+    The add-on's debug_logging setting, read once per process.
+    Long-lived callers clear it with ``debug_logging.cache_clear()``.
+    """
+    return ADDON.getSettingBool("debug_logging")
+
+
 def log(message: str, level: int = DEBUG, force: bool = False) -> None:
     """
     Logs a message with addon prefix, respecting log level and debug settings.
@@ -45,7 +54,7 @@ def log(message: str, level: int = DEBUG, force: bool = False) -> None:
     """
     if level == DEBUG and not force and _MUTED.get():
         return
-    if (ADDON.getSettingBool("debug_logging") or force) and level == DEBUG:
+    if level == DEBUG and (force or debug_logging()):
         level = INFO
     xbmc.log(f"{ADDON_ID} → {message}", level)
 

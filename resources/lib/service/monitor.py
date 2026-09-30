@@ -160,6 +160,10 @@ class Monitor(xbmc.Monitor):
         """Kodi event hook: Resume monitoring when screensaver ends."""
         self.idle = False
 
+    def onSettingsChanged(self) -> None:
+        """Kodi event hook: re-read the add-on's debug_logging setting."""
+        log.debug_logging.cache_clear()
+
     def poller(self) -> None:
         """
         Polling loop: trailer session watchdog and global slideshow,
