@@ -281,37 +281,42 @@ def play_album(**kwargs: str) -> None:
 
 
 @action
-def play_album_from_track(**kwargs: str) -> None:
+def play_album_from_track(id: str, **kwargs: str) -> None:
     """
-    Plays an album starting from a specific track.
+    Plays a song's album starting from that song, in disc and track order.
 
-    :param id: Song ID to look up album.
-    :param track: Track number to start from (1-based).
+    :param id: Song ID.
     """
     clear_playlists()
 
-    dbid = int(kwargs.get("id", False))
-    track = int(kwargs.get("track", False)) - 1
-
-    if dbid:
-        json_response = json_call(
-            "AudioLibrary.GetSongDetails",
-            params={"properties": ["albumid"], "songid": dbid},
-            parent="play_album_from_track",
-        )
-
-    if json_response["result"].get("songdetails", None):
-        albumid = json_response["result"]["songdetails"]["albumid"]
-
-    json_call(
-        "Player.Open",
-        item={"albumid": albumid},
-        options={"shuffled": False},
+    songid = to_int(id)
+    details = json_call(
+        "AudioLibrary.GetSongDetails",
+        params={"properties": ["albumid"], "songid": songid},
         parent="play_album_from_track",
     )
+    if not (song := details.get("result", {}).get("songdetails")):
+        return
 
-    if track > 0:
-        json_call("Player.GoTo", params={"playerid": 0, "to": track})
+    # Sort by track is disc-aware: Kodi stores the track as (disc << 16) | track.
+    songs = json_call(
+        "AudioLibrary.GetSongs",
+        sort={"method": "track"},
+        query_filter={"albumid": song["albumid"]},
+        parent="play_album_from_track",
+    )["result"].get("songs", [])
+    songids = [s["songid"] for s in songs]
+    json_call(
+        "Playlist.Add",
+        item=[{"songid": s} for s in songids],
+        params={"playlistid": 0},
+        parent="play_album_from_track",
+    )
+    json_call(
+        "Player.Open",
+        item={"playlistid": 0, "position": songids.index(songid)},
+        parent="play_album_from_track",
+    )
 
 
 @action
@@ -326,53 +331,29 @@ def play_items(id: str, **kwargs: str) -> None:
     clear_playlists()
 
     method = kwargs.get("method", "")
-    shuffled = True if method == "shuffle" else False
     playlistid = 0 if kwargs.get("type", "") == "music" else 1
+    scope = "NoWrap" if method == "from_here" else "Absolute"
+    prefix = f"Container({id}).ListItem{scope}"
 
-    if method == "from_here":
-        method = f"Container({id}).ListItemNoWrap"
-    else:
-        method = f"Container({id}).ListItemAbsolute"
-
-    for count in range(int(infolabel(f"Container({id}).NumItems"))):
-        try:
-            dbid = int(xbmc.getInfoLabel(f"{method}({count}).DBID"))
-            url = xbmc.getInfoLabel(f"{method}({count}).Filenameandpath")
-        except ValueError:
-            break
-        else:
-            if condition(f"String.IsEqual({method}({count}).DBType,movie)"):
-                media_type = "movie"
-            elif condition(f"String.IsEqual({method}({count}).DBType,episode)"):
-                media_type = "episode"
-            elif condition(f"String.IsEqual({method}({count}).DBType,song)"):
-                media_type = "song"
-            elif condition(f"String.IsEqual({method}({count}).DBType,musicvideo)"):
-                media_type = "musicvideo"
-
-            if media_type and dbid:
-                json_call(
-                    "Playlist.Add",
-                    item={f"{media_type}id": dbid},
-                    params={"playlistid": playlistid},
-                    parent="play_items",
-                )
-            elif url:
-                json_call(
-                    "Playlist.Add",
-                    item={"file": url},
-                    params={"playlistid": playlistid},
-                    parent="play_items",
-                )
+    items = []
+    for i in range(to_int(infolabel(f"Container({id}).NumItems"))):
+        dbtype = infolabel(f"{prefix}({i}).DBType")
+        dbid = to_int(infolabel(f"{prefix}({i}).DBID"))
+        if dbid and dbtype in ("movie", "episode", "musicvideo", "song"):
+            items.append({f"{dbtype}id": dbid})
+        elif url := infolabel(f"{prefix}({i}).FileNameAndPath"):
+            items.append({"file": url})
 
     json_call(
-        "Playlist.GetItems", params={"playlistid": playlistid}, parent="play_items"
+        "Playlist.Add",
+        item=items,
+        params={"playlistid": playlistid},
+        parent="play_items",
     )
-
     json_call(
         "Player.Open",
         item={"playlistid": playlistid, "position": 0},
-        options={"shuffled": shuffled},
+        options={"shuffled": method == "shuffle"},
         parent="play_items",
     )
 
@@ -386,51 +367,30 @@ def play_radio(**kwargs: str) -> None:
     """
     clear_playlists()
 
-    dbid = int(kwargs.get("id", xbmc.getInfoLabel("ListItem.DBID")))
-
-    json_response = json_call(
+    songid = to_int(kwargs.get("id") or infolabel("ListItem.DBID"))
+    details = json_call(
         "AudioLibrary.GetSongDetails",
-        params={"properties": ["genre"], "songid": dbid},
+        params={"properties": ["genre"], "songid": songid},
         parent="play_radio",
     )
+    if not (genres := details.get("result", {}).get("songdetails", {}).get("genre")):
+        return
 
-    if json_response["result"]["songdetails"].get("genre", None):
-        genre = json_response["result"]["songdetails"]["genre"]
-        genre = random.choice(genre)
-
-    if genre:
-        json_call(
-            "Playlist.Add",
-            item={"songid": dbid},
-            params={"playlistid": 0},
-            parent="play_radio",
-        )
-
-        json_response = json_call(
-            "AudioLibrary.GetSongs",
-            params={"properties": ["genre"]},
-            sort={"method": "random"},
-            limit=24,
-            query_filter={"genre": genre},
-            parent="play_radio",
-        )
-
-        for count in json_response["result"]["songs"]:
-            if count.get("songid", None):
-                songid = int(count["songid"])
-
-                json_call(
-                    "Playlist.Add",
-                    item={"songid": songid},
-                    params={"playlistid": 0},
-                    parent="play_radio",
-                )
-
-        json_call("Playlist.GetItems", params={"playlistid": 0}, parent="play_radio")
-
-        json_call(
-            "Player.Open", item={"playlistid": 0, "position": 0}, parent="play_radio"
-        )
+    songs = json_call(
+        "AudioLibrary.GetSongs",
+        sort={"method": "random"},
+        limit=24,
+        query_filter={"genre": random.choice(genres)},
+        parent="play_radio",
+    )["result"].get("songs", [])
+    songids = [songid, *(s["songid"] for s in songs)]
+    json_call(
+        "Playlist.Add",
+        item=[{"songid": s} for s in songids],
+        params={"playlistid": 0},
+        parent="play_radio",
+    )
+    json_call("Player.Open", item={"playlistid": 0, "position": 0}, parent="play_radio")
 
 
 @action
