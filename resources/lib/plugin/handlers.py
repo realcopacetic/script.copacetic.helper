@@ -817,7 +817,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             method="VideoLibrary.GetMovies",
             media_type="movie",
             content="movies",
-            category=31204,
+            category=32605,
             parent="random_movies",
             filters=[
                 {"field": "lastplayed", "operator": "notinthelast", "value": "14 days"}
@@ -831,7 +831,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             method="VideoLibrary.GetTVShows",
             media_type="tvshow",
             content="tvshows",
-            category=31205,
+            category=32606,
             parent="random_tvshows",
             filters=[],
         )

@@ -29,7 +29,7 @@ class PluginListing(object):
 
         set_plugincontent(
             content="plugins",
-            category=ADDON.getLocalizedString(32604) or "Copacetic",
+            category=ADDON.getAddonInfo("name"),
         )
         return items
 

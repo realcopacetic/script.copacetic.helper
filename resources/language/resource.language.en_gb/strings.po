@@ -281,9 +281,19 @@ msgctxt "#32603"
 msgid "Actor credits"
 msgstr ""
 
-#: /resources/lib/plugin/listing.py, /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32604"
 msgid "Writer credits"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32605"
+msgid "Random movies"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32606"
+msgid "Random TV shows"
 msgstr ""
 
 
