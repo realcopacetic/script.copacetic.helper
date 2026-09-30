@@ -875,7 +875,7 @@ def _custom_path() -> tuple[str, str] | None:
 
 def browse_content(cfg) -> dict[str, str] | None:
     """
-    Entry point for content path browsing. Called from OnClickActions.
+    Entry point for content path browsing. Called from onclick_actions.
     Widget mode returns ``{path, label, icon, target}``; menu mode
     also adds ``{type, window, action}`` for menu-item construction.
 

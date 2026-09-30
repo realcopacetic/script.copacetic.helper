@@ -17,7 +17,7 @@ from xbmcgui import (
 from resources.lib.builders.logic import RuleEngine
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import infolabel
-from resources.lib.windows.onclick_actions import OnClickActions
+from resources.lib.windows import onclick_actions
 
 if TYPE_CHECKING:
     from resources.lib.builders.runtime import RuntimeStateManager
@@ -460,7 +460,7 @@ class BaseControlHandler:
                     self.mapping_key, self.source_index, entry.get("action", "")
                 ),
             }
-            ButtonHandler.ACTIONS.get(action_type, OnClickActions.custom)(cfg)
+            ButtonHandler.ACTIONS.get(action_type, onclick_actions.custom)(cfg)
         if ran_runtime_script:
             self.parent._resync_session()
 
@@ -500,30 +500,30 @@ class BaseControlHandler:
 
 class ButtonHandler(BaseControlHandler):
     """
-    Routes control onclick configs to the appropriate OnClickActions method.
+    Routes control onclick configs to the matching onclick_actions function.
     """
 
     ACTIONS = {
-        "select": OnClickActions.select,
-        "browse": OnClickActions.browse,
-        "browse_single": OnClickActions.browse_single,
-        "browse_multiple": OnClickActions.browse_multiple,
-        "browse_content": OnClickActions.browse_content,
-        "browse_image": OnClickActions.browse_image,
-        "colorpicker": OnClickActions.colorpicker,
-        "input": OnClickActions.input,
-        "numeric": OnClickActions.numeric,
-        "custom": OnClickActions.custom,
-        "runtime_script": OnClickActions.runtime_script,
+        "select": onclick_actions.select,
+        "browse": onclick_actions.browse,
+        "browse_single": onclick_actions.browse_single,
+        "browse_multiple": onclick_actions.browse_multiple,
+        "browse_content": onclick_actions.browse_content,
+        "browse_image": onclick_actions.browse_image,
+        "colorpicker": onclick_actions.colorpicker,
+        "input": onclick_actions.input,
+        "numeric": onclick_actions.numeric,
+        "custom": onclick_actions.custom,
+        "runtime_script": onclick_actions.runtime_script,
     }
 
     def _build_cfg(self, onclick: dict) -> dict:
         """
-        Build the flat config dict for OnClickActions, merging core
+        Build the flat config dict for onclick_actions, merging core
         and optional keys with resolved items and display labels.
 
         :param onclick: Raw onclick definition from the control JSON.
-        :return: Merged config dict ready for an OnClickActions method.
+        :return: Merged config dict ready for an onclick_actions function.
         """
         optional = (
             "browseType",
@@ -596,7 +596,7 @@ class ButtonHandler(BaseControlHandler):
             "browseimage": "browse_image",
         }.get(action_type, action_type)
 
-        result = self.ACTIONS.get(action_type, OnClickActions.custom)(cfg)
+        result = self.ACTIONS.get(action_type, onclick_actions.custom)(cfg)
         return result, cfg
 
     def apply_result(self, result: object, cfg: dict) -> object | None:

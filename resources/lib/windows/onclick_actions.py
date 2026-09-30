@@ -14,210 +14,192 @@ BROWSE_TYPE_MAP = {
 }
 
 
-class OnClickActions:
+def _browse_args(cfg: dict, default_type: str) -> tuple:
     """
-    Encapsulates dialog and custom actions for button clicks.
+    Positional args shared by Dialog.browse, browseSingle and browseMultiple.
+
+    :param cfg: Onclick config.
+    :param default_type: BROWSE_TYPE_MAP key used when browseType is absent or unknown.
+    :return: (type, heading, shares, mask, useThumbs, treatAsFolder, default).
+    """
+    browse_type = cfg.get("browseType", default_type).lower()
+    return (
+        BROWSE_TYPE_MAP.get(browse_type, BROWSE_TYPE_MAP[default_type]),
+        cfg["heading"],
+        cfg.get("shares", "files"),
+        cfg.get("mask", ""),
+        cfg.get("useThumbs", False),
+        cfg.get("treatAsFolder", False),
+        cfg.get("default", ""),
+    )
+
+
+def browse(cfg: dict) -> str | list[str]:
+    """
+    Show a browse dialog and return the selected path.
+    """
+    return Dialog().browse(
+        *_browse_args(cfg, "directories"), cfg.get("enableMultiple", False)
+    )
+
+
+def browse_single(cfg: dict) -> str:
+    """
+    Show a single-select browse dialog and return the chosen path.
+    """
+    return Dialog().browseSingle(*_browse_args(cfg, "files"))
+
+
+def browse_multiple(cfg: dict) -> list[str]:
+    """
+    Show a multi-select browse dialog and return chosen paths.
+    """
+    return Dialog().browseMultiple(*_browse_args(cfg, "files"))
+
+
+def browse_content(cfg: dict) -> dict | None:
+    """
+    Widget mode returns ``{path, label, icon, target}``; menu mode
+    also adds ``{type, window, action}`` for menu-item construction.
+
+    :param cfg: Onclick config; ``mode`` is "widget" or "menu".
+    :return: Result dict, or None if cancelled.
+    """
+    from resources.lib.windows.browse import browse_content
+
+    return browse_content(cfg)
+
+
+def browse_image(cfg: dict) -> str | None:
+    """
+    Show Kodi's image browser dialog opened at a configured folder.
+    Seeds a transient skin string with the folder path; cancel is
+    detected when the string still equals the seed after close.
+
+    :param cfg: Onclick config; ``folder`` is the browser's starting path.
+    :return: Selected path, or None if cancelled.
     """
 
-    @staticmethod
-    def browse(cfg: dict) -> str | list[str]:
-        """
-        Show a browse dialog and return the selected path.
-        """
-        dlg = Dialog()
-        browse_string = cfg.get("browseType", "directories")
-        browse_type = BROWSE_TYPE_MAP.get(browse_string.lower(), 0)
-        return dlg.browse(
-            browse_type,
-            cfg["heading"],
-            cfg.get("shares", "files"),
-            cfg.get("mask", ""),
-            cfg.get("useThumbs", False),
-            cfg.get("treatAsFolder", False),
-            cfg.get("default", ""),
-            cfg.get("enableMultiple", False),
-        )
+    SCRATCHPAD = "_copacetic_image_picker"
 
-    @staticmethod
-    def browse_single(cfg: dict) -> str:
-        """
-        Show a single-select browse dialog and return the chosen path.
-        """
-        dlg = Dialog()
-        browse_string = cfg.get("browseType", "files")
-        browse_type = BROWSE_TYPE_MAP.get(browse_string.lower(), 1)
-        return dlg.browseSingle(
-            browse_type,
-            cfg["heading"],
-            cfg.get("shares", "files"),
-            cfg.get("mask", ""),
-            cfg.get("useThumbs", False),
-            cfg.get("treatAsFolder", False),
-            cfg.get("default", ""),
-        )
+    folder = cfg.get("folder", "")
+    if not folder:
+        log.warning("browse_image: 'folder' param missing; aborting")
+        return None
+    if not folder.endswith("/"):
+        folder += "/"
 
-    @staticmethod
-    def browse_multiple(cfg: dict) -> list[str]:
-        """
-        Show a multi-select browse dialog and return chosen paths.
-        """
-        dlg = Dialog()
-        browse_string = cfg.get("browseType", "files")
-        browse_type = BROWSE_TYPE_MAP.get(browse_string.lower(), 1)
-        return dlg.browseMultiple(
-            browse_type,
-            cfg["heading"],
-            cfg.get("shares", "files"),
-            cfg.get("mask", ""),
-            cfg.get("useThumbs", False),
-            cfg.get("treatAsFolder", False),
-            cfg.get("default", ""),
-        )
+    # Seed the scratchpad; one-arg Skin.SetImage uses the current string
+    # value as its starting hint.
+    skin_string(SCRATCHPAD, folder)
+    log.execute(f"Skin.SetImage({SCRATCHPAD})")
 
-    @staticmethod
-    def browse_content(cfg: dict) -> dict | None:
-        """
-        Widget mode returns ``{path, label, icon, target}``; menu mode
-        also adds ``{type, window, action}`` for menu-item construction.
+    monitor = xbmc.Monitor()
 
-        :param cfg: Onclick config; ``mode`` is "widget" or "menu".
-        :return: Result dict, or None if cancelled.
-        """
-        from resources.lib.windows.browse import browse_content
-
-        return browse_content(cfg)
-
-    @staticmethod
-    def browse_image(cfg: dict) -> str | None:
-        """
-        Show Kodi's image browser dialog opened at a configured folder.
-        Seeds a transient skin string with the folder path; cancel is
-        detected when the string still equals the seed after close.
-
-        :param cfg: Onclick config; ``folder`` is the browser's starting path.
-        :return: Selected path, or None if cancelled.
-        """
-
-        SCRATCHPAD = "_copacetic_image_picker"
-
-        folder = cfg.get("folder", "")
-        if not folder:
-            log.warning("browse_image: 'folder' param missing; aborting")
+    # Wait for the dialog to open (bounded against silent failure).
+    waited = 0
+    while not condition("Window.IsActive(FileBrowser)") and waited < 60:
+        if monitor.waitForAbort(0.05):
             return None
-        if not folder.endswith("/"):
-            folder += "/"
-
-        # Seed the scratchpad; one-arg Skin.SetImage uses the current string
-        # value as its starting hint.
-        skin_string(SCRATCHPAD, folder)
-        log.execute(f"Skin.SetImage({SCRATCHPAD})")
-
-        monitor = xbmc.Monitor()
-
-        # Wait for the dialog to open (bounded against silent failure).
-        waited = 0
-        while not condition("Window.IsActive(FileBrowser)") and waited < 60:
-            if monitor.waitForAbort(0.05):
-                return None
-            waited += 1
-        if waited >= 60:
-            log.warning("browse_image: file browser did not open within 3s")
-            skin_string(SCRATCHPAD)
-            return None
-
-        # Wait for the dialog to close.
-        while condition("Window.IsActive(FileBrowser)"):
-            if monitor.waitForAbort(0.05):
-                return None
-
-        # Poll for writeback — Kodi commits the new value shortly after the
-        # dialog closes, not synchronously with it. Bounded to ~1s.
-        # Loop exits early as soon as the value differs from the seed.
-        result = ""
-        waited = 0
-        while waited < 20:
-            result = infolabel(f"Skin.String({SCRATCHPAD})")
-            if result and result != folder:
-                break
-            if monitor.waitForAbort(0.05):
-                return None
-            waited += 1
-
-        skin_string(SCRATCHPAD)  # clear
-
-        return None if (not result or result == folder) else result
-
-    @staticmethod
-    def colorpicker(cfg: dict) -> str | None:
-        """
-        Show a colour picker dialog and return the selected hex colour string,
-        or None if cancelled.
-        """
-        dlg = Dialog()
-        result = dlg.colorpicker(
-            cfg.get("heading", ""),
-            cfg.get("default", ""),
-        )
-        return result if result else None
-
-    @staticmethod
-    def custom(cfg: dict) -> None:
-        """
-        Execute a custom Kodi built-in command.
-        """
-        log.execute(cfg["action"])
-
-    @staticmethod
-    def runtime_script(cfg: dict) -> None:
-        """
-        Run a registered helper action in-process, so session resync can
-        follow synchronously. Lazy import avoids a module cycle.
-        """
-        from resources.lib.script.actions import REGISTRY
-
-        fn = REGISTRY.get(cfg.get("action", ""))
-        if fn:
-            fn(**cfg.get("kwargs", {}))
+        waited += 1
+    if waited >= 60:
+        log.warning("browse_image: file browser did not open within 3s")
+        skin_string(SCRATCHPAD)
         return None
 
-    @staticmethod
-    def input(cfg: dict) -> str | None:
-        """
-        Show a keyboard input dialog and return the entered string,
-        or None if cancelled.
-        """
-        dlg = Dialog()
-        result = dlg.input(
-            cfg.get("heading", ""),
-            cfg.get("default", ""),
-            cfg.get("inputType", 0),
-        )
-        return result if result != "" else None
+    # Wait for the dialog to close.
+    while condition("Window.IsActive(FileBrowser)"):
+        if monitor.waitForAbort(0.05):
+            return None
 
-    @staticmethod
-    def numeric(cfg: dict) -> str | None:
-        """
-        Show a numeric input dialog and return the entered value as a string,
-        or None if cancelled.
-        """
-        dlg = Dialog()
-        result = dlg.numeric(
-            cfg.get("numericType", 0),
-            cfg.get("heading", ""),
-            cfg.get("default", ""),
-        )
-        return result if result != "" else None
+    # Poll for writeback — Kodi commits the new value shortly after the
+    # dialog closes, not synchronously with it. Bounded to ~1s.
+    # Loop exits early as soon as the value differs from the seed.
+    result = ""
+    waited = 0
+    while waited < 20:
+        result = infolabel(f"Skin.String({SCRATCHPAD})")
+        if result and result != folder:
+            break
+        if monitor.waitForAbort(0.05):
+            return None
+        waited += 1
 
-    @staticmethod
-    def select(cfg: dict) -> int:
-        """
-        Show a selection dialog and return the chosen index.
-        """
-        dlg = Dialog()
-        return dlg.select(
-            cfg["heading"],
-            cfg["display_items"],
-            cfg.get("autoclose", -1),
-            cfg.get("preselect", 0),
-            cfg.get("useDetails", False),
-        )
+    skin_string(SCRATCHPAD)  # clear
+
+    return None if (not result or result == folder) else result
+
+
+def colorpicker(cfg: dict) -> str | None:
+    """
+    Show a colour picker dialog and return the selected hex colour string,
+    or None if cancelled.
+    """
+    dlg = Dialog()
+    result = dlg.colorpicker(
+        cfg.get("heading", ""),
+        cfg.get("default", ""),
+    )
+    return result if result else None
+
+
+def custom(cfg: dict) -> None:
+    """
+    Execute a custom Kodi built-in command.
+    """
+    log.execute(cfg["action"])
+
+
+def runtime_script(cfg: dict) -> None:
+    """
+    Run a registered helper action in-process, so session resync can
+    follow synchronously. Lazy import avoids a module cycle.
+    """
+    from resources.lib.script.actions import REGISTRY
+
+    fn = REGISTRY.get(cfg.get("action", ""))
+    if fn:
+        fn(**cfg.get("kwargs", {}))
+    return None
+
+
+def input(cfg: dict) -> str | None:
+    """
+    Show a keyboard input dialog and return the entered string,
+    or None if cancelled.
+    """
+    dlg = Dialog()
+    result = dlg.input(
+        cfg.get("heading", ""),
+        cfg.get("default", ""),
+        cfg.get("inputType", 0),
+    )
+    return result if result != "" else None
+
+
+def numeric(cfg: dict) -> str | None:
+    """
+    Show a numeric input dialog and return the entered value as a string,
+    or None if cancelled.
+    """
+    dlg = Dialog()
+    result = dlg.numeric(
+        cfg.get("numericType", 0),
+        cfg.get("heading", ""),
+        cfg.get("default", ""),
+    )
+    return result if result != "" else None
+
+
+def select(cfg: dict) -> int:
+    """
+    Show a selection dialog and return the chosen index.
+    """
+    dlg = Dialog()
+    return dlg.select(
+        cfg["heading"],
+        cfg["display_items"],
+        cfg.get("autoclose", -1),
+        cfg.get("preselect", 0),
+        cfg.get("useDetails", False),
+    )
