@@ -1,12 +1,11 @@
 # author: realcopacetic
 
-from dataclasses import dataclass
+from typing import NamedTuple
 
 from resources.lib.shared.utilities import to_int
 
 
-@dataclass(frozen=True, slots=True)
-class ArtworkIdentity:
+class ArtworkIdentity(NamedTuple):
     """
     Scoped item identity for the artwork currency handshake.
     Wire format is scope/pos/dbid/visit; the scope segment is omitted

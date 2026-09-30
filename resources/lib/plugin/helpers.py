@@ -19,8 +19,6 @@ from resources.lib.plugin.geometry import (
     compute_rect,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.hash import HashManager
-from resources.lib.shared.sqlite import TruncateCacheHandler
 from resources.lib.shared.text import fit_lines
 from resources.lib.shared.utilities import (
     condition,
@@ -603,6 +601,8 @@ def clamp_text(
     :param max_lines: Maximum rendered lines to keep.
     :return: Single unwrapped string; Kodi re-wraps it at render time.
     """
+    from resources.lib.shared.hash import HashManager
+    from resources.lib.shared.sqlite import TruncateCacheHandler
 
     scale = to_int(infolabel("System.ScreenHeight")) / _SKIN_HEIGHT
     cache = TruncateCacheHandler()

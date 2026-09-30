@@ -3,8 +3,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Mapping, Optional
+from typing import Mapping, NamedTuple, Optional
 
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import clamp, parse_bool, to_int
@@ -154,8 +153,7 @@ def align_y(posy: int, height: int, h: int, align: str = "center", pad: int = 0)
     return int(posy + (height - h) / 2) + (pad or 0)
 
 
-@dataclass(slots=True)
-class PlacementOpts:
+class PlacementOpts(NamedTuple):
     """
     Generic geometry/placement options.
 
