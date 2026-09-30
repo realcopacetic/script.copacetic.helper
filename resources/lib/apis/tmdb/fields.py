@@ -254,7 +254,7 @@ def pick_best_trailer(value: Any) -> str:
     Select the best trailer URL from a TMDb videos.results list.
 
     :param value: List of TMDb video dicts (videos.results).
-    :return: YouTube plugin URL or raw key string, or empty string if none.
+    :return: YouTube plugin URL, or empty string if none.
     """
     if not isinstance(value, list) or not value:
         return ""
