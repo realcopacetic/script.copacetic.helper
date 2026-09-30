@@ -126,10 +126,10 @@ def align_x(posx: int, width: int, w: int, align: str = "center", pad: int = 0) 
     """
     a = (align or "center").lower()
     if a == "left":
-        return posx + (pad or 0)
+        return posx + pad
     if a == "right":
-        return posx + max(0, width - w - (pad or 0))
-    return int(posx + (width - w) / 2) + (pad or 0)
+        return posx + max(0, width - w - pad)
+    return int(posx + (width - w) / 2) + pad
 
 
 def align_y(posy: int, height: int, h: int, align: str = "center", pad: int = 0) -> int:
@@ -147,10 +147,10 @@ def align_y(posy: int, height: int, h: int, align: str = "center", pad: int = 0)
     """
     a = (align or "center").lower()
     if a == "top":
-        return posy + (pad or 0)
+        return posy + pad
     if a == "bottom":
-        return posy + max(0, height - h - (pad or 0))
-    return int(posy + (height - h) / 2) + (pad or 0)
+        return posy + max(0, height - h - pad)
+    return int(posy + (height - h) / 2) + pad
 
 
 class PlacementOpts(NamedTuple):
@@ -198,8 +198,8 @@ class PlacementOpts(NamedTuple):
             relative=parse_bool(params.get("relative"), False),
             valign=(params.get("valign") or "center"),
             halign=(params.get("halign") or "center"),
-            vpad=to_int(params.get("vpad"), 0) or 0,
-            hpad=to_int(params.get("hpad"), 0) or 0,
+            vpad=to_int(params.get("vpad"), 0),
+            hpad=to_int(params.get("hpad"), 0),
             inset=params.get("inset", ""),
             outside=(params.get("outside") or None),
         )
@@ -260,25 +260,25 @@ def compute_rect(
             out_x = align_x(
                 anchor_x, anchor_w, target_w, align=opts.halign, pad=opts.hpad
             )
-            out_y = anchor_y + anchor_h + (opts.vpad or 0)
+            out_y = anchor_y + anchor_h + opts.vpad
             return out_x, out_y, target_w, target_h
 
         if mode == "above":
             out_x = align_x(
                 anchor_x, anchor_w, target_w, align=opts.halign, pad=opts.hpad
             )
-            out_y = anchor_y - (opts.vpad or 0) - target_h
+            out_y = anchor_y - opts.vpad - target_h
             return out_x, out_y, target_w, target_h
 
         if mode == "right":
-            out_x = anchor_x + anchor_w + (opts.hpad or 0)
+            out_x = anchor_x + anchor_w + opts.hpad
             out_y = align_y(
                 anchor_y, anchor_h, target_h, align=opts.valign, pad=opts.vpad
             )
             return out_x, out_y, target_w, target_h
 
         if mode == "left":
-            out_x = anchor_x - (opts.hpad or 0) - target_w
+            out_x = anchor_x - opts.hpad - target_w
             out_y = align_y(
                 anchor_y, anchor_h, target_h, align=opts.valign, pad=opts.vpad
             )
