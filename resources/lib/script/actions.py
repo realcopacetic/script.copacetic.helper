@@ -237,30 +237,6 @@ def dynamic_settings_window(**kwargs: str) -> None:
 
 
 @action
-def hex_contrast_check(**kwargs: str) -> None:
-    """
-    Calculates contrast for a hex color and sets Skin.String(Accent_Color_Contrast).
-
-    :param hex: Hex string (e.g., "#ffffff" or "ffffffff").
-    :return: "light" or "dark" contrast hint.
-    """
-    from resources.lib.art.editor import ImageEditor
-
-    image = ImageEditor()
-    hex = kwargs.get("hex", "")
-
-    if hex:
-        r = int(hex[2:-4], 16)
-        g = int(hex[4:-2], 16)
-        b = int(hex[6:], 16)
-        rgb = (r, g, b)
-        luminosity = image.return_luminosity(rgb)
-        best_contrast = "dark" if luminosity > 0.179 else "light"
-
-        log.execute(f"Skin.SetString(Accent_Color_Contrast,{best_contrast})")
-
-
-@action
 def play_album(**kwargs: str) -> None:
     """
     Starts playback of an album by ID.
