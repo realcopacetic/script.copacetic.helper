@@ -113,6 +113,19 @@ def error(message: str) -> None:
     log(message, level=ERROR)
 
 
+def exception(message: str, level: int = ERROR) -> None:
+    """
+    Logs a message followed by the traceback of the exception being handled.
+    Call it from an except block.
+
+    :param message: Message string.
+    :param level: Kodi log level constant.
+    """
+    import traceback
+
+    log(f"{message}\n{traceback.format_exc().rstrip()}", level)
+
+
 def execute(action: str, wait: bool = False) -> None:
     """
     Logs and executes a built-in Kodi command.

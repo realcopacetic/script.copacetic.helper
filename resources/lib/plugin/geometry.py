@@ -78,8 +78,8 @@ def resolve_rect(
             log.debug(
                 f"{name} → coords '{coords}' has {len(parts)} elements, expected 4"
             )
-        except Exception as exc:
-            log.debug(f"{name} → invalid coords '{coords}': {exc}")
+        except Exception:
+            log.exception(f"{name} → invalid coords '{coords}'", log.DEBUG)
 
     if anchor_id:
         try:
@@ -89,8 +89,8 @@ def resolve_rect(
             log.debug(f"{name} → {anchor_id=}, raw={rect}")
             return rect
 
-        except Exception as exc:
-            log.warning(f"{name} → failed to read anchor {anchor_id}: {exc}")
+        except Exception:
+            log.exception(f"{name} → failed to read anchor {anchor_id}", log.WARNING)
             return
 
     log.warning(f"{name} → anchor_id or coords required")

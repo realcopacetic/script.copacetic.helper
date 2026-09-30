@@ -724,7 +724,9 @@ class TypewriterAnimation:
             control = self.window.getControl(control_id)
             control.setText("")
         except Exception:
-            log.debug(f"{self.__class__.__name__} → Control {control_id} not found")
+            log.exception(
+                f"{self.__class__.__name__} → Control {control_id} not found", log.DEBUG
+            )
             return
 
         def _abort(reason: str) -> None:

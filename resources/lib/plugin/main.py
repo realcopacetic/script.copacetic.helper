@@ -20,20 +20,16 @@ class Main:
 
     def __init__(self, t0: float | None = None) -> None:
         self._t0 = t0
-        self._parse_argv()
+        self.params = self._parse_argv()
         self.info = self.params.get("info")
         if self.info:
             self.run_handler()
         else:
             self.run_listing()
 
-    def _parse_argv(self) -> None:
+    def _parse_argv(self) -> dict[str, str]:
         """Parse argv using parser (handles both plugin/script styles)."""
-        try:
-            self.params = parse_params(sys.argv, mode="plugin")
-        except Exception as e:
-            log.warning(f"_parse_argv error: {e}")
-            self.params = {}
+        return parse_params(sys.argv, mode="plugin")
 
     def run_handler(self) -> None:
         """Dispatch a plugin handler (from ?info=...) and emit its items."""

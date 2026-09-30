@@ -12,7 +12,7 @@ class Main:
 
     def __init__(self, registry: dict[str, Callable]) -> None:
         self._registry = registry
-        self._parse_argv()
+        self.params = self._parse_argv()
         action = self.params.pop("action", "").strip()
         if not action:
             log.debug("No 'action' provided; aborting.")
@@ -26,21 +26,15 @@ class Main:
         try:
             fn(**kwargs)
             log.debug(f"Script ran action '{action}' with params: {kwargs}")
-        except TypeError as e:
-            log.warning(f"Action '{action}' arg mismatch: {e}")
-        except Exception as e:
-            log.error(f"Action '{action}' raised: {e}")
+        except Exception:
+            log.exception(f"Action '{action}' raised with params {kwargs}")
 
     def _parse_argv(self) -> dict[str, str]:
         """
         The parser accepts both plugin-style querystrings and RunScript k=v tokens,
         preserves literal '+', tolerates raw '&' and commas in values, and %-decodes.
         """
-        try:
-            self.params = parse_params(sys.argv, mode="script")
-        except Exception as e:
-            log.warning(f"_parse_argv error: {e}")
-            self.params = {}
+        return parse_params(sys.argv, mode="script")
 
     def _dispatch(self, action: str) -> Callable | None:
         """

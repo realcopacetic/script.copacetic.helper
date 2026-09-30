@@ -179,9 +179,10 @@ def apply_videoinfotag(
                 setter(str(value))
 
         except Exception:
-            log.debug(
+            log.exception(
                 f"apply_videoinfotag: Failed to set {key}={value!r} "
-                f"(type={coerce_type})"
+                f"(type={coerce_type})",
+                log.DEBUG,
             )
             continue
 

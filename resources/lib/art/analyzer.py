@@ -83,6 +83,7 @@ class ColorAnalyzer:
             _, idx = max(filtered or counts, key=lambda t: t[0])
             return swatches[idx]
         except Exception:
+            log.exception(f"{self.__class__.__name__} → dominant colour failed")
             return (0, 0, 0)
 
     @log.duration
@@ -139,10 +140,8 @@ class ColorAnalyzer:
                 c for c in count_map if self._rgb_dist(c, dominant_rgb) > min_dist
             ]
             return max(candidates or [dominant_rgb], key=score)
-        except Exception as exc:
-            log.debug(
-                f"{self.__class__.__name__} → accent scoring failed → {exc}",
-            )
+        except Exception:
+            log.exception(f"{self.__class__.__name__} → accent scoring failed")
             return dominant_rgb
 
     def get_luminosity(self, rgb: RGB) -> float:

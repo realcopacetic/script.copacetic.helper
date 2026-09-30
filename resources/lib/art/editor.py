@@ -115,10 +115,8 @@ class ImageEditor:
                     )
                 ]
             )
-        except Exception as error:
-            log.error(
-                f"{self.__class__.__name__} → Error during image processing → {error}",
-            )
+        except Exception:
+            log.exception(f"{self.__class__.__name__} → Error during image processing")
             return {}
 
     def _handle_jobs(
