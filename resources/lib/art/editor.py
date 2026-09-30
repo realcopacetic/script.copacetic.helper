@@ -17,7 +17,6 @@ from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     BLURS,
     CROPS,
-    TEMPS,
     create_dir,
     infolabel,
     validate_path,
@@ -66,8 +65,6 @@ class ImageEditor:
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.temp_folder = self.cache_manager.temp_folder
         self.cfg = policy.ColorConfig()
-        for folder in (BLURS, CROPS, TEMPS):
-            create_dir(folder)
 
     @cached_property
     def processor(self) -> ImageProcessor:
@@ -344,6 +341,7 @@ class ImageEditor:
 
         if folder and "image" in result:
             processed_path = destination_path
+            create_dir(folder)
             write_image(
                 processed_path, result["image"], result.get("format", "PNG"), self.cfg
             )

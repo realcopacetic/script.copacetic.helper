@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import time
+from functools import cached_property
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -34,8 +35,7 @@ TRUNCATE_DB_FIELDS = tuple(name for name, _ in TRUNCATE_DB_SCHEMA)
 
 class SQLiteHandler:
     """
-    Base SQLite handler with WAL-enabled connections.
-    Provides shared CRUD helpers for SQLite-backed caches.
+    Base SQLite handler: one WAL connection per instance, shared CRUD helpers.
     Subclasses must set TABLE_NAME, implement _initialize_database().
     """
 
@@ -59,14 +59,15 @@ class SQLiteHandler:
         """
         raise NotImplementedError
 
-    def _connect(self) -> sqlite3.Connection:
+    @cached_property
+    def _conn(self) -> sqlite3.Connection:
         """
-        Open a SQLite connection with WAL mode enabled.
-
-        :return: Active sqlite3 connection.
+        This handler's connection, opened on first use. WAL mode persists in
+        the database file, so it is set once here rather than per query.
         """
         conn = sqlite3.connect(self.db_path, timeout=5)
         conn.execute("PRAGMA journal_mode=WAL;")
+        conn.row_factory = sqlite3.Row
         return conn
 
     def _insert_or_replace(
@@ -84,7 +85,7 @@ class SQLiteHandler:
         cols = ", ".join(columns)
         placeholders = ", ".join("?" for _ in columns)
 
-        with self._connect() as conn:
+        with self._conn as conn:
             conn.execute(
                 f"""
                 INSERT OR REPLACE INTO {self.TABLE_NAME} (
@@ -93,7 +94,6 @@ class SQLiteHandler:
                 """,
                 values,
             )
-            conn.commit()
 
     def _delete_where(self, where: str, params: tuple[Any, ...]) -> None:
         """
@@ -105,12 +105,11 @@ class SQLiteHandler:
         if not self.TABLE_NAME:
             raise RuntimeError("TABLE_NAME must be defined.")
 
-        with self._connect() as conn:
+        with self._conn as conn:
             conn.execute(
                 f"DELETE FROM {self.TABLE_NAME} WHERE {where}",
                 params,
             )
-            conn.commit()
 
     def _get_one(
         self,
@@ -124,15 +123,10 @@ class SQLiteHandler:
         :param params: SQL parameters for the WHERE clause.
         :return: Row dict if found, else None.
         """
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {self.TABLE_NAME} WHERE {where}", params)
-            row = cursor.fetchone()
-            if not row:
-                return None
-
-            col_names = [desc[0] for desc in cursor.description]
-            return dict(zip(col_names, row))
+        row = self._conn.execute(
+            f"SELECT * FROM {self.TABLE_NAME} WHERE {where}", params
+        ).fetchone()
+        return dict(row) if row else None
 
     def _get_many(
         self,
@@ -146,15 +140,10 @@ class SQLiteHandler:
         :param params: SQL parameters for the WHERE clause.
         :return: List of row dicts (empty if no matches).
         """
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {self.TABLE_NAME} WHERE {where}", params)
-            rows = cursor.fetchall()
-            if not rows:
-                return []
-
-            col_names = [desc[0] for desc in cursor.description]
-            return [dict(zip(col_names, row)) for row in rows]
+        rows = self._conn.execute(
+            f"SELECT * FROM {self.TABLE_NAME} WHERE {where}", params
+        )
+        return [dict(row) for row in rows]
 
     def clear_all(self) -> None:
         """
@@ -164,9 +153,8 @@ class SQLiteHandler:
         if not self.TABLE_NAME:
             raise RuntimeError("TABLE_NAME must be set on subclasses.")
 
-        with self._connect() as conn:
+        with self._conn as conn:
             conn.execute(f"DELETE FROM {self.TABLE_NAME}")
-            conn.commit()
 
 
 class ArtworkCacheHandler(SQLiteHandler):
@@ -190,9 +178,8 @@ class ArtworkCacheHandler(SQLiteHandler):
         cols_sql = ",\n".join(f"{name} {decl}" for name, decl in policy.ART_DB_SCHEMA)
         unique_sql = ", ".join(policy.ART_DB_UNIQUE)
 
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
+        with self._conn as conn:
+            conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     {cols_sql},
@@ -202,12 +189,10 @@ class ArtworkCacheHandler(SQLiteHandler):
 
             for idx_name, cols in policy.ART_DB_INDEXES:
                 idx_cols_sql = ", ".join(cols)
-                cursor.execute(f"""
+                conn.execute(f"""
                     CREATE INDEX IF NOT EXISTS {idx_name}
                     ON {self.TABLE_NAME}({idx_cols_sql})
                     """)
-
-            conn.commit()
 
     def add_entry(self, attributes: dict[str, Any]) -> None:
         """
@@ -288,9 +273,8 @@ class ArtworkCacheHandler(SQLiteHandler):
         assignments = ", ".join(f"{c} = ?" for c in cols)
 
         try:
-            with self._connect() as conn:
-                cur = conn.cursor()
-                cur.execute(
+            with self._conn as conn:
+                cur = conn.execute(
                     f"""
                     UPDATE {self.TABLE_NAME}
                     SET {assignments}
@@ -298,7 +282,6 @@ class ArtworkCacheHandler(SQLiteHandler):
                     """,
                     (*vals, cache_key),
                 )
-                conn.commit()
                 return cur.rowcount or 0
         except Exception:
             log.debug(
@@ -339,20 +322,18 @@ class TmdbCacheHandler(SQLiteHandler):
         unique_sql = ", ".join(TMDB_UNIQUE)
         index_cols_sql = ", ".join(TMDB_LOOKUP_INDEX)
 
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
+        with self._conn as conn:
+            conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     {cols_sql},
                     UNIQUE ({unique_sql})
                 )
                 """)
-            cursor.execute(f"""
+            conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_tmdb_cache_lookup
                 ON {self.TABLE_NAME}({index_cols_sql})
                 """)
-            conn.commit()
 
     def get_entry(
         self, dbtype: str, tmdb_id: int, language: str
@@ -447,14 +428,13 @@ class TruncateCacheHandler(SQLiteHandler):
     def _initialize_database(self) -> None:
         """Create the truncate cache table."""
         cols_sql = ",\n".join(f"{name} {decl}" for name, decl in TRUNCATE_DB_SCHEMA)
-        with self._connect() as conn:
+        with self._conn as conn:
             conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     {cols_sql}
                 )
                 """)
-            conn.commit()
 
     def get_entry(self, cache_key: str) -> str | None:
         """

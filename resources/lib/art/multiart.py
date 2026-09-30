@@ -22,9 +22,6 @@ DEFAULT_SLOTS = 15
 MAX_SLOTS = 50
 
 
-_TMDB_CACHE = TmdbCache()
-
-
 def build_multiart_dict(
     *,
     target: str,
@@ -96,7 +93,7 @@ def _get_tmdb_art(
         return {}
 
     try:
-        art = _TMDB_CACHE.get_field(resolved_dbtype, tmdb_id, language, "art") or {}
+        art = TmdbCache().get_field(resolved_dbtype, tmdb_id, language, "art") or {}
         return art
     except Exception as exc:  # noqa: BLE001
         log.debug(
