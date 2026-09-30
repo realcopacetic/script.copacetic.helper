@@ -26,7 +26,6 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     plugin_path,
-    return_label,
     split,
     split_random,
     to_int,
@@ -181,7 +180,7 @@ class DataHandler:
         :param genre_aliases: (substring, name) pairs renaming the picked genre.
         :return: Dictionary with art, resume, contributors, etc.
         """
-        label = return_label(self.infolabels["Label"])
+        label = self.infolabels["Label"]
         directors, genres = self.infolabels["Director"], self.infolabels["Genre"]
         return {
             "file": plugin_path("metadata"),
