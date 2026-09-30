@@ -13,9 +13,15 @@ import uuid
 
 from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
 from resources.lib.builders.substitution import TokenError, render
+from resources.lib.builders.templates import load_template_data
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler
-from resources.lib.shared.utilities import condition, infolabel
+from resources.lib.shared.utilities import (
+    RUNTIME_STATE,
+    TEMPLATES,
+    condition,
+    infolabel,
+)
 
 # Namespace for deterministic default-entry ids: clean reseeds reproduce
 # identical runtime_ids, keeping baked XML references valid across seeds.
@@ -50,6 +56,14 @@ class RuntimeStateManager:
         self._runtime_state_cache = None
         self._resolved_cache = {}
         self.state_version = 0
+
+    @classmethod
+    def from_templates(cls) -> "RuntimeStateManager":
+        """
+        Manager over the skin's templates (resolver cache first, else source)
+        and the add-on's runtime_state.json.
+        """
+        return cls(*load_template_data(TEMPLATES), runtime_state_path=RUNTIME_STATE)
 
     @property
     def mappings(self) -> dict:

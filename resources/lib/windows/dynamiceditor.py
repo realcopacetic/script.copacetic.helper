@@ -12,14 +12,8 @@ from xbmcgui import (
 )
 
 from resources.lib.builders.runtime import RuntimeStateManager
-from resources.lib.builders.templates import load_template_data
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import (
-    TEMPLATES,
-    RUNTIME_STATE,
-    infolabel,
-    window_property,
-)
+from resources.lib.shared.utilities import infolabel, window_property
 from resources.lib.windows.control_factory import DynamicControlFactory
 from resources.lib.windows.controls import ButtonHandler
 
@@ -49,13 +43,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.controls_from = []
         self._xml_filename = xmlFilename.lower()
 
-        mappings, configs_data, controls_data = load_template_data(TEMPLATES)
-        self.runtime_manager = RuntimeStateManager(
-            mappings=mappings,
-            configs_data=configs_data,
-            controls_data=controls_data,
-            runtime_state_path=RUNTIME_STATE,
-        )
+        self.runtime_manager = RuntimeStateManager.from_templates()
         # Snapshot here, not in onInit — the post-doModal rebuild comparison
         # must work even if onInit aborts (e.g. contract controls missing
         # from the window XML).

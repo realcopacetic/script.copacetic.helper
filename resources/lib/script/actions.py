@@ -10,9 +10,7 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     ADDON,
     DIALOG,
-    RUNTIME_STATE,
     SKINXML,
-    TEMPLATES,
 )
 from resources.lib.shared.utilities import clear_cache as _clear_cache_util
 from resources.lib.shared.utilities import clear_label as _clear_label_util
@@ -110,10 +108,9 @@ def delete_orphans(**kwargs: str) -> None:
         log.error("delete_orphans: 'child_mapping' kwarg is required")
         return
 
-    from resources.lib.builders.build_elements import BuildElements
+    from resources.lib.builders.runtime import RuntimeStateManager
 
-    build = BuildElements()
-    removed = build.runtime_manager.delete_orphans(
+    removed = RuntimeStateManager.from_templates().delete_orphans(
         child_mapping,
         require_parent=kwargs.get("require_parent", "").lower() == "true",
     )
@@ -127,7 +124,9 @@ def delete_orphans(**kwargs: str) -> None:
             # deletions and rebuilds once — a reload here lands under the modal.
             log.info("delete_orphans: editor session live — rebuild deferred")
         else:
-            build.run()
+            from resources.lib.builders.build_elements import BuildElements
+
+            BuildElements().run()
             log.execute("ReloadSkin()")
 
 
@@ -558,7 +557,6 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
     :param layout: Kodi layout identifier; prompts with a picker when absent.
     """
     from resources.lib.builders.runtime import RuntimeStateManager
-    from resources.lib.builders.templates import load_template_data
     from resources.lib.shared.keyboard import keyboard_layout_trees, layout_characters
 
     trees = keyboard_layout_trees()
@@ -574,13 +572,7 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
             return
         layout = choices[picked]
 
-    mappings, configs_data, controls_data = load_template_data(TEMPLATES)
-    manager = RuntimeStateManager(
-        mappings=mappings,
-        configs_data=configs_data,
-        controls_data=controls_data,
-        runtime_state_path=RUNTIME_STATE,
-    )
+    manager = RuntimeStateManager.from_templates()
     manager.reseed_entries("keyboard", layout_characters(layout, trees))
 
 
