@@ -8,7 +8,7 @@ A mapping is a named list plus what each item on it knows about itself. Every bu
 
 ## Where they live
 
-The addon ships one built-in mapping (`content_types`). Your own go in `extras/templates/mappings/` — each file an object of mapping name → definition. Reusing a built-in's name replaces it.
+Mappings come from your skin: `extras/templates/mappings/*.json`. The addon ships none. Each file is an object of mapping name → definition, and a file can hold several mappings. If two files define the same name, the file that sorts last wins.
 
 ```json
 {
@@ -27,14 +27,13 @@ The addon ships one built-in mapping (`content_types`). Your own go in `extras/t
 | Field | Required | What it does |
 |---|---|---|
 | `items` | Yes | The values to loop over |
-| `placeholders` | Yes | What to call the `{token}` for each value |
+| `placeholders` | Yes | What to call the `{token}` for each value: `key`, plus `value` for a dict of lists |
 | `mode` | No | `"dynamic"` = this mapping gets entries in the settings file. Default `"static"` = loop values only. See [Overview](01-overview.md#the-three-kinds-of-mapping). |
 | `default_order` | No | Which items get entries when the settings file is first created, in order. Defaults to all of `items`. |
 | `config_fields` | No | Which settings entries have, and which config governs each — see below |
 | `metadata` | No | Facts about each item, usable as `{tokens}` |
-| `tokens` | No | Shared snippets for templates that borrow this mapping via `templates_from` — see below |
-| `runtime_fields` | No | Which fields are stored on entries without the item-name prefix — `{"*": [...], "<item>": [...]}`, per-item lists unioned with the wildcard. Unset = every runtime field keeps the prefix. |
-| `parent_mapping` | No | Which mapping's entries own this one's (the hub pattern — [Includes → Hubs](07-includes.md#hubs-each-parent-owns-its-own-children)) |
+| `tokens` | No | Shared snippets filled into every template that expands with this mapping — see below |
+| `parent_mapping` | No | Which mapping's entries own this one's — see [Includes → Parent and child lists](07-includes.md#parent-and-child-lists) |
 | `skin_mirrors` | No | Field → skin-setting pairs kept in sync so skin XML can read a runtime value — see below |
 
 ---
@@ -57,7 +56,7 @@ Each pass gets `{widget_preset}` set to the item name.
 "placeholders": { "key": "window", "value": "content_type" }
 ```
 
-Each pass gets both `{window}` and `{content_type}`. For dynamic mappings, prefer a flat list and put the grouping in metadata — that's how `content_types` tags each type with its `window`.
+Each pass gets both `{window}` and `{content_type}`, and the metadata of both the outer and the inner item. For dynamic mappings, use a flat list and put the grouping in metadata: entries are created from the item names, and a dynamic pass only fills the `key` placeholder. Copacetic's `content_types` mapping tags each type with its `window` this way.
 
 Every pass also gets `{count}`, `{is_first}`, `{is_last}` — see [Overview → Placeholders](01-overview.md#placeholders).
 
@@ -84,13 +83,15 @@ This is what lets one includes template produce different output per item — ea
 
 The `custom` preset is nearly empty on purpose. The user fills in `content` and `label` through the editor.
 
+**Special fields.** Two metadata fields mean something to the addon. `parent` names an item in the `parent_mapping` — see [Parent and child lists](07-includes.md#parent-and-child-lists). `xsp` holds a smart-playlist dict that becomes the `{xsp}` token — see [Includes → What the tokens are](07-includes.md#what-the-tokens-are).
+
 **Strings vs everything else.** Only string values can end up on settings-file entries and be edited. Dicts, lists, and numbers stay in the mapping — the builders can still use them (an `xsp` smart-playlist dict becomes the `{xsp}` token, for example), but they never appear in the settings file. So: user-editable → make it a string, even if just `""`.
 
 ---
 
 ## `tokens` — shared snippets for borrowing templates
 
-Where `metadata` attaches facts to *items*, `tokens` attaches them to the *mapping itself* — one set of text snippets that any template borrowing this mapping via [`templates_from`](03-variables.md#templates_from--one-template-several-mappings) gets filled in.
+Where `metadata` attaches facts to *items*, `tokens` attaches them to the *mapping itself* — one set of text snippets filled into every template that expands with this mapping: templates in files that name it, and templates that borrow it via [`templates_from`](03-variables.md#templates_from--one-template-several-mappings).
 
 Use them when two mappings need the same template but speak different Kodi grammar. Widgets and search both have focus and paging — but the conditions differ:
 
@@ -107,9 +108,11 @@ Use them when two mappings need the same template but speak different Kodi gramm
 
 A template that writes `{focus}` gets the right grammar for whichever mapping it's expanding for. Tokens can contain other placeholders (`{index}` here) — those resolve on each loop pass as usual.
 
+**Every token must resolve on every pass.** All of a mapping's tokens are rendered for every pass of every template that uses the mapping — not just the tokens a template mentions — and an unknown placeholder inside a token stops the build. So if a token uses `{index}`, every template on a static mapping must declare `index` (dynamic mappings always have `{index}`). Tokens are rendered before `range`, `items` and `items_from` are applied, so a token can't use `{range}`, `{item}` or a borrowed mapping's names.
+
 Tokens are rendered against each pass before they're added to it, so anything they contain resolves per pass — including `{@mapping:{item}.field}` reaches. The widgets mapping reads its slot count from the views mapping this way: `"slot_range": "{@views:{layout}.slot_range}"`, filled per entry from that entry's `layout`. They sit *under* the pass's own values: an item's metadata or an entry field of the same name wins over a token.
 
-**Standing in for another mapping's placeholder.** A token named after a placeholder the template expects — but this mapping's passes don't supply — fills it. The `views` mapping declares `"region": "primary"` as a token; any `…_{region}` template borrowed by views then expands all eight view containers under the single name `…_primary`, and an `append` rule ORs them into one rollup. That's how `container_hasfocus_primary` is `Control.HasFocus(50) | … | Control.HasFocus(57)` from the same template that gives secondary and each widget their own expression.
+**Standing in for another mapping's placeholder.** A token named after a placeholder the template expects — but this mapping's passes don't supply — fills it. In Copacetic, the `views` mapping (key `layout`) declares `"region": "views"` as a token; any `…_{region}` template borrowed by views then expands all eight view containers under the single name `…_views`, and an `append` rule ORs them into one rollup. That's how `container_hasfocus_views` is `Control.HasFocus(50) | … | Control.HasFocus(57)` from the same template that gives secondary and each widget their own expression.
 
 **Splice fields.** Metadata is plain text, so a field can carry a fragment meant for concatenation — `"visible_extra": " + !Container.Content(genres)"` on the list view, `""` on the rest — and the template writes `{hasfocus}{visible_extra}`. Leading operator and space live in the field; empty means nothing added.
 
@@ -146,7 +149,7 @@ The `{widget_preset}` token in a config name is filled with the entry's item nam
 
 ### The three kinds of setting
 
-- **Fixed by you** — plain metadata (`target`, `content`, `icon` on the built-in presets). Copied to the entry; the editor leaves them alone unless you bind a control to them.
+- **Fixed by you** — plain metadata (`target`, `content`, `icon` on the built-in presets). Read from the mapping every time, not stored on the entry; the editor leaves them alone unless you bind a control to them. Once a control writes the field, the stored value wins over the metadata.
 - **Picked from a list** — declared in `config_fields`, the user chooses from the config's allowed values (`layout`, `art`).
 - **Typed or browsed** — bound to a control but with no config: the user enters whatever they want (`content` and `label` on the custom widget).
 
@@ -183,7 +186,7 @@ The value is read *resolved* — the stored value, or the config default when th
 
 ## `default_order`
 
-Which items get entries when the settings file is first created, and in what order. Entries store only their identity at that point — every setting shows its config default until the user changes it. Which means: change a default in your templates, and every entry the user never touched picks it up.
+Which items get entries when the settings file is first created (or the mapping is first added to it, or reset), and in what order. Entries store only their identity at that point — every setting shows its config default until the user changes it. Which means: change a default in your templates, and every entry the user never touched picks it up.
 
 ---
 
@@ -197,7 +200,7 @@ Every builder input file names its mapping at the top:
 
 Spread one mapping's inputs across as many files as you like — they all share the same loop values.
 
-`"mapping": "none"` (or leaving it out) means no loop values — for templates that only need an `{index}` range.
+`"mapping": "none"` means no loop values: one pass, for templates that only need an `index`, `range` or `items` loop. Any name that isn't a defined mapping behaves the same way, silently, so check the spelling. A JSON input file with no `"mapping"` key is skipped entirely. An includes XML file with no `<mapping>` element uses `none`.
 
 **Token fallback across entries.** When a label, description, or onclick token isn't on the highlighted entry, it falls back to the first *other* entry in the same mapping that has it (the highlighted entry always wins on collision). Handy for mappings where each entry carries different fields — a button on one row can read a flag stored on another. Editor-side only: build templates never fall back across entries, so a `{token}` in an includes or variables template still needs to exist on the entry being expanded.
 
