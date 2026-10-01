@@ -1,6 +1,6 @@
 # Use Cases — Chaining the Builders
 
-Three worked examples from Copacetic 2. Patterns to borrow, not rules.
+Four worked examples based on Copacetic 2's templates — the names in them are Copacetic's. Patterns to borrow, not rules.
 
 ---
 
@@ -33,7 +33,7 @@ Ten variables out. Use with `$VAR[texture_primary_poster1]` etc. No configs, con
 
 ## 2. Views — a fixed list
 
-**Builders:** configs → controls → expressions. **Mapping:** `content_types` (built-in).
+**Builders:** configs → controls → expressions. **Mapping:** `content_types` (dynamic, defined in the skin).
 
 The user picks a layout per content type; the skin shows the matching view. The list of content types is fixed — the user only edits each one's settings.
 
@@ -111,7 +111,7 @@ All choices live as fields on the content-type entries in the settings file.
 
 **Builders:** configs → controls → includes. **Mapping:** `widgets` (custom).
 
-Widget slots the user adds, deletes, reorders, and configures. One `<include>` call per slot.
+Widgets the user adds, deletes, reorders, and configures. One `<include>` call per widget.
 
 ### The mapping
 
@@ -140,7 +140,7 @@ Widget slots the user adds, deletes, reorders, and configures. One `<include>` c
 }
 ```
 
-`parent` names a main-menu item — swapped for that entry's permanent id when the settings file is created, which is what keeps widgets attached to their menu item across reorders ([hubs](07-includes.md#hubs-each-parent-owns-its-own-children)). The `custom` preset is nearly empty; the user fills it in.
+`parent` names a main-menu item — swapped for that entry's permanent id when the settings file is created, which is what keeps widgets attached to their menu item across reorders ([parent and child lists](07-includes.md#parent-and-child-lists)). The `custom` preset is nearly empty; the user fills it in.
 
 ### Configs
 
@@ -228,7 +228,6 @@ Note `dependent_fields`: the art options react to the chosen layout ([Configs �
 
 ```xml
 <template>
-  <mode>dynamic</mode>
   <index start="3200" />
   <include name="widget_containers">
     <include content="ctn_{layout}">
@@ -242,15 +241,15 @@ Note `dependent_fields`: the art options react to the chosen layout ([Configs �
 </template>
 ```
 
-The outer include appears once; the inner call multiplies — one per widget, each routed to your matching layout include (`ctn_strip`, `ctn_grid`, …). When the user closes the editor, this rebuilds and the skin reloads.
+`widgets` is a dynamic mapping, so the template loops its settings-file entries. The outer include appears once; the inner call multiplies — one per widget, each routed to your matching layout include (`ctn_strip`, `ctn_grid`, …). When the user closes the editor, this rebuilds and the skin reloads.
 
 ---
 
-## 4. Regions — one cascade, per-item deltas
+## 4. Shared cascades — one template, per-item differences
 
-**Builders:** variables + expressions. **Mappings:** `regions` (static), borrowed alongside `widgets`, `search`, `views`.
+**Builders:** variables + expressions. **Mappings:** Copacetic's `regions` (static), borrowed alongside `widgets`, `search`, `views`.
 
-The skin has several places that show "the current item": the media view (**primary**), the secondary strip (**secondary**), the home hub's widgets, and the search rails. They need the same cascades — which clearlogo, is the container updating, is the typewriter ready — but each one addresses its list differently. Writing four copies of every cascade is the maintenance trap `templates_from` exists for; the regions mapping is where the per-place differences live.
+The skin has several places that show "the current item": the media view (**primary**), the secondary strip (**secondary**), the home screen's widgets, and the search lists. They need the same cascades — which clearlogo, is the container updating, is the typewriter ready — but each one addresses its list differently. Writing four copies of every cascade is the maintenance trap `templates_from` exists for; a static mapping (here called `regions`, key `{region}`) is where the per-place differences live.
 
 ### The mapping
 
@@ -261,17 +260,17 @@ The skin has several places that show "the current item": the media view (**prim
   "placeholders": { "key": "region" },
   "tokens": {
     "guard": "true",
-    "id_filter": "equals({region}, secondary)",
+    "id_filter": "In({region}, [primary, secondary])",
     "texture_prefix": "{region}"
   },
   "metadata": {
-    "primary":   { "listitem": "ListItem",                 "onnext": "[Container.OnNext + Integer.IsGreater(Container.NumItems,1)] | $EXP[container_onnext_widgets]", "window": "videos" },
-    "secondary": { "listitem": "Container(3100).ListItem", "onnext": "Container(3100).OnNext + Integer.IsGreater(Container(3100).NumItems,1)", "hasfocus": "Control.HasFocus(3100) | Control.HasFocus(4100)", "updating": "Container(3100).IsUpdating" }
+    "primary":   { "listitem": "ListItem",                 "updating": "$EXP[container_updating_views]", "window": "videos" },
+    "secondary": { "listitem": "Container(3100).ListItem", "hasfocus": "Control.HasFocus(3100) | Control.HasFocus(4100)", "updating": "Container(3100).IsUpdating" }
   }
 }
 ```
 
-Static: nothing stored, no editor. `tokens` are the mapping-wide defaults; `metadata` is what differs per region. The widgets and search mappings declare the *same token names* (`guard`, `listitem`, `onnext`, `updating`, …) with their own grammar — `Container({index}).ListItem`, `Control.HasFocus({index}) | $EXP[search_preview_{index}]` — so a template written against those names works for all of them.
+Static: nothing stored, no editor. `tokens` are the mapping-wide defaults; `metadata` is what differs per place. The widgets and search mappings declare the *same token names* (`guard`, `listitem`, `updating`, …) with their own grammar — `Container({index}).ListItem`, `Control.HasFocus({index}) | $EXP[search_preview_{index}]` — so a template written against those names works for all of them.
 
 ### One template, four families
 
@@ -288,12 +287,12 @@ What comes out:
 
 | Borrowed from | `{region}` is | Output |
 |---|---|---|
-| regions (secondary only, via `id_filter`) | the item name | `container_updating_secondary` = `Container(3100).IsUpdating` |
+| regions (primary and secondary, via `id_filter`) | the item name | `container_updating_secondary` = `Container(3100).IsUpdating`; `container_updating_primary` = `$EXP[container_updating_views]` |
 | widgets | the token `"widgets"` | `container_updating_widgets` = one `[…]` per configured widget, ORed |
 | search | the token `"search"` | `container_updating_search` = one per rail, ORed |
-| views | the token `"primary"` | `container_updating_primary` = `Container(50).IsUpdating | … | Container(57).IsUpdating` |
+| views | the token `"views"` | `container_updating_views` = `Container(50).IsUpdating | … | Container(57).IsUpdating` |
 
-The last row is the trick worth learning: `views` sets `"region": "primary"` as a *token*, so all eight view containers land under one name and `append` rolls them up. Primary's rollup falls out of the same rule as everyone else's — no separate template.
+The last row is the trick worth learning: the views mapping's key is `layout`, so its passes have no `{region}` — it sets `"region": "views"` as a *token*, so all eight view containers land under one name and `append` rolls them up. The rollup falls out of the same rule as everyone else's — no separate template — and primary's metadata simply points at it.
 
 ### The same for variables
 

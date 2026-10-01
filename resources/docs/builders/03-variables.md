@@ -206,7 +206,7 @@ One row set; two families out — `art_clearlogo_widgets` per widget, `art_clear
 
 `templates_from` *replaces* the file's `mapping` as the loop source. If the file's own mapping should expand too, list it: `expressions_regions.json` declares `"mapping": "regions"` and `"templates_from": ["regions", "widgets", "search", "views"]`. A file that only borrows can say `"mapping": "none"`.
 
-When to reach for it: several mappings need *the same cascade* and differ only in a handful of snippets. Put the snippets in each mapping's `tokens`, write the cascade once. If the cascades differ in *structure* — different rows, not different snippets — they're different templates; don't force it. And when the deltas vary by **item** rather than by mapping, use a static mapping whose `metadata` carries them instead — the regions pattern, [use case 4](10-use-cases.md#4-regions--one-cascade-per-item-deltas).
+When to reach for it: several mappings need *the same cascade* and differ only in a handful of snippets. Put the snippets in each mapping's `tokens`, write the cascade once. If the cascades differ in *structure* — different rows, not different snippets — they're different templates; don't force it. And when the deltas vary by **item** rather than by mapping, use a static mapping whose `metadata` carries them instead — the shared-cascade pattern, [use case 4](10-use-cases.md#4-shared-cascades--one-template-per-item-differences).
 
 ---
 
