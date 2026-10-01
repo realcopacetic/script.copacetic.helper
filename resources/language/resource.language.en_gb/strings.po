@@ -306,11 +306,6 @@ msgstr ""
 #########################################################################################################
 
 #: /resources/lib/windows/browse.py
-msgctxt "#32824"
-msgid "Add item..."
-msgstr ""
-
-#: /resources/lib/windows/browse.py
 msgctxt "#32804"
 msgid "Custom path..."
 msgstr ""
