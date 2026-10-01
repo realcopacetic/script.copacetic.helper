@@ -195,27 +195,16 @@ def sequence_to_multiart_dict(urls: Iterable[str]) -> dict[str, str]:
     return result
 
 
-def order_multiart(
-    art: dict[str, str],
-    *,
-    randomize: bool = True,
-    keep_main_first: bool = True,
-) -> list[str]:
+def order_multiart(art: dict[str, str]) -> list[str]:
     """
-    Resolve the display order for a multiart dict.
+    Resolve the display order for a multiart dict: main image first, extras shuffled.
 
-    :param art: Dict containing "multiart" and "multiart1..N".
-    :param randomize: Shuffle the non-main entries if True.
-    :param keep_main_first: Keep the main image first (recommended ON).
+    :param art: Dict from sequence_to_multiart_dict ("multiart" first).
     :return: Ordered list of URLs, main first.
     """
-    main = art.get("multiart")
-    extras = [
-        v for k, v in art.items() if k.startswith("multiart") and k != "multiart" and v
-    ]
-    if randomize:
-        random.shuffle(extras)
-    return [u for u in ([main] if keep_main_first and main else []) + extras if u]
+    main, *extras = art.values()
+    random.shuffle(extras)
+    return [main, *extras]
 
 
 def set_multiart_fadelabel(
@@ -335,7 +324,6 @@ def seed_multiart(
             preserve_frozen=same_scope,
         )
     if seeded:
-        art |= sequence_to_multiart_dict(ordered)
         log.debug(
             f"seed_multiart → seeded register {fadelabel_id} ({len(ordered)} items)"
         )
