@@ -113,21 +113,31 @@ def merge_multiart_sequences(
     secondary: Iterable[str],
 ) -> list[str]:
     """
-    Merge two multiart sequences, preserving order and deduplicating by URL.
+    Merge two multiart sequences in order: primary deduplicated by URL, then the
+    secondary URLs whose image is not already there in any size.
 
     :param primary: Preferred sequence of artwork URLs.
     :param secondary: Fallback sequence; duplicates of primary are dropped.
     :return: Deduplicated list with primary URLs first.
     """
-    merged = []
-    seen = set()
-
-    for url in (*primary, *secondary):
-        if url and url not in seen:
+    merged = list(dict.fromkeys(filter(None, primary)))
+    seen = set(map(_image_identity, merged))
+    for url in secondary:
+        if url and (identity := _image_identity(url)) not in seen:
             merged.append(url)
-            seen.add(url)
-
+            seen.add(identity)
     return merged
+
+
+def _image_identity(url: str) -> str:
+    """
+    The file name for a TMDb image, so ".../t/p/original/x.jpg" and
+    ".../t/p/w1280/x.jpg" match; any other URL is its own identity.
+
+    :param url: Artwork URL.
+    :return: Identity key for deduplication.
+    """
+    return url.rpartition("/")[2] if "image.tmdb.org/t/p/" in url else url
 
 
 def sequence_to_multiart_dict(urls: Iterable[str]) -> dict[str, str]:

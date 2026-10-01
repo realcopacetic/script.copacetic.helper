@@ -201,7 +201,8 @@ the family with one variable:
 ```
 
 With `get_extra_multiart=true`, TMDb artwork of the same type is added after the
-library artwork, without duplicates. It is added only when the item has its own image
+library artwork, without duplicates: a TMDb image already in the library artwork in
+another size is skipped. It is added only when the item has its own image
 of that type, so the first image is always the item's. It is read from the TMDb cache
 only, which is filled by [`tmdb_details`](metadata.md#tmdb_details) with
 `multiart=true` for the same item and language; an item not cached yet gets its
