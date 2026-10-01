@@ -1,6 +1,6 @@
 # Rule Engine
 
-One condition language, used everywhere: config rules, expression rules, template filters, and control `visible` conditions. Tokens fill in first, then the condition comes out true or false.
+One condition language, used everywhere: config rules, expression rules, template filters, control `visible` conditions and `confirm` conditions. Tokens fill in first, then the condition comes out true or false. It is the addon's own small language, not Kodi's: it runs in Python, at build time or in the settings window.
 
 ---
 
@@ -27,7 +27,9 @@ One condition language, used everywhere: config rules, expression rules, templat
 | `greaterthan` / `lessthan` | `greaterthan({limit}, 5)` |
 | `greaterorequal` / `lessorequal` | `lessorequal({index}, 2)` |
 
-`In` takes a comma-separated list in square brackets. Put `not ` in front of anything to flip it:
+Operator names are not case-sensitive. The subject can't contain a comma and the value can't contain a `)`. Both are compared as plain text after trimming spaces, except the four numeric operators, which need numbers on both sides — a non-number there stops the build. A condition that matches none of these forms, or names an unknown operator, is simply false; nothing is logged.
+
+`In` takes a comma-separated list in square brackets. Put `not ` (lower case, followed by a space) in front of a comparison to flip it:
 
 ```
 not In({content_type}, [movies, sets, tvshows, seasons])
@@ -35,7 +37,7 @@ not In({content_type}, [movies, sets, tvshows, seasons])
 
 ### Combining
 
-`+` is AND, `|` is OR:
+`+` is AND, `|` is OR, and `|` binds looser than `+` (`a + b | c` means "a and b, or c"):
 
 ```
 equals({autoplay}, true) + In({widget_preset}, [random_movies, random_tvshows])
@@ -45,22 +47,24 @@ In({widget_preset}, [custom, drilldown]) + not equals({layout}, marquee)
 
 The middle one is the filter trick from [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes): two ways to survive, OR'd together.
 
+There is no grouping: square brackets don't group, and the condition is split at *every* `+` and `|`, even one inside a value. So a token whose value contains `+` or `|` breaks a rule — and the builder wraps such mapping tokens in `[...]`, which this language doesn't understand. Keep tokens used in rules and filters to single comparisons, or write the OR at the top level.
+
 ### Live Kodi state: `xml(...)`
 
-Hands the condition to Kodi's own `getCondVisibility()` — checked against whatever's true right now:
+Hands the condition to Kodi's own `getCondVisibility()` — checked against whatever's true right now. `xml(...)` must be the whole condition; it can't be combined with other parts using `+` or `|` outside the brackets:
 
 ```
 xml(!Skin.HasSetting(widgets_per_menu))
 xml(String.IsEqual(Window(home).Property(current_mapping),mainmenu) + Skin.HasSetting(widgets_per_menu))
 ```
 
-Inside the brackets you write normal Kodi condition syntax: `+`, `|`, `!`, brackets.
+Inside the brackets you write normal Kodi condition syntax: `+`, `|`, `!`, brackets. In the settings window it is re-checked every time. At build time it is checked once per build against Kodi's state at that moment, and the same answer is reused for the rest of the build.
 
-> **Kodi limitation worth knowing:** Kodi's own string checks (`String.IsEqual`, `String.Contains`, …) will **not** resolve a `$VAR[...]` you pass them — only `$INFO` labels and plain strings work. If you need to compare a variable's value, move the comparison into rule conditions or template structure instead.
+> **Kodi limitation worth knowing:** in Kodi's own string checks (`String.IsEqual`, `String.Contains`, …) the first argument must be an infolabel name, and the second is either an infolabel name (compared live) or a fixed string. A `$VAR[...]` or `$INFO[...]` in the second argument is resolved once, when Kodi first reads the condition, not live. If you need to compare a variable's value, move the comparison into rule conditions or template structure instead.
 
 ### Focus: `focused(...)`
 
-`focused(123)` = `Control.HasFocus(123)`.
+`focused(123)` = `Control.HasFocus(123)`. Like `xml(...)`, it must be the whole condition. The id must be a number; anything else is false.
 
 ---
 
@@ -84,7 +88,7 @@ Only used in expression fallbacks: "true whenever none of the others are". It co
 ![Container.Content(movies) | Container.Content(tvshows)]
 ```
 
-If everything else in the group is false, it gives plain `"true"`. See [Expressions → Fallbacks](04-expressions.md#fallbacks).
+Values that are exactly `true` or `false` are ignored; if nothing is left, it gives plain `"true"`. See [Expressions → Fallbacks](04-expressions.md#fallbacks).
 
 ---
 
