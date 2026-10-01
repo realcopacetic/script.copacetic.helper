@@ -457,7 +457,7 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
             for element in tree.getroot().findall("layout")
             if not element.get("codingtable")
         ]
-        picked = xbmcgui.Dialog().select("Keyboard layout", choices)
+        picked = xbmcgui.Dialog().select(ADDON.getLocalizedString(32400), choices)
         if picked < 0:
             return
         layout = choices[picked]
