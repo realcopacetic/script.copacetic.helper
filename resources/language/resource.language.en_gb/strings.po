@@ -386,3 +386,15 @@ msgstr ""
 msgctxt "#32823"
 msgid "Unlike"
 msgstr ""
+
+msgctxt "#32824"
+msgid "Pin to speed dial"
+msgstr ""
+
+msgctxt "#32825"
+msgid "Unpin"
+msgstr ""
+
+msgctxt "#32826"
+msgid "Speed dial"
+msgstr ""

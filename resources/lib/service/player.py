@@ -2,12 +2,13 @@
 
 import time
 
-from xbmc import Player
+from xbmc import PLAYLIST_MUSIC, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
 
 from resources.lib.service import playnext
 from resources.lib.service.trailer import TrailerZoomController, trailer_source
 from resources.lib.shared import logger as log
+from resources.lib.shared.speed_dial import SpeedDial, queue_source, take_source
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -27,6 +28,7 @@ class PlayerMonitor(Player):
         super().__init__()
         self.zoom = TrailerZoomController()
         self._cleanup_registry = set()
+        self._dial_queue = None
 
     def onAVStarted(self) -> None:
         """Handle playback start events for video and audio."""
@@ -119,6 +121,26 @@ class PlayerMonitor(Player):
         for index in range(3):
             artist = artists[index] if index < len(artists) else ""
             self._set_managed_property(f"player_artist_{index + 1}", value=artist)
+        self._record_speed_dial(tag.getDbId())
+
+    def _record_speed_dial(self, songid: int) -> None:
+        """
+        Records what playback started from: the source a helper action marked,
+        else one inferred from the queue when a queue starts (not per track).
+
+        :param songid: Library ID of the playing song; 0 or less if none.
+        """
+        source = take_source()
+        playlist = PlayList(PLAYLIST_MUSIC)
+        queue = (playlist.size(), playlist[0].getPath()) if playlist.size() else songid
+        if source is False:
+            advanced = queue == self._dial_queue and playlist.getposition() > 0
+            if advanced or songid <= 0:
+                return
+            source = queue_source(songid)
+        self._dial_queue = queue
+        if source:
+            SpeedDial().played(source)
 
     def _set_managed_property(
         self, key: str, value: str = "", window_id: int = 10000

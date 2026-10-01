@@ -212,3 +212,42 @@ def apply_videoinfotag(
             except TypeError:
                 log.debug(f"apply_videoinfotag: Bad {kind} stream detail: {s!r}")
                 continue
+
+
+def _joined(value: str | list[str]) -> str:
+    """
+    Artists are a list on songs and albums, and a plain string on artists.
+
+    :param value: JSON-RPC artist field.
+    :return: Artists joined with Kodi's default separator.
+    """
+    return value if isinstance(value, str) else " / ".join(value)
+
+
+_MUSIC_SETTERS = {
+    "album": ("setAlbum", str),
+    "artist": ("setArtist", _joined),
+    "duration": ("setDuration", int),
+    "genre": ("setGenres", list),
+    "title": ("setTitle", str),
+    "track": ("setTrack", int),
+    "userrating": ("setUserRating", int),
+    "year": ("setYear", int),
+}
+
+
+def apply_musicinfotag(li_item: ListItem, item: dict, media_type: str) -> None:
+    """
+    Apply MusicInfoTag fields to a ListItem from raw AudioLibrary details,
+    so the item carries DBType and DBID like a library item.
+
+    :param li_item: ListItem to update.
+    :param item: AudioLibrary.Get*Details result, keyed by JSON-RPC field.
+    :param media_type: album, artist or song.
+    """
+    tag = li_item.getMusicInfoTag()
+    tag.setDbId(item[f"{media_type}id"], media_type)
+    tag.setMediaType(media_type)
+    for key, (setter, convert) in _MUSIC_SETTERS.items():
+        if key in item:
+            getattr(tag, setter)(convert(item[key]))

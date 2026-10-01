@@ -29,6 +29,10 @@
         <label>32823</label>
         <visible>Integer.IsGreater(ListItem.DBID,0) + String.IsEqual(ListItem.DBType,song) + Integer.IsGreater(Skin.String(like_threshold),0) + !Integer.IsLess(ListItem.UserRating,Skin.String(like_threshold))</visible>
       </item>
+      <item library="context.py" args="action=pin">
+        <label>32824</label>
+        <visible>String.IsEmpty(ListItem.Property(speed_dial_pinned)) + [[Integer.IsGreater(ListItem.DBID,0) + [String.IsEqual(ListItem.DBType,song) | String.IsEqual(ListItem.DBType,artist) | String.IsEqual(ListItem.DBType,album)]] | [[String.StartsWith(ListItem.FolderPath,special://musicplaylists/) | String.StartsWith(ListItem.FolderPath,special://profile/playlists/music/)] + [String.EndsWith(ListItem.FolderPath,.xsp) | String.EndsWith(ListItem.FolderPath,.m3u)]]]</visible>
+      </item>
     </menu>
   </extension>
   <extension point="xbmc.addon.metadata">

@@ -28,9 +28,11 @@ from resources.lib.plugin.library import (
     role_endpoint,
     title_filter,
 )
+from resources.lib.plugin.music import dial_item
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
+from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.utilities import (
     ADDON,
     condition,
@@ -892,6 +894,21 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         rows.sort(key=lambda r: order[r[id_key]])
 
         return build_items(rows, media_type, tag_applier=apply_videoinfotag)
+
+    @log.duration
+    def speed_dial(self) -> list[DirectoryItem] | None:
+        """
+        Pinned music entries in pin order, then the sources played most recently.
+        Skins add &v=$INFO[Window(home).Property(speed_dial_version)] to refetch.
+
+        :return: List of directory items for Kodi, or None if empty.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        set_plugincontent(category=ADDON.getLocalizedString(32826))
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            items = pool.map(lambda pair: dial_item(*pair), SpeedDial().items())
+        return [item for item in items if item][: self.limit] or None
 
     @role_endpoint(
         field="actor",

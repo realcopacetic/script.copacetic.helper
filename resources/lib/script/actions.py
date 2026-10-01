@@ -12,6 +12,9 @@ from resources.lib.shared.utilities import (
     ADDON,
     SKINXML,
 )
+from resources.lib.shared.speed_dial import SpeedDial
+from resources.lib.shared.speed_dial import entry as dial_entry
+from resources.lib.shared.speed_dial import mark_source
 from resources.lib.shared.utilities import clear_cache as _clear_cache_util
 from resources.lib.shared.utilities import clear_label as _clear_label_util
 from resources.lib.shared.utilities import (
@@ -507,6 +510,16 @@ def set_search_query(id: str, **kwargs: str) -> None:
     window_property("search_query", value=text if len(text) >= min_length else False)
 
 
+def _year_rule(year: str) -> dict:
+    """
+    Smart playlist rule for one year's songs.
+
+    :param year: Year, as a string.
+    :return: Smart playlist rule for songs from that year.
+    """
+    return {"field": "year", "operator": "is", "value": year}
+
+
 def _random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
     """
     Fetches songs in random order, with their artists and genres.
@@ -585,6 +598,33 @@ def _spread(own: list, others: list) -> list:
 
 
 @action
+def move_pin(
+    id: str = "", type: str = "", path: str = "", offset: str = "1", **kwargs: str
+) -> None:
+    """
+    Moves a pinned speed dial entry up (negative offset) or down.
+
+    :param id: Library ID.
+    :param type: album, artist or song; anything else is a playlist.
+    :param path: Playlist path.
+    :param offset: Positions to move.
+    """
+    SpeedDial().move(dial_entry(type, id, path), to_int(offset))
+
+
+@action
+def pin(id: str = "", type: str = "", path: str = "", **kwargs: str) -> None:
+    """
+    Pins an artist, album, song or music playlist to the front of speed dial.
+
+    :param id: Library ID.
+    :param type: album, artist or song; anything else is a playlist.
+    :param path: Playlist path.
+    """
+    SpeedDial().pin(dial_entry(type, id, path))
+
+
+@action
 def shuffle(id: str = "", type: str = "artist", path: str = "", **kwargs: str) -> None:
     """
     Plays an artist, album, genre, year or music playlist in random order.
@@ -594,8 +634,9 @@ def shuffle(id: str = "", type: str = "artist", path: str = "", **kwargs: str) -
     :param path: Playlist path, for types without a library ID.
     """
     clear_playlists()
+    mark_source(None if type in ("genre", "year") else dial_entry(type, id, path))
     if type == "year":
-        _play_songs(_random_songs({"field": "year", "operator": "is", "value": id}))
+        _play_songs(_random_songs(_year_rule(id)))
         return
     item = (
         {_LIBRARY_ITEMS[type]: to_int(id)}
@@ -626,16 +667,15 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     :param type: song, album, artist, genre or year.
     """
     clear_playlists()
-    if type == "genre":
-        _play_songs(_random_songs({"genreid": to_int(id)}, MIX_SIZE))
+    if type in ("genre", "year"):
+        mark_source(None)
+        rule = {"genreid": to_int(id)} if type == "genre" else _year_rule(id)
+        _play_songs(_random_songs(rule, MIX_SIZE))
         return
-    if type == "year":
-        _play_songs(
-            _random_songs({"field": "year", "operator": "is", "value": id}, MIX_SIZE)
-        )
+    dbid = to_int(id or infolabel("ListItem.DBID"))
+    if not (seed := _mix_seed(type, dbid)):
         return
-    if not (seed := _mix_seed(type, to_int(id or infolabel("ListItem.DBID")))):
-        return
+    mark_source(dial_entry(type, dbid))
 
     genres = seed["genre"]
     by_artist = {"field": "artist", "operator": "is", "value": seed["artist"]}
@@ -751,6 +791,18 @@ def toggle_addon(id: str, **kwargs: str) -> None:
             parent="toggle_addon",
         )
         xbmcgui.Dialog().notification(id, ADDON.getLocalizedString(32206))
+
+
+@action
+def unpin(id: str = "", type: str = "", path: str = "", **kwargs: str) -> None:
+    """
+    Unpins a speed dial entry.
+
+    :param id: Library ID.
+    :param type: album, artist or song; anything else is a playlist.
+    :param path: Playlist path.
+    """
+    SpeedDial().unpin(dial_entry(type, id, path))
 
 
 @action
