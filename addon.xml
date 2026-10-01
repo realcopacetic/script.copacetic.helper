@@ -21,6 +21,14 @@
         <label>32821</label>
         <visible>[Integer.IsGreater(ListItem.DBID,0) + [String.IsEqual(ListItem.DBType,song) | String.IsEqual(ListItem.DBType,artist) | String.IsEqual(ListItem.DBType,album) | [String.IsEqual(ListItem.DBType,genre) + !String.IsEmpty(ListItem.Genre)]]] | [String.StartsWith(ListItem.FolderPath,musicdb://) + [String.IsEqual(ListItem.DBType,year) | String.IsEqual(ListItem.DBType,originalyear)]]</visible>
       </item>
+      <item library="context.py" args="action=rate_song">
+        <label>32822</label>
+        <visible>Integer.IsGreater(ListItem.DBID,0) + String.IsEqual(ListItem.DBType,song) + Integer.IsGreater(Skin.String(like_threshold),0) + Integer.IsLess(ListItem.UserRating,Skin.String(like_threshold))</visible>
+      </item>
+      <item library="context.py" args="action=rate_song,rating=0">
+        <label>32823</label>
+        <visible>Integer.IsGreater(ListItem.DBID,0) + String.IsEqual(ListItem.DBType,song) + Integer.IsGreater(Skin.String(like_threshold),0) + !Integer.IsLess(ListItem.UserRating,Skin.String(like_threshold))</visible>
+      </item>
     </menu>
   </extension>
   <extension point="xbmc.addon.metadata">

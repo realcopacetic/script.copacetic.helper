@@ -400,43 +400,22 @@ def focus(target: str, **kwargs: str) -> None:
 
 
 @action
-def rate_song(**kwargs: str) -> None:
+def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
     """
-    Sets the user rating for a song and updates skin string for MusicPlayer.
+    Sets a song's user rating. Kodi updates the playing song's tag itself
+    (GUI_MSG_UPDATE_ITEM), so MusicPlayer.UserRating needs no bridge.
 
-    :param id: Song ID.
-    :param rating: Rating threshold value.
+    :param id: Song ID (defaults to ListItem.DBID).
+    :param rating: 0-10, 0 clears it (defaults to Skin.String(like_threshold)).
     """
-    dbid = int(kwargs.get("id", xbmc.getInfoLabel("ListItem.DBID")))
-    rating_threshold = int(
-        kwargs.get(
-            "rating", xbmc.getInfoLabel("Skin.String(Music_Rating_Like_Threshold)")
-        )
-    )
-
     json_call(
         "AudioLibrary.SetSongDetails",
-        params={"songid": dbid, "userrating": rating_threshold},
+        params={
+            "songid": to_int(id or infolabel("ListItem.DBID")),
+            "userrating": to_int(rating or infolabel("Skin.String(like_threshold)")),
+        },
         parent="rate_song",
     )
-
-    player = xbmc.Player()
-    player_dbid = (
-        int(xbmc.getInfoLabel("MusicPlayer.DBID")) if player.isPlayingAudio() else None
-    )
-
-    if dbid == player_dbid:
-        if rating_threshold != 0:
-            window_property("MusicPlayer_UserRating", value=rating_threshold)
-        else:
-            window_property("MusicPlayer_UserRating")
-        """
-        player_path = player.getPlayingFile()
-        item = xbmcgui.ListItem(path=player_path)
-        musicInfoTag = item.getMusicInfoTag()
-        musicInfoTag.setUserRating(rating_threshold)
-        player.updateInfoTag(item)
-        """
 
 
 @action

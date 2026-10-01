@@ -378,3 +378,11 @@ msgstr ""
 msgctxt "#32821"
 msgid "Start mix"
 msgstr ""
+
+msgctxt "#32822"
+msgid "Like"
+msgstr ""
+
+msgctxt "#32823"
+msgid "Unlike"
+msgstr ""

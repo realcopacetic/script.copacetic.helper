@@ -104,9 +104,7 @@ class PlayerMonitor(Player):
         Set music-related window properties on audio start.
         Splits the player's artist list into player_artist_1..3 for exact matching.
         """
-
         tag = self.getMusicInfoTag()
-        self._set_managed_property("player_userrating", value=str(tag.getUserRating()))
         self._set_managed_property("player_artist", value=tag.getArtist())
         self._set_managed_property("player_albumartist", value=tag.getAlbumArtist())
         self._set_managed_property("player_album", value=tag.getAlbum())
