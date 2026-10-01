@@ -201,13 +201,19 @@ the family with one variable:
 ```
 
 With `get_extra_multiart=true`, TMDb artwork of the same type is added after the
-library artwork, without duplicates: a TMDb image already in the library artwork in
-another size is skipped. It is added only when the item has its own image
-of that type, so the first image is always the item's. It is read from the TMDb cache
-only, which is filled by [`tmdb_details`](metadata.md#tmdb_details) with
-`multiart=true` for the same item and language; an item not cached yet gets its
-library artwork only. It works for movies and TV shows that have a TMDb id; episodes
-use their show's artwork.
+library artwork:
+
+- Only when the item has its own image of that type, so the first image is always the
+  item's.
+- Without duplicates: a TMDb image already in the library artwork in another size is
+  skipped.
+- Backdrops (`fanart`, `landscape`) at width 1280 and posters (`poster`, `keyart`) at
+  width 780, not TMDb's original size, as each new image downloads the first time it
+  shows.
+- From the TMDb cache only, which [`tmdb_details`](metadata.md#tmdb_details) with
+  `multiart=true` fills for the same item and language. An item not cached yet gets
+  its library artwork only.
+- For movies and TV shows with a TMDb id. Episodes use their show's artwork.
 
 ### Multiart in a FadeLabel
 

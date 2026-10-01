@@ -7,6 +7,7 @@ from typing import Callable, Iterable, Mapping
 from xbmc import Monitor
 from xbmcgui import Window, getCurrentWindowId
 
+from resources.lib.apis.tmdb.fields import TMDB_IMAGE_BASE
 from resources.lib.plugin.helpers import get_infolabels
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
@@ -19,6 +20,14 @@ from resources.lib.shared.utilities import (
 
 DEFAULT_SLOTS = 15
 MAX_SLOTS = 50
+# TMDb sizes for multiart extras: original backdrops run to 3840x2160 and every
+# new slide downloads on first show (overlay texture, blur, icon blur).
+TMDB_MULTIART_SIZES = {
+    "fanart": "w1280",
+    "landscape": "w1280",
+    "keyart": "w780",
+    "poster": "w780",
+}
 
 
 def build_multiart_dict(
@@ -46,12 +55,17 @@ def build_multiart_dict(
         art_type=multiart_type,
         max_items=max_items,
     )
+    tmdb_type = multiart_type.removeprefix("tvshow.")  # TMDb keys are bare
+    size = TMDB_MULTIART_SIZES.get(tmdb_type, "original")
     tmdb_seq = (
-        multiart_sequence_from_dict(
-            art=tmdb_art,
-            art_type=multiart_type.removeprefix("tvshow."),  # TMDb keys are bare
-            max_items=max_items,
-        )
+        [
+            url.replace(f"{TMDB_IMAGE_BASE}/original/", f"{TMDB_IMAGE_BASE}/{size}/")
+            for url in multiart_sequence_from_dict(
+                art=tmdb_art,
+                art_type=tmdb_type,
+                max_items=max_items,
+            )
+        ]
         if local_seq
         else []
     )
