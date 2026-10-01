@@ -93,6 +93,7 @@ values mean.
 | `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for (`fanart1` … `fanart15`). |
 | `get_extra_multiart` | `true`, `false` | `false` | Add TMDb artwork of the same type, after the library artwork. See [Multiart](#multiart). |
 | `language` | TMDb language, e.g. `en-US` | add-on setting | Language of the TMDb artwork to add. |
+| `type`, `id`, `tmdb_id`, `tvshowid` | | | With `get_extra_multiart`: how the TMDb item is found. See [TMDb lookups](metadata.md#tmdb-lookups). |
 | `multiart_fadelabel` | control id | — | A FadeLabel to fill with the family, in display order. See [Multiart in a FadeLabel](#multiart-in-a-fadelabel). |
 
 ### Other
@@ -200,9 +201,12 @@ the family with one variable:
 ```
 
 With `get_extra_multiart=true`, TMDb artwork of the same type is added after the
-library artwork, without duplicates. It is read from the TMDb cache only, which is
-filled by [`tmdb_details`](metadata.md#tmdb_details) with `multiart=true` for the
-same item and language. It works for movies and TV shows that have a TMDb id.
+library artwork, without duplicates. It is added only when the item has its own image
+of that type, so the first image is always the item's. It is read from the TMDb cache
+only, which is filled by [`tmdb_details`](metadata.md#tmdb_details) with
+`multiart=true` for the same item and language; an item not cached yet gets its
+library artwork only. It works for movies and TV shows that have a TMDb id; episodes
+use their show's artwork.
 
 ### Multiart in a FadeLabel
 

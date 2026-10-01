@@ -185,10 +185,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self,
         *,
         append_artwork: bool,
+        cache_only: bool = False,
     ) -> dict[str, Any] | None:
         """Resolve TMDb canonical item for the current listitem.
 
         :param append_artwork: Whether to include TMDb artwork fields.
+        :param cache_only: Read the TMDb cache only; never fetch.
         :return: canonical item dict or None.
         """
         from resources.lib.apis.tmdb.context import resolve_tmdb_context
@@ -204,6 +206,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             season_number=ctx.get("season_number"),
             language=self.params.get("language"),
             append_artwork=append_artwork,
+            cache_only=cache_only,
         )
         if not item:
             log.debug(
@@ -328,14 +331,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
+        multiart_type = self.params.get("multiart")
+        # Cache only: no network wait before the seed; another serve fills it.
+        tmdb_item = (
+            self._get_tmdb_item(append_artwork=True, cache_only=True)
+            if multiart_type and parse_bool(self.params.get("get_extra_multiart"))
+            else None
+        )
         multiart_dict = build_multiart_dict(
             target=f"{self.target_container}.ListItem",
-            multiart_type=self.params.get("multiart"),
+            multiart_type=multiart_type,
             max_items=self.params.get("multiart_max"),
-            get_extra_multiart=parse_bool(
-                self.params.get("get_extra_multiart", "false")
-            ),
-            language=self.params.get("language"),
+            tmdb_art=(tmdb_item or {}).get("art", {}),
         )
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")

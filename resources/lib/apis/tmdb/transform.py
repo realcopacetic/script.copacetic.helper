@@ -37,6 +37,7 @@ def tmdb_to_canonical(
     season_number: int | None = None,
     language: str | None = None,
     append_artwork: bool = True,
+    cache_only: bool = False,
 ) -> dict[str, Any]:
     """
     Fetch TMDb data and normalise it into canonical Kodi item format.
@@ -46,6 +47,7 @@ def tmdb_to_canonical(
     :param season_number: Optional season number when kind == "season".
     :param language: Optional TMDb language override.
     :param append_artwork: If False, skip TMDb 'images' append block.
+    :param cache_only: Return an empty dict on a cache miss instead of fetching.
     :return: Canonical TMDb item dict or empty dict.
     """
     if tmdb_id <= 0:
@@ -64,6 +66,8 @@ def tmdb_to_canonical(
     if cached:
         log.debug(f"tmdb_to_canonical → cache hit {cache_kind}/{tmdb_id}")
         return cached
+    if cache_only:
+        return {}
 
     raw = fetch_tmdb_fields(
         kind=kind,

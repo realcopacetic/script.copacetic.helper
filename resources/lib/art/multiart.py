@@ -7,7 +7,6 @@ from typing import Callable, Iterable, Mapping
 from xbmc import Monitor
 from xbmcgui import Window, getCurrentWindowId
 
-from resources.lib.apis.tmdb.cache import TmdbCache, tmdb_language
 from resources.lib.plugin.helpers import get_infolabels
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
@@ -27,17 +26,16 @@ def build_multiart_dict(
     target: str,
     multiart_type: str | None,
     max_items: int | str | None,
-    get_extra_multiart: bool,
-    language: str | None,
+    tmdb_art: Mapping[str, str],
 ) -> dict[str, str]:
     """
-    Build a combined multiart dictionary from local artwork and optional TMDb artwork.
+    Build a multiart dict from local artwork, extended by TMDb artwork of the same
+    type. TMDb only extends a local family, so the first image is the item's own.
 
     :param target: Infolabel prefix such as "ListItem" or "Container(3100).ListItem".
     :param multiart_type: Base art type (e.g. "fanart", "poster", "keyart").
     :param max_items: Maximum number of multiart slots to read.
-    :param get_extra_multiart: Whether to augment local artwork with TMDb artwork.
-    :param language: TMDb language override; None uses tmdb_language()'s default.
+    :param tmdb_art: TMDb art dict ("fanart", "fanart1" …); empty for none.
     :return: A dict mapping "multiart" and "multiartN" keys to artwork URLs.
     """
     if not multiart_type:
@@ -48,64 +46,17 @@ def build_multiart_dict(
         art_type=multiart_type,
         max_items=max_items,
     )
-
-    tmdb_art = _get_tmdb_art(
-        target=target,
-        language=language,
-        get_extra_multiart=get_extra_multiart,
-    )
-
-    tmdb_seq = []
-    if tmdb_art:
-        tmdb_seq = multiart_sequence_from_dict(
+    tmdb_seq = (
+        multiart_sequence_from_dict(
             art=tmdb_art,
             art_type=multiart_type,
             max_items=max_items,
         )
-
+        if local_seq
+        else []
+    )
     merged = merge_multiart_sequences(primary=local_seq, secondary=tmdb_seq)
     return sequence_to_multiart_dict(merged)
-
-
-def _get_tmdb_art(
-    *,
-    target: str,
-    language: str | None,
-    get_extra_multiart: bool,
-) -> dict[str, str]:
-    """
-    Internal helper to return the TMDb 'art' mapping for the current ListItem.
-
-    :param target: Infolabel prefix used to resolve UniqueID(tmdb) and DBType.
-    :param language: TMDb language override; None uses tmdb_language()'s default.
-    :param get_extra_multiart: Whether TMDb artwork should be fetched.
-    :return: A dict containing TMDb artwork fields, or {} if unavailable.
-    """
-    if not get_extra_multiart:
-        return {}
-
-    tmdb_id = to_int(infolabel(f"{target}.UniqueID(tmdb)"))
-    if tmdb_id <= 0:
-        return {}
-
-    resolved_dbtype = infolabel(f"{target}.DBType")
-    if not resolved_dbtype:
-        return {}
-
-    try:
-        art = (
-            TmdbCache().get_field(
-                resolved_dbtype, tmdb_id, tmdb_language(language), "art"
-            )
-            or {}
-        )
-        return art
-    except Exception as exc:  # noqa: BLE001
-        log.debug(
-            f"_get_tmdb_art → TMDb lookup failed for type={resolved_dbtype}, "
-            f"tmdb_id={tmdb_id}: {exc!r}"
-        )
-        return {}
 
 
 def multiart_sequence_from_infolabels(
