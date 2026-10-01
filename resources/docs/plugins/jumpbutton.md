@@ -17,25 +17,19 @@ is an overlay that travels the same span.
    `relative=true`.
 4. `setLabel` and `setPosition` are applied to the button. Both work on hidden controls.
 
-Every run reads the list fresh; there is no state between runs, so refire it whenever
-the label or position should change (typically when the sort letter changes).
+The button only moves when its label or the list size changes. After each move the
+helper stores `<label>|<NumItems>` in `Window(home).Property(jumpbutton_seen)`. A
+later run with the same label in a list of the same size does nothing, so the button
+stays at the first item of that letter while you scroll through it. Refire the path
+whenever the label should change (typically when the sort letter changes).
 
-## Coordinate contract
+The helper works on the current window (`getCurrentWindowId()`), not on dialogs.
 
-Kodi's Python API is parent-relative: `getX/getY` on the anchor are measured from the
-anchor's parent, and `setPosition` on the button is measured from the button's parent.
-The helper adds the anchor's origin to the travel axis, so **the anchor and the button
-must share a coordinate space**:
+## Coordinate rules
 
-- **Siblings** (same parent group, or both at window root): use `anchor_id`.
-- **Button inside the anchor group**: use `coords=0,0,W,H` with the group's size —
-  the rect expressed in the button's own space.
-
-Anchors nested deeper than the button's parent yield rect values in the wrong space.
-Keep the anchor and the button flat relative to each other.
-
-Give the anchor explicit `width`/`height`; dimensions derived from edge pairs
-(`left`+`right`) are not visible to `getWidth/getHeight`.
+The anchor and the button must share a parent group, or the button must use
+`coords=0,0,W,H` when it sits inside the anchor group. Give the anchor an explicit
+`width` and `height`. See [Coordinate rules](placement.md#coordinate-rules).
 
 ## Duplicate ids
 
@@ -73,24 +67,29 @@ or via `RunPlugin` from an action.
 
 ## Parameters
 
-| Param | Type | Default | Notes |
+| Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `info` | str | — | `jumpbutton` |
-| `sortletter` | str | `ListItem.SortLetter` of the list | Label to display. Pass your own for digit sorts (SortLetter is the first character only). |
-| `target` | int | — | Container id for CurrentItem/NumItems/SortLetter. Omit on media windows to use the view container. |
-| `target_id` | int | — | Required. Button control to position. |
-| `anchor_id` | int | — | Control whose rect is the track. |
-| `coords` | str | — | `x,y,w,h`; overrides `anchor_id`. |
-| `inset` | str | `0` | `N` / `L,T` / `L,T,R,B` shrink applied to the rect. |
-| `halign` | str | `center` | `left` / `center` / `right` — cross-axis for vertical tracks. |
-| `valign` | str | `center` | `top` / `center` / `bottom` — cross-axis for horizontal tracks. |
-| `hpad` / `vpad` | int | `0` | Edge inset for left/right/top/bottom alignment; nudge for center. |
-| `relative` | bool | `false` | Keep the button's current cross-axis coordinate instead of aligning. |
+| `target_id` | control id | — | **Required.** The button to label and move. |
+| `sortletter` | any text | `ListItem.SortLetter` of the list | Label for the button. Pass your own for digit sorts (SortLetter is the first character only). |
+| `target` | container id | — | Container to read `CurrentItem`, `NumItems` and `SortLetter` from. Omit on media windows to use the view container. |
+| `anchor_id` | control id | — | Control whose rectangle is the track. |
+| `coords` | `x,y,w,h` | — | The track rectangle. Overrides `anchor_id`. |
+| `inset` | `N`, `H,V` or `L,T,R,B` | `0` | Shrinks the track. |
+| `halign` | `left`, `center`, `right` | `center` | Position across a vertical track. |
+| `valign` | `top`, `center`, `bottom` | `center` | Position across a horizontal track. |
+| `hpad` / `vpad` | whole number | `0` | Gap from the edge for `left`/`right`/`top`/`bottom`; a nudge for `center`. |
+| `relative` | `true`, `false` | `false` | Keep the button's current position across the track instead of aligning it. |
+
+`track_w`, `track_h` and `outside` are also read. They change the track rectangle as
+described in [Placement Options](placement.md).
+
+The path returns no list items.
 
 ## Notes
 
 - The button's size is read from its XML; set `width`/`height` explicitly.
 - If the anchor or button can't be found the run logs and returns; nothing is moved.
 - `fraction` is 0 when the list has fewer than two items.
+- There is no focus guard. The button must stay responsive while you scroll.
 
-See [`placement.md`](placement.md) for the options shared by all placement helpers.
+See [Placement Options](placement.md) for the options shared by all placement helpers.
