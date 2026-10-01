@@ -12,13 +12,13 @@ Five edits. The skin reloads.
 
 Addon Settings → Developers → **Enable Dev mode**. With it on, every Kodi start rebuilds everything and reloads the skin. **Rebuild now** in the same panel does it without a restart.
 
-Without dev mode, the service only builds files that are missing — right for users, annoying while you're iterating.
+Without dev mode, the service only builds files that are missing (or rebuilds everything when the settings file gains a new mapping) — right for users, annoying while you're iterating. See [Overview → When things build](01-overview.md#when-things-build).
 
 ---
 
 ## 1. Register the field on the mapping
 
-The `content_types` mapping ships with the addon. It lists the content types and tags each one with its window:
+This example assumes your skin already has a `content_types` mapping in `extras/templates/mappings/` (Copacetic ships one; the addon itself ships no mappings). It lists the content types and tags each one with its window:
 
 ```json
 {
@@ -39,7 +39,7 @@ The `content_types` mapping ships with the addon. It lists the content types and
 
 Your one edit here: add `"clearlogo": "{content_type}_clearlogo"` under `config_fields.global`. This says: entries in this list have a `clearlogo` setting, and the config named `{content_type}_clearlogo` decides its allowed values.
 
-Any template that says `"mapping": "content_types"` can use `{content_type}` — and `{window}`, via metadata — in its strings.
+Any template that says `"mapping": "content_types"` can use `{content_type}` — and `{window}`, via metadata — in its strings. Give every item a `window`: step 5 uses `{window}` in an expression name, and a name placeholder that can't be filled stops the build.
 
 If you need your own list to loop over, add a file under `extras/templates/mappings/`. See [Mappings](02-mappings.md).
 
@@ -53,11 +53,11 @@ New file in `extras/templates/configs/`:
   "configs": {
     "{content_type}_clearlogo": {
       "items": { "true": "$LOCALIZE[186]", "false": "$LOCALIZE[106]" },
-      "filter_mode": "include",
+      "filter_mode": "exclude",
       "rules": [
         {
-          "condition": "In({content_type}, [movies, sets, tvshows, artists])",
-          "value": ["true", "false"]
+          "condition": "not In({content_type}, [movies, sets, tvshows, artists])",
+          "value": ["true"]
         }
       ],
       "defaults": { "*": "false" }
@@ -66,7 +66,9 @@ New file in `extras/templates/configs/`:
 }
 ```
 
-Result: movies, sets, tvshows, and artists get a true/false choice, shown as "Enabled / Disabled". Every other content type gets an empty list — no toggle for them.
+Result: movies, sets, tvshows, and artists get a true/false choice, shown as "Enabled / Disabled". Every other content type has `true` removed, so only `false` is left — the setting is fixed at off and the toggle is disabled for them.
+
+Don't write this with `"filter_mode": "include"` and a single `In(...)` rule: in include mode, a content type that no rule matches is an error and the build stops.
 
 [Configs Builder →](05-configs.md)
 
@@ -84,7 +86,7 @@ Add one control to your controls file:
 }
 ```
 
-One radiobutton. It reads and writes the `clearlogo` setting of whichever row is highlighted in the left-hand list. First allowed value = on, second = off.
+One radiobutton. It reads and writes the `clearlogo` setting of whichever row is highlighted in the left-hand list. It shows as selected when the stored value is `true`. Selecting it writes the first allowed value, deselecting it writes the second, so list `true` first in the config's `items`.
 
 [Controls Builder →](06-controls.md)
 
