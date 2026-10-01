@@ -369,3 +369,12 @@ msgstr ""
 msgctxt "#32819"
 msgid "Kodi commands"
 msgstr ""
+
+#: /context.py — context menu items (addon.xml kodi.context.item)
+msgctxt "#32820"
+msgid "Shuffle"
+msgstr ""
+
+msgctxt "#32821"
+msgid "Start mix"
+msgstr ""

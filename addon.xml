@@ -11,6 +11,18 @@
   <extension point="xbmc.python.script" library="script.py">
     <provides>executable</provides>
   </extension>
+  <extension point="kodi.context.item">
+    <menu id="kodi.core.main">
+      <item library="context.py" args="action=shuffle">
+        <label>32820</label>
+        <visible>[Integer.IsGreater(ListItem.DBID,0) + [String.IsEqual(ListItem.DBType,artist) | String.IsEqual(ListItem.DBType,album) | [String.IsEqual(ListItem.DBType,genre) + !String.IsEmpty(ListItem.Genre)]]] | [String.StartsWith(ListItem.FolderPath,musicdb://) + [String.IsEqual(ListItem.DBType,year) | String.IsEqual(ListItem.DBType,originalyear)]] | [[String.StartsWith(ListItem.FolderPath,special://musicplaylists/) | String.StartsWith(ListItem.FolderPath,special://profile/playlists/music/)] + [String.EndsWith(ListItem.FolderPath,.xsp) | String.EndsWith(ListItem.FolderPath,.m3u)]]</visible>
+      </item>
+      <item library="context.py" args="action=start_mix">
+        <label>32821</label>
+        <visible>[Integer.IsGreater(ListItem.DBID,0) + [String.IsEqual(ListItem.DBType,song) | String.IsEqual(ListItem.DBType,artist) | String.IsEqual(ListItem.DBType,album) | [String.IsEqual(ListItem.DBType,genre) + !String.IsEmpty(ListItem.Genre)]]] | [String.StartsWith(ListItem.FolderPath,musicdb://) + [String.IsEqual(ListItem.DBType,year) | String.IsEqual(ListItem.DBType,originalyear)]]</visible>
+      </item>
+    </menu>
+  </extension>
   <extension point="xbmc.addon.metadata">
     <platform>all</platform>
     <license>GPL-3.0-or-later</license>

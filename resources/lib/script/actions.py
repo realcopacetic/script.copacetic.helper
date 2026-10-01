@@ -2,6 +2,7 @@
 
 import random
 import time
+from operator import itemgetter
 
 import xbmc
 import xbmcgui
@@ -26,6 +27,10 @@ from resources.lib.shared.utilities import (
 )
 
 REGISTRY = {}
+
+_LIBRARY_ITEMS = {"album": "albumid", "artist": "artistid", "genre": "genreid"}
+MIX_SIZE = 50
+MIX_ARTIST_SHARE = 0.15
 
 
 def action(fn):
@@ -338,41 +343,6 @@ def play_items(id: str, **kwargs: str) -> None:
 
 
 @action
-def play_radio(**kwargs: str) -> None:
-    """
-    Builds a randomized genre-based playlist based on current song ID.
-
-    :param id: Optional song ID (defaults to ListItem.DBID).
-    """
-    clear_playlists()
-
-    songid = to_int(kwargs.get("id") or infolabel("ListItem.DBID"))
-    details = json_call(
-        "AudioLibrary.GetSongDetails",
-        params={"properties": ["genre"], "songid": songid},
-        parent="play_radio",
-    )
-    if not (genres := details.get("result", {}).get("songdetails", {}).get("genre")):
-        return
-
-    songs = json_call(
-        "AudioLibrary.GetSongs",
-        sort={"method": "random"},
-        limit=24,
-        query_filter={"genre": random.choice(genres)},
-        parent="play_radio",
-    )["result"].get("songs", [])
-    songids = [songid, *(s["songid"] for s in songs)]
-    json_call(
-        "Playlist.Add",
-        item=[{"songid": s} for s in songids],
-        params={"playlistid": 0},
-        parent="play_radio",
-    )
-    json_call("Player.Open", item={"playlistid": 0, "position": 0}, parent="play_radio")
-
-
-@action
 def play_trailer(trailer: str, **kwargs: str) -> None:
     """
     Play a trailer, flagging it so PlayerMonitor applies trailer zoom and
@@ -558,22 +528,159 @@ def set_search_query(id: str, **kwargs: str) -> None:
     window_property("search_query", value=text if len(text) >= min_length else False)
 
 
-@action
-def shuffle_artist(**kwargs: str) -> None:
+def _random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
     """
-    Starts shuffled playback for a given artist.
+    Fetches songs in random order, with their artists and genres.
+
+    :param query_filter: AudioLibrary.GetSongs filter.
+    :param limit: Maximum number of songs; None for all.
+    :return: Song dicts with songid, artist and genre.
+    """
+    return json_call(
+        "AudioLibrary.GetSongs",
+        properties=["artist", "genre"],
+        sort={"method": "random"},
+        limit=limit,
+        query_filter=query_filter,
+        parent="music",
+    )["result"].get("songs", [])
+
+
+def _play_songs(songs: list[dict]) -> None:
+    """
+    Queues songs in the music playlist and plays from the first.
+
+    :param songs: Song dicts with songid.
+    """
+    json_call(
+        "Playlist.Add",
+        item=[{"songid": s["songid"]} for s in songs],
+        params={"playlistid": 0},
+        parent="music",
+    )
+    json_call("Player.Open", item={"playlistid": 0, "position": 0}, parent="music")
+
+
+def _mix_seed(type: str, dbid: int) -> dict | None:
+    """
+    The song a mix starts from: the song itself, or one of the five most
+    played songs of the album or artist.
+
+    :param type: song, album or artist.
+    :param dbid: Library ID of the item.
+    :return: Song dict with songid, artist and genre, or None.
+    """
+    if type == "song":
+        return (
+            json_call(
+                "AudioLibrary.GetSongDetails",
+                properties=["artist", "genre"],
+                params={"songid": dbid},
+                parent="start_mix",
+            )
+            .get("result", {})
+            .get("songdetails")
+        )
+    top = json_call(
+        "AudioLibrary.GetSongs",
+        properties=["artist", "genre"],
+        sort={"method": "playcount", "order": "descending"},
+        limit=5,
+        query_filter={_LIBRARY_ITEMS[type]: dbid},
+        parent="start_mix",
+    )["result"].get("songs")
+    return random.choice(top) if top else None
+
+
+def _spread(own: list, others: list) -> list:
+    """
+    Spreads own evenly through others, keeping the order of each.
+
+    :param own: Items to spread.
+    :param others: Items to spread them through.
+    :return: Merged list.
+    """
+    step = (len(others) + 1) / (len(own) + 1)
+    keyed = [*enumerate(others), *((n * step - 0.5, s) for n, s in enumerate(own, 1))]
+    return [s for _, s in sorted(keyed, key=itemgetter(0))]
+
+
+@action
+def shuffle(id: str = "", type: str = "artist", path: str = "", **kwargs: str) -> None:
+    """
+    Plays an artist, album, genre, year or music playlist in random order.
+
+    :param id: Library ID; the year itself for type year.
+    :param type: artist, album, genre or year; anything else plays path.
+    :param path: Playlist path, for types without a library ID.
+    """
+    clear_playlists()
+    if type == "year":
+        _play_songs(_random_songs({"field": "year", "operator": "is", "value": id}))
+        return
+    item = (
+        {_LIBRARY_ITEMS[type]: to_int(id)}
+        if type in _LIBRARY_ITEMS
+        else {"directory": path, "media": "music"}
+    )
+    json_call("Player.Open", item=item, options={"shuffled": True}, parent="shuffle")
+
+
+@action
+def shuffle_artist(id: str = "", **kwargs: str) -> None:
+    """
+    Starts shuffled playback for an artist; kept for skins that call it.
 
     :param id: Artist ID.
     """
-    clear_playlists()
+    shuffle(id=id, type="artist")
 
-    dbid = int(kwargs.get("id", False))
-    json_call(
-        "Player.Open",
-        item={"artistid": dbid},
-        options={"shuffled": True},
-        parent="shuffle_artist",
+
+@action
+def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
+    """
+    Plays a random mix. A genre or year mix is its own songs; a song, album or
+    artist mix starts from a seed song, then songs sharing its genres, about
+    MIX_ARTIST_SHARE of them by the seed's artists, spread through the list.
+
+    :param id: Library ID (defaults to ListItem.DBID); the year itself for year.
+    :param type: song, album, artist, genre or year.
+    """
+    clear_playlists()
+    if type == "genre":
+        _play_songs(_random_songs({"genreid": to_int(id)}, MIX_SIZE))
+        return
+    if type == "year":
+        _play_songs(
+            _random_songs({"field": "year", "operator": "is", "value": id}, MIX_SIZE)
+        )
+        return
+    if not (seed := _mix_seed(type, to_int(id or infolabel("ListItem.DBID")))):
+        return
+
+    genres = seed["genre"]
+    by_artist = {"field": "artist", "operator": "is", "value": seed["artist"]}
+    own_size = round(MIX_SIZE * MIX_ARTIST_SHARE) if genres else MIX_SIZE
+    own = [
+        s for s in _random_songs(by_artist, own_size) if s["songid"] != seed["songid"]
+    ][: own_size - 1]
+    others = (
+        _random_songs(
+            {
+                "and": [
+                    {"field": "genre", "operator": "is", "value": genres},
+                    {**by_artist, "operator": "isnot"},
+                ]
+            },
+            MIX_SIZE - 1 - len(own),
+        )
+        if genres
+        else []
     )
+    _play_songs([seed, *_spread(own, others)])
+
+
+REGISTRY["play_radio"] = start_mix  # former name, kept for skins that call it
 
 
 @action
