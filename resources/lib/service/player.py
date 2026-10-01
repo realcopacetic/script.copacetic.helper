@@ -175,8 +175,8 @@ class PlayerMonitor(Player):
 
     def _orphan_trailer(self) -> None:
         """
-        Demote a stale trailer to a paused, hidden orphan instead of stopping
-        mid-scroll; the watchdog reaps it once the user has settled.
+        Demote a stale or ending trailer to a paused, hidden orphan instead of
+        stopping it; the watchdog rewinds it, then reaps it once the user settles.
         """
         self._pause_session()
         window_property("trailer_state", value="orphaned")
@@ -209,14 +209,14 @@ class PlayerMonitor(Player):
     def watch_trailer_session(self) -> None:
         """
         Poller hook: reap a wedged pending request; demote a playing session
-        whose item lost focus; rewind, then reap, a demoted session once the user
-        has settled.
+        whose item lost focus or whose end is near; rewind a demoted session at
+        once, so no close counts it as watched, and reap it once the user settles.
         """
         state = infolabel("Window(home).Property(trailer_state)")
         if state == "pending":
             self._reap_stale_pending()
             return
-        if state == "playing" and self._trailer_is_stale():
+        if state == "playing" and (self._trailer_is_stale() or self._trailer_ending()):
             self._orphan_trailer()
             return
         if state in ("interrupted", "orphaned") and self._is_trailer_playback():
@@ -224,10 +224,10 @@ class PlayerMonitor(Player):
                 # Swallowed skin pause (queued toggles cancelling out)
                 self._pause_session()
                 return
+            if self.getTime() > 1 and condition("Player.SeekEnabled"):
+                self.seekTime(0)  # a reap or a replacing trailer closes it here
+                return
             if condition("System.IdleTime(10)"):
-                if self.getTime() > 1 and condition("Player.SeekEnabled"):
-                    self.seekTime(0)  # stop next tick, under Kodi's watched mark
-                    return
                 log.execute("PlayerControl(Stop)")
 
     def _reap_stale_pending(self, max_age: float = 5.0) -> None:
@@ -250,6 +250,18 @@ class PlayerMonitor(Player):
             window_property("trailer_state", value="orphaned")
         else:
             self._clear_trailer_props()
+
+    def _trailer_ending(self, margin: float = 2.0) -> bool:
+        """
+        True when our trailer is within ``margin`` seconds of its end, so it can
+        be demoted and rewound before a natural end marks it watched.
+
+        :param margin: Seconds before the end; covers one poll and the pause.
+        :return: True when the trailer should end now.
+        """
+        if not self._is_trailer_playback():
+            return False
+        return 0 < self.getTotalTime() - self.getTime() <= margin
 
     def _is_trailer_playback(self) -> bool:
         """
