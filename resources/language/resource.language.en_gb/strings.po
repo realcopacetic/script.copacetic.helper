@@ -33,7 +33,7 @@ msgstr ""
 
 #########################################################################################################
 
-+#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml, /resources/lib/script/actions.py
 msgctxt "#32000"
 msgid "Copacetic"
 msgstr ""
@@ -68,15 +68,15 @@ msgctxt "#32104"
 msgid "Whenever Kodi's internal database is queried by the addon using JSON-RPC, the queries and responses will also be logged."
 msgstr ""
 
-+#: /resources/settings.xml
-+msgctxt "#32020"
-+msgid "Include verbose builder logs"
-+msgstr ""
-+
-+#: /resources/settings.xml
-+msgctxt "#32120"
-+msgid "Logs every per-item builder operation (default applications, fallback resolutions). Very noisy — only useful when debugging template/mapping issues."
-+msgstr ""
+#: /resources/settings.xml
+msgctxt "#32020"
+msgid "Include verbose builder logs"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32120"
+msgid "Logs every per-item builder operation (default applications, fallback resolutions). Very noisy — only useful when debugging template/mapping issues."
+msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32005"
