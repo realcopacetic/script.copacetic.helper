@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import math
 import time
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, Collection, Iterable, Mapping
@@ -36,10 +37,17 @@ if TYPE_CHECKING:
     from PIL import ImageFont
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
-_CLAMP_VERSION = "1"
+_CLAMP_VERSION = "2"
 
-# Skin authoring height; Kodi rasterises fonts at size * ScreenHeight / this.
+# Skin authoring resolution; Kodi rasterises fonts at size * ScreenHeight / height.
+_SKIN_WIDTH = 1920
 _SKIN_HEIGHT = 1080
+
+# Measurement size: advances are taken unhinted here and scaled to the render size.
+_REF_SIZE = 1000
+
+# Rendered pixels Kodi's last-glyph ink extent can add past its advance.
+_INK_OVERHANG = 2
 
 
 def reposition_control(
@@ -503,13 +511,11 @@ class ProgressBarManager:
 
 
 @lru_cache(maxsize=8)
-def _load_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont | None:
-    """Load a font via direct path, falling back to a VFS read for
-    resource:// and other non-filesystem paths. BASIC layout: Kodi applies
-    no GPOS kerning, so neither may the measurement.
+def _load_font(font_path: str) -> ImageFont.FreeTypeFont | None:
+    """Load a font at _REF_SIZE via direct path, falling back to a VFS read
+    for resource:// paths. BASIC layout: Kodi applies no GPOS kerning.
 
     :param font_path: special://, resource://, or absolute font path.
-    :param font_size: Font size in rendered pixels.
     :return: Loaded font, or None if unreadable.
     """
 
@@ -520,7 +526,7 @@ def _load_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont | None:
     try:
         return ImageFont.truetype(
             xbmcvfs.translatePath(font_path),
-            font_size,
+            _REF_SIZE,
             layout_engine=ImageFont.LAYOUT_BASIC,
         )
     except OSError:
@@ -535,7 +541,7 @@ def _load_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont | None:
         return None
     try:
         return ImageFont.truetype(
-            io.BytesIO(data), font_size, layout_engine=ImageFont.LAYOUT_BASIC
+            io.BytesIO(data), _REF_SIZE, layout_engine=ImageFont.LAYOUT_BASIC
         )
     except OSError:
         log.warning(f"_load_font → not a valid font: {font_path}")
@@ -544,34 +550,46 @@ def _load_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont | None:
 
 class KodiMetric:
     """
-    Line width as CGUIFontTTF computes it: per-glyph advances rounded at the
-    rendered size, summed without kerning, scaled back to skin units.
+    Line width as CGUIFontTTF computes it: unhinted advances (LIGHT target) at
+    the rendered size and xdpi aspect, rounded half up, summed without kerning.
     """
 
-    def __init__(self, font: ImageFont.FreeTypeFont, scale: float) -> None:
+    def __init__(
+        self,
+        font: ImageFont.FreeTypeFont,
+        font_size: int,
+        scale_x: float,
+        scale_y: float,
+    ) -> None:
         """
-        Wrap a font rasterised at skin size * scale.
+        Model GUIFontManager::RescaleFontSizeAndAspect for the current GUI scale.
 
-        :param font: Font loaded at the rendered pixel size.
-        :param scale: ScreenHeight / skin height.
+        :param font: Font loaded at _REF_SIZE.
+        :param font_size: Font size in skin-coordinate pixels.
+        :param scale_x: ScreenWidth / skin width.
+        :param scale_y: ScreenHeight / skin height.
         """
+        xdpi = math.floor(72 * scale_x / scale_y + 0.5)
         self.font = font
-        self.scale = scale
+        self.px = font_size * scale_y * xdpi / 72 / _REF_SIZE
+        self.scale_x = scale_x
         self.advances = {}
 
     def getlength(self, text: str) -> float:
         """
-        Width of text in skin-coordinate pixels.
+        Width of text in skin-coordinate pixels, last-glyph ink headroom included.
 
         :param text: Single line to measure.
-        :return: Sum of rounded rendered advances divided by scale.
+        :return: Sum of rounded rendered advances divided by scale_x.
         """
-        total = 0
+        total = _INK_OVERHANG
         for ch in text:
             if (advance := self.advances.get(ch)) is None:
-                advance = self.advances[ch] = round(self.font.getlength(ch))
+                advance = self.advances[ch] = math.floor(
+                    self.font.getlength(ch) * self.px + 0.5
+                )
             total += advance
-        return total / self.scale
+        return total / self.scale_x
 
 
 def clamp_text(
@@ -583,19 +601,20 @@ def clamp_text(
     max_lines: int,
 ) -> str:
     """Clamp text to max_lines when wrapped at max_width with the given font.
-    Measures with Kodi's rule (KodiMetric) at the current GUI scale.
+    Lines are pinned with [CR] so Kodi renders the measured breaks verbatim.
 
     :param text: Full input string.
     :param font_path: special://, resource://, or absolute font path.
     :param font_size: Font size in skin-coordinate pixels.
     :param max_width: Wrap width in skin-coordinate pixels.
     :param max_lines: Maximum rendered lines to keep.
-    :return: Single unwrapped string; Kodi re-wraps it at render time.
+    :return: Clamped lines joined with [CR].
     """
     from resources.lib.shared.hash import HashManager
     from resources.lib.shared.sqlite import TruncateCacheHandler
 
-    scale = to_int(infolabel("System.ScreenHeight")) / _SKIN_HEIGHT
+    scale_x = to_int(infolabel("System.ScreenWidth")) / _SKIN_WIDTH
+    scale_y = to_int(infolabel("System.ScreenHeight")) / _SKIN_HEIGHT
     cache = TruncateCacheHandler()
     key = HashManager.short_hash_str(
         "|".join(
@@ -603,7 +622,8 @@ def clamp_text(
                 _CLAMP_VERSION,
                 font_path,
                 str(font_size),
-                f"{scale:.4f}",
+                f"{scale_x:.4f}",
+                f"{scale_y:.4f}",
                 str(max_width),
                 str(max_lines),
                 text,
@@ -614,10 +634,11 @@ def clamp_text(
     if (cached := cache.get_entry(key)) is not None:
         return cached
 
-    font = _load_font(font_path, round(font_size * scale))
+    font = _load_font(font_path)
     if font is None:
         return text
-    result = " ".join(fit_lines(KodiMetric(font, scale), text, max_width, max_lines))
+    metric = KodiMetric(font, font_size, scale_x, scale_y)
+    result = "[CR]".join(fit_lines(metric, text, max_width, max_lines))
     cache.upsert_entry(key, result)
     return result
 
