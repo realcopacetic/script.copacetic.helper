@@ -123,8 +123,9 @@ data folder after clearing, for example `1.2 MB`.
 
 ## clear_label
 
-Empties a **fadelabel** control in the current window. Use it in `<onunload>` or
-`<onload>` so the window does not show the last text for a moment when it next opens.
+Empties a **fadelabel** control in the current window. Use it in `<onload>`, so a
+window kept in memory does not show its last text for a moment when it opens again. Not
+in `<onunload>`: the script runs once the next window is current.
 
 Nothing happens if the id is not a positive number. The control must exist in the
 current window (the window itself, also while a dialog is open). It only works on
@@ -135,7 +136,7 @@ fadelabel controls.
 | `id` | control id | required | The fadelabel to empty |
 
 ```xml
-<onunload>RunScript(script.copacetic.helper,action=clear_label,id=1500)</onunload>
+<onload>RunScript(script.copacetic.helper,action=clear_label,id=1500)</onload>
 ```
 
 ---

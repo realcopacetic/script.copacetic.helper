@@ -68,12 +68,11 @@ def reset_dev_state() -> None:
 """KODI UTILS"""
 
 
-def clear_label(label_id: int | str, hide: bool = False) -> None:
+def clear_label(label_id: int | str) -> None:
     """
-    Clear a label control, optionally hiding it.
+    Clear a label control in the current window.
 
     :param label_id: Control id of the label to clear.
-    :param hide: Also set the control invisible when True.
     """
     if (ctrl_id := to_int(label_id, 0)) <= 0:
         return
@@ -81,8 +80,6 @@ def clear_label(label_id: int | str, hide: bool = False) -> None:
     window = Window(getCurrentWindowId())
     try:
         ctrl = window.getControl(ctrl_id)
-        if hide:
-            ctrl.setVisible(False)
         ctrl.reset()
         ctrl.addLabel("")
     except RuntimeError:

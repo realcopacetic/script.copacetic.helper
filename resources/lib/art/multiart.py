@@ -245,7 +245,6 @@ def set_multiart_fadelabel(
             window_property(f"multiart_frozen_{fadelabel_id}", displayed)
         elif not preserve_frozen:
             window_property(f"multiart_frozen_{fadelabel_id}")
-        ctrl.setVisible(True)
         ctrl.reset()
         # reset() keeps the rotation index until Process clamps it (GetLabel reads
         # empty till then), so the main image reading back proves the clamp.
@@ -341,7 +340,7 @@ def seed_multiart(
             f"seed_multiart → seeded register {fadelabel_id} ({len(ordered)} items)"
         )
     elif alive():
-        clear_label(fadelabel_id, hide=False)
+        clear_label(fadelabel_id)
         if not same_scope:
             window_property(f"multiart_frozen_{fadelabel_id}")
         art = {k: v for k, v in art.items() if not k.startswith("multiart")}

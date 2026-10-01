@@ -66,10 +66,11 @@ def clean_filename(label: str | bool = False, **kwargs: str) -> None:
 @action
 def clear_label(id: int | str, **kwargs: str) -> None:
     """
-    Clear a fadelabel register. Sanctioned for window-unload only —
-    mid-session skin-side clears violate the single-writer doctrine.
+    Clear a fadelabel register. Sanctioned for window load only (the arriving
+    window owns the register); mid-session skin-side clears violate the
+    single-writer doctrine.
     """
-    _clear_label_util(id, hide=False)
+    _clear_label_util(id)
 
 
 @action
