@@ -78,10 +78,6 @@ def clear_label(label_id: int | str, hide: bool = False) -> None:
     if (ctrl_id := to_int(label_id, 0)) <= 0:
         return
 
-    if not condition(f"Control.IsVisible({ctrl_id})"):
-        log.debug(f"clear_label: Control {ctrl_id} not in current window; skipping.")
-        return
-
     window = Window(getCurrentWindowId())
     try:
         ctrl = window.getControl(ctrl_id)

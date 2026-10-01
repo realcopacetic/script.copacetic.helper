@@ -126,8 +126,9 @@ data folder after clearing, for example `1.2 MB`.
 Empties a **fadelabel** control in the current window. Use it in `<onunload>` or
 `<onload>` so the window does not show the last text for a moment when it next opens.
 
-Nothing happens if the id is not a positive number, or the control is not visible in
-the current window. It only works on fadelabel controls.
+Nothing happens if the id is not a positive number. The control must exist in the
+current window (the window itself, also while a dialog is open). It only works on
+fadelabel controls.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
