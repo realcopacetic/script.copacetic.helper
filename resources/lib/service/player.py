@@ -209,7 +209,8 @@ class PlayerMonitor(Player):
     def watch_trailer_session(self) -> None:
         """
         Poller hook: reap a wedged pending request; demote a playing session
-        whose item lost focus; reap a demoted session once the user has settled.
+        whose item lost focus; rewind, then reap, a demoted session once the user
+        has settled.
         """
         state = infolabel("Window(home).Property(trailer_state)")
         if state == "pending":
@@ -224,6 +225,9 @@ class PlayerMonitor(Player):
                 self._pause_session()
                 return
             if condition("System.IdleTime(10)"):
+                if self.getTime() > 1 and condition("Player.SeekEnabled"):
+                    self.seekTime(0)  # stop next tick, under Kodi's watched mark
+                    return
                 log.execute("PlayerControl(Stop)")
 
     def _reap_stale_pending(self, max_age: float = 5.0) -> None:
