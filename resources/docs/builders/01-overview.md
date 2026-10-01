@@ -50,30 +50,61 @@ How a widget's `layout` setting travels through the system:
 
 ---
 
+## Where the files live
+
+Everything the builder reads lives in your skin, under `extras/templates/`:
+
+| Folder | Holds | Format |
+|---|---|---|
+| `mappings/` | The lists you loop over | JSON |
+| `configs/` | Allowed values and defaults for each setting | JSON |
+| `controls/` | The settings window controls | JSON |
+| `variables/` | Variable templates | JSON |
+| `expressions/` | Expression templates | JSON |
+| `includes/` | Include templates | XML |
+
+Every `*.json` (or `*.xml` for includes) file directly inside a folder is read, in file-name order. Sub-folders are not read. Having at least one of these folders is how a skin opts in: the service only runs the builder for a skin that has one.
+
+The builder writes three files into your skin's `16x9/` folder:
+
+| File | Use with |
+|---|---|
+| `script-copacetic-helper_variables.xml` | `$VAR[name]` |
+| `script-copacetic-helper_expressions.xml` | `$EXP[name]` |
+| `script-copacetic-helper_includes.xml` | `<include>name</include>` |
+
+Include each one once from your skin. The addon also keeps two files in its own profile folder (`special://profile/addon_data/script.copacetic.helper/`): `runtime_state.json` (the settings file) and `resolver_cache.json` (a copy of your mappings, configs and controls that the settings windows read).
+
+---
+
 ## When things build
 
 | When | What runs |
 |---|---|
-| First boot / skin install or update | Variables, includes, expressions |
-| User closes a settings window with changes | Includes and expressions rebuild, then `ReloadSkin()` |
-| A settings window opens | Configs and controls are read from the resolver cache — refreshed by every build; nothing new is "built" |
+| Kodi starts (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or belongs to another skin, everything is rebuilt. Otherwise only output files that are missing are built. |
+| Kodi starts (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
+| User closes a settings window with changes | Everything is rebuilt, then `ReloadSkin()` |
+| `action=rebuild` | Everything is rebuilt, then `ReloadSkin()` |
+| A settings window opens | Configs and controls are read from the resolver cache, which every build refreshes. Nothing is built. |
+
+"Everything" means all three output files and the resolver cache. The start-up check runs once per Kodi session.
 
 ---
 
 ## Working on your skin
 
-**Production (default):** the service only builds files that are missing. Fast starts for users, no reloads.
+**Production (default):** the service only builds what is missing, as above. Fast starts for users, no reloads.
 
 **Dev mode** (Addon Settings → Developers): rebuild everything on every Kodi start, then reload the skin.
 
-**Reset on next start** (sub-toggle of dev mode): also deletes the settings file and all outputs first, so everything regenerates from defaults. Use after changing a mapping's `default_order`, `config_fields`, or `metadata`. Clears itself after running.
+**Reset on next start** (sub-toggle of dev mode): also deletes the settings file, the resolver cache and all outputs first, so everything regenerates from defaults. Clears itself after running. You need a reset only when the *list of entries* should change: a new `items` or `default_order` on an existing dynamic mapping, or a changed `parent` in metadata. Other metadata and `config_fields` are read live, so a rebuild picks them up. A brand-new dynamic mapping gets its entries on the next start without a reset.
 
 **Rebuild from anywhere:**
 
 | Script | Effect |
 |---|---|
 | `RunScript(script.copacetic.helper,action=rebuild)` | Rebuild everything, keep user settings, reload |
-| `RunScript(script.copacetic.helper,action=rebuild,reset=true)` | Wipe settings and outputs, rebuild from defaults |
+| `RunScript(script.copacetic.helper,action=rebuild,reset=true)` | Delete the settings file, resolver cache and outputs, rebuild from defaults, reload |
 
 ---
 
@@ -83,16 +114,25 @@ Templates use `{curly_brace}` tokens. The builder fills them in, once per loop p
 
 - The mapping's declared names — `{content_type}`, `{widget_preset}`, …
 - Everything in the current item's `metadata` — `{label}`, `{window}`, …
-- Everything stored on the entry, when looping the settings file — `{layout}`, `{content}`, …
-- `{index}` when the template declares an index range
-- `{count}`, `{is_first}`, `{is_last}` — total loop size and position, as `"true"`/`"false"` strings you can drop straight into Kodi conditions
-- Simple maths on numbers: `{index+2002}` — handy for derived control IDs
-- A borrowed mapping's `tokens`, when the template uses `templates_from` — see [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings)
-- `{@mapping:item.field}` — reach into *any* mapping's metadata directly, no loop required: `{@windows:{window}.window_is}` reads the `window_is` field from the windows item named by `{window}` (inner tokens fill first). Unknown mapping, item, or field stops the build loudly — a typo can't silently become an empty string.
+- Everything on the entry, when the mapping is `dynamic` — stored values, config defaults for unset fields, and `{runtime_id}` / `{parent}`
+- `{index}` — on a `dynamic` mapping always (counting from 1, or from the template's `index` start); on a static mapping only when the template declares `index`
+- `{range}` when the template declares `range`, `{item}` when it declares `items`, and the borrowed mapping's own names when it declares `items_from`
+- `{count}`, `{is_first}`, `{is_last}` — total loop size and position after filtering, as strings (`"true"`/`"false"` for the last two) you can drop straight into Kodi conditions
+- Simple maths on whole numbers: `{index+2002}`, `{index*10}`, `{min(count*100, 800)}`. Operators: `+ - * / // %`, brackets and a leading minus; functions: `min`, `max`, `ceil`, `sqrt`. Every name in the sum must hold a whole number.
+- The mapping's `tokens` — see [Mappings → tokens](02-mappings.md#tokens--shared-snippets-for-borrowing-templates)
+- `{@mapping:item.field}` — reach into *any* mapping's metadata directly, no loop required: `{@windows:{window}.window_is}` reads the `window_is` field from the windows item named by `{window}` (inner tokens fill first). The field must be a string.
 
-A token that can't be filled in is left as-is, so mistakes show up in the output instead of disappearing.
+Tokens can nest: inner braces fill first. There is no escape for a literal `{`: any `{…}` in a template is read as a token.
 
-+**Who wins when names collide.** Each pass builds one dictionary of values, and lookups go: the pass's own values first — loop names, item metadata, entry fields (dynamic mode) — then the borrowed mapping's `tokens` underneath. A token never overrides something the pass already knows. Tokens are themselves rendered against the pass before they're added, so they can contain placeholders and `{@…}` reaches (`"slot_range": "{@views:{layout}.slot_range}"` on the widgets mapping fills from each entry's `layout`). `{@…}` values, by contrast, are looked up and pasted literally — anything inside them is *not* rendered again, so `"range": "{slot_range}"` on a borrowed item stays as those eleven characters. Rule of thumb: caller-dependent placeholders go in the caller's tokens, never in the borrowed field. And a token can stand in for a placeholder the template expects but the pass doesn't supply — see [Mappings → tokens](02-mappings.md#tokens--shared-snippets-for-borrowing-templates).
+**When a token can't be filled in**, what happens depends on where it is:
+
+| Where | Unknown token |
+|---|---|
+| Template names, `filter`, and inside a mapping's `tokens` | The build stops with an error naming the token and the template |
+| Values: variable rows, expression rules, include bodies | Becomes an empty string (and an empty include param or attribute is dropped) |
+| `{@mapping:item.field}`, anywhere | The build stops — an unknown mapping, item or field, or a non-string field, can't silently become an empty string |
+
+**Who wins when names collide.** Each pass builds one dictionary of values, and lookups go: the pass's own values first — loop names, item metadata, entry fields (dynamic mode) — then the mapping's `tokens` underneath. A token never overrides something the pass already knows. Tokens are themselves rendered against the pass before they're added, so they can contain placeholders and `{@…}` reaches (`"slot_range": "{@views:{layout}.slot_range}"` on Copacetic's widgets mapping fills from each entry's `layout`). `{@…}` values, by contrast, are looked up and pasted literally — anything inside them is *not* rendered again, so `"range": "{slot_range}"` on a borrowed item stays as those twelve characters. Rule of thumb: caller-dependent placeholders go in the caller's tokens, never in the borrowed field. And a token can stand in for a placeholder the template expects but the pass doesn't supply — see [Mappings → tokens](02-mappings.md#tokens--shared-snippets-for-borrowing-templates).
 
 ---
 
