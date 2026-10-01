@@ -156,12 +156,12 @@ Sometimes several variables must follow the *same* condition cascade — a label
 | `outputs` | Map of row-key → variable name. Each entry becomes one real variable. |
 | `rows` | The shared cascade. Each row: an optional `condition`, plus one value per output it feeds. |
 
-This emits two variables — `label_breadcrumb_left_videos` and `texture_breadcrumb_left_videos` — with identical condition ladders. Whatever row matches, both resolve from it, so `$VAR[label_...]` and `$VAR[texture_...]` can sit next to each other and never disagree.
+This emits two variables — `label_breadcrumb_left_videos` and `texture_breadcrumb_left_videos` — with identical lists of conditions. Whatever row matches, both resolve from it, so `$VAR[label_...]` and `$VAR[texture_...]` can sit next to each other and never disagree.
 
 Details:
 
 - **The template name isn't a variable.** Only the `outputs` names are emitted. An output name with no placeholders is always written, even when every pass is filtered out. An unknown placeholder in an output name becomes an empty string rather than stopping the build, so check the names in the output file. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
-- **Loop controls work here too.** `index`, `items`, `items_from`, `templates_from`, `mode`, and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. In Copacetic, `_{texture_prefix}_base_cluster` in `variables_slots.json` borrows regions, widgets and search *and* loops `items: [poster, fanart, square]` — every container gets a main/fallback pair per art type from one cascade.
+- **Loop controls work here too.** `index`, `items`, `items_from`, `templates_from` and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. In Copacetic, `_{texture_prefix}_base_cluster` in `variables_slots.json` borrows regions, widgets and search *and* loops `items: [poster, fanart, square]` — every container gets a main/fallback pair per art type from one cascade.
 - **Sparse rows.** A row can feed some outputs and skip others — just leave the key off. That output's cascade simply doesn't have that row. Useful when one output's chain is a subset of another's.
 - **Blocks apply.** `rows` groups with `[...]` the same way `values` does.
 
