@@ -37,18 +37,19 @@ Ten variables out — `texture_primary_poster-3` through `...poster6` — each w
 
 | Field | What it does |
 |---|---|
-| `index` | Numbers the loop passes: pass N gets `{index}` = `start` + N. Never multiplies — one value per existing pass. |
-| `range` | A numeric loop: `start`, `end`, optional `step`. Multiplies — every existing pass repeats once per value, available as `{range}`. |
-| `items` | An explicit list to loop over — each value becomes `{item}` |
+| `index` | `{"start": N}`. Numbers the loop passes: the first pass gets `{index}` = N, the next N+1, and so on. Never multiplies — one value per existing pass. Only `start` is read. |
+| `range` | A numeric loop: `start`, `end` (inclusive), optional `step` (default 1). Without `end` it gives the single value `start`. Multiplies — every existing pass repeats once per value, available as `{range}`. |
+| `items` | An explicit list to loop over — each value becomes `{item}`. Multiplies. |
 | `items_from` | Loop a *different* mapping's items instead of typing a list — see below |
 | `templates_from` | Stamp this template once per listed mapping, filling each one's `tokens` — see below |
 | `values` | The rows — `{condition, value}` dicts, or lists of them (blocks, below) |
 | `filter` | Skip loop passes at build time — see [Filtering](#filtering) |
-| `mode` | `"dynamic"` = loop the settings-file entries instead of the mapping's items |
 
-**`index` numbers the passes; `range` and `items` multiply them.** Expansion order: the mapping's items make the passes → `index` stamps each with a number → `range` repeats every pass per value → `items` repeats every pass per value → `filter` prunes. So `range` and `items` combine into every pairing, while `index` alone never adds passes — a template with `mapping: "none"` and only an `index` emits exactly one variable. In dynamic mode, `{index}` numbers the settings entries, and a declared `index` sets its starting value.
+Whether the template loops the mapping's items or its settings-file entries is decided by the mapping's `mode`, not by the template. A `mode` key on a template is ignored.
 
-Rows: `condition` is optional — leave it off for an unconditional row (a bare `<value>`). Kodi reads top to bottom and uses the first match, exactly like a hand-written variable.
+**`index` numbers the passes; `range` and `items` multiply them.** Expansion order: the mapping's items (or entries) make the passes → `index` stamps each with a number → the mapping's `tokens` are filled in → `range` repeats every pass per value → `items_from` repeats every pass per borrowed item → `items` repeats every pass per value → `filter` prunes → `{count}`, `{is_first}` and `{is_last}` are set on what's left. So `range` and `items` combine into every pairing, while `index` alone never adds passes — a template with `mapping: "none"` and only an `index` emits exactly one variable. In dynamic mode, `{index}` numbers the settings entries, and a declared `index` sets its starting value.
+
+Rows: `condition` is optional — leave it off for an unconditional row (a bare `<value>`). Kodi reads top to bottom and uses the first match, exactly like a hand-written variable. A condition that fills in as just `true` is dropped too, and a `true + ` at the start of a condition (or straight after a `[`) is removed — so a token that is `"true"` for some mappings leaves a clean condition.
 
 ---
 
@@ -105,7 +106,7 @@ Wrap rows in a list to keep them together as one **block**. A block with any tok
 <value>$VAR[label_multiart_home]</value>
 ```
 
-Same rows, different order: now widget 3200's full chain runs before widget 3201's starts. Reach for a block whenever a set of rows must stay together per pass — a lone row is just a one-row block. `content_typewriter` in `variables_widgets.json` uses several blocks in sequence: the first block loops fully across all widgets, then the second begins.
+Same rows, different order: now widget 3200's full chain runs before widget 3201's starts. Reach for a block whenever a set of rows must stay together per pass — a lone row is just a one-row block. In Copacetic, `content_typewriter_{region}` in `variables_content.json` uses several blocks in sequence: the first block loops fully across all widgets, then the second begins.
 
 ### Duplicates are dropped
 
@@ -159,8 +160,8 @@ This emits two variables — `label_breadcrumb_left_videos` and `texture_breadcr
 
 Details:
 
-- **The template name isn't a variable.** Only the `outputs` names are emitted. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
-- **Loop controls work here too.** `index`, `items`, `items_from`, `templates_from`, `mode`, and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. `_{texture_prefix}_base_cluster` in `variables_ladders.json` borrows regions, widgets and search *and* loops `items: [poster, fanart, square]` — every container gets a main/fallback pair per art type from one cascade.
+- **The template name isn't a variable.** Only the `outputs` names are emitted. An output name with no placeholders is always written, even when every pass is filtered out. An unknown placeholder in an output name becomes an empty string rather than stopping the build, so check the names in the output file. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
+- **Loop controls work here too.** `index`, `items`, `items_from`, `templates_from`, `mode`, and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. In Copacetic, `_{texture_prefix}_base_cluster` in `variables_slots.json` borrows regions, widgets and search *and* loops `items: [poster, fanart, square]` — every container gets a main/fallback pair per art type from one cascade.
 - **Sparse rows.** A row can feed some outputs and skip others — just leave the key off. That output's cascade simply doesn't have that row. Useful when one output's chain is a subset of another's.
 - **Blocks apply.** `rows` groups with `[...]` the same way `values` does.
 
@@ -171,7 +172,7 @@ Details:
 `items` with a typed list is fine until the list already exists as a mapping. `items_from` names a mapping and loops its items instead — under that mapping's *own* placeholder names:
 
 ```json
-"vue_grid_{grid_layout}_visible_{window}": {
+"grid_{grid_layout}_visible_{window}": {
   "items_from": "grid",
   "..."
 }
@@ -179,9 +180,9 @@ Details:
 
 Each pass carries `{grid_layout}` (the grid mapping's declared key) alongside the file mapping's tokens. Like `items`, it multiplies: every existing pass repeats once per borrowed item. Dict rosters work too — both the key and value placeholders inject. One list, one owner: when the roster changes, every template borrowing it follows.
 
-**Reading the borrowed item's metadata.** `{@mapping:item.field}` pulls one string field from another mapping's `metadata`; the item part can itself be a placeholder, so `{@texture_wrapness:{wrapness}.nowrap}` resolves per pass. The lookup is loud — unknown mapping, item, or field stops the build.
+**Reading the borrowed item's metadata.** `{@mapping:item.field}` pulls one string field from another mapping's `metadata`; the item part can itself be a placeholder, so `{@edges:{edge}.nowrap}` resolves per pass. The lookup is loud — unknown mapping, item, or field stops the build.
 
-**The value comes back literal.** Substitution scans the *template text* once, innermost first; a value returned by a foreign lookup is pasted in and not rescanned. A `{placeholder}` inside the borrowed field is therefore dead text in the caller: `"range": "{slot_range}"` on a `texture_wrapness` item stays `{slot_range}` wherever it lands, and a filter like `In({range}, {@texture_wrapness:{wrapness}.range})` silently fails every pass. Keep borrowed fields to constants; anything that depends on the caller belongs in the caller's own tokens or metadata.
+**The value comes back literal.** Substitution scans the *template text* once, innermost first; a value returned by a foreign lookup is pasted in and not rescanned. A `{placeholder}` inside the borrowed field is therefore dead text in the caller: `"range": "{slot_range}"` on an `edges` item stays `{slot_range}` wherever it lands, and a filter like `In({range}, {@edges:{edge}.range})` silently fails every pass. Keep borrowed fields to constants; anything that depends on the caller belongs in the caller's own tokens or metadata.
 
 ---
 
@@ -219,7 +220,7 @@ When to reach for it: several mappings need *the same cascade* and differ only i
 
 Only drilldown and group widgets get their rows; other configured widgets are skipped entirely.
 
-Don't confuse it with a row's `condition`: **filter decides at build time whether rows exist; condition decides at runtime whether Kodi uses them.** The two-axis trick — different loop values covering different ranges — is covered in [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes) and works identically here; the wrapness ladders in `variables_ladders.json` are the live example.
+Don't confuse it with a row's `condition`: **filter decides at build time whether rows exist; condition decides at runtime whether Kodi uses them.** The two-axis trick — different loop values covering different ranges — is covered in [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes) and works identically here; Copacetic's `variables_slots.json` is a live example.
 
 ---
 
