@@ -450,8 +450,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def metadata(self) -> list[DirectoryItem] | None:
         """
         Fetch/attach cleaned metadata to a helper list item; aborts if focus changes.
-        random_pick=true publishes one random director and genre, and
-        genre_aliases=substring:name,... renames that genre pick.
+        random_pick=true picks one director and genre (genre_aliases renames it);
+        tmdb_art=true also caches TMDb's images for artwork's get_extra_multiart.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -475,7 +475,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb", "false"))
         if enrich_with_tmdb:
-            tmdb_item = self._get_tmdb_item(append_artwork=False)
+            # tmdb_art: the one request also caches the art-bearing entry (a superset)
+            # that the artwork serve's get_extra_multiart reads.
+            tmdb_item = self._get_tmdb_item(
+                append_artwork=parse_bool(self.params.get("tmdb_art"))
+            )
             if tmdb_item:
                 # Library trailer outranks TMDb's YouTube URL: local file,
                 # no plugin dependency. Merge fills it only when absent.

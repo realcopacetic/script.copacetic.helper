@@ -210,9 +210,10 @@ library artwork:
 - Backdrops (`fanart`, `landscape`) at width 1280 and posters (`poster`, `keyart`) at
   width 780, not TMDb's original size, as each new image downloads the first time it
   shows.
-- From the TMDb cache only, which [`tmdb_details`](metadata.md#tmdb_details) with
-  `multiart=true` fills for the same item and language. An item not cached yet gets
-  its library artwork only.
+- From the TMDb cache only, which [`metadata`](metadata.md#metadata) with
+  `tmdb_art=true` or [`tmdb_details`](metadata.md#tmdb_details) with `multiart=true`
+  fills for the same item and language. An item not cached yet gets its library
+  artwork only.
 - For movies and TV shows with a TMDb id. Episodes use their show's artwork.
 
 ### Multiart in a FadeLabel

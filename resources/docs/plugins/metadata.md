@@ -34,6 +34,7 @@ and so on.
 | `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. |
 | `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
 | `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the trailer. See [TMDb lookups](#tmdb-lookups). |
+| `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDb's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDb artwork. |
 | `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDb lookup inputs. See [TMDb lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -113,8 +114,9 @@ With `multiart=true`, TMDb's image lists are added as numbered art keys:
 | `landscape`, `landscape1…` | backdrops in your language | 10 |
 | `clearlogo`, `clearlogo1…` | logos in your language, else logos with no language | 5 |
 
-Results are cached. A `multiart=true` call also makes the art available to the
-artwork helper's `get_extra_multiart` (see [Artwork](artwork.md#multiart)).
+Results are cached. A `multiart=true` call, or `metadata` with `tmdb_art=true`, also
+makes the art available to the artwork helper's `get_extra_multiart` (see
+[Artwork](artwork.md#multiart)).
 
 ---
 
