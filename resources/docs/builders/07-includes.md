@@ -16,7 +16,6 @@ XML files in `extras/templates/includes/`:
   <mapping>widgets</mapping>
   <includes>
     <template>
-      <mode>dynamic</mode>
       <index start="3200" />
       <include name="widget_containers">
         <include content="ctn_{layout}">
@@ -33,18 +32,21 @@ XML files in `extras/templates/includes/`:
 
 | Element | What it does |
 |---|---|
-| `<mapping>` | Mapping name |
+| `<mapping>` | Mapping name. Missing = `none`. |
 | `<template>` | One unit to expand (several per file is fine) |
-| `<mode>` | `dynamic` = one copy per settings-file entry. Default = one per mapping item. |
-| `<index>` | Start number for `{index}` — numbers the passes, never multiplies them |
-| `<range>` | Numeric loop (`start`, `end`, optional `step`) — every pass repeats once per value as `{range}` |
+| `<index start="N">` | Start number for `{index}` (default 1) — numbers the passes, never multiplies them |
+| `<range start="" end="" step="">` | Numeric loop (`end` inclusive, `step` optional) — every pass repeats once per value as `{range}` |
 | `<items>` | An extra comma-separated loop on the template itself |
 | `<items_from>` | Loop another mapping's items under its own placeholder names — [Variables → items_from](03-variables.md#items_from--borrow-another-mappings-list) |
-| `<templates_from>` | Comma-separated mappings; the template expands once per mapping with its `tokens` filled — [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings). `includes_scoped.xml` emits `dly_{scope}_focus_latches` for widgets and search from one body. |
+| `<templates_from>` | Comma-separated mappings; the template expands once per mapping with its `tokens` filled — [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings). In Copacetic, `includes_scoped.xml` builds one include each for widgets and search from one body. |
 | `<filter>` | Skip some loop passes — see below |
-| `<include name="...">` | The **outer** include — the name your skin references. Appears once. |
+| `<include name="...">` | The **outer** include — the name your skin references. Appears once per name. Required: a template without it is skipped. |
 
-Everything *inside* the outer include is the body, and the body multiplies: one copy per pass, tokens filled per pass. Tokens work anywhere — element text, attributes, even the `content` name (`ctn_{layout}` routes each entry to your matching layout include: `ctn_strip`, `ctn_grid`, …).
+As with the other builders, the mapping's `mode` decides whether the template loops mapping items or settings-file entries (`dynamic`); there is no per-template mode. In Copacetic's example the widgets mapping is dynamic, so there is one copy per configured widget.
+
+Everything *inside* the outer include is the body, and the body multiplies. Tokens work anywhere — element text, attributes, even the `content` name (`ctn_{layout}` routes each entry to your matching layout include: `ctn_strip`, `ctn_grid`, …).
+
+**How the body repeats.** Each direct child of the outer include is handled on its own, in order. A child that contains a loop token is written once per pass; a child with no loop token is written once. So with two tokened children you get every copy of the first, then every copy of the second — not first-second pairs. To keep elements together per pass, put them inside one child (a `<control type="group">`, or an inner `<include>`).
 
 ---
 
@@ -56,7 +58,6 @@ Everything *inside* the outer include is the body, and the body multiplies: one 
 
 ```xml
 <template>
-  <mode>dynamic</mode>
   <index start="1" />
   <include name="mainmenu_items">
     <item id="{index}">
@@ -85,17 +86,21 @@ One `<item>` per menu entry, straight into a container's content block. Attribut
 
 A param, attribute, or element whose value fills in to nothing is dropped from that copy — so your include's `$PARAM` defaults take over, and `<onclick>{update}</onclick>` simply isn't there for entries with no update action.
 
-The exception is the outer include itself: if a filter removes *every* pass, the named include is still written as an empty shell. Your skin XML can reference `<include>widget_containers</include>` unconditionally without breaking when the user has nothing configured.
+The exception is the outer include itself: if a filter removes *every* pass (or a dynamic mapping has no entries), the named include is still written, holding only a `<description>placeholder</description>` element. Your skin XML can reference `<include>widget_containers</include>` unconditionally without breaking when the user has nothing configured. This only works when the outer name has no per-pass token.
 
 ---
 
 ## What the tokens are
 
-**Default (per mapping item):** the mapping's loop names, the template's own `<items>`, `{index}`, and the item's string metadata.
+The full list is in [Overview → Placeholders](01-overview.md#placeholders). In short:
 
-**Dynamic (per settings entry):** all of the above, plus everything stored on the entry (`{layout}`, `{content}`, `{label}`, `{runtime_id}`, `{parent}`, …) — stored values win over metadata. `{index}` counts up from the start number, so containers get sequential IDs (3200, 3201, …). Maths works too: `{index}0` by concatenation, `{index+2002}` by arithmetic.
+**Static mapping (per mapping item):** the mapping's loop names, the template's own `<items>` / `<range>` / `<items_from>` values, `{index}`, the item's metadata and the mapping's `tokens`.
 
-**`{xsp}`:** if an item's metadata has an `xsp` smart-playlist dict, the builder URL-encodes it and hands it to you as `{xsp}` — stick it on the end of a path: `value="{content}{xsp}"`. Items without one get nothing there, and the param prunes away. `$ESCINFO[]` inside the playlist stays live for Kodi to resolve.
+**Dynamic mapping (per settings entry):** all of the above, plus everything on the entry (`{layout}`, `{content}`, `{label}`, `{runtime_id}`, `{parent}`, …) — stored values win over metadata, and unset settings give their config default. The item name is the mapping's `key` placeholder (there is no `{mapping_item}` token). `{index}` counts up from the start number, so containers get sequential IDs (3200, 3201, …). Maths works too: `{index}0` by concatenation, `{index+2002}` by arithmetic.
+
+`{count}` is the number of passes that build this include.
+
+**`{xsp}`:** if an item's metadata has an `xsp` smart-playlist dict, the builder URL-encodes it and hands it to you as `{xsp}` (`?xsp=…`) — stick it on the end of a path: `value="{content}{xsp}"`. Items without one get nothing there, and the param prunes away. `$INFO[]`, `$ESCINFO[]`, `$VAR[]` and `$ESCVAR[]` inside the playlist stay live for Kodi to resolve.
 
 **Gated xsp rules.** A rule inside the dict can carry `"gate": "<field>"` — that rule is only included when the entry's field reads `"true"`:
 
@@ -103,7 +108,7 @@ The exception is the outer include itself: if a filter removes *every* pass, the
 { "field": "plot", "operator": "contains", "value": ["$ESCINFO[...]"], "gate": "query_plot" }
 ```
 
-Ungated rules always survive. A gated spec isn't encoded at build time — it composes per entry, against the entry's *current* values, so a user toggle changes the playlist on the next rebuild without touching the template.
+Ungated rules always survive. Gates are checked against the first rule group in `rules` (for example `"and"`), and work on `dynamic` mappings only. A gated spec isn't encoded at build time — it composes per entry, against the entry's *current* values, so a user toggle changes the playlist on the next rebuild without touching the template.
 
 ---
 
@@ -113,31 +118,31 @@ Ungated rules always survive. A gated spec isn't encoded at build time — it co
 
 That's different from a `condition` in the body: **filter decides whether a thing exists; conditions decide what an existing thing does at runtime.**
 
-Its best trick is letting different loop values cover different ranges from one template. The texture ladders borrow a two-item mapping (`nowrap`, `wrap`) across range −3..3 — but the two variants need different ranges: each view declares how many slots it draws (`slot_range` metadata), while the wrap-around transition machinery only ever looks one step each way:
+Its best trick is letting different loop values cover different ranges from one template. In Copacetic, the texture variables borrow a two-item mapping, `edges` (`nowrap`, `wrap`, key `edge`), across range −3..3 — but the two variants need different ranges: each view declares how many slots it draws (`slot_range` metadata), while the wrap-around transition machinery only ever looks one step each way:
 
 ```json
-"filter": "equals({wrapness}, nowrap) + In({range}, {slot_range}) | equals({wrapness}, wrap) + In({range}, [-1, 0, 1])"
+"filter": "equals({edge}, nowrap) + In({range}, {slot_range}) | equals({edge}, wrap) + In({range}, [-1, 0, 1])"
 ```
 
 Read it as two domains, OR'd: `nowrap` passes wherever the view's declared range says; `wrap` only at −1, 0, 1. One template instead of two per family, and no `_wrap-3` outputs that nothing uses. `{slot_range}` is a string that *is* a rule-engine list (`"[-3, -2, -1, 0, 1, 2, 3]"`) — metadata can carry condition fragments, not just values.
 
 ---
 
-## Hubs: each parent owns its own children
+## Parent and child lists
 
-**The problem this solves.** By default the widgets are one flat list — the same row of widgets whatever menu item is focused. The hub pattern gives each menu item its *own* set: focus Movies, see the movie widgets; focus Music, see the music widgets. Copacetic exposes it as the `widgets_per_menu` skin setting, and the whole thing is wiring between two mappings — no special container tricks.
+**The problem this solves.** By default the widgets are one flat list — the same row of widgets whatever menu item is focused. A parent link gives each menu item its *own* set: focus Movies, see the movie widgets; focus Music, see the music widgets. Copacetic exposes it as the `widgets_per_menu` skin setting (all names below are Copacetic's), and the whole thing is wiring between two mappings — no special container tricks.
 
 Four pieces. The first three you write; the fourth is what comes out.
 
 ### 1. Tag the child to a parent in metadata
 
-In the child mapping (`widgets`), give an item a `parent` naming an item in the parent mapping (`mainmenu`):
+In the child mapping (`widgets`), declare `"parent_mapping": "mainmenu"`, and give an item a `parent` naming an item in that parent mapping:
 
 ```json
 "latest_movies": { "label": "$LOCALIZE[31202]", "content": "videodb://movies/titles/", "parent": "movies" }
 ```
 
-When the settings file is created, that name is swapped for the movies menu entry's permanent id. From then on the link is by id — reorder either list, rename labels, nothing breaks. `{parent}` is now a token in any dynamic template for the widgets mapping.
+When the entry is created, that name is swapped for the movies menu entry's permanent id (only when `parent_mapping` is declared). From then on the link is by id — reorder either list, rename labels, nothing breaks. `{parent}` is now a token in any dynamic template for the widgets mapping.
 
 ### 2. The parent announces itself; the child checks
 
@@ -147,7 +152,7 @@ Two halves of one handshake. The menu template writes each row's id onto its lis
 <property name="runtime_id">{runtime_id}</property>
 ```
 
-And the widget template's visible param compares the focused menu row against its own `{parent}` — letting everything through when hub mode is off:
+And the widget template's visible param compares the focused menu row against its own `{parent}` — letting everything through when the setting is off:
 
 ```xml
 <param name="visible" value="[!Skin.HasSetting(widgets_per_menu) | String.IsEqual(Container(3000).ListItem.Property(runtime_id),{parent})] + [Control.HasFocus({index}) | Control.HasFocus({index}0)]" />
@@ -181,7 +186,7 @@ The same id appears in both files: the menu item wears it as a property, the wid
 
 ### 4. Open the child editor stamped to one parent
 
-The last piece is how the user *builds* each menu item's set. Open the widget editor with `parent=` and the session is stamped to that hub. On the menu editor, this is a button whose action fills `{runtime_id}` from the highlighted menu row:
+The last piece is how the user *builds* each menu item's set. Open the widget editor with `parent=` and the session is limited to that parent. On the menu editor, this is a button whose action fills `{runtime_id}` from the highlighted menu row:
 
 ```json
 "menu_configure_widgets": {
@@ -197,11 +202,11 @@ The last piece is how the user *builds* each menu item's set. Open the widget ed
 
 Highlight Movies, press the button, and the widget editor opens showing *only* the movie widgets. Stamping means:
 
-- **Adds inherit the parent.** A new entry arrives with `parent` already set to this hub's id and is inserted next to its siblings in the file — you never see, or set, the link by hand.
-- **Everything stays inside the hub.** Move up/down reorders within this hub's entries; Delete and Reset touch only them. Other hubs' widgets are invisible and untouchable.
+- **Adds inherit the parent.** A new entry arrives with `parent` already set to this parent's id and is inserted next to its siblings in the file — you never see, or set, the link by hand.
+- **Everything stays inside the parent.** Move up/down reorders within this parent's entries; Delete and Reset touch only them. Other parents' widgets are invisible and untouchable. Reset recreates the `default_order` items whose metadata `parent` names this parent.
 - **The link is maintained for you.** Delete the menu item later and its widgets go with it; reset the menu and surviving links are re-pointed at the fresh entries — see [Runtime State → Parent links](09-runtime-state.md#parent-links).
 
-Tag in metadata, handshake in the templates, stamp in the dialog. Same recipe wherever one editable list should own another — menu → widgets is just the built-in example.
+Tag in metadata, handshake in the templates, limit in the dialog. Same recipe wherever one editable list should own another — menu → widgets is just the built-in example.
 
 ---
 
