@@ -49,7 +49,7 @@ def build_multiart_dict(
     tmdb_seq = (
         multiart_sequence_from_dict(
             art=tmdb_art,
-            art_type=multiart_type,
+            art_type=multiart_type.removeprefix("tvshow."),  # TMDb keys are bare
             max_items=max_items,
         )
         if local_seq
