@@ -247,19 +247,18 @@ def set_multiart_fadelabel(
             window_property(f"multiart_frozen_{fadelabel_id}")
         ctrl.setVisible(True)
         ctrl.reset()
-        # Kodi keeps a FadeLabel's rotation index across reset(); it only
-        # clamps to 0 when a render pass sees index >= label count. Park a
-        # single empty label for ~2 frames so the clamp happens. Empirical:
-        # GetLabel can't confirm the render pass, so this is a timed wait —
-        # bump the interval if index-walking ever recurs under load.
-        ctrl.addLabel("")
-        if Monitor().waitForAbort(0.05):
-            return False
+        # reset() keeps the rotation index until Process clamps it (GetLabel reads
+        # empty till then), so the main image reading back proves the clamp.
+        ctrl.addLabel(ordered[0])
+        monitor = Monitor()
+        for _ in range(5):  # bounded: with a modal dialog up, Python reads the dialog
+            if infolabel(f"Control.GetLabel({fadelabel_id})") == ordered[0]:
+                break
+            if monitor.waitForAbort(0.02):
+                return False
         if alive and not alive():
             return False
-        ctrl.reset()
-
-        for label in filter(None, ordered):
+        for label in ordered[1:]:
             ctrl.addLabel(label)
 
     except Exception as e:
