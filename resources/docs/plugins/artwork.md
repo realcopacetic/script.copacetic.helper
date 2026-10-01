@@ -1,406 +1,297 @@
 # Artwork Plugin Handler
 
-The artwork helper processes **clearlogos** and **fanart**, extracts a colour set (dominant, accent, contrast, luminosity), computes an optional **darken** value for overlays, and supports **multiart** families (e.g., `fanart1…fanartN`). Results are returned via **ListItem infolabels** and cached.
+The artwork helper prepares artwork for the focused item and returns the results on a
+single list item. It can:
 
-- **Caching & DB:** processed paths and static analysis values are saved in a lightweight DB saved in the userdata folder. If the source art changes, the hash changes and the item is **reprocessed**; otherwise values are loaded from DB and files from cache (fast path). Runtime-only values like `efx_art_darken` are computed on demand.
+- **crop** a clearlogo to its visible area and report its size;
+- **blur** a background image (and a second image, the icon);
+- **analyse** each image's colours (dominant, accent, contrast, brightness);
+- work out how much to **darken** an image so that text on top stays readable;
+- collect a family of numbered artwork (`fanart`, `fanart1`, `fanart2` …) under one
+  set of keys, and optionally load it into a FadeLabel for a slideshow.
+
+Processed images and values are cached. When the source image changes, it is
+processed again; otherwise the cached result returns straight away.
 
 ---
 
-## Example plugin calls
+## Plugin path
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=artwork&amp;logo_crop=true&amp;multiart=fanart&amp;multiart_max=10</content>
-```
-This will crop the artwork at path `Container.ListItem.Art(clearlogo)` and expose multiart slots for the `fanart` family starting at `Container.ListItem.Art(fanart).
-
-```xml
-<content>plugin://script.copacetic.helper/?info=artwork&amp;target=3100&amp;bg_blur=true&amp;multiart=fanart&amp;multiart_max=10&amp;overlay_enable=true&amp;overlay_source=ffd1cece&amp;overlay_rect=120,660,1680,360</content>
-```
-This will blur the fanart for the Container with id matching `target` (`Container(3100).ListItem.Art(fanart)`), and compute a darken value for the provided overlay rectangle of the fanart to ensure readability against the provided ARGB hex code.
-
-## Plugin path parameters
-
-> Pass these as query params on the plugin path.
-
-| Param | Type | Allowed / Range | Description | Default |
-|---|---:|---|---|---|
-| `info` | str | `artwork` | Selects this helper. |  |
-| `logo_crop` | bool | `true` / `false` | Crop clearlogo to tight bounds and export as PNG. |  |
-| `bg_blur` | bool | `true` / `false` | Blur fanart and export as JPEG. |  |
-| `multiart` | str | e.g. `fanart`, `poster`, `keyart`, `tvshow.poster`, `square` | Returns `multiart`, `multiart1..N` for that art family. |  |
-| `multiart_max` | int | 1–50, defaults to 15 | Max number of multiart slots to expose. |  |
-| `overlay_enable` | bool | `true` / `false` | Enable darken/contrast analysis in a rectangle on the blurred fanart. |  |
-| `overlay_source` | str | `clearlogo` **or** ARGB hex (e.g. `ffabcdef`) | Text/foreground colour to check contrast against. |  |
-| `overlay_rect` | str | `x,y,w,h` (ints ≥ 0) | Rectangle (pixels) for readability analysis. |  |
-| `overlay_target` | float | 3.0–7.0 | Target contrast ratio (WCAG-style; 4.5 typical for normal text). |  |
-| `target` | int | Kodi control id | Bind helper to a specific container (pairs with `focus_guard`). |  |
-| `focus_guard` | str | any | Early-abort if focus moved (usually `Container(id).CurrentItem`). |  |
-| `cursor_key` | str | any key string (Copacetic uses `primary` / `secondary`) | Identity-currency channel: the payload's `current` property echoes `Window(home).Property(artwork_cursor_<key>)`; effectively required wherever currency gating is consumed (typewriter, multiart currency, currency-gated art layers). Independent of multiart — seeding gates on `multiart_fadelabel` alone. |  |
-
-> **Important:** To compute `efx_art_darken` with `overlay_source=clearlogo`, include **both** `logo_crop=true` and `bg_blur=true` in the same call so the helper can analyse the fresh clearlogo colour *and* the fanart in the overlay rectangle.
-
----
-
-## Returns (ListItem.Art)
-
-- `ListItem.Art(clearlogo)` → path to cropped clearlogo (PNG)
-- `ListItem.Art(clearlogo_color)` → dominant logo colour (ARGB hex)
-- `ListItem.Art(clearlogo_accent)` → accent logo colour (ARGB hex)
-- `ListItem.Art(clearlogo_contrast)` → contrasting logo colour (ARGB hex)
-- `ListItem.Art(clearlogo_luminosity)` → logo brightness (0–1000)
-
-- `ListItem.Art(fanart)` → path to blurred fanart (JPEG)
-- `ListItem.Art(fanart_color)` → dominant fanart colour (ARGB hex)
-- `ListItem.Art(fanart_accent)` → accent fanart colour (ARGB hex)
-- `ListItem.Art(fanart_contrast)` → contrasting fanart colour (ARGB hex)
-- `ListItem.Art(fanart_luminosity)` → fanart brightness (0–1000)
-- `ListItem.Art(efx_art_darken)` → darken percent (0–85), when overlay analysis is enabled
-
-- `ListItem.Art(multiart)` → first item of selected art family (if any)
-- `ListItem.Art(multiart1)` … `ListItem.Art(multiartN)` → subsequent items up to `multiart_max`
-
----
-
-## Returns (ListItem.Property) — identity stamping
-
-When the invocation resolves a current position, the payload item carries:
-
-- `ListItem.Property(current)` → the identity this serve was for
-- `ListItem.Property(previous)` / `ListItem.Property(next)` → `scope/pos` of the
-  neighbouring positions (1-based, wrapping when the container has more than one item)
-- `ListItem.Property(previous_pos)` / `ListItem.Property(next_pos)` → bare positions
-
-### The identity wire format
-
-One grammar is used everywhere: **`scope/pos/dbid/visit`**. The scope segment is
-omitted entirely when empty; other fields keep their separator slot even when
-empty. Truncated forms of the same grammar appear in `previous`/`next`
-(`scope/pos`) and in the no-cursor fallback for `current` (`scope/pos/dbid`).
-There is no fifth format, and none should be added.
-
-### Writer precedence for `current`
-
-1. **Skin-written cursor** — if `Window(home).Property(artwork_cursor_<cursor_key>)`
-   is set when the handler runs, it is echoed verbatim. The value is **opaque** to
-   the helper: your skin-side writer and comparator only need to agree with each
-   other, so any grammar works — with one exception below.
-2. **Self-certification** — if `cursor_key` is passed but no cursor exists (no
-   skin-side writer fired for this focus event, e.g. tab focus in a paired unit,
-   or a preview state), a passed focus guard is taken as equivalent proof of
-   currency: the helper stamps `scope/pos/dbid/visit` itself, writing it to both
-   the payload and the window property. Skins relying on this path inherit that
-   exact format — their comparator must accept it.
-3. **Fallback** — with no `cursor_key` at all, `current` is `scope/pos/dbid`.
-   Currency comparison is not possible on this form (no visit token), so
-   revisit-suppression semantics are unavailable.
-
-### Scope derivation
-
-`scope` is the `target` container id when `target` is passed. **Without
-`target`, the helper derives scope from the leading `/`-delimited segment of the
-existing cursor value.** This is the single structural assumption placed on a
-skin-written cursor: if you ever invoke without `target`, the first segment must
-identify the container. Always pass `target` and your cursor value is fully
-opaque.
-
-### Timing contract (why the cursor is a window property)
-
-The cursor must be written **synchronously at focus time** by the skin (e.g. from
-a hidden-focus button's `onfocus`), not at handler completion: the write is the
-invalidation edge that flips currency false for the old payload during the
-handler's in-flight window. The helper's self-certified write happens only at
-completion and only when no cursor exists — it is a fallback proof, not a
-substitute for a skin-side writer. Similarly, the `visit` value should be a
-window property latched once per focus event; inlining a live clock into the
-plugin path changes the invocation identity continuously and refires the helper.
-
-## Processes 
-
-### 1) Crop (clearlogo)
-- Tight bounding-box crop (alpha-aware), exported as **PNG**.
-- Colour set computed: **dominant**, **accent**, **contrast**, **luminosity**.
-- Stored in DB + cache for reuse until the source file or path hash changes.
-
-### 2) Blur (fanart) + Darken (optional)
-- Downsample + Gaussian blur, exported as **JPEG**.
-- Same colour set computed for fanart.
-- **Darken** (WCAG-informed): in `overlay_rect`, sample brightness using a **grid**, take the **brightest cell**, estimate background luminance, and compare to the **overlay_source**. Returns a darken percentage (capped) to help reach the target ratio.
-- **Red allowance (hue-aware leniency):** red-heavy scenes can appear perceptually darker than WCAG formulae suggest. A hue window around red relaxes the target ratio within guard rails to avoid over-darkening.
-
-> You can **use fadediffuse animations** inside Kodi to darken an image control using the the 0-100 value returned by `ListItem.Art(efx_art_darken)`
-
-**Example XML animations:**
-```xml
-
-  <control type="list" id="9300">
-    <itemlayout />
-    <focusedlayout />
-    <content>plugin://script.copacetic.helper/?info=artwork&amp;logo_crop=true&amp;bg_blur=true&amp;overlay_enable=true&amp;overlay_source=ffd1cece&amp;overlay_rect=120,660,1680,360</content>
-  </control>
-
-	<include name="efx_art_darken">
-		<animation effect="fadediffuse" end="ffe6e6e6" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),10) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),20)">Conditional</animation>
-		<animation effect="fadediffuse" end="ffd1d1d1" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),20) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),30)">Conditional</animation>
-		<animation effect="fadediffuse" end="ffbcbcbc" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),30) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),40)">Conditional</animation>
-		<animation effect="fadediffuse" end="ffadadad" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),40) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),50)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff9f9f9f" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),50) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),60)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff939393" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),60) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),70)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff898989" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),70) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),80)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff838383" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),80) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),90)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff808080" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),90) + Integer.IsLess(Container(9300).ListItem.Art(efx_art_darken),100)">Conditional</animation>
-		<animation effect="fadediffuse" end="ff666666" time="360" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(efx_art_darken),100)">Conditional</animation>
-	</include>
-
-  <control type="image">
-    <include content="efx_art_darken_animation" />
-    <texture>$INFO[ListItem.Art(fanart)]</>
-
-```
- 
-### 3) Multiart
-- Resolves and returns a family of artwork keys for the item (e.g. `fanart`, `poster`, `tvshow.fanart`), exposing them as `multiart`, `multiart1..N` up to `multiart_max`.
-- Useful for slideshows, cycling backgrounds, or layout-specific art families.
-
-
-> You can **switch which art type is exposed** using a single variable, and multiart will always be returned to the same `multiart`, `multiart1..N` range, meaning there is no need to juggle dozens or hundreds of window properties and fetch unused multiart paths each time.
-
-**Example XML variable:**
-```xml
-<variable name="multiart_type">
-    <value condition="!String.IsEmpty(ListItem.Art(keyart1)) + $EXP[layouts_poster_visible] + $EXP[art_keyart_visible]">keyart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(poster1)) + $EXP[layouts_poster_visible] + [!$EXP[art_keyart_visible] | String.IsEmpty(ListItem.Art(keyart))]">poster</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.keyart1)) + $EXP[layouts_poster_visible] + $EXP[art_keyart_visible]">tvshow.keyart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.poster1)) + $EXP[layouts_poster_visible] + [!$EXP[art_keyart_visible] | String.IsEmpty(ListItem.Art(tvshow.keyart))]">tvshow.poster</value>
-    <value condition="!String.IsEmpty(ListItem.Art(landscape1)) + $EXP[layouts_fanart_visible] + $EXP[art_landscape_visible]">landscape</value>
-    <value condition="!String.IsEmpty(ListItem.Art(fanart1)) + $EXP[layouts_fanart_visible] + [!$EXP[art_landscape_visible] | String.IsEmpty(ListItem.Art(landscape))]">fanart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.landscape1)) + $EXP[layouts_fanart_visible] + $EXP[art_landscape_visible]">tvshow.landscape</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart1)) + $EXP[layouts_fanart_visible] + [!$EXP[art_landscape_visible] | String.IsEmpty(ListItem.Art(landscape))]">tvshow.fanart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(square1)) + $EXP[layouts_square_visible]">square</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.square1)) + $EXP[layouts_square_visible]">tvshow.square</value>
-</variable>
-
-<content>plugin://script.copacetic.helper/?info=artwork&amp;multiart=$VAR[multiart_type]$&amp;multiart_max=30</content>
-
-```
-
----
-
-## Benchmarks
-
-**Per-operation (fresh processing):**
-- `ImageProcessor.crop` (clearlogo): **~0.01–0.09 s**
-- `ImageProcessor.blur` (fanart): **~0.06–0.09 s**
-- `ColorAnalyzer.analyze`: **~0.003–0.075 s**
-
-**End-to-end handler (fresh, including I/O):**
-- `PluginHandlers → artwork`: **~0.15–0.44 s**
-
-**Fast paths:**
-- Reading previously processed data from cache/DB tends to land in **tens of milliseconds**, depending on I/O.
-
----
-
-## Tunables
-
-> Internal analyser settings that shape palette/contrast/readability. Listed here for reference; defaults intentionally omitted.
-
-**Sampling & Palette**
-- `palette_size` — number of colours in adaptive palette.
-- `sample_size` — downsample size when building the palette (square).
-- `avg_downsample` — downsample size for averaging RGB in a patch.
-
-**Filtering thresholds**
-- `skip_whites` — ignore near-white swatches unless overwhelmingly dominant.
-- `skip_blacks` — ignore near-black swatches unless overwhelmingly dominant.
-- `dominance_allow_threshold` — allow extremes if they exceed this fraction of pixels.
-- `alpha_thresholded_mask` — binary alpha masking for opacity decisions.
-- `alpha_opaque_min` — alpha cutoff (0–255) treated as opaque.
-- `near_white` — per-channel threshold for “near white”.
-- `near_black` — per-channel threshold for “near black”.
-
-**Accent extraction**
-- `freq_distance_norm` — normalisation factor for RGB distance.
-- `accent_weight` — weights for accent scoring: frequency, saturation, distance.
-- `accent_freq_exponent` — gamma to flatten dominance.
-- `accent_freq_floor` — ignore swatches contributing below this fraction.
-- `accent_min_dist` — minimum RGB distance from dominant to qualify as accent.
-
-**Contrast & Lightness**
-- `contrast_shift` — lightness delta for contrast colour.
-- `contrast_midpoint` — HLS pivot; lighten if L < pivot else darken.
-- `min_lightness` — lower clamp for HLS lightness.
-- `max_lightness` — upper clamp for HLS lightness.
-
-**Readability (overlay)**
-- `element_overlay_color` — ARGB colour to use when evaluating readability (if not provided via `overlay_source`).
-- `element_overlay_rect` — default rectangle `(x, y, w, h)` for overlay analysis.
-- `target_contrast_ratio` — target WCAG contrast ratio (normal text ≈ 4.5, large text ≈ 3.0).
-
-**Red leniency / guard rails**
-- `red_relax_enable` — enable hue-aware leniency for reds on dark backgrounds.
-- `red_hue_center` — hue centre for reds (0.0 in [0..1]).
-- `red_hue_window` — ± hue window around red (about ±22°).
-- `red_min_target` — never demand higher ratio when red rule applies.
-- `red_relax_cap` — max target when relaxing reds on dark backgrounds.
-- `red_bg_floor` — treat as “already dark” if background L is below this.
-- `max_darken_cap` — cap on darken percent to avoid over-darkening.
-
----
-
-## Notes on standards
-
-- **Contrast** is evaluated in the spirit of **WCAG** contrast ratios for readability.  
-  Typical targets: **4.5** for normal text and **3.0** for large text. Red leniency exists to reflect perceptual limits with saturated reds on very dark scenes.
-
----
-
-
-
-
-
-
-
-Multiart scans the current item’s artwork fields for a family (e.g. `fanart`, `poster`, `keyart`, `tvshow.poster`, etc.). If it finds `arttype`, `arttype1`, `arttype2`, … it will return them neatly as `multiart`, `multiart1`, `multiart2`, … on the item. You can then **switch which family is exposed** using a single variable, without juggling hundreds of window properties.
-
-**Example (your real Copacetic code):**
-```xml
-<variable name="multiart_type_videos">
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(thumb1)) + [String.IsEqual(Container(3100).ListItem.DBType,episode) | String.IsEqual(Container(3100).ListItem.DBType,album) | String.IsEqual(Container(3100).ListItem.DBType,song)]">thumb</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(keyart1)) + $EXP[videos_layouts_visible_poster] + $EXP[art_keyart_visible]">keyart</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(poster1)) + $EXP[videos_layouts_visible_poster] + [!$EXP[art_keyart_visible] | String.IsEmpty(Container(3100).ListItem.Art(keyart))]">poster</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.keyart1)) + $EXP[videos_layouts_visible_poster] + $EXP[art_keyart_visible]">tvshow.keyart</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.poster1)) + $EXP[videos_layouts_visible_poster] + [!$EXP[art_keyart_visible] | String.IsEmpty(Container(3100).ListItem.Art(tvshow.keyart))]">tvshow.poster</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(landscape1)) + $EXP[videos_layouts_visible_fanart] + $EXP[art_landscape_visible]">landscape</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(fanart1)) + $EXP[videos_layouts_visible_fanart] + [!$EXP[art_landscape_visible] | String.IsEmpty(Container(3100).ListItem.Art(landscape))]">fanart</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.landscape1)) + $EXP[videos_layouts_visible_fanart] + $EXP[art_landscape_visible]">tvshow.landscape</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.fanart1)) + $EXP[videos_layouts_visible_fanart] + [!$EXP[art_landscape_visible] | String.IsEmpty(Container(3100).ListItem.Art(landscape))]">tvshow.fanart</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(square1)) + $EXP[videos_layouts_visible_square]">square</value>
-    <value condition="Control.HasFocus(3100) + !String.IsEmpty(Container(3100).ListItem.Art(tvshow.square1)) + $EXP[videos_layouts_visible_square]">tvshow.square</value>
-    <value condition="!String.IsEmpty(ListItem.Art(thumb1)) + [String.IsEqual(ListItem.DBType,episode) | String.IsEqual(ListItem.DBType,album) | String.IsEqual(ListItem.DBType,song)]">thumb</value>
-    <value condition="!String.IsEmpty(ListItem.Art(keyart1)) + $EXP[videos_layouts_visible_poster] + $EXP[art_keyart_visible]">keyart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(poster1)) + $EXP[videos_layouts_visible_poster] + [!$EXP[art_keyart_visible] | String.IsEmpty(ListItem.Art(keyart))]">poster</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.keyart1)) + $EXP[videos_layouts_visible_poster] + $EXP[art_keyart_visible]">tvshow.keyart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.poster1)) + $EXP[videos_layouts_visible_poster] + [!$EXP[art_keyart_visible] | String.IsEmpty(ListItem.Art(tvshow.keyart))]">tvshow.poster</value>
-    <value condition="!String.IsEmpty(ListItem.Art(landscape1)) + $EXP[videos_layouts_visible_fanart] + $EXP[art_landscape_visible]">landscape</value>
-    <value condition="!String.IsEmpty(ListItem.Art(fanart1)) + $EXP[videos_layouts_visible_fanart] + [!$EXP[art_landscape_visible] | String.IsEmpty(ListItem.Art(landscape))]">fanart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.landscape1)) + $EXP[videos_layouts_visible_fanart] + $EXP[art_landscape_visible]">tvshow.landscape</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart1)) + $EXP[videos_layouts_visible_fanart] + [!$EXP[art_landscape_visible] | String.IsEmpty(ListItem.Art(landscape))]">tvshow.fanart</value>
-    <value condition="!String.IsEmpty(ListItem.Art(square1)) + $EXP[videos_layouts_visible_square]">square</value>
-    <value condition="!String.IsEmpty(ListItem.Art(tvshow.square1)) + $EXP[videos_layouts_visible_square]">tvshow.square</value>
-</variable>
-```
-
-**Why it helps**
-- One variable selects the art family.
-- The plugin returns `multiart`, `multiart1..N` for that family.
-- Your views use the same labels/conditions regardless of which family is active.
-
----
-
-## 4) Clearlogo — crop + colour set
-
-**What happens**
-- Tight bounding-box crop, size-capped → **PNG**.
-- Extracts a **dominant** colour (alpha-aware, filters near-white/black unless dominant).
-- Picks an **accent** distinct enough from dominant (distance + frequency + saturation).
-- Computes a **contrast** colour via HLS lightness shift around a midpoint.
-- Estimates **luminosity** using a **brightest-patch** scan then averaging that patch.
-
-**Why it’s useful**
-- Logos become visually consistent.
-- You get a compact palette (`*_color`, `*_accent`, `*_contrast`) for styling text, badges, and focus rings.
-
----
-
-## 5) Fanart — blur + colour set + optional darken
-
-**What happens**
-- Downsample + heavy Gaussian blur → **JPEG** (renders fast; hides noise).
-- Same colour set as clearlogo.
-- **Optional darken**: ensures your overlay text/logo meets a target contrast **inside a rectangle**.
-
-**How darken works (overview)**
-- We sample a grid across the rect, find the **brightest patch**, estimate background luminance there, then compare with your text colour. The helper returns a **darken %** (0–85) to hit your contrast target.
-- **Red-leniency** guard rails prevent over-darkening in red-heavy scenes that look visually dark but read as “not dark enough” to pure maths.
-
----
-
-## 6) Overlay requirements (important)
-
-To get `efx_art_darken`:
-- `overlay_enable=true` must be set.
-- A **text colour** must be known:
-  - `overlay_source=clearlogo` → include `logo_crop=true` in the same call (we need the freshly computed dominant colour from the logo).
-  - or pass an explicit ARGB hex colour in `overlay_source`.
-- A **fanart image** must be produced/analysed → include `bg_blur=true`.
-
-Rationale: darken compares **text (logo) vs background (fanart)** within your rectangle.
-
----
-
-## 7) Parameters
-
-| Param | Type | Allowed / Range | Default | Purpose | Notes |
-|---|---:|---|---|---|---|
-| `overlay_enable` | str | `true` to enable | off | Toggle darken | Requires `bg_blur=true` |
-| `overlay_source` | str | `clearlogo` **or** ARGB hex | analyser default | Text colour to test | If `clearlogo`, also set `logo_crop=true` |
-| `overlay_rect` | str | `x,y,w,h` (ints ≥0) | analyser default | Region to analyse | Parses CSV; ignored if invalid |
-| `overlay_target` | float | > 0 (e.g. 3.0–7.0) | 4.5 | Target contrast ratio | Higher → potentially more darken |
-| `multiart` | str | any art key family | — | Export multiart slots | e.g. `fanart`, `poster`, `tvshow.poster` |
-| `multiart_max` | int | 1–50 | 15 | How many slots to expose | Stops early if gaps |
-| `target` | int | Kodi control ID | — | Bind to specific container | Use with `focus_guard` |
-| `focus_guard` | str | any | — | Abort if identity changes | Usually `Container(id).CurrentItem` |
-
----
-
-## 8) Returns (what you get back)
-
-- **Images**
-  - `clearlogo` → PNG (cropped).
-  - `fanart` → JPEG (blurred).
-- **Colour analysis**
-  - `*_color` (dominant), `*_accent` (accent), `*_contrast` (contrasting), `*_luminosity` (0–1000 scale).
-- **Overlay**
-  - `efx_art_darken` (0–85) when overlay is enabled and inputs are valid.
-- **Multiart (optional)**
-  - `multiart`, `multiart1..N` for the requested family.
-
----
-
-## 9) Artwork readiness guard (recommended)
-
-Sometimes the image library lags behind other metadata at window load. The plugin path may fire before art is ready, then re-fire once art arrives. Guard against this:
-```xml
-<variable name="artwork_helper">
-  <value condition="$EXP[artwork_guard] + Control.HasFocus(3100) + !Container(3100).IsUpdating">
-    plugin://script.copacetic.helper/?info=artwork&amp;target=3100&amp;focus_guard=$INFO[Container(3100).CurrentItem]&amp;logo_crop=true&amp;bg_blur=true&amp;multiart=$VAR[multiart_type_videos]&amp;multiart_max=15&amp;overlay_enable=true&amp;overlay_source=clearlogo&amp;overlay_rect=120,660,1680,360
-  </value>
-  <value condition="$EXP[artwork_guard] + !$EXP[primary_switching]">
-    plugin://script.copacetic.helper/?info=artwork&amp;focus_guard=$INFO[Container.CurrentItem]&amp;logo_crop=true&amp;bg_blur=true&amp;multiart=$VAR[multiart_type_videos]&amp;multiart_max=15&amp;overlay_enable=true&amp;overlay_source=clearlogo&amp;overlay_rect=120,660,1680,360
-  </value>
-</variable>
-
-<variable name="artwork_ready_checker">
-  <value condition="!String.IsEmpty(Container(3100).ListItem.Art(clearlogo)) + Control.HasFocus(3100)">$INFO[Container(3100).ListItem.Art(clearlogo)]</value>
-  <value condition="!String.IsEmpty(Container(3100).ListItem.Art(fanart)) + Control.HasFocus(3100)">$INFO[Container(3100).ListItem.Art(fanart)]</value>
-  <value condition="!String.IsEmpty(Container(3100).ListItem.Art(poster)) + Control.HasFocus(3100)">$INFO[Container(3100).ListItem.Art(poster)]</value>
-  <value condition="!String.IsEmpty(Container(3100).ListItem.Art(thumb)) + Control.HasFocus(3100)">$INFO[Container(3100).ListItem.Art(thumb)]</value>
-  <value condition="!String.IsEmpty(ListItem.Art(clearlogo))">$INFO[ListItem.Art(clearlogo)]</value>
-  <value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value>
-  <value condition="!String.IsEmpty(ListItem.Art(poster))">$INFO[ListItem.Art(poster)]</value>
-  <value condition="!String.IsEmpty(ListItem.Art(thumb))">$INFO[ListItem.Art(thumb)]</value>
-  <value />
-</variable>
-
-<expression name="artwork_guard">!String.IsEmpty(Control.GetLabel(6301))</expression>
-
-<control type="label" id="6301">
-  <label>$VAR[artwork_ready_checker]</label>
+<control type="list" id="9300"><!-- hidden helper container; id is an example -->
+  <itemlayout />
+  <focusedlayout />
+  <content>plugin://script.copacetic.helper/?info=artwork&amp;target=50&amp;focus_guard=$INFO[Container(50).CurrentItem]&amp;clearlogo_url=$INFO[Container(50).ListItem.Art(clearlogo)]&amp;clearlogo_crop=true&amp;clearlogo_analyze=true&amp;background_url=$INFO[Container(50).ListItem.Art(fanart)]&amp;background_blur=true&amp;background_analyze=true</content>
+</control>
+
+<control type="image">
+  <texture>$INFO[Container(9300).ListItem.Art(clearlogo)]</texture>
+</control>
+<control type="image">
+  <texture background="true">$INFO[Container(9300).ListItem.Art(background)]</texture>
 </control>
 ```
 
+## The three images
+
+The helper works on up to three images in one call. Each has its own parameters,
+named after it:
+
+| Image | Prefix | Processes it can run |
+|---|---|---|
+| Clearlogo | `clearlogo_` | crop, analyse |
+| Background | `background_` | blur, analyse, darken |
+| Icon | `icon_` | blur, analyse, darken |
+
+An image is only processed when you pass its URL (`clearlogo_url`, `background_url`,
+`icon_url`). With no URL at all, the call returns nothing, not even multiart. Processes are off unless
+you turn them on. The images are processed in the order above, so the background and
+icon can use the clearlogo's colour.
+
+"Icon" is just a name for a second image. Use it for anything: a poster, a thumbnail,
+or a second copy of the background with a lighter blur.
+
 ---
 
+## Parameters
 
+### Per image
 
+Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `<prefix>_url` | image path or URL | — | The image to process. Required for anything to happen to this image. |
+| `<prefix>_analyze` | `true`, `false` | `false` | Analyse the image's colours. |
+| `clearlogo_crop` | `true`, `false` | `false` | Crop the clearlogo to its visible (non-transparent) area. |
+| `background_blur`, `icon_blur` | `true`, `false` | `false` | Blur the image. |
+| `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled down to cover 480×270. |
+| `background_edge_trim`, `icon_edge_trim` | decimal (percent) | `0` | Cut this percentage from each side before blurring. Hides black bars and dark edges. |
+
+Booleans accept `true`, `1`, `yes` or `on` (any case). Anything else is false.
+
+### Darken (background and icon)
+
+Replace `<prefix>` with `background` or `icon`. See [Darken](#darken) for what the
+values mean.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `<prefix>_darken` | `artwork`, `all` | off | `artwork`: work out how much to darken the image. `all`: also work out how much to darken each text element. Any other value turns darken off. |
+| `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | — | Where your text sits, in frame coordinates. Required: with no value, no darken value is returned. |
+| `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in. The image is scaled to cover this frame and centred, like `<aspectratio>scale</aspectratio>`. |
+| `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo` | `fff0efef` | Colour of the text on top. `clearlogo` uses the clearlogo's dominant colour; this needs `clearlogo_url` and `clearlogo_analyze=true` in the same call, else the default is used. A value that is not a valid colour stops all results for that image. |
+| `<prefix>_darken_strength` | decimal, `0.0`–`2.0` | `1.0` | Multiplies the result. Values outside the range are clamped. |
+| `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Each rectangle is narrowed to the text's estimated width (left edge kept). |
+| `<prefix>_darken_label_px` | decimal | `14` | Estimated width of one character, in frame pixels, for the labels above. |
+
+### Multiart
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `multiart` | an art type, e.g. `fanart`, `poster`, `keyart`, `tvshow.fanart` | — | The family to collect. |
+| `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for (`fanart1` … `fanart15`). |
+| `get_extra_multiart` | `true`, `false` | `false` | Add TMDb artwork of the same type, after the library artwork. See [Multiart](#multiart). |
+| `language` | TMDb language, e.g. `en-US` | add-on setting | Language of the TMDb artwork to add. |
+| `multiart_fadelabel` | control id | — | A FadeLabel to fill with the family, in display order. See [Multiart in a FadeLabel](#multiart-in-a-fadelabel). |
+
+### Other
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `target` | container id | — | Container whose focused item this call is for. |
+| `prop_key` | any text | — | Suffix for the window properties the helper sets (see [Window properties](#window-properties)). |
+| `cursor_key` | any text | — | Name of the window property that marks the focused item (`artwork_cursor_<cursor_key>`). See [Is this result for the focused item?](#is-this-result-for-the-focused-item). |
+| `visit` | any text | — | A value that changes once per focus change. See the same section. |
+| `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
+
+---
+
+## What you get back
+
+All values are on the helper container's list item, as `ListItem.Art(...)`.
+
+| Art key | When | Value |
+|---|---|---|
+| `clearlogo` | `clearlogo_crop=true` | Path to the cropped PNG. |
+| `clearlogo_width`, `clearlogo_height` | `clearlogo_crop=true` | Size of the cropped logo in pixels. The logo is first scaled down to fit 1600×620. |
+| `background`, `icon` | `<prefix>_blur=true` | Path to the blurred JPEG. |
+| `background_blur_radius`, `icon_blur_radius` | `<prefix>_blur=true` | The radius used. |
+| `<prefix>_color` | `<prefix>_analyze=true` | Dominant colour, as ARGB hex (`ffrrggbb`). Near-white and near-black are skipped unless they cover more than 70% of the image. |
+| `<prefix>_accent` | `<prefix>_analyze=true` | A second colour, different enough from the dominant one. |
+| `<prefix>_contrast` | `<prefix>_analyze=true` | The dominant colour made lighter (if dark) or darker (if light). |
+| `<prefix>_luminosity` | `<prefix>_analyze=true` | Brightness of the dominant colour, `0`–`1000`. |
+| `<prefix>_darken` | `<prefix>_darken=artwork` or `all` | How much to darken the image, `0`–`100`. |
+| `<prefix>_darken_element`, `…_element1`, `…_element2` | `<prefix>_darken=all` | How much to darken the text in the first, second and third rectangle, `0`–`100`, or `-1` when the area behind it is too busy to judge. |
+| `<prefix>_darken_element_mean`, `…_mean1`, `…_mean2` | `<prefix>_darken=all` | Average brightness behind each rectangle, `0`–`100`, not affected by strength. |
+| `<prefix>_darken_label_width`, `…_width1`, `…_width2` | a matching `_darken_label` is passed | The estimated text width used for that rectangle. |
+| `multiart`, `multiart1`, `multiart2` … | `multiart` is passed | The collected family, numbered without gaps. |
+
+The list item also carries some properties; see
+[Is this result for the focused item?](#is-this-result-for-the-focused-item).
+
+## Window properties
+
+The helper also sets these on the home window. With `prop_key`, each name ends in
+`_<prop_key>` (for example `background_blur_9300`).
+
+| Property | Value |
+|---|---|
+| `background_blur` | Path of the blurred background. Only set when there is one; the last value is kept otherwise. |
+| `background_darken` | The background darken value. Cleared when there is none or it is `0`. |
+| `icon_darken` | The icon darken value. Cleared when there is none or it is `0`. |
+
+Use them when something outside the helper container's window needs the values, or
+to keep the last background on screen while the next one is processed.
+
+---
+
+## Darken
+
+Darken tells you how much to dim an image so light text on it stays readable. It
+measures the image itself; nothing is changed in the image. You apply the value in
+the skin, for example with a `fadediffuse` animation or a semi-transparent black
+image.
+
+The image is scaled to cover the frame (`_darken_frame`) and centred. Your rectangles
+are then measured on it.
+
+- **`<prefix>_darken`** — the brightest of your rectangles decides. Its brightness is
+  mapped to `0`–`100` and multiplied by the strength. If the text colour is itself dark
+  (luminance below 0.2), the value is `0`: dark text does not need a darker
+  background.
+- **`<prefix>_darken_element*`** (`all` only) — each of the first three rectangles is
+  judged on its own, as if your text needs a backing behind it. Areas darker than
+  luminance 0.18 return `0`. Busy areas (lots of detail) return `-1`.
+
+```xml
+<include name="DarkenBackground">
+  <animation effect="fadediffuse" end="ffbcbcbc" time="300" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(background_darken),30) + Integer.IsLess(Container(9300).ListItem.Art(background_darken),60)">Conditional</animation>
+  <animation effect="fadediffuse" end="ff939393" time="300" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(background_darken),60)">Conditional</animation>
+</include>
+```
+
+```xml
+<content>plugin://script.copacetic.helper/?info=artwork&amp;target=50&amp;background_url=$INFO[Container(50).ListItem.Art(fanart)]&amp;background_blur=true&amp;background_darken=artwork&amp;background_darken_source=fff0efef&amp;background_darken_rects=(120,660,960,300),(1710,960,90,60)&amp;background_darken_strength=0.8</content>
+```
+
+---
+
+## Multiart
+
+Kodi stores extra artwork as numbered keys: `fanart`, `fanart1`, `fanart2` …
+Multiart reads `Art(<type>)` and `Art(<type>1)` to `Art(<type><multiart_max>)` from
+the focused item, skips the empty ones, and returns them as `multiart`, `multiart1`,
+`multiart2` … with no gaps.
+
+Because the keys are always the same, your layouts can read `multiart*` and switch
+the family with one variable:
+
+```xml
+<variable name="MultiartType">
+  <value condition="!String.IsEmpty(Container(50).ListItem.Art(keyart1))">keyart</value>
+  <value condition="!String.IsEmpty(Container(50).ListItem.Art(poster1))">poster</value>
+  <value>fanart</value>
+</variable>
+```
+
+```xml
+<content>plugin://script.copacetic.helper/?info=artwork&amp;target=50&amp;focus_guard=$INFO[Container(50).CurrentItem]&amp;background_url=$INFO[Container(50).ListItem.Art(fanart)]&amp;background_blur=true&amp;multiart=$VAR[MultiartType]&amp;multiart_max=15</content>
+```
+
+With `get_extra_multiart=true`, TMDb artwork of the same type is added after the
+library artwork, without duplicates. It is read from the TMDb cache only, which is
+filled by [`tmdb_details`](metadata.md#tmdb_details) with `multiart=true` for the
+same item and language. It works for movies and TV shows that have a TMDb id.
+
+### Multiart in a FadeLabel
+
+Pass `multiart_fadelabel=<id>` to load the family into a FadeLabel. Each label is an
+image path. Read the label that is showing with `Control.GetLabel(<id>)` and use it
+as an image texture to get a slideshow.
+
+- The main image comes first. The rest are shuffled.
+- The returned `multiart*` keys follow the same order (except when the FadeLabel is
+  left alone, see below; then they are in library order).
+- A family with fewer than two images is not loaded. The FadeLabel is emptied and no
+  `multiart*` keys are returned.
+- Refiring for the same item with the same images leaves a running FadeLabel alone.
+  A new item always starts again from its main image.
+
+The FadeLabel must be in the current window. The helper also uses these home window
+properties, with `<id>` the FadeLabel id:
+
+| Property | What it holds |
+|---|---|
+| `multiart_frozen_<id>` | The image that was showing when the FadeLabel was refilled, so you can keep it on screen during the change. Cleared when the new item is from a different container or folder. |
+| `multiart_seed_scope_<id>` | Which container and folder the FadeLabel was last filled for. |
+| `multiart_seed_sig_<id>` | Which item and image set it was last filled with. |
+
+The focus guard is checked just before the FadeLabel is filled. A call for an item
+that is no longer focused never refills it.
+
+---
+
+## Is this result for the focused item?
+
+A plugin call can take a moment. While it runs, focus may move on, and the old result
+stays on screen until the new one arrives. These list item properties tell you which
+item a result is for, so you can hide results that are out of date.
+
+When the container position is known, the list item carries:
+
+| Property | Value |
+|---|---|
+| `current` | Which item this result is for (see below). |
+| `current_pos` | The container position (`CurrentItem`) this result is for. |
+| `previous`, `next` | `<container>/<position>` of the items either side. Positions wrap around when the container has more than one item. |
+| `previous_pos`, `next_pos` | The positions either side, on their own. |
+
+The container is `target` when passed. Without `target`, it is the first `/`
+segment of `Window(home).Property(artwork_cursor_<cursor_key>)`.
+
+### The value of `current`
+
+It uses one format: `<container>/<position>/<dbid>/<visit>`. The container part is
+left out when empty. Other parts keep their `/` even when empty.
+
+1. **With `cursor_key` and `visit`**: the helper builds `<container>/<position>/<dbid>/<visit>`
+   from the item it ran for, and `current` is that value. If
+   `Window(home).Property(artwork_cursor_<cursor_key>)` held a different value when
+   the call started, has not changed during the call, and the focus guard still
+   passes, the helper also writes the value into that property.
+2. **With `cursor_key` but no `visit`**: `current` is the property's value, or
+   `<container>/<position>/<dbid>` when the property is empty.
+3. **With no `cursor_key`**: `current` is `<container>/<position>/<dbid>`.
+
+To hide out-of-date results, write the same format into the property from the skin,
+at the moment focus changes (for example in an `<onfocus>`), and compare:
+
+```xml
+<onfocus>SetProperty(artwork_cursor_main,50/$INFO[Container(50).CurrentItem]/$INFO[Container(50).ListItem.DBID]/$INFO[Window(home).Property(artwork_visit)],home)</onfocus>
+```
+
+```xml
+<expression name="ArtworkIsCurrent">String.IsEqual(Container(9300).ListItem.Property(current),Window(home).Property(artwork_cursor_main))</expression>
+```
+
+Writing the property at focus time matters. It is what makes the old result
+out of date at once, while the new call is still running. If the skin writes a value
+in a different format, the helper replaces it with its own whenever `visit` is
+passed.
+
+Set `visit` from a window property that changes once per focus change, like
+`artwork_visit` in the example. Do not put a live clock straight into the path: the
+path would change all the time and the helper would keep firing.
+
+---
+
+## Skin contract
+
+The helper reads these when you use the matching parameters:
+
+| What | Used with | Set by |
+|---|---|---|
+| `Window(home).Property(artwork_cursor_<cursor_key>)` | `cursor_key` | The skin, at focus time. The helper may also write it (see above). |
+| A FadeLabel control with id `multiart_fadelabel` in the current window | `multiart_fadelabel` | The skin. |
+| A window property that changes once per focus change, passed as `visit` | `visit` | The skin. |
