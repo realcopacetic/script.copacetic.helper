@@ -265,32 +265,55 @@ class RuntimeStateManager:
 
     def initialize_runtime_state(self) -> bool:
         """
-        Create runtime_state.json from defaults if absent, or add missing
-        mapping entries to an existing file.
+        Create runtime_state.json from defaults if absent; in an existing file,
+        add missing mappings and the rows a fixed list gained since it was seeded.
 
-        :return: True when state was written (fresh seed or new mappings).
+        :return: True when state was written (fresh seed, new mappings or rows).
         """
         state = self.runtime_state if self.exists else {}
-        missing = {
-            mapping_key: [
+        added = {}
+        for mapping_key, mapping in self.mappings.items():
+            if mapping.get("mode") != "dynamic":
+                continue
+            if mapping_key not in state:
+                items = mapping.get("default_order", mapping.get("items", []))
+            elif self._is_fixed_list(mapping_key):
+                present = {entry["mapping_item"] for entry in state[mapping_key]}
+                items = [item for item in mapping["items"] if item not in present]
+            else:
+                continue
+            new = [
                 self._build_default_entry(mapping_key, item, deterministic=True)
-                for item in (
-                    mapping["default_order"]
-                    if "default_order" in mapping
-                    else mapping.get("items", [])
-                )
+                for item in items
             ]
-            for mapping_key, mapping in self.mappings.items()
-            if mapping.get("mode") == "dynamic" and mapping_key not in state
-        }
+            if new or mapping_key not in state:
+                added[mapping_key] = state.get(mapping_key, []) + new
         seeded = False
-        if missing or not self.exists:
-            merged = {**state, **missing}
+        if added or not self.exists:
+            merged = {**state, **added}
             self._resolve_parent_refs(merged)
             self._write_and_invalidate(merged)
             seeded = True
         self.reconcile_skin_mirrors()
         return seeded
+
+    def _is_fixed_list(self, mapping_key: str) -> bool:
+        """
+        True when every item has a row (no ``default_order``) and the mapping's
+        own controls carry no Add role, so a missing row can't be a deletion.
+
+        :param mapping_key: Mapping group key.
+        :return: True for a fixed list such as the view settings.
+        """
+        controls = self.controls.for_mappings([mapping_key]).values()
+        return (
+            "default_order" not in self.mappings[mapping_key]
+            and bool(controls)
+            and not any(
+                control.get("role") in ("item_picker", "add_action")
+                for control in controls
+            )
+        )
 
     def _resolve_parent_refs(self, state: dict) -> None:
         """
