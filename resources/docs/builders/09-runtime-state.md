@@ -23,12 +23,12 @@ One list of entries per dynamic mapping:
 
 - `runtime_id` — the entry's permanent id.
 - `mapping_item` — which mapping item this is an instance of.
-- `parent` — the owning entry's id, for [hub](07-includes.md#hubs-each-parent-owns-its-own-children) mappings.
-- Everything else — settings the user has actually changed.
+- `parent` — the owning entry's id, for mappings with a [`parent_mapping`](07-includes.md#parent-and-child-lists).
+- Everything else — settings the user has actually changed (or that an add dialog filled in).
 
 ### Life of the file
 
-**Created** on first run: every dynamic mapping gets entries from its `default_order` (or full `items`). Each entry stores its identity plus the item's string metadata — nothing else.
+**Created** on first run: every dynamic mapping gets entries from its `default_order` (or full `items`). A dynamic mapping added to your skin later gets its entries the same way on the next start. Each entry stores only its identity — `runtime_id`, `mapping_item` and, if the item's metadata has one, `parent`. Metadata is read from the mapping live, not copied.
 
 **Settings appear when changed.** An untouched setting isn't stored; it reads its config default live, every time. Two consequences worth knowing: changing a default in your templates instantly reaches every entry the user never overrode, and an entry in the file tells you exactly what the user has deliberately set — nothing more.
 
@@ -50,9 +50,10 @@ They're different operations and the difference matters:
 | | Keeps user choices? | Regenerates output XML? |
 |---|---|---|
 | **Rebuild** (`action=rebuild`, editor close, dev-mode start) | Yes | Yes |
-| **Reset** (`reset=true`, dev-mode "Reset on next start", the editor's Reset button) | No — back to defaults | Yes |
+| **Reset** (`reset=true`, dev-mode "Reset on next start") | No — the whole file goes back to defaults | Yes |
+| The editor's **Reset** button | No — for that mapping only (or one parent's entries) | Yes, when the window closes |
 
-Changed a mapping's `default_order`, `metadata`, or `config_fields` and want the *list itself* regenerated? That's a reset. A rebuild only re-reads what's already in the file.
+Changed a mapping's `items` or `default_order`, or an item's `parent`, and want the *list itself* regenerated? That's a reset. Other metadata and `config_fields` changes are read live, so a rebuild is enough.
 
 ---
 
@@ -62,9 +63,17 @@ Changed a mapping's `default_order`, `metadata`, or `config_fields` and want the
 RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsettings,mapping=widgets)
 ```
 
-`name` = your window XML filename. `mapping` = which mapping this window edits. Four optional extras:
+| Parameter | Accepted values | Default | What it does |
+|---|---|---|---|
+| `mapping` | A dynamic mapping name | — (required) | Which mapping this window edits. Without it nothing opens and an error is logged. |
+| `name` | Window XML file name, without `.xml` | `dynamic_window` | Which window file to open |
+| `parent` | An entry's `runtime_id` | — | Show only that parent's entries — see below |
+| `controls_from` | Comma-separated mapping names | — | Also load these mappings' controls — see below |
+| `host` | A window name | — | Bind the session to a real window — see [Hosting](#hosting--binding-an-editor-to-a-real-window) |
+| `host_focus` | A control id | — | Where focus lands when the window opens (used with `host`). Without it, focus goes to the list. |
+| `focus_item` | A mapping item name | first row | Highlight the first entry of that item when the window opens |
 
-**`parent=<runtime_id>`** — stamp the session to one hub: only that parent's entries appear, adds arrive with `parent` already set and slot in next to their siblings, and moves, deletes, and Reset stay inside the hub. The full walkthrough — why, the template handshake, and the resolved output — is in [Includes → Hubs](07-includes.md#hubs-each-parent-owns-its-own-children).
+**`parent=<runtime_id>`** — limit the session to one parent: only that parent's entries appear, adds arrive with `parent` already set and slot in next to their siblings, and moves, deletes, and Reset stay inside that parent. The full walkthrough — why, the template handshake, and the resolved output — is in [Includes → Parent and child lists](07-includes.md#parent-and-child-lists).
 
 **`controls_from=<mapping>`** — also load another mapping's controls into this window. For when two mappings share a shape and one window serves both — the shutdown menu borrows the main menu's controls:
 
@@ -138,9 +147,9 @@ Hosting composes with the other session kwargs. Editors opened *from inside* a h
 
 ## Fixed vs editable
 
-**Fixed list** (view settings): no control has a `role`. One row per automatic entry; the user edits each row's settings but the list itself never changes. The addon enforces this — without a role, the mutation buttons (410–413) are never attached, so Add, Move, and Delete are inert even if the window XML exposes them.
+**Fixed list** (view settings): no control has a `role`. One row per automatic entry; the user edits each row's settings but the list itself never changes. The addon enforces this — without a role, the mutation buttons (410–413) are hidden and never attached, even if the window XML has them.
 
-**Editable list** (widgets, menus): one control has `role: "item_picker"` or `"add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). The management buttons appear and the user adds, deletes, and reorders.
+**Editable list** (widgets, menus): one control has `role: "item_picker"` or `"add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). The management buttons appear and the user adds, deletes, and reorders. If the list opens empty (for example a parent with no children yet), the editor runs Add straight away; cancel it and the window closes.
 
 The right-hand controls work the same in both: each edits one setting on the highlighted row. Writes happen immediately as the user changes things — Close doesn't "save", it just ends the session.
 
@@ -151,11 +160,11 @@ The right-hand controls work the same in both: each edits one setting on the hig
 | Control | ID | Purpose |
 |---|---|---|
 | List | 100 | The left-hand list. Filled automatically. |
-| Textbox / label | 6 | Description text at the bottom. Set automatically. |
+| Textbox | 6 | Description text at the bottom. Set automatically. Must be a `textbox`: the addon sets it with `setText`. |
 | Your controls | as declared | IDs matching each control template's `id`. A sliderex also needs its button at the id + a trailing `0`. |
 | Colour labels | 420 / 421 | Optional. Hidden labels whose *text* names your focused / unfocused colours; used to tint sliderex value text. White / 50% white if absent. |
-| Mutation buttons | 410–413 | Editable lists only — never attached without an Add control. |
-| Reset / Close | 414–415 | Any window. Reset returns settings to defaults; Close ends the session. |
+| Mutation buttons | 410–413 | Optional. Editable lists only — hidden and never attached without an Add control. |
+| Reset / Close | 414–415 | Optional. Any window. Reset returns settings to defaults; Close ends the session. |
 
 | Button | ID | Does |
 |---|---|---|
@@ -163,14 +172,14 @@ The right-hand controls work the same in both: each edits one setting on the hig
 | Move up | 411 | Swap with the row above |
 | Move down | 412 | Swap with the row below |
 | Delete | 413 | Remove the row (disabled when only one is left) |
-| Reset | 414 | Back to defaults — the whole mapping, or just the open hub — with a confirm dialog |
+| Reset | 414 | Back to defaults — the whole mapping, or only the open parent's entries — with a confirm dialog |
 | Close | 415 | Save and close |
 
 You only supply focusable buttons; the editor handles the presses. Only Add, Move up/down, and Delete require the Add control — Reset and Close work in fixed lists too.
 
 ### A minimal window XML
 
-Strip the styling from this and it won't work; add styling and it will:
+Add your own styling. The list (100) and the description textbox (6) are required — without them the editor stops while setting up and the window stays empty:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -212,19 +221,20 @@ Controls a template declares but the XML lacks are skipped and hidden — the wi
 
 ## Asking about the editor from skin XML
 
-While a window is open, two properties sit on `Window(home)`:
+While a window is open, these properties sit on `Window(home)`:
 
 | Property | Value |
 |---|---|
-| `<name>` | `"true"` — "this window is open" |
-| `current_mapping` | the session's mapping |
+| `active_editor_name` | The `name` of the open window (the innermost one, when one editor opens another) |
+| `current_mapping` | The session's mapping |
+| `editor_label` | `System.CurrentWindow` as it read when the editor opened |
 
 ```
-!String.IsEmpty(Window(home).Property(menusettings))
+String.IsEqual(Window(home).Property(active_editor_name),menusettings)
 String.IsEqual(Window(home).Property(current_mapping),shutdownmenu)
 ```
 
-Both clear on close. When an editor is opened *inside* another (with `parent=`), its mapping property gets the parent id as a suffix — `current_mapping_<uuid>` — so inner and outer don't fight over the name. The open flag stays plain. In a template that already has `{runtime_id}`, you can target the inner one directly:
+On close each goes back to what it was before the window opened (empty for a top-level window). When an editor is opened with `parent=`, its mapping property gets the parent id as a suffix — `current_mapping_<uuid>` — so inner and outer don't fight over the name. In a template that already has `{runtime_id}`, you can target the inner one directly:
 
 ```
 String.IsEqual(Window(home).Property(current_mapping_{runtime_id}),tabs)
@@ -236,4 +246,4 @@ Each row also carries its resolved entry — metadata, stored values, and config
 
 ## On close
 
-If anything changed, the includes and expressions rebuild and `ReloadSkin()` fires — changes show immediately. Nested editors wait for the outermost one to close, so a whole session reloads once. Hosted sessions route their window exit before the rebuild, so the reload lands on the right window.
+If the settings file changed, all builder outputs rebuild and `ReloadSkin()` fires — changes show immediately. Nested editors wait for the outermost one to close, so a whole session reloads once. Hosted sessions route their window exit before the rebuild, so the reload lands on the right window.
