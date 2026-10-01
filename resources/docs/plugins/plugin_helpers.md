@@ -1,6 +1,6 @@
-# Copacetic Plugin Helpers — Architecture
+# Plugin Helpers — Architecture
 
-This page explains how Copacetic's plugin helpers work and how to use them effectively in your skin.
+This page explains how the helper's plugin paths work and how to use them well in your skin.
 
 > A plugin helper is a **dynamic data source** you call from skin XML via a `plugin://` path.
 > It runs **on demand**, returns data tailored to the current item or view, and **re-fires whenever its parameters change**.
@@ -10,7 +10,7 @@ This page explains how Copacetic's plugin helpers work and how to use them effec
 ## 1) What is a plugin helper?
 
 - A lightweight helper invoked from skin XML (`<content>plugin://…</content>`).
-- The `<content>` tag must belong to a **container with a defined ID**.
+- Give the container an id, so you can read its item (`Container(9000).ListItem.Art(background)`).
 - Runs **only when needed** and produces per-item results (reducing reliance on multiple window properties).
 - Each invocation is **isolated** — parameters are part of the path, so **changing them re-runs the helper**.
 - Infolabels and variables can be used inside parameters to make paths dynamic.
@@ -23,18 +23,28 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 <control type="list" id="9000">
   <itemlayout />
   <focusedlayout />
-  <content>plugin://script.copacetic.helper/?info=artwork</content>
+  <content>plugin://script.copacetic.helper/?info=artwork&amp;background_url=$INFO[ListItem.Art(fanart)]&amp;background_blur=true</content>
 </control>
 ```
 
-### Available Copacetic helpers
-| Helper | Description |
-|--------|--------------|
-| `metadata` | Fetches and formats item metadata, with optional TMDb enrichment. |
-| `artwork` | Crops clearlogos, blurs fanart, extracts colour palette, optional darken regions, standardises multiart and can seed a FadeLabel with the sequence. |
-| `typewriter` | Progressive label-rendering animation. |
-| `progressbar` | Displays resume/unwatched progress bars for supported types (movies, sets, tvshows, seasons, episodes). |
-| `jumpbutton` | Context-aware alphabet/section jump navigation. |
+### Available plugin paths
+
+| `info=` | What it does | Page |
+|--------|--------------|------|
+| `artwork` | Crops clearlogos, blurs backgrounds, analyses colours, works out darken values, collects multiart and can fill a FadeLabel with it. | [Artwork](artwork.md) |
+| `metadata` | Returns tidied details of the focused item, with optional TMDb details. | [Metadata](metadata.md) |
+| `tmdb_details` | Returns the focused item's details and artwork from TMDb. | [Metadata](metadata.md#tmdb_details) |
+| `progressbar` | Works out watched progress and places a progress bar. | [Progress Bar](progressbar.md) |
+| `typewriter` | Types a label into a textbox one character at a time. | [Typewriter](typewriter.md) |
+| `jumpbutton` | Moves a button along a scrollbar and labels it with the sort letter. | [Jump Button](jumpbutton.md) |
+| `text` | Draws text into a PNG image. | [Text Image](text.md) |
+| `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
+| `in_progress`, `next_up`, `random_movies`, `random_tvshows`, `actor_credits`, `director_credits`, `writer_credits` | Fill a container with library items. | [Library Listings](library.md) |
+
+`jumpbutton`, `progressbar` and `typewriter` share the [placement options](placement.md).
+
+An unknown `info=` value returns an empty list. With no `info=` at all, the add-on
+lists its own folders (see [Library Listings](library.md#the-add-ons-own-directory)).
 
 ---
 
@@ -57,6 +67,13 @@ To make it dynamic, add a parameter that updates as the user scrolls:
 Now, because `Container.CurrentItem` changes whenever the user scrolls, the artwork helper re-fires automatically for each focused item.
 
 > Use `$INFO[...]` or `$VAR[...]` expressions in your path parameters to tie plugin updates to focus, content type, or visibility conditions.
+
+The helper ignores parameters it does not read, so a parameter like `current=` above
+can be added just to make the path change.
+
+Parameter values are URL-decoded (`%20` becomes a space). A value may contain a plain
+`&`: the path is only split where `&` is followed by `name=`. In XML, write `&amp;`
+between parameters.
 
 **Important:** infolabels and variables in parameters are **resolved at dispatch time**. The helper receives plain values (`focus_guard=5`), never live references. Anything the helper must re-check *during* its run has to be reconstructible plugin-side — this is what the guard parameters below are for.
 
@@ -111,6 +128,13 @@ Every guarded helper builds a guard object at startup and re-checks it at key po
 | `focus_ids` | Comma-separated control ids forming one perceptual unit | **Focus check** — at least one of the listed controls must currently hold focus. |
 | `focus_guard` | Snapshot of the focused item's identity, resolved at dispatch | **Identity check** — the live identity must still equal the snapshot exactly. |
 | `identity_labels` | *(optional)* Comma-separated infolabel paths defining the live side of the identity | Overrides the default live identity source. |
+| `identity_container` | *(optional)* Container id | The container whose `CurrentItem` is the default live identity. Defaults to `target`. |
+
+`target` (a container id) is read by most paths. It sets which container's focused
+item the path works on. Without it, `Container` (the current container) is used.
+
+Two cases always pass: when no control has focus at all, and when the live identity
+reads as empty.
 
 Either check can be disabled by omission: no `focus_ids` skips the focus check; an absent or empty `focus_guard` skips the identity check. A handler with neither runs unguarded.
 
@@ -125,7 +149,7 @@ The addon imposes **no skin topology**. Which controls form a unit, and what con
 ```
 
 - Kodi resolves the snapshot at dispatch: if item 5 is focused, the helper receives `focus_guard=5`.
-- By default, the live side is derived as `Container(<target>).CurrentItem` (or the focused container's `CurrentItem` when no `target` is given) — so only the snapshot needs passing.
+- By default, the live side is derived as `Container(<identity_container>).CurrentItem` (`identity_container` defaults to `target`; with neither, `Container.CurrentItem`) — so only the snapshot needs passing.
 - At every checkpoint, the helper compares snapshot to live. Any mismatch aborts.
 
 `CurrentItem` is the right default identity for **scrolling within one container** — it changes on every item move. It is **not** sufficient across containers: `Container(3202).CurrentItem` and `Container(3206).CurrentItem` can both be `1`. That is what the focus check is for.
@@ -159,11 +183,14 @@ A paired tab list (`32020`) and content list (`3202`) should behave as a single 
 
 Guarded handlers don't check once at startup — they re-check before every stage that is expensive or has visible side effects:
 
-- **`artwork`** checks after image processing, after multiart resolution, and immediately **before seeding the multiart FadeLabel** — so a stale invocation can never repopulate a FadeLabel the skin has just cleared. A guard that survives to completion also licenses **self-certification**: when `cursor_key` is passed but no skin-side cursor writer fired for the focus event, the helper writes the identity stamp itself (see *Identity stamping* in the artwork docs).
-- **`metadata`** checks before the JSON-RPC fetch, after TMDb enrichment, and before setting items.
+- **`artwork`** checks at the start, after image processing, after multiart resolution, and immediately **before filling the multiart FadeLabel** — so a stale invocation can never refill a FadeLabel the skin has just cleared. A guard that still passes at the end also lets the helper write `artwork_cursor_<cursor_key>` itself when the property does not match the item it ran for (see [Is this result for the focused item?](artwork.md#is-this-result-for-the-focused-item)).
+- **`metadata`** checks before reading the item, after the TMDb lookup, and before returning the item.
+- **`tmdb_details`** checks before and after the TMDb lookup.
+- **`text`** checks before and after drawing the image.
 - **`typewriter`** receives the guard's `alive` callable and checks it **per character**, alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating and again before moving UI controls (the data result is still returned; only the UI update is skipped).
 - **`jumpbutton`** is deliberately **unguarded** — it must stay responsive during scroll.
+- **`reposition`** and the library listings are unguarded.
 
 ---
 
@@ -171,7 +198,7 @@ Guarded handlers don't check once at startup — they re-check before every stag
 
 Wrapping your plugin paths inside a **variable** gives you more control and flexibility than a single static `<content>` call. A variable can contain **multiple values**, each with its own condition, so the helper switches behaviour automatically with the active layout, focused container, or skin setting.
 
-It also keeps guard parameters in one place. Define the focus/identity declaration once per region and compose it into every consumer:
+It also keeps guard parameters in one place. Define the focus/identity declaration once per group of containers and compose it into every consumer:
 
 ```xml
 <variable name="params_focus_secondary">
@@ -180,12 +207,12 @@ It also keeps guard parameters in one place. Define the focus/identity declarati
 
 <variable name="artwork_helper">
   <value condition="$EXP[layouts_fanart_visible]">
-    plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]&amp;background_blur=true
+    plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]&amp;background_url=$INFO[Container(3100).ListItem.Art(fanart)]&amp;background_blur=true
   </value>
   <value condition="$EXP[layouts_poster_visible]">
-    plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]&amp;clearlogo_crop=true&amp;multiart_max=10
+    plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]&amp;clearlogo_url=$INFO[Container(3100).ListItem.Art(clearlogo)]&amp;clearlogo_crop=true&amp;multiart=poster&amp;multiart_max=10
   </value>
-  <value>plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]</value>
+  <value>plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]&amp;background_url=$INFO[Container(3100).ListItem.Art(fanart)]&amp;background_analyze=true</value>
 </variable>
 ```
 
@@ -206,8 +233,12 @@ Then reference the variable in your container:
 
 ## 5) See also
 
-- [Artwork Plugin Handler](Artwork-Plugin-Handler)
-- [Typewriter Plugin Handler](Typewriter-Plugin-Handler)
-- [Progress Bar Plugin Handler](Progressbar-Plugin-Handler)
-- [Jump Button Plugin Handler](Jumpbutton-Plugin-Handler)
-- [Metadata Plugin Handler](Metadata-Plugin-Handler)
+- [Artwork](artwork.md)
+- [Metadata and TMDb details](metadata.md)
+- [Progress Bar](progressbar.md)
+- [Typewriter](typewriter.md)
+- [Jump Button](jumpbutton.md)
+- [Text Image](text.md)
+- [Reposition](reposition.md)
+- [Library Listings](library.md)
+- [Placement Options](placement.md)
