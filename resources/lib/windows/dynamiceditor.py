@@ -13,7 +13,7 @@ from xbmcgui import (
 
 from resources.lib.builders.runtime import RuntimeStateManager
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import infolabel, window_property
+from resources.lib.shared.utilities import ADDON, infolabel, window_property
 from resources.lib.windows.control_factory import DynamicControlFactory
 from resources.lib.windows.controls import ButtonHandler
 
@@ -58,7 +58,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._mgmt_map = {
             "btn_add": {
                 "id": 410,
-                "description": "Add a new entry.",
+                "description": ADDON.getLocalizedString(32827),
                 "action": self._on_add,
                 "mutation": True,
                 "needs_selection": False,
@@ -66,7 +66,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             },
             "btn_up": {
                 "id": 411,
-                "description": "Move the selected entry up.",
+                "description": ADDON.getLocalizedString(32828),
                 "action": lambda: self._on_move(-1),
                 "mutation": True,
                 "needs_selection": True,
@@ -74,7 +74,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             },
             "btn_down": {
                 "id": 412,
-                "description": "Move the selected entry down.",
+                "description": ADDON.getLocalizedString(32829),
                 "action": lambda: self._on_move(1),
                 "mutation": True,
                 "needs_selection": True,
@@ -82,7 +82,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             },
             "btn_delete": {
                 "id": 413,
-                "description": "Delete the selected entry.",
+                "description": ADDON.getLocalizedString(32830),
                 "action": self._on_delete,
                 "mutation": True,
                 "needs_selection": True,
@@ -90,7 +90,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             },
             "btn_reset": {
                 "id": 414,
-                "description": "Reset all entries to defaults.",
+                "description": ADDON.getLocalizedString(32831),
                 "action": self._on_reset,
                 "mutation": False,
                 "needs_selection": False,
@@ -98,7 +98,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             },
             "btn_close": {
                 "id": 415,
-                "description": "Save and close.",
+                "description": ADDON.getLocalizedString(32832),
                 "action": self._on_close,
                 "mutation": False,
                 "needs_selection": False,
@@ -707,8 +707,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         parent_filter when set; otherwise resets the whole mapping.
         """
         confirmed = xbmcgui.Dialog().yesno(
-            "Reset to defaults",
-            "This will reset all entries.\n\nAre you sure you want to continue?",
+            ADDON.getLocalizedString(32833), ADDON.getLocalizedString(32834)
         )
         if not confirmed:
             return

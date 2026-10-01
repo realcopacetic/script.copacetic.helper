@@ -5,6 +5,7 @@ import json
 import math
 import operator
 import random
+import re
 import sys
 import urllib.parse as urllib
 from pathlib import Path
@@ -38,6 +39,8 @@ TEMPLATES = str(Path(SKINEXTRAS) / "templates")
 VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
 EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
 INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_includes.xml")
+
+LOCALIZE_TOKEN = re.compile(r"\$LOCALIZE\[(\d+)\]")
 
 
 _JSON_RESPONSE_LIMIT = 5
@@ -140,6 +143,17 @@ def infolabel(infolabel: str) -> str:
     :return: Evaluated string value.
     """
     return xbmc.getInfoLabel(infolabel)
+
+
+def expand_localize(text: str) -> str:
+    """
+    Replace each ``$LOCALIZE[id]`` token with its string, leaving the rest
+    as is, so a localised sentence can still carry ``{placeholders}``.
+
+    :param text: Text that may hold ``$LOCALIZE[id]`` tokens.
+    :return: Text with every token expanded.
+    """
+    return LOCALIZE_TOKEN.sub(lambda m: xbmc.getLocalizedString(int(m[1])), text)
 
 
 def skin_string(key: str, value: str | bool = False) -> None:

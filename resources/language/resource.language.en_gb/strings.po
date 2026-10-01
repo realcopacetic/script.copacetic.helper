@@ -393,3 +393,37 @@ msgstr ""
 msgctxt "#32826"
 msgid "Speed dial"
 msgstr ""
+
+#: /resources/lib/windows/dynamiceditor.py — management button descriptions
+msgctxt "#32827"
+msgid "Add a new entry."
+msgstr ""
+
+msgctxt "#32828"
+msgid "Move the selected entry up."
+msgstr ""
+
+msgctxt "#32829"
+msgid "Move the selected entry down."
+msgstr ""
+
+msgctxt "#32830"
+msgid "Delete the selected entry."
+msgstr ""
+
+msgctxt "#32831"
+msgid "Reset all entries to defaults."
+msgstr ""
+
+msgctxt "#32832"
+msgid "Save and close."
+msgstr ""
+
+#: /resources/lib/windows/dynamiceditor.py — reset confirmation
+msgctxt "#32833"
+msgid "Reset to defaults"
+msgstr ""
+
+msgctxt "#32834"
+msgid "This will reset all entries.\n\nAre you sure you want to continue?"
+msgstr ""

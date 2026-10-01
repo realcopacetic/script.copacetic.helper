@@ -20,6 +20,7 @@ from resources.lib.shared.utilities import (
     RUNTIME_STATE,
     TEMPLATES,
     condition,
+    expand_localize,
     infolabel,
 )
 
@@ -434,10 +435,12 @@ class RuntimeStateManager:
         :param mapping_key: Mapping group key.
         :param index: Position in the state list.
         :param template: Template containing ``{placeholder}`` tokens.
-        :param localize: If True, resolve ``$``-prefixed tokens via infolabel.
+        :param localize: If True, expand ``$LOCALIZE``, then resolve a ``$``-led result.
         :return: Formatted string, or original on lookup failure.
         """
 
+        if localize and isinstance(template, str):
+            template = expand_localize(template)
         if not isinstance(template, str) or "{" not in template:
             formatted = template
         else:

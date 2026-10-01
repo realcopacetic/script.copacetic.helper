@@ -558,7 +558,7 @@ class ButtonHandler(BaseControlHandler):
             for item in items
         ]
         display_items = [
-            infolabel(lbl) if isinstance(lbl, str) and lbl.startswith("$") else lbl
+            infolabel(lbl) if isinstance(lbl, str) and "$" in lbl else lbl
             for lbl in raw_labels
         ]
         current_value = self._get_setting_value()
