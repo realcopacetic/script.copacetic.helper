@@ -113,6 +113,12 @@ Two Kodi engine facts shape the design, and explain why the exits run through py
 <onload condition="String.IsEmpty(Window(home).Property(active_editor_name))">RunScript(script.copacetic.helper,action=dynamic_settings_window,name=copaceticsettings,mapping=copacetic,host=skinsettings,host_focus=4610)</onload>
 ```
 
+The gate stays closed until the session has finished, close-time rebuild included, and
+reopens only after the other properties are restored. `ReloadSkin` is sent after that,
+and its re-init of the shell starts the next session. A shell entered during the
+rebuild therefore waits for the reload instead of starting a session that the closing
+one would then clear.
+
 **The exit verdict.** Any control in the session may record a forwarding address — write a window name to `host_exit_target` and the editor closes itself; once the dialog is provably dead, the router runs `ReplaceWindow(<target>)`. Close with the verdict *empty* (Back on `host_focus`) and the router leaves the whole system with `Action(Back)`. Two verdicts, nothing else: forward, or leave.
 
 ```xml

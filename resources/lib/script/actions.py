@@ -198,6 +198,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
     myWindow.host_focus = host_focus
     myWindow.focus_item = focus_item
     myWindow.controls_from = controls_from
+    rebuilt = False
     try:
         myWindow.doModal()
 
@@ -223,9 +224,6 @@ def dynamic_settings_window(**kwargs: str) -> None:
                 log.execute(f"ReplaceWindow({target})")
             elif condition(f"Window.IsActive({host})"):
                 log.execute("Action(Back)")
-            # Clear eagerly: leaving it set until the finally gates quick
-            # re-entry to the host while the rebuild is still running.
-            window_property("active_editor_name", value=previous_editor)
 
         # Rebuild if state changed during the session. Outermost editor only;
         # nested editors defer the rebuild to the enclosing editor's close.
@@ -238,14 +236,21 @@ def dynamic_settings_window(**kwargs: str) -> None:
                 from resources.lib.builders.build_elements import BuildElements
 
                 BuildElements().run()
-                log.execute("ReloadSkin()")
+                rebuilt = True
     finally:
         # Always restore properties — a stuck active_editor_name makes every
         # later top-level session look nested and silently skip rebuilds.
+        # active_editor_name goes last: it reopens the host's onload gate, so
+        # no new session can start (and be clobbered here) before this point.
         window_property(mapping_slot)
-        window_property("active_editor_name", value=previous_editor)
         window_property("editor_label", value=previous_label)
+        window_property("active_editor_name", value=previous_editor)
         del myWindow
+
+    # Posted after the restores: the reload re-inits the host, whose onload
+    # starts the next session.
+    if rebuilt:
+        log.execute("ReloadSkin()")
 
 
 @action
