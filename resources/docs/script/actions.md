@@ -441,7 +441,10 @@ window (a `videowindow` control). The helper's background service then watches i
 
 - If focus moves to another item, before or during playback, the trailer is paused
   and hidden instead of stopped.
-- A paused, hidden trailer is stopped after 10 seconds without input.
+- A trailer that reaches its last 2 seconds is paused and hidden too, so it never
+  ends on its own.
+- A paused, hidden trailer is rewound to the start, then stopped after 10 seconds
+  without input. So Kodi never marks a trailer as watched.
 - A request that never starts is dropped after 5 seconds.
 - With `viewport`, the service zooms the video to fill that area.
 

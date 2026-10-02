@@ -81,7 +81,7 @@ All window properties are on the Home window (`10000`). In XML, read them with
 
 | Property | Set when | Value | Cleared when | Page |
 |---|---|---|---|---|
-| `trailer_state` | A trailer starts, goes stale or is retired | `playing`, `orphaned` | Playback stops, ends or fails; a real video starts | [Trailers](trailers.md) |
+| `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned` | Playback stops, ends or fails; a real video starts | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
 | `trailer_played_item` | Never set by the service | — | A trailer fails to play, or a request never starts | [Trailers](trailers.md) |
 | `player_tvshowtitle` | An episode starts | TV show title | Playback stops, ends or fails | [Player properties](player.md) |

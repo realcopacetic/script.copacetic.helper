@@ -30,18 +30,24 @@ A trailer session moves through these states, stored in
    - `pending` for 5 seconds or more with nothing new playing: the request is
      retired. If an older paused trailer is still playing, it goes back to
      `orphaned`; otherwise the session is cleared.
-   - `playing` and stale: the trailer is paused and becomes `orphaned`.
+   - `playing` and stale, or within 2 seconds of its end: the trailer is paused and
+     becomes `orphaned`.
    - `interrupted` or `orphaned`, and the trailer is still the video that is
-     playing: if it is not paused, the service pauses it. Once the user has been idle
-     for 10 seconds (`System.IdleTime(10)`), the service runs `PlayerControl(Stop)`.
+     playing: if it is not paused, the service pauses it. If it is past its first
+     second and Kodi can seek in it, the service rewinds it to the start. Once the
+     user has been idle for 10 seconds (`System.IdleTime(10)`), the service runs
+     `PlayerControl(Stop)`.
 4. When playback stops, ends or fails, the session is cleared. A newer `pending`
    request is left alone.
 
 If a video starts that the skin did not request as a trailer, any trailer session is
 cleared and the video is treated as normal playback.
 
-The service only pauses or stops a video whose path matches `trailer_file`. It never
-acts on a film the user started.
+A trailer never plays to its natural end, and a stopped trailer is always rewound
+first, so Kodi does not mark the trailer as watched.
+
+The service only pauses, rewinds or stops a video whose path matches `trailer_file`.
+It never acts on a film the user started.
 
 ## Starting a trailer
 
@@ -108,7 +114,7 @@ When a trailer starts playing, the service sets the player's view mode:
 | Property | Value | Set when | Cleared when |
 |---|---|---|---|
 | `trailer_state` | `playing` | The requested trailer starts and is still wanted | Playback stops, ends or fails; a real video starts |
-| `trailer_state` | `orphaned` | The trailer goes stale, or a newer request never started | As above |
+| `trailer_state` | `orphaned` | The trailer goes stale or nears its end, or a newer request never started | As above |
 | `trailer_file` | `Player.Filenameandpath` of the trailer | The requested trailer starts | As above |
 
 When a session is cleared, the service clears `trailer_state`, `trailer_item`,
@@ -125,7 +131,7 @@ retired, so the item can try again.
 ## What your skin should do
 
 - Set `trailer_state` to `interrupted` when the user moves away from a playing
-  trailer. The service pauses it and stops it after 10 idle seconds.
+  trailer. The service pauses it, rewinds it and stops it after 10 idle seconds.
 - Show the video window only while the trailer is playing. Compare `trailer_file`
   with the playing file, so a paused trailer stays hidden.
 - Stop the trailer when the window closes.
