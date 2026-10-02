@@ -90,11 +90,16 @@ def clear_label(label_id: int | str) -> None:
 
 
 def clear_playlists() -> None:
-    log.debug("Clear playlists")
-    xbmc.PlayList(xbmc.PLAYLIST_VIDEO).clear()
-    music = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
-    music.clear()
-    music.unshuffle()
+    """
+    Empties the music and video playlists. JSON-RPC posts each clear to Kodi's
+    main thread, so it runs before a Playlist.Add or Player.Open sent after it.
+    """
+    for playlistid in (0, 1):
+        json_call(
+            "Playlist.Clear",
+            params={"playlistid": playlistid},
+            parent="clear_playlists",
+        )
 
 
 def condition(condition: str) -> bool:

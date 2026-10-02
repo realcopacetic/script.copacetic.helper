@@ -302,6 +302,7 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
     json_call(
         "Player.Open",
         item={"playlistid": 0, "position": songids.index(songid)},
+        options={"shuffled": False},
         parent="play_album_from_track",
     )
 
@@ -540,17 +541,24 @@ def _random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
 
 def _play_songs(songs: list[dict]) -> None:
     """
-    Queues songs in the music playlist and plays from the first.
+    Replaces whatever is playing: clears the playlists, queues the songs in order
+    and plays from the first. Call it once the songs are fetched.
 
     :param songs: Song dicts with songid.
     """
+    clear_playlists()
     json_call(
         "Playlist.Add",
         item=[{"songid": s["songid"]} for s in songs],
         params={"playlistid": 0},
         parent="music",
     )
-    json_call("Player.Open", item={"playlistid": 0, "position": 0}, parent="music")
+    json_call(
+        "Player.Open",
+        item={"playlistid": 0, "position": 0},
+        options={"shuffled": False},
+        parent="music",
+    )
 
 
 def _mix_seed(type: str, dbid: int) -> dict | None:
@@ -633,11 +641,11 @@ def shuffle(id: str = "", type: str = "artist", path: str = "", **kwargs: str) -
     :param type: artist, album, genre or year; anything else plays path.
     :param path: Playlist path, for types without a library ID.
     """
-    clear_playlists()
     mark_source(None if type in ("genre", "year") else dial_entry(type, id, path))
     if type == "year":
         _play_songs(_random_songs(_year_rule(id)))
         return
+    clear_playlists()
     item = (
         {_LIBRARY_ITEMS[type]: to_int(id)}
         if type in _LIBRARY_ITEMS
@@ -666,7 +674,6 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     :param id: Library ID (defaults to ListItem.DBID); the year itself for year.
     :param type: song, album, artist, genre or year.
     """
-    clear_playlists()
     if type in ("genre", "year"):
         mark_source(None)
         rule = {"genreid": to_int(id)} if type == "genre" else _year_rule(id)
