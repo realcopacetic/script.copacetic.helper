@@ -31,7 +31,7 @@ The file's `mapping` names the mapping these controls edit. Each key under `cont
 | `id` | Yes* | The control's ID in your window XML (*not for listitems). A control without one is skipped. |
 | `field` | No | Which setting this control edits |
 | `role` | No | `"item_picker"` or `"add_action"` — makes this the Add control, see below |
-| `label`, `label2` | No | Text. Supports `{tokens}`; a value that starts with `$` (`$LOCALIZE[]`, `$INFO[]`) is resolved by Kodi. |
+| `label`, `label2` | No | Text. Supports `{tokens}` and `$LOCALIZE[]` anywhere in the text; a value that then starts with `$` (`$INFO[]`) is resolved by Kodi. |
 | `description` | No | Help text shown at the bottom of the window |
 | `icon` | No | Row icon (listitems only) |
 | `visible` | No | Show/hide condition, re-checked as the user moves and edits |
@@ -45,6 +45,8 @@ The allowed values for a `field` come from the mapping's `config_fields` — the
 ### Tokens in the editor
 
 `label`, `label2`, `description`, `icon`, `visible`, an onclick `action` and the `confirm` texts fill their `{tokens}` from the highlighted entry when the window draws them. Available: the entry's resolved fields (stored values, config defaults, string metadata), the mapping's `key` placeholder, all of the item's metadata, `{mapping}` (the mapping name) and `{index}` — here the entry's 0-based position in the settings file, not the build-time `{index}`. A field missing from the highlighted entry falls back to the first other entry in the mapping that has it.
+
+Before the tokens are filled, each `$LOCALIZE[id]` in `label`, `label2`, `description`, `icon` and the `confirm` texts is replaced with its string. So a translated string can carry `{tokens}` of its own, for example a skin string `Delete {label}?`. After the tokens are filled, a value that starts with `$` is resolved by Kodi.
 
 Editor tokens are plain `{name}` lookups. Maths, `{@mapping:item.field}` and nested tokens don't work here. If any token in a string is unknown, the whole string is used unchanged.
 
