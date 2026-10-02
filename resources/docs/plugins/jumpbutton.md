@@ -17,11 +17,14 @@ is an overlay that travels the same span.
    `relative=true`.
 4. `setLabel` and `setPosition` are applied to the button. Both work on hidden controls.
 
-The button only moves when its label or the list size changes. After each move the
-helper stores `<label>|<NumItems>` in `Window(home).Property(jumpbutton_seen)`. A
-later run with the same label in a list of the same size does nothing, so the button
-stays at the first item of that letter while you scroll through it. Refire the path
-whenever the label should change (typically when the sort letter changes).
+The button only moves when its label, the list or the list size changes. After each
+move the helper stores `<folder path>|<label>|<NumItems>` in
+`Window(home).Property(jumpbutton_seen)`. A later run with the same key does nothing
+while the button still shows that label, so it stays at the first item of that letter
+while you scroll through it. The label check matters because the property outlives
+the button: a skin reload rebuilds the button at its XML position with no label.
+Refire the path whenever the label should change (typically when the sort letter
+changes).
 
 The helper works on the current window (`getCurrentWindowId()`), not on dialogs.
 

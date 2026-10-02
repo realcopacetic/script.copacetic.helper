@@ -259,9 +259,24 @@ class JumpButton:
         :param sortletter: Custom label or fallback to ListItem.SortLetter if None.
         :param opts: Placement options (coords/anchor_id/inset/track_w/track_h/…).
         """
+        try:
+            btn = self.window.getControl(self.btn_id)
+        except RuntimeError:
+            log.debug(f"{self.__class__.__name__} → Button {self.btn_id} not found.")
+            return
+
         expected = sortletter or infolabel(f"{self.container}.ListItem.SortLetter")
-        seen_key = f"{expected}|{infolabel(f'{self.container}.NumItems')}"
-        if seen_key == infolabel("Window(home).Property(jumpbutton_seen)"):
+        seen_key = "|".join(
+            (
+                infolabel("Container.FolderPath"),
+                expected,
+                infolabel(f"{self.container}.NumItems"),
+            )
+        )
+        if (
+            seen_key == infolabel("Window(home).Property(jumpbutton_seen)")
+            and btn.getLabel() == expected
+        ):
             return  # same letter in the same list: stay pinned to the letter's first item
 
         fraction = self._fraction()
@@ -274,12 +289,6 @@ class JumpButton:
         if rect is None:
             return
         posx, posy, width, height = rect
-
-        try:
-            btn = self.window.getControl(self.btn_id)
-        except RuntimeError:
-            log.debug(f"{self.__class__.__name__} → Button {self.btn_id} not found.")
-            return
 
         btn_w = btn.getWidth()
         btn_h = btn.getHeight()
