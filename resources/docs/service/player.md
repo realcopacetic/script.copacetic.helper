@@ -38,10 +38,12 @@ When a library episode starts, the service also runs [Play next](playnext.md).
 | `player_albumartist` | Album artist | A song starts |
 | `player_album` | Album title | A song starts |
 | `player_disc` | Disc number | A song starts |
-| `player_userrating` | User rating | A song starts |
 
 `player_artist_1` to `player_artist_3` hold one artist each, so you can match a single
 artist exactly. A song with fewer than three artists leaves the rest empty.
+
+For the playing song's rating, use Kodi's own `MusicPlayer.UserRating`. It updates
+straight away when [`rate_song`](../script/actions.md#rate_song) changes the rating.
 
 ## Example
 

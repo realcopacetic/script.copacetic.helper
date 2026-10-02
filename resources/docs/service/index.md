@@ -88,7 +88,6 @@ All window properties are on the Home window (`10000`). In XML, read them with
 | `player_season` | An episode starts | Season number | As above | [Player properties](player.md) |
 | `player_tvshowid` | A library episode starts | TV show database id | As above | [Player properties](player.md) |
 | `player_setid` | A library movie in a set starts | Movie set database id | As above | [Player properties](player.md) |
-| `player_userrating` | A song starts | User rating | As above | [Player properties](player.md) |
 | `player_artist` | A song starts | Artist (all artists in one string) | As above | [Player properties](player.md) |
 | `player_artist_1` … `player_artist_3` | A song starts | First, second and third artist | As above | [Player properties](player.md) |
 | `player_albumartist` | A song starts | Album artist | As above | [Player properties](player.md) |

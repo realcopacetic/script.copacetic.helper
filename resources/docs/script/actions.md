@@ -60,10 +60,12 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`dialog_yesno`](#dialog_yesno) | Asks a yes/no question and runs builtins for the answer |
 | [`dynamic_settings_window`](#dynamic_settings_window) | Opens a builder settings window |
 | [`focus`](#focus) | Sets focus reliably, optionally selecting an item first |
+| [`move_pin`](#move_pin) | Moves a pinned speed dial entry up or down |
+| [`pin`](#pin) | Pins a music item to the front of speed dial |
 | [`play_album`](#play_album) | Plays an album |
 | [`play_album_from_track`](#play_album_from_track) | Plays a song's album, starting at that song |
 | [`play_items`](#play_items) | Plays every item in a container |
-| [`play_radio`](#play_radio) | Plays a song, then random songs of the same genre |
+| [`play_radio`](#play_radio) | Old name for `start_mix` |
 | [`play_trailer`](#play_trailer) | Plays a trailer in a window, with clean-up when focus moves on |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
@@ -71,13 +73,39 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`seed_keyboard_layout`](#seed_keyboard_layout) | Fills the `keyboard` mapping from a Kodi keyboard layout |
 | [`set_edit`](#set_edit) | Writes text into an edit control |
 | [`set_search_query`](#set_search_query) | Copies an edit control's text into a window property |
+| [`shuffle`](#shuffle) | Plays an artist, album, genre, year or music playlist, shuffled |
 | [`shuffle_artist`](#shuffle_artist) | Plays all of an artist's songs, shuffled |
+| [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year |
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
 | [`tmdb_test`](#tmdb_test) | Checks the TMDb token |
 | [`toggle_addon`](#toggle_addon) | Enables or disables an add-on |
+| [`unpin`](#unpin) | Unpins a speed dial entry |
 
 All window properties below are set on the Home window (`Window(home)`), unless the
 action lets you choose another window.
+
+## Items the helper adds to the context menu
+
+The helper adds music items to Kodi's context menu. They show in every skin, on the
+items below, and each one runs the action named.
+
+| Item | Shows on | Runs |
+|---|---|---|
+| Shuffle | Library artists, albums and genres; years in the music library; music playlists (`.xsp`, `.m3u`) | [`shuffle`](#shuffle) |
+| Start mix | Library songs, artists, albums and genres; years in the music library | [`start_mix`](#start_mix) |
+| Like | Library songs rated below `Skin.String(like_threshold)` | [`rate_song`](#rate_song), at the threshold |
+| Unlike | Library songs rated at or above `Skin.String(like_threshold)` | [`rate_song`](#rate_song) with `rating=0` |
+| Pin to speed dial | Library songs, artists and albums, and music playlists, when the item is not a pinned [speed dial](../plugins/speed_dial.md) item | [`pin`](#pin) |
+
+Music playlists are the files in `special://musicplaylists/` and
+`special://profile/playlists/music/`. Genres need a genre name. Years are the year
+folders under `musicdb://`.
+
+**Like** and **Unlike** need your skin to set `Skin.String(like_threshold)` to a
+rating from `1` to `10`. While it is empty or `0`, neither shows.
+
+Each item passes the clicked item's database id (the year itself for a year), its
+type and its path to the action.
 
 ---
 
@@ -307,6 +335,45 @@ widget list:
 
 ---
 
+## move_pin
+
+Moves a pinned [speed dial](../plugins/speed_dial.md) entry up or down among the
+pinned entries. It stops at the top and bottom. Pinned speed dial items already carry
+**Move up** and **Move down** in their context menu, which run this action.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `album`, `artist`, `song`, anything else | none | The entry's type. Anything else means a playlist. |
+| `id` | database id | none | The album, artist or song |
+| `path` | playlist path | none | The playlist, for a playlist entry |
+| `offset` | whole number | `1` | How many places to move. Negative moves up. |
+
+Nothing happens if the entry is not pinned (an error goes to the Kodi log).
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=move_pin,type=album,id=$INFO[ListItem.DBID],offset=-1)</onclick>
+```
+
+---
+
+## pin
+
+Pins an album, artist, song or music playlist to the front of
+[speed dial](../plugins/speed_dial.md). Pinning an entry that is already pinned moves
+it to the front. The context menu's **Pin to speed dial** item runs this action.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `album`, `artist`, `song`, anything else | none | The entry's type. Anything else means a playlist. |
+| `id` | database id | none | The album, artist or song |
+| `path` | playlist path | none | The playlist, for a playlist entry |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=pin,type=$INFO[ListItem.DBType],id=$INFO[ListItem.DBID])</onclick>
+```
+
+---
+
 ## play_album
 
 Clears the playlists and plays an album from the music library, in order.
@@ -358,12 +425,8 @@ Example from Copacetic:
 
 ## play_radio
 
-Clears the playlists and plays a song followed by 24 random songs from one of its
-genres (picked at random if it has several). Nothing plays if the song has no genre.
-
-| Param | Accepted values | Default | What it does |
-|---|---|---|---|
-| `id` | song database id | `ListItem.DBID` | The song to start with |
+The old name for [`start_mix`](#start_mix), kept so older skins still work. It takes
+the same parameters. Without `type`, it starts a mix from a song.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=play_radio,id=$INFO[ListItem.DBID])</onclick>
@@ -412,21 +475,25 @@ titles and paths can contain commas:
 
 ## rate_song
 
-Sets a song's user rating in the music library. Kodi updates the playing song's
-`MusicPlayer.UserRating` by itself.
+Sets a song's user rating in the music library. If that song is playing,
+`MusicPlayer.UserRating` shows the new rating straight away; Kodi updates it itself.
+
+The context menu's **Like** and **Unlike** items run this action (see
+[Items the helper adds to the context menu](#items-the-helper-adds-to-the-context-menu)).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `id` | song database id | `ListItem.DBID` | The song to rate |
 | `rating` | whole number, `0`–`10` | `Skin.String(like_threshold)` | The rating. `0` removes it. |
 
-Both values must be whole numbers.
+A value that is empty or not a whole number counts as `0`. So with no `rating` and an
+empty `like_threshold`, the song's rating is removed.
 
 **Sets:** `Window(home).Property(liked_songs_version)` — a new token on every call.
 Put it in a liked songs list's path (for example as an extra key in its `xsp`) so the
 list refetches after a like: Kodi skips the library's update for a list that was empty.
 
-Example (like and unlike in a music OSD):
+Example: like and unlike the playing song from a button in the music OSD:
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=rate_song,id=$INFO[MusicPlayer.DBID])</onclick>
@@ -549,9 +616,36 @@ Example from Copacetic:
 
 ---
 
+## shuffle
+
+Clears the playlists and plays an artist, album, genre, year or music playlist in
+random order. The context menu's **Shuffle** item runs this action.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `artist`, `album`, `genre`, `year`, anything else | `artist` | What to play. Anything else plays the folder or playlist in `path`. |
+| `id` | database id, or the year itself for `year` | none | The artist, album, genre or year |
+| `path` | a music playlist or folder path | none | What to play when `type` is not one of the four above |
+
+A `year` plays every song from that year. The others play the whole artist, album,
+genre or playlist with Kodi's shuffle turned on.
+
+Except for a genre or a year, what was played is added to the
+[speed dial](../plugins/speed_dial.md) recent list.
+
+```xml
+<!-- an album -->
+<onclick>RunScript(script.copacetic.helper,action=shuffle,type=album,id=$INFO[ListItem.DBID])</onclick>
+<!-- a playlist: quote the pair, as paths can hold commas -->
+<onclick>RunScript(script.copacetic.helper,action=shuffle,type=playlist,"path=$INFO[ListItem.FolderPath]")</onclick>
+```
+
+---
+
 ## shuffle_artist
 
-Clears the playlists and plays all of an artist's songs, shuffled.
+Plays all of an artist's songs, shuffled. It is the same as
+[`shuffle`](#shuffle) with `type=artist`, kept so older skins still work.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -559,6 +653,35 @@ Clears the playlists and plays all of an artist's songs, shuffled.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=shuffle_artist,id=$INFO[ListItem.DBID])</onclick>
+```
+
+---
+
+## start_mix
+
+Clears the playlists and plays a random mix of up to 50 songs from your music
+library. The context menu's **Start mix** item runs this action.
+
+- **Song, album or artist:** the mix starts with one song. For a song, that is the
+  song itself. For an album or artist, it is one of its five most played songs,
+  picked at random. Up to seven more songs are by the same artist, spread evenly
+  through the mix. The rest are random songs by other artists that share the first
+  song's genres. If the first song has no genre, the mix is songs by its artist only.
+- **Genre or year:** 50 random songs of that genre or year.
+
+Nothing plays if the album or artist has no songs, or the song is not found. The
+playlists are still cleared.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `song`, `album`, `artist`, `genre`, `year` | `song` | What the mix is built around |
+| `id` | database id, or the year itself for `year` | `ListItem.DBID` (not for `genre` or `year`) | The item |
+
+A mix from a song, album or artist adds that item to the
+[speed dial](../plugins/speed_dial.md) recent list.
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=start_mix,type=artist,id=$INFO[ListItem.DBID])</onclick>
 ```
 
 ---
@@ -609,4 +732,22 @@ shows the new state.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=toggle_addon,id=script.module.example)</onclick>
+```
+
+---
+
+## unpin
+
+Unpins a [speed dial](../plugins/speed_dial.md) entry. If it was played recently, it
+stays in speed dial among the recent entries. Pinned speed dial items already carry
+**Unpin** in their context menu, which runs this action.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `album`, `artist`, `song`, anything else | none | The entry's type. Anything else means a playlist. |
+| `id` | database id | none | The album, artist or song |
+| `path` | playlist path | none | The playlist, for a playlist entry |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=unpin,type=playlist,"path=$INFO[ListItem.FolderPath]")</onclick>
 ```
