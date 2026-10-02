@@ -40,6 +40,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `text` | Draws text into a PNG image. | [Text Image](text.md) |
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
 | `in_progress`, `next_up`, `random_movies`, `random_tvshows`, `actor_credits`, `director_credits`, `writer_credits` | Fill a container with library items. | [Library Listings](library.md) |
+| `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |
 
 `jumpbutton`, `progressbar` and `typewriter` share the [placement options](placement.md).
 
@@ -190,7 +191,7 @@ Guarded handlers don't check once at startup — they re-check before every stag
 - **`typewriter`** receives the guard's `alive` callable and checks it **per character**, alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating and again before moving UI controls (the data result is still returned; only the UI update is skipped).
 - **`jumpbutton`** is deliberately **unguarded** — it must stay responsive during scroll.
-- **`reposition`** and the library listings are unguarded.
+- **`reposition`**, the library listings and `speed_dial` are unguarded.
 
 ---
 
@@ -241,4 +242,5 @@ Then reference the variable in your container:
 - [Text Image](text.md)
 - [Reposition](reposition.md)
 - [Library Listings](library.md)
+- [Speed Dial](speed_dial.md)
 - [Placement Options](placement.md)

@@ -45,6 +45,19 @@ artist exactly. A song with fewer than three artists leaves the rest empty.
 For the playing song's rating, use Kodi's own `MusicPlayer.UserRating`. It updates
 straight away when [`rate_song`](../script/actions.md#rate_song) changes the rating.
 
+## Speed dial
+
+When a song starts, the service also records what the user started playing in
+[speed dial](../plugins/speed_dial.md#how-entries-are-added): a playlist, album,
+artist or song. Each change sets `speed_dial_version` to a new value. Add it to your
+speed dial path, so the list updates.
+
+| Property | Value | Set when |
+|---|---|---|
+| `speed_dial_version` | A new number each time | A play is recorded in speed dial, or a speed dial action changes it |
+
+`speed_dial_version` is never cleared.
+
 ## Example
 
 Show a "now playing" icon on the list item for the show, season, set or artist that is

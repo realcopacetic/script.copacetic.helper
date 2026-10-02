@@ -93,6 +93,7 @@ All window properties are on the Home window (`10000`). In XML, read them with
 | `player_albumartist` | A song starts | Album artist | As above | [Player properties](player.md) |
 | `player_album` | A song starts | Album title | As above | [Player properties](player.md) |
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
+| `speed_dial_version` | A song starts and a play is recorded in speed dial | A new number each time | Never | [Player properties](player.md#speed-dial) |
 | `slideshow_fanart` | Each slide | Path to the original fanart | Never (replaced by the next slide) | [Slideshow](slideshow.md) |
 | `slideshow_blur` | Each slide | Path to the blurred fanart | Never (replaced by the next slide) | [Slideshow](slideshow.md) |
 | `slideshow_darken` | Each slide | Darken percentage, `0`–`100` | The slide has no darken value | [Slideshow](slideshow.md) |
