@@ -36,15 +36,16 @@ _ICONS = {
     "playlist": "DefaultMusicPlaylists.png",
     "song": "DefaultMusicSongs.png",
 }
+_MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 
 
-def dial_item(entry: dict, pinned: bool) -> DirectoryItem | None:
+def dial_item(entry: dict, offsets: tuple[int, ...]) -> DirectoryItem | None:
     """
     A speed dial entry as a directory item: songs play their file, the rest
-    open as folders. Pinned items get Move up/down rows; Unpin is addon.xml's.
+    open as folders. Pinned items get a Move row per offset; Unpin is addon.xml's.
 
     :param entry: Speed dial entry (type, ref).
-    :param pinned: Whether the entry is pinned.
+    :param offsets: Moves the entry can make, -1 up and 1 down.
     :return: (path, ListItem, is_folder), or None if the library lost the item.
     """
     type, ref = entry["type"], entry["ref"]
@@ -71,12 +72,8 @@ def dial_item(entry: dict, pinned: bool) -> DirectoryItem | None:
         path = details["file"] if type == "song" else f"musicdb://{type}s/{ref}/"
         args = f"type={type},id={ref}"
     li.setArt({"icon": _ICONS[type]})
-    if pinned:
-        run = f"RunScript(script.copacetic.helper,{args},action="
-        li.addContextMenuItems(
-            [
-                (getLocalizedString(13332), f"{run}move_pin,offset=-1)"),
-                (getLocalizedString(13333), f"{run}move_pin,offset=1)"),
-            ]
-        )
+    run = f"RunScript(script.copacetic.helper,{args},action=move_pin,offset="
+    li.addContextMenuItems(
+        [(getLocalizedString(_MOVES[offset]), f"{run}{offset})") for offset in offsets]
+    )
     return path, li, type != "song"
