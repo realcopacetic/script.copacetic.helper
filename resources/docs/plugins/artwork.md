@@ -215,6 +215,8 @@ library artwork:
   fills for the same item and language. An item not cached yet gets its library
   artwork only.
 - For movies and TV shows with a TMDb id. Episodes use their show's artwork.
+- A `tvshow.` type adds TMDb artwork of the plain type: `tvshow.fanart` adds TMDb
+  `fanart`.
 
 ### Multiart in a FadeLabel
 
@@ -223,8 +225,8 @@ image path. Read the label that is showing with `Control.GetLabel(<id>)` and use
 as an image texture to get a slideshow.
 
 - The main image comes first. The rest are shuffled.
-- The returned `multiart*` keys follow the same order (except when the FadeLabel is
-  left alone, see below; then they are in library order).
+- The returned `multiart*` keys stay in library order (library artwork, then TMDb
+  artwork). Only the FadeLabel is shuffled.
 - A family with fewer than two images is not loaded. The FadeLabel is emptied and no
   `multiart*` keys are returned.
 - Refiring for the same item with the same images leaves a running FadeLabel alone.
