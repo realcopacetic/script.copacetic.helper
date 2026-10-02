@@ -412,25 +412,24 @@ titles and paths can contain commas:
 
 ## rate_song
 
-Sets a song's user rating in the music library. If that song is playing now, the
-helper also stores the rating in a window property, so the player can show it at
-once.
+Sets a song's user rating in the music library. Kodi updates the playing song's
+`MusicPlayer.UserRating` by itself.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `id` | song database id | `ListItem.DBID` | The song to rate |
-| `rating` | whole number, `0`–`10` | `Skin.String(Music_Rating_Like_Threshold)` | The rating. `0` removes it. |
+| `rating` | whole number, `0`–`10` | `Skin.String(like_threshold)` | The rating. `0` removes it. |
 
-Both values must be whole numbers. If the default skin string is empty, nothing
-happens.
+Both values must be whole numbers.
 
-**Sets:** `Window(home).Property(MusicPlayer_UserRating)` — the new rating, when the
-rated song is playing. Cleared when the rating is `0`.
+**Sets:** `Window(home).Property(liked_songs_version)` — a new token on every call.
+Put it in a liked songs list's path (for example as an extra key in its `xsp`) so the
+list refetches after a like: Kodi skips the library's update for a list that was empty.
 
-Example from Copacetic (like and unlike in the music OSD):
+Example (like and unlike in a music OSD):
 
 ```xml
-<onclick>RunScript(script.copacetic.helper,action=rate_song,id=$INFO[MusicPlayer.DBID],rating=$INFO[Skin.String(Music_Rating_Like_Threshold)])</onclick>
+<onclick>RunScript(script.copacetic.helper,action=rate_song,id=$INFO[MusicPlayer.DBID])</onclick>
 <altclick>RunScript(script.copacetic.helper,action=rate_song,id=$INFO[MusicPlayer.DBID],rating=0)</altclick>
 ```
 

@@ -406,8 +406,9 @@ def focus(target: str, **kwargs: str) -> None:
 @action
 def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
     """
-    Sets a song's user rating. Kodi updates the playing song's tag itself
-    (GUI_MSG_UPDATE_ITEM), so MusicPlayer.UserRating needs no bridge.
+    Sets a song's user rating; Kodi updates the playing song's tag itself. Then
+    bumps liked_songs_version, which liked songs lists carry in their URL, since
+    an empty list ignores the library's own update announcement.
 
     :param id: Song ID (defaults to ListItem.DBID).
     :param rating: 0-10, 0 clears it (defaults to Skin.String(like_threshold)).
@@ -420,6 +421,7 @@ def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
         },
         parent="rate_song",
     )
+    window_property("liked_songs_version", value=str(time.time_ns()))
 
 
 @action
