@@ -10,11 +10,24 @@ from resources.lib.plugin.setter import apply_musicinfotag
 from resources.lib.shared.utilities import ADDON, json_call
 
 _DETAILS = {
-    "album": ("AudioLibrary.GetAlbumDetails", ["artist", "genre", "title", "year"]),
+    "album": (
+        "AudioLibrary.GetAlbumDetails",
+        ["artist", "genre", "title", "userrating", "year"],
+    ),
     "artist": ("AudioLibrary.GetArtistDetails", ["genre"]),
     "song": (
         "AudioLibrary.GetSongDetails",
-        ["album", "artist", "duration", "file", "genre", "title", "track", "year"],
+        [
+            "album",
+            "artist",
+            "duration",
+            "file",
+            "genre",
+            "title",
+            "track",
+            "userrating",
+            "year",
+        ],
     ),
 }
 _ICONS = {
@@ -43,7 +56,7 @@ def dial_item(entry: dict, pinned: bool) -> DirectoryItem | None:
         details = (
             json_call(
                 method,
-                properties=[*properties, "art", "userrating"],
+                properties=[*properties, "art"],
                 params={f"{type}id": int(ref)},
                 parent="speed_dial",
             )
