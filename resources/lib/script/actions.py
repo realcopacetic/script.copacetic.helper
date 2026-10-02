@@ -24,6 +24,7 @@ from resources.lib.shared.utilities import (
     focused_control_id,
     infolabel,
     json_call,
+    play_files,
     reset_dev_state,
     to_int,
     window_property,
@@ -279,8 +280,6 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
 
     :param id: Song ID.
     """
-    clear_playlists()
-
     songid = to_int(id)
     details = json_call(
         "AudioLibrary.GetSongDetails",
@@ -293,22 +292,14 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
     # Sort by track is disc-aware: Kodi stores the track as (disc << 16) | track.
     songs = json_call(
         "AudioLibrary.GetSongs",
+        properties=["file"],
         sort={"method": "track"},
         query_filter={"albumid": song["albumid"]},
         parent="play_album_from_track",
     )["result"].get("songs", [])
-    songids = [s["songid"] for s in songs]
-    json_call(
-        "Playlist.Add",
-        item=[{"songid": s} for s in songids],
-        params={"playlistid": 0},
-        parent="play_album_from_track",
-    )
-    json_call(
-        "Player.Open",
-        item={"playlistid": 0, "position": songids.index(songid)},
-        options={"shuffled": False},
-        parent="play_album_from_track",
+    play_files(
+        [s["file"] for s in songs],
+        position=[s["songid"] for s in songs].index(songid),
     )
 
 
@@ -321,18 +312,28 @@ def play_items(id: str, **kwargs: str) -> None:
     :param method: "from_here" or "shuffle" for behavior control.
     :param type: "music" or "video".
     """
-    clear_playlists()
-
     method = kwargs.get("method", "")
-    playlistid = 0 if kwargs.get("type", "") == "music" else 1
     scope = "NoWrap" if method == "from_here" else "Absolute"
     prefix = f"Container({id}).ListItem{scope}"
+    indices = range(to_int(infolabel(f"Container({id}).NumItems")))
 
+    if kwargs.get("type", "") == "music":
+        play_files(
+            [
+                url
+                for i in indices
+                if (url := infolabel(f"{prefix}({i}).FileNameAndPath"))
+            ],
+            shuffled=method == "shuffle",
+        )
+        return
+
+    clear_playlists()
     items = []
-    for i in range(to_int(infolabel(f"Container({id}).NumItems"))):
+    for i in indices:
         dbtype = infolabel(f"{prefix}({i}).DBType")
         dbid = to_int(infolabel(f"{prefix}({i}).DBID"))
-        if dbid and dbtype in ("movie", "episode", "musicvideo", "song"):
+        if dbid and dbtype in ("movie", "episode", "musicvideo"):
             items.append({f"{dbtype}id": dbid})
         elif url := infolabel(f"{prefix}({i}).FileNameAndPath"):
             items.append({"file": url})
@@ -340,12 +341,12 @@ def play_items(id: str, **kwargs: str) -> None:
     json_call(
         "Playlist.Add",
         item=items,
-        params={"playlistid": playlistid},
+        params={"playlistid": 1},
         parent="play_items",
     )
     json_call(
         "Player.Open",
-        item={"playlistid": playlistid, "position": 0},
+        item={"playlistid": 1, "position": 0},
         options={"shuffled": method == "shuffle"},
         parent="play_items",
     )
@@ -530,15 +531,15 @@ def _year_rule(year: str) -> dict:
 
 def _random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
     """
-    Fetches songs in random order, with their artists and genres.
+    Fetches songs in random order, with their files, artists and genres.
 
     :param query_filter: AudioLibrary.GetSongs filter.
     :param limit: Maximum number of songs; None for all.
-    :return: Song dicts with songid, artist and genre.
+    :return: Song dicts with songid, file, artist and genre.
     """
     return json_call(
         "AudioLibrary.GetSongs",
-        properties=["artist", "genre"],
+        properties=["file", "artist", "genre"],
         sort={"method": "random"},
         limit=limit,
         query_filter=query_filter,
@@ -548,24 +549,12 @@ def _random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
 
 def _play_songs(songs: list[dict]) -> None:
     """
-    Replaces whatever is playing: clears the playlists, queues the songs in order
-    and plays from the first. Call it once the songs are fetched.
+    Replaces whatever is playing: queues the songs in order and plays from the
+    first. Call it once the songs are fetched.
 
-    :param songs: Song dicts with songid.
+    :param songs: Song dicts with file.
     """
-    clear_playlists()
-    json_call(
-        "Playlist.Add",
-        item=[{"songid": s["songid"]} for s in songs],
-        params={"playlistid": 0},
-        parent="music",
-    )
-    json_call(
-        "Player.Open",
-        item={"playlistid": 0, "position": 0},
-        options={"shuffled": False},
-        parent="music",
-    )
+    play_files([s["file"] for s in songs])
 
 
 def _mix_seed(type: str, dbid: int) -> dict | None:
@@ -575,13 +564,13 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
 
     :param type: song, album or artist.
     :param dbid: Library ID of the item.
-    :return: Song dict with songid, artist and genre, or None.
+    :return: Song dict with songid, file, artist and genre, or None.
     """
     if type == "song":
         return (
             json_call(
                 "AudioLibrary.GetSongDetails",
-                properties=["artist", "genre"],
+                properties=["file", "artist", "genre"],
                 params={"songid": dbid},
                 parent="start_mix",
             )
@@ -590,7 +579,7 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
         )
     top = json_call(
         "AudioLibrary.GetSongs",
-        properties=["artist", "genre"],
+        properties=["file", "artist", "genre"],
         sort={"method": "playcount", "order": "descending"},
         limit=5,
         query_filter={_LIBRARY_ITEMS[type]: dbid},

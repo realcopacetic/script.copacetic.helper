@@ -102,6 +102,28 @@ def clear_playlists() -> None:
         )
 
 
+def play_files(files: list[str], position: int = 0, shuffled: bool = False) -> None:
+    """
+    Replaces both playlists with these music files and plays from position.
+    Real paths, not songid: a songid item's musicdb:// path is refused by
+    CFile::Open while a filtered songs listing sits in Kodi's directory cache.
+
+    :param files: Real file paths, in play order.
+    :param position: Index of the file to start from.
+    :param shuffled: Shuffle the playlist before playing.
+    """
+    xbmc.PlayList(xbmc.PLAYLIST_VIDEO).clear()
+    playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
+    playlist.clear()  # keeps a previous shuffle's flag: set it explicitly below
+    for file in files:
+        playlist.add(file)
+    if shuffled:
+        playlist.shuffle()
+    else:
+        playlist.unshuffle()
+    xbmc.Player().play(playlist, startpos=position)
+
+
 def condition(condition: str) -> bool:
     """
     Evaluates a Kodi visibility condition.
