@@ -145,11 +145,12 @@ a TMDb token. Without them, nothing is fetched and `tmdb_details` returns no ite
 
 Both paths can return a version of a text cut to fit a number of lines in a given
 width and font. It is cut at the end of the last full sentence that fits. If no
-sentence fits, the last word that fits gets an ellipsis. The text is returned on one
-line in `ListItem.Property(truncated_label)`; Kodi wraps it again when drawn.
+sentence fits, the last word that fits gets an ellipsis. The text is returned in
+`ListItem.Property(truncated_label)`, with a `[CR]` at the end of each line, so Kodi
+breaks the lines exactly where the helper measured them.
 
 The width is measured the way Kodi draws the font at the current screen resolution,
-with sizes in 1080-line skin pixels. Results are cached.
+with sizes in 1920×1080 skin pixels. Results are cached.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
