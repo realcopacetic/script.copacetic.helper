@@ -24,11 +24,12 @@ class PlayerMonitor(Player):
     """
 
     def __init__(self) -> None:
-        """Initialise player monitor and helpers."""
+        """Initialise player monitor and helpers; publish the speed dial pins."""
         super().__init__()
         self.zoom = TrailerZoomController()
         self._cleanup_registry = set()
         self._dial_queue = None
+        SpeedDial().publish()
 
     def onAVStarted(self) -> None:
         """Handle playback start events for video and audio."""

@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import time
+from collections import defaultdict
 from pathlib import Path
 
 from resources.lib.shared.json import JSONHandler
@@ -16,11 +17,16 @@ RECENT_MAX = 30
 SOURCE_PROPERTY = "speed_dial_source"
 LIBRARY_TYPES = ("album", "artist", "song")
 PLAYLIST_SUFFIXES = (".xsp", ".m3u")
+PLAYLISTS = "special://profile/playlists/music/"
+PLAYLISTS_ALIAS = "special://musicplaylists/"  # same folder, as library nodes say it
+# addon.xml's Pin/Unpin rows test one property per type and ID length (IDs to 7 digits)
+PIN_KEYS = (*(f"{t}{n}" for t in LIBRARY_TYPES for n in range(1, 8)), "playlist")
 
 
 def entry(type: str, id: str = "", path: str = "") -> dict:
     """
-    A speed dial entry: a library item by type and ID, or a playlist by path.
+    A speed dial entry: a library item by type and ID, or a playlist by path,
+    spelled one way whichever folder alias it was reached through.
 
     :param type: album, artist or song; anything else is a playlist.
     :param id: Library ID.
@@ -29,7 +35,7 @@ def entry(type: str, id: str = "", path: str = "") -> dict:
     """
     if type in LIBRARY_TYPES:
         return {"type": type, "ref": str(id)}
-    return {"type": "playlist", "ref": path}
+    return {"type": "playlist", "ref": path.replace(PLAYLISTS_ALIAS, PLAYLISTS, 1)}
 
 
 def mark_source(source: dict | None) -> None:
@@ -155,7 +161,24 @@ class SpeedDial:
         )
         self._save()
 
+    def publish(self) -> None:
+        """
+        Publishes the pinned keys addon.xml tests with String.Contains: IDs by type
+        and length, so an ID can only match a whole pinned ID, and playlist paths
+        in both spellings. Window(home).Property(speed_dial_<key>), "|"-joined.
+        """
+        keys = defaultdict(list)
+        for e in self.pinned:
+            if e["type"] == "playlist":
+                alias = e["ref"].replace(PLAYLISTS, PLAYLISTS_ALIAS, 1)
+                keys["playlist"] += e["ref"], alias
+            else:
+                keys[f"{e['type']}{len(e['ref'])}"].append(e["ref"])
+        for key in PIN_KEYS:
+            window_property(f"speed_dial_{key}", value="|".join(keys[key]))
+
     def _save(self) -> None:
-        """Writes the file, then bumps the version token so widgets refetch."""
+        """Writes the file and the pinned keys, then bumps the widgets' token."""
         self._file.write_json({"pinned": self.pinned, "recent": self.recent})
+        self.publish()
         window_property("speed_dial_version", value=str(time.time_ns()))

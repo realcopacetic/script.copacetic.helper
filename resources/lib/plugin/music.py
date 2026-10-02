@@ -7,7 +7,7 @@ from xbmcgui import ListItem
 
 from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag
-from resources.lib.shared.utilities import ADDON, json_call
+from resources.lib.shared.utilities import json_call
 
 _DETAILS = {
     "album": (
@@ -41,7 +41,7 @@ _ICONS = {
 def dial_item(entry: dict, pinned: bool) -> DirectoryItem | None:
     """
     A speed dial entry as a directory item: songs play their file, the rest
-    open as folders. Pinned items get Unpin and Move up/down context rows.
+    open as folders. Pinned items get Move up/down rows; Unpin is addon.xml's.
 
     :param entry: Speed dial entry (type, ref).
     :param pinned: Whether the entry is pinned.
@@ -72,11 +72,9 @@ def dial_item(entry: dict, pinned: bool) -> DirectoryItem | None:
         args = f"type={type},id={ref}"
     li.setArt({"icon": _ICONS[type]})
     if pinned:
-        li.setProperty("speed_dial_pinned", "true")
         run = f"RunScript(script.copacetic.helper,{args},action="
         li.addContextMenuItems(
             [
-                (ADDON.getLocalizedString(32825), f"{run}unpin)"),
                 (getLocalizedString(13332), f"{run}move_pin,offset=-1)"),
                 (getLocalizedString(13333), f"{run}move_pin,offset=1)"),
             ]
