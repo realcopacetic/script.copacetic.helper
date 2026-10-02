@@ -15,6 +15,8 @@ from resources.lib.shared.utilities import (
 
 RECENT_MAX = 30
 SOURCE_PROPERTY = "speed_dial_source"
+VERSION_PROPERTY = "speed_dial_version"  # widgets put it in their URL to refetch
+HELD_PROPERTY = "speed_dial_held"  # a version waiting for focus to leave speed dial
 LIBRARY_TYPES = ("album", "artist", "song")
 PLAYLIST_SUFFIXES = (".xsp", ".m3u")
 PLAYLISTS = "special://profile/playlists/music/"
@@ -63,6 +65,35 @@ def take_source() -> dict | None | bool:
     return {"type": type, "ref": ref} if ref else None
 
 
+def focused() -> bool:
+    """
+    True while focus is on a speed dial list: its items carry Property(speed_dial).
+
+    :return: Whether the focused item is a speed dial item.
+    """
+    return bool(infolabel("ListItem.Property(speed_dial)"))
+
+
+def refresh(hold: bool = False) -> None:
+    """
+    Bumps the version token speed dial widgets refetch on. With hold, the token
+    waits for release_refresh instead, so a focused list doesn't reload.
+
+    :param hold: Hold the token back while a speed dial list has focus.
+    """
+    token = str(time.time_ns())
+    window_property(HELD_PROPERTY if hold else VERSION_PROPERTY, value=token)
+    if not hold:
+        window_property(HELD_PROPERTY)
+
+
+def release_refresh() -> None:
+    """Publishes a held version token once no speed dial list has focus."""
+    if (held := infolabel(f"Window(home).Property({HELD_PROPERTY})")) and not focused():
+        window_property(VERSION_PROPERTY, value=held)
+        window_property(HELD_PROPERTY)
+
+
 def queue_source(songid: int) -> dict:
     """
     Infers what a playback was started from: a playlist open in the music
@@ -101,7 +132,7 @@ def queue_source(songid: int) -> dict:
 class SpeedDial:
     """
     Pinned entries first, in pin order, then the sources played most recently.
-    Stored in speed_dial.json; every write bumps Window(home).Property(speed_dial_version).
+    Stored in speed_dial.json; writes that change the list call refresh.
     """
 
     def __init__(self) -> None:
@@ -128,12 +159,16 @@ class SpeedDial:
 
     def played(self, source: dict) -> None:
         """
-        Moves a source to the front of the recent list.
+        Moves a source to the front of the recent list. Widgets refresh only if
+        what they show changed, and not while a speed dial list has focus.
 
         :param source: Speed dial entry.
         """
+        shown = self.items()
         self.recent = [source, *(e for e in self.recent if e != source)][:RECENT_MAX]
-        self._save()
+        self._write()
+        if self.items() != shown:
+            refresh(hold=focused())
 
     def pin(self, source: dict) -> None:
         """
@@ -183,7 +218,11 @@ class SpeedDial:
             window_property(f"speed_dial_{key}", value="|".join(keys[key]))
 
     def _save(self) -> None:
-        """Writes the file and the pinned keys, then bumps the widgets' token."""
-        self._file.write_json({"pinned": self.pinned, "recent": self.recent})
+        """Writes the file and the pinned keys, then refreshes widgets at once."""
+        self._write()
         self.publish()
-        window_property("speed_dial_version", value=str(time.time_ns()))
+        refresh()
+
+    def _write(self) -> None:
+        """Writes speed_dial.json."""
+        self._file.write_json({"pinned": self.pinned, "recent": self.recent})

@@ -9,6 +9,7 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.templates import cache_is_current
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.shared import logger as log
+from resources.lib.shared.speed_dial import release_refresh
 from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
@@ -159,9 +160,10 @@ class Monitor(xbmc.Monitor):
 
     def poller(self) -> None:
         """
-        Polling loop: trailer session watchdog and global slideshow,
-        plus per-window tasks.
+        Polling loop: trailer session watchdog, global slideshow and held
+        speed dial refreshes, plus per-window tasks.
         """
         self.player_monitor.watch_trailer_session()
         self.slideshow.tick()
+        release_refresh()
         self.waitForAbort(1)

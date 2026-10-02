@@ -72,6 +72,7 @@ def dial_item(entry: dict, offsets: tuple[int, ...]) -> DirectoryItem | None:
         path = details["file"] if type == "song" else f"musicdb://{type}s/{ref}/"
         args = f"type={type},id={ref}"
     li.setArt({"icon": _ICONS[type]})
+    li.setProperty("speed_dial", "true")  # marks the list as speed dial (focused())
     run = f"RunScript(script.copacetic.helper,{args},action=move_pin,offset="
     li.addContextMenuItems(
         [(getLocalizedString(_MOVES[offset]), f"{run}{offset})") for offset in offsets]
