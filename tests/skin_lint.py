@@ -20,6 +20,7 @@ from build_offline import build_isolated
 
 REF = re.compile(r"\$(?:ESC)?(VAR|EXP)\[((?:[^\[\]]|\[[^\[\]]*\])+)\]")
 PARAM = re.compile(r"\$PARAM\[([^\[\]]*)\]")
+WHOLE_EXP = re.compile(r"\[?\$EXP\[([^\[\]]+)\]\]?")
 KINDS = {"VAR": "variable", "EXP": "expression"}
 DEFINITIONS = ("include", "expression", "variable")
 LAYOUTS = {"itemlayout", "focusedlayout"}
@@ -277,7 +278,7 @@ class Skin:
     def expand(self, node: Node, budget: list[int]) -> None:
         """
         Resolve includes under ``node`` in place like ``ResolveIncludes``:
-        ``<nested/>`` filled, params substituted, literal ``false`` conditions
+        ``<nested/>`` filled, params substituted, constant-false conditions
         skipped, other conditions recorded, not evaluated.
 
         :param node: Element whose include children are replaced.
@@ -287,7 +288,7 @@ class Skin:
         while index < len(node):
             call = node[index]
             name = include_name(call) if call.tag == "include" else None
-            if name is not None and call.get("condition", "").lower() == "false":
+            if name is not None and self.constant_false(call.get("condition", "")):
                 del node[index]  # Kodi skips it before looking the name up
                 continue
             if name not in self.defs["include"] or "file" in call.attrib:
@@ -321,6 +322,23 @@ class Skin:
                 self.resolve_params(new, params, node)
         for child in elements(node):
             self.expand(child, budget)
+
+    def constant_false(self, condition: str) -> bool:
+        """
+        True for ``false`` or a bare ``$EXP`` chain whose generated body is
+        ``false``: Kodi evaluates an include condition at load and skips it.
+
+        :param condition: Include condition after param substitution.
+        :return: Whether Kodi never loads the include.
+        """
+        seen = set()
+        while match := WHOLE_EXP.fullmatch(condition.strip()):
+            name = match[1]
+            if name in seen or name not in self.defs["expression"]:
+                return False
+            seen.add(name)
+            condition = (self.defs["expression"][name].text or "").strip()
+        return condition.lower() == "false"
 
     def resolve_params(self, node: Node, params: dict[str, str], parent: Node) -> None:
         """
