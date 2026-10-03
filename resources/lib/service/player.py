@@ -112,15 +112,17 @@ class PlayerMonitor(Player):
         tag = self.getMusicInfoTag()
         query = json_call(
             "Player.GetItem",
-            params={"playerid": 0, "properties": ["artist"]},
+            params={"playerid": 0, "properties": ["albumid", "artist"]},
             parent="now_playing_song",
         )
-        artists = query.get("result", {}).get("item", {}).get("artist", [])
+        item = query.get("result", {}).get("item", {})
+        artists = item.get("artist", [])
         self._publish(
             {
                 "player_artist": tag.getArtist(),
                 "player_albumartist": tag.getAlbumArtist(),
                 "player_album": tag.getAlbum(),
+                "player_albumid": str(item.get("albumid", "")),
                 "player_disc": str(tag.getDisc()),
             }
             | {f"player_artist_{i}": a for i, a in enumerate(artists[:3], 1)}

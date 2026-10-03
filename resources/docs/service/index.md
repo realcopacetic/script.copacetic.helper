@@ -96,6 +96,7 @@ All window properties are on the Home window (`10000`). In XML, read them with
 | `player_artist_1` … `player_artist_3` | A song starts | First, second and third artist | As above | [Player properties](player.md) |
 | `player_albumartist` | A song starts | Album artist | As above | [Player properties](player.md) |
 | `player_album` | A song starts | Album title | As above | [Player properties](player.md) |
+| `player_albumid` | A song starts | Album database id | As above | [Player properties](player.md) |
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
 | `speed_dial_version` | A song starts and the play changes what speed dial shows, or the poll loop releases `speed_dial_held` | A new number each time | Never | [Player properties](player.md#speed-dial) |
 | `speed_dial_held` | As `speed_dial_version`, but focus is on a speed dial item | The next `speed_dial_version` | The poll loop moves it to `speed_dial_version` | [Speed dial](../plugins/speed_dial.md#window-properties) |

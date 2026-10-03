@@ -38,6 +38,7 @@ When a library episode starts, the service also runs [Play next](playnext.md).
 | `player_artist_3` | Third artist | A song starts |
 | `player_albumartist` | Album artist | A song starts |
 | `player_album` | Album title | A song starts |
+| `player_albumid` | Album database id (`-1` outside the library) | A song starts |
 | `player_disc` | Disc number | A song starts |
 
 `player_artist_1` to `player_artist_3` hold one artist each, so you can match a single
