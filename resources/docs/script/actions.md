@@ -52,7 +52,6 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 
 | Action | What it does |
 |---|---|
-| [`clean_filename`](#clean_filename) | Tidies a file name into a readable label |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
 | [`container_move`](#container_move) | Moves a container one item, with optional stop at the ends |
@@ -114,29 +113,6 @@ type and its path to the action.
 
 ---
 
-## clean_filename
-
-Turns a file name into a readable label: dots and underscores become spaces. The
-result goes into a window property, so you can show it with `$INFO[]`.
-
-If Kodi's **Show file extensions** setting is on, the last dot is kept, so the
-extension stays attached (`My.Home.Video.mkv` → `My Home Video.mkv`).
-
-| Param | Accepted values | Default | What it does |
-|---|---|---|---|
-| `label` | any text | `ListItem.Label` | The text to clean. Empty or missing uses the focused item's label. |
-
-**Sets:** `Window(home).Property(Return_Label)` — the cleaned label.
-
-```xml
-<!-- on the list -->
-<onfocus>RunScript(script.copacetic.helper,action=clean_filename)</onfocus>
-<!-- on a label control -->
-<label>$INFO[Window(home).Property(Return_Label)]</label>
-```
-
----
-
 ## clear_cache
 
 Deletes the helper's processed artwork (blurred, cropped and text images) and resets
@@ -144,9 +120,6 @@ its artwork lookup database. A notification shows how much space was saved. Imag
 are made again the next time they are needed.
 
 No parameters.
-
-**Sets:** `Window(home).Property(Addon_Data_Folder_Size)` — the size of the helper's
-data folder after clearing, for example `1.2 MB`.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=clear_cache)</onclick>

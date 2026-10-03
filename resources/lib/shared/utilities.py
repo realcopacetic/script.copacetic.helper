@@ -235,7 +235,7 @@ def create_dir(path: str) -> None:
 def clear_cache(**kwargs: str) -> None:
     """
     Clears all temporary artwork processing data and resets the artwork lookup database.
-    Resets the cache size display, and posts a notification with the amount of space saved.
+    Posts a notification with the amount of space saved.
     """
     readable_size = get_cache_size()
 
@@ -252,12 +252,10 @@ def clear_cache(**kwargs: str) -> None:
     message = f"{ADDON.getLocalizedString(32201)}, {readable_size} {ADDON.getLocalizedString(32202)}."
     Dialog().notification(ADDON_ID, message)
 
-    get_cache_size()
-
 
 def get_cache_size(precision: int = 1) -> str:
     """
-    Computes the combined size of temp and crop folders and sets it as a window property.
+    Computes the combined size of the helper's data folder.
     Credit Doug Latornell for bitshift method
     https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
 
@@ -272,7 +270,6 @@ def get_cache_size(precision: int = 1) -> str:
     readable = (
         "%.*f %s" % (precision, size / factor, suffix) if size > 0 else "0.0 bytes"
     )
-    window_property("Addon_Data_Folder_Size", value=readable)
     return readable
 
 

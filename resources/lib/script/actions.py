@@ -50,29 +50,6 @@ def clear_cache(**kwargs: str) -> None:
 
 
 @action
-def clean_filename(label: str | bool = False, **kwargs: str) -> None:
-    """
-    Cleans a filename by removing extensions and formatting characters.
-
-    :param label: Optional input string. If not provided, uses ListItem.Label.
-    :return: Sets the result to "Return_Label" window property.
-    """
-    json_response = json_call(
-        "Settings.GetSettingValue",
-        params={"setting": "filelists.showextensions"},
-        parent="clean_filename",
-    )
-
-    subtraction = 1 if json_response["result"]["value"] is True else 0
-    if not label:
-        label = infolabel("$INFO[ListItem.Label]")
-    count = label.count(".") - subtraction
-    label = label.replace(".", " ", count).replace("_", " ").strip()
-
-    window_property("Return_Label", value=label)
-
-
-@action
 def clear_label(id: int | str, **kwargs: str) -> None:
     """
     Clear a fadelabel register. Sanctioned for window load only (the arriving
