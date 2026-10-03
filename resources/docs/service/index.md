@@ -43,7 +43,8 @@ The service checks again whenever the active skin changes.
 
 1. The service starts and attaches the player monitor. From now on, playback events
    are handled for any skin (see [Player properties](player.md) and
-   [Play next](playnext.md)).
+   [Play next](playnext.md)). It also sets the
+   [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties.
 2. If the skin opts in, the build runs once:
    - **Dev mode off (default):** the service seeds the runtime state if needed. It
      rebuilds every output if the runtime state was just seeded or the templates
@@ -61,7 +62,10 @@ While the skin opts in and the screensaver is not active, the service runs a loo
 once a second. Each pass it:
 
 1. checks the trailer session (see [Trailers](trailers.md));
-2. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md)).
+2. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
+3. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
+   focus is no longer on a speed dial item (see
+   [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list)).
 
 When the screensaver starts, the loop pauses. When the screensaver stops, or the
 user switches to a skin that opts in, the loop resumes. While paused, the service
@@ -93,7 +97,9 @@ All window properties are on the Home window (`10000`). In XML, read them with
 | `player_albumartist` | A song starts | Album artist | As above | [Player properties](player.md) |
 | `player_album` | A song starts | Album title | As above | [Player properties](player.md) |
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
-| `speed_dial_version` | A song starts and a play is recorded in speed dial | A new number each time | Never | [Player properties](player.md#speed-dial) |
+| `speed_dial_version` | A song starts and the play changes what speed dial shows, or the poll loop releases `speed_dial_held` | A new number each time | Never | [Player properties](player.md#speed-dial) |
+| `speed_dial_held` | As `speed_dial_version`, but focus is on a speed dial item | The next `speed_dial_version` | The poll loop moves it to `speed_dial_version` | [Speed dial](../plugins/speed_dial.md#window-properties) |
+| `speed_dial_album1` … `speed_dial_album7`, `speed_dial_artist1` … `speed_dial_artist7`, `speed_dial_song1` … `speed_dial_song7`, `speed_dial_playlist` | The service starts | Pinned ids by type and number of digits, or pinned playlist paths, joined with `\|` | Set again on every pin, unpin or move; empty when nothing matches | [Speed dial](../plugins/speed_dial.md#window-properties) |
 | `slideshow_fanart` | Each slide | Path to the original fanart | Never (replaced by the next slide) | [Slideshow](slideshow.md) |
 | `slideshow_blur` | Each slide | Path to the blurred fanart | Never (replaced by the next slide) | [Slideshow](slideshow.md) |
 | `slideshow_darken` | Each slide | Darken percentage, `0`–`100` | The slide has no darken value | [Slideshow](slideshow.md) |

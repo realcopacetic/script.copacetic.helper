@@ -11,9 +11,10 @@ the entries they pinned, then what they played recently. Use it as a music widge
 </control>
 ```
 
-The `v=` parameter is not read. It changes whenever speed dial changes, so the path
-changes and Kodi fetches the list again. Without it, the list only updates when Kodi
-reloads the container for some other reason.
+The `v=` parameter is not read. It changes whenever what speed dial shows changes, so
+the path changes and Kodi fetches the list again. Without it, the list only updates
+when Kodi reloads the container for some other reason. See
+[Window properties](#window-properties) for when it changes.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -62,15 +63,22 @@ shared by every skin.
 | Song | Song title | The song file (plays it) | `song` |
 | Playlist | The file name, without `.xsp` or `.m3u` | The playlist (a folder) | — |
 
-- Albums, artists and songs carry their library artwork, `DBID`, `Artist`, `Genre`
-  and `UserRating`. Albums and songs also carry `Title` and `Year`. Songs also carry
-  `Album`, `Duration` and `TrackNumber`.
+- Albums, artists and songs carry their library artwork, `DBID`, `Artist` and
+  `Genre`. Albums and songs also carry `Title`, `Year` and `UserRating`. Songs also
+  carry `Album`, `Duration` and `TrackNumber`.
 - `ListItem.Art(icon)` is Kodi's default icon for the type (`DefaultAlbumCover.png`,
   `DefaultArtist.png`, `DefaultMusicSongs.png`, `DefaultMusicPlaylists.png`).
-- Pinned items have `ListItem.Property(speed_dial_pinned)` set to `true`.
-- Pinned items have three extra context menu items: **Unpin**, **Move up** and
-  **Move down**. They run [`unpin`](../script/actions.md#unpin) and
+- Every item has `ListItem.Property(speed_dial)` set to `true`. The helper reads it
+  to tell when focus is on a speed dial list (see
+  [Window properties](#window-properties)).
+- A pinned item has **Move up** in its context menu unless it is the first pin, and
+  **Move down** unless it is the last. A single pin has neither. They run
   [`move_pin`](../script/actions.md#move_pin).
+- **Unpin** comes from the helper's own context menu items, so it shows on any
+  pinned item, in speed dial or anywhere else (see
+  [Items the helper adds to the context menu](../script/actions.md#items-the-helper-adds-to-the-context-menu)).
+- A playlist pinned from `special://musicplaylists/` is stored, and opened, as the
+  same file under `special://profile/playlists/music/`. Both are the same folder.
 
 Clicking a song plays it. To do something else, give the container your
 own `<onclick>`. Example from Copacetic, which starts a mix from a song and lets
@@ -82,6 +90,45 @@ albums, artists and playlists open as normal:
 
 ## Window properties
 
+All on the Home window: read them with `Window(home).Property(name)`.
+
 | Property | Value | Set when |
 |---|---|---|
-| `speed_dial_version` | A new number each time | Speed dial is changed: a pin, an unpin, a move, or a newly recorded play |
+| `speed_dial_version` | A new number each time | A pin, an unpin or a move, at once. A recorded play, only when it changes what speed dial shows (see below). |
+| `speed_dial_held` | The next `speed_dial_version` | A recorded play changes speed dial while focus is on a speed dial item. Cleared when it is moved to `speed_dial_version`. |
+| `speed_dial_album1` … `speed_dial_album7` | Pinned album ids with that many digits, joined with `\|` | The service starts, and on every pin, unpin or move. Empty when there are none. |
+| `speed_dial_artist1` … `speed_dial_artist7` | The same, for artists | As above |
+| `speed_dial_song1` … `speed_dial_song7` | The same, for songs | As above |
+| `speed_dial_playlist` | Pinned playlist paths, each in both spellings (`special://profile/playlists/music/…` and `special://musicplaylists/…`), joined with `\|` | As above |
+
+`speed_dial_version` is never cleared.
+
+### Plays don't reload a focused list
+
+Replaying the most recent entry, or a pinned one, changes nothing on screen, so
+`speed_dial_version` stays the same. When a play does change speed dial and the
+focused item is a speed dial item (`ListItem.Property(speed_dial)`), the new value
+waits in `speed_dial_held`. About once a second the service checks again, and moves it
+to `speed_dial_version` once focus has left the list. So pressing Play in speed dial
+doesn't reload the list under the user.
+
+That check is part of the service's [poll loop](../service/index.md#the-poll-loop),
+which only runs for a skin that opts in. In other skins, a held value waits until the
+next pin, unpin or move, or the next play that changes speed dial while focus is
+elsewhere.
+
+### Is this item pinned?
+
+The id properties are split by the number of digits, so that `String.Contains` can
+only match a whole id: `12` never matches inside a pinned `123`. Test the list item's
+`DBID` against the property for its length. Ids up to seven digits are covered.
+
+```xml
+<!-- example: a pinned album, for ids of one to three digits -->
+<visible>String.IsEqual(ListItem.DBType,album) + [String.Contains(Window(home).Property(speed_dial_album1),ListItem.DBID) | [Integer.IsGreater(ListItem.DBID,9) + String.Contains(Window(home).Property(speed_dial_album2),ListItem.DBID)] | [Integer.IsGreater(ListItem.DBID,99) + String.Contains(Window(home).Property(speed_dial_album3),ListItem.DBID)]]</visible>
+<!-- example: a pinned playlist -->
+<visible>String.Contains(Window(home).Property(speed_dial_playlist),ListItem.FolderPath)</visible>
+```
+
+The helper's **Pin to speed dial** and **Unpin** context menu items use the same
+tests, for all seven lengths.

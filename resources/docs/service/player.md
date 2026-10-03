@@ -49,12 +49,16 @@ straight away when [`rate_song`](../script/actions.md#rate_song) changes the rat
 
 When a song starts, the service also records what the user started playing in
 [speed dial](../plugins/speed_dial.md#how-entries-are-added): a playlist, album,
-artist or song. Each change sets `speed_dial_version` to a new value. Add it to your
-speed dial path, so the list updates.
+artist or song. When that changes what speed dial shows, `speed_dial_version` gets a
+new value. Add it to your speed dial path, so the list updates.
 
 | Property | Value | Set when |
 |---|---|---|
-| `speed_dial_version` | A new number each time | A play is recorded in speed dial, or a speed dial action changes it |
+| `speed_dial_version` | A new number each time | A recorded play changes what speed dial shows, or a speed dial action changes it |
+
+If focus is on a speed dial item at that moment, the new value waits in
+`speed_dial_held` until focus leaves the list (see
+[Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list)).
 
 `speed_dial_version` is never cleared.
 
