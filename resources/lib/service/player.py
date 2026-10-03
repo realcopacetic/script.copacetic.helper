@@ -27,7 +27,7 @@ class PlayerMonitor(Player):
         """Initialise player monitor and helpers; publish the speed dial pins."""
         super().__init__()
         self.zoom = TrailerZoomController()
-        self._cleanup_registry = set()
+        self._published = set()
         self._dial_queue = None
         SpeedDial().publish()
 
@@ -71,16 +71,17 @@ class PlayerMonitor(Player):
 
     def _handle_video_start(self) -> None:
         """
-        Set video-related window properties on playback start.
+        Publish video-related window properties on playback start.
         Resolves parent identifiers (tvshowid, setid) via JSON-RPC where needed.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
         media_type = tag.getMediaType()
+        props = {}
 
         if media_type == "episode":
-            self._set_managed_property("player_tvshowtitle", value=tag.getTVShowTitle())
-            self._set_managed_property("player_season", value=str(tag.getSeason()))
+            props["player_tvshowtitle"] = tag.getTVShowTitle()
+            props["player_season"] = str(tag.getSeason())
             if dbid:
                 query = json_call(
                     "VideoLibrary.GetEpisodeDetails",
@@ -89,7 +90,7 @@ class PlayerMonitor(Player):
                 )
                 details = query.get("result", {}).get("episodedetails", {})
                 if tvshowid := details.get("tvshowid"):
-                    self._set_managed_property("player_tvshowid", value=str(tvshowid))
+                    props["player_tvshowid"] = str(tvshowid)
                     playnext.ensure_successor(dbid, tvshowid)
 
         elif media_type == "movie" and dbid:
@@ -100,28 +101,30 @@ class PlayerMonitor(Player):
             )
             details = query.get("result", {}).get("moviedetails", {})
             if setid := details.get("setid"):
-                self._set_managed_property("player_setid", value=str(setid))
+                props["player_setid"] = str(setid)
+        self._publish(props)
 
     def _handle_audio_start(self) -> None:
         """
-        Set music-related window properties on audio start.
+        Publish music-related window properties on audio start.
         Splits the player's artist list into player_artist_1..3 for exact matching.
         """
         tag = self.getMusicInfoTag()
-        self._set_managed_property("player_artist", value=tag.getArtist())
-        self._set_managed_property("player_albumartist", value=tag.getAlbumArtist())
-        self._set_managed_property("player_album", value=tag.getAlbum())
-        self._set_managed_property("player_disc", value=str(tag.getDisc()))
-
         query = json_call(
             "Player.GetItem",
             params={"playerid": 0, "properties": ["artist"]},
             parent="now_playing_song",
         )
         artists = query.get("result", {}).get("item", {}).get("artist", [])
-        for index in range(3):
-            artist = artists[index] if index < len(artists) else ""
-            self._set_managed_property(f"player_artist_{index + 1}", value=artist)
+        self._publish(
+            {
+                "player_artist": tag.getArtist(),
+                "player_albumartist": tag.getAlbumArtist(),
+                "player_album": tag.getAlbum(),
+                "player_disc": str(tag.getDisc()),
+            }
+            | {f"player_artist_{i}": a for i, a in enumerate(artists[:3], 1)}
+        )
         self._record_speed_dial(tag.getDbId())
 
     def _record_speed_dial(self, songid: int) -> None:
@@ -143,18 +146,19 @@ class PlayerMonitor(Player):
         if source:
             SpeedDial().played(source)
 
-    def _set_managed_property(
-        self, key: str, value: str = "", window_id: int = 10000
-    ) -> None:
+    def _publish(self, props: dict[str, str]) -> None:
         """
-        Set a window property and register it for cleanup on playback stop.
+        Write the playing file's properties, then clear any the previous file set
+        that this one doesn't, so a skip or playlist advance never blanks them.
 
-        :param key: Property name.
-        :param value: Property value.
-        :param window_id: ID of the Kodi window, defaults to 10000 for home.
+        :param props: Property names and values for the playing file.
         """
-        window_property(key, value=value, window_id=window_id)
-        self._cleanup_registry.add((key, window_id))
+        stale = self._published.difference(props)
+        for key, value in props.items():
+            window_property(key, value=value)
+        for key in stale:
+            window_property(key)
+        self._published = set(props)
 
     def _trailer_is_stale(self) -> bool:
         """
@@ -275,10 +279,12 @@ class PlayerMonitor(Player):
         return infolabel("Player.Filenameandpath") == stamped
 
     def _cleanup(self) -> None:
-        """Clear managed properties, the registry, and the trailer session."""
-        for key, window_id in self._cleanup_registry:
-            window_property(key, window_id=window_id)
-        self._cleanup_registry.clear()
+        """
+        Clear the player properties unless the next file already plays (its
+        onAVStarted replaces them), then the trailer session.
+        """
+        if not self.isPlaying():
+            self._publish({})
         # A pending state belongs to a newer request that superseded the
         # playback this stop event is for — leave its props intact.
         if condition("String.IsEqual(Window(home).Property(trailer_state),pending)"):

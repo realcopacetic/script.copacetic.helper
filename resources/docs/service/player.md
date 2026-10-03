@@ -11,7 +11,8 @@ or not it opts in to the [poll loop](index.md#opting-in).
 ## When they update
 
 - **Set** when playback of a video or song starts (Kodi's AV started event).
-- **Cleared** when playback stops, ends or fails.
+- **Cleared** when playback stops, ends or fails and nothing else starts. A skip or a
+  playlist advance replaces them in place, so they never blank between files.
 
 Trailers started with `action=play_trailer` do not set these properties. See
 [Trailers](trailers.md).
