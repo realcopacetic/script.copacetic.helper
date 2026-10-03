@@ -95,7 +95,8 @@ items below, and each one runs the action named.
 | Start mix | Library songs, artists, albums and genres; years in the music library | [`start_mix`](#start_mix) |
 | Like | Library songs rated below `Skin.String(like_threshold)` | [`rate_song`](#rate_song), at the threshold |
 | Unlike | Library songs rated at or above `Skin.String(like_threshold)` | [`rate_song`](#rate_song) with `rating=0` |
-| Pin to speed dial | Library songs, artists and albums, and music playlists, when the item is not a pinned [speed dial](../plugins/speed_dial.md) item | [`pin`](#pin) |
+| Pin to speed dial | Library songs, artists and albums, and music playlists, that are not pinned in [speed dial](../plugins/speed_dial.md) | [`pin`](#pin) |
+| Unpin | Library songs, artists and albums, and music playlists, that are pinned in speed dial | [`unpin`](#unpin) |
 
 Music playlists are the files in `special://musicplaylists/` and
 `special://profile/playlists/music/`. Genres need a genre name. Years are the year
@@ -103,6 +104,10 @@ folders under `musicdb://`.
 
 **Like** and **Unlike** need your skin to set `Skin.String(like_threshold)` to a
 rating from `1` to `10`. While it is empty or `0`, neither shows.
+
+**Pin to speed dial** and **Unpin** tell a pinned item by the speed dial window
+properties (see [Is this item pinned?](../plugins/speed_dial.md#is-this-item-pinned)),
+so they show the right way round in any list, not only in speed dial.
 
 Each item passes the clicked item's database id (the year itself for a year), its
 type and its path to the action.
@@ -339,7 +344,8 @@ widget list:
 
 Moves a pinned [speed dial](../plugins/speed_dial.md) entry up or down among the
 pinned entries. It stops at the top and bottom. Pinned speed dial items already carry
-**Move up** and **Move down** in their context menu, which run this action.
+**Move up** (except the first) and **Move down** (except the last) in their context
+menu, which run this action.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -391,7 +397,8 @@ Clears the playlists and plays an album from the music library, in order.
 ## play_album_from_track
 
 Clears the playlists, queues the song's whole album in disc and track order, and
-starts playing at that song.
+starts playing at that song. Kodi's shuffle is turned off, so the album plays in
+order.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -630,8 +637,9 @@ random order. The context menu's **Shuffle** item runs this action.
 | `id` | database id, or the year itself for `year` | none | The artist, album, genre or year |
 | `path` | a music playlist or folder path | none | What to play when `type` is not one of the four above |
 
-A `year` plays every song from that year. The others play the whole artist, album,
-genre or playlist with Kodi's shuffle turned on.
+A `year` plays every song from that year, queued in random order with Kodi's shuffle
+turned off. The others play the whole artist, album, genre or playlist with Kodi's
+shuffle turned on.
 
 Except for a genre or a year, what was played is added to the
 [speed dial](../plugins/speed_dial.md) recent list.
@@ -662,8 +670,11 @@ Plays all of an artist's songs, shuffled. It is the same as
 
 ## start_mix
 
-Clears the playlists and plays a random mix of up to 50 songs from your music
-library. The context menu's **Start mix** item runs this action.
+Replaces what is playing with a random mix of up to 50 songs from your music
+library. The context menu's **Start mix** item runs this action. The mix is chosen
+first, so music or video that is playing carries on until the new songs are ready.
+Then the playlists are cleared and the mix plays in order from its first song, with
+Kodi's shuffle turned off.
 
 - **Song, album or artist:** the mix starts with one song. For a song, that is the
   song itself. For an album or artist, it is one of its five most played songs,
@@ -672,8 +683,9 @@ library. The context menu's **Start mix** item runs this action.
   song's genres. If the first song has no genre, the mix is songs by its artist only.
 - **Genre or year:** 50 random songs of that genre or year.
 
-Nothing plays if the album or artist has no songs, or the song is not found. The
-playlists are still cleared.
+If the album or artist has no songs, or the song is not found, nothing changes: what
+was playing carries on. A genre or year with no songs clears the playlists and plays
+nothing.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -742,8 +754,8 @@ shows the new state.
 ## unpin
 
 Unpins a [speed dial](../plugins/speed_dial.md) entry. If it was played recently, it
-stays in speed dial among the recent entries. Pinned speed dial items already carry
-**Unpin** in their context menu, which runs this action.
+stays in speed dial among the recent entries. The context menu's **Unpin** item runs
+this action. It shows on any pinned item.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
