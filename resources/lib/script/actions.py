@@ -238,10 +238,8 @@ def play_album(**kwargs: str) -> None:
 
     :param id: Album ID.
     """
-    clear_playlists()
-
-    dbid = int(kwargs.get("id", False))
-    if dbid:
+    if dbid := to_int(kwargs.get("id")):
+        clear_playlists()
         json_call(
             "Player.Open",
             item={"albumid": dbid},
