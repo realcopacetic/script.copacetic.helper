@@ -82,7 +82,7 @@ class PlayerMonitor(Player):
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
             props["player_season"] = str(tag.getSeason())
-            if dbid:
+            if dbid > 0:
                 query = json_call(
                     "VideoLibrary.GetEpisodeDetails",
                     params={"properties": ["tvshowid"], "episodeid": dbid},
@@ -93,7 +93,7 @@ class PlayerMonitor(Player):
                     props["player_tvshowid"] = str(tvshowid)
                     playnext.ensure_successor(dbid, tvshowid)
 
-        elif media_type == "movie" and dbid:
+        elif media_type == "movie" and dbid > 0:
             query = json_call(
                 "VideoLibrary.GetMovieDetails",
                 params={"properties": ["setid"], "movieid": dbid},
