@@ -16,6 +16,7 @@ A trailer session moves through these states, stored in
 |---|---|---|
 | *(empty)* | Service | No trailer session. |
 | `pending` | `action=play_trailer` | A trailer was requested and has not started yet. |
+| `cancelled` | Your skin | The user left the window while the request was `pending`. The service stops the trailer as soon as it starts. |
 | `playing` | Service | The requested trailer is playing and still belongs to the focused item. |
 | `interrupted` | Your skin | The user moved away. Your skin sets this; the service then pauses and later stops the trailer. |
 | `orphaned` | Service | The trailer no longer belongs to the focused item. It is paused and waiting to be stopped. |
@@ -26,8 +27,10 @@ A trailer session moves through these states, stored in
    checks that the trailer is still wanted (see [Stale trailers](#stale-trailers)):
    - Still wanted: `trailer_state` becomes `playing` and the zoom is applied.
    - Not wanted: the trailer is paused and `trailer_state` becomes `orphaned`.
+   - `cancelled`: the trailer is stopped at once. A video that starts fullscreen is
+     not a trailer (trailers start windowed), so it plays as normal.
 3. Once a second, the poll loop checks the session:
-   - `pending` for 5 seconds or more with nothing new playing: the request is
+   - `pending` or `cancelled` for 5 seconds or more with nothing new playing: the request is
      retired. If an older paused trailer is still playing, it goes back to
      `orphaned`; otherwise the session is cleared.
    - `playing` and stale, or within 2 seconds of its end: the trailer is paused and
@@ -134,7 +137,8 @@ retired, so the item can try again.
   trailer. The service pauses it, rewinds it and stops it after 10 idle seconds.
 - Show the video window only while the trailer is playing. Compare `trailer_file`
   with the playing file, so a paused trailer stays hidden.
-- Stop the trailer when the window closes.
+- Stop the trailer when the window closes, and set a `pending` request to `cancelled`
+  so it stops as soon as it starts.
 
 Example (from Copacetic):
 
@@ -148,6 +152,7 @@ Example (from Copacetic):
 
 <!-- in the window: stop the trailer on close -->
 <onunload condition="$EXP[trailer_playing] | $EXP[trailer_zombie]">PlayerControl(Stop)</onunload>
+<onunload condition="String.IsEqual(Window(home).Property(trailer_state),pending)">SetProperty(trailer_state,cancelled,home)</onunload>
 
 <!-- video window fades in only while the trailer is playing -->
 <control type="videowindow">

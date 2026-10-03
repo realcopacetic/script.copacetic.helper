@@ -45,6 +45,13 @@ class PlayerMonitor(Player):
                     window_property("trailer_state", value="playing")
                     self.zoom.apply_zoom_if_needed()
                 return
+            # Requested in a window the user has since left; a film the user
+            # started goes fullscreen (trailers start windowed).
+            if state == "cancelled" and not condition(
+                "Window.IsActive(fullscreenvideo)"
+            ):
+                log.execute("PlayerControl(Stop)")
+                return
             # No pending request: any leftover trailer state was superseded
             # by a real video — clear it and take the normal video path.
             self._clear_trailer_props()
@@ -220,7 +227,7 @@ class PlayerMonitor(Player):
         once, so no close counts it as watched, and reap it once the user settles.
         """
         state = infolabel("Window(home).Property(trailer_state)")
-        if state == "pending":
+        if state in ("pending", "cancelled"):
             self._reap_stale_pending()
             return
         if state == "playing" and (self._trailer_is_stale() or self._trailer_ending()):
