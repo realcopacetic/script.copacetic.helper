@@ -398,7 +398,8 @@ Clears the playlists and plays an album from the music library, in order.
 
 Clears the playlists, queues the song's whole album in disc and track order, and
 starts playing at that song. Kodi's shuffle is turned off, so the album plays in
-order.
+order. If the song is not in the library, nothing changes: what was playing carries
+on.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -412,9 +413,12 @@ order.
 
 ## play_items
 
-Clears the playlists, queues every item in a container and starts playing. Library
-movies, episodes, music videos and songs are queued by database id. Other items are
-queued by their path (`ListItem.FileNameAndPath`).
+Clears the playlists, queues every item in a container and starts playing.
+
+- With `type=music`, every item is queued by its path (`ListItem.FileNameAndPath`) in
+  the music playlist. Items with no path are left out.
+- Otherwise the items go in the video playlist. Library movies, episodes and music
+  videos are queued by database id. Other items are queued by their path.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
