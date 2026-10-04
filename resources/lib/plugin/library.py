@@ -43,7 +43,7 @@ def fetch_raw(
 
     :param method: JSON-RPC method (e.g. "VideoLibrary.GetMovies").
     :param media_type: Logical content type (e.g. "movie", "episode").
-    :param filters: List of filter dicts to AND together.
+    :param filters: List of filter dicts to AND together; empty for no filter.
     :param sort: Sort specification for JSON-RPC; None for server default order.
     :param parent: Parent name for logging.
     :param params: Optional extra params to pass to JSON-RPC.
@@ -60,7 +60,7 @@ def fetch_raw(
         method,
         properties=properties,
         sort=sort,
-        query_filter={"and": filters},
+        query_filter={"and": filters} if filters else None,  # "and" needs 1+ rules
         params=params or {},
         limit=limit,
         parent=parent,
