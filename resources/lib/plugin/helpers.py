@@ -79,7 +79,8 @@ def reposition_control(
             f"in window {window_id}"
         )
         return
-    ctrl = Window(window_id).getControl(control_id)
+    window = Window(window_id)  # keep: the window holds the control's only native ref
+    ctrl = window.getControl(control_id)
 
     log.debug(
         f"reposition_control: window={window_id} control={control_id} "
