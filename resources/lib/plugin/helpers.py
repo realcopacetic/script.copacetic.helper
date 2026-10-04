@@ -71,15 +71,15 @@ def reposition_control(
     """
     dialog_id = getCurrentWindowDialogId()
     window_id = dialog_id if dialog_id != 9999 else getCurrentWindowId()
-    window = Window(window_id)
-    try:
-        ctrl = window.getControl(control_id)
-    except RuntimeError:
+    # Probe first: a getControl miss logs an engine error even when caught.
+    # Control.IsEnabled reads the same window and is false for a missing control.
+    if not condition(f"Control.IsEnabled({control_id})"):
         log.debug(
             f"reposition_control: control {control_id} not found "
             f"in window {window_id}"
         )
         return
+    ctrl = Window(window_id).getControl(control_id)
 
     log.debug(
         f"reposition_control: window={window_id} control={control_id} "
