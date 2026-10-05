@@ -85,7 +85,8 @@ class ImageProcessor:
         self, image: Image.Image, opts: ArtOpts, **_: Any
     ) -> dict[str, Any] | None:
         """
-        Resize fanart, apply Gaussian blur, coerce JPEG-safe mode, extract colors.
+        Resize (to the darken frame when given, so the blur matches the art as
+        drawn), apply Gaussian blur, coerce JPEG-safe mode.
 
         :param image: Input PIL Image.
         :param opts: Parsed ArtOpts for this art_type.
@@ -95,7 +96,11 @@ class ImageProcessor:
             dx = round(image.width * opts.edge_trim / 100)
             dy = round(image.height * opts.edge_trim / 100)
             image = image.crop((dx, dy, image.width - dx, image.height - dy))
-        image = self._cover(image, self.cfg.blur_target_size)
+        if opts.darken and opts.darken.frame:
+            frame_w, frame_h = map(int, opts.darken.frame.split(","))
+            image, _ = ColorDarken.frame_image(image, frame_w, frame_h)
+        else:
+            image = self._cover(image, self.cfg.blur_target_size)
 
         radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
         try:

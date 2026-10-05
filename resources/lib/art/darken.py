@@ -258,7 +258,7 @@ class ColorDarken:
                 except ValueError:
                     frame_w, frame_h = cfg.bg_frame
 
-        framed, frame_size = self._frame_image(image, frame_w, frame_h)
+        framed, frame_size = self.frame_image(image, frame_w, frame_h)
         parsed = self.parse_overlay_rects(rects or "")
         if not parsed:
             parsed = [(0, 0, frame_w, frame_h)]
@@ -332,7 +332,7 @@ class ColorDarken:
         return f"{x},{y},{w},{h}", w
 
     @staticmethod
-    def _frame_image(
+    def frame_image(
         image: Image.Image, frame_w: int, frame_h: int
     ) -> tuple[Image.Image, tuple[int, int]]:
         """
