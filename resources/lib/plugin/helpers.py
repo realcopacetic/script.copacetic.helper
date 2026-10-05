@@ -237,16 +237,39 @@ class DataHandler:
 
     def _studio(self) -> str:
         """
-        Returns first studio name, cleaned of '+'.
+        Returns first studio name, cleaned of '+'. Sets carry none: a list reads
+        the item before it, a set's own dialog (target=item) its first movie's.
 
         :return: Studio string or empty string.
         """
-        studio = (
-            split(infolabel(f"{self.target}(-1).Studio"))
-            if self.dbtype == "set"
-            else split(self.infolabels["Studio"])
-        )
+        if self.dbtype != "set":
+            studio = split(self.infolabels["Studio"])
+        elif self.target == "ListItem":
+            studio = self._first_movie_studio()
+        else:
+            studio = split(infolabel(f"{self.target}(-1).Studio"))
         return studio.replace("+", "") if studio else ""
+
+    def _first_movie_studio(self) -> str:
+        """
+        First studio of the set's earliest movie.
+
+        :return: Studio name, or "" for an empty set.
+        """
+        details = json_call(
+            "VideoLibrary.GetMovieSetDetails",
+            params={
+                "setid": to_int(self.dbid),
+                "movies": {
+                    "properties": ["studio"],
+                    "sort": {"method": "year"},
+                    "limits": {"end": 1},
+                },
+            },
+            parent=self.__class__.__name__,
+        )
+        movies = details.get("result", {}).get("setdetails", {}).get("movies", [])
+        return next(iter(movies[0]["studio"]), "") if movies else ""
 
 
 class JumpButton:

@@ -46,7 +46,7 @@ and so on.
 | `ListItem.Label`, `ListItem.Label2` | The focused item's `Label`. |
 | `ListItem.Director` | All directors, or one at random with `random_pick=true`. |
 | `ListItem.Genre` | All genres, or one at random with `random_pick=true`. |
-| `ListItem.Studio` | The first studio, with any `+` removed. With `type=set`, it is read from `ListItem(-1).Studio` of the container. |
+| `ListItem.Studio` | The first studio, with any `+` removed. Kodi sets have no studio: with `type=set` it is read from `ListItem(-1).Studio` of the container, and with `target=item` (a set's own info dialog) it is the first studio of the set's earliest movie. |
 | `ListItem.Writer` | The first writer. |
 | `ListItem.Plot`, `ListItem.PlotOutline` | As on the focused item. |
 | `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used only when the library has none. |
