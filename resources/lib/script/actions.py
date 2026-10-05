@@ -437,18 +437,23 @@ def _info_item(key: str) -> xbmcgui.ListItem | None:
     return item
 
 
-def _show_info(item: xbmcgui.ListItem | None) -> None:
+def _show_info(item: xbmcgui.ListItem | None, key: str = "") -> None:
     """
     Force-close the open info dialogs, then show info for item (None only closes).
-    Dialog().info() blocks until that dialog closes.
+    Dialog().info() blocks until that dialog closes; if Kodi never opened it,
+    the hop ends here.
 
     :param item: ListItem from _info_item, or None.
+    :param key: The item's trail key, which the dialog's onload records.
     """
     for dialog in _INFO_DIALOGS:
         if condition(f"Window.IsVisible({dialog})"):
             log.execute(f"Dialog.Close({dialog},true)", wait=True)
     if item:
         xbmcgui.Dialog().info(item)
+        # no onload recorded the key: Kodi declined the item, so uncover the window
+        if infolabel("Window(home).Property(info_current)") != key:
+            window_property("info_hop")
 
 
 @action
@@ -460,8 +465,9 @@ def info(dbtype: str, dbid: str, **kwargs: str) -> None:
     :param dbtype: Library media type (not season).
     :param dbid: Library id.
     """
-    if item := _info_item(f"{dbtype}:{dbid}"):
-        _show_info(item)
+    key = f"{dbtype}:{dbid}"
+    if item := _info_item(key):
+        _show_info(item, key)
     else:
         window_property("info_hop")
 
@@ -477,7 +483,7 @@ def info_back(**kwargs: str) -> None:
     for i, key in enumerate(trail):
         if key != current and (item := _info_item(key)):
             window_property("info_trail", "|".join(trail[i + 1 :]))
-            _show_info(item)
+            _show_info(item, key)
             return
     window_property("info_hop")
     _show_info(None)
