@@ -82,6 +82,7 @@ values mean.
 | `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in. The image is scaled to cover this frame and centred, like `<aspectratio>scale</aspectratio>`. |
 | `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo` | `fff0efef` | Colour of the text on top. `clearlogo` uses the clearlogo's dominant colour; this needs `clearlogo_url` and `clearlogo_analyze=true` in the same call, else the default is used. A value that is not a valid colour stops all results for that image. |
 | `<prefix>_darken_strength` | decimal, `0.0`–`2.0` | `1.0` | Multiplies the result. Values outside the range are clamped. |
+| `<prefix>_darken_contrast_source` | ARGB or RGB hex, or `clearlogo` | — | A colour to score for readability on each rectangle (see `<prefix>_darken_contrast` below). `clearlogo` uses the clearlogo's dominant colour, as for `_darken_source`; with no clearlogo colour, no score is returned. |
 | `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Each rectangle is narrowed to the text's estimated width (left edge kept). |
 | `<prefix>_darken_label_px` | decimal | `14` | Estimated width of one character, in frame pixels, for the labels above. |
 
@@ -125,6 +126,7 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `<prefix>_darken` | `<prefix>_darken=artwork` or `all` | How much to darken the image, `0`–`100`. |
 | `<prefix>_darken_element`, `…_element1`, `…_element2` | `<prefix>_darken=all` | How much to darken the text in the first, second and third rectangle, `0`–`100`, or `-1` when the area behind it is too busy to judge. |
 | `<prefix>_darken_element_mean`, `…_mean1`, `…_mean2` | `<prefix>_darken=all` | Average brightness behind each rectangle, `0`–`100`, not affected by strength. |
+| `<prefix>_darken_contrast`, `…_contrast1`, `…_contrast2` | `<prefix>_darken_contrast_source` is passed | How well that colour reads on each rectangle, `0`–`100`: its contrast ratio with the area behind it (sampled as for darken, before any darken), as a share of the ratio needed, capped at `100`. The ratio needed is `darken_contrast_min` (`3.0`, the WCAG minimum for graphics) times `<prefix>_darken_strength`, so `100` means it reads. |
 | `<prefix>_darken_label_width`, `…_width1`, `…_width2` | a matching `_darken_label` is passed | The estimated text width used for that rectangle. |
 | `multiart`, `multiart1`, `multiart2` … | `multiart` is passed | The collected family, numbered without gaps. |
 

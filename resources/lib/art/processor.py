@@ -153,15 +153,19 @@ class ImageProcessor:
         if not (darken_opts := opts.darken) or not darken_opts.enabled:
             return None
 
-        if darken_opts.source and darken_opts.source.strip().lower() == "clearlogo":
-            color = shared.get("results", {}).get("clearlogo", {}).get("color")
-            if color:
-                darken_opts = dataclasses.replace(darken_opts, source=color)
-            else:
+        color = shared.get("results", {}).get("clearlogo", {}).get("color")
+        swaps = {
+            name: color
+            for name in ("source", "contrast_source")
+            if (getattr(darken_opts, name) or "").strip().lower() == "clearlogo"
+        }
+        if swaps:
+            if not color:
                 log.debug(
-                    f"{self.__class__.__name__} → darken source=clearlogo but no "
-                    f"clearlogo color in shared results — falling back to element_overlay_color"
+                    f"{self.__class__.__name__} → darken clearlogo colour missing — "
+                    f"source falls back to element_overlay_color, contrast is skipped"
                 )
+            darken_opts = dataclasses.replace(darken_opts, **swaps)
 
         try:
             return {

@@ -39,7 +39,7 @@ class ColorDarken:
 
         :param image: PIL image to sample (original, not blurred).
         :param opts: Darken options for sampling and targets.
-        :return: Dict of updates or None.  Keys: "darken" always; plus element keys if mode="all".
+        :return: Updates or None: "darken", element keys (mode="all"), contrast keys.
         """
         if not opts.enabled:
             return None
@@ -69,6 +69,45 @@ class ColorDarken:
                     strength=strength,
                 )
             )
+        if opts.contrast_source:
+            updates.update(
+                self._compute_contrast_series(
+                    framed=framed,
+                    rects=rects,
+                    source=opts.contrast_source,
+                    strength=strength,
+                )
+            )
+
+        return updates
+
+    def _compute_contrast_series(
+        self,
+        *,
+        framed: Image.Image,
+        rects: list[Rect],
+        source: str,
+        strength: float,
+    ) -> DarkenUpdates:
+        """
+        Score how well the contrast source reads on each rect, 0-100: 100 once its
+        WCAG ratio to the rect's background (sampled as for darken) reaches
+        darken_contrast_min times strength.
+
+        :param framed: Framed image.
+        :param rects: Scaled rects.
+        :param source: Hex colour to score.
+        :param strength: Multiplier (0.0-2.0) on the required ratio.
+        :return: Dict of darken_contrast* values.
+        """
+        L_src = self.color.get_luminosity(self.color.from_hex(source))
+        target = self.color.cfg.darken_contrast_min * strength
+        updates = {}
+        for key, (x, y, w, h) in zip(policy.ART_FIELDS_DARKEN_CONTRAST, rects):
+            _, L_bg = self._sample_bg(framed.crop((x, y, x + w, y + h)))
+            low, high = sorted((L_src, L_bg))
+            ratio = (high + 0.05) / (low + 0.05)
+            updates[key] = min(100, round(100 * ratio / target)) if target else 100
 
         return updates
 

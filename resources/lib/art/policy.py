@@ -22,6 +22,10 @@ ART_FIELD_DARKEN_ELEMENT2 = "darken_element2"
 ART_FIELD_DARKEN_ELEMENT_MEAN = "darken_element_mean"
 ART_FIELD_DARKEN_ELEMENT_MEAN1 = "darken_element_mean1"
 ART_FIELD_DARKEN_ELEMENT_MEAN2 = "darken_element_mean2"
+ART_FIELD_DARKEN_CONTRAST = "darken_contrast"
+ART_FIELD_DARKEN_CONTRAST1 = "darken_contrast1"
+ART_FIELD_DARKEN_CONTRAST2 = "darken_contrast2"
+ART_FIELD_DARKEN_CONTRAST_SOURCE = "darken_contrast_source"
 ART_FIELD_DARKEN_FRAME = "darken_frame"
 ART_FIELD_DARKEN_MODE = "darken_mode"
 ART_FIELD_DARKEN_RECTS = "darken_rects"
@@ -44,6 +48,12 @@ ART_FIELDS_DARKEN_ELEMENT_MEAN = (
     ART_FIELD_DARKEN_ELEMENT_MEAN,
     ART_FIELD_DARKEN_ELEMENT_MEAN1,
     ART_FIELD_DARKEN_ELEMENT_MEAN2,
+)
+
+ART_FIELDS_DARKEN_CONTRAST = (
+    ART_FIELD_DARKEN_CONTRAST,
+    ART_FIELD_DARKEN_CONTRAST1,
+    ART_FIELD_DARKEN_CONTRAST2,
 )
 
 ART_FIELDS_DARKEN_LABEL = (
@@ -74,6 +84,8 @@ ART_DB_SCHEMA = (
     (ART_FIELD_DARKEN, "INTEGER"),
     *((field, "INTEGER") for field in ART_FIELDS_DARKEN_ELEMENT),
     *((field, "INTEGER") for field in ART_FIELDS_DARKEN_ELEMENT_MEAN),
+    *((field, "INTEGER") for field in ART_FIELDS_DARKEN_CONTRAST),
+    (ART_FIELD_DARKEN_CONTRAST_SOURCE, "TEXT"),
     (ART_FIELD_DARKEN_FRAME, "TEXT"),
     (ART_FIELD_DARKEN_MODE, "TEXT"),
     (ART_FIELD_DARKEN_RECTS, "TEXT"),
@@ -95,6 +107,7 @@ ART_FIELDS_INPUT = {
     "darken": (
         ART_FIELD_DARKEN_MODE,
         ART_FIELD_DARKEN_SOURCE,
+        ART_FIELD_DARKEN_CONTRAST_SOURCE,
         ART_FIELD_DARKEN_RECTS,
         *ART_FIELDS_DARKEN_LABEL,
         ART_FIELD_DARKEN_FRAME,
@@ -128,6 +141,7 @@ ART_LISTITEM_KEYS = (
     )
     + ART_FIELDS_DARKEN_ELEMENT
     + ART_FIELDS_DARKEN_ELEMENT_MEAN
+    + ART_FIELDS_DARKEN_CONTRAST
     + ART_FIELDS_DARKEN_LABEL_WIDTH
 )
 
@@ -252,4 +266,5 @@ class ColorConfig:
     element_overlay_color: str = "fff0efef"  # Fallback text hex for readability checks
     element_complexity_stddev: float = 20.0  # Luma stdev limit for "simple" backgrounds
     darken_element_floor: float = 0.18  # floor below which element darken is skipped
+    darken_contrast_min: float = 3.0  # Contrast ratio scoring 100 at strength 1 (WCAG)
     darken_label_px_per_char: float = 14  # Est. glyph width (px); skinner overrides

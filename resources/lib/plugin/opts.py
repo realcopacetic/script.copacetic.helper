@@ -15,6 +15,7 @@ class DarkenOpts:
     :param mode: Darken mode or "None" to disable.
     :param strength: Effect strength multiplier (0.0-2.0); 1.0 = full luminance mapping.
     :param source: Colour source override (hex or "clearlogo").
+    :param contrast_source: Colour scored for contrast per rect (hex or "clearlogo").
     :param rects: Rect string for sampling in frame coordinates.
     :param frame: Frame size "w,h" as a raw string.
     """
@@ -22,6 +23,7 @@ class DarkenOpts:
     mode: str | None
     strength: float
     source: str | None
+    contrast_source: str | None
     rects: str | None
     frame: str | None
     labels: tuple[str | None, ...]
@@ -37,6 +39,7 @@ class DarkenOpts:
             for k, v in {
                 policy.ART_FIELD_DARKEN_MODE: self.mode,
                 policy.ART_FIELD_DARKEN_SOURCE: self.source,
+                policy.ART_FIELD_DARKEN_CONTRAST_SOURCE: self.contrast_source,
                 policy.ART_FIELD_DARKEN_RECTS: self.rects,
                 policy.ART_FIELD_DARKEN_FRAME: self.frame,
                 policy.ART_FIELD_DARKEN_STRENGTH: self.strength,
@@ -70,6 +73,7 @@ class DarkenOpts:
                 min(2.0, to_float(params.get(f"{prefix}_darken_strength"), 1.0)),
             ),
             source=params.get(f"{prefix}_darken_source"),
+            contrast_source=params.get(f"{prefix}_darken_contrast_source"),
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
             labels=tuple(
