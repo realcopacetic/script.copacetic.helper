@@ -90,11 +90,13 @@ def set_items(
     :param tag_applier: Optional function to apply VideoInfoTag fields.
     :return: List of ``(file, ListItem, is_folder)`` tuples.
     """
+    # A show is a library folder: Kodi probes a non-folder video path as a file.
+    is_show = media_type == "tvshow"
     return [
         (
-            item["file"],
+            f"videodb://tvshows/titles/{item['DbId']}/" if is_show else item["file"],
             build_listitem(item, media_type=media_type, tag_applier=tag_applier),
-            False,
+            is_show,
         )
         for item in items
     ]
