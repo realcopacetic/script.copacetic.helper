@@ -359,7 +359,7 @@ Clears the playlists and plays an album from the music library, in order.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `id` | album database id | none | The album. Missing or `0` plays nothing. |
+| `id` | album database id | none | The album. Missing, `0` or not a number: nothing happens, and the playlists are left as they are. |
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=play_album,id=$INFO[ListItem.DBID])</onclick>
