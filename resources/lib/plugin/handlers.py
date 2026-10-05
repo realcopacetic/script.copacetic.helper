@@ -661,11 +661,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return result
 
     @log.duration
-    def reposition(self) -> None:
+    def reposition(self) -> list[DirectoryItem] | None:
         """
-        Set geometry on a control from optional x/y/w/h params. ``fit=W,H``
-        with ``src=w,h`` derives h as the aspect-keep height of src in the
-        fit box, overriding a literal h.
+        Set geometry on a control from optional x/y/w/h params. ``fit=W,H`` with
+        ``src=w,h`` derives h as the aspect-keep height of src in the fit box.
+
+        :return: One item echoing src_w/src_h once the controls are set.
         """
         if not self._require("target_id"):
             return
@@ -689,6 +690,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 w=to_int(self.params.get("w"), None),
                 h=h,
             )
+        src_w, _, src_h = self.params.get("src", "").partition(",")
+        return set_items(
+            [
+                {
+                    "file": plugin_path("reposition"),
+                    "properties": {"src_w": src_w, "src_h": src_h},
+                }
+            ]
+        )
 
     @log.duration
     def tmdb_details(self) -> list[DirectoryItem] | None:
