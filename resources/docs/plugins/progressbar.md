@@ -35,7 +35,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `target_id` | control id | — | **Required.** The group id. |
-| `target` | container id | — | Container whose focused item is measured. Omit to use `Container` (the current container). |
+| `target` | container id, or `item` | — | Container whose focused item is measured. Omit to use `Container` (the current container); `item` measures the window's own item. |
 | `progress_id` | control id | `target_id + 1` | Progress control id. |
 | `btn_id` | control id | `target_id + 2` | Button id. |
 | `img_id` | control id | `target_id + 3` | Image id. |

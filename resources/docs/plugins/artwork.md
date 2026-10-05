@@ -100,7 +100,7 @@ values mean.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `target` | container id | — | Container whose focused item this call is for. |
+| `target` | container id, or `item` | — | Container whose focused item this call is for; `item` is the window's own item (an info dialog's). See [Plugin Helpers](plugin_helpers.md#the-focus-guard). |
 | `prop_key` | any text | — | Suffix for the window properties the helper sets (see [Window properties](#window-properties)). |
 | `cursor_key` | any text | — | Name of the window property that marks the focused item (`artwork_cursor_<cursor_key>`). See [Is this result for the focused item?](#is-this-result-for-the-focused-item). |
 | `visit` | any text | — | A value that changes once per focus change. See the same section. |

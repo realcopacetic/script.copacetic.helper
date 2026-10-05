@@ -135,11 +135,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.target_container = (
             f"Container({self.target})" if self.target is not None else "Container"
         )
+        # target=item reads the window's own item (an info dialog's): a bare
+        # ListItem prefix, since a Container one lands on the focused container.
+        self.item = params.get("target") == "item"
+        self.target_item = (
+            "ListItem" if self.item else f"{self.target_container}.ListItem"
+        )
         self.identity_id = to_int(params.get("identity_container"), self.target)
         self.identity_container = (
             f"Container({self.identity_id})"
             if self.identity_id is not None
             else "Container"
+        )
+        self.identity_item = (
+            "ListItem" if self.item else f"{self.identity_container}.ListItem"
         )
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.sort_year = {"order": "descending", "method": "year"}
@@ -196,7 +205,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.apis.tmdb.context import resolve_tmdb_context
         from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 
-        target = f"{self.target_container}.ListItem"
+        target = self.target_item
         ctx = resolve_tmdb_context(self.params, target=target)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
 
@@ -294,8 +303,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
-        current_position = to_int(
-            infolabel(f"{self.identity_container}.CurrentItem"), None
+        # The window's own item has no position: no cursor stamp, no neighbours.
+        current_position = (
+            None
+            if self.item
+            else to_int(infolabel(f"{self.identity_container}.CurrentItem"), None)
         )
         cursor_key = self.params.get("cursor_key", "")
         cursor_snapshot = (
@@ -305,7 +317,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         # Scope of this serve, needed before seeding: the seeder must know
         # whether the register's previous content is same-container.
-        if self.target is not None:
+        if self.item:
+            stamp_scope = "item"
+        elif self.target is not None:
             stamp_scope = str(self.target)
         else:
             stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope
@@ -326,7 +340,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         art = image_processor(
             jobs=jobs,
             art_opts=art_opts,
-            source=f"{self.target_container}.ListItem",
+            source=self.target_item,
         )
         if not guard.alive():
             return
@@ -339,7 +353,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             else None
         )
         multiart_dict = build_multiart_dict(
-            target=f"{self.target_container}.ListItem",
+            target=self.target_item,
             multiart_type=multiart_type,
             max_items=self.params.get("multiart_max"),
             tmdb_art=(tmdb_item or {}).get("art", {}),
@@ -350,7 +364,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
-        dbid = infolabel(f"{self.identity_container}.ListItem.DBID")
+        dbid = infolabel(f"{self.identity_item}.DBID")
         art = seed_multiart(
             fadelabel_id=self.params.get("multiart_fadelabel"),
             multiart_dict=multiart_dict,
@@ -459,7 +473,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
-        target = f"{self.target_container}.ListItem"
+        target = self.target_item
         aliases = self.params.get("genre_aliases", "")
         data = DataHandler(
             target=target,
@@ -520,7 +534,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         target_id = to_int(self.params.get("target_id"), None)
         pb = ProgressBarManager(
-            target=f"{self.target_container}.ListItem",
+            target=self.target_item,
             base_id=target_id,
         )
         resume, unwatched = pb.calculate()
@@ -589,7 +603,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
-        target = f"{self.target_container}.ListItem"
+        target = self.target_item
         multiart_enabled = parse_bool(self.params.get("multiart", "false"))
         item = self._get_tmdb_item(append_artwork=multiart_enabled)
 

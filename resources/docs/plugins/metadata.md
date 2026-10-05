@@ -28,7 +28,7 @@ and so on.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `target` | container id | — | Container whose focused item is read. Omit to use `Container` (the current container). |
+| `target` | container id, or `item` | — | Container whose focused item is read. Omit to use `Container` (the current container); `item` reads the window's own item (an info dialog's). |
 | `type` | `movie`, `tvshow`, `season`, `episode`, `set`, … | — | The item's `DBType`. Used for TMDb lookups and for sets (see Studio below). |
 | `id` | number | — | The item's `DBID`. Used for TMDb lookups. |
 | `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. |
@@ -79,7 +79,7 @@ Returns the item's details from TMDb. It needs a TMDb token in the add-on settin
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `target` | container id | — | Container whose focused item is looked up. |
+| `target` | container id, or `item` | — | Container whose focused item is looked up; `item` is the window's own item. |
 | `multiart` | `true`, `false` | `false` | Also fetch TMDb's image lists (see below). |
 | `type`, `id`, `tmdb_id`, `tvshowid`, `season`, `language` | | | See [TMDb lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |

@@ -133,6 +133,10 @@ Every guarded helper builds a guard object at startup and re-checks it at key po
 
 `target` (a container id) is read by most paths. It sets which container's focused
 item the path works on. Without it, `Container` (the current container) is used.
+`target=item` reads the window's own item instead (bare `ListItem.*`), which in an
+info dialog is the item the dialog shows; a `Container` read there lands on the
+focused list (the cast list 50 or a rail). The item never scrolls, so it takes no
+`focus_guard`; `focus_ids` still works, and artwork returns no position properties.
 
 Two cases always pass: when no control has focus at all, and when the live identity
 reads as empty.
