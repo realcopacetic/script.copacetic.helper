@@ -323,7 +323,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         elif self.target is not None:
             stamp_scope = str(self.target)
         else:
-            stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope
+            # A cleared cursor (back from an info dialog) scopes to the focused view.
+            stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope or str(
+                focused_control_id()
+            )
         art_opts = {
             art_type: ArtOpts.from_params(self.params, art_type)
             for art_type in ("clearlogo", "background", "icon")
