@@ -511,22 +511,20 @@ def split_random(
     separator: str = "/",
     aliases: Iterable[tuple[str, str]] = (),
     **kwargs: object,
-) -> str:
+) -> tuple[str, str]:
     """
-    Randomly selects and cleans a genre substring from a compound string.
-    A pick containing an alias key becomes that alias (e.g. "Hip-Hop" → "Hip Hop").
+    Randomly picks one value of a compound string, whole and cleaned: the clean
+    pick takes an alias ("Hip-Hop" → "Hip Hop"), one "&" part, no full stops.
 
     :param string: Genre string (e.g., "Action / Hip-Hop & R&B").
     :param separator: Delimiter used to split top-level genres (default: "/").
     :param aliases: (substring, replacement) pairs for the whole pick, in order.
-    :return: Cleaned and formatted random genre."
+    :return: (whole pick, as in the library; cleaned pick).
     """
-    primary = random.choice(string.split(separator)).strip()
-    primary = next((name for key, name in aliases if key in primary), primary)
-
-    subs = [s.strip() for s in primary.split("&")]
-    picked = random.choice(subs)
-    return return_label(picked)
+    whole = random.choice(string.split(separator)).strip()
+    primary = next((name for key, name in aliases if key in whole), whole)
+    picked = random.choice([s.strip() for s in primary.split("&")])
+    return whole, return_label(picked)
 
 
 """TYPE UTILS"""

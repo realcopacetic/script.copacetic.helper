@@ -133,7 +133,8 @@ first, and the kinds follow each other in the order below.
 Pass one name in `label`. `ListItem.Director` holds several names, separated by
 ` / `, when an item has more than one director; that string matches nobody. The
 [`metadata`](metadata.md#metadata) path with `random_pick=true` gives one director
-and one genre, and always one studio. Names and titles may hold `&` (`Action &
+(`ListItem.Director`), one genre (`ListItem.Property(genre_query)`) and always one
+studio (`ListItem.Studio`), each as the library names it. Names and titles may hold `&` (`Action &
 Adventure`): the helper splits its parameters only where `&name=` follows, where a
 `videodb://` filter in the path would cut the value at the `&`. For a random order,
 add `sortby="random"` to the container's `<content>`.
@@ -153,7 +154,7 @@ artwork, `Genre`, `Artist`, `Year` and so on.
 | `limit` | whole number | all | Most items, picked at random |
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[Container(9000).ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20</content>
+<content>plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[Container(9000).ListItem.Property(genre_query)]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20</content>
 ```
 
 ---

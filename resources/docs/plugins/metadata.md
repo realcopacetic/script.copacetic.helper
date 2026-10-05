@@ -44,9 +44,10 @@ and so on.
 | Infolabel | Value |
 |---|---|
 | `ListItem.Label`, `ListItem.Label2` | The focused item's `Label`. |
-| `ListItem.Director` | All directors, or one at random with `random_pick=true`. |
-| `ListItem.Genre` | All genres, or one at random with `random_pick=true`. |
-| `ListItem.Studio` | The first studio, with any `+` removed. Kodi sets have no studio: with `type=set` it is read from `ListItem(-1).Studio` of the container, and with `target=item` (a set's own info dialog) it is the first studio of the set's earliest movie. |
+| `ListItem.Director` | All directors, or one at random with `random_pick=true`, whole, as the library names them. |
+| `ListItem.Genre` | All genres, or one at random with `random_pick=true`, cleaned for display (below). |
+| `ListItem.Property(genre_query)` | With `random_pick=true`: the same pick, whole, as the library names it (`Action & Adventure`, `R&B`). Pass this, not `ListItem.Genre`, to [`genre_credits`](library.md) and [`genre_music`](library.md#genre_music). |
+| `ListItem.Studio` | The first studio, as the library names it (`Disney+`). Kodi sets have no studio: with `type=set` it is read from `ListItem(-1).Studio` of the container, and with `target=item` (a set's own info dialog) it is the first studio of the set's earliest movie. |
 | `ListItem.Writer` | The first writer. |
 | `ListItem.Plot`, `ListItem.PlotOutline` | As on the focused item. |
 | `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used only when the library has none. |
@@ -54,7 +55,8 @@ and so on.
 | `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits). Empty for other types. |
 
 With `random_pick=true`, a compound genre such as `Action & Adventure` is split on
-`&` and one part is kept. Full stops in the pick become spaces.
+`&` and one part is kept for `ListItem.Genre`; `genre_aliases` and full stops (which
+become spaces) apply there too. `Property(genre_query)` keeps the whole pick.
 
 With `enrich_with_tmdb=true`, the TMDb fields listed under
 [`tmdb_details`](#tmdb_details) are added too (artwork is not).

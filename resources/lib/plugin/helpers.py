@@ -191,24 +191,26 @@ class DataHandler:
         """
         label = self.infolabels["Label"]
         directors, genres = self.infolabels["Director"], self.infolabels["Genre"]
+        properties = self._albumartist()
+        if random_pick:
+            # The director pick stays whole, so credits queries can take it; the
+            # genre is cleaned for display, with the whole pick as genre_query.
+            directors, _ = split_random(directors)
+            properties["genre_query"], genres = split_random(
+                genres, aliases=genre_aliases
+            )
         return {
             "file": plugin_path("metadata"),
             "label": label,
             "label2": label,
-            "Directors": (
-                split_random(directors) if random_pick else directors.split(" / ")
-            ),
-            "Genres": (
-                split_random(genres, aliases=genre_aliases)
-                if random_pick
-                else genres.split(" / ")
-            ),
+            "Directors": [directors] if random_pick else directors.split(" / "),
+            "Genres": [genres] if random_pick else genres.split(" / "),
             "Studios": self._studio(),
             "Writers": split(self.infolabels["Writer"]),
             "Plot": self.infolabels["Plot"],
             "PlotOutline": self.infolabels["PlotOutline"],
             "Trailer": self.infolabels["Trailer"],
-            "properties": self._albumartist(),
+            "properties": properties,
         }
 
     def _albumartist(self) -> dict[str, str]:
@@ -237,18 +239,17 @@ class DataHandler:
 
     def _studio(self) -> str:
         """
-        Returns first studio name, cleaned of '+'. Sets carry none: a list reads
-        the item before it, a set's own dialog (target=item) its first movie's.
+        Returns first studio name, as the library has it, so studio queries match.
+        Sets carry none: a list reads the item before it, a set's own dialog
+        (target=item) its earliest movie's.
 
         :return: Studio string or empty string.
         """
         if self.dbtype != "set":
-            studio = split(self.infolabels["Studio"])
-        elif self.target == "ListItem":
-            studio = self._first_movie_studio()
-        else:
-            studio = split(infolabel(f"{self.target}(-1).Studio"))
-        return studio.replace("+", "") if studio else ""
+            return split(self.infolabels["Studio"])
+        if self.target == "ListItem":
+            return self._first_movie_studio()
+        return split(infolabel(f"{self.target}(-1).Studio"))
 
     def _first_movie_studio(self) -> str:
         """
