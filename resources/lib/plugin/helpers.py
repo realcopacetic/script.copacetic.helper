@@ -386,15 +386,17 @@ class ProgressBarManager:
         self,
         target: str,
         base_id: int,
+        window_id: int,
     ) -> None:
         """
         Initialize default control IDs and sizing.
 
         :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
         :param base_id: Base group ID that wraps the bar/btn; sub-controls default to +1/+2/+3/+4.
+        :param window_id: Window that holds the controls.
         """
 
-        self.window = Window(getCurrentWindowId())
+        self.window = Window(window_id)
         self.target = target
         self.base_id = base_id
         self.progress_id = base_id + 1
@@ -711,6 +713,7 @@ class TypewriterAnimation:
     def __init__(
         self,
         control_id: int,
+        window_id: int,
         step_time: float = 0.025,
         default_line_h: int = 30,
         max_lines: int = 3,
@@ -720,12 +723,13 @@ class TypewriterAnimation:
         Line height must match the rendered font pitch or text will clip.
 
         :param control_id: Text control id to animate.
+        :param window_id: Window that holds the control.
         :param step_time: Delay per character (seconds).
         :param default_line_h: Fallback line height (px) when ``opts.track_h`` is unset.
         :param max_lines: Max number of lines the box may grow to.
         """
 
-        self.window = Window(getCurrentWindowId())
+        self.window = Window(window_id)
         self.control_id = control_id
         self.step_time = step_time
         self.default_line_h = default_line_h

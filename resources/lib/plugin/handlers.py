@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 from typing import Any, Callable
 
+from xbmcgui import getCurrentWindowId
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.plugin.geometry import PlacementOpts
@@ -189,6 +190,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             getter = lambda: infolabel(f"{self.identity_container}.CurrentItem")
         return _FocusGuard(
             self.params.get("info", ""), self.expected_identity, getter, self.focus_ids
+        )
+
+    @property
+    def window_id(self) -> int:
+        """
+        Window whose controls this serve draws into: an info dialog's own for its
+        serves (dialog=true, target=item); else the active window, under any dialog.
+        """
+        return (
+            topmost_window_id()
+            if self.item or parse_bool(self.params.get("dialog"))
+            else getCurrentWindowId()
         )
 
     def _item_key(self) -> str:
@@ -620,6 +633,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         pb = ProgressBarManager(
             target=self.target_item,
             base_id=target_id,
+            window_id=self.window_id,
         )
         resume, unwatched = pb.calculate()
         result = set_items(
@@ -780,7 +794,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "typewriter_pos",
             value=infolabel(f"{self.identity_container}.CurrentItem"),
         )
-        t = TypewriterAnimation(control_id=target_id)
+        t = TypewriterAnimation(control_id=target_id, window_id=self.window_id)
         t.update(
             label=self.label,
             opts=PlacementOpts.from_params(self.params),
