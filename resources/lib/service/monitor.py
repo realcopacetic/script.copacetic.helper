@@ -66,9 +66,9 @@ class Monitor(xbmc.Monitor):
 
     def _builder_elements(self) -> None:
         """
-        Run the build pipeline.
-        Production: only rebuild outputs that are missing.
-        Dev: clear state if requested, rebuild everything, reload skin.
+        Run the build pipeline, then reload the skin if anything was built.
+        Production: rebuild missing outputs, or all when ids or templates changed.
+        Dev: clear state if requested, rebuild everything.
         """
         dev_mode = ADDON.getSettingBool("dev_mode")
         dev_reset = ADDON.getSettingBool("dev_reset")
@@ -100,6 +100,10 @@ class Monitor(xbmc.Monitor):
             build.run()
         elif builders:
             BuildElements(builders_to_run=builders).run()
+        else:
+            return
+        # The skin loaded before this build; reload so it reads the new outputs.
+        xbmc.executebuiltin("ReloadSkin()")
 
     def _on_start(self) -> None:
         """Begins the monitor loop and attaches the player monitor."""
