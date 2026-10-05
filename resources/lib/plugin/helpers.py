@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import math
+import random
 import time
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, Collection, Iterable, Mapping
@@ -27,6 +28,7 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     plugin_path,
+    session_salt,
     split,
     split_random,
     to_int,
@@ -193,11 +195,13 @@ class DataHandler:
         directors, genres = self.infolabels["Director"], self.infolabels["Genre"]
         properties = self._albumartist()
         if random_pick:
-            # The director pick stays whole, so credits queries can take it; the
-            # genre is cleaned for display, with the whole pick as genre_query.
-            directors, _ = split_random(directors)
+            # One pick per item and Kodi session, so a refire (closing info, back
+            # from a rail) keeps the rails it fed. The director pick stays whole for
+            # credits queries; the genre is cleaned, the whole pick is genre_query.
+            rng = random.Random(f"{session_salt()}:{self.dbtype}:{self.dbid}:{label}")
+            directors, _ = split_random(directors, rng=rng)
             properties["genre_query"], genres = split_random(
-                genres, aliases=genre_aliases
+                genres, rng=rng, aliases=genre_aliases
             )
         return {
             "file": plugin_path("metadata"),

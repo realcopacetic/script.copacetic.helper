@@ -516,9 +516,19 @@ def split(
     return parts[number] if 0 <= number < len(parts) else parts[0]
 
 
+def session_salt() -> str:
+    """
+    A random token for this Kodi session, kept on the Home window.
+    """
+    if not (salt := infolabel("Window(home).Property(session_salt)")):
+        window_property("session_salt", salt := str(random.getrandbits(32)))
+    return salt
+
+
 def split_random(
     string: str,
     *,
+    rng: random.Random,
     separator: str = "/",
     aliases: Iterable[tuple[str, str]] = (),
     **kwargs: object,
@@ -528,13 +538,14 @@ def split_random(
     pick takes an alias ("Hip-Hop" → "Hip Hop"), one "&" part, no full stops.
 
     :param string: Genre string (e.g., "Action / Hip-Hop & R&B").
+    :param rng: Random source; a seeded one repeats its pick.
     :param separator: Delimiter used to split top-level genres (default: "/").
     :param aliases: (substring, replacement) pairs for the whole pick, in order.
     :return: (whole pick, as in the library; cleaned pick).
     """
-    whole = random.choice(string.split(separator)).strip()
+    whole = rng.choice(string.split(separator)).strip()
     primary = next((name for key, name in aliases if key in whole), whole)
-    picked = random.choice([s.strip() for s in primary.split("&")])
+    picked = rng.choice([s.strip() for s in primary.split("&")])
     return whole, return_label(picked)
 
 
