@@ -59,6 +59,8 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`dialog_yesno`](#dialog_yesno) | Asks a yes/no question and runs builtins for the answer |
 | [`dynamic_settings_window`](#dynamic_settings_window) | Opens a builder settings window |
 | [`focus`](#focus) | Sets focus reliably, optionally selecting an item first |
+| [`info`](#info) | Replaces the open info dialog with a library item's info |
+| [`info_back`](#info_back) | Steps back along the infoscreen trail |
 | [`move_pin`](#move_pin) | Moves a pinned speed dial entry up or down |
 | [`pin`](#pin) | Pins a music item to the front of speed dial |
 | [`play_album`](#play_album) | Plays an album |
@@ -309,6 +311,58 @@ widget list:
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=focus,target=3200,select_container=3000,select_property=runtime_id,select_value=3ad35bab-f50e-5752-be73-c515e4f6b555)</onclick>
+```
+
+---
+
+## info
+
+Replaces the open info dialog with the info of a library item, for clicks inside an
+info dialog: Kodi has no builtin that opens info for another item there. The helper
+looks the item up, force-closes the open info dialogs (video, music and song info)
+and opens the item's info with `xbmcgui.Dialog().info()`. When the item can't be
+opened, the dialog stays open and `info_hop` is cleared.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `dbtype` | `movie`, `tvshow`, `episode`, `musicvideo`, `set`, `artist`, `album`, `song` | required | The item's `ListItem.DBType` |
+| `dbid` | database id | required | The item's `ListItem.DBID` |
+
+Seasons can't be opened this way (Python can't set a season's show and season ids),
+so browse to a season instead.
+
+```xml
+<onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">SetProperty(info_hop,forward,home)</onclick>
+<onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">RunScript(script.copacetic.helper,action=info,"dbtype=$INFO[ListItem.DBType]","dbid=$INFO[ListItem.DBID]")</onclick>
+```
+
+### The trail
+
+The skin keeps a trail of the items shown, as home window properties, so Back can
+step back through them. Keys are `<dbtype>:<dbid>`.
+
+| Property | Value | Written by |
+|---|---|---|
+| `info_current` | Key of the item showing | the skin, in the info dialogs' `<onload>` |
+| `info_trail` | Keys of the items before it, newest first, joined by `\|` | pushed by the skin's `<onload>`, popped by `info_back` |
+| `info_hop` | `forward` or `back` while a hop runs | the skin, before `info` or `info_back`; cleared by `<onload>` |
+
+The skin's `<onunload>` clears `info_current` and `info_trail` only while `info_hop`
+is empty, so a hop keeps the trail.
+
+---
+
+## info_back
+
+Pops the newest key from `info_trail` that names an item other than
+`info_current` and that can be opened, writes the rest back and shows that item, as
+[`info`](#info) does. Keys it skips (seasons, items no longer in the library) are
+dropped. When there is none, it clears `info_hop` and closes the dialog, so the
+dialog's `<onunload>` clears the trail. No parameters.
+
+```xml
+<onback condition="!String.IsEmpty(Window(home).Property(info_trail)) + String.IsEmpty(Window(home).Property(info_hop))">SetProperty(info_hop,back,home)</onback>
+<onback condition="!String.IsEmpty(Window(home).Property(info_trail)) + String.IsEmpty(Window(home).Property(info_hop))">RunScript(script.copacetic.helper,action=info_back)</onback>
 ```
 
 ---

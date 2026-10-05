@@ -33,6 +33,15 @@ from resources.lib.shared.utilities import (
 REGISTRY = {}
 
 _LIBRARY_ITEMS = {"album": "albumid", "artist": "artistid", "genre": "genreid"}
+_INFO_DIALOGS = ("songinformation", "musicinformation", "movieinformation")
+_INFO_DETAILS = {
+    "episode": "VideoLibrary.GetEpisodeDetails",
+    "movie": "VideoLibrary.GetMovieDetails",
+    "musicvideo": "VideoLibrary.GetMusicVideoDetails",
+    "set": "VideoLibrary.GetMovieSetDetails",
+    "song": "AudioLibrary.GetSongDetails",
+    "tvshow": "VideoLibrary.GetTVShowDetails",
+}
 MIX_SIZE = 50
 MIX_ARTIST_SHARE = 0.15
 
@@ -382,6 +391,96 @@ def focus(target: str, **kwargs: str) -> None:
         if condition(f"Control.HasFocus({target})"):
             return
         remaining -= 1
+
+
+def _info_item(key: str) -> xbmcgui.ListItem | None:
+    """
+    Build the ListItem Dialog().info() resolves to the library item a trail key
+    names. Seasons are left out: Python can't set a tag's show or season id.
+
+    :param key: "dbtype:dbid".
+    :return: ListItem, or None for another type or an item not in the library.
+    """
+    dbtype, _, dbid = key.partition(":")
+    dbid = to_int(dbid)
+    if dbtype in ("album", "artist"):
+        item = xbmcgui.ListItem(path=f"musicdb://{dbtype}s/{dbid}/")
+        item.setIsFolder(True)
+        item.getMusicInfoTag().setDbId(dbid, dbtype)
+        return item
+    if dbtype not in _INFO_DETAILS:
+        return None
+    details = json_call(
+        _INFO_DETAILS[dbtype],
+        properties=["title", "plot" if dbtype == "set" else "file"],
+        params={f"{dbtype}id": dbid},
+        parent="info",
+    )
+    if not (found := details.get("result", {}).get(f"{dbtype}details")):
+        return None
+    if dbtype == "song":
+        item = xbmcgui.ListItem(found["title"], path=found["file"])
+        item.getMusicInfoTag().setDbId(dbid, dbtype)
+        return item
+    # Kodi reads movies, shows and episodes back by dbid and music videos by
+    # file; a set shows this tag as built, art from the library by dbid.
+    path = f"videodb://movies/sets/{dbid}/" if dbtype == "set" else found["file"]
+    item = xbmcgui.ListItem(found["title"], path=path)
+    item.setIsFolder(dbtype in ("set", "tvshow"))
+    tag = item.getVideoInfoTag()
+    tag.setDbId(dbid)
+    tag.setMediaType(dbtype)
+    tag.setTitle(found["title"])
+    if dbtype == "set":
+        tag.setPlot(found["plot"])
+        tag.setSetId(dbid)
+    return item
+
+
+def _show_info(item: xbmcgui.ListItem | None) -> None:
+    """
+    Force-close the open info dialogs, then show info for item (None only closes).
+    Dialog().info() blocks until that dialog closes.
+
+    :param item: ListItem from _info_item, or None.
+    """
+    for dialog in _INFO_DIALOGS:
+        if condition(f"Window.IsVisible({dialog})"):
+            log.execute(f"Dialog.Close({dialog},true)", wait=True)
+    if item:
+        xbmcgui.Dialog().info(item)
+
+
+@action
+def info(dbtype: str, dbid: str, **kwargs: str) -> None:
+    """
+    Replace the open info dialog with a library item's info (an infoscreen hop).
+    An item that can't be opened clears info_hop and leaves the dialog open.
+
+    :param dbtype: Library media type (not season).
+    :param dbid: Library id.
+    """
+    if item := _info_item(f"{dbtype}:{dbid}"):
+        _show_info(item)
+    else:
+        window_property("info_hop")
+
+
+@action
+def info_back(**kwargs: str) -> None:
+    """
+    Pop the infoscreen trail to its newest openable item and show it. With none,
+    clear info_hop and close, so the dialog's unload clears the trail.
+    """
+    current = infolabel("Window(home).Property(info_current)")
+    trail = infolabel("Window(home).Property(info_trail)").split("|")
+    for i, key in enumerate(trail):
+        if key != current and (item := _info_item(key)):
+            window_property("info_trail", "|".join(trail[i + 1 :]))
+            _show_info(item)
+            return
+    window_property("info_hop")
+    _show_info(None)
 
 
 @action
