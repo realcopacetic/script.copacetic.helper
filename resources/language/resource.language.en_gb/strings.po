@@ -310,6 +310,16 @@ msgctxt "#32606"
 msgid "Random TV shows"
 msgstr ""
 
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32607"
+msgid "Genre credits"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32608"
+msgid "Studio credits"
+msgstr ""
+
 
 
 #########################################################################################################

@@ -246,7 +246,8 @@ def role_endpoint(
                 field=field,
                 label=self.label,
                 filter_exclude=self.filter_exclude,
-                sources=sources,
+                # type= keeps one media type, e.g. movies only for a movie
+                sources=[s for s in sources if self.dbtype in ("", s[1])],
                 sort=self.sort_year,
                 parent=parent,
                 tag_applier=apply_videoinfotag,

@@ -966,6 +966,36 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         pass
 
     @role_endpoint(
+        field="genre",
+        category_id=32607,
+        sources=[
+            ("VideoLibrary.GetMovies", "movie"),
+            ("VideoLibrary.GetTVShows", "tvshow"),
+        ],
+        parent="genre_credits",
+    )
+    def genre_credits(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of movies and TV shows in genre ``self.label``.
+        """
+        pass
+
+    @role_endpoint(
+        field="studio",
+        category_id=32608,
+        sources=[
+            ("VideoLibrary.GetMovies", "movie"),
+            ("VideoLibrary.GetTVShows", "tvshow"),
+        ],
+        parent="studio_credits",
+    )
+    def studio_credits(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of movies and TV shows from studio ``self.label``.
+        """
+        pass
+
+    @role_endpoint(
         field="writer",
         category_id=32604,
         sources=[

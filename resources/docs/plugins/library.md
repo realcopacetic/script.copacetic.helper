@@ -13,6 +13,8 @@ so your existing layouts work with them.
 | `actor_credits` | Movies and TV shows with a given actor. |
 | `director_credits` | Movies and music videos by a given director. |
 | `writer_credits` | Movies and episodes by a given writer. |
+| `genre_credits` | Movies and TV shows in a given genre. |
+| `studio_credits` | Movies and TV shows from a given studio or network. |
 
 ```xml
 <control type="list" id="5000"><!-- id is an example -->
@@ -101,9 +103,9 @@ the home screen. A plugin path that never changes is only called once.
 <content>plugin://script.copacetic.helper/?info=random_tvshows&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
 ```
 
-## `actor_credits`, `director_credits`, `writer_credits`
+## `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`
 
-Everything in the library credited to one person. Each kind of item is sorted newest
+Everything in the library credited to one person, genre or studio. Each kind of item is sorted newest
 first, and the kinds follow each other in the order below.
 
 | `info=` | Searches |
@@ -111,10 +113,13 @@ first, and the kinds follow each other in the order below.
 | `actor_credits` | movies, then TV shows |
 | `director_credits` | movies, then music videos |
 | `writer_credits` | movies, then episodes |
+| `genre_credits` | movies, then TV shows |
+| `studio_credits` | movies, then TV shows |
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `label` | a name | — | The person to search for, as the library names them. |
+| `label` | a name | — | The person, genre or studio to search for, as the library names it. |
+| `type` | a media type from the table above | — | Search that kind only, e.g. `movie` for a movie's "more from" rail. |
 | `exclude_value` | any text | — | Leave out items whose `exclude_key` field equals this. Use it to hide the item you came from. |
 | `exclude_key` | a Kodi library filter field | `title` | The field `exclude_value` is compared with. |
 
@@ -123,7 +128,12 @@ first, and the kinds follow each other in the order below.
 ```
 
 Pass one name in `label`. `ListItem.Director` holds several names, separated by
-` / `, when an item has more than one director; that string matches nobody.
+` / `, when an item has more than one director; that string matches nobody. The
+[`metadata`](metadata.md#metadata) path with `random_pick=true` gives one director
+and one genre, and always one studio. Names and titles may hold `&` (`Action &
+Adventure`): the helper splits its parameters only where `&name=` follows, where a
+`videodb://` filter in the path would cut the value at the `&`. For a random order,
+add `sortby="random"` to the container's `<content>`.
 
 ---
 
