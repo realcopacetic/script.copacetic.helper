@@ -43,6 +43,7 @@ from resources.lib.shared.utilities import (
     set_plugincontent,
     to_float,
     to_int,
+    topmost_window_id,
     window_property,
 )
 
@@ -439,6 +440,47 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     ),
                 }
             ]
+        )
+
+    @log.duration
+    def multiart_tiles(self) -> list[DirectoryItem] | None:
+        """
+        Seed one register per artwork tile of the info dialog's item so the tiles
+        take turns on one beat, each starting on its main image.
+
+        :return: One item echoing the visit once the registers are seeded.
+        """
+        from resources.lib.art.multiart import (
+            build_multiart_dict,
+            order_multiart,
+            seed_registers,
+            take_turns,
+        )
+
+        if not self._require("tiles"):
+            return
+
+        visit = self.params.get("visit", "")
+        stamp = "Window(home).Property(infoscreen_artwork_visit)"
+        alive = lambda: infolabel(stamp) == visit
+        families = {
+            to_int(register): order_multiart(art)
+            for register, art_type in (
+                tile.split(":") for tile in self.params["tiles"].split(",")
+            )
+            if (
+                art := build_multiart_dict(
+                    target="ListItem",
+                    multiart_type=art_type,
+                    max_items=self.params.get("multiart_max"),
+                    tmdb_art={},
+                )
+            )
+        }
+        if not seed_registers(topmost_window_id(), take_turns(families), alive=alive):
+            return
+        return set_items(
+            [{"file": plugin_path("multiart_tiles"), "properties": {"visit": visit}}]
         )
 
     @log.duration

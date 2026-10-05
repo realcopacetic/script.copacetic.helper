@@ -105,7 +105,11 @@ def install_stubs(
     )
     _module("xbmcaddon", Addon=Addon)
     _module(
-        "xbmcgui", Dialog=lambda: None, Window=Window, getCurrentWindowId=lambda: 10000
+        "xbmcgui",
+        Dialog=lambda: None,
+        Window=Window,
+        getCurrentWindowDialogId=lambda: 9999,
+        getCurrentWindowId=lambda: 10000,
     )
     _module("xbmcvfs", translatePath=translate_path)
     _module(

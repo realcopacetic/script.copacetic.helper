@@ -13,7 +13,7 @@ from typing import Any, Iterable, Mapping
 
 import xbmc
 import xbmcvfs
-from xbmcgui import Dialog, Window, getCurrentWindowId
+from xbmcgui import Dialog, Window, getCurrentWindowDialogId, getCurrentWindowId
 from xbmcplugin import addSortMethod, setContent, setPluginCategory
 
 from resources.lib.shared import logger as log
@@ -160,6 +160,17 @@ def focused_control_id() -> int:
     :return: Focused control id, or 0 if nothing is focused.
     """
     return Window(getCurrentWindowId()).getFocusId()
+
+
+def topmost_window_id() -> int:
+    """
+    Id of the topmost modal dialog, else of the active window: the window that holds
+    a control of an open dialog.
+
+    :return: Window id.
+    """
+    dialog_id = getCurrentWindowDialogId()
+    return dialog_id if dialog_id != 9999 else getCurrentWindowId()
 
 
 def infolabel(infolabel: str) -> str:

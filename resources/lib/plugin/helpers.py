@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Collection, Iterable, Mapping
 
 import xbmcvfs
 from xbmc import Monitor
-from xbmcgui import Window, getCurrentWindowDialogId, getCurrentWindowId
+from xbmcgui import Window, getCurrentWindowId
 
 from resources.lib.plugin.geometry import (
     PlacementOpts,
@@ -30,6 +30,7 @@ from resources.lib.shared.utilities import (
     split,
     split_random,
     to_int,
+    topmost_window_id,
     window_property,
 )
 
@@ -69,8 +70,7 @@ def reposition_control(
     :param w: New width in px, or None to leave unchanged.
     :param h: New height in px, or None to leave unchanged.
     """
-    dialog_id = getCurrentWindowDialogId()
-    window_id = dialog_id if dialog_id != 9999 else getCurrentWindowId()
+    window_id = topmost_window_id()
     # Probe first: a getControl miss logs an engine error even when caught.
     # Control.IsEnabled reads the same window and is false for a missing control.
     if not condition(f"Control.IsEnabled({control_id})"):

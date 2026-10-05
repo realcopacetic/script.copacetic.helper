@@ -2,6 +2,7 @@
 
 import hashlib
 import random
+from itertools import zip_longest
 from typing import Callable, Iterable, Mapping
 
 from xbmc import Monitor
@@ -182,22 +183,77 @@ def order_multiart(art: dict[str, str]) -> list[str]:
     return [main, *extras]
 
 
-def _read_back(fadelabel_id: int | str, label: str, monitor: Monitor) -> bool:
+def _read_back(expected: Mapping[int, str], monitor: Monitor) -> bool:
     """
-    Poll a register until Control.GetLabel reads a label, at most 10 x 20 ms.
+    Poll registers until each Control.GetLabel reads its label, at most 10 x 20 ms.
 
-    :param fadelabel_id: Register control id.
-    :param label: Expected read-back; "" after a bare reset.
+    :param expected: Register id → expected read-back; "" after a bare reset.
     :param monitor: Monitor for the bounded wait.
-    :return: True when it read back, False on timeout or abort.
+    :return: True when every register read back, False on timeout or abort.
     """
     for _ in range(10):
-        if infolabel(f"Control.GetLabel({fadelabel_id})") == label:
+        if all(infolabel(f"Control.GetLabel({i})") == s for i, s in expected.items()):
             return True
         if monitor.waitForAbort(0.02):
             return False
-    log.debug(f"set_multiart_fadelabel → {fadelabel_id} did not read back {label!r}")
+    log.debug(f"seed_registers → {list(expected)} did not read back")
     return False
+
+
+def seed_registers(
+    window_id: int,
+    sequences: Mapping[int, list[str]],
+    alive: Callable[[], bool] | None = None,
+) -> bool:
+    """
+    Seed fadelabel registers in step: reset all, add every main image, then the rest
+    a row at a time, so every register starts at index 0 with a fresh dwell.
+
+    :param window_id: Window that holds the registers.
+    :param sequences: Register id → labels in display order, main image first.
+    :param alive: Focus guard; seeding stops before the extras if it returns False.
+    :return: True when every register was seeded.
+    """
+    window = Window(window_id)  # keep: the window holds the controls' native refs
+    controls = {i: window.getControl(i) for i in sequences}
+    monitor = Monitor()
+    for ctrl in controls.values():
+        ctrl.reset()
+    # A live register never reads empty, so the empty read-back proves the resets
+    # are dispatched; each main image then reads back only after its own dispatch,
+    # so the extras land a pass later, after a frame at index 0 (notes: handshake).
+    _read_back(dict.fromkeys(sequences, ""), monitor)
+    for i, (main, *_) in sequences.items():
+        controls[i].addLabel(main)
+    _read_back({i: labels[0] for i, labels in sequences.items()}, monitor)
+    if monitor.abortRequested() or (alive and not alive()):
+        return False
+    for row in zip_longest(*(labels[1:] for labels in sequences.values())):
+        for ctrl, label in zip(controls.values(), row):
+            if label:
+                ctrl.addLabel(label)
+    return True
+
+
+def take_turns(families: Mapping[int, list[str]]) -> dict[int, list[str]]:
+    """
+    Pad each rotating family so the tiles change in turn on one shared beat: with k
+    rotating tiles every image holds k beats and tile j changes on beats j + 1 (mod k).
+
+    :param families: Register id → URLs, main image first; one image holds still.
+    :return: Register id → padded labels, main image first.
+    """
+    rotating = [i for i, urls in families.items() if len(urls) > 1]
+    k = len(rotating)
+    turns = {}
+    for j, i in enumerate(rotating):
+        main, *extras = families[i]
+        turns[i] = (
+            [main] * (j + 1)
+            + [url for url in extras for _ in range(k)]
+            + [main] * (k - 1 - j)
+        )
+    return families | turns
 
 
 def set_multiart_fadelabel(
@@ -219,33 +275,19 @@ def set_multiart_fadelabel(
     :return: True if labels were set successfully.
     """
     try:
-        win = Window(getCurrentWindowId())
-        ctrl = win.getControl(to_int(fadelabel_id))
         if preserve_frozen and (
             displayed := infolabel(f"Control.GetLabel({fadelabel_id})")
         ):
             window_property(f"multiart_frozen_{fadelabel_id}", displayed)
         elif not preserve_frozen:
             window_property(f"multiart_frozen_{fadelabel_id}")
-        ctrl.reset()
-        # A live register never reads empty, so the empty read-back proves the
-        # reset is dispatched; the main image then reads back only after its own
-        # dispatch, so the extras land a pass later with a frame in between and
-        # the register starts at index 0 with a fresh dwell (notes: handshake).
-        monitor = Monitor()
-        _read_back(fadelabel_id, "", monitor)
-        ctrl.addLabel(ordered[0])
-        _read_back(fadelabel_id, ordered[0], monitor)
-        if monitor.abortRequested() or (alive and not alive()):
-            return False
-        for label in ordered[1:]:
-            ctrl.addLabel(label)
+        return seed_registers(
+            getCurrentWindowId(), {to_int(fadelabel_id): ordered}, alive=alive
+        )
 
     except Exception as e:
         log.warning(f"Unable to set multiart fadelabel → {e}")
         return False
-
-    return True
 
 
 def _multiart_signature(multiart_dict: dict[str, str]) -> str:
