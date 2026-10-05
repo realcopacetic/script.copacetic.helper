@@ -17,6 +17,9 @@ from resources.lib.shared.utilities import (
     window_property,
 )
 
+# No modal (9999) or a busy dialog (10138, 10160): a trailer resolve shows one.
+_NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
+
 
 class PlayerMonitor(Player):
     """
@@ -172,17 +175,20 @@ class PlayerMonitor(Player):
     def _trailer_is_stale(self) -> bool:
         """
         True when focus has left the controls or the item the trailer was
-        requested for. The label check fails open on an unreadable label or
-        under a modal dialog, which Python info lookups read first.
+        requested for, or a modal other than the busy dialog is open. The
+        label check fails open on an unreadable label or under the busy dialog.
         """
         ids = infolabel("Window(home).Property(trailer_focus_ids)")
         if ids and not condition(
             " | ".join(f"Control.HasFocus({i})" for i in ids.split(","))
         ):
             return True
+        dialog = getCurrentWindowDialogId()
+        if dialog not in _NO_MODAL_OR_BUSY:
+            return True
         source = trailer_source()
         expected = infolabel("Window(home).Property(trailer_item)")
-        if not (source and expected) or getCurrentWindowDialogId() != 9999:
+        if not (source and expected) or dialog != 9999:
             return False
         current = infolabel(f"{source}.Label")
         return bool(current) and current != expected
