@@ -116,12 +116,12 @@ sets (`trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_viewport`,
 | Name | Kind | Read when | Page |
 |---|---|---|---|
 | `extras/templates/<folder>/` | Skin folder | Start-up and skin change | This page |
-| `trailer_state` | Window property | On playback start, error and each poll | [Trailers](trailers.md) |
+| `trailer_state` | Window property | On playback start, stop, end and error, and each poll | [Trailers](trailers.md) |
 | `trailer_item` | Window property | When checking if a trailer is stale | [Trailers](trailers.md) |
 | `trailer_source` | Window property | Staleness check and trailer zoom | [Trailers](trailers.md) |
 | `trailer_focus_ids` | Window property | When checking if a trailer is stale | [Trailers](trailers.md) |
 | `trailer_viewport` | Window property | When a trailer starts | [Trailers](trailers.md) |
-| `trailer_pending_since` | Window property | Each poll while a request is pending | [Trailers](trailers.md) |
+| `trailer_pending_since` | Window property | Each poll while a request is `pending` or `cancelled` | [Trailers](trailers.md) |
 | `trailer_file` | Window property | Each poll | [Trailers](trailers.md) |
 | `playnext_enabled` | Skin setting (bool) | When a library episode starts | [Play next](playnext.md) |
 | `slideshow_source`, `slideshow2_source` | Skin string | Each poll | [Slideshow](slideshow.md) |
