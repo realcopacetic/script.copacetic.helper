@@ -182,6 +182,24 @@ def order_multiart(art: dict[str, str]) -> list[str]:
     return [main, *extras]
 
 
+def _read_back(fadelabel_id: int | str, label: str, monitor: Monitor) -> bool:
+    """
+    Poll a register until Control.GetLabel reads a label, at most 10 x 20 ms.
+
+    :param fadelabel_id: Register control id.
+    :param label: Expected read-back; "" after a bare reset.
+    :param monitor: Monitor for the bounded wait.
+    :return: True when it read back, False on timeout or abort.
+    """
+    for _ in range(10):
+        if infolabel(f"Control.GetLabel({fadelabel_id})") == label:
+            return True
+        if monitor.waitForAbort(0.02):
+            return False
+    log.debug(f"set_multiart_fadelabel → {fadelabel_id} did not read back {label!r}")
+    return False
+
+
 def set_multiart_fadelabel(
     fadelabel_id: int | str,
     ordered: list[str],
@@ -210,16 +228,15 @@ def set_multiart_fadelabel(
         elif not preserve_frozen:
             window_property(f"multiart_frozen_{fadelabel_id}")
         ctrl.reset()
-        # reset() keeps the rotation index until Process clamps it (GetLabel reads
-        # empty till then), so the main image reading back proves the clamp.
-        ctrl.addLabel(ordered[0])
+        # A live register never reads empty, so the empty read-back proves the
+        # reset is dispatched; the main image then reads back only after its own
+        # dispatch, so the extras land a pass later with a frame in between and
+        # the register starts at index 0 with a fresh dwell (notes: handshake).
         monitor = Monitor()
-        for _ in range(5):  # bounded: with a modal dialog up, Python reads the dialog
-            if infolabel(f"Control.GetLabel({fadelabel_id})") == ordered[0]:
-                break
-            if monitor.waitForAbort(0.02):
-                return False
-        if alive and not alive():
+        _read_back(fadelabel_id, "", monitor)
+        ctrl.addLabel(ordered[0])
+        _read_back(fadelabel_id, ordered[0], monitor)
+        if monitor.abortRequested() or (alive and not alive()):
             return False
         for label in ordered[1:]:
             ctrl.addLabel(label)
@@ -262,7 +279,7 @@ def seed_multiart(
     :param multiart_dict: Candidate multiart family from the listitem.
     :param art: Processed art dict, updated with multiart keys on seed.
     :param seed_scope: Listing identity of this serve (region@folder).
-    :param seed_item: Item identity of this serve (pos/dbid); keys the skip.
+    :param seed_item: Item and visit of this serve (pos/dbid/visit); keys the skip.
     :param alive: Focus guard callable; False aborts mid-seed.
     :return: Updated art dict, or None when the guard died mid-seed.
     """
@@ -274,10 +291,10 @@ def seed_multiart(
     sig_key = f"multiart_seed_sig_{fadelabel_id}"
     signature = f"{seed_item}:{_multiart_signature(multiart_dict)}"
     # Interruptor guard: a refire that would reseed the identical set for the
-    # SAME item into a live register (announcement invalidation, viewmenu
-    # return) is a pure no-op — the rotation continues untouched. A new item
-    # always reseeds, even into an identical set, so every arrival restarts on
-    # the main image. A legitimately cleared register has an empty label and
+    # SAME item and visit into a live register (announcement invalidation,
+    # viewmenu return) is a pure no-op — the rotation continues untouched. A new
+    # item or a new visit (back from the rail) always reseeds, so every arrival
+    # restarts on the main image. A cleared register has an empty label and
     # never skips; a scope change never skips.
     if (
         len(multiart_dict) > 1

@@ -356,7 +356,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             multiart_dict=multiart_dict,
             art=art,
             seed_scope=f"{stamp_scope}@{folder}",
-            seed_item=f"{current_position}/{dbid}",
+            seed_item=f"{current_position}/{dbid}/{self.params.get('visit', '')}",
             alive=guard.alive,
         )
         if art is None:
