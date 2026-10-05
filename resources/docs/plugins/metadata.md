@@ -51,6 +51,7 @@ and so on.
 | `ListItem.Plot`, `ListItem.PlotOutline` | As on the focused item. |
 | `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used only when the library has none. |
 | `ListItem.Property(truncated_label)` | The cut-down text, when `truncate_width` is passed. |
+| `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits). Empty for other types. |
 
 With `random_pick=true`, a compound genre such as `Action & Adventure` is split on
 `&` and one part is kept. Full stops in the pick become spaces.

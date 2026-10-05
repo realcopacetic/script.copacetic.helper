@@ -15,6 +15,8 @@ so your existing layouts work with them.
 | `writer_credits` | Movies and episodes by a given writer. |
 | `genre_credits` | Movies and TV shows in a given genre. |
 | `studio_credits` | Movies and TV shows from a given studio or network. |
+| `artist_credits` | Music videos by a given artist. |
+| `genre_music` | Library artists, albums or songs in a given genre. |
 
 ```xml
 <control type="list" id="5000"><!-- id is an example -->
@@ -115,6 +117,7 @@ first, and the kinds follow each other in the order below.
 | `writer_credits` | movies, then episodes |
 | `genre_credits` | movies, then TV shows |
 | `studio_credits` | movies, then TV shows |
+| `artist_credits` | music videos |
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -134,6 +137,24 @@ and one genre, and always one studio. Names and titles may hold `&` (`Action &
 Adventure`): the helper splits its parameters only where `&name=` follows, where a
 `videodb://` filter in the path would cut the value at the `&`. For a random order,
 add `sortby="random"` to the container's `<content>`.
+
+## `genre_music`
+
+Library artists, albums or songs in one genre, in random order. The items are music
+library items: `DBType` `artist`, `album` or `song` and their `DBID`; artists and
+albums open as `musicdb://` folders, songs play their file. They carry their library
+artwork, `Genre`, `Artist`, `Year` and so on.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `artist`, `album`, `song` | required | What to list |
+| `label` | a genre | — | The genre, as the library names it (`R&B` is fine) |
+| `exclude_value` | a name | — | Leave out the artist, album or song (by title) with this name |
+| `limit` | whole number | all | Most items, picked at random |
+
+```xml
+<content>plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[Container(9000).ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20</content>
+```
 
 ---
 

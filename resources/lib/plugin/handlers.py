@@ -28,7 +28,7 @@ from resources.lib.plugin.library import (
     role_endpoint,
     title_filter,
 )
-from resources.lib.plugin.music import dial_item
+from resources.lib.plugin.music import dial_item, library_items
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
@@ -951,6 +951,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         pass
 
     @role_endpoint(
+        field="artist",
+        category_id=32609,
+        sources=[("VideoLibrary.GetMusicVideos", "musicvideo")],
+        parent="artist_credits",
+    )
+    def artist_credits(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of music videos by artist ``self.label``.
+        """
+        pass
+
+    @role_endpoint(
         field="director",
         category_id=32602,
         sources=[
@@ -979,6 +991,30 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Build a container of movies and TV shows in genre ``self.label``.
         """
         pass
+
+    @log.duration
+    def genre_music(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of library artists, albums or songs (type=) in genre
+        ``self.label``, in random order; exclude_value leaves one out by name.
+
+        :return: List of directory items for Kodi, or None if empty.
+        """
+        name = {"artist": "artist", "album": "album"}.get(self.dbtype, "title")
+        set_plugincontent(content=f"{self.dbtype}s", category=self.label)
+        return (
+            library_items(
+                self.dbtype,
+                [
+                    {"field": "genre", "operator": "is", "value": self.label},
+                    {"field": name, "operator": "isnot", "value": self.exclude_value},
+                ],
+                sort={"method": "random"},
+                limit=self.limit,
+                parent="genre_music",
+            )
+            or None
+        )
 
     @role_endpoint(
         field="studio",

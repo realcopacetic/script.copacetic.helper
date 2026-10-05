@@ -208,7 +208,32 @@ class DataHandler:
             "Plot": self.infolabels["Plot"],
             "PlotOutline": self.infolabels["PlotOutline"],
             "Trailer": self.infolabels["Trailer"],
+            "properties": self._albumartist(),
         }
+
+    def _albumartist(self) -> dict[str, str]:
+        """
+        First album artist of an album or song, by id and name, so music rails
+        can use musicdb ?artistid= paths and name-safe plugin paths.
+
+        :return: albumartist_id and albumartist, or {} for other types.
+        """
+        if self.dbtype not in ("album", "song"):
+            return {}
+        song = self.dbtype == "song"
+        ids, names = (
+            ("albumartistid", "albumartist") if song else ("artistid", "artist")
+        )
+        details = json_call(
+            f"AudioLibrary.Get{self.dbtype.title()}Details",
+            properties=[ids, names],
+            params={f"{self.dbtype}id": to_int(self.dbid)},
+            parent=self.__class__.__name__,
+        )
+        found = details.get("result", {}).get(f"{self.dbtype}details", {})
+        if not found.get(ids):
+            return {}
+        return {"albumartist_id": str(found[ids][0]), "albumartist": found[names][0]}
 
     def _studio(self) -> str:
         """
