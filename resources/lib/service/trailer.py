@@ -12,14 +12,16 @@ from resources.lib.shared.utilities import (
 
 def enter_fullscreen() -> None:
     """
-    Take the playing trailer to full screen without restarting it. The skin
-    reopens the info dialog in trailer_return once full screen closes.
+    Take the playing trailer to full screen without restarting it. The info
+    dialog it closes reopens in trailer_return, as a hop (info_hop fullscreen).
     """
+    key = infolabel("Window(home).Property(info_current)")
     window_property("trailer_state", value="fullscreen")
     window_property("trailer_fullscreen")
-    window_property(
-        "trailer_return", value=infolabel("Window(home).Property(info_current)")
-    )
+    window_property("trailer_return", value=key)
+    # trailer_return can't reopen a season: let that close end the visit
+    if key and not key.startswith("season:"):
+        window_property("info_hop", value="fullscreen")
     TrailerZoomController().apply_zoom_if_needed(fullscreen=True)
     log.execute("Action(FullScreen)")
 

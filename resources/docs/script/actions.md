@@ -380,7 +380,7 @@ step back through them. Keys are `<dbtype>:<dbid>`.
 |---|---|---|
 | `info_current` | Key of the item showing | the skin, in the info dialogs' `<onload>` |
 | `info_trail` | Keys of the items before it, newest first, joined by `\|` | pushed by the skin's `<onload>`, popped by `info_back` |
-| `info_hop` | `forward` or `back` while a hop runs | the skin, before `info` or `info_back`; cleared by `<onload>` |
+| `info_hop` | `forward` or `back` while a hop runs; `fullscreen` while the dialog is closed for its trailer's full screen | the skin, before `info` or `info_back`; `trailer_fullscreen`; cleared by `<onload>` |
 
 The skin's `<onunload>` clears `info_current` and `info_trail` only while `info_hop`
 is empty, so a hop keeps the trail. The helper reads `info_current` after the dialog
@@ -389,7 +389,7 @@ it opened closes, to tell whether Kodi opened the item (see above).
 Example (from Copacetic), in both info dialogs:
 
 ```xml
-<onload condition="!String.IsEmpty(Window(home).Property(info_current)) + !String.IsEqual(Window(home).Property(info_hop),back)">SetProperty(info_trail,$INFO[Window(home).Property(info_current)]$INFO[Window(home).Property(info_trail),|,],home)</onload>
+<onload condition="!String.IsEmpty(Window(home).Property(info_current)) + [String.IsEmpty(Window(home).Property(info_hop)) | String.IsEqual(Window(home).Property(info_hop),forward)]">SetProperty(info_trail,$INFO[Window(home).Property(info_current)]$INFO[Window(home).Property(info_trail),|,],home)</onload>
 <onload>SetProperty(info_current,$VAR[info_key],home)</onload>
 <onload>ClearProperty(info_hop,home)</onload>
 <onunload condition="String.IsEmpty(Window(home).Property(info_hop))">ClearProperty(info_current,home)</onunload>
@@ -852,7 +852,9 @@ as [`play_trailer`](#play_trailer). `window` says whose trailer it is:
 Going full screen sets `trailer_state` to `fullscreen`, sets the view mode to normal
 and copies `info_current` into `trailer_return`, the info dialog to reopen when full
 screen closes (see [`trailer_return`](#trailer_return)). Kodi closes the video info
-dialog first (`CGUIWindowManager::SwitchToFullScreen`). Within 2 seconds of its end,
+dialog first (`CGUIWindowManager::SwitchToFullScreen`). Unless the item is a season,
+which can't be reopened, `info_hop` is set to `fullscreen` first, so the close is a
+hop: the trail survives and the window underneath stays covered until the reopen. Within 2 seconds of its end,
 the service rewinds and stops a full-screen trailer.
 
 ```xml
@@ -867,7 +869,8 @@ Run it once full screen has closed on a trailer that
 [`trailer_fullscreen`](#trailer_fullscreen) took there. It clears `trailer_return`
 and reopens the info dialog it names, as [`info`](#info) does. If the trailer is
 still playing, it gets its zoom back first; your skin's `<onload>` sets
-`trailer_state` back to `playing`. With no dialog to reopen, the trailer is stopped.
+`trailer_state` back to `playing`. With no dialog to reopen, `info_hop` is cleared and
+the trailer is stopped.
 
 No parameters. Copacetic runs it from a skin timer:
 

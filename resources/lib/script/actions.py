@@ -401,18 +401,20 @@ def trailer_fullscreen(trailer: str, **kwargs: str) -> None:
 def trailer_return(**kwargs: str) -> None:
     """
     Full screen has closed on the info dialog's trailer: reopen that dialog,
-    which takes a still-playing trailer back into its tab, else stop the trailer.
+    which takes a still-playing trailer back into its tab. With none to reopen,
+    end the hop and stop the trailer.
     """
     key = infolabel("Window(home).Property(trailer_return)")
     window_property("trailer_return")
-    item = _info_item(key)
-    if infolabel("Window(home).Property(trailer_state)") == "fullscreen":
-        if not item:
+    playing = infolabel("Window(home).Property(trailer_state)") == "fullscreen"
+    if not (item := _info_item(key)):
+        window_property("info_hop")
+        if playing:
             log.execute("PlayerControl(Stop)")
-            return
+        return
+    if playing:
         TrailerZoomController().apply_zoom_if_needed()
-    if item:
-        _show_info(item, key)
+    _show_info(item, key)
 
 
 @action

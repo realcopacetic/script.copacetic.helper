@@ -94,7 +94,8 @@ The action sets these properties, which the service reads:
 [`trailer_fullscreen`](../script/actions.md#trailer_fullscreen) takes a playing
 trailer full screen without restarting it, or a requested one as soon as it starts
 (`trailer_fullscreen` property). [`trailer_return`](../script/actions.md#trailer_return)
-reopens the info dialog it came from once full screen closes.
+reopens the info dialog it came from once full screen closes. The round trip is a hop
+(`info_hop` is `fullscreen`), so the window underneath stays covered meanwhile.
 
 ## Stale trailers
 
