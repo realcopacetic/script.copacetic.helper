@@ -193,7 +193,7 @@ class DataHandler:
         """
         label = self.infolabels["Label"]
         directors, genres = self.infolabels["Director"], self.infolabels["Genre"]
-        properties = self._albumartist()
+        properties = self._albumartist() | {"dbid": self.dbid}  # whose metadata
         if random_pick:
             # One pick per item and Kodi session, so a refire (closing info, back
             # from a rail) keeps the rails it fed. The director pick stays whole for

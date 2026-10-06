@@ -44,6 +44,7 @@ and so on.
 | Infolabel | Value |
 |---|---|
 | `ListItem.Label`, `ListItem.Label2` | The focused item's `Label`. |
+| `ListItem.Property(dbid)` | The `id` it was read for. With `Label`, it tells a skin whose metadata the container holds while the next item's is still loading. |
 | `ListItem.Director` | All directors, or one at random with `random_pick=true`, whole, as the library names them. |
 | `ListItem.Genre` | All genres, or one at random with `random_pick=true`, cleaned for display (below). |
 | `ListItem.Property(genre_query)` | With `random_pick=true`: the same pick, whole, as the library names it (`Action & Adventure`, `R&B`). Pass this, not `ListItem.Genre`, to [`genre_credits`](library.md). |
