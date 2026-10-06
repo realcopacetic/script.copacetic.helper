@@ -201,7 +201,7 @@ A button's `onclick` names an action `type` plus options. Types are not case-sen
 |---|---|
 | `select` | Choice dialog over the control's allowed values (shown with their labels) |
 | `confirm` | Radiobutton and cycle only. Yes/no dialog (`heading`, `message`) that gates the control's own write: Yes → write, then the `yes` action list; No/cancel → nothing written, the `no` list runs if declared. With a `condition` (Rule Engine, against the highlighted entry), the dialog only appears when it is true; otherwise the write just happens. |
-| `browse_content` | The addon's content browser — returns a path plus extras (label, icon, target, …). `mode`: `widget` (default) or `menu`, which adds menu shortcuts and also returns `type`, `window` and `action`. |
+| `browse_content` | The addon's content browser — returns a path plus extras (label, icon, target, …). `mode`: `widget` (default) or `menu`, which adds menu shortcuts and also returns `type`, `window` and `action`. When `sibling_fields` maps `item_type`, it also returns the plural type of the items the path lists (`albums`, `movies`, else `unknown`), read from one short listing; `depth: 1` reads it inside the first folder instead, for widgets that show a level below their path. |
 | `browse_image` | Kodi's image browser, opened at `folder` (required) |
 | `browse` / `browse_single` / `browse_multiple` | Kodi's file browsers. `browseType`: `directories`, `files`, `images` or `writeable` (default `directories` for `browse`, `files` for the others). |
 | `input` / `numeric` | Keyboard / number entry |

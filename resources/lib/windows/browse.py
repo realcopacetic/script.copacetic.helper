@@ -406,6 +406,9 @@ _MUSIC_TYPES = {"music", "albums", "artists", "songs"}
 _PROGRAM_TYPES = {"programs"}
 _PICTURE_TYPES = {"pictures"}
 
+# Items _item_type reads, so a few untyped rows at the top don't hide the type.
+_TYPE_PROBE_LIMIT = 10
+
 # Content type → Kodi default icon
 _TYPE_ICON = {
     "movies": "DefaultMovies.png",
@@ -491,14 +494,15 @@ def _is_action_string(path: str) -> bool:
     return not any(path.startswith(scheme) for scheme in _PATH_SCHEMES)
 
 
-def _fetch_raw(path: str):
-    """Fetch a directory listing without a progress dialog."""
+def _fetch_raw(path: str, limit: int | None = None):
+    """Fetch a directory listing (its first limit items) without a progress dialog."""
     params = {"directory": path}
     if not path.startswith("special://"):
         params["media"] = "files"
     result = json_call(
         "Files.GetDirectory",
         properties=["thumbnail"],
+        limit=limit,
         params=params,
         parent="browse_content",
     )
@@ -553,6 +557,25 @@ def _derive_type(path: str) -> str:
         if path.startswith(prefix):
             return content_type
     return "unknown"
+
+
+def _item_type(path: str, depth: int = 0) -> str:
+    """
+    Plural type of the items path lists (``albums``), else ``unknown``.
+    depth reads it that many folders down, each time in the first folder.
+
+    :param path: Content path.
+    :param depth: Folder levels to descend before reading the type.
+    :return: Plural item type.
+    """
+    items = _fetch_raw(path, limit=_TYPE_PROBE_LIMIT)
+    if depth:
+        folder = next((i["file"] for i in items if i["filetype"] == "directory"), None)
+        return _item_type(folder, depth - 1) if folder else "unknown"
+    return next(
+        (f"{t}s" for i in items if (t := i.get("type", "unknown")) != "unknown"),
+        "unknown",
+    )
 
 
 def _derive_window(content_type: str) -> str:
@@ -878,8 +901,9 @@ def browse_content(cfg) -> dict[str, str] | None:
     Entry point for content path browsing. Called from onclick_actions.
     Widget mode returns ``{path, label, icon, target}``; menu mode
     also adds ``{type, window, action}`` for menu-item construction.
+    Either adds ``item_type`` when ``sibling_fields`` maps it.
 
-    :param cfg: Onclick config dict; supports ``heading`` and ``mode``.
+    :param cfg: Onclick config; ``heading``, ``mode``, and ``depth`` for ``item_type``.
     :return: Result dict, or None if cancelled.
     """
     s = _get_strings()
@@ -931,4 +955,7 @@ def browse_content(cfg) -> dict[str, str] | None:
             return built
 
         path, label = result
-        return _build_result(path, label, mode)
+        built = _build_result(path, label, mode)
+        if "item_type" in cfg.get("sibling_fields", {}):
+            built["item_type"] = _item_type(path, cfg.get("depth", 0))
+        return built
