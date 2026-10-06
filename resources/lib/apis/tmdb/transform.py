@@ -70,7 +70,6 @@ def tmdb_to_canonical(
     language_key = tmdb_language(language)
     if not (client := get_tmdb_client(language_key)):  # off: not even the cache
         return {}
-    cache_language = language_key if append_artwork else f"{language_key}|noart"
     cache_kind = (
         f"season_{season_number}"
         if kind == "season" and season_number is not None
@@ -78,7 +77,12 @@ def tmdb_to_canonical(
     )
 
     cache = ApiCacheHandler()
-    key = f"tmdb:{cache_kind}:{tmdb_id}:{cache_language}"
+    key = f"tmdb:{cache_kind}:{tmdb_id}:{language_key}"
+    if not append_artwork:
+        full, fresh = cache.get(key) or (None, False)
+        if full and fresh:  # the art-bearing entry is a superset
+            return full
+        key += "|noart"
     payload, fresh = cache.get(key) or (None, False)
     if fresh or cache_only:
         return payload or {}
@@ -89,7 +93,6 @@ def tmdb_to_canonical(
             kind=kind,
             tmdb_id=tmdb_id,
             season_number=season_number,
-            fields=None,
             append_artwork=append_artwork,
         )
     except HttpError as exc:

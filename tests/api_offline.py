@@ -407,6 +407,21 @@ class TmdbTest(Base):
             (self.net.requests, LOG["WARNING"] + LOG["ERROR"]), ([], warnings)
         )
 
+    def test_no_art_reads_the_art_entry(self):
+        self.net.answers = [TMDB_TV, TMDB_TV]
+        item = transform.tmdb_to_canonical("tvshow", 1399)
+        self.assertIn("include_image_language=en%2Cnull", self.net.requests[0].full_url)
+        self.assertEqual(
+            transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False), item
+        )
+        self.assertEqual(len(self.net.requests), 1)
+        self.cache.clear_all()
+        transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
+        url = self.net.requests[1].full_url
+        self.assertIn("append_to_response=videos&", url)
+        self.assertNotIn("include_image_language", url)
+        self.assertTrue(self.tmdb_row("tmdb:tvshow:1399:en-US|noart")[0])
+
     def test_refused_token_warns(self):
         warnings = LOG["WARNING"]
         self.net.answers = [http_error(401)]

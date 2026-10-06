@@ -165,7 +165,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32115"
-msgid "Language code for TMDB metadata, e.g. 'en-US', 'fr-FR', 'de-DE'. Restart required for changes to take effect."
+msgid "Language code for TMDB metadata, e.g. 'en-US', 'fr-FR', 'de-DE'."
 msgstr ""
 
 #: /resources/settings.xml

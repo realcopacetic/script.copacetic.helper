@@ -74,85 +74,42 @@ def fetch_tmdb_fields(
     kind: str,
     tmdb_id: int,
     season_number: int | None = None,
-    fields: Iterable[str] | None = None,
     append_artwork: bool = False,
 ) -> dict[str, Any]:
     """
-    Fetch specific TMDb fields for a given kind/id.
+    Fetch every known TMDb field for a kind/id in one request.
 
     :param client: Client for the user's token and language.
-    :param kind: TMDb media kind ("movie", "tvshow", etc.).
+    :param kind: TMDb media kind ("movie", "tvshow", "season").
     :param tmdb_id: TMDb item identifier.
     :param season_number: Season number for kind == "season".
-    :param fields: Logical fields to extract or None for all known.
     :param append_artwork: If False, skip heavy image append blocks (e.g. "images").
     :return: Mapping of field name → extracted value.
     :raises HttpError: When the request fails.
     """
-    if tmdb_id <= 0:
-        log.debug(
-            f"fetch_tmdb_fields → invalid {tmdb_id=} for {kind=}",
-        )
-        return {}
-
-    kind_map = TMDB_PROPERTIES.get(kind)
-    if not kind_map:
+    if not (kind_map := TMDB_PROPERTIES.get(kind)):
         log.debug(f"fetch_tmdb_fields → unknown {kind=}")
         return {}
-
-    endpoint_template = kind_map["endpoint"]
-    format_kwargs = {"id": tmdb_id}
-
-    if "{season_number}" in endpoint_template:
-        if season_number is None:
-            log.debug(
-                f"fetch_tmdb_fields → missing season_number for {kind=}, {tmdb_id=}"
-            )
-            return {}
-        format_kwargs["season_number"] = season_number
-
-    endpoint = endpoint_template.format(**format_kwargs)
-    field_specs = kind_map["fields"]
-    field_map = _build_field_map(field_specs)
-
-    append_blocks = list(kind_map.get("append") or [])
-    if not append_artwork:
-        append_blocks = [b for b in append_blocks if b != "images"]
-
-    if fields is None:
-        requested = list(field_map.keys())
-    else:
-        requested = [f for f in fields if f in field_map]
-        unknown = sorted(set(fields) - set(field_map))
-        if unknown:
-            log.debug(f"fetch_tmdb_fields → unknown fields for {kind=}: {unknown!r}")
-
-    if not requested:
-        log.debug(f"fetch_tmdb_fields → no valid fields requested for {kind=}")
+    endpoint = kind_map["endpoint"]
+    if "{season_number}" in endpoint and season_number is None:
+        log.debug(f"fetch_tmdb_fields → missing season_number for {kind=}, {tmdb_id=}")
         return {}
 
     params = {}
-    if append_blocks:
-        params["append_to_response"] = ",".join(sorted(set(append_blocks)))
-
-    # Include image language hints if we know the preferred ISO code.
-    lang = client.language
-    if lang:
-        iso = lang.split("-")[0].lower()
-        params["include_image_language"] = f"{iso},null"
-
-    data = client.get_json(endpoint, params=params)
-    if not data:
-        return {}
-
-    result = {}
-    for name in requested:
-        path = field_map[name]
-        value = _extract_path(data, path)
-        if value is not None:
-            result[name] = value
-
-    return result
+    if append := [b for b in kind_map["append"] if append_artwork or b != "images"]:
+        params["append_to_response"] = ",".join(append)
+    if "images" in append:  # images in the user's language, then language-less
+        params["include_image_language"] = (
+            f"{client.language.split('-')[0].lower()},null"
+        )
+    data = client.get_json(
+        endpoint.format(id=tmdb_id, season_number=season_number), params=params
+    )
+    return {
+        name: value
+        for name, path in _build_field_map(kind_map["fields"]).items()
+        if (value := _extract_path(data, path)) is not None
+    }
 
 
 class TmdbClient:
@@ -167,7 +124,7 @@ class TmdbClient:
         :param token: API key (v3) or read access token (v4).
         :param language: Default TMDb language.
         """
-        self.token = token.strip()
+        self.token = token
         self.language = language
         self.is_v4 = self.token.startswith("eyJ")  # JWT → v4 read token
         log.debug(
