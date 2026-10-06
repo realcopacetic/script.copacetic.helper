@@ -366,9 +366,8 @@ class TopSongsTest(Base):
 class TmdbTest(Base):
     def setUp(self):
         super().setUp()
-        self.settings = {"tmdb_access": "true", "tmdb_access_token": "v3key"}
+        self.settings = {"tmdb_access_token": "v3key"}
         http.ADDON.getSetting = lambda key: self.settings.get(key, "")
-        http.ADDON.getSettingBool = lambda key: self.settings.get(key) == "true"
 
     def tmdb_row(self, key="tmdb:tvshow:1399:en-US"):
         """The api_cache row for key: (payload, seconds left)."""
@@ -460,19 +459,13 @@ class TmdbTest(Base):
         self.assertEqual(requests[0]["method"], "VideoLibrary.GetTVShowDetails")
         self.assertEqual(requests[0]["params"]["tvshowid"], 7)
 
-    def test_off_sends_and_serves_nothing(self):
+    def test_no_token_sends_serves_and_logs_nothing(self):
         self.cache.put("tmdb:tvshow:1399:en-US", {"Title": "cached"}, DAY)
-        self.settings["tmdb_access"] = "false"
-        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
-        self.assertEqual(self.net.requests, [])
-
-    def test_no_token_quiet(self):
-        warnings = LOG["WARNING"] + LOG["ERROR"]
-        self.settings["tmdb_access_token"] = " "
-        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
-        self.assertEqual(
-            (self.net.requests, LOG["WARNING"] + LOG["ERROR"]), ([], warnings)
-        )
+        logged = sum(LOG.values())
+        for token in ("", " "):
+            self.settings["tmdb_access_token"] = token
+            self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
+        self.assertEqual((self.net.requests, sum(LOG.values())), ([], logged))
 
     def test_no_art_reads_the_art_entry(self):
         self.net.answers = [TMDB_TV, TMDB_TV]

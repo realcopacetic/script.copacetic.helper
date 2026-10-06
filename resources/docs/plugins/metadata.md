@@ -149,8 +149,8 @@ Episodes look up their show, as TMDb has no episode lookup here, and take only w
 fits an episode: the show's trailer, artwork and `tmdb_*` properties. The episode's
 own title, plot and year are kept.
 
-**Add-on settings needed:** `tmdb_access` must be on (it is off by default) and
-`tmdb_access_token` must hold a TMDb token. Without them, nothing is fetched or read
+**Add-on settings needed:** `tmdb_access_token` must hold a TMDb token (it is empty
+by default); the token is the user's consent. Without it, nothing is fetched or read
 from the cache, nothing is logged above debug, and `tmdb_details` returns no item.
 
 ---

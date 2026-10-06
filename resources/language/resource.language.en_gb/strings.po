@@ -124,23 +124,13 @@ msgid "API"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32009"
-msgid "Enable access to TMDB API"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32109"
-msgid "Adds details from TMDB (The Movie Database) that Kodi's library lacks: a TV show's creators, TV show trailers and, where the skin asks for it, extra artwork; plots and taglines then come from TMDB in the TMDB language. Needs your own TMDB API key or read access token. Sends the focused movie's or show's TMDB ID to api.themoviedb.org. Off: nothing is sent. This product uses the TMDB API but is not endorsed or certified by TMDB."
-msgstr ""
-
-#: /resources/settings.xml
 msgctxt "#32010"
 msgid "TMDB access token"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32110"
-msgid "Paste either your TMDB v3 API Key or your v4 API Read Access Token. Copacetic supports both. Only one is required."
+msgid "Adds details from TMDB (The Movie Database) that Kodi's library lacks: a TV show's creators, TV show trailers and, where the skin asks for it, extra artwork; plots and taglines then come from TMDB in the TMDB language. Paste your own TMDB v3 API key or v4 API read access token; either works. Sends the focused movie's or show's TMDB ID to api.themoviedb.org. Empty: TMDB is off and nothing is sent. This product uses the TMDB API but is not endorsed or certified by TMDB."
 msgstr ""
 
 #: /resources/settings.xml

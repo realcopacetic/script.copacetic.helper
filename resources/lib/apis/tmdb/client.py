@@ -20,16 +20,13 @@ def tmdb_language(language: str | None = None) -> str:
 
 def get_tmdb_client(language: str | None = None) -> "TmdbClient | None":
     """
-    A TmdbClient when the user turned TMDb access on (off by default) and gave a
-    token; off logs nothing, a missing token one debug line (the test button says).
+    A TmdbClient when the user gave a TMDb token, which is their consent: no
+    token, TMDb is off and nothing is logged.
 
     :param language: TMDb language code; None uses tmdb_language()'s default.
-    :return: TmdbClient or None if disabled or misconfigured.
+    :return: TmdbClient, or None without a token.
     """
-    if not ADDON.getSettingBool("tmdb_access"):
-        return None
     if not (token := ADDON.getSetting("tmdb_access_token").strip()):
-        log.debug("get_tmdb_client → TMDb on but no token")
         return None
     return TmdbClient(token=token, language=tmdb_language(language))
 

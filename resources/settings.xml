@@ -58,26 +58,18 @@
 		</category>
 		<category id="api_keys" label="32008" help="">
 			<group id="1" label="">
-				<setting id="tmdb_access" type="boolean" label="32009" help="32109">
-					<level>0</level>
-					<default>false</default>
-					<control type="toggle" />
-				</setting>
-				<setting id="tmdb_access_token" type="string" label="32010" help="32110" parent="tmdb_access">
+				<setting id="tmdb_access_token" type="string" label="32010" help="32110">
 					<level>0</level>
 					<default />
 					<constraints>
 						<allowempty>true</allowempty>
 					</constraints>
-					<dependencies>
-						<dependency type="enable" setting="tmdb_access">true</dependency>
-					</dependencies>
 					<control type="edit" format="string">
 						<heading>32011</heading>
 						<hidden>true</hidden>
 					</control>
 				</setting>
-				<setting id="tmdb_test" type="string" label="32014" help="32114" parent="tmdb_access">
+				<setting id="tmdb_test" type="string" label="32014" help="32114" parent="tmdb_access_token">
 					<level>0</level>
 					<default />
 					<constraints>
@@ -88,17 +80,17 @@
 						<data>RunScript(script.copacetic.helper,action=tmdb_test)</data>
 					</control>
 					<dependencies>
-						<dependency type="enable" setting="tmdb_access">true</dependency>
+						<dependency type="enable" setting="tmdb_access_token" operator="!is"></dependency>
 					</dependencies>
 				</setting>
-				<setting id="tmdb_language" type="string" label="32015" help="32115" parent="tmdb_access">
+				<setting id="tmdb_language" type="string" label="32015" help="32115" parent="tmdb_access_token">
 					<level>0</level>
 					<default>en-US</default>
 					<constraints>
 						<allowempty>false</allowempty>
 					</constraints>
 					<dependencies>
-						<dependency type="enable" setting="tmdb_access">true</dependency>
+						<dependency type="enable" setting="tmdb_access_token" operator="!is"></dependency>
 					</dependencies>
 					<control type="edit" format="string">
 						<heading>32016</heading>
