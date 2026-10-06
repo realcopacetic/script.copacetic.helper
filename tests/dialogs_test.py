@@ -73,12 +73,16 @@ def notifications() -> None:
 
 
 def background_progress() -> None:
-    """The extended progress pill, counting up to 100."""
+    """The extended progress pill, stepping back for a notification halfway."""
     bar = xbmcgui.DialogProgressBG()
     bar.create("Background progress", "Pill in the centre berth")
-    for percent in range(0, 101, 2):
+    for percent in range(101):
         bar.update(percent, message=f"{percent}%")
-        xbmc.sleep(80)
+        if percent == 50:
+            DIALOG.notification(
+                "Over progress", "The progress pill fades out until I go"
+            )
+        xbmc.sleep(150)  # 15 s: the 5 s toast leaves the pill on show both sides
     bar.close()
 
 
@@ -128,9 +132,9 @@ CASES = (
         lambda: DIALOG.browseSingle(0, "FileBrowser · folder", "files"),
     ),
     (
-        "FileBrowser · images, thumbs view",
+        "FileBrowser · images, starts in the skin's media (thumbs view)",
         lambda: DIALOG.browseSingle(
-            2, "FileBrowser · images", "pictures", ".jpg|.png", useThumbs=True
+            2, "FileBrowser · images", "pictures", defaultt="special://skin/media/"
         ),
     ),
     (
