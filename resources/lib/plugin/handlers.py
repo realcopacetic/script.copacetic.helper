@@ -501,7 +501,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def multiart_tiles(self) -> list[DirectoryItem] | None:
         """
         Seed one register per artwork tile of the info dialog's item so the tiles
-        take turns on one beat, each starting on its main image.
+        take turns on one beat, each starting on its main image; an image shows in
+        one tile only.
 
         :return: One item echoing the visit once the registers are seeded.
         """
@@ -509,6 +510,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             build_multiart_dict,
             order_multiart,
             seed_registers,
+            share_out,
             take_turns,
         )
 
@@ -532,7 +534,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
             )
         }
-        if not seed_registers(topmost_window_id(), take_turns(families), alive=alive):
+        sequences = take_turns(share_out(families))
+        if not seed_registers(topmost_window_id(), sequences, alive=alive):
             return
         return set_items(
             [{"file": plugin_path("multiart_tiles"), "properties": {"visit": visit}}]

@@ -235,6 +235,24 @@ def seed_registers(
     return True
 
 
+def share_out(families: Mapping[int, list[str]]) -> dict[int, list[str]]:
+    """
+    Give each image to one family only, so no two tiles show it: every main image
+    stays, and the families take turns claiming their shuffled extras.
+
+    :param families: Register id → URLs, main image first.
+    :return: Register id → URLs in the same order, without images held elsewhere.
+    """
+    seen = {_image_identity(urls[0]) for urls in families.values()}
+    shared = {i: urls[:1] for i, urls in families.items()}
+    for row in zip_longest(*(urls[1:] for urls in families.values())):
+        for urls, url in zip(shared.values(), row):
+            if url and (identity := _image_identity(url)) not in seen:
+                seen.add(identity)
+                urls.append(url)
+    return shared
+
+
 def take_turns(families: Mapping[int, list[str]]) -> dict[int, list[str]]:
     """
     Pad each rotating family so the tiles change in turn on one shared beat: with k

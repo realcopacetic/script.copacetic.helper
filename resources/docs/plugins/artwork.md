@@ -282,6 +282,10 @@ that should not all change at once.
   is open. Give them all the same scroll speed and delay.
 - Library artwork only; no TMDb artwork is added. The main image comes first and the
   rest are shuffled.
+- An image is shown in one FadeLabel only. When several art types hold the same image
+  (the same URL, or the same TMDb file in another size), the FadeLabels take turns
+  claiming their shuffled images, and the others leave it out. Main images always stay,
+  so two FadeLabels can start on the same image.
 - With `k` FadeLabels that have more than one image, each image stays for `k` steps,
   and the FadeLabels change one after another. A FadeLabel with one image stays still.
 - A FadeLabel whose art type the item does not have is left as it is.
