@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
@@ -157,6 +158,8 @@ class ImageEditor:
 
         base_ctx = self.cache_manager.prepare(resolved_url, ext)
         attrs = {"cached_file_hash": base_ctx.cached_file_hash}
+        if opts.enabled("darken"):
+            opts = self._resolve_darken_colours(opts, shared["results"])
         for process in processes:
             if not opts.enabled(process):
                 continue
@@ -211,6 +214,34 @@ class ImageEditor:
 
         shared["results"][art_type] = attrs
         return attrs
+
+    def _resolve_darken_colours(
+        self, opts: ArtOpts, results: Mapping[str, Mapping[str, Any]]
+    ) -> ArtOpts:
+        """
+        Swap the "clearlogo" alias in the darken source and contrast source for
+        the logo's analysed colour, before the cache key is built from them.
+
+        :param opts: Parsed ArtOpts for this art_type.
+        :param results: Results of the art types already processed in this call.
+        :return: ArtOpts with the alias resolved (None when the logo has no colour).
+        """
+        darken = opts.darken
+        color = results.get("clearlogo", {}).get(policy.ART_FIELD_COLOR)
+        swaps = {
+            name: color
+            for name in ("source", "contrast_source")
+            if (getattr(darken, name) or "").strip().lower() == "clearlogo"
+        }
+        if not swaps:
+            return opts
+
+        if not color:
+            log.debug(
+                f"{self.__class__.__name__} → darken clearlogo colour missing — "
+                f"source falls back to element_overlay_color, contrast is skipped"
+            )
+        return dataclasses.replace(opts, darken=dataclasses.replace(darken, **swaps))
 
     def _expected_from_spec(
         self, spec: dict[str, Any], *, opts: ArtOpts

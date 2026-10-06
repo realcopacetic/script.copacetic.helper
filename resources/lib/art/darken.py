@@ -211,7 +211,7 @@ class ColorDarken:
         """
         Resolve image, rects, overlay luminance and strength for darken sampling.
         opts.source is expected to be a resolved hex string at this point —
-        clearlogo resolution is handled upstream in ImageProcessor.darken.
+        clearlogo resolution is handled upstream in ImageEditor._handle_jobs.
 
         :param image: PIL image to sample.
         :param opts: Parsed options.

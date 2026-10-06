@@ -1,6 +1,5 @@
 # author: realcopacetic
 
-import dataclasses
 from typing import Any
 
 from PIL import Image, ImageFilter
@@ -139,34 +138,18 @@ class ImageProcessor:
 
     @log.duration
     def darken(
-        self, image: Image.Image, opts: ArtOpts, shared: dict[str, Any], **_: Any
+        self, image: Image.Image, opts: ArtOpts, **_: Any
     ) -> dict[str, Any] | None:
         """
-        Compute darken metadata without altering pixels.
-        Resolves clearlogo source explicitly from shared results before delegating
-        to ColorDarken. Returns None if darken is not enabled or fails.
+        Compute darken metadata without altering pixels. Colour aliases are
+        resolved upstream (ImageEditor). Returns None if disabled or failed.
 
         :param image: Input PIL image.
         :param opts: Parsed ArtOpts for this art_type.
-        :param shared: Shared context across jobs in this call.
         :return: Dict with "metadata" or None on failure.
         """
         if not (darken_opts := opts.darken) or not darken_opts.enabled:
             return None
-
-        color = shared.get("results", {}).get("clearlogo", {}).get("color")
-        swaps = {
-            name: color
-            for name in ("source", "contrast_source")
-            if (getattr(darken_opts, name) or "").strip().lower() == "clearlogo"
-        }
-        if swaps:
-            if not color:
-                log.debug(
-                    f"{self.__class__.__name__} → darken clearlogo colour missing — "
-                    f"source falls back to element_overlay_color, contrast is skipped"
-                )
-            darken_opts = dataclasses.replace(darken_opts, **swaps)
 
         try:
             return {
