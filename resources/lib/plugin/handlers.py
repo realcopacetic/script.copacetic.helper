@@ -32,9 +32,11 @@ from resources.lib.plugin.library import (
 )
 from resources.lib.plugin.music import (
     SONG_RANK_PROPERTIES,
+    compact_count,
     dial_item,
     library_item,
     library_rows,
+    musicbrainz_id,
     rank_songs,
 )
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
@@ -46,7 +48,6 @@ from resources.lib.shared.utilities import (
     condition,
     focused_control_id,
     infolabel,
-    json_call,
     parse_bool,
     plugin_path,
     set_plugincontent,
@@ -1159,15 +1160,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (listenbrainz.enabled() and self._require("id")):
             return
         artistid = int(self.dbid)
-        mbids = json_call(
-            "AudioLibrary.GetArtistDetails",
-            properties=["musicbrainzartistid"],
-            params={"artistid": artistid},
-            parent="top_songs",
-        )["result"]["artistdetails"]["musicbrainzartistid"]
-        if not (mbid := next(filter(None, mbids), None)):  # untagged: [""]
-            return
-        if not (recordings := listenbrainz.top_recordings(mbid)):
+        _, mbid = musicbrainz_id("artist", artistid, "top_songs")
+        if not (mbid and (recordings := listenbrainz.top_recordings(mbid))):
             return
         songs = library_rows(
             "song",
@@ -1180,6 +1174,30 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         set_plugincontent(content="songs")
         rows = rank_songs(recordings, songs)[: self.limit]
         return [library_item(row, "song") for row in rows] or None
+
+    @log.duration
+    def listeners(self) -> list[DirectoryItem] | None:
+        """
+        One item whose listeners property is ListenBrainz's listener count for
+        library artist, album or song ``self.dbid``, compact ("1.2M").
+
+        :return: List of one directory item, or None if unknown or access off.
+        """
+        from resources.lib.apis import listenbrainz
+
+        if not (listenbrainz.enabled() and self._require("id", "type")):
+            return
+        entity, mbid = musicbrainz_id(self.dbtype, int(self.dbid), "listeners")
+        if not (mbid and (count := listenbrainz.listeners(entity, mbid))):
+            return
+        return set_items(
+            [
+                {
+                    "file": plugin_path("listeners"),
+                    "properties": {"listeners": compact_count(count)},
+                }
+            ]
+        )
 
     @role_endpoint(
         field="studio",

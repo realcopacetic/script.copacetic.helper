@@ -203,6 +203,29 @@ or nothing, and the next open fetches.
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=top_songs&amp;id=$INFO[ListItem.DBID]&amp;limit=10</content>
 ```
 
+## `listeners`
+
+Not a listing: one item whose `ListItem.Property(listeners)` is how many people
+[ListenBrainz](https://listenbrainz.org) counts as having listened to a library
+artist, album or song, to two significant figures (`87`, `310K`, `1.2M`). The number
+only; the skin adds the word. Same setting, cache and spacing as `top_songs`
+(two weeks for a count, three days when ListenBrainz has none).
+
+It asks `POST /1/popularity/artist`, `/release-group` or `/recording` with the
+item's MusicBrainz id: an artist's `musicbrainzartistid`, an album's release group
+(`musicbrainzreleasegroupid`, so every edition counts) and a song's recording
+(`musicbrainztrackid`). No id in the library, no count from ListenBrainz or access
+off: no item.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `artist`, `album`, `song` | required | The item's type |
+| `id` | the item's `DBID` | required | The item |
+
+```xml
+<content>plugin://script.copacetic.helper/?info=listeners&amp;type=$INFO[ListItem.DBType]&amp;id=$INFO[ListItem.DBID]</content>
+```
+
 ---
 
 ## The add-on's own directory

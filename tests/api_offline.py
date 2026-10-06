@@ -32,7 +32,11 @@ from resources.lib.apis import http, listenbrainz  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
-from resources.lib.plugin.music import rank_songs, title_key  # noqa: E402
+from resources.lib.plugin.music import (  # noqa: E402
+    compact_count,
+    rank_songs,
+    title_key,
+)
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 
 FIXTURES = HELPER / "tests" / "fixtures"
@@ -489,6 +493,99 @@ class TmdbTest(Base):
         self.net.answers = [http_error(401)]
         self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
         self.assertEqual(LOG["WARNING"], warnings + 1)
+
+
+class ListenersTest(Base):
+    def setUp(self):
+        super().setUp()
+        self.calls = []
+
+        def rpc(request):
+            request = json.loads(request)
+            self.calls.append((request["method"], request["params"]["properties"]))
+            kind = request["method"].removeprefix("AudioLibrary.Get").lower()
+            field = request["params"]["properties"][0]
+            return json.dumps({"result": {kind: {field: self.mbid}}})
+
+        sys.modules["xbmc"].executeJSONRPC = rpc
+        handlers.set_items = lambda items: items
+        self.handler = object.__new__(handlers.PluginHandlers)
+        self.handler.params = {"info": "listeners", "id": "7", "type": "album"}
+        self.handler.dbid, self.handler.dbtype = "7", "album"
+        self.mbid = "f959a46a-a136-3134-9412-6572b23fad95"
+
+    def answer(self, users):
+        self.net.answers = [
+            json.dumps(
+                [
+                    {
+                        "release_group_mbid": self.mbid,
+                        "total_listen_count": 1,
+                        "total_user_count": users,
+                    }
+                ]
+            ).encode()
+        ]
+
+    def test_compact_count(self):
+        cases = {
+            0: "0",
+            87: "87",
+            994: "994",
+            999: "1K",
+            1234: "1.2K",
+            99_950: "100K",
+            314_279: "310K",
+            999_999: "1M",
+            1_234_567: "1.2M",
+            15_812_594: "16M",
+            2_500_000_000: "2.5B",
+        }
+        for count, text in cases.items():
+            self.assertEqual(compact_count(count), text)
+
+    def test_off_sends_nothing(self):
+        listenbrainz.ADDON.getSettingBool = lambda key: False
+        self.assertIsNone(self.handler.listeners())
+        self.assertEqual((self.calls, self.net.requests), ([], []))
+
+    def test_album_asks_its_release_group(self):
+        self.answer(314_279)
+        [item] = self.handler.listeners()
+        self.assertEqual(item["properties"], {"listeners": "310K"})
+        self.assertEqual(
+            self.calls,
+            [("AudioLibrary.GetAlbumDetails", ["musicbrainzreleasegroupid"])],
+        )
+        self.assertTrue(
+            self.net.requests[0].full_url.endswith("/1/popularity/release-group")
+        )
+
+    def test_song_and_artist_ids(self):
+        for type, field, entity in (
+            ("song", "musicbrainztrackid", "recording"),
+            ("artist", "musicbrainzartistid", "artist"),
+        ):
+            self.calls, self.net.requests = [], []
+            self.tick(2)
+            self.handler.dbtype = self.handler.params["type"] = type
+            self.mbid = [GORILLAZ] if type == "artist" else GORILLAZ
+            self.answer(10)
+            self.assertEqual(
+                self.handler.listeners()[0]["properties"], {"listeners": "10"}
+            )
+            self.assertEqual(self.calls[0][1], [field])
+            request = self.net.requests[0]
+            self.assertTrue(request.full_url.endswith(f"/1/popularity/{entity}"))
+            self.assertEqual(json.loads(request.data), {f"{entity}_mbids": [GORILLAZ]})
+
+    def test_untagged_or_unknown_hides(self):
+        self.mbid = ""
+        self.assertIsNone(self.handler.listeners())
+        self.assertEqual(self.net.requests, [])
+        self.mbid = "f959a46a-a136-3134-9412-6572b23fad95"
+        self.answer(None)
+        self.assertIsNone(self.handler.listeners())
 
 
 if __name__ == "__main__":

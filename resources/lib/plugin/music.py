@@ -40,6 +40,11 @@ _ICONS = {
     "playlist": "DefaultMusicPlaylists.png",
     "song": "DefaultMusicSongs.png",
 }
+_MBIDS = {  # MusicBrainz entity and AudioLibrary field per library type
+    "album": ("release-group", "musicbrainzreleasegroupid"),
+    "artist": ("artist", "musicbrainzartistid"),
+    "song": ("recording", "musicbrainztrackid"),
+}
 SONG_RANK_PROPERTIES = [*_DETAILS["song"][1], "art", "musicbrainztrackid", "playcount"]
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
@@ -61,6 +66,42 @@ def library_item(details: dict, type: str) -> DirectoryItem:
     if type == "song":
         return details["file"], li, False
     return f"musicdb://{type}s/{details[f'{type}id']}/", li, True
+
+
+def musicbrainz_id(type: str, dbid: int, parent: str) -> tuple[str, str]:
+    """
+    A library album, artist or song's MusicBrainz entity and id: its release group,
+    first artist id or recording (Picard's "MusicBrainz Track Id").
+
+    :param type: album, artist or song.
+    :param dbid: Library id.
+    :param parent: Caller name for logging.
+    :return: (entity, MBID), the MBID empty when untagged.
+    """
+    entity, field = _MBIDS[type]
+    mbid = json_call(
+        _DETAILS[type][0],
+        properties=[field],
+        params={f"{type}id": dbid},
+        parent=parent,
+    )["result"][f"{type}details"][field]
+    # An artist's is a one-id list, [""] when untagged
+    return entity, mbid[0] if type == "artist" else mbid
+
+
+def compact_count(count: int) -> str:
+    """
+    A count to two significant figures with K, M or B once that reaches 1000,
+    else as is: 87, 994, 1K (995), 310K, 1.2M.
+
+    :param count: Non-negative count.
+    :return: Compact text.
+    """
+    rounded = float(f"{count:.2g}")
+    for power, suffix in ((9, "B"), (6, "M"), (3, "K")):
+        if rounded >= 10**power:
+            return f"{rounded / 10**power:g}{suffix}"
+    return f"{count}"
 
 
 def title_key(title: str) -> str:
