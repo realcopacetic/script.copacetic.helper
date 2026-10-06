@@ -532,6 +532,21 @@ def info(dbtype: str, dbid: str, focus: str, **kwargs: str) -> None:
 
 
 @action
+def info_swap(key: str, **kwargs: str) -> None:
+    """
+    Kodi's own Information swapped the dialog's item with no onload (metadata
+    caught it): reopen on it as a hop, or on the last item if it can't be opened.
+
+    :param key: The swapped-in item's "dbtype:dbid".
+    """
+    if not (item := _info_item(key)):
+        key = infolabel("Window(home).Property(info_current)")
+        item = _info_item(key)
+        window_property("info_hop", value="back" if item else False)
+    _show_info(item, key)
+
+
+@action
 def info_back(**kwargs: str) -> None:
     """
     Pop the infoscreen trail to its newest openable item and show it. With none,

@@ -219,6 +219,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             f"{infolabel(f'{self.target_item}.DBID')}"
         )
 
+    def _info_swapped(self) -> bool:
+        """
+        Kodi's own Information (a rail's context menu) swaps the open dialog's item
+        with no onload to record it: hand the item to info_swap, as a rail click.
+
+        :return: True when the dialog is about to reopen.
+        """
+        current = infolabel("Window(home).Property(info_current)")
+        key = self._item_key()
+        if (
+            not current
+            or key == current
+            or infolabel("Window(home).Property(info_hop)")
+        ):
+            return False
+        window_property("info_hop", value="forward")
+        log.execute(f"RunScript(script.copacetic.helper,action=info_swap,key={key})")
+        return True
+
     def _background_origin(self) -> dict[str, str]:
         """
         The blur the window last showed for this dialog item, so opening info
@@ -575,6 +594,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
+        if self.item and self._info_swapped():
+            return
         guard = self._guard()
         if not guard.alive():
             return
