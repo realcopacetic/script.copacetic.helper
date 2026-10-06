@@ -1143,6 +1143,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if empty.
         """
+        if not self._require("id"):
+            return
         set_plugincontent(content="songs")
         rows = library_rows(
             "song",
