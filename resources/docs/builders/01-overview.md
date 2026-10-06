@@ -81,7 +81,7 @@ Include each one once from your skin. The addon also keeps two files in its own 
 
 | When | What runs |
 |---|---|
-| Kodi starts (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or belongs to another skin, everything is rebuilt. Otherwise only output files that are missing are built. |
+| Kodi starts (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or belongs to another skin, everything is rebuilt. Otherwise only output files that are missing are built. If anything was built, `ReloadSkin()` follows. |
 | Kodi starts (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
 | User closes a settings window with changes | Everything is rebuilt, then `ReloadSkin()` |
 | `action=rebuild` | Everything is rebuilt, then `ReloadSkin()` |
@@ -93,7 +93,7 @@ Include each one once from your skin. The addon also keeps two files in its own 
 
 ## Working on your skin
 
-**Production (default):** the service only builds what is missing, as above. Fast starts for users, no reloads.
+**Production (default):** the service only builds what is missing, as above. Fast starts for users: the skin reloads only on a start that built something.
 
 **Dev mode** (Addon Settings → Developers): rebuild everything on every Kodi start, then reload the skin.
 
