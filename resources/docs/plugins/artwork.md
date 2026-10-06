@@ -266,7 +266,7 @@ that should not all change at once.
 <control type="list" id="9401"><!-- hidden helper container; ids are examples -->
   <itemlayout />
   <focusedlayout />
-  <content>plugin://script.copacetic.helper/?info=multiart_tiles&amp;tiles=3402:poster,3403:fanart,3404:keyart&amp;multiart_max=15&amp;visit=$INFO[Window(home).Property(infoscreen_artwork_visit)]</content>
+  <content>plugin://script.copacetic.helper/?info=multiart_tiles&amp;tiles=3402:poster,3403:fanart,3404:keyart&amp;multiart_max=15&amp;visit=$INFO[Window(home).Property(infoscreen_gallery_visit)]</content>
 </control>
 ```
 
@@ -274,7 +274,7 @@ that should not all change at once.
 |---|---|---|---|
 | `tiles` | `<id>:<art type>,<id>:<art type>,…` | — | **Required.** Each FadeLabel id and the art family it shows, as for `multiart` above (`fanart`, `poster`, `keyart` …). |
 | `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for in each family. |
-| `visit` | any text | — | Must equal `Window(home).Property(infoscreen_artwork_visit)` (see below). |
+| `visit` | any text | — | Must equal `Window(home).Property(infoscreen_gallery_visit)` (see below). |
 
 - The artwork is read from the window's own item (`ListItem.Art(...)`), the item an
   info dialog shows. There is no `target`.
@@ -290,7 +290,7 @@ that should not all change at once.
   and the FadeLabels change one after another. A FadeLabel with one image stays still.
 - A FadeLabel whose art type the item does not have is left as it is.
 - After the main images are set, the helper compares `visit` with
-  `Window(home).Property(infoscreen_artwork_visit)`. If they differ, the other images
+  `Window(home).Property(infoscreen_gallery_visit)`. If they differ, the other images
   are not added and nothing is returned. Leave out `visit` and that property, or set
   both to the same value.
 
@@ -368,5 +368,5 @@ The helper reads these when you use the matching parameters:
 | A FadeLabel control with id `multiart_fadelabel` in the current window | `multiart_fadelabel` | The skin. |
 | A window property that changes once per focus change, passed as `visit` | `visit` | The skin. |
 | `Window(home).Property(background_origin)` | `background_match` | The helper (see [Window properties](#window-properties)). |
-| `Window(home).Property(infoscreen_artwork_visit)` | `multiart_tiles` with `visit` | The skin, once each time the dialog shows the artwork. |
+| `Window(home).Property(infoscreen_gallery_visit)` | `multiart_tiles` with `visit` | The skin, once each time the dialog shows the artwork. |
 | FadeLabel controls with the ids in `tiles`, in the topmost dialog | `multiart_tiles` | The skin. |

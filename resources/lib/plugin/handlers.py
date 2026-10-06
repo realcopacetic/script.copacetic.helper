@@ -538,7 +538,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         visit = self.params.get("visit", "")
-        stamp = "Window(home).Property(infoscreen_artwork_visit)"
+        stamp = "Window(home).Property(infoscreen_gallery_visit)"
         alive = lambda: infolabel(stamp) == visit
         families = {
             to_int(register): order_multiart(art)
