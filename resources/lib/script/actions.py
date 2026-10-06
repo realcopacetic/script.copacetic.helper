@@ -27,6 +27,7 @@ from resources.lib.shared.utilities import (
     play_files,
     reset_dev_state,
     to_int,
+    topmost_window_id,
     window_property,
 )
 
@@ -90,6 +91,18 @@ def container_move(offset: str, **kwargs: str) -> None:
             return
 
     log.execute(f"Control.Move({container},{offset})")
+
+
+@action
+def container_reset(id: str, **kwargs: str) -> None:
+    """
+    Select a container's first item in the topmost dialog or window, without
+    focusing it: a kept-in-memory window reopens on each list's last selection.
+
+    :param id: Container id.
+    """
+    window = xbmcgui.Window(topmost_window_id())
+    window.getControl(int(id)).selectItem(0)
 
 
 @action

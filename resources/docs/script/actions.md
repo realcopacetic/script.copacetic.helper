@@ -55,6 +55,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
 | [`container_move`](#container_move) | Moves a container one item, with optional stop at the ends |
+| [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
 | [`delete_orphans`](#delete_orphans) | Removes builder entries whose parent entry is gone |
 | [`dialog_yesno`](#dialog_yesno) | Asks a yes/no question and runs builtins for the answer |
 | [`dynamic_settings_window`](#dynamic_settings_window) | Opens a builder settings window |
@@ -165,6 +166,26 @@ Example from Copacetic, at the end of an auto-scroll timer:
 
 ```xml
 <onstop>RunScript(script.copacetic.helper,action=container_move,id=$INFO[Window(home).Property(autoscroll_id)],offset=1,wrap=false)</onstop>
+```
+
+---
+
+## container_reset
+
+Selects a container's first item in the topmost dialog (else the active window), with
+no focus change and no wrap (`ControlList.selectItem(0)`). Kodi restores each list's
+last selection when a kept-in-memory window opens again, before `<onload>`; this puts
+a list back at the start. `Control.Move` can't for a panel with more than one row,
+since it moves a column at a time and wraps.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | container id | required | The container to reset |
+
+Example from Copacetic, for each info dialog rail at open:
+
+```xml
+<onload condition="Integer.IsGreater(Container(3211).CurrentItem,1)">RunScript(script.copacetic.helper,action=container_reset,id=3211)</onload>
 ```
 
 ---
