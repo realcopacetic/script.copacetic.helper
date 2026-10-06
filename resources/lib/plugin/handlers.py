@@ -1170,7 +1170,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         pass
 
     @role_endpoint(
-        field="writer",
+        field="writers",
         category_id=32604,
         sources=[
             ("VideoLibrary.GetMovies", "movie"),
