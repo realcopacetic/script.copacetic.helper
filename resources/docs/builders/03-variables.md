@@ -108,9 +108,11 @@ Wrap rows in a list to keep them together as one **block**. A block with any tok
 
 Same rows, different order: now widget 3200's full chain runs before widget 3201's starts. Reach for a block whenever a set of rows must stay together per pass — a lone row is just a one-row block. In Copacetic, `content_typewriter_{region}` in `variables_content.json` uses several blocks in sequence: the first block loops fully across all widgets, then the second begins.
 
-### Duplicates are dropped
+### Rows Kodi never reads are dropped
 
 If two rows come out with the identical condition *and* value, only the first is kept. Kodi always picks the first match, so the copy was dead weight anyway. This mostly happens when a row's tokens don't actually vary across the loop.
+
+The first row with no condition also ends the variable: Kodi stops reading `<value>` rows there (`SkinVariable.cpp`), so the builder writes nothing after it.
 
 ### Empty terminators
 

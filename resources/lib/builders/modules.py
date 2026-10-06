@@ -898,7 +898,7 @@ class VariablesBuilder(BaseBuilder):
         """
         Expand blocks into a flat list in declared order. A block with any placeholder
         expands once per substitution, as a unit; a placeholder-free block emits once,
-        in place. Duplicate rows collapse to first occurrence (see ``_dedup_rows``).
+        in place. Rows Kodi never reads are dropped (see ``_dedup_rows``).
 
         :param blocks: Normalised list of blocks.
         :param subs: Substitution group (may be empty).
@@ -916,8 +916,8 @@ class VariablesBuilder(BaseBuilder):
     @staticmethod
     def _dedup_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
         """
-        Drop later rows whose (condition, value) duplicates an earlier row.
-        Kodi's cascade picks the first match, so duplicates are dead code.
+        Drop rows Kodi never reads: duplicates of an earlier (condition, value), and
+        every row after the first unconditioned one (SkinVariable.cpp stops there).
 
         :param rows: Flat list of resolved {condition, value} dicts.
         :return: Filtered list preserving first occurrences.
@@ -929,4 +929,6 @@ class VariablesBuilder(BaseBuilder):
             if key not in seen:
                 seen.add(key)
                 result.append(row)
+                if "condition" not in row:
+                    break
         return result
