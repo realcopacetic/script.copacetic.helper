@@ -78,9 +78,7 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
             None,
         )
         lookup_kind = "tvshow"
-        if kind == "episode":
-            # No /tv/{id}/episode endpoint — escalate to show-level fetch.
-            kind = "tvshow"
+        if kind == "episode":  # its UniqueID(tmdb) is the episode's: look up the show
             tmdb_id = None
     else:
         lookup_dbid = dbid

@@ -17,6 +17,7 @@ from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import plugin_path
 
 DAY = 86400
+EPISODE_KEYS = ("file", "art", "properties", "Trailer")  # show-level, fit an episode
 TTL_HIT, TTL_MISSING, TTL_DOWN = 7 * DAY, DAY, 300
 IMAGE_LIST_ROLES = {
     "images_posters": [
@@ -45,8 +46,8 @@ def tmdb_to_canonical(
     Fetch TMDb data and normalise it into canonical Kodi item format, cached in
     api_cache; failures are cached briefly and an expired item is served meanwhile.
 
-    :param kind: TMDb logical kind (for example, 'movie', 'tvshow').
-    :param tmdb_id: TMDb numeric identifier.
+    :param kind: TMDb logical kind ('movie', 'tvshow', 'season', 'episode').
+    :param tmdb_id: TMDb numeric identifier (the show's for an episode).
     :param season_number: Optional season number when kind == "season".
     :param language: Optional TMDb language override.
     :param append_artwork: If False, skip TMDb 'images' append block.
@@ -56,6 +57,11 @@ def tmdb_to_canonical(
     if tmdb_id <= 0:
         log.debug(f"tmdb_to_canonical → invalid {tmdb_id=} for {kind=}")
         return {}
+    if kind == "episode":  # no episode lookup: never the show's Title, Plot or Year
+        show = tmdb_to_canonical(
+            "tvshow", tmdb_id, None, language, append_artwork, cache_only
+        )
+        return {key: show[key] for key in EPISODE_KEYS if key in show}
 
     language_key = tmdb_language(language)
     cache_language = language_key if append_artwork else f"{language_key}|noart"

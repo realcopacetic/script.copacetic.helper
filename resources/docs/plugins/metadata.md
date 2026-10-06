@@ -145,7 +145,9 @@ passed, else from the focused item.
 | `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped. |
 | `language` | add-on setting `tmdb_language`, else `en-US` | TMDb language, for example `de-DE`. |
 
-Episodes return their show's details, as TMDb has no episode lookup here.
+Episodes look up their show, as TMDb has no episode lookup here, and take only what
+fits an episode: the show's trailer, artwork and `tmdb_*` properties. The episode's
+own title, plot and year are kept.
 
 **Add-on settings needed:** `tmdb_access` must be on and `tmdb_access_token` must hold
 a TMDb token. Without them, nothing is fetched and `tmdb_details` returns no item.

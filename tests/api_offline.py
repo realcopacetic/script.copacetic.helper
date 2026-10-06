@@ -30,6 +30,7 @@ sys.path.insert(0, str(HELPER))
 
 from resources.lib.apis import http, listenbrainz  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
+from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.plugin.music import rank_songs, title_key  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
@@ -366,6 +367,30 @@ class TmdbTest(Base):
         transform.tmdb_to_canonical("tvshow", 1399)
         self.assertEqual(self.tmdb_row(), (item, 7 * DAY))
         self.assertEqual(len(self.net.requests), 3)
+
+    def test_episode_takes_show_level_keys_only(self):
+        self.net.answers = [TMDB_TV]
+        episode = transform.tmdb_to_canonical("episode", 1399)
+        self.assertEqual(set(episode), {"file", "art", "properties", "Trailer"})
+        self.assertTrue(episode["Trailer"].endswith("video_id=trailer-key"))
+        self.assertTrue(self.tmdb_row()[0]["Title"])  # one show entry serves both
+        transform.tmdb_to_canonical("tvshow", 1399)
+        self.assertEqual(len(self.net.requests), 1)
+
+    def test_episode_context_looks_up_its_show(self):
+        requests = []
+
+        def rpc(request):
+            requests.append(json.loads(request))
+            show = {"uniqueid": {"tmdb": "1399"}}
+            return json.dumps({"result": {"tvshowdetails": show}})
+
+        sys.modules["xbmc"].executeJSONRPC = rpc
+        params = {"type": "episode", "id": "5", "tvshowid": "7", "tmdb_id": "63056"}
+        ctx = resolve_tmdb_context(params, "ListItem")
+        self.assertEqual((ctx["kind"], ctx["tmdb_id"]), ("episode", "1399"))
+        self.assertEqual(requests[0]["method"], "VideoLibrary.GetTVShowDetails")
+        self.assertEqual(requests[0]["params"]["tvshowid"], 7)
 
     def test_refused_token_warns(self):
         warnings = LOG["WARNING"]
