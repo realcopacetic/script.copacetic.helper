@@ -319,13 +319,22 @@ widget list:
 
 Replaces the open info dialog with the info of a library item, for clicks inside an
 info dialog: Kodi has no builtin that opens info for another item there. The helper
-looks the item up, force-closes the open info dialogs (video, music and song info)
-and opens the item's info with `xbmcgui.Dialog().info()`. When the item can't be
-opened, the dialog stays open and `info_hop` is cleared.
+force-closes the open info dialogs (`movieinformation`, `musicinformation` and
+`songinformation`) and opens the item's info with `xbmcgui.Dialog().info()`.
+
+Before closing anything, the helper looks up video items and songs in the library.
+Albums and artists are opened by their `musicdb://` path without a lookup.
+
+- **The item can't be opened** (another type, or a video item or song not in the
+  library): nothing is closed, and `info_hop` is cleared.
+- **Kodi doesn't open the item** (it declines it, or the user cancels the busy dialog
+  while music info loads): when `Dialog().info()` returns and `info_current` is not
+  this item's key, the helper clears `info_hop`. The info dialogs are already closed
+  by then, so the user is back on the window underneath.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `dbtype` | `movie`, `tvshow`, `episode`, `musicvideo`, `set`, `artist`, `album`, `song` | required | The item's `ListItem.DBType` |
+| `dbtype` | `movie`, `tvshow`, `episode`, `musicvideo`, `set`, `artist`, `album`, `song` | required | The item's `ListItem.DBType`. Any other value can't be opened. |
 | `dbid` | database id | required | The item's `ListItem.DBID` |
 
 Seasons can't be opened this way (Python can't set a season's show and season ids),
@@ -348,22 +357,43 @@ step back through them. Keys are `<dbtype>:<dbid>`.
 | `info_hop` | `forward` or `back` while a hop runs | the skin, before `info` or `info_back`; cleared by `<onload>` |
 
 The skin's `<onunload>` clears `info_current` and `info_trail` only while `info_hop`
-is empty, so a hop keeps the trail.
+is empty, so a hop keeps the trail. The helper reads `info_current` after the dialog
+it opened closes, to tell whether Kodi opened the item (see above).
+
+Example (from Copacetic), in both info dialogs:
+
+```xml
+<onload condition="!String.IsEmpty(Window(home).Property(info_current)) + !String.IsEqual(Window(home).Property(info_hop),back)">SetProperty(info_trail,$INFO[Window(home).Property(info_current)]$INFO[Window(home).Property(info_trail),|,],home)</onload>
+<onload>SetProperty(info_current,$VAR[info_key],home)</onload>
+<onload>ClearProperty(info_hop,home)</onload>
+<onunload condition="String.IsEmpty(Window(home).Property(info_hop))">ClearProperty(info_current,home)</onunload>
+<onunload condition="String.IsEmpty(Window(home).Property(info_hop))">ClearProperty(info_trail,home)</onunload>
+
+<!-- the item's key; empty for an item outside the library -->
+<variable name="info_key">
+  <value condition="Integer.IsGreater(ListItem.DBID,0)">$INFO[ListItem.DBType]:$INFO[ListItem.DBID]</value>
+</variable>
+```
 
 ---
 
 ## info_back
 
-Pops the newest key from `info_trail` that names an item other than
-`info_current` and that can be opened, writes the rest back and shows that item, as
-[`info`](#info) does. Keys it skips (seasons, items no longer in the library) are
-dropped. When there is none, it clears `info_hop` and closes the dialog, so the
-dialog's `<onunload>` clears the trail. No parameters.
+Steps back to the item shown before this one. It reads `info_current` and
+`info_trail`, takes the newest key in the trail that names another item and can be
+opened, writes the older keys back to `info_trail` and shows that item, as
+[`info`](#info) does. Keys it skips (seasons, the current item, video items or songs
+no longer in the library) are dropped. When there is none, it clears `info_hop` and
+closes the info dialogs, so the dialog's `<onunload>` clears the trail. No
+parameters.
 
 ```xml
 <onback condition="!String.IsEmpty(Window(home).Property(info_trail)) + String.IsEmpty(Window(home).Property(info_hop))">SetProperty(info_hop,back,home)</onback>
 <onback condition="!String.IsEmpty(Window(home).Property(info_trail)) + String.IsEmpty(Window(home).Property(info_hop))">RunScript(script.copacetic.helper,action=info_back)</onback>
 ```
+
+Copacetic puts these on a control in the dialog, with a third `<onback>` that moves
+focus to another control, so Kodi doesn't close the dialog as well.
 
 ---
 
