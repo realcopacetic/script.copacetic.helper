@@ -1,0 +1,132 @@
+[
+ {
+  "artist": {
+   "artist_credit_id": 22532,
+   "artists": [
+    {
+     "area": "England",
+     "artist_mbid": "e21857d5-3256-4547-afb3-4b6ded592596",
+     "begin_year": 1999,
+     "join_phrase": "",
+     "name": "Gorillaz",
+     "rels": {
+      "free streaming": "https://www.deezer.com/artist/14",
+      "lyrics": "https://muzikum.eu/en/gorillaz/lyrics",
+      "official homepage": "https://www.gorillaz.com/",
+      "purchase for download": "https://www.qobuz.com/us-en/interpreter/gorillaz/45975",
+      "social network": "https://www.instagram.com/gorillaz/",
+      "streaming": "https://www.qobuz.com/us-en/interpreter/gorillaz/45975",
+      "wikidata": "https://www.wikidata.org/wiki/Q189991",
+      "youtube": "https://www.youtube.com/channel/UCfIXdjDQH9Fau7y99_Orpjw"
+     },
+     "type": "Group"
+    }
+   ],
+   "name": "Gorillaz"
+  },
+  "release": {
+   "caa_id": 4436715369,
+   "caa_release_mbid": "2968b394-7ca8-3b6a-a3ec-a0239adb01c9",
+   "date": "2005-05-11",
+   "name": "Demon Days",
+   "rels": [],
+   "type": "Album"
+  },
+  "release_color": {
+   "blue": 111,
+   "green": 110,
+   "red": 115
+  },
+  "release_group": {
+   "caa_id": 4436715369,
+   "caa_release_mbid": "2968b394-7ca8-3b6a-a3ec-a0239adb01c9",
+   "date": "2005-05-11",
+   "name": "Demon Days",
+   "rels": [],
+   "type": "Album"
+  },
+  "release_group_mbid": "f959a46a-a136-3134-9412-6572b23fad95",
+  "total_listen_count": 15812594,
+  "total_user_count": 314279
+ },
+ {
+  "release_group": {
+   "date": "2001-03-24",
+   "name": "Gorillaz",
+   "type": "Album"
+  },
+  "release_group_mbid": "b0405d2a-5720-340a-bb56-4e135d031cc2",
+  "total_listen_count": 10174230,
+  "total_user_count": 263375
+ },
+ {
+  "release_group": {
+   "date": "2010-03-03",
+   "name": "Plastic Beach",
+   "type": "Album"
+  },
+  "release_group_mbid": "5a676824-18cd-4f7f-89f0-df21623e2042",
+  "total_listen_count": 6583696,
+  "total_user_count": 199013
+ },
+ {
+  "release_group": {
+   "date": "2010-12-25",
+   "name": "The Fall",
+   "type": "Album"
+  },
+  "release_group_mbid": "d7dcf004-6ff8-491b-bd17-01eef10ebb72",
+  "total_listen_count": 1925407,
+  "total_user_count": 71423
+ },
+ {
+  "release_group": {
+   "date": "2007-11-05",
+   "name": "D-Sides",
+   "type": "Album"
+  },
+  "release_group_mbid": "6cb6a296-951d-33da-8e14-9350cea33b71",
+  "total_listen_count": 1430773,
+  "total_user_count": 67884
+ },
+ {
+  "release_group": {
+   "date": "",
+   "name": "Plastic Beach Live",
+   "type": "Album"
+  },
+  "release_group_mbid": "c6b6748b-f8c9-4940-86ea-15261e2b7b10",
+  "total_listen_count": 628746,
+  "total_user_count": 108781
+ },
+ {
+  "release_group": {
+   "date": "2017-04-28",
+   "name": "Humanz",
+   "type": "Album"
+  },
+  "release_group_mbid": "066f840f-e357-436f-bb0a-47ad7cfcd84a",
+  "total_listen_count": 367413,
+  "total_user_count": 10820
+ },
+ {
+  "release_group": {
+   "date": "2006-03-27",
+   "name": "Demon Days: Live at the Manchester Opera House",
+   "type": "Album"
+  },
+  "release_group_mbid": "a75149ba-c345-3500-9f2f-ace851e5ba14",
+  "total_listen_count": 234329,
+  "total_user_count": 40428
+ },
+ {
+  "release_group": {
+   "date": "2005-03-22",
+   "name": "Feel Good Inc",
+   "type": "Single"
+  },
+  "release_group_mbid": "122990dd-643d-4e4e-bc13-a56318d6431b",
+  "total_listen_count": 215198,
+  "total_user_count": 37373
+ }
+]

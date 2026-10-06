@@ -3,11 +3,11 @@ Offline checks for the web API layer: apis/http.py, the api_cache table,
 apis/listenbrainz.py (TTLs, stale-on-failure, rate limit), top_songs and the
 TMDb client and cache (apis/tmdb).
 
-Network calls are replaced by a recorded ListenBrainz answer
-(tests/fixtures/listenbrainz_top_recordings.json, fetched 7 Oct 2026), a TMDb
-/tv/{id} answer in TMDb's shape (tests/fixtures/tmdb_tv_1399.json, hand-written:
-no token here) or by the failure under test. Run from the helper root:
-python tests/api_offline.py
+Network calls are replaced by recorded ListenBrainz answers
+(tests/fixtures/listenbrainz_*.json, Gorillaz, fetched Oct 2026), the documented
+popularity count shape, a TMDb /tv/{id} answer in TMDb's shape
+(tests/fixtures/tmdb_tv_1399.json, hand-written: no token here) or the failure
+under test. Run from the helper root: python tests/api_offline.py
 """
 
 import io
@@ -35,10 +35,10 @@ from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.plugin.music import rank_songs, title_key  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 
-FIXTURE = (
-    HELPER / "tests" / "fixtures" / "listenbrainz_top_recordings.json"
-).read_bytes()
-TMDB_TV = (HELPER / "tests" / "fixtures" / "tmdb_tv_1399.json").read_bytes()
+FIXTURES = HELPER / "tests" / "fixtures"
+FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
+ALBUMS = (FIXTURES / "listenbrainz_top_release_groups.json").read_bytes()
+TMDB_TV = (FIXTURES / "tmdb_tv_1399.json").read_bytes()
 GORILLAZ = "e21857d5-3256-4547-afb3-4b6ded592596"
 DAY = 86400
 
@@ -100,9 +100,9 @@ class Base(unittest.TestCase):
         sys.modules["xbmcgui"].Window().clearProperty(listenbrainz.NEXT_CALL)
         listenbrainz.ADDON.getSettingBool = lambda key: key == "listenbrainz_access"
 
-    def row(self, mbid=GORILLAZ):
+    def row(self, mbid=GORILLAZ, key="listenbrainz:top:"):
         """The api_cache row for mbid: (payload, seconds left)."""
-        row = self.cache._get_one("key = ?", (f"listenbrainz:top:{mbid}",))
+        row = self.cache._get_one("key = ?", (f"{key}{mbid}",))
         return (
             row["payload"] and json.loads(row["payload"]),
             row["expires_at"] - self.now,
@@ -180,6 +180,60 @@ class ListenBrainzTest(Base):
         self.tick(6 * DAY)
         listenbrainz.top_recordings(GORILLAZ)
         self.assertEqual(len(self.net.requests), 2)  # negative entry served
+
+    def test_token_wanted_negative_week(self):
+        self.net.answers = [http_error(401)]
+        self.assertEqual(listenbrainz.top_recordings(GORILLAZ), [])
+        self.assertEqual(self.row(), (None, 7 * DAY))
+
+    def test_top_release_groups(self):
+        self.net.answers = [ALBUMS]
+        albums = listenbrainz.top_release_groups(GORILLAZ)
+        self.assertEqual(
+            albums[:2],
+            [
+                ["f959a46a-a136-3134-9412-6572b23fad95", "Demon Days"],
+                ["b0405d2a-5720-340a-bb56-4e135d031cc2", "Gorillaz"],
+            ],
+        )
+        self.assertEqual(self.row(key="listenbrainz:albums:"), (albums, 14 * DAY))
+        self.assertTrue(
+            self.net.requests[0].full_url.endswith(
+                f"/1/popularity/top-release-groups-for-artist/{GORILLAZ}"
+            )
+        )
+
+    def test_listeners(self):
+        answer = [
+            {
+                "artist_mbid": GORILLAZ,
+                "total_listen_count": 1000,
+                "total_user_count": 10,
+            }
+        ]  # the documented answer shape
+        self.net.answers = [json.dumps(answer).encode()]
+        self.assertEqual(listenbrainz.listeners("artist", GORILLAZ), 10)
+        request = self.net.requests[0]
+        self.assertTrue(request.full_url.endswith("/1/popularity/artist"))
+        self.assertEqual(json.loads(request.data), {"artist_mbids": [GORILLAZ]})
+        key = "listenbrainz:listeners:artist:"
+        self.assertEqual(self.row(key=key), (10, 14 * DAY))
+
+    def test_listeners_unknown_negative(self):
+        answer = [
+            {
+                "release_group_mbid": GORILLAZ,
+                "total_listen_count": None,
+                "total_user_count": None,
+            }
+        ]
+        self.net.answers = [json.dumps(answer).encode()]
+        self.assertIsNone(listenbrainz.listeners("release-group", GORILLAZ))
+        self.assertEqual(
+            json.loads(self.net.requests[0].data), {"release_group_mbids": [GORILLAZ]}
+        )
+        key = "listenbrainz:listeners:release-group:"
+        self.assertEqual(self.row(key=key), (None, 3 * DAY))
 
     def test_offline_without_stale(self):
         self.net.answers = [URLError("offline")]
