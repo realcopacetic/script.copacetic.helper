@@ -110,7 +110,8 @@ the home screen. A plugin path that never changes is only called once.
 ## `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`
 
 Everything in the library credited to one person, genre, studio or artist. Each kind
-of item is sorted newest first, and the kinds follow each other in the order below.
+of item is sorted by `sort` (newest first by default) and cut to `limit`, and the kinds
+follow each other in the order below.
 
 | `info=` | Searches |
 |---|---|
@@ -127,6 +128,8 @@ of item is sorted newest first, and the kinds follow each other in the order bel
 | `type` | `movie`, `tvshow`, `episode`, `musicvideo` | — | Search that kind only, e.g. `movie` for movies only. A kind the path does not search (see the table) gives an empty list. |
 | `exclude_value` | any text | — | Leave out items whose `exclude_key` field equals this. Use it to hide the item you came from. |
 | `exclude_key` | a Kodi library filter field | `title` | The field `exclude_value` is compared with. |
+| `sort` | a JSON-RPC sort method (`year`, `votes`, `random` …) | `year` | The order Kodi fetches in, descending. |
+| `limit` | whole number | all | Most items of each kind, after the sort. The kinds add up, so the list can hold up to twice this. |
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=director_credits&amp;label=$INFO[ListItem.Director]&amp;exclude_value=$INFO[ListItem.Title]</content>
@@ -138,8 +141,9 @@ Pass one name in `label`. `ListItem.Director` holds several names, separated by
 (`ListItem.Director`), one genre (`ListItem.Property(genre_query)`) and always one
 studio (`ListItem.Studio`), each as the library names it. Names and titles may hold `&` (`Action &
 Adventure`): the helper splits its parameters only where `&name=` follows, where a
-`videodb://` filter in the path would cut the value at the `&`. For a random order,
-add `sortby="random"` to the container's `<content>`.
+`videodb://` filter in the path would cut the value at the `&`. Pass the container's
+own `limit` and order as `limit` and `sort`, so Kodi never fetches a whole genre or
+studio for the container to cut.
 
 ## `genre_music`
 

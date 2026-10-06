@@ -178,6 +178,7 @@ def role_credits(
     parent: str,
     tag_applier: TagApplier | None,
     postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
+    limit: int | None = None,
 ) -> list[DirectoryItem] | None:
     """
     Generic role-based credits fetcher for actors/directors/writers.
@@ -190,6 +191,7 @@ def role_credits(
     :param parent: Parent name for logging.
     :param tag_applier: Optional tag-applier for the VideoInfoTag.
     :param postprocess: Optional in-place mutator for the raw item list.
+    :param limit: Most items per source, after the sort; None for all.
     :return: List of (file, ListItem, isFolder) tuples, or None if empty.
     """
     results = []
@@ -208,6 +210,7 @@ def role_credits(
                 sort=sort,
                 parent=parent,
                 tag_applier=tag_applier,
+                limit=limit,
                 postprocess=postprocess,
             )
         )
@@ -224,8 +227,9 @@ def role_endpoint(
     postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
 ):
     """
-    Decorator for role-based credits endpoints.
-    Injects static configuration and dispatches into ``role_credits()``.
+    Decorator for role-based credits endpoints: injects static configuration and
+    dispatches into ``role_credits()`` with the path's sort= (a JSON-RPC sort
+    method, descending; default year) and limit=.
 
     :param field: Kodi JSON filter field (``"actor"``, ``"director"``, ``"writer"``).
     :param category_id: Localized string ID for the plugin category label.
@@ -248,10 +252,11 @@ def role_endpoint(
                 filter_exclude=self.filter_exclude,
                 # type= keeps one media type, e.g. movies only for a movie
                 sources=[s for s in sources if self.dbtype in ("", s[1])],
-                sort=self.sort_year,
+                sort={"method": self.params.get("sort", "year"), "order": "descending"},
                 parent=parent,
                 tag_applier=apply_videoinfotag,
                 postprocess=postprocess,
+                limit=self.limit,
             )
 
         return wrapper

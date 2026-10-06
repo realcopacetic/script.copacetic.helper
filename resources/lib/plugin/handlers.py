@@ -159,7 +159,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "ListItem" if self.item else f"{self.identity_container}.ListItem"
         )
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
-        self.sort_year = {"order": "descending", "method": "year"}
         self.limit = to_int(params.get("limit"), None)
         self.randomise = params.get("randomise", "")
 
