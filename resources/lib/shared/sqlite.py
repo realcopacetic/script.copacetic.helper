@@ -172,8 +172,8 @@ class ArtworkCacheHandler(SQLiteHandler):
 
     def _initialize_database(self) -> None:
         """
-        Create artwork cache table and indexes.
-        Ensures schema exists before use.
+        Create artwork cache table and indexes, adding any columns an older
+        cache lacks so writes of every ART_DB_FIELDS column succeed.
         """
         cols_sql = ",\n".join(f"{name} {decl}" for name, decl in policy.ART_DB_SCHEMA)
         unique_sql = ", ".join(policy.ART_DB_UNIQUE)
@@ -186,6 +186,15 @@ class ArtworkCacheHandler(SQLiteHandler):
                     UNIQUE ({unique_sql})
                 )
                 """)
+
+            have = {
+                row[1] for row in conn.execute(f"PRAGMA table_info({self.TABLE_NAME})")
+            }
+            for name, decl in policy.ART_DB_SCHEMA:
+                if name not in have:
+                    conn.execute(
+                        f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN {name} {decl}"
+                    )
 
             for idx_name, cols in policy.ART_DB_INDEXES:
                 idx_cols_sql = ", ".join(cols)
