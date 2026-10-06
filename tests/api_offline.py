@@ -124,6 +124,14 @@ class HttpTest(Base):
         )
         self.assertEqual(request.get_header("Accept"), "application/json")
 
+    def test_post_body(self):
+        self.net.answers = [b"[]"]
+        http.get_json("https://example.org/x", body={"artist_mbids": [GORILLAZ]})
+        request = self.net.requests[0]
+        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(json.loads(request.data), {"artist_mbids": [GORILLAZ]})
+        self.assertEqual(request.get_header("Content-type"), "application/json")
+
     def test_errors(self):
         self.net.answers = [
             http_error(429, {"X-RateLimit-Reset-In": "7"}),

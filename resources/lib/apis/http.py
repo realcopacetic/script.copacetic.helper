@@ -28,23 +28,27 @@ def get_json(
     params: dict | None = None,
     headers: dict | None = None,
     timeout: float = 5,
+    body: Any = None,
 ) -> Any:
     """
-    GET url with params and decode its JSON, sending the helper's contact
-    User-Agent. Logs one debug line: status and path, never the query.
+    GET url with params (POST body as JSON when given) and decode its JSON, sending
+    the helper's contact User-Agent. Logs one debug line: status and path.
 
     :param url: Endpoint URL without a query string.
     :param params: Query parameters.
     :param headers: Extra headers (e.g. Authorization).
     :param timeout: Seconds to wait for the server.
+    :param body: JSON-serialisable request body; makes the request a POST.
     :return: Decoded JSON.
     :raises HttpError: On an HTTP error status, no connection or bad JSON.
     """
     request = Request(
         f"{url}?{urlencode(params)}" if params else url,
+        None if body is None else json.dumps(body).encode(),
         headers={
             "User-Agent": USER_AGENT,
             "Accept": "application/json",
+            "Content-Type": "application/json",
             **(headers or {}),
         },
     )
