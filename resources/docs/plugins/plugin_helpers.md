@@ -32,6 +32,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `info=` | What it does | Page |
 |--------|--------------|------|
 | `artwork` | Crops clearlogos, blurs backgrounds, analyses colours, works out darken values, collects multiart and can fill a FadeLabel with it. | [Artwork](artwork.md) |
+| `multiart_tiles` | Fills several FadeLabels in an info dialog with the item's artwork, so they change one at a time. | [Artwork](artwork.md#multiart_tiles) |
 | `metadata` | Returns tidied details of the focused item, with optional TMDb details. | [Metadata](metadata.md) |
 | `tmdb_details` | Returns the focused item's details and artwork from TMDb. | [Metadata](metadata.md#tmdb_details) |
 | `progressbar` | Works out watched progress and places a progress bar. | [Progress Bar](progressbar.md) |
@@ -135,8 +136,13 @@ Every guarded helper builds a guard object at startup and re-checks it at key po
 item the path works on. Without it, `Container` (the current container) is used.
 `target=item` reads the window's own item instead (bare `ListItem.*`), which in an
 info dialog is the item the dialog shows; a `Container` read there lands on the
-focused list (the cast list 50 or a rail). The item never scrolls, so it takes no
+focused list (for example the cast list). The item never scrolls, so it takes no
 `focus_guard`; `focus_ids` still works, and artwork returns no position properties.
+
+`progressbar` and `typewriter` move controls. They use the current window, even when
+a dialog is open on top of it. With `dialog=true`, or with `target=item`, they use the
+topmost dialog instead. Pass `dialog=true` when the controls are in a dialog and the
+path reads a list in it (`target=<id>`).
 
 Two cases always pass: when no control has focus at all, and when the live identity
 reads as empty.
@@ -195,7 +201,7 @@ Guarded handlers don't check once at startup — they re-check before every stag
 - **`typewriter`** receives the guard's `alive` callable and checks it **per character**, alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating and again before moving UI controls (the data result is still returned; only the UI update is skipped).
 - **`jumpbutton`** is deliberately **unguarded** — it must stay responsive during scroll.
-- **`reposition`**, the library listings and `speed_dial` are unguarded.
+- **`reposition`**, `multiart_tiles`, the library listings and `speed_dial` are unguarded. `multiart_tiles` has its own check instead (see [Artwork](artwork.md#multiart_tiles)).
 
 ---
 
