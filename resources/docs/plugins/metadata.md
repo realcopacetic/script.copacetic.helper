@@ -30,8 +30,8 @@ and so on.
 |---|---|---|---|
 | `target` | container id, or `item` | — | Container whose focused item is read. Omit to use `Container` (the current container); `item` reads the window's own item (an info dialog's). |
 | `type` | `movie`, `tvshow`, `season`, `episode`, `set`, … | — | The item's `DBType`. Used for TMDb lookups and for sets (see Studio below). |
-| `id` | number | — | The item's `DBID`. Used for TMDb lookups. |
-| `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. |
+| `id` | number | — | The item's `DBID`. Used for TMDb lookups, for album artists and set studios (see below), and to keep the `random_pick` choice. |
+| `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. The same item gets the same pick until Kodi restarts. |
 | `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
 | `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the trailer. See [TMDb lookups](#tmdb-lookups). |
 | `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDb's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDb artwork. |
@@ -52,7 +52,12 @@ and so on.
 | `ListItem.Plot`, `ListItem.PlotOutline` | As on the focused item. |
 | `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used only when the library has none. |
 | `ListItem.Property(truncated_label)` | The cut-down text, when `truncate_width` is passed. |
-| `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits). Empty for other types. |
+| `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits). Empty for other types. |
+
+The random pick is fixed per item (`type`, `id` and label) for the Kodi session, so a
+refire, for example after closing an info dialog, gives the same director and genre.
+The helper keeps a random seed for the session in the Home window property
+`session_salt`. Don't set or clear it from the skin.
 
 With `random_pick=true`, a compound genre such as `Action & Adventure` is split on
 `&` and one part is kept for `ListItem.Genre`; `genre_aliases` and full stops (which

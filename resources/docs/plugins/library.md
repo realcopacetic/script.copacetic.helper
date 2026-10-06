@@ -1,6 +1,7 @@
 # Library Listings
 
-These plugin paths fill a container with items from your video library. Use them as
+These plugin paths fill a container with items from your video library (`genre_music`:
+your music library). Use them as
 widgets or in any list. Each item carries the usual library infolabels and artwork,
 so your existing layouts work with them.
 
@@ -41,9 +42,9 @@ so your existing layouts work with them.
   details, directors and writers to keep them fast. So `ListItem.Director`,
   `ListItem.Writer` and the `ListItem.VideoResolution` family are empty on those
   lists.
-- No item is a folder, not even a TV show. Its path is the library file path. To
-  open a TV show, use your own `<onclick>`, for example
-  `ActivateWindow(Videos,videodb://tvshows/titles/$INFO[ListItem.DBID]/,return)`.
+- TV shows are folders, with the path `videodb://tvshows/titles/<DBID>/`, so
+  selecting one opens the show as in the library. Other video items are not folders;
+  their path is the library file path.
 
 ---
 
@@ -105,10 +106,10 @@ the home screen. A plugin path that never changes is only called once.
 <content>plugin://script.copacetic.helper/?info=random_tvshows&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
 ```
 
-## `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`
+## `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`
 
-Everything in the library credited to one person, genre or studio. Each kind of item is sorted newest
-first, and the kinds follow each other in the order below.
+Everything in the library credited to one person, genre, studio or artist. Each kind
+of item is sorted newest first, and the kinds follow each other in the order below.
 
 | `info=` | Searches |
 |---|---|
@@ -121,8 +122,8 @@ first, and the kinds follow each other in the order below.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `label` | a name | — | The person, genre or studio to search for, as the library names it. |
-| `type` | a media type from the table above | — | Search that kind only, e.g. `movie` for a movie's "more from" rail. |
+| `label` | a name | — | The person, genre, studio or artist to search for, as the library names it. |
+| `type` | `movie`, `tvshow`, `episode`, `musicvideo` | — | Search that kind only, e.g. `movie` for movies only. A kind the path does not search (see the table) gives an empty list. |
 | `exclude_value` | any text | — | Leave out items whose `exclude_key` field equals this. Use it to hide the item you came from. |
 | `exclude_key` | a Kodi library filter field | `title` | The field `exclude_value` is compared with. |
 
@@ -144,7 +145,8 @@ add `sortby="random"` to the container's `<content>`.
 Library artists, albums or songs in one genre, in random order. The items are music
 library items: `DBType` `artist`, `album` or `song` and their `DBID`; artists and
 albums open as `musicdb://` folders, songs play their file. They carry their library
-artwork, `Genre`, `Artist`, `Year` and so on.
+artwork, `Genre`, `Artist`, `Year` and so on; `Art(icon)` is always Kodi's default icon
+for the type. The container's content is `artists`, `albums` or `songs`.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
