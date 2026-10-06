@@ -20,20 +20,17 @@ def tmdb_language(language: str | None = None) -> str:
 
 def get_tmdb_client(language: str | None = None) -> "TmdbClient | None":
     """
-    Create a TmdbClient instance if TMDb access is enabled.
+    A TmdbClient when the user turned TMDb access on (off by default) and gave a
+    token; off logs nothing, a missing token one debug line (the test button says).
 
     :param language: TMDb language code; None uses tmdb_language()'s default.
     :return: TmdbClient or None if disabled or misconfigured.
     """
-    enabled = ADDON.getSetting("tmdb_access") == "true"
-    if not enabled:
+    if not ADDON.getSettingBool("tmdb_access"):
         return None
-
-    token = (ADDON.getSetting("tmdb_access_token") or "").strip()
-    if not token:
-        log.warning("get_tmdb_client → TMDb disabled or missing token.")
+    if not (token := ADDON.getSetting("tmdb_access_token").strip()):
+        log.debug("get_tmdb_client → TMDb on but no token")
         return None
-
     return TmdbClient(token=token, language=tmdb_language(language))
 
 
@@ -73,21 +70,21 @@ def _build_field_map(
 
 
 def fetch_tmdb_fields(
+    client: "TmdbClient",
     kind: str,
     tmdb_id: int,
     season_number: int | None = None,
     fields: Iterable[str] | None = None,
-    language: str | None = None,
     append_artwork: bool = False,
 ) -> dict[str, Any]:
     """
     Fetch specific TMDb fields for a given kind/id.
 
+    :param client: Client for the user's token and language.
     :param kind: TMDb media kind ("movie", "tvshow", etc.).
     :param tmdb_id: TMDb item identifier.
     :param season_number: Season number for kind == "season".
     :param fields: Logical fields to extract or None for all known.
-    :param language: Optional TMDb language override.
     :param append_artwork: If False, skip heavy image append blocks (e.g. "images").
     :return: Mapping of field name → extracted value.
     :raises HttpError: When the request fails.
@@ -96,10 +93,6 @@ def fetch_tmdb_fields(
         log.debug(
             f"fetch_tmdb_fields → invalid {tmdb_id=} for {kind=}",
         )
-        return {}
-
-    client = get_tmdb_client(language=language)
-    if not client:
         return {}
 
     kind_map = TMDB_PROPERTIES.get(kind)
@@ -143,7 +136,7 @@ def fetch_tmdb_fields(
         params["append_to_response"] = ",".join(sorted(set(append_blocks)))
 
     # Include image language hints if we know the preferred ISO code.
-    lang = language or client.language
+    lang = client.language
     if lang:
         iso = lang.split("-")[0].lower()
         params["include_image_language"] = f"{iso},null"

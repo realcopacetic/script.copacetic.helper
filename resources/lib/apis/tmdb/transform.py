@@ -3,7 +3,11 @@
 from typing import Any, Mapping
 
 from resources.lib.apis.http import HttpError
-from resources.lib.apis.tmdb.client import fetch_tmdb_fields, tmdb_language
+from resources.lib.apis.tmdb.client import (
+    fetch_tmdb_fields,
+    get_tmdb_client,
+    tmdb_language,
+)
 from resources.lib.apis.tmdb.fields import (
     TMDB_FIELD_MAP,
     apply_tmdb_transform,
@@ -64,6 +68,8 @@ def tmdb_to_canonical(
         return {key: show[key] for key in EPISODE_KEYS if key in show}
 
     language_key = tmdb_language(language)
+    if not (client := get_tmdb_client(language_key)):  # off: not even the cache
+        return {}
     cache_language = language_key if append_artwork else f"{language_key}|noart"
     cache_kind = (
         f"season_{season_number}"
@@ -79,11 +85,11 @@ def tmdb_to_canonical(
 
     try:
         raw = fetch_tmdb_fields(
+            client,
             kind=kind,
             tmdb_id=tmdb_id,
             season_number=season_number,
             fields=None,
-            language=language_key,
             append_artwork=append_artwork,
         )
     except HttpError as exc:

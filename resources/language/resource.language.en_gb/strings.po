@@ -130,7 +130,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32109"
-msgid "Used to enrich certain views with additional metadata not available natively in Kodi's library."
+msgid "Adds details from TMDB (The Movie Database) that Kodi's library lacks: a TV show's creators, TV show trailers and, where the skin asks for it, extra artwork; plots and taglines then come from TMDB in the TMDB language. Needs your own TMDB API key or read access token. Sends the focused movie's or show's TMDB ID to api.themoviedb.org. Off: nothing is sent."
 msgstr ""
 
 #: /resources/settings.xml

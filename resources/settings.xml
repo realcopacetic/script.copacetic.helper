@@ -60,7 +60,7 @@
 			<group id="1" label="">
 				<setting id="tmdb_access" type="boolean" label="32009" help="32109">
 					<level>0</level>
-					<default>true</default>
+					<default>false</default>
 					<control type="toggle" />
 				</setting>
 				<setting id="tmdb_access_token" type="string" label="32010" help="32110" parent="tmdb_access">
