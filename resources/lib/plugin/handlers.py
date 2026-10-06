@@ -1112,18 +1112,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def genre_music(self) -> list[DirectoryItem] | None:
         """
-        Build a container of library artists, albums or songs (type=) in genre
-        ``self.label``, in random order; exclude_value leaves one out by name.
+        Build a container of library artists, albums or songs (type=) in any of the
+        genres in ``self.label`` (" / " joined, as ListItem.Genre), in random order;
+        exclude_value leaves one out by name.
 
         :return: List of directory items for Kodi, or None if empty.
         """
         name = {"artist": "artist", "album": "album"}.get(self.dbtype, "title")
+        genres = self.label.split(" / ")  # a list value matches any of them
         set_plugincontent(content=f"{self.dbtype}s", category=self.label)
         return (
             library_items(
                 self.dbtype,
                 [
-                    {"field": "genre", "operator": "is", "value": self.label},
+                    {"field": "genre", "operator": "is", "value": genres},
                     {"field": name, "operator": "isnot", "value": self.exclude_value},
                 ],
                 sort={"method": "random"},

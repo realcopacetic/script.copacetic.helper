@@ -46,7 +46,7 @@ and so on.
 | `ListItem.Label`, `ListItem.Label2` | The focused item's `Label`. |
 | `ListItem.Director` | All directors, or one at random with `random_pick=true`, whole, as the library names them. |
 | `ListItem.Genre` | All genres, or one at random with `random_pick=true`, cleaned for display (below). |
-| `ListItem.Property(genre_query)` | With `random_pick=true`: the same pick, whole, as the library names it (`Action & Adventure`, `R&B`). Pass this, not `ListItem.Genre`, to [`genre_credits`](library.md) and [`genre_music`](library.md#genre_music). |
+| `ListItem.Property(genre_query)` | With `random_pick=true`: the same pick, whole, as the library names it (`Action & Adventure`, `R&B`). Pass this, not `ListItem.Genre`, to [`genre_credits`](library.md). |
 | `ListItem.Studio` | The first studio, as the library names it (`Disney+`). Kodi sets have no studio: with `type=set` it is read from `ListItem(-1).Studio` of the container, and with `target=item` (a set's own info dialog) it is the first studio of the set's earliest movie. |
 | `ListItem.Writer` | The first writer. |
 | `ListItem.Plot`, `ListItem.PlotOutline` | As on the focused item. |

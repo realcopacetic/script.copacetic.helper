@@ -17,7 +17,7 @@ so your existing layouts work with them.
 | `genre_credits` | Movies and TV shows in a given genre. |
 | `studio_credits` | Movies and TV shows from a given studio or network. |
 | `artist_credits` | Music videos by a given artist. |
-| `genre_music` | Library artists, albums or songs in a given genre. |
+| `genre_music` | Library artists, albums or songs in any of the given genres. |
 | `popular_songs` | A library artist's songs, most played first. |
 
 ```xml
@@ -143,21 +143,22 @@ add `sortby="random"` to the container's `<content>`.
 
 ## `genre_music`
 
-Library artists, albums or songs in one genre, in random order. The items are music
-library items: `DBType` `artist`, `album` or `song` and their `DBID`; artists and
-albums open as `musicdb://` folders, songs play their file. They carry their library
+Library artists, albums or songs in any of the given genres, in random order. Pass the
+item's own `ListItem.Genre`, so a genre that holds only this item still leaves the
+others. The items are music library items: `DBType` `artist`, `album` or `song` and
+their `DBID`; artists and albums open as `musicdb://` folders, songs play their file. They carry their library
 artwork, `Genre`, `Artist`, `Year` and so on; `Art(icon)` is always Kodi's default icon
 for the type. The container's content is `artists`, `albums` or `songs`.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `type` | `artist`, `album`, `song` | required | What to list |
-| `label` | a genre | — | The genre, as the library names it (`R&B` is fine) |
+| `label` | genres, ` / ` joined | — | The genres, as the library names them (`R&B` is fine); items in any of them |
 | `exclude_value` | a name | — | Leave out the artist, album or song (by title) with this name |
 | `limit` | whole number | all | Most items, picked at random |
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[Container(9000).ListItem.Property(genre_query)]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20</content>
+<content>plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20</content>
 ```
 
 ## `popular_songs`
