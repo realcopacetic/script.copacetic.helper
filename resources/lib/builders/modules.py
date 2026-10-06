@@ -370,10 +370,9 @@ class BaseBuilder:
         tokens = self.mapping_values.get("tokens") or {}
         constant = {k: v for k, v in tokens.items() if "{" not in v}
         try:
-            name = self.substitute(template_name, constant)
+            return self.substitute_loud(template_name, constant, "a token-only name")
         except TokenError:
             return None
-        return name if "{" not in name else None
 
     def substitute(self, template: str, substitutions: dict[str, str]) -> str:
         """
