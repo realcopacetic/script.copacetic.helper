@@ -159,11 +159,13 @@ for the type. The container's content is `artists`, `albums` or `songs`.
 |---|---|---|---|
 | `type` | `artist`, `album`, `song` | required | What to list |
 | `label` | genres, ` / ` joined | — | The genres, as the library names them (`R&B` is fine); items in any of them |
+| `id` | an artist's `DBID` | — | Add the genres of that artist's albums. An artist's own `ListItem.Genre` is the scraper's (TheAudioDB's "Alternative"), while Kodi matches an artist's genre through its songs' tags, so pass it for an artist |
 | `exclude_value` | a name | — | Leave out the artist, album or song (by title) with this name |
 | `limit` | whole number | all | Most items, picked at random |
 | `randomise` | any text | — | A seed. The same seed gives the same items in the same order. |
 
 ```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=genre_music&amp;type=artist&amp;id=$INFO[ListItem.DBID]&amp;label=$INFO[ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Artist]&amp;limit=20</content>
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
 ```
 

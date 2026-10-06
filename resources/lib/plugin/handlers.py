@@ -1108,20 +1108,30 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def genre_music(self) -> list[DirectoryItem] | None:
         """
         Build a container of library artists, albums or songs (type=) in any of the
-        genres in ``self.label`` (" / " joined, as ListItem.Genre), in random order
-        (fixed by randomise=); exclude_value leaves one out by name.
+        genres in ``self.label`` (" / " joined) or, with id=, of that artist's albums;
+        random order fixed by randomise=; exclude_value leaves one out by name.
 
         :return: List of directory items for Kodi, or None if empty.
         """
         name = {"artist": "artist", "album": "album"}.get(self.dbtype, "title")
-        genres = self.label.split(" / ")  # a list value matches any of them
+        genres = {*self.label.split(" / ")}  # a list value matches any of them
+        if self.dbid:  # a scraped artist genre may tag none of the library's songs
+            albums = library_rows(
+                "album",
+                {"artistid": int(self.dbid)},
+                None,
+                None,
+                "genre_music",
+                ["genre"],
+            )
+            genres.update(*(row["genre"] for row in albums))
         set_plugincontent(content=f"{self.dbtype}s", category=self.label)
         rows = random_rows(
             lambda filters, properties: library_rows(
                 self.dbtype, {"and": filters}, None, None, "genre_music", properties
             ),
             [
-                {"field": "genre", "operator": "is", "value": genres},
+                {"field": "genre", "operator": "is", "value": sorted(genres)},
                 {"field": name, "operator": "isnot", "value": self.exclude_value},
             ],
             (f"{self.dbtype}id", name),
