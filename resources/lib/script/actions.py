@@ -385,6 +385,7 @@ def trailer_fullscreen(trailer: str, **kwargs: str) -> None:
     soon as it starts, requesting it first when it isn't already on its way.
 
     :param trailer: Player path or plugin URL; the other params as play_trailer.
+    :param window: Window the trailer plays in; required, or each press restarts it.
     """
     ours = infolabel("Window(home).Property(trailer_window)") == kwargs.get("window")
     state = infolabel("Window(home).Property(trailer_state)") if ours else ""
