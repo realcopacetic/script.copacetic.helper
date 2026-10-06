@@ -61,45 +61,36 @@ def library_item(details: dict, type: str) -> DirectoryItem:
 
 
 def library_rows(
-    type: str, query_filter: dict, sort: dict, limit: int | None, parent: str
+    type: str,
+    query_filter: dict,
+    sort: dict | None,
+    limit: int | None,
+    parent: str,
+    properties: list[str] | None = None,
 ) -> list[dict]:
     """
     AudioLibrary albums, artists or songs matching query_filter, with _DETAILS
-    properties and art.
+    properties and art unless properties says otherwise.
 
     :param type: album, artist or song.
     :param query_filter: AudioLibrary filter, a rule tree or an id filter.
-    :param sort: JSON-RPC sort, applied before the limit.
+    :param sort: JSON-RPC sort, applied before the limit; None for Kodi's order.
     :param limit: Most rows to return; None for all.
     :param parent: Caller name for logging.
+    :param properties: Properties to fetch; None for _DETAILS and art.
     :return: Rows, possibly empty.
     """
+    if properties is None:
+        properties = [*_DETAILS[type][1], "art"]
     rows = json_call(
         f"AudioLibrary.Get{type.title()}s",
-        properties=[*_DETAILS[type][1], "art"],
+        properties=properties,
         sort=sort,
         query_filter=query_filter,
         limit=limit,
         parent=parent,
     )
     return rows.get("result", {}).get(f"{type}s", [])
-
-
-def library_items(
-    type: str, filters: list[dict], sort: dict, limit: int | None, parent: str
-) -> list[DirectoryItem]:
-    """
-    Library albums, artists or songs matching all filters, as directory items.
-
-    :param type: album, artist or song.
-    :param filters: AudioLibrary filter rules, ANDed.
-    :param sort: JSON-RPC sort, applied before the limit.
-    :param limit: Most items to return; None for all.
-    :param parent: Caller name for logging.
-    :return: Directory items, possibly empty.
-    """
-    rows = library_rows(type, {"and": filters}, sort, limit, parent)
-    return [library_item(row, type) for row in rows]
 
 
 def dial_item(entry: dict, offsets: tuple[int, ...] | None) -> DirectoryItem | None:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import random
+from functools import partial
 from operator import itemgetter
 from typing import Any, Callable
 
@@ -27,15 +27,11 @@ from resources.lib.plugin.library import (
     enrich_with_tvshow,
     fetch_and_add,
     fetch_raw,
+    random_rows,
     role_endpoint,
     title_filter,
 )
-from resources.lib.plugin.music import (
-    dial_item,
-    library_item,
-    library_items,
-    library_rows,
-)
+from resources.lib.plugin.music import dial_item, library_item, library_rows
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
@@ -1022,40 +1018,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         filters: list[dict[str, Any]],
     ) -> list[DirectoryItem] | None:
         """
-        Seed-stable random container in two queries: an id+title pool fetch,
+        Seed-stable random container in two queries: an id+label pool fetch,
         then one title-filtered details fetch for the shuffled slice.
         """
-
         set_plugincontent(content=content, category=ADDON.getLocalizedString(category))
-        id_key = f"{media_type}id"
-        result_key = f"{media_type}s"
-        pool = fetch_raw(
-            method, media_type, filters, sort=None, parent=parent, properties=["title"]
-        )
-        if not pool:
-            return None
-
-        pool.sort(key=lambda item: item[id_key])
-        rng = random.Random(self.randomise) if self.randomise else random
-        rng.shuffle(pool)
-        if self.limit:
-            pool = pool[: self.limit]
-
-        order = {item[id_key]: idx for idx, item in enumerate(pool)}
-        rows = fetch_raw(
-            method,
-            media_type,
-            [title_filter(item["title"] for item in pool)],
-            sort=None,
-            parent=parent,
+        rows = random_rows(
+            partial(fetch_raw, method, media_type, sort=None, parent=parent),
+            filters,
+            (f"{media_type}id", "title"),
+            self.randomise,
+            self.limit,
             properties=trim_properties(media_type, HEAVY_FIELDS),
         )
-        rows = [r for r in rows if r[id_key] in order]
-        if not rows:
-            return None
-        rows.sort(key=lambda r: order[r[id_key]])
-
-        return build_items(rows, media_type, tag_applier=apply_videoinfotag)
+        return build_items(rows, media_type, tag_applier=apply_videoinfotag) or None
 
     @log.duration
     def speed_dial(self) -> list[DirectoryItem] | None:
@@ -1133,27 +1108,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def genre_music(self) -> list[DirectoryItem] | None:
         """
         Build a container of library artists, albums or songs (type=) in any of the
-        genres in ``self.label`` (" / " joined, as ListItem.Genre), in random order;
-        exclude_value leaves one out by name.
+        genres in ``self.label`` (" / " joined, as ListItem.Genre), in random order
+        (fixed by randomise=); exclude_value leaves one out by name.
 
         :return: List of directory items for Kodi, or None if empty.
         """
         name = {"artist": "artist", "album": "album"}.get(self.dbtype, "title")
         genres = self.label.split(" / ")  # a list value matches any of them
         set_plugincontent(content=f"{self.dbtype}s", category=self.label)
-        return (
-            library_items(
-                self.dbtype,
-                [
-                    {"field": "genre", "operator": "is", "value": genres},
-                    {"field": name, "operator": "isnot", "value": self.exclude_value},
-                ],
-                sort={"method": "random"},
-                limit=self.limit,
-                parent="genre_music",
-            )
-            or None
+        rows = random_rows(
+            lambda filters, properties: library_rows(
+                self.dbtype, {"and": filters}, None, None, "genre_music", properties
+            ),
+            [
+                {"field": "genre", "operator": "is", "value": genres},
+                {"field": name, "operator": "isnot", "value": self.exclude_value},
+            ],
+            (f"{self.dbtype}id", name),
+            self.randomise,
+            self.limit,
         )
+        return [library_item(row, self.dbtype) for row in rows] or None
 
     @log.duration
     def popular_songs(self) -> list[DirectoryItem] | None:

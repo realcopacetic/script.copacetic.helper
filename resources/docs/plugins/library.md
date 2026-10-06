@@ -128,7 +128,8 @@ follow each other in the order below.
 | `type` | `movie`, `tvshow`, `episode`, `musicvideo` | — | Search that kind only, e.g. `movie` for movies only. A kind the path does not search (see the table) gives an empty list. |
 | `exclude_value` | any text | — | Leave out items whose `exclude_key` field equals this. Use it to hide the item you came from. |
 | `exclude_key` | a Kodi library filter field | `title` | The field `exclude_value` is compared with. |
-| `sort` | a JSON-RPC sort method (`year`, `votes`, `random` …) | `year` | The order Kodi fetches in, descending. |
+| `sort` | a JSON-RPC sort method (`year`, `votes` …), or `random` | `year` | The order Kodi fetches in, descending. `random` is shuffled by the helper, by `randomise`. |
+| `randomise` | any text | — | With `sort=random`: a seed, as in [`random_movies`](#random_movies). The same seed gives the same order, so a refetch (a library update) keeps it. |
 | `limit` | whole number | all | Most items of each kind, after the sort. The kinds add up, so the list can hold up to twice this. |
 
 ```xml
@@ -147,8 +148,8 @@ studio for the container to cut.
 
 ## `genre_music`
 
-Library artists, albums or songs in any of the given genres, in random order. Pass the
-item's own `ListItem.Genre`, so a genre that holds only this item still leaves the
+Library artists, albums or songs in any of the given genres, in random order (fixed by
+`randomise`, as in [`random_movies`](#random_movies)). Pass the item's own `ListItem.Genre`, so a genre that holds only this item still leaves the
 others. The items are music library items: `DBType` `artist`, `album` or `song` and
 their `DBID`; artists and albums open as `musicdb://` folders, songs play their file. They carry their library
 artwork, `Genre`, `Artist`, `Year` and so on; `Art(icon)` is always Kodi's default icon
@@ -160,10 +161,14 @@ for the type. The container's content is `artists`, `albums` or `songs`.
 | `label` | genres, ` / ` joined | — | The genres, as the library names them (`R&B` is fine); items in any of them |
 | `exclude_value` | a name | — | Leave out the artist, album or song (by title) with this name |
 | `limit` | whole number | all | Most items, picked at random |
+| `randomise` | any text | — | A seed. The same seed gives the same items in the same order. |
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20</content>
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
 ```
+
+`sortby="userpreference"` keeps the helper's order. Kodi refetches a list sorted
+`none` on every play and stop, and `random` re-draws its own order on every fetch.
 
 ## `popular_songs`
 
@@ -179,7 +184,7 @@ order is play count, then title.
 | `limit` | whole number | all | Most songs |
 
 ```xml
-<content sortby="none">plugin://script.copacetic.helper/?info=popular_songs&amp;id=$INFO[ListItem.DBID]&amp;limit=10</content>
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=popular_songs&amp;id=$INFO[ListItem.DBID]&amp;limit=10</content>
 ```
 
 ---

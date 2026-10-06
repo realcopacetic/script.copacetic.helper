@@ -1,6 +1,8 @@
 # author: realcopacetic
 
-from functools import wraps
+import random
+from functools import partial, wraps
+from operator import itemgetter
 from typing import Any, Callable, Iterable
 
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
@@ -66,6 +68,39 @@ def fetch_raw(
         parent=parent,
     )
     return q.get("result", {}).get(f"{media_type}s", []) or []
+
+
+def random_rows(
+    fetch: Callable[..., list[dict[str, Any]]],
+    filters: list[dict[str, Any]],
+    keys: tuple[str, str],
+    seed: str,
+    limit: int | None,
+    properties: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Rows matching filters in an order fixed by seed (a new one each call without),
+    cut to limit: an id and label pool, then one details fetch of the slice by name.
+
+    :param fetch: Called as fetch(filters, properties=...) for a list of row dicts.
+    :param filters: Filter rules, ANDed.
+    :param keys: The rows' id key and the filter field that matches their label.
+    :param seed: Shuffle seed; empty for a fresh order.
+    :param limit: Most rows; None for all.
+    :param properties: Details for the slice; None for fetch's default set.
+    :return: Rows in the shuffled order.
+    """
+    id_key, name_field = keys
+    pool = sorted(fetch(filters, properties=[]), key=itemgetter(id_key))
+    (random.Random(seed) if seed else random).shuffle(pool)
+    if not (picked := pool[:limit]):
+        return []
+    order = {row[id_key]: i for i, row in enumerate(picked)}
+    names = title_filter((row["label"] for row in picked), name_field)
+    rows = fetch([names], properties=properties)
+    return sorted(
+        (row for row in rows if row[id_key] in order), key=lambda r: order[r[id_key]]
+    )
 
 
 def build_items(
@@ -179,9 +214,11 @@ def role_credits(
     tag_applier: TagApplier | None,
     postprocess: Callable[[list[dict[str, Any]]], None] | None = None,
     limit: int | None = None,
+    seed: str = "",
 ) -> list[DirectoryItem] | None:
     """
     Generic role-based credits fetcher for actors/directors/writers.
+    A random sort is shuffled in Python by seed, so a refetch keeps the order.
 
     :param field: VideoLibrary filter field ("actor", "director", "writer").
     :param label: Actor/director/writer name to filter by.
@@ -192,6 +229,7 @@ def role_credits(
     :param tag_applier: Optional tag-applier for the VideoInfoTag.
     :param postprocess: Optional in-place mutator for the raw item list.
     :param limit: Most items per source, after the sort; None for all.
+    :param seed: Shuffle seed for a random sort; empty for a fresh order.
     :return: List of (file, ListItem, isFolder) tuples, or None if empty.
     """
     results = []
@@ -202,18 +240,15 @@ def role_credits(
         filters.append(filter_exclude)
 
     for method, media_type in sources:
-        results.extend(
-            fetch_and_add(
-                method=method,
-                media_type=media_type,
-                filters=filters,
-                sort=sort,
-                parent=parent,
-                tag_applier=tag_applier,
-                limit=limit,
-                postprocess=postprocess,
-            )
-        )
+        if sort["method"] == "random":
+            fetch = partial(fetch_raw, method, media_type, sort=None, parent=parent)
+            keys = (f"{media_type}id", "title")
+            rows = random_rows(fetch, filters, keys, seed, limit)
+        else:
+            rows = fetch_raw(method, media_type, filters, sort, parent, limit=limit)
+        if postprocess:
+            postprocess(rows)
+        results.extend(build_items(rows, media_type, tag_applier))
 
     return results or None
 
@@ -229,7 +264,7 @@ def role_endpoint(
     """
     Decorator for role-based credits endpoints: injects static configuration and
     dispatches into ``role_credits()`` with the path's sort= (a JSON-RPC sort
-    method, descending; default year) and limit=.
+    method, descending; default year; random is seeded by randomise=) and limit=.
 
     :param field: Kodi JSON filter field (``"actor"``, ``"director"``, ``"writer"``).
     :param category_id: Localized string ID for the plugin category label.
@@ -257,6 +292,7 @@ def role_endpoint(
                 tag_applier=apply_videoinfotag,
                 postprocess=postprocess,
                 limit=self.limit,
+                seed=self.randomise,
             )
 
         return wrapper
