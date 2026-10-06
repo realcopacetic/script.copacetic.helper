@@ -1,7 +1,7 @@
 # Library Listings
 
-These plugin paths fill a container with items from your video library (`genre_music`:
-your music library). Use them as
+These plugin paths fill a container with items from your video library (`genre_music`,
+`popular_songs`: your music library). Use them as
 widgets or in any list. Each item carries the usual library infolabels and artwork,
 so your existing layouts work with them.
 
@@ -18,6 +18,7 @@ so your existing layouts work with them.
 | `studio_credits` | Movies and TV shows from a given studio or network. |
 | `artist_credits` | Music videos by a given artist. |
 | `genre_music` | Library artists, albums or songs in a given genre. |
+| `popular_songs` | A library artist's songs, most played first. |
 
 ```xml
 <control type="list" id="5000"><!-- id is an example -->
@@ -157,6 +158,23 @@ for the type. The container's content is `artists`, `albums` or `songs`.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=genre_music&amp;type=album&amp;label=$INFO[Container(9000).ListItem.Property(genre_query)]&amp;exclude_value=$INFO[ListItem.Album]&amp;limit=20</content>
+```
+
+## `popular_songs`
+
+One library artist's songs, most played first. Songs with the same play count go by
+votes, then by title, so with no plays at all the list is in title order. The items
+are music library songs, as in [`genre_music`](#genre_music); the container's content
+is `songs`. Kodi's tag readers leave a song's votes at 0, so in most libraries the
+order is play count, then title.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | an artist's `DBID` | required | Whose songs to list |
+| `limit` | whole number | all | Most songs |
+
+```xml
+<content sortby="none">plugin://script.copacetic.helper/?info=popular_songs&amp;id=$INFO[ListItem.DBID]&amp;limit=10</content>
 ```
 
 ---

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from operator import itemgetter
 from typing import Any, Callable
 
 from xbmcgui import getCurrentWindowId
@@ -29,7 +30,12 @@ from resources.lib.plugin.library import (
     role_endpoint,
     title_filter,
 )
-from resources.lib.plugin.music import dial_item, library_items
+from resources.lib.plugin.music import (
+    dial_item,
+    library_item,
+    library_items,
+    library_rows,
+)
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
@@ -1126,6 +1132,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             or None
         )
+
+    @log.duration
+    def popular_songs(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of artist ``self.dbid``'s songs, most played first; songs
+        with equal plays go by votes, then by title.
+
+        :return: List of directory items for Kodi, or None if empty.
+        """
+        set_plugincontent(content="songs")
+        rows = library_rows(
+            "song",
+            {"artistid": int(self.dbid)},
+            sort={"method": "title"},
+            limit=None,
+            parent="popular_songs",
+        )
+        rows.sort(key=itemgetter("playcount", "votes"), reverse=True)
+        return [library_item(row, "song") for row in rows[: self.limit]] or None
 
     @role_endpoint(
         field="studio",

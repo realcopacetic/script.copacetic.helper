@@ -23,9 +23,11 @@ _DETAILS = {
             "duration",
             "file",
             "genre",
+            "playcount",
             "title",
             "track",
             "userrating",
+            "votes",
             "year",
         ],
     ),
@@ -58,6 +60,31 @@ def library_item(details: dict, type: str) -> DirectoryItem:
     return f"musicdb://{type}s/{details[f'{type}id']}/", li, True
 
 
+def library_rows(
+    type: str, query_filter: dict, sort: dict, limit: int | None, parent: str
+) -> list[dict]:
+    """
+    AudioLibrary albums, artists or songs matching query_filter, with _DETAILS
+    properties and art.
+
+    :param type: album, artist or song.
+    :param query_filter: AudioLibrary filter, a rule tree or an id filter.
+    :param sort: JSON-RPC sort, applied before the limit.
+    :param limit: Most rows to return; None for all.
+    :param parent: Caller name for logging.
+    :return: Rows, possibly empty.
+    """
+    rows = json_call(
+        f"AudioLibrary.Get{type.title()}s",
+        properties=[*_DETAILS[type][1], "art"],
+        sort=sort,
+        query_filter=query_filter,
+        limit=limit,
+        parent=parent,
+    )
+    return rows.get("result", {}).get(f"{type}s", [])
+
+
 def library_items(
     type: str, filters: list[dict], sort: dict, limit: int | None, parent: str
 ) -> list[DirectoryItem]:
@@ -71,17 +98,8 @@ def library_items(
     :param parent: Caller name for logging.
     :return: Directory items, possibly empty.
     """
-    rows = json_call(
-        f"AudioLibrary.Get{type.title()}s",
-        properties=[*_DETAILS[type][1], "art"],
-        sort=sort,
-        query_filter={"and": filters},
-        limit=limit,
-        parent=parent,
-    )
-    return [
-        library_item(row, type) for row in rows.get("result", {}).get(f"{type}s", [])
-    ]
+    rows = library_rows(type, {"and": filters}, sort, limit, parent)
+    return [library_item(row, type) for row in rows]
 
 
 def dial_item(entry: dict, offsets: tuple[int, ...] | None) -> DirectoryItem | None:
