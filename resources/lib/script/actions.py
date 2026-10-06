@@ -362,6 +362,7 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     :param viewport: Optional "WxH" trailer region; enables aspect zoom.
     :param source_prefix: Optional container id or infolabel prefix of the item.
     :param window: Optional name of the window or page the trailer plays in.
+    :param fullscreen: "true" to take the trailer full screen as soon as it starts.
     """
     if not trailer:
         return
@@ -373,6 +374,7 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     window_property("trailer_item", value=kwargs.get("item", ""))
     window_property("trailer_focus_ids", value=kwargs.get("focus_ids", ""))
     window_property("trailer_window", value=kwargs.get("window", ""))
+    window_property("trailer_fullscreen", value=kwargs.get("fullscreen", ""))
     log.execute(f'PlayMedia("{trailer}",1,noresume)')
 
 
@@ -388,10 +390,10 @@ def trailer_fullscreen(trailer: str, **kwargs: str) -> None:
     state = infolabel("Window(home).Property(trailer_state)") if ours else ""
     if state == "playing":
         enter_fullscreen()
-        return
-    if state != "pending":
-        play_trailer(trailer, **kwargs)
-    window_property("trailer_fullscreen", value="true")
+    elif state == "pending":
+        window_property("trailer_fullscreen", value="true")
+    else:
+        play_trailer(trailer, **kwargs | {"fullscreen": "true"})
 
 
 @action
