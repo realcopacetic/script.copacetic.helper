@@ -2,6 +2,7 @@
 
 from typing import Any, Mapping
 
+from resources.lib.apis.http import HttpError
 from resources.lib.apis.tmdb.cache import TmdbCache, tmdb_language
 from resources.lib.apis.tmdb.client import fetch_tmdb_fields
 from resources.lib.apis.tmdb.fields import (
@@ -69,14 +70,19 @@ def tmdb_to_canonical(
     if cache_only:
         return {}
 
-    raw = fetch_tmdb_fields(
-        kind=kind,
-        tmdb_id=tmdb_id,
-        season_number=season_number,
-        fields=None,
-        language=language_key,
-        append_artwork=append_artwork,
-    )
+    try:
+        raw = fetch_tmdb_fields(
+            kind=kind,
+            tmdb_id=tmdb_id,
+            season_number=season_number,
+            fields=None,
+            language=language_key,
+            append_artwork=append_artwork,
+        )
+    except HttpError as exc:
+        if exc.status in (401, 403):  # the one failure the user can fix
+            log.warning(f"tmdb_to_canonical → TMDb refused the token ({exc.status})")
+        return {}
     if not raw:
         return {}
 

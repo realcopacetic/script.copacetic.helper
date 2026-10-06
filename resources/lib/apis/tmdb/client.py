@@ -1,13 +1,8 @@
 # author: realcopacetic
 
-from __future__ import annotations
+from typing import Any, Iterable, Mapping, Sequence
 
-import json
-from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence
-
-if TYPE_CHECKING:
-    import urllib.request
-
+from resources.lib.apis.http import get_json
 from resources.lib.apis.tmdb.cache import tmdb_language
 from resources.lib.apis.tmdb.fields import TMDB_PROPERTIES
 from resources.lib.shared import logger as log
@@ -88,6 +83,7 @@ def fetch_tmdb_fields(
     :param language: Optional TMDb language override.
     :param append_artwork: If False, skip heavy image append blocks (e.g. "images").
     :return: Mapping of field name → extracted value.
+    :raises HttpError: When the request fails.
     """
     if tmdb_id <= 0:
         log.debug(
@@ -178,84 +174,19 @@ class TmdbClient:
             f"{self.__class__.__name__} → using " f"{'v4' if self.is_v4 else 'v3'} auth"
         )
 
-    def _build_request(
-        self,
-        path: str,
-        params: Mapping[str, Any] | None = None,
-    ) -> urllib.request.Request:
+    def get_json(self, path: str, params: Mapping[str, Any] | None = None) -> Any:
         """
-        Build an authenticated TMDb HTTP Request.
-
-        :param path: TMDb REST path beginning with "/".
-        :param params: Query parameters mapping.
-        :return: Prepared urllib Request.
-        """
-        import urllib.parse
-        import urllib.request
-
-        request_params = {"language": self.language, **(params or {})}
-        headers = {}
-
-        if self.is_v4:
-            # v4 read access token via Bearer header.
-            headers["Authorization"] = f"Bearer {self.token}"
-        else:
-            # v3 API key via query parameter.
-            request_params["api_key"] = self.token
-
-        query = urllib.parse.urlencode(request_params)
-        url = f"{TMDB_API_BASE}{path}"
-        if query:
-            url = f"{url}?{query}"
-
-        return urllib.request.Request(url, headers=headers)
-
-    @staticmethod
-    def _safe_url(url: str) -> str:
-        """Strip api_key from URL for safe logging."""
-        import urllib.parse
-
-        parsed = urllib.parse.urlparse(url)
-        params = urllib.parse.parse_qs(parsed.query)
-        if "api_key" in params:
-            params["api_key"] = ["***"]
-        safe_query = urllib.parse.urlencode(params, doseq=True)
-        return urllib.parse.urlunparse(parsed._replace(query=safe_query))
-
-    def get_json(self, path: str, params: Mapping[str, Any] | None = None) -> dict:
-        """
-        GET a TMDb endpoint and decode its JSON response.
+        GET a TMDb endpoint in the client's language and decode its JSON.
 
         :param path: TMDb path beginning with "/".
         :param params: Optional query parameters.
-        :return: Parsed dict, or empty dict on failure.
+        :return: Decoded JSON.
+        :raises HttpError: On an HTTP error status, no connection or bad JSON.
         """
-        import urllib.request
-        from urllib.error import HTTPError, URLError
-
-        request = self._build_request(path, params)
-
-        try:
-            with urllib.request.urlopen(request, timeout=10) as resp:
-                data = resp.read().decode("utf-8")
-                return json.loads(data)
-
-        except HTTPError as exc:
-            log.error(
-                f"{self.__class__.__name__} → HTTPError {exc.code} "
-                f"for URL={self._safe_url(request.full_url)!r}: {exc.reason}"
-            )
-
-        except URLError as exc:
-            log.error(
-                f"{self.__class__.__name__} → URLError for "
-                f"URL={self._safe_url(request.full_url)!r}: {exc.reason}"
-            )
-
-        except Exception as exc:  # noqa: BLE001
-            log.error(
-                f"{self.__class__.__name__} → Unexpected TMDb error "
-                f"for URL={self._safe_url(request.full_url)!r}: {exc!r}"
-            )
-
-        return {}
+        query = {"language": self.language, **(params or {})}
+        headers = {}
+        if self.is_v4:  # v4 read access token as a Bearer header
+            headers["Authorization"] = f"Bearer {self.token}"
+        else:  # v3 API key as a query parameter; get_json never logs the query
+            query["api_key"] = self.token
+        return get_json(f"{TMDB_API_BASE}{path}", query, headers)

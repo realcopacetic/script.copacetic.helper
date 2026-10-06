@@ -901,6 +901,7 @@ def tmdb_test(**kwargs: str) -> None:
     Verify the configured TMDb token by making a test request.
     Reports success or failure via notification.
     """
+    from resources.lib.apis.http import HttpError
     from resources.lib.apis.tmdb.client import get_tmdb_client
 
     client = get_tmdb_client()
@@ -912,8 +913,11 @@ def tmdb_test(**kwargs: str) -> None:
         )
         return
 
-    result = client.get_json("/configuration")
-    if result and "images" in result:
+    try:
+        valid = "images" in client.get_json("/configuration")
+    except HttpError:
+        valid = False
+    if valid:
         xbmcgui.Dialog().notification(
             ADDON.getLocalizedString(32000),
             ADDON.getLocalizedString(32209),
