@@ -44,7 +44,8 @@ named after it:
 | Icon | `icon_` | blur, analyse, darken |
 
 An image is only processed when you pass its URL (`clearlogo_url`, `background_url`,
-`icon_url`). With no URL at all, the call returns nothing, not even multiart. Processes are off unless
+`icon_url`). With no URL at all, the call returns nothing, not even multiart (with
+`target=item` it returns one empty list item, so you can tell it has run). Processes are off unless
 you turn them on. The images are processed in the order above, so the background and
 icon can use the clearlogo's colour.
 
@@ -65,10 +66,13 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 | `<prefix>_analyze` | `true`, `false` | `false` | Analyse the image's colours. |
 | `clearlogo_crop` | `true`, `false` | `false` | Crop the clearlogo to its visible (non-transparent) area. |
 | `background_blur`, `icon_blur` | `true`, `false` | `false` | Blur the image. |
-| `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled down to cover 480×270. |
+| `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled to cover 480×270, or, when `<prefix>_darken_frame` is passed, scaled to cover that frame and cropped to it (centred). |
 | `background_edge_trim`, `icon_edge_trim` | decimal (percent) | `0` | Cut this percentage from each side before blurring. Hides black bars and dark edges. |
 
 Booleans accept `true`, `1`, `yes` or `on` (any case). Anything else is false.
+
+A blurred image is cached by its source and radius only. Changing `_edge_trim` or
+`_darken_frame` later does not replace a blur that is already cached.
 
 ### Darken (background and icon)
 
@@ -104,7 +108,8 @@ values mean.
 | `target` | container id, or `item` | — | Container whose focused item this call is for; `item` is the window's own item (an info dialog's). See [Plugin Helpers](plugin_helpers.md#the-focus-guard). |
 | `prop_key` | any text | — | Suffix for the window properties the helper sets (see [Window properties](#window-properties)). |
 | `cursor_key` | any text | — | Name of the window property that marks the focused item (`artwork_cursor_<cursor_key>`). See [Is this result for the focused item?](#is-this-result-for-the-focused-item). |
-| `visit` | any text | — | A value that changes once per focus change. See the same section. |
+| `visit` | any text | — | A value that changes once per focus change. See the same section. A new value also refills the multiart FadeLabel. |
+| `background_match` | `true`, `false` | `false` | With `target=item` only: if the last blurred background the helper made for a window (`Window(home).Property(background_origin)`) was for this same item, blur that image at that radius instead of `background_url`. An info dialog then opens on the same blur its window was showing. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 ---
@@ -126,7 +131,7 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `<prefix>_darken` | `<prefix>_darken=artwork` or `all` | How much to darken the image, `0`–`100`. |
 | `<prefix>_darken_element`, `…_element1`, `…_element2` | `<prefix>_darken=all` | How much to darken the text in the first, second and third rectangle, `0`–`100`, or `-1` when the area behind it is too busy to judge. |
 | `<prefix>_darken_element_mean`, `…_mean1`, `…_mean2` | `<prefix>_darken=all` | Average brightness behind each rectangle, `0`–`100`, not affected by strength. |
-| `<prefix>_darken_contrast`, `…_contrast1`, `…_contrast2` | `<prefix>_darken_contrast_source` is passed | How well that colour reads on each rectangle, `0`–`100`: its contrast ratio with the area behind it (sampled as for darken, before any darken), as a share of the ratio needed, capped at `100`. The ratio needed is `darken_contrast_min` (`3.0`, the WCAG minimum for graphics) times `<prefix>_darken_strength`, so `100` means it reads. |
+| `<prefix>_darken_contrast`, `…_contrast1`, `…_contrast2` | `<prefix>_darken=artwork` or `all`, and `<prefix>_darken_contrast_source` is passed | How well that colour reads on each rectangle, `0`–`100`: its contrast ratio with the area behind it (sampled as for darken, before any darken), as a share of the ratio needed, capped at `100`. The ratio needed is `3.0` (the WCAG minimum for graphics) times `<prefix>_darken_strength`, so `100` means it reads. |
 | `<prefix>_darken_label_width`, `…_width1`, `…_width2` | a matching `_darken_label` is passed | The estimated text width used for that rectangle. |
 | `multiart`, `multiart1`, `multiart2` … | `multiart` is passed | The collected family, numbered without gaps. |
 
@@ -143,6 +148,7 @@ The helper also sets these on the home window. With `prop_key`, each name ends i
 | `background_blur` | Path of the blurred background. Only set when there is one; the last value is kept otherwise. |
 | `background_darken` | The background darken value. Cleared when there is none or it is `0`. |
 | `icon_darken` | The icon darken value. Cleared when there is none or it is `0`. |
+| `background_origin` | `<DBType>:<DBID>\|<background_blur_radius>\|<background_url>` of the last blurred background, for `background_match`. Set by every call that returns a blurred background, except `target=item` calls. Never takes `_<prop_key>`. |
 
 Use them when something outside the helper container's window needs the values, or
 to keep the last background on screen while the next one is processed.
@@ -231,8 +237,9 @@ as an image texture to get a slideshow.
   artwork). Only the FadeLabel is shuffled.
 - A family with fewer than two images is not loaded. The FadeLabel is emptied and no
   `multiart*` keys are returned.
-- Refiring for the same item with the same images leaves a running FadeLabel alone.
-  A new item always starts again from its main image.
+- Refiring for the same item, the same `visit` and the same images leaves a running
+  FadeLabel alone. A new item, or a new `visit`, always starts again from its main
+  image.
 
 The FadeLabel must be in the current window. The helper also uses these home window
 properties, with `<id>` the FadeLabel id:
@@ -245,6 +252,49 @@ properties, with `<id>` the FadeLabel id:
 
 The focus guard is checked just before the FadeLabel is filled. A call for an item
 that is no longer focused never refills it.
+
+---
+
+## `multiart_tiles`
+
+Fills several FadeLabels in an info dialog, one per art type, with the dialog item's
+artwork. The FadeLabels take turns: only one changes at a time, in the order you list
+them, and each starts on the item's main image. Use it for a grid of artwork tiles
+that should not all change at once.
+
+```xml
+<control type="list" id="9401"><!-- hidden helper container; ids are examples -->
+  <itemlayout />
+  <focusedlayout />
+  <content>plugin://script.copacetic.helper/?info=multiart_tiles&amp;tiles=3402:poster,3403:fanart,3404:keyart&amp;multiart_max=15&amp;visit=$INFO[Window(home).Property(infoscreen_artwork_visit)]</content>
+</control>
+```
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `tiles` | `<id>:<art type>,<id>:<art type>,…` | — | **Required.** Each FadeLabel id and the art family it shows, as for `multiart` above (`fanart`, `poster`, `keyart` …). |
+| `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for in each family. |
+| `visit` | any text | — | Must equal `Window(home).Property(infoscreen_artwork_visit)` (see below). |
+
+- The artwork is read from the window's own item (`ListItem.Art(...)`), the item an
+  info dialog shows. There is no `target`.
+- The FadeLabels must be in the topmost dialog, or in the current window when no dialog
+  is open. Give them all the same scroll speed and delay.
+- Library artwork only; no TMDb artwork is added. The main image comes first and the
+  rest are shuffled.
+- With `k` FadeLabels that have more than one image, each image stays for `k` steps,
+  and the FadeLabels change one after another. A FadeLabel with one image stays still.
+- A FadeLabel whose art type the item does not have is left as it is.
+- After the main images are set, the helper compares `visit` with
+  `Window(home).Property(infoscreen_artwork_visit)`. If they differ, the other images
+  are not added and nothing is returned. Leave out `visit` and that property, or set
+  both to the same value.
+
+When it is done, the path returns one list item with
+`ListItem.Property(visit)` set to `visit`. Compare it with the property to tell that
+the FadeLabels are filled for this visit.
+
+There is no focus guard.
 
 ---
 
@@ -264,7 +314,9 @@ When the container position is known, the list item carries:
 | `previous_pos`, `next_pos` | The positions either side, on their own. |
 
 The container is `target` when passed. Without `target`, it is the first `/`
-segment of `Window(home).Property(artwork_cursor_<cursor_key>)`.
+segment of `Window(home).Property(artwork_cursor_<cursor_key>)`, or the id of the
+focused control when that property is empty. With `target=item` there is no position,
+so none of these properties are set.
 
 ### The value of `current`
 
@@ -311,3 +363,6 @@ The helper reads these when you use the matching parameters:
 | `Window(home).Property(artwork_cursor_<cursor_key>)` | `cursor_key` | The skin, at focus time. The helper may also write it (see above). |
 | A FadeLabel control with id `multiart_fadelabel` in the current window | `multiart_fadelabel` | The skin. |
 | A window property that changes once per focus change, passed as `visit` | `visit` | The skin. |
+| `Window(home).Property(background_origin)` | `background_match` | The helper (see [Window properties](#window-properties)). |
+| `Window(home).Property(infoscreen_artwork_visit)` | `multiart_tiles` with `visit` | The skin, once each time the dialog shows the artwork. |
+| FadeLabel controls with the ids in `tiles`, in the topmost dialog | `multiart_tiles` | The skin. |
