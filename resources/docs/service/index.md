@@ -47,14 +47,17 @@ The service checks again whenever the active skin changes.
    [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties.
 2. If the skin opts in, the build runs once:
    - **Dev mode off (default):** the service seeds the runtime state if needed. It
-     rebuilds every output if the runtime state was just seeded or the templates
-     changed. Otherwise it only builds outputs that are missing.
+     rebuilds every output if the runtime state was just seeded, or the resolver
+     cache is missing or belongs to another skin. Otherwise it only builds outputs
+     that are missing. If it built anything, it then runs `ReloadSkin()`, so the
+     skin loads the new files at once. If nothing needed building, the skin is not
+     reloaded.
    - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`. If
-     *Reset on next start* is also on, it first deletes all outputs and the runtime
-     state, then turns that setting off again.
+     *Reset on next start* is also on, it first deletes all outputs, the runtime
+     state and the resolver cache, then turns that setting off again.
 
    Dev mode (`dev_mode`) and *Reset on next start* (`dev_reset`) are settings of the
-   helper add-on, in its *Skinners* category.
+   helper add-on, in its *Developers* category.
 
 ### The poll loop
 
