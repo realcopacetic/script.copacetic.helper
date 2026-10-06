@@ -74,6 +74,7 @@
 					</dependencies>
 					<control type="edit" format="string">
 						<heading>32011</heading>
+						<hidden>true</hidden>
 					</control>
 				</setting>
 				<setting id="tmdb_test" type="string" label="32014" help="32114" parent="tmdb_access">

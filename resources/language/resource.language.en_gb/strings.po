@@ -125,12 +125,12 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32009"
-msgid "Enable access to TMDb API"
+msgid "Enable access to TMDB API"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32109"
-msgid "Adds details from TMDB (The Movie Database) that Kodi's library lacks: a TV show's creators, TV show trailers and, where the skin asks for it, extra artwork; plots and taglines then come from TMDB in the TMDB language. Needs your own TMDB API key or read access token. Sends the focused movie's or show's TMDB ID to api.themoviedb.org. Off: nothing is sent."
+msgid "Adds details from TMDB (The Movie Database) that Kodi's library lacks: a TV show's creators, TV show trailers and, where the skin asks for it, extra artwork; plots and taglines then come from TMDB in the TMDB language. Needs your own TMDB API key or read access token. Sends the focused movie's or show's TMDB ID to api.themoviedb.org. Off: nothing is sent. This product uses the TMDB API but is not endorsed or certified by TMDB."
 msgstr ""
 
 #: /resources/settings.xml
@@ -140,17 +140,17 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32110"
-msgid "Paste either your TMDb v3 API Key or your v4 API Read Access Token. Copacetic supports both. Only one is required."
+msgid "Paste either your TMDB v3 API Key or your v4 API Read Access Token. Copacetic supports both. Only one is required."
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32011"
-msgid "Enter a TMDb v3 API Key or v4 API Read Access Token"
+msgid "Enter a TMDB v3 API Key or v4 API Read Access Token"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32014"
-msgid "Test TMDb access"
+msgid "Test TMDB access"
 msgstr ""
 
 #: /resources/settings.xml
@@ -160,17 +160,17 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32015"
-msgid "TMDb language"
+msgid "TMDB language"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32115"
-msgid "Language code for TMDb metadata, e.g. 'en-US', 'fr-FR', 'de-DE'. Restart required for changes to take effect."
+msgid "Language code for TMDB metadata, e.g. 'en-US', 'fr-FR', 'de-DE'. Restart required for changes to take effect."
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32016"
-msgid "Enter a TMDb language code"
+msgid "Enter a TMDB language code"
 msgstr ""
 
 #: /resources/settings.xml
@@ -244,17 +244,17 @@ msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32208"
-msgid "TMDb disabled or token missing"
+msgid "TMDB disabled or token missing"
 msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32209"
-msgid "TMDb token valid"
+msgid "TMDB token valid"
 msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32210"
-msgid "TMDb test failed — check token and network"
+msgid "TMDB test failed — check token and network"
 msgstr ""
 
 #: /resources/lib/script/actions.py
