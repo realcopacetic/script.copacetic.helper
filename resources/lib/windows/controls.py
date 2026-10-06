@@ -807,7 +807,10 @@ class RadioButtonHandler(BaseControlHandler):
         super().update_value()
         allowed = self._allowed_items()
         current = self._coerce_to_allowed()
-        self.instance.setSelected(current == "true")
+        # The first item is "on", as in _on_interact (vertical, not only true);
+        # a config filtered to one item can't toggle, so its own value decides.
+        on_value = allowed[0] if len(allowed) > 1 else "true"
+        self.instance.setSelected(current == on_value)
         self.instance.setEnabled(len(allowed) > 1)
 
 
