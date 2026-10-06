@@ -7,7 +7,7 @@ from xbmcgui import ListItem
 
 from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag
-from resources.lib.shared.utilities import json_call
+from resources.lib.shared.utilities import ADDON, json_call
 
 _DETAILS = {
     "album": (
@@ -37,6 +37,8 @@ _ICONS = {
     "song": "DefaultMusicSongs.png",
 }
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
+# Speed dial rows above the Move rows: (action, addon string, types without it)
+_DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
 
 
 def library_item(details: dict, type: str) -> DirectoryItem:
@@ -82,13 +84,14 @@ def library_items(
     ]
 
 
-def dial_item(entry: dict, offsets: tuple[int, ...]) -> DirectoryItem | None:
+def dial_item(entry: dict, offsets: tuple[int, ...] | None) -> DirectoryItem | None:
     """
-    A speed dial entry as a directory item: songs play their file, the rest
-    open as folders. Pinned items get a Move row per offset; Unpin is addon.xml's.
+    A speed dial entry as a directory item: songs play their file, the rest open
+    as folders. Its own context rows lead the menu: Start mix, Shuffle, a Move row
+    per offset, Unpin if pinned; addon.xml's copies hide on speed dial items.
 
     :param entry: Speed dial entry (type, ref).
-    :param offsets: Moves the entry can make, -1 up and 1 down.
+    :param offsets: Moves the entry can make, -1 up and 1 down; None if not pinned.
     :return: (path, ListItem, is_folder), or None if the library lost the item.
     """
     type, ref = entry["type"], entry["ref"]
@@ -112,9 +115,20 @@ def dial_item(entry: dict, offsets: tuple[int, ...]) -> DirectoryItem | None:
             return None
         path, li, _ = library_item(details, type)
         args = f"type={type},id={ref}"
-    li.setProperty("speed_dial", "true")  # marks the list as speed dial (focused())
-    run = f"RunScript(script.copacetic.helper,{args},action=move_pin,offset="
-    li.addContextMenuItems(
-        [(getLocalizedString(_MOVES[offset]), f"{run}{offset})") for offset in offsets]
-    )
+    li.setProperty("speed_dial", "true")  # focused(); addon.xml rows hide on it
+    run = f"RunScript(script.copacetic.helper,{args},action="
+    rows = [
+        *(
+            (ADDON.getLocalizedString(string), f"{run}{action})")
+            for action, string, without in _DIAL_ROWS
+            if type not in without
+        ),
+        *(
+            (getLocalizedString(_MOVES[offset]), f"{run}move_pin,offset={offset})")
+            for offset in offsets or ()
+        ),
+    ]
+    if offsets is not None:
+        rows.append((ADDON.getLocalizedString(32825), f"{run}unpin)"))
+    li.addContextMenuItems(rows)
     return path, li, type != "song"

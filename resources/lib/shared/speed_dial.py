@@ -141,12 +141,12 @@ class SpeedDial:
         self.pinned = data.get("pinned", [])
         self.recent = data.get("recent", [])
 
-    def items(self) -> list[tuple[dict, tuple[int, ...]]]:
+    def items(self) -> list[tuple[dict, tuple[int, ...] | None]]:
         """
         Everything speed dial shows, pinned first; a pinned entry isn't repeated.
         Each comes with the moves it can make: -1 (up) unless first, 1 unless last.
 
-        :return: (entry, offsets) pairs in display order; recent entries get none.
+        :return: (entry, offsets) pairs in display order; recent entries get None.
         """
         last = len(self.pinned) - 1
         return [
@@ -154,7 +154,7 @@ class SpeedDial:
                 (e, (-1,) * (i > 0) + (1,) * (i < last))
                 for i, e in enumerate(self.pinned)
             ),
-            *((e, ()) for e in self.recent if e not in self.pinned),
+            *((e, None) for e in self.recent if e not in self.pinned),
         ]
 
     def played(self, source: dict) -> None:

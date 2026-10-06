@@ -102,6 +102,9 @@ items below, and each one runs the action named.
 | Pin to speed dial | Library songs, artists and albums, and music playlists, that are not pinned in [speed dial](../plugins/speed_dial.md) | [`pin`](#pin) |
 | Unpin | Library songs, artists and albums, and music playlists, that are pinned in speed dial | [`unpin`](#unpin) |
 
+On [speed dial](../plugins/speed_dial.md) items, Shuffle, Start mix and Unpin come
+from the item's own context rows instead, at the top of the menu.
+
 Music playlists are the files in `special://musicplaylists/` and
 `special://profile/playlists/music/`. Genres need a genre name. Years are the year
 folders under `musicdb://`.

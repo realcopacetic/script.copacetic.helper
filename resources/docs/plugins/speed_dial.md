@@ -71,11 +71,15 @@ shared by every skin.
 - Every item has `ListItem.Property(speed_dial)` set to `true`. The helper reads it
   to tell when focus is on a speed dial list (see
   [Window properties](#window-properties)).
-- A pinned item has **Move up** in its context menu unless it is the first pin, and
-  **Move down** unless it is the last. A single pin has neither. They run
-  [`move_pin`](../script/actions.md#move_pin).
-- **Unpin** comes from the helper's own context menu items, so it shows on any
-  pinned item, in speed dial or anywhere else (see
+- Each item's context menu opens with its own rows, before Kodi's: **Start mix**
+  (not on playlists), **Shuffle** (not on songs), **Move up** unless it is the first
+  pin, **Move down** unless it is the last, and **Unpin** on a pinned entry. A single
+  pin has no Move rows; a recent entry has neither Move nor Unpin. They run
+  [`start_mix`](../script/actions.md#start_mix), [`shuffle`](../script/actions.md#shuffle),
+  [`move_pin`](../script/actions.md#move_pin) and [`unpin`](../script/actions.md#unpin).
+- The helper's own Shuffle, Start mix and Unpin context menu items hide on speed dial
+  items (they check `ListItem.Property(speed_dial)`), so nothing shows twice. Like,
+  Unlike and Pin to speed dial still come from them, after Kodi's rows (see
   [Items the helper adds to the context menu](../script/actions.md#items-the-helper-adds-to-the-context-menu)).
 - A playlist pinned from `special://musicplaylists/` is stored, and opened, as the
   same file under `special://profile/playlists/music/`. Both are the same folder.
