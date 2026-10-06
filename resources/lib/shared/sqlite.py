@@ -465,3 +465,64 @@ class TruncateCacheHandler(SQLiteHandler):
         self._insert_or_replace(
             TRUNCATE_DB_FIELDS, (cache_key, result, int(time.time()))
         )
+
+
+class ApiCacheHandler(SQLiteHandler):
+    """
+    Web API answers as JSON keyed "<api>:<what>:<id>"; the writer picks each
+    row's expiry, a NULL payload is a negative entry, and reads never delete.
+    """
+
+    TABLE_NAME = "api_cache"
+
+    def _initialize_database(self) -> None:
+        """Create the API cache table and its expiry index."""
+        with self._conn as conn:
+            conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
+                    key TEXT PRIMARY KEY,
+                    payload TEXT,
+                    expires_at INTEGER NOT NULL
+                ) WITHOUT ROWID
+                """)
+            conn.execute(f"""
+                CREATE INDEX IF NOT EXISTS idx_api_cache_expires
+                ON {self.TABLE_NAME}(expires_at)
+                """)
+
+    def get(self, key: str) -> tuple[Any, bool] | None:
+        """
+        The cached answer for key, expired or not.
+
+        :param key: Cache key.
+        :return: (payload, fresh), payload None for a negative entry; None if absent.
+        """
+        if not (row := self._get_one(where="key = ?", params=(key,))):
+            return None
+        payload = row["payload"] and json.loads(row["payload"])
+        return payload, row["expires_at"] > time.time()
+
+    def put(self, key: str, payload: Any, ttl: int) -> None:
+        """
+        Store payload for key until ttl seconds from now.
+
+        :param key: Cache key.
+        :param payload: JSON-serialisable answer; None for a negative entry.
+        :param ttl: Seconds the row stays fresh.
+        """
+        self._insert_or_replace(
+            ("key", "payload", "expires_at"),
+            (
+                key,
+                None if payload is None else json.dumps(payload, separators=(",", ":")),
+                int(time.time()) + ttl,
+            ),
+        )
+
+    def prune(self, grace: int = 86400 * 30) -> None:
+        """
+        Delete rows expired more than grace seconds ago.
+
+        :param grace: Seconds an expired row is kept to serve when a refresh fails.
+        """
+        self._delete_where("expires_at < ?", (int(time.time()) - grace,))

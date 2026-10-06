@@ -245,8 +245,8 @@ def create_dir(path: str) -> None:
 
 def clear_cache(**kwargs: str) -> None:
     """
-    Clears all temporary artwork processing data and resets the artwork lookup database.
-    Posts a notification with the amount of space saved.
+    Clears all temporary artwork processing data, the artwork lookup database and
+    the web API cache. Posts a notification with the amount of space saved.
     """
     readable_size = get_cache_size()
 
@@ -255,9 +255,10 @@ def clear_cache(**kwargs: str) -> None:
             xbmcvfs.rmdir(folder, force=True)
             create_dir(folder)
 
-    from resources.lib.shared.sqlite import ArtworkCacheHandler
+    from resources.lib.shared.sqlite import ApiCacheHandler, ArtworkCacheHandler
 
     ArtworkCacheHandler().clear_all()
+    ApiCacheHandler().clear_all()
 
     log.info(f"Artwork cache cleared by user. {readable_size} saved.")
     message = f"{ADDON.getLocalizedString(32201)}, {readable_size} {ADDON.getLocalizedString(32202)}."

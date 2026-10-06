@@ -10,7 +10,7 @@ from resources.lib.builders.templates import cache_is_current
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import release_refresh
-from resources.lib.shared.sqlite import ArtworkCacheHandler
+from resources.lib.shared.sqlite import ApiCacheHandler, ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
     reset_dev_state,
@@ -113,6 +113,7 @@ class Monitor(xbmc.Monitor):
         if self.start:
             log.info(f"{self.__class__.__name__} → Started")
             self.start = False
+            ApiCacheHandler().prune()
             self.player_monitor = PlayerMonitor()
             self.slideshow = Slideshow(self.sqlite)
         elif self._conditions_met():
