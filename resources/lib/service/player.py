@@ -6,7 +6,11 @@ from xbmc import PLAYLIST_MUSIC, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
 
 from resources.lib.service import playnext
-from resources.lib.service.trailer import TrailerZoomController, trailer_source
+from resources.lib.service.trailer import (
+    TrailerZoomController,
+    enter_fullscreen,
+    trailer_source,
+)
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import SpeedDial, queue_source, take_source
 from resources.lib.shared.utilities import (
@@ -44,6 +48,8 @@ class PlayerMonitor(Player):
                 )
                 if self._trailer_is_stale():
                     self._orphan_trailer()
+                elif infolabel("Window(home).Property(trailer_fullscreen)"):
+                    enter_fullscreen()
                 else:
                     window_property("trailer_state", value="playing")
                     self.zoom.apply_zoom_if_needed()
@@ -209,6 +215,7 @@ class PlayerMonitor(Player):
             "trailer_source",
             "trailer_focus_ids",
             "trailer_window",
+            "trailer_fullscreen",
             "trailer_viewport",
             "trailer_pending_since",
             "trailer_file",
@@ -236,6 +243,13 @@ class PlayerMonitor(Player):
         state = infolabel("Window(home).Property(trailer_state)")
         if state in ("pending", "cancelled"):
             self._reap_stale_pending()
+            return
+        if state == "fullscreen":
+            if self._trailer_ending():
+                # Full screen would freeze on a paused frame: rewind, then stop
+                self._pause_session()
+                self.seekTime(0)
+                log.execute("PlayerControl(Stop)")
             return
         if state == "playing" and (self._trailer_is_stale() or self._trailer_ending()):
             self._orphan_trailer()

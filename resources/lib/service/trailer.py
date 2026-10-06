@@ -1,7 +1,27 @@
 # author: realcopacetic
 
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import infolabel, json_call, to_float, to_int
+from resources.lib.shared.utilities import (
+    infolabel,
+    json_call,
+    to_float,
+    to_int,
+    window_property,
+)
+
+
+def enter_fullscreen() -> None:
+    """
+    Take the playing trailer to full screen without restarting it. The skin
+    reopens the info dialog in trailer_return once full screen closes.
+    """
+    window_property("trailer_state", value="fullscreen")
+    window_property("trailer_fullscreen")
+    window_property(
+        "trailer_return", value=infolabel("Window(home).Property(info_current)")
+    )
+    TrailerZoomController().apply_zoom_if_needed(fullscreen=True)
+    log.execute("Action(FullScreen)")
 
 
 def trailer_source() -> str:
@@ -22,13 +42,15 @@ class TrailerZoomController:
     SCREEN_AR = 16 / 9  # frame-fitting basis; viewport WxH is in skin coords
     OVERSCAN = 1.04  # absorb matte variance between trailer encodes and library AR
 
-    def apply_zoom_if_needed(self) -> None:
+    def apply_zoom_if_needed(self, fullscreen: bool = False) -> None:
         """
-        Set a new trailer's view mode: zoomed past burned-in bars when an
-        inset trailer viewport is active, else normal.
+        Set a trailer's view mode: zoomed past burned-in bars when an inset
+        trailer viewport is active, else normal.
+
+        :param fullscreen: The trailer has left its viewport for full screen.
         """
         zoom = 1.0
-        if (ar_window := self._get_viewport_ar()) > 0.0:
+        if not fullscreen and (ar_window := self._get_viewport_ar()) > 0.0:
             content_ar = self._get_content_ar()
             zoom = self._compute_zoom(content_ar=content_ar, window_ar=ar_window)
             log.debug(

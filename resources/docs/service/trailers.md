@@ -20,6 +20,7 @@ A trailer session moves through these states, stored in
 | `playing` | Service | The requested trailer is playing and still belongs to the focused item. |
 | `interrupted` | Your skin | The user moved away. Your skin sets this; the service then pauses and later stops the trailer. |
 | `orphaned` | Service | The trailer no longer belongs to the focused item. It is paused and waiting to be stopped. |
+| `fullscreen` | `action=trailer_fullscreen` | The trailer left its window for full screen and keeps playing. The service only stops it near its end. |
 
 1. Your skin runs `action=play_trailer`. The action sets `trailer_state` to `pending`,
    stores the request properties below, and plays the trailer.
@@ -35,6 +36,8 @@ A trailer session moves through these states, stored in
      `orphaned`; otherwise the session is cleared.
    - `playing` and stale, or within 2 seconds of its end: the trailer is paused and
      becomes `orphaned`.
+   - `fullscreen` and within 2 seconds of its end: the trailer is paused, rewound
+     and stopped.
    - `interrupted` or `orphaned`, and the trailer is still the video that is
      playing: if it is not paused, the service pauses it. If it is past its first
      second and Kodi can seek in it, the service rewinds it to the start. Once the
@@ -86,6 +89,13 @@ The action sets these properties, which the service reads:
 | `trailer_viewport` | The `viewport` param |
 | `trailer_window` | The `window` param |
 
+## Full screen
+
+[`trailer_fullscreen`](../script/actions.md#trailer_fullscreen) takes a playing
+trailer full screen without restarting it, or a requested one as soon as it starts
+(`trailer_fullscreen` property). [`trailer_return`](../script/actions.md#trailer_return)
+reopens the info dialog it came from once full screen closes.
+
 ## Stale trailers
 
 A trailer is stale when any of these is true:
@@ -128,8 +138,9 @@ When a trailer starts playing, the service sets the player's view mode:
 | `trailer_file` | `Player.Filenameandpath` of the trailer | The requested trailer starts | As above |
 
 When a session is cleared, the service clears `trailer_state`, `trailer_item`,
-`trailer_source`, `trailer_focus_ids`, `trailer_window`, `trailer_viewport`,
-`trailer_pending_since` and `trailer_file`.
+`trailer_source`, `trailer_focus_ids`, `trailer_window`, `trailer_fullscreen`,
+`trailer_viewport`, `trailer_pending_since` and `trailer_file`. `trailer_return` is
+left for [`trailer_return`](../script/actions.md#trailer_return).
 
 ### `trailer_played_item`
 

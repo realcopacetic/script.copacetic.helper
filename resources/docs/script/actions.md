@@ -81,6 +81,8 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
 | [`tmdb_test`](#tmdb_test) | Checks the TMDb token |
 | [`toggle_addon`](#toggle_addon) | Enables or disables an add-on |
+| [`trailer_fullscreen`](#trailer_fullscreen) | Takes a window's trailer full screen without restarting it |
+| [`trailer_return`](#trailer_return) | Reopens the info dialog a full-screen trailer came from |
 | [`unpin`](#unpin) | Unpins a speed dial entry |
 
 All window properties below are set on the Home window (`Window(home)`), unless the
@@ -830,6 +832,45 @@ shows the new state.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=toggle_addon,id=script.module.example)</onclick>
+```
+
+---
+
+## trailer_fullscreen
+
+Takes the trailer that a window or page plays full screen, with the same parameters
+as [`play_trailer`](#play_trailer). `window` says whose trailer it is:
+
+- Its trailer is `playing`: it goes full screen at once and carries on from where it
+  is (`Action(FullScreen)`, no new `PlayMedia`).
+- Its trailer is `pending`: it goes full screen as soon as it starts.
+- Otherwise: the trailer is requested now and goes full screen as soon as it starts.
+
+Going full screen sets `trailer_state` to `fullscreen`, sets the view mode to normal
+and copies `info_current` into `trailer_return`, the info dialog to reopen when full
+screen closes (see [`trailer_return`](#trailer_return)). Kodi closes the video info
+dialog first (`CGUIWindowManager::SwitchToFullScreen`). Within 2 seconds of its end,
+the service rewinds and stops a full-screen trailer.
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=trailer_fullscreen,"trailer=$INFO[Container(9000).ListItem.Trailer]","item=$INFO[Container(9000).ListItem.Label]",focus_ids=4611,source_prefix=ListItem,viewport=16x9,window=infoscreen)</onclick>
+```
+
+---
+
+## trailer_return
+
+Run it once full screen has closed on a trailer that
+[`trailer_fullscreen`](#trailer_fullscreen) took there. It clears `trailer_return`
+and reopens the info dialog it names, as [`info`](#info) does. If the trailer is
+still playing, it gets its zoom back first; your skin's `<onload>` sets
+`trailer_state` back to `playing`. With no dialog to reopen, the trailer is stopped.
+
+No parameters. Copacetic runs it from a skin timer:
+
+```xml
+<start reset="true">[!String.IsEmpty(Window(home).Property(trailer_return)) | String.IsEqual(Window(home).Property(trailer_state),fullscreen)] + !Window.IsActive(fullscreenvideo) + !System.HasActiveModalDialog</start>
+<onstart>RunScript(script.copacetic.helper,action=trailer_return)</onstart>
 ```
 
 ---

@@ -7,6 +7,7 @@ from operator import itemgetter
 import xbmc
 import xbmcgui
 
+from resources.lib.service.trailer import TrailerZoomController, enter_fullscreen
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     ADDON,
@@ -373,6 +374,42 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     window_property("trailer_focus_ids", value=kwargs.get("focus_ids", ""))
     window_property("trailer_window", value=kwargs.get("window", ""))
     log.execute(f'PlayMedia("{trailer}",1,noresume)')
+
+
+@action
+def trailer_fullscreen(trailer: str, **kwargs: str) -> None:
+    """
+    Take a window's trailer full screen: at once while it plays there, else as
+    soon as it starts, requesting it first when it isn't already on its way.
+
+    :param trailer: Player path or plugin URL; the other params as play_trailer.
+    """
+    ours = infolabel("Window(home).Property(trailer_window)") == kwargs.get("window")
+    state = infolabel("Window(home).Property(trailer_state)") if ours else ""
+    if state == "playing":
+        enter_fullscreen()
+        return
+    if state != "pending":
+        play_trailer(trailer, **kwargs)
+    window_property("trailer_fullscreen", value="true")
+
+
+@action
+def trailer_return(**kwargs: str) -> None:
+    """
+    Full screen has closed on the info dialog's trailer: reopen that dialog,
+    which takes a still-playing trailer back into its tab, else stop the trailer.
+    """
+    key = infolabel("Window(home).Property(trailer_return)")
+    window_property("trailer_return")
+    item = _info_item(key)
+    if infolabel("Window(home).Property(trailer_state)") == "fullscreen":
+        if not item:
+            log.execute("PlayerControl(Stop)")
+            return
+        TrailerZoomController().apply_zoom_if_needed()
+    if item:
+        _show_info(item, key)
 
 
 @action
