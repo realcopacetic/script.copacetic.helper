@@ -195,7 +195,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32119"
-msgid "Delete all processed artwork (blurred, cropped), reset the artwork lookup database and forget saved ListenBrainz answers. Source artwork is unaffected."
+msgid "Delete all processed artwork (blurred, cropped), reset the artwork lookup database and forget saved TMDB and ListenBrainz answers. Source artwork is unaffected."
 msgstr ""
 
 

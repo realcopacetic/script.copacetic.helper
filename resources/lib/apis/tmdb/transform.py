@@ -3,8 +3,7 @@
 from typing import Any, Mapping
 
 from resources.lib.apis.http import HttpError
-from resources.lib.apis.tmdb.cache import TmdbCache, tmdb_language
-from resources.lib.apis.tmdb.client import fetch_tmdb_fields
+from resources.lib.apis.tmdb.client import fetch_tmdb_fields, tmdb_language
 from resources.lib.apis.tmdb.fields import (
     TMDB_FIELD_MAP,
     apply_tmdb_transform,
@@ -14,9 +13,11 @@ from resources.lib.apis.tmdb.fields import (
     split_tmdb_images_by_language,
 )
 from resources.lib.shared import logger as log
+from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import plugin_path
 
-_CACHE = TmdbCache()
+DAY = 86400
+TTL_HIT, TTL_MISSING, TTL_DOWN = 7 * DAY, DAY, 300
 IMAGE_LIST_ROLES = {
     "images_posters": [
         ("poster", "lang"),
@@ -41,14 +42,15 @@ def tmdb_to_canonical(
     cache_only: bool = False,
 ) -> dict[str, Any]:
     """
-    Fetch TMDb data and normalise it into canonical Kodi item format.
+    Fetch TMDb data and normalise it into canonical Kodi item format, cached in
+    api_cache; failures are cached briefly and an expired item is served meanwhile.
 
     :param kind: TMDb logical kind (for example, 'movie', 'tvshow').
     :param tmdb_id: TMDb numeric identifier.
     :param season_number: Optional season number when kind == "season".
     :param language: Optional TMDb language override.
     :param append_artwork: If False, skip TMDb 'images' append block.
-    :param cache_only: Return an empty dict on a cache miss instead of fetching.
+    :param cache_only: Serve the cached item, even expired; never fetch.
     :return: Canonical TMDb item dict or empty dict.
     """
     if tmdb_id <= 0:
@@ -63,12 +65,11 @@ def tmdb_to_canonical(
         else kind
     )
 
-    cached = _CACHE.get(cache_kind, tmdb_id, cache_language)
-    if cached:
-        log.debug(f"tmdb_to_canonical → cache hit {cache_kind}/{tmdb_id}")
-        return cached
-    if cache_only:
-        return {}
+    cache = ApiCacheHandler()
+    key = f"tmdb:{cache_kind}:{tmdb_id}:{cache_language}"
+    payload, fresh = cache.get(key) or (None, False)
+    if fresh or cache_only:
+        return payload or {}
 
     try:
         raw = fetch_tmdb_fields(
@@ -82,7 +83,8 @@ def tmdb_to_canonical(
     except HttpError as exc:
         if exc.status in (401, 403):  # the one failure the user can fix
             log.warning(f"tmdb_to_canonical → TMDb refused the token ({exc.status})")
-        return {}
+        cache.put(key, payload, _failure_ttl(exc))  # keeps a stale item, else negative
+        return payload or {}
     if not raw:
         return {}
 
@@ -93,9 +95,22 @@ def tmdb_to_canonical(
         raw=raw,
         language=language_key,
     )
-    _CACHE.set(cache_kind, tmdb_id, cache_language, item)
-
+    cache.put(key, item, TTL_HIT)
     return item
+
+
+def _failure_ttl(exc: HttpError) -> int:
+    """
+    Seconds before asking TMDb again after a failed request.
+
+    :param exc: The failure.
+    :return: A day for an unknown id, the server's wait for 429, else 5 minutes.
+    """
+    if exc.status == 404:
+        return TTL_MISSING
+    if exc.status == 429:
+        return exc.retry_after or 60
+    return TTL_DOWN
 
 
 def _build_tmdb_canonical_item(

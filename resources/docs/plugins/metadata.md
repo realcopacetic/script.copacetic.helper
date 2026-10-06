@@ -123,7 +123,9 @@ With `multiart=true`, TMDb's image lists are added as numbered art keys:
 | `landscape`, `landscape1…` | backdrops in your language | 10 |
 | `clearlogo`, `clearlogo1…` | logos in your language, else logos with no language | 5 |
 
-Results are cached. A `multiart=true` call, or `metadata` with `tmdb_art=true`, also
+Results are cached for 7 days, an id TMDb doesn't know for a day, and a failed
+request (offline, timeout, server error) for 5 minutes; until the retry, the last
+details fetched are still returned. *Clear addon cache* empties it. A `multiart=true` call, or `metadata` with `tmdb_art=true`, also
 makes the art available to the artwork helper's `get_extra_multiart` (see
 [Artwork](artwork.md#multiart)).
 

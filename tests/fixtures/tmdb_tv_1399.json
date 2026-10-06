@@ -1,0 +1,23 @@
+{
+  "id": 1399,
+  "name": "Game of Thrones",
+  "original_name": "Game of Thrones",
+  "overview": "Seven noble families fight for control of the mythical land of Westeros.",
+  "tagline": "Winter is coming.",
+  "first_air_date": "2011-04-17",
+  "created_by": [{"id": 9813, "name": "David Benioff"}, {"id": 228068, "name": "D. B. Weiss"}],
+  "next_episode_to_air": null,
+  "backdrop_path": "/backdrop.jpg",
+  "poster_path": "/poster.jpg",
+  "images": {
+    "backdrops": [{"file_path": "/b1.jpg", "iso_639_1": null}, {"file_path": "/b2.jpg", "iso_639_1": "en"}],
+    "logos": [{"file_path": "/l1.png", "iso_639_1": "en"}],
+    "posters": [{"file_path": "/p1.jpg", "iso_639_1": "en"}, {"file_path": "/p2.jpg", "iso_639_1": null}]
+  },
+  "videos": {
+    "results": [
+      {"site": "YouTube", "type": "Teaser", "official": true, "key": "teaser-key", "published_at": "2011-01-01T00:00:00.000Z"},
+      {"site": "YouTube", "type": "Trailer", "official": true, "key": "trailer-key", "published_at": "2011-03-01T00:00:00.000Z"}
+    ]
+  }
+}

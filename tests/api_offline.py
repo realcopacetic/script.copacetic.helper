@@ -1,10 +1,13 @@
 """
 Offline checks for the web API layer: apis/http.py, the api_cache table,
-apis/listenbrainz.py (TTLs, stale-on-failure, rate limit) and top_songs.
+apis/listenbrainz.py (TTLs, stale-on-failure, rate limit), top_songs and the
+TMDb client and cache (apis/tmdb).
 
 Network calls are replaced by a recorded ListenBrainz answer
-(tests/fixtures/listenbrainz_top_recordings.json, fetched 7 Oct 2026) or by
-the failure under test. Run from the helper root: python tests/api_offline.py
+(tests/fixtures/listenbrainz_top_recordings.json, fetched 7 Oct 2026), a TMDb
+/tv/{id} answer in TMDb's shape (tests/fixtures/tmdb_tv_1399.json, hand-written:
+no token here) or by the failure under test. Run from the helper root:
+python tests/api_offline.py
 """
 
 import io
@@ -19,13 +22,14 @@ from urllib.error import HTTPError, URLError
 from build_offline import HELPER, install_stubs
 
 STAGE = Path(tempfile.mkdtemp())
-install_stubs(HELPER, HELPER, STAGE, STAGE, verbose=False)
+LOG = install_stubs(HELPER, HELPER, STAGE, STAGE, verbose=False)
 for name in ("xbmc", "xbmcgui", "xbmcplugin"):  # handlers need more than builders
     sys.modules[name].__getattr__ = lambda attr: type(attr, (), {})
 sys.modules["xbmcvfs"].mkdirs = lambda path: Path(path).mkdir(exist_ok=True) or 1
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.apis import http, listenbrainz  # noqa: E402
+from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.plugin.music import rank_songs, title_key  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
@@ -33,6 +37,7 @@ from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 FIXTURE = (
     HELPER / "tests" / "fixtures" / "listenbrainz_top_recordings.json"
 ).read_bytes()
+TMDB_TV = (HELPER / "tests" / "fixtures" / "tmdb_tv_1399.json").read_bytes()
 GORILLAZ = "e21857d5-3256-4547-afb3-4b6ded592596"
 DAY = 86400
 
@@ -288,6 +293,85 @@ class TopSongsTest(Base):
         self.net.answers = [URLError("offline")]
         self.assertIsNone(self.handler.top_songs())
         self.assertEqual(self.calls, ["AudioLibrary.GetArtistDetails"])
+
+
+class TmdbTest(Base):
+    def setUp(self):
+        super().setUp()
+        self.settings = {"tmdb_access": "true", "tmdb_access_token": "v3key"}
+        http.ADDON.getSetting = lambda key: self.settings.get(key, "")
+
+    def tmdb_row(self, key="tmdb:tvshow:1399:en-US"):
+        """The api_cache row for key: (payload, seconds left)."""
+        row = self.cache._get_one("key = ?", (key,))
+        return (
+            row["payload"] and json.loads(row["payload"]),
+            row["expires_at"] - self.now,
+        )
+
+    def test_hit_cached_a_week(self):
+        self.net.answers = [TMDB_TV]
+        item = transform.tmdb_to_canonical("tvshow", 1399)
+        self.assertEqual(item["Title"], "Game of Thrones")
+        self.assertEqual(item["Writers"], ["David Benioff", "D. B. Weiss"])
+        self.assertEqual(item["Year"], 2011)
+        self.assertTrue(item["Trailer"].endswith("video_id=trailer-key"))
+        self.assertEqual(self.tmdb_row(), (item, 7 * DAY))
+        request = self.net.requests[0]
+        self.assertTrue(
+            request.full_url.startswith("https://api.themoviedb.org/3/tv/1399?")
+        )
+        self.assertIn("api_key=v3key", request.full_url)
+        self.assertIn("language=en-US", request.full_url)
+        self.assertIn("script.copacetic.helper/", request.get_header("User-agent"))
+        self.tick(6 * DAY)
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), item)
+        self.assertEqual(len(self.net.requests), 1)
+
+    def test_v4_token_in_header(self):
+        self.settings["tmdb_access_token"] = "eyJ.token"
+        self.net.answers = [TMDB_TV]
+        transform.tmdb_to_canonical("tvshow", 1399)
+        request = self.net.requests[0]
+        self.assertEqual(request.get_header("Authorization"), "Bearer eyJ.token")
+        self.assertNotIn("api_key", request.full_url)
+
+    def test_404_negative_a_day(self):
+        self.net.answers = [http_error(404)]
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
+        self.assertEqual(self.tmdb_row(), (None, DAY))
+        self.tick(DAY - 1)
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
+        self.assertEqual(len(self.net.requests), 1)
+
+    def test_offline_without_stale(self):
+        warnings = LOG["WARNING"] + LOG["ERROR"]
+        self.net.answers = [URLError("offline")]
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
+        self.assertEqual(self.tmdb_row(), (None, 300))
+        self.assertEqual(LOG["WARNING"] + LOG["ERROR"], warnings)
+        transform.tmdb_to_canonical("tvshow", 1399)
+        self.assertEqual(len(self.net.requests), 1)  # no second wait for the timeout
+
+    def test_stale_served_while_offline(self):
+        self.net.answers = [TMDB_TV, TimeoutError(), TMDB_TV]
+        item = transform.tmdb_to_canonical("tvshow", 1399)
+        self.tick(8 * DAY)
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), item)
+        self.assertEqual(self.tmdb_row(), (item, 300))
+        self.assertEqual(
+            transform.tmdb_to_canonical("tvshow", 1399, cache_only=True), item
+        )
+        self.tick(301)
+        transform.tmdb_to_canonical("tvshow", 1399)
+        self.assertEqual(self.tmdb_row(), (item, 7 * DAY))
+        self.assertEqual(len(self.net.requests), 3)
+
+    def test_refused_token_warns(self):
+        warnings = LOG["WARNING"]
+        self.net.answers = [http_error(401)]
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
+        self.assertEqual(LOG["WARNING"], warnings + 1)
 
 
 if __name__ == "__main__":

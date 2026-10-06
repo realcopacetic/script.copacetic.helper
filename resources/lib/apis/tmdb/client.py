@@ -3,12 +3,19 @@
 from typing import Any, Iterable, Mapping, Sequence
 
 from resources.lib.apis.http import get_json
-from resources.lib.apis.tmdb.cache import tmdb_language
 from resources.lib.apis.tmdb.fields import TMDB_PROPERTIES
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON
 
 TMDB_API_BASE = "https://api.themoviedb.org/3"
+
+
+def tmdb_language(language: str | None = None) -> str:
+    """
+    Language TMDb data is fetched and cached under: the explicit value, else
+    the add-on's tmdb_language setting, else "en-US".
+    """
+    return language or ADDON.getSetting("tmdb_language") or "en-US"
 
 
 def get_tmdb_client(language: str | None = None) -> "TmdbClient | None":

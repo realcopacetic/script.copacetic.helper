@@ -11,19 +11,6 @@ from resources.lib.art import policy
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import LOOKUPS, create_dir
 
-TMDB_DB_SCHEMA = (
-    ("dbtype", "TEXT NOT NULL"),
-    ("tmdb_id", "INTEGER NOT NULL"),
-    ("language", "TEXT NOT NULL"),
-    ("fetched_at", "INTEGER NOT NULL"),
-    ("payload", "TEXT NOT NULL"),
-)
-
-TMDB_DB_FIELDS = tuple(name for name, _ in TMDB_DB_SCHEMA)
-
-TMDB_UNIQUE = ("dbtype", "tmdb_id", "language")
-TMDB_LOOKUP_INDEX = TMDB_UNIQUE
-
 TRUNCATE_DB_SCHEMA = (
     ("cache_key", "TEXT NOT NULL UNIQUE"),
     ("result", "TEXT NOT NULL"),
@@ -310,122 +297,6 @@ class ArtworkCacheHandler(SQLiteHandler):
         return self.update_fields(cache_key, {column: value})
 
 
-class TmdbCacheHandler(SQLiteHandler):
-    """
-    Stores canonical TMDb payloads as raw JSON with
-    dbtype, tmdb_id, language, fetched_at, payload (TEXT)
-    """
-
-    TABLE_NAME = "tmdb_cache"
-    TTL_SECONDS = 86400 * 7  # 7 days
-
-    def __init__(self) -> None:
-        super().__init__()
-
-    def _initialize_database(self) -> None:
-        """
-        Create TMDb cache table and indexes.
-        Ensures schema exists before use.
-        """
-        cols_sql = ",\n".join(f"{name} {decl}" for name, decl in TMDB_DB_SCHEMA)
-        unique_sql = ", ".join(TMDB_UNIQUE)
-        index_cols_sql = ", ".join(TMDB_LOOKUP_INDEX)
-
-        with self._conn as conn:
-            conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {cols_sql},
-                    UNIQUE ({unique_sql})
-                )
-                """)
-            conn.execute(f"""
-                CREATE INDEX IF NOT EXISTS idx_tmdb_cache_lookup
-                ON {self.TABLE_NAME}({index_cols_sql})
-                """)
-
-    def get_entry(
-        self, dbtype: str, tmdb_id: int, language: str
-    ) -> dict[str, Any] | None:
-        """
-        Retrieve a cached TMDb payload by identifiers.
-        Validates TTL and parses stored JSON.
-
-        :param dbtype: Media database type.
-        :param tmdb_id: TMDb numeric identifier.
-        :param language: Language code.
-        :return: Cached TMDb record or None.
-        """
-        row = self._get_one(
-            where="dbtype = ? AND tmdb_id = ? AND language = ?",
-            params=(dbtype, tmdb_id, language),
-        )
-        if not row:
-            return None
-
-        now = int(time.time())
-        try:
-            fetched_at = int(row["fetched_at"])
-        except (TypeError, ValueError):
-            self.delete_entry(dbtype, tmdb_id, language)
-            return None
-
-        if now - fetched_at > self.TTL_SECONDS:
-            self.delete_entry(dbtype, tmdb_id, language)
-            return None
-
-        try:
-            row["payload"] = json.loads(row["payload"])
-        except Exception:
-            self.delete_entry(dbtype, tmdb_id, language)
-            return None
-
-        return row
-
-    def delete_entry(self, dbtype: str, tmdb_id: int, language: str) -> None:
-        """
-        Delete a TMDb cache entry.
-        Removes matching row from SQLite.
-
-        :param dbtype: Media database type.
-        :param tmdb_id: TMDb numeric identifier.
-        :param language: Language code.
-        """
-        self._delete_where(
-            "dbtype = ? AND tmdb_id = ? AND language = ?",
-            (dbtype, tmdb_id, language),
-        )
-
-    def upsert_entry(
-        self,
-        dbtype: str,
-        tmdb_id: int,
-        language: str,
-        payload: dict[str, Any],
-    ) -> None:
-        """
-        Insert or update a TMDb cache entry.
-        Removes expired entries before write.
-
-        :param dbtype: Media database type.
-        :param tmdb_id: TMDb numeric identifier.
-        :param language: Language code.
-        :param payload: Raw TMDb response payload.
-        """
-        now = int(time.time())
-        cutoff = now - self.TTL_SECONDS
-        payload_json = json.dumps(payload, separators=(",", ":"))
-        self._delete_where("fetched_at < ?", (cutoff,))
-        row = (
-            dbtype,
-            tmdb_id,
-            language,
-            now,
-            payload_json,
-        )
-        self._insert_or_replace(TMDB_DB_FIELDS, row)
-
-
 class TruncateCacheHandler(SQLiteHandler):
     """Stores clamp_text results keyed by a hash of text and geometry."""
 
@@ -476,7 +347,7 @@ class ApiCacheHandler(SQLiteHandler):
     TABLE_NAME = "api_cache"
 
     def _initialize_database(self) -> None:
-        """Create the API cache table and its expiry index."""
+        """Create the API cache table and its expiry index; drop the old tmdb_cache."""
         with self._conn as conn:
             conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
@@ -489,6 +360,7 @@ class ApiCacheHandler(SQLiteHandler):
                 CREATE INDEX IF NOT EXISTS idx_api_cache_expires
                 ON {self.TABLE_NAME}(expires_at)
                 """)
+            conn.execute("DROP TABLE IF EXISTS tmdb_cache")  # TMDb's own, pre api_cache
 
     def get(self, key: str) -> tuple[Any, bool] | None:
         """
