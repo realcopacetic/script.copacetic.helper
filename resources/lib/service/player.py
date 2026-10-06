@@ -175,8 +175,8 @@ class PlayerMonitor(Player):
     def _trailer_is_stale(self) -> bool:
         """
         True when focus has left the controls or the item the trailer was
-        requested for, or a modal other than the busy dialog is open. The
-        label check fails open on an unreadable label or under the busy dialog.
+        requested for, or a modal other than the busy dialog covers it (focus is
+        read in the topmost modal, so a dialog holding the focus ids keeps it).
         """
         ids = infolabel("Window(home).Property(trailer_focus_ids)")
         if ids and not condition(
@@ -184,7 +184,7 @@ class PlayerMonitor(Player):
         ):
             return True
         dialog = getCurrentWindowDialogId()
-        if dialog not in _NO_MODAL_OR_BUSY:
+        if dialog not in _NO_MODAL_OR_BUSY and not ids:
             return True
         source = trailer_source()
         expected = infolabel("Window(home).Property(trailer_item)")
@@ -208,6 +208,7 @@ class PlayerMonitor(Player):
             "trailer_item",
             "trailer_source",
             "trailer_focus_ids",
+            "trailer_window",
             "trailer_viewport",
             "trailer_pending_since",
             "trailer_file",

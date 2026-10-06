@@ -64,6 +64,7 @@ full action reference.
 | `focus_ids` | Comma-separated control ids | empty | Controls that must keep focus while the trailer plays. Empty means no focus check. |
 | `source_prefix` | A container id (e.g. `50`) or an infolabel prefix (e.g. `ListItem`) | empty | Where to read the item's label and aspect ratio. A number becomes `Container(<id>).ListItem`. |
 | `viewport` | `WxH` in skin coordinates, e.g. `1088x612` | empty | Size of the video window the trailer plays in. Turns on zoom. |
+| `window` | Any name, e.g. `home` | empty | The window or page the trailer plays in, so your skin can show it only there. |
 
 Quote any `key=value` token whose value can contain a comma, such as titles and paths.
 
@@ -83,6 +84,7 @@ The action sets these properties, which the service reads:
 | `trailer_source` | The `source_prefix` param |
 | `trailer_focus_ids` | The `focus_ids` param |
 | `trailer_viewport` | The `viewport` param |
+| `trailer_window` | The `window` param |
 
 ## Stale trailers
 
@@ -90,7 +92,9 @@ A trailer is stale when any of these is true:
 
 - `trailer_focus_ids` is set and none of those controls has focus.
 - A modal dialog is open, such as the context menu, and it is not Kodi's busy dialog
-  (`busydialog` or `busydialognocancel`).
+  (`busydialog` or `busydialognocancel`). With `trailer_focus_ids` set, the focus
+  check covers this instead: Kodi reads focus in the topmost modal dialog, so a
+  trailer requested inside a dialog that holds those controls is not stale.
 - `trailer_item` and `trailer_source` are both set, no modal dialog is open, and
   `<source>.Label` is not empty and differs from `trailer_item`.
 
@@ -124,8 +128,8 @@ When a trailer starts playing, the service sets the player's view mode:
 | `trailer_file` | `Player.Filenameandpath` of the trailer | The requested trailer starts | As above |
 
 When a session is cleared, the service clears `trailer_state`, `trailer_item`,
-`trailer_source`, `trailer_focus_ids`, `trailer_viewport`, `trailer_pending_since`
-and `trailer_file`.
+`trailer_source`, `trailer_focus_ids`, `trailer_window`, `trailer_viewport`,
+`trailer_pending_since` and `trailer_file`.
 
 ### `trailer_played_item`
 

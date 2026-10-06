@@ -360,6 +360,7 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     :param focus_ids: Optional comma-separated control ids that must keep focus.
     :param viewport: Optional "WxH" trailer region; enables aspect zoom.
     :param source_prefix: Optional container id or infolabel prefix of the item.
+    :param window: Optional name of the window or page the trailer plays in.
     """
     if not trailer:
         return
@@ -370,6 +371,7 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     window_property("trailer_source", value=kwargs.get("source_prefix", ""))
     window_property("trailer_item", value=kwargs.get("item", ""))
     window_property("trailer_focus_ids", value=kwargs.get("focus_ids", ""))
+    window_property("trailer_window", value=kwargs.get("window", ""))
     log.execute(f'PlayMedia("{trailer}",1,noresume)')
 
 

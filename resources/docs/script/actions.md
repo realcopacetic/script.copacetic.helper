@@ -544,13 +544,14 @@ window (a `videowindow` control). The helper's background service then watches i
 | `focus_ids` | control ids, comma separated | none | If none of these has focus when playback starts, the trailer is treated as out of date |
 | `source_prefix` | container id, or an infolabel prefix such as `Container(50).ListItem` | none | Where to read the current item's label for the `item` check. A plain number means `Container(<id>).ListItem`. |
 | `viewport` | `WxH`, in skin coordinates | none | Size of the area the trailer is shown in. Turns on zoom to fill it. |
+| `window` | text | none | The window or page the trailer plays in, stored in `trailer_window` so the skin can show it only there. |
 
 **Sets** (while the trailer request is live):
 
 | Property | Value |
 |---|---|
 | `trailer_state` | `pending` when requested. The service changes it to `playing`, or `orphaned` once paused and hidden. Cleared when playback stops. |
-| `trailer_item`, `trailer_focus_ids`, `trailer_source`, `trailer_viewport` | The values passed |
+| `trailer_item`, `trailer_focus_ids`, `trailer_source`, `trailer_viewport`, `trailer_window` | The values passed |
 | `trailer_pending_since` | Time of the request |
 
 For example, show your `videowindow` only while
