@@ -180,7 +180,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32121"
-msgid "Adds a Top songs rail to artist info: the artist's songs most listened to on ListenBrainz, then your most played. Sends the artist's MusicBrainz ID to listenbrainz.org (MetaBrainz); no account or key needed. Off: nothing is sent and the rail is hidden."
+msgid "Adds ListenBrainz popularity to music info: a Top songs rail for artists, listener counts for artists, albums and songs, and the Discography popularity order. Sends the item's MusicBrainz ID to listenbrainz.org (MetaBrainz); no account or key needed. Off: nothing is sent and these are hidden."
 msgstr ""
 
 #: /resources/settings.xml
