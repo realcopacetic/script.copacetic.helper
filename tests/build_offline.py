@@ -45,7 +45,8 @@ def install_stubs(
     :param verbose: Print DEBUG lines too.
     :return: Counter dict of log lines per level name.
     """
-    addon_id = ET.parse(helper / "addon.xml").getroot().get("id")
+    addon = ET.parse(helper / "addon.xml").getroot()
+    addon_id = addon.get("id")
     skin_id = ET.parse(skin / "addon.xml").getroot().get("id")
     settings = {
         s.get("id"): s.findtext("default", "")
@@ -70,7 +71,8 @@ def install_stubs(
 
     class Addon:
         def getAddonInfo(self, key: str) -> str:
-            return {"id": addon_id, "path": str(helper), "name": addon_id}[key]
+            info = {"id": addon_id, "path": str(helper), "name": addon_id}
+            return (info | {"version": addon.get("version")})[key]
 
         def getSettingBool(self, key: str) -> bool:
             return settings[key] == "true"

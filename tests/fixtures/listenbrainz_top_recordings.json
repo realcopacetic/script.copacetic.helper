@@ -1,0 +1,152 @@
+[
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596",
+   "a8ebde98-7e91-46c7-992c-90039ba42017"
+  ],
+  "artist_name": "Gorillaz featuring De La Soul",
+  "artists": [
+   {
+    "artist_credit_name": "Gorillaz",
+    "artist_mbid": "e21857d5-3256-4547-afb3-4b6ded592596",
+    "join_phrase": " featuring "
+   },
+   {
+    "artist_credit_name": "De La Soul",
+    "artist_mbid": "a8ebde98-7e91-46c7-992c-90039ba42017",
+    "join_phrase": ""
+   }
+  ],
+  "caa_id": 4436715369,
+  "caa_release_mbid": "2968b394-7ca8-3b6a-a3ec-a0239adb01c9",
+  "length": 222426,
+  "recording_mbid": "5004ea88-6c7e-4096-a89f-b24e358408ee",
+  "recording_name": "Feel Good Inc.",
+  "release_mbid": "20c2b6b4-50c1-417c-a572-a08b3cf17045",
+  "release_name": "Demon Days (full version 2005)",
+  "total_listen_count": 2302397,
+  "total_user_count": 200787
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "artists": [
+   {
+    "artist_credit_name": "Gorillaz",
+    "artist_mbid": "e21857d5-3256-4547-afb3-4b6ded592596",
+    "join_phrase": ""
+   }
+  ],
+  "caa_id": 36124994535,
+  "caa_release_mbid": "e289452e-292b-455d-9e4b-da9319d1ed23",
+  "length": 342000,
+  "recording_mbid": "318a1c51-5910-4823-bda1-09ea6d84648a",
+  "recording_name": "Clint Eastwood",
+  "release_mbid": "63837159-c9c4-3940-9e76-99c8d32aaccc",
+  "release_name": "Gorillaz",
+  "total_listen_count": 1798271,
+  "total_user_count": 193709
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596",
+   "cb72e132-66c1-44c2-986f-eed70d97d29a"
+  ],
+  "artist_name": "Gorillaz featuring Shaun Ryder",
+  "artists": [
+   {
+    "artist_credit_name": "Gorillaz",
+    "artist_mbid": "e21857d5-3256-4547-afb3-4b6ded592596",
+    "join_phrase": " featuring "
+   },
+   {
+    "artist_credit_name": "Shaun Ryder",
+    "artist_mbid": "cb72e132-66c1-44c2-986f-eed70d97d29a",
+    "join_phrase": ""
+   }
+  ],
+  "caa_id": 4436715369,
+  "caa_release_mbid": "2968b394-7ca8-3b6a-a3ec-a0239adb01c9",
+  "length": 244613,
+  "recording_mbid": "a06d7304-5980-408d-9227-70c2ded24293",
+  "recording_name": "DARE",
+  "release_mbid": "2968b394-7ca8-3b6a-a3ec-a0239adb01c9",
+  "release_name": "Demon Days",
+  "total_listen_count": 1715106,
+  "total_user_count": 186597
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "842fbdae-8839-46e6-8a02-7f500a2b6597",
+  "recording_name": "On Melancholy Hill"
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "438f8fb2-6d24-4f15-a538-9de6315628c4",
+  "recording_name": "Dirty Harry"
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "d0769eb3-ca35-4aab-aa45-ecedee55250b",
+  "recording_name": "El mañana"
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "806d8ff3-d1d4-4178-a524-623b87ca0c62",
+  "recording_name": "Kids With Guns"
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "a44db450-2b09-4eca-936f-a939ad56ae16",
+  "recording_name": "Rhinestone Eyes"
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "b766a7b6-5b8f-4805-ae83-420231c0ec76",
+  "recording_name": "19-2000"
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "e2e98345-f26a-446a-a95f-8a1741ac2d01",
+  "recording_name": "Last Living Souls"
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "18e66faf-9df4-4c8c-9a51-ca4ca4ba21fc",
+  "recording_name": "O Green World"
+ },
+ {
+  "artist_mbids": [
+   "e21857d5-3256-4547-afb3-4b6ded592596"
+  ],
+  "artist_name": "Gorillaz",
+  "recording_mbid": "ae28e0d1-73ab-4292-a8f5-fa28dffec415",
+  "recording_name": "Every Planet We Reach Is Dead"
+ }
+]

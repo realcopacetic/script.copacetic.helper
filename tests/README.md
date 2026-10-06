@@ -11,6 +11,9 @@ python tests/snapshot_diff.py ../skin.copacetic2 [--base REF] [--head REF] [--he
 
 # Lint what the migrated (C2) windows load, plus a fresh build (exit 1 on errors)
 python tests/skin_lint.py ../skin.copacetic2 [--window MyPics.xml ...] [--all] [--generated /tmp/c2-build] [--exclude 'GLOB' ...]
+
+# Web API layer (http, api_cache, ListenBrainz, top_songs) against recorded answers, no network
+python tests/api_offline.py
 ```
 
 - `build_offline` stubs only the `xbmc*` calls the builders make; a new Kodi call fails loudly — add it to `install_stubs`. Any ERROR log line fails the build.
