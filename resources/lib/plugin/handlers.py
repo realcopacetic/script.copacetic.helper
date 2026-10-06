@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from functools import partial
-from operator import itemgetter
 from typing import Any, Callable
 
 from xbmcgui import getCurrentWindowId
@@ -1139,27 +1138,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.limit,
         )
         return [library_item(row, self.dbtype) for row in rows] or None
-
-    @log.duration
-    def popular_songs(self) -> list[DirectoryItem] | None:
-        """
-        Build a container of artist ``self.dbid``'s songs, most played first; songs
-        with equal plays go by votes, then by title.
-
-        :return: List of directory items for Kodi, or None if empty.
-        """
-        if not self._require("id"):
-            return
-        set_plugincontent(content="songs")
-        rows = library_rows(
-            "song",
-            {"artistid": int(self.dbid)},
-            sort={"method": "title"},
-            limit=None,
-            parent="popular_songs",
-        )
-        rows.sort(key=itemgetter("playcount", "votes"), reverse=True)
-        return [library_item(row, "song") for row in rows[: self.limit]] or None
 
     @role_endpoint(
         field="studio",
