@@ -124,6 +124,7 @@ class ImageProcessor:
         """
         thumb_size = self.cfg.blur_target_size
         if image.width > thumb_size[0] or image.height > thumb_size[1]:
+            image = image.copy()  # thumbnail() is in place; darken shares the source
             image.thumbnail(thumb_size, Image.BOX)
 
         try:
