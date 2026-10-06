@@ -103,6 +103,11 @@
 						<heading>32016</heading>
 					</control>
 				</setting>
+				<setting id="listenbrainz_access" type="boolean" label="32021" help="32121">
+					<level>0</level>
+					<default>false</default>
+					<control type="toggle" />
+				</setting>
 			</group>
 		</category>
 		<category id="cache" label="32017" help="">
