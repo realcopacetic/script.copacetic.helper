@@ -18,7 +18,9 @@ watched movies in the set.
 
 ## Controls the skin provides
 
-`target_id` is the id of a group. The helper finds the other controls by adding to it:
+`target_id` is the id of a group in the current window (with `dialog=true` or
+`target=item`, in the topmost dialog). The helper finds the other controls by adding
+to it:
 
 | Control | Id | Required | What the helper does |
 |---|---|---|---|
@@ -36,6 +38,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 |---|---|---|---|
 | `target_id` | control id | — | **Required.** The group id. |
 | `target` | container id, or `item` | — | Container whose focused item is measured. Omit to use `Container` (the current container); `item` measures the window's own item. |
+| `dialog` | `true`, `false` | `false` | The controls are in the topmost dialog, not the current window. `target=item` implies it. See [Plugin Helpers](plugin_helpers.md#the-focus-guard). |
 | `progress_id` | control id | `target_id + 1` | Progress control id. |
 | `btn_id` | control id | `target_id + 2` | Button id. |
 | `img_id` | control id | `target_id + 3` | Image id. |

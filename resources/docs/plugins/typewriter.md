@@ -23,7 +23,8 @@ The path returns no list items. It drives the textbox directly.
 
 ## Controls the skin provides
 
-- A **textbox** with id `target_id`. It must be a textbox: the helper reads
+- A **textbox** with id `target_id`, in the current window (with `dialog=true` or
+  `target=item`, in the topmost dialog). It must be a textbox: the helper reads
   `Container(<target_id>).HasNext` to know when the text has wrapped. The helper sets
   its position, width, height and text, and makes it visible when typing starts.
 
@@ -37,7 +38,8 @@ The path returns no list items. It drives the textbox directly.
 | `max_lines` | whole number | `3` | Most lines the textbox may grow to. |
 | `start_delay` | seconds (decimal) | `0` | Wait before typing starts. Focus is checked again after the wait. |
 | `visit` | any text | — | If passed, the run only goes ahead when it equals `Window(home).Property(artwork_visit)`. |
-| `target` | container id | — | Container the label belongs to. Used by the focus guard and the window properties below. |
+| `target` | container id, or `item` | — | Container the label belongs to. Used by the focus guard and the window properties below. `item` means the window's own item (an info dialog's); `typewriter_container` is then empty. |
+| `dialog` | `true`, `false` | `false` | The controls are in the topmost dialog, not the current window. `target=item` implies it. See [Plugin Helpers](plugin_helpers.md#the-focus-guard). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 Placement parameters (`coords`, `anchor_id`, `inset`, `track_w`, `track_h`, `halign`,
