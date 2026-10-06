@@ -470,9 +470,9 @@ def expand_index(index_obj: dict[str, Any]) -> list[str]:
     try:
         keys = {k.lstrip("@"): v for k, v in index_obj.items()}
         start = int(keys["start"])
-        end = int(keys["end"]) + 1 if "end" in keys else start + 1
+        end = int(keys.get("end", start))
         step = int(keys.get("step", 1))
-        return [str(i) for i in range(start, end, step)]
+        return [str(i) for i in range(start, end + (1 if step > 0 else -1), step)]
     except (KeyError, TypeError, ValueError):
         log.debug(f"expand_index: Failed to expand {index_obj} — 'end' is required")
         return []
