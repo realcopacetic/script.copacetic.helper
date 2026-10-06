@@ -86,13 +86,16 @@ The action sets these properties, which the service reads:
 
 ## Stale trailers
 
-A trailer is stale when either of these is true:
+A trailer is stale when any of these is true:
 
 - `trailer_focus_ids` is set and none of those controls has focus.
-- `trailer_item` and `trailer_source` are both set, no dialog is open, and
+- A modal dialog is open, such as the context menu, and it is not Kodi's busy dialog
+  (`busydialog` or `busydialognocancel`).
+- `trailer_item` and `trailer_source` are both set, no modal dialog is open, and
   `<source>.Label` is not empty and differs from `trailer_item`.
 
-The label check is skipped while a dialog is open.
+The busy dialog doesn't make a trailer stale, because it shows while a trailer
+resolves. The label check is skipped while it is open.
 
 ## Zoom
 
