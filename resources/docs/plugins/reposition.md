@@ -20,7 +20,15 @@ This sets the height of controls 4040 and 4041 so that a logo of the given size,
 scaled to fit a 520×174 box, keeps its shape. (Ids are examples; the clearlogo size
 comes from the [artwork](artwork.md) helper.)
 
-The path returns no list items.
+Once the controls are set, the path returns one list item with
+`ListItem.Property(src_w)` and `ListItem.Property(src_h)`: the two values of `src`, as
+passed (empty without `src`). Compare them with the current size to tell that the
+controls are set for it. When `target_id` is missing, or `fit` cannot be used, nothing
+is returned.
+
+```xml
+<expression name="LogoSized">String.IsEqual(Container(9700).ListItem.Property(src_h),Container(9300).ListItem.Art(clearlogo_height))</expression>
+```
 
 ## Parameters
 
