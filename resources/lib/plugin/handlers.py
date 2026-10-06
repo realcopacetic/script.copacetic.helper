@@ -31,12 +31,14 @@ from resources.lib.plugin.library import (
     title_filter,
 )
 from resources.lib.plugin.music import (
+    ALBUM_RANK_PROPERTIES,
     SONG_RANK_PROPERTIES,
     compact_count,
     dial_item,
     library_item,
     library_rows,
     musicbrainz_id,
+    rank_albums,
     rank_songs,
 )
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
@@ -1174,6 +1176,35 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         set_plugincontent(content="songs")
         rows = rank_songs(recordings, songs)[: self.limit]
         return [library_item(row, "song") for row in rows] or None
+
+    @log.duration
+    def discography(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of artist ``self.dbid``'s library albums, most listened
+        on ListenBrainz first, the rest newest first; all newest first with access off.
+
+        :return: List of directory items for Kodi, or None if empty.
+        """
+        from resources.lib.apis import listenbrainz
+
+        if not self._require("id"):
+            return
+        artistid = int(self.dbid)
+        albums = library_rows(
+            "album",
+            {"artistid": artistid},
+            None,
+            None,
+            "discography",
+            ALBUM_RANK_PROPERTIES,
+        )
+        groups = []
+        if albums and listenbrainz.enabled():
+            _, mbid = musicbrainz_id("artist", artistid, "discography")
+            groups = listenbrainz.top_release_groups(mbid) if mbid else []
+        set_plugincontent(content="albums")
+        rows = rank_albums(groups, albums)[: self.limit]
+        return [library_item(row, "album") for row in rows] or None
 
     @log.duration
     def listeners(self) -> list[DirectoryItem] | None:

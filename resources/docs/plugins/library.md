@@ -1,7 +1,7 @@
 # Library Listings
 
 These plugin paths fill a container with items from your video library (`genre_music`,
-`top_songs`: your music library). Use them as widgets or in any list. Each item carries the usual
+`top_songs`, `discography`: your music library). Use them as widgets or in any list. Each item carries the usual
 library infolabels and artwork, so your existing layouts work with them.
 
 | `info=` | What it lists |
@@ -18,6 +18,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `artist_credits` | Music videos by a given artist. |
 | `genre_music` | Library artists, albums or songs in any of the given genres. |
 | `top_songs` | A library artist's songs most listened to on ListenBrainz, then its most played. |
+| `discography` | A library artist's albums, most listened to on ListenBrainz first. |
 
 ```xml
 <control type="list" id="5000"><!-- id is an example -->
@@ -201,6 +202,26 @@ or nothing, and the next open fetches.
 
 ```xml
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=top_songs&amp;id=$INFO[ListItem.DBID]&amp;limit=10</content>
+```
+
+## `discography`
+
+One library artist's albums (the same albums as `musicdb://albums/?artistid=`) in the
+order of its most listened release groups on ListenBrainz
+(`/1/popularity/top-release-groups-for-artist/<artist MBID>`), then the albums
+ListenBrainz doesn't rank, newest first. An album matches by its release group
+(`musicbrainzreleasegroupid`), else by title as in `top_songs`, so a deluxe edition
+sits next to the original. With **Enable access to ListenBrainz API** off, no
+MusicBrainz id or no answer, all albums come newest first and nothing is sent.
+Same cache and spacing as `top_songs`.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | an artist's `DBID` | required | The artist |
+| `limit` | whole number | all | Most albums |
+
+```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=discography&amp;id=$INFO[ListItem.DBID]</content>
 ```
 
 ## `listeners`

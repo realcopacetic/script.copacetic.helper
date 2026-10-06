@@ -45,6 +45,7 @@ _MBIDS = {  # MusicBrainz entity and AudioLibrary field per library type
     "artist": ("artist", "musicbrainzartistid"),
     "song": ("recording", "musicbrainztrackid"),
 }
+ALBUM_RANK_PROPERTIES = [*_DETAILS["album"][1], "art", "musicbrainzreleasegroupid"]
 SONG_RANK_PROPERTIES = [*_DETAILS["song"][1], "art", "musicbrainztrackid", "playcount"]
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
@@ -147,6 +148,29 @@ def rank_songs(recordings: list[list[str]], songs: list[dict]) -> list[dict]:
     for song in chain(popular, played):
         ranked.setdefault(title_key(song["title"]), song)
     return [*ranked.values()]
+
+
+def rank_albums(groups: list[list[str]], albums: list[dict]) -> list[dict]:
+    """
+    Albums in the order of release groups they match (by release group MBID, else
+    title), then the unmatched; newest first within each.
+
+    :param groups: [release group MBID, title] pairs, most popular first.
+    :param albums: Library albums with musicbrainzreleasegroupid, title and year.
+    :return: Ranked albums.
+    """
+    by_mbid, by_title = {}, {}
+    for rank, (mbid, title) in enumerate(groups):
+        by_mbid.setdefault(mbid, rank)
+        by_title.setdefault(title_key(title), rank)
+    unmatched = len(groups)
+    return sorted(
+        sorted(albums, key=itemgetter("year"), reverse=True),
+        key=lambda album: by_mbid.get(
+            album["musicbrainzreleasegroupid"],
+            by_title.get(title_key(album["title"]), unmatched),
+        ),
+    )
 
 
 def library_rows(

@@ -34,6 +34,7 @@ from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.plugin.music import (  # noqa: E402
     compact_count,
+    rank_albums,
     rank_songs,
     title_key,
 )
@@ -493,6 +494,85 @@ class TmdbTest(Base):
         self.net.answers = [http_error(401)]
         self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
         self.assertEqual(LOG["WARNING"], warnings + 1)
+
+
+def album(albumid, title, year, mbid=""):
+    """A library album row as AudioLibrary.GetAlbums returns it (fields used here)."""
+    return {
+        "albumid": albumid,
+        "title": title,
+        "year": year,
+        "musicbrainzreleasegroupid": mbid,
+    }
+
+
+ALBUM_ROWS = [
+    album(1, "Gorillaz", 2001),
+    album(2, "Demon Days", 2005, "f959a46a-a136-3134-9412-6572b23fad95"),
+    album(3, "Demon Days (Deluxe Edition)", 2006),  # same title once trimmed
+    album(4, "Plastic Beach", 2010, "other-release-group"),  # wrong MBID, title hits
+    album(5, "Song Machine, Season One", 2020),  # unknown to the fixture
+    album(6, "Cracker Island", 2023),
+]
+
+
+class DiscographyTest(Base):
+    groups = [
+        [row["release_group_mbid"], row["release_group"]["name"]]
+        for row in json.loads(ALBUMS)
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.calls = []
+
+        def rpc(request):
+            method = json.loads(request)["method"]
+            self.calls.append(method)
+            if method == "AudioLibrary.GetArtistDetails":
+                return json.dumps(
+                    {"result": {"artistdetails": {"musicbrainzartistid": [GORILLAZ]}}}
+                )
+            return json.dumps({"result": {"albums": ALBUM_ROWS}})
+
+        sys.modules["xbmc"].executeJSONRPC = rpc
+        handlers.set_plugincontent = lambda **kwargs: None
+        handlers.library_item = lambda row, type: row["albumid"]
+        self.handler = object.__new__(handlers.PluginHandlers)
+        self.handler.params = {"info": "discography", "id": "4"}
+        self.handler.dbid, self.handler.limit = "4", None
+
+    def test_rank(self):
+        # Demon Days by MBID, its deluxe copy by title (newer first among equals),
+        # Gorillaz, Plastic Beach by title; then the unmatched newest first
+        self.assertEqual(
+            [row["albumid"] for row in rank_albums(self.groups, ALBUM_ROWS)],
+            [3, 2, 1, 4, 6, 5],
+        )
+
+    def test_no_groups_is_date_order(self):
+        self.assertEqual(
+            [row["albumid"] for row in rank_albums([], ALBUM_ROWS)], [6, 5, 4, 3, 2, 1]
+        )
+
+    def test_off_is_date_order_without_requests(self):
+        listenbrainz.ADDON.getSettingBool = lambda key: False
+        self.assertEqual(self.handler.discography(), [6, 5, 4, 3, 2, 1])
+        self.assertEqual(self.calls, ["AudioLibrary.GetAlbums"])
+        self.assertEqual(self.net.requests, [])
+
+    def test_on(self):
+        self.net.answers = [ALBUMS]
+        self.assertEqual(self.handler.discography(), [3, 2, 1, 4, 6, 5])
+        self.assertTrue(
+            self.net.requests[0].full_url.endswith(
+                f"top-release-groups-for-artist/{GORILLAZ}"
+            )
+        )
+
+    def test_offline_is_date_order(self):
+        self.net.answers = [URLError("offline")]
+        self.assertEqual(self.handler.discography(), [6, 5, 4, 3, 2, 1])
 
 
 class ListenersTest(Base):
