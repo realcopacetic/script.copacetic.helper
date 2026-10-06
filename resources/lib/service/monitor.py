@@ -67,7 +67,8 @@ class Monitor(xbmc.Monitor):
     def _builder_elements(self) -> None:
         """
         Run the build pipeline, then reload the skin if anything was built.
-        Production: rebuild missing outputs, or all when ids or templates changed.
+        Production: rebuild missing outputs, or all when ids are fresh or the
+        resolver cache is missing or from another skin.
         Dev: clear state if requested, rebuild everything.
         """
         dev_mode = ADDON.getSettingBool("dev_mode")
@@ -95,8 +96,8 @@ class Monitor(xbmc.Monitor):
             and not validate_path(write_path)
         ]
         if seeded or not cache_is_current():
-            # Fresh ids or changed templates: full rebuild so every output
-            # bakes the same state generation (partial rebuilds mix ids).
+            # Fresh ids, or a resolver cache that is missing or from another skin:
+            # full rebuild so every output bakes the same state generation.
             build.run()
         elif builders:
             BuildElements(builders_to_run=builders).run()
