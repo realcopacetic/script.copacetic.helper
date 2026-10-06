@@ -30,7 +30,13 @@ from resources.lib.plugin.library import (
     role_endpoint,
     title_filter,
 )
-from resources.lib.plugin.music import dial_item, library_item, library_rows
+from resources.lib.plugin.music import (
+    SONG_RANK_PROPERTIES,
+    dial_item,
+    library_item,
+    library_rows,
+    rank_songs,
+)
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
@@ -40,6 +46,7 @@ from resources.lib.shared.utilities import (
     condition,
     focused_control_id,
     infolabel,
+    json_call,
     parse_bool,
     plugin_path,
     set_plugincontent,
@@ -1138,6 +1145,41 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.limit,
         )
         return [library_item(row, self.dbtype) for row in rows] or None
+
+    @log.duration
+    def top_songs(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of artist ``self.dbid``'s songs most listened on
+        ListenBrainz, topped up with its most played; empty with access off.
+
+        :return: List of directory items for Kodi, or None if empty.
+        """
+        from resources.lib.apis import listenbrainz
+
+        if not (listenbrainz.enabled() and self._require("id")):
+            return
+        artistid = int(self.dbid)
+        mbids = json_call(
+            "AudioLibrary.GetArtistDetails",
+            properties=["musicbrainzartistid"],
+            params={"artistid": artistid},
+            parent="top_songs",
+        )["result"]["artistdetails"]["musicbrainzartistid"]
+        if not (mbid := next(filter(None, mbids), None)):  # untagged: [""]
+            return
+        if not (recordings := listenbrainz.top_recordings(mbid)):
+            return
+        songs = library_rows(
+            "song",
+            {"artistid": artistid},
+            None,
+            None,
+            "top_songs",
+            SONG_RANK_PROPERTIES,
+        )
+        set_plugincontent(content="songs")
+        rows = rank_songs(recordings, songs)[: self.limit]
+        return [library_item(row, "song") for row in rows] or None
 
     @role_endpoint(
         field="studio",

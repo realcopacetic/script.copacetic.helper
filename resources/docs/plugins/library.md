@@ -1,7 +1,7 @@
 # Library Listings
 
-These plugin paths fill a container with items from your video library (`genre_music`:
-your music library). Use them as widgets or in any list. Each item carries the usual
+These plugin paths fill a container with items from your video library (`genre_music`,
+`top_songs`: your music library). Use them as widgets or in any list. Each item carries the usual
 library infolabels and artwork, so your existing layouts work with them.
 
 | `info=` | What it lists |
@@ -17,6 +17,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `studio_credits` | Movies and TV shows from a given studio or network. |
 | `artist_credits` | Music videos by a given artist. |
 | `genre_music` | Library artists, albums or songs in any of the given genres. |
+| `top_songs` | A library artist's songs most listened to on ListenBrainz, then its most played. |
 
 ```xml
 <control type="list" id="5000"><!-- id is an example -->
@@ -169,6 +170,38 @@ for the type. The container's content is `artists`, `albums` or `songs`.
 
 `sortby="userpreference"` keeps the helper's order. Kodi refetches a list sorted
 `none` on every play and stop, and `random` re-draws its own order on every fetch.
+
+## `top_songs`
+
+One library artist's songs in the order of its most listened recordings on
+[ListenBrainz](https://listenbrainz.org) (the free popularity API,
+`/1/popularity/top-recordings-for-artist/<artist MBID>`, no key), then the artist's
+other played songs, most played first. Only with the add-on setting **Enable access to
+ListenBrainz API** on (off by default: it sends the artist's MusicBrainz ID to
+listenbrainz.org); off, the path returns nothing and sends nothing.
+
+A song matches a recording by its MusicBrainz recording id (`musicbrainztrackid`,
+Picard's "MusicBrainz Track Id"), else by title: case, accents, punctuation and a
+trailing `(feat. …)`, `[Remaster]` or ` - Live` part are ignored. Each title appears
+once, from its earliest dated release. The path returns nothing when the artist has
+no MusicBrainz id in the library, ListenBrainz has nothing for it, or no song
+matches, so a list never holds the play counts alone. The items are music library
+songs, as in [`genre_music`](#genre_music); the container's content is `songs`.
+
+Answers are kept in the add-on's `_lookup.db` (`api_cache`): two weeks for a list,
+three days for an empty one, five minutes when ListenBrainz is unreachable (an older
+list is shown meanwhile). Requests are spaced at least a second apart across all
+plugin calls, as ListenBrainz asks; a call inside that second shows the saved answer
+or nothing, and the next open fetches.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | an artist's `DBID` | required | The artist |
+| `limit` | whole number | all | Most songs |
+
+```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=top_songs&amp;id=$INFO[ListItem.DBID]&amp;limit=10</content>
+```
 
 ---
 

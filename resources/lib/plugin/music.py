@@ -1,5 +1,9 @@
 # author: realcopacetic
 
+import re
+import unicodedata
+from itertools import chain
+from operator import itemgetter
 from pathlib import PurePosixPath
 
 from xbmc import getLocalizedString
@@ -36,6 +40,7 @@ _ICONS = {
     "playlist": "DefaultMusicPlaylists.png",
     "song": "DefaultMusicSongs.png",
 }
+SONG_RANK_PROPERTIES = [*_DETAILS["song"][1], "art", "musicbrainztrackid", "playcount"]
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
 _DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
@@ -56,6 +61,51 @@ def library_item(details: dict, type: str) -> DirectoryItem:
     if type == "song":
         return details["file"], li, False
     return f"musicdb://{type}s/{details[f'{type}id']}/", li, True
+
+
+def title_key(title: str) -> str:
+    """
+    A song title reduced for matching across sources: no trailing "(feat. …)",
+    "[Remaster]" or " - Live" part, and no case, accents or punctuation.
+
+    :param title: Song title.
+    :return: Matching key.
+    """
+    title = re.sub(r"(?<=\S)\s*[(\[].*|\s+-\s.*", "", title.casefold())
+    return "".join(c for c in unicodedata.normalize("NFKD", title) if c.isalnum())
+
+
+def rank_songs(recordings: list[list[str]], songs: list[dict]) -> list[dict]:
+    """
+    Songs matching recordings (by recording MBID, else title) in their order, then
+    played songs, most played first; one per title, earliest release; [] if no match.
+
+    :param recordings: [recording MBID, title] pairs, most popular first.
+    :param songs: Library songs with musicbrainztrackid, playcount, title and year.
+    :return: Ranked songs.
+    """
+    songs = sorted(songs, key=lambda song: song["year"] or 9999)  # undated last
+    by_mbid, by_title = {}, {}
+    for song in songs:
+        by_mbid.setdefault(song["musicbrainztrackid"], song)
+        by_title.setdefault(title_key(song["title"]), song)
+    by_mbid.pop("", None)  # untagged songs
+    popular = [
+        song
+        for mbid, title in recordings
+        if (song := by_mbid.get(mbid) or by_title.get(title_key(title)))
+    ]
+    if not popular:
+        return []
+    played = sorted(
+        filter(itemgetter("playcount"), songs),
+        key=itemgetter("playcount"),
+        reverse=True,
+    )
+    ranked = {}
+    for song in chain(popular, played):
+        ranked.setdefault(title_key(song["title"]), song)
+    return [*ranked.values()]
 
 
 def library_rows(
