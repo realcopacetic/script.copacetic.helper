@@ -70,6 +70,27 @@ With `enrich_with_tmdb=true`, the TMDb fields listed under
 The guard is checked before reading, after the TMDb lookup and before the item is
 returned.
 
+### In an info dialog (`target=item`)
+
+Kodi's own **Information** item in a context menu can swap the item an open info
+dialog shows, without opening the dialog again. The dialog's `<onload>` does not run,
+so the skin never records the new item. `metadata` with `target=item` catches this.
+When all of these are true, it returns no item and runs the helper's `info_swap`
+action, which reopens the dialog on the new item as if the user had clicked it in a
+list (see [`info_swap`](../script/actions.md#info_swap)):
+
+- `Window(home).Property(info_current)` is not empty.
+- It is not this item's `<DBType>:<DBID>`.
+- `Window(home).Property(info_hop)` is empty.
+
+The helper sets `info_hop` to `forward` first. Skins that don't set `info_current`
+never see this.
+
+| What | Set by |
+|---|---|
+| `Window(home).Property(info_current)` | The skin, in the info dialogs' `<onload>` (see [`info`](../script/actions.md#info)). |
+| `Window(home).Property(info_hop)` | The skin before `info` or `info_back`, and the helper here. Cleared by the skin's `<onload>`. |
+
 ---
 
 ## `tmdb_details`
@@ -123,8 +144,9 @@ With `multiart=true`, TMDb's image lists are added as numbered art keys:
 | `landscape`, `landscape1…` | backdrops in your language | 10 |
 | `clearlogo`, `clearlogo1…` | logos in your language, else logos with no language | 5 |
 
-Results are cached for 7 days, an id TMDb doesn't know for a day, and a failed
-request (offline, timeout, server error) for 5 minutes; until the retry, the last
+Results are cached for 7 days, an id TMDb doesn't know for a day, a "too many
+requests" answer for as long as TMDb asks, and any other failed request (offline,
+timeout, server error, a refused token) for 5 minutes; until the retry, the last
 details fetched are still returned. *Clear addon cache* empties it. A `multiart=true` call, or `metadata` with `tmdb_art=true`, also
 makes the art available to the artwork helper's `get_extra_multiart` (see
 [Artwork](artwork.md#multiart)).
@@ -143,15 +165,18 @@ passed, else from the focused item.
 | `tmdb_id` | `ListItem.UniqueID(tmdb)` | Used directly when set. Otherwise looked up from the library with `id`. |
 | `tvshowid` | `ListItem.TvShowDBID`, then `ListItem.Property(tvshowid)` | For seasons and episodes: the show to look up. |
 | `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped. |
-| `language` | add-on setting `tmdb_language`, else `en-US` | TMDb language, for example `de-DE`. |
+| `language` | add-on setting **TMDB language**, else `en-US` | TMDb language, for example `de-DE`. |
 
 Episodes look up their show, as TMDb has no episode lookup here, and take only what
 fits an episode: the show's trailer, artwork and `tmdb_*` properties. The episode's
 own title, plot and year are kept.
 
-**Add-on settings needed:** `tmdb_access_token` must hold a TMDb token (it is empty
-by default); the token is the user's consent. Without it, nothing is fetched or read
-from the cache, nothing is logged above debug, and `tmdb_details` returns no item.
+**Add-on settings needed:** the user pastes their own TMDb v3 API key or v4 API read
+access token into **TMDB access token** (setting id `tmdb_access_token`, empty by
+default). There is no separate on/off setting: the token is the user's consent.
+Without it, nothing is fetched or read from the cache, nothing is logged above debug,
+and `tmdb_details` returns no item. **Test TMDB access** checks the token.
+**TMDB language** (`tmdb_language`) sets the default `language`.
 
 ---
 
