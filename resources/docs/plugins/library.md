@@ -190,10 +190,12 @@ matches, so a list never holds the play counts alone. The items are music librar
 songs, as in [`genre_music`](#genre_music); the container's content is `songs`.
 
 Answers are kept in the add-on's `_lookup.db` (`api_cache`): two weeks for a list,
-three days for an empty one, five minutes when ListenBrainz is unreachable (an older
-list is shown meanwhile). Requests are spaced at least a second apart across all
-plugin calls, as ListenBrainz asks; a call inside that second shows the saved answer
-or nothing, and the next open fetches.
+three days for an empty one, a week when ListenBrainz refuses the id, as long as it
+asks after "too many requests", and five minutes when it is unreachable (an older
+list is shown meanwhile). The add-on setting **Clear addon cache** forgets them.
+Requests are spaced at least a second apart across all plugin calls, as ListenBrainz
+asks; a call inside that second shows the saved answer or nothing, and the next open
+fetches.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
