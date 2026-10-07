@@ -188,17 +188,6 @@ class ColorAnalyzer:
         return int(r), int(g), int(b)
 
     @staticmethod
-    def luma709(rgb: RGB) -> float:
-        """
-        Per-pixel relative luminance using Rec.709 coefficients (sRGB primaries).
-
-        :param rgb: (r, g, b) tuple in 0-255 space.
-        :return: Relative luminance (0-255 scale).
-        """
-        r, g, b = rgb
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-    @staticmethod
     def to_hex(rgb: RGB) -> str:
         """
         Convert RGB to ARGB hex with full opacity.
