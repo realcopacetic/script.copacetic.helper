@@ -38,7 +38,7 @@ Ten variables out — `texture_primary_poster-3` through `...poster6` — each w
 | Field | What it does |
 |---|---|
 | `index` | `{"start": N}`. Numbers the loop passes: the first pass gets `{index}` = N, the next N+1, and so on. Never multiplies — one value per existing pass. Only `start` is read. |
-| `range` | A numeric loop: `start`, `end` (inclusive), optional `step` (default 1). Without `end` it gives the single value `start`. Multiplies — every existing pass repeats once per value, available as `{range}`. |
+| `range` | A numeric loop: `start`, `end` (inclusive), optional `step` (default 1). A negative `step` counts down, so `start` 3, `end` -3, `step` -1 gives 3 down to -3. Without `end` it gives the single value `start`. Multiplies — every existing pass repeats once per value, available as `{range}`. |
 | `items` | An explicit list to loop over — each value becomes `{item}`. Multiplies. |
 | `items_from` | Loop a *different* mapping's items instead of typing a list — see below |
 | `templates_from` | Stamp this template once per listed mapping, filling each one's `tokens` — see below |
@@ -121,6 +121,8 @@ A row with `"value": ""` becomes a self-closing `<value condition="..."/>`. Kodi
 ### Variables that always exist
 
 A `<variable>` with no `<value>` rows is undefined in Kodi (`$VAR[...] is not defined` in the log). The builder never lets that happen: if everything expanded away, it emits a single empty `<value/>` so the variable exists and resolves to nothing. And token-free rows survive every filter — so a plain-named template with a token-free fallback always produces its variable, and your `$VAR[...]` references stay safe even when the user has nothing configured.
+
+When no pass is left (the filter removes them all, or a dynamic mapping has no entries), the name must fill in without a pass. That works when it has no placeholders, or only placeholders the mapping's `tokens` fill with plain text (a token whose value holds a placeholder of its own doesn't count). Any other placeholder leaves nothing to name the variable with, so none is written.
 
 ---
 

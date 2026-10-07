@@ -40,7 +40,7 @@ JSON files in `extras/templates/expressions/`:
 | `items_from` | Loop another mapping's items, under its own placeholder names — same behaviour as [Variables → items_from](03-variables.md#items_from--borrow-another-mappings-list) |
 | `templates_from` | Stamp the template once per listed mapping with its `tokens` filled — [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings) |
 | `index` | `{"start": N}` — numbers the passes as `{index}`; never adds passes |
-| `range` | Numeric loop (`start`, `end`, optional `step`) — multiplies every pass, available as `{range}`; `ready_typewriter_{region}_{range}` uses it |
+| `range` | Numeric loop (`start`, `end` inclusive, optional `step`, default 1; a negative `step` counts down) — multiplies every pass, available as `{range}`; `ready_typewriter_{region}_{range}` uses it |
 | `rules` | Condition / type / value rows — see below |
 | `fallback_key` | Which token groups expressions for the fallback step |
 | `fallbacks` | What the catch-all in each group gets |
@@ -48,7 +48,7 @@ JSON files in `extras/templates/expressions/`:
 
 The expansion order is the same as for [variables](03-variables.md#ordinary-templates). Whether the template loops settings-file entries is decided by the mapping's `mode`; a `mode` key on the template is ignored. In this example (Copacetic's `content_types`) the mapping is dynamic, so `{layout}` is each entry's stored value (or its default) at build time.
 
-The template name is filled in for every pass, and passes that give the same name build one expression together.
+The template name is filled in for every pass, and passes that give the same name build one expression together. When no pass is left (the filter removes them all, or a dynamic mapping has no entries), the expression is still written, as `false`, if its name has no placeholders or only ones the mapping's `tokens` fill with plain text. Otherwise nothing is written.
 
 Note the split: a rule's `condition` is checked **by the builder at build time** ([Rule Engine](08-rule-engine.md)); the rule's `value` is a **Kodi condition** written into the output for Kodi to check at runtime. The builder never evaluates the value.
 

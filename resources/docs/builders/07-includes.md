@@ -35,7 +35,7 @@ XML files in `extras/templates/includes/`:
 | `<mapping>` | Mapping name. Missing = `none`. |
 | `<template>` | One unit to expand (several per file is fine) |
 | `<index start="N">` | Start number for `{index}` (default 1) — numbers the passes, never multiplies them |
-| `<range start="" end="" step="">` | Numeric loop (`end` inclusive, `step` optional) — every pass repeats once per value as `{range}` |
+| `<range start="" end="" step="">` | Numeric loop (`end` inclusive, `step` optional, default 1; a negative `step` counts down to `end`) — every pass repeats once per value as `{range}` |
 | `<items>` | An extra comma-separated loop on the template itself |
 | `<items_from>` | Loop another mapping's items under its own placeholder names — [Variables → items_from](03-variables.md#items_from--borrow-another-mappings-list) |
 | `<templates_from>` | Comma-separated mappings; the template expands once per mapping with its `tokens` filled — [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings). In Copacetic, `includes_scoped.xml` builds one include each for widgets and search from one body. |
@@ -86,7 +86,7 @@ One `<item>` per menu entry, straight into a container's content block. Attribut
 
 A param, attribute, or element whose value fills in to nothing is dropped from that copy — so your include's `$PARAM` defaults take over, and `<onclick>{update}</onclick>` simply isn't there for entries with no update action.
 
-The exception is the outer include itself: if a filter removes *every* pass (or a dynamic mapping has no entries), the named include is still written, holding only a `<description>placeholder</description>` element. Your skin XML can reference `<include>widget_containers</include>` unconditionally without breaking when the user has nothing configured. This only works when the outer name has no per-pass token.
+The exception is the outer include itself: if a filter removes *every* pass (or a dynamic mapping has no entries), the named include is still written, holding only a `<description>placeholder</description>` element. Your skin XML can reference `<include>widget_containers</include>` unconditionally without breaking when the user has nothing configured. This only works when the outer name fills in without a pass: it has no placeholders, or only placeholders the mapping's `tokens` fill with plain text. With any other placeholder in the name, nothing is written.
 
 ---
 
