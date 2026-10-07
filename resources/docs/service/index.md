@@ -88,8 +88,10 @@ All window properties are on the Home window (`10000`). In XML, read them with
 
 | Property | Set when | Value | Cleared when | Page |
 |---|---|---|---|---|
-| `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned` | Playback stops, ends or fails; a real video starts | [Trailers](trailers.md) |
+| `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
+| `trailer_return` | A trailer requested with `fullscreen` starts and goes full screen | The `info_current` key at that moment | By the `trailer_return` action | [Trailers](trailers.md#full-screen) |
+| `info_hop` | As `trailer_return`, when `info_current` is set and is not a season | `fullscreen` | The info dialog's `<onload>`, or the `trailer_return` action | [Trailers](trailers.md#full-screen) |
 | `trailer_played_item` | Never set by the service | — | A trailer fails to play, or a request never starts | [Trailers](trailers.md) |
 | `player_tvshowtitle` | An episode starts | TV show title | Playback stops, ends or fails and nothing else starts; the next file replaces it | [Player properties](player.md) |
 | `player_season` | An episode starts | Season number | As above | [Player properties](player.md) |
@@ -111,8 +113,9 @@ All window properties are on the Home window (`10000`). In XML, read them with
 | `slideshow_title` | Each slide | Item label | The slide has no title | [Slideshow](slideshow.md) |
 
 The service also clears the trailer request properties that `action=play_trailer`
-sets (`trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_viewport`,
-`trailer_pending_since`) when a trailer session ends.
+sets (`trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_window`,
+`trailer_fullscreen`, `trailer_viewport`, `trailer_pending_since`) when a trailer
+session ends. It clears `trailer_fullscreen` as the trailer goes full screen, too.
 
 ### What the service reads from the skin
 
@@ -124,6 +127,8 @@ sets (`trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_viewport`,
 | `trailer_source` | Window property | Staleness check and trailer zoom | [Trailers](trailers.md) |
 | `trailer_focus_ids` | Window property | When checking if a trailer is stale | [Trailers](trailers.md) |
 | `trailer_viewport` | Window property | When a trailer starts | [Trailers](trailers.md) |
+| `trailer_fullscreen` | Window property | When a trailer starts | [Trailers](trailers.md#full-screen) |
+| `info_current` | Window property | When a trailer goes full screen | [Trailers](trailers.md#full-screen) |
 | `trailer_pending_since` | Window property | Each poll while a request is `pending` or `cancelled` | [Trailers](trailers.md) |
 | `trailer_file` | Window property | Each poll | [Trailers](trailers.md) |
 | `playnext_enabled` | Skin setting (bool) | When a library episode starts | [Play next](playnext.md) |

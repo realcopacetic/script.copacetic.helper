@@ -20,13 +20,15 @@ A trailer session moves through these states, stored in
 | `playing` | Service | The requested trailer is playing and still belongs to the focused item. |
 | `interrupted` | Your skin | The user moved away. Your skin sets this; the service then pauses and later stops the trailer. |
 | `orphaned` | Service | The trailer no longer belongs to the focused item. It is paused and waiting to be stopped. |
-| `fullscreen` | `action=trailer_fullscreen` | The trailer left its window for full screen and keeps playing. The service only stops it near its end. |
+| `fullscreen` | `action=trailer_fullscreen`, or the service when a request made with `fullscreen` starts | The trailer left its window for full screen and keeps playing. The service only stops it near its end. |
 
 1. Your skin runs `action=play_trailer`. The action sets `trailer_state` to `pending`,
    stores the request properties below, and plays the trailer.
 2. When the video starts, the service stores its path in `trailer_file`. It then
    checks that the trailer is still wanted (see [Stale trailers](#stale-trailers)):
-   - Still wanted: `trailer_state` becomes `playing` and the zoom is applied.
+   - Still wanted and `trailer_fullscreen` set: the trailer goes full screen (see
+     [Full screen](#full-screen)).
+   - Still wanted otherwise: `trailer_state` becomes `playing` and the zoom is applied.
    - Not wanted: the trailer is paused and `trailer_state` becomes `orphaned`.
    - `cancelled`: the trailer is stopped at once. A video that starts fullscreen is
      not a trailer (trailers start windowed), so it plays as normal.
@@ -68,6 +70,7 @@ full action reference.
 | `source_prefix` | A container id (e.g. `50`) or an infolabel prefix (e.g. `ListItem`) | empty | Where to read the item's label and aspect ratio. A number becomes `Container(<id>).ListItem`. |
 | `viewport` | `WxH` in skin coordinates, e.g. `1088x612` | empty | Size of the video window the trailer plays in. Turns on zoom. |
 | `window` | Any name, e.g. `home` | empty | The window or page the trailer plays in, so your skin can show it only there. |
+| `fullscreen` | Any text | empty | Not empty: the trailer goes full screen as soon as it starts. |
 
 Quote any `key=value` token whose value can contain a comma, such as titles and paths.
 
@@ -88,14 +91,26 @@ The action sets these properties, which the service reads:
 | `trailer_focus_ids` | The `focus_ids` param |
 | `trailer_viewport` | The `viewport` param |
 | `trailer_window` | The `window` param |
+| `trailer_fullscreen` | The `fullscreen` param |
 
 ## Full screen
 
 [`trailer_fullscreen`](../script/actions.md#trailer_fullscreen) takes a playing
 trailer full screen without restarting it, or a requested one as soon as it starts
-(`trailer_fullscreen` property). [`trailer_return`](../script/actions.md#trailer_return)
-reopens the info dialog it came from once full screen closes. The round trip is a hop
-(`info_hop` is `fullscreen`), so the window underneath stays covered meanwhile.
+(`trailer_fullscreen` property). Going full screen:
+
+- sets `trailer_state` to `fullscreen` and clears `trailer_fullscreen`;
+- copies `info_current` into `trailer_return`, the info dialog to reopen afterwards;
+- sets `info_hop` to `fullscreen`, unless `info_current` is empty or names a season
+  (a season can't be reopened);
+- sets the view mode to normal, then runs `Action(FullScreen)`.
+
+Kodi closes the info dialog when it goes full screen. Because `info_hop` is set, the
+close is a hop: the trail is kept, and the window underneath stays covered.
+
+When full screen closes, your skin runs
+[`trailer_return`](../script/actions.md#trailer_return). It reopens the info dialog
+named in `trailer_return` and gives a still-playing trailer its zoom back.
 
 ## Stale trailers
 
@@ -127,6 +142,7 @@ When a trailer starts playing, the service sets the player's view mode:
   If no aspect ratio is found, no zoom is applied.
 - **`trailer_viewport` empty:** the view mode is set to normal. This overrides any
   zoom Kodi stored for the file.
+- **Full screen:** the view mode is set to normal, whatever `trailer_viewport` says.
 
 `trailer_viewport` must use a lower-case `x`, e.g. `1088x612`.
 
@@ -136,7 +152,10 @@ When a trailer starts playing, the service sets the player's view mode:
 |---|---|---|---|
 | `trailer_state` | `playing` | The requested trailer starts and is still wanted | Playback stops, ends or fails; a real video starts |
 | `trailer_state` | `orphaned` | The trailer goes stale or nears its end, or a newer request never started | As above |
+| `trailer_state` | `fullscreen` | A request made with `fullscreen` starts and is still wanted | As above |
 | `trailer_file` | `Player.Filenameandpath` of the trailer | The requested trailer starts | As above |
+| `trailer_return` | `info_current` at the moment the trailer goes full screen | As `fullscreen` | By `trailer_return` |
+| `info_hop` | `fullscreen` | As `fullscreen`, when `info_current` is set and is not a season | The info dialog's `<onload>`, or `trailer_return` when there is no dialog to reopen |
 
 When a session is cleared, the service clears `trailer_state`, `trailer_item`,
 `trailer_source`, `trailer_focus_ids`, `trailer_window`, `trailer_fullscreen`,
