@@ -1216,7 +1216,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.apis import listenbrainz
 
-        if not (listenbrainz.enabled() and self._require("id", "type")):
+        if not (
+            self.dbtype in ("album", "artist", "song")
+            and listenbrainz.enabled()
+            and self._require("id")
+        ):
             return
         entity, mbid = musicbrainz_id(self.dbtype, int(self.dbid), "listeners")
         if not (mbid and (count := listenbrainz.listeners(entity, mbid))):

@@ -235,8 +235,8 @@ only; the skin adds the word. Same setting, cache and spacing as `top_songs`
 It asks `POST /1/popularity/artist`, `/release-group` or `/recording` with the
 item's MusicBrainz id: an artist's `musicbrainzartistid`, an album's release group
 (`musicbrainzreleasegroupid`, so every edition counts) and a song's recording
-(`musicbrainztrackid`). No id in the library, no count from ListenBrainz or access
-off: no item.
+(`musicbrainztrackid`). Another type, no id in the library, no count from
+ListenBrainz or access off: no item.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

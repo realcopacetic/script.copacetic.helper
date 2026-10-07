@@ -622,6 +622,11 @@ class ListenersTest(Base):
         self.assertIsNone(self.handler.listeners())
         self.assertEqual((self.calls, self.net.requests), ([], []))
 
+    def test_other_type_sends_nothing(self):
+        self.handler.dbtype = "musicvideo"
+        self.assertIsNone(self.handler.listeners())
+        self.assertEqual((self.calls, self.net.requests), ([], []))
+
     def test_album_asks_its_release_group(self):
         self.answer(314_279)
         [item] = self.handler.listeners()
