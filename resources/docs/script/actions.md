@@ -52,7 +52,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 
 | Action | What it does |
 |---|---|
-| [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork |
+| [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
 | [`container_move`](#container_move) | Moves a container one item, with optional stop at the ends |
 | [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
@@ -62,6 +62,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`focus`](#focus) | Sets focus reliably, optionally selecting an item first |
 | [`info`](#info) | Replaces the open info dialog with a library item's info |
 | [`info_back`](#info_back) | Steps back along the infoscreen trail |
+| [`info_swap`](#info_swap) | Reopens the info dialog on an item Kodi swapped into it |
 | [`move_pin`](#move_pin) | Moves a pinned speed dial entry up or down |
 | [`pin`](#pin) | Pins a music item to the front of speed dial |
 | [`play_album`](#play_album) | Plays an album |
@@ -124,8 +125,9 @@ type and its path to the action.
 ## clear_cache
 
 Deletes the helper's processed artwork (blurred, cropped and text images) and resets
-its artwork lookup database. A notification shows how much space was saved. Images
-are made again the next time they are needed.
+its artwork lookup database. It also empties the saved answers from web services
+(TMDb, ListenBrainz), so they are fetched again. A notification shows how much space
+was saved. Images are made again the next time they are needed.
 
 No parameters.
 
@@ -351,6 +353,8 @@ force-closes the open info dialogs (`movieinformation`, `musicinformation` and
 Before closing anything, the helper looks up video items and songs in the library.
 Albums and artists are opened by their `musicdb://` path without a lookup.
 
+- **The item is the one the dialog shows** (its key is `info_current`): nothing is
+  reopened. Focus moves to the `focus` control, and `info_hop` is cleared.
 - **The item can't be opened** (another type, or a video item or song not in the
   library): nothing is closed, and `info_hop` is cleared.
 - **Kodi doesn't open the item** (it declines it, or the user cancels the busy dialog
@@ -362,13 +366,16 @@ Albums and artists are opened by their `musicdb://` path without a lookup.
 |---|---|---|---|
 | `dbtype` | `movie`, `tvshow`, `episode`, `musicvideo`, `set`, `artist`, `album`, `song` | required | The item's `ListItem.DBType`. Any other value can't be opened. |
 | `dbid` | database id | required | The item's `ListItem.DBID` |
+| `focus` | control id | required | Where focus goes when the item is the one the dialog already shows, for example your tab row. Without it, the action fails and nothing happens. |
 
 Seasons can't be opened this way (Python can't set a season's show and season ids),
 so browse to a season instead.
 
+In this example, `3200` is a list in the info dialog and `4611` is its tab row.
+
 ```xml
 <onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">SetProperty(info_hop,forward,home)</onclick>
-<onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">RunScript(script.copacetic.helper,action=info,"dbtype=$INFO[ListItem.DBType]","dbid=$INFO[ListItem.DBID]")</onclick>
+<onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">RunScript(script.copacetic.helper,action=info,"dbtype=$INFO[ListItem.DBType]","dbid=$INFO[ListItem.DBID]",focus=4611)</onclick>
 ```
 
 ### The trail
@@ -380,7 +387,7 @@ step back through them. Keys are `<dbtype>:<dbid>`.
 |---|---|---|
 | `info_current` | Key of the item showing | the skin, in the info dialogs' `<onload>` |
 | `info_trail` | Keys of the items before it, newest first, joined by `\|` | pushed by the skin's `<onload>`, popped by `info_back` |
-| `info_hop` | `forward` or `back` while a hop runs; `fullscreen` while the dialog is closed for its trailer's full screen | the skin, before `info` or `info_back`; `trailer_fullscreen`; cleared by `<onload>` |
+| `info_hop` | `forward` or `back` while a hop runs; `fullscreen` while the dialog is closed for its trailer's full screen | the skin, before `info` or `info_back`; the [metadata plugin](../plugins/metadata.md#in-an-info-dialog-targetitem) before `info_swap`; `info_swap`; going full screen (see [`trailer_fullscreen`](#trailer_fullscreen)); cleared by `<onload>` |
 
 The skin's `<onunload>` clears `info_current` and `info_trail` only while `info_hop`
 is empty, so a hop keeps the trail. The helper reads `info_current` after the dialog
@@ -420,6 +427,32 @@ parameters.
 
 Copacetic puts these on a control in the dialog, with a third `<onback>` that moves
 focus to another control, so Kodi doesn't close the dialog as well.
+
+---
+
+## info_swap
+
+Reopens the info dialog on an item that Kodi swapped into it. Kodi's own
+**Information** item in a list's context menu can change the item an open info dialog
+shows without opening the dialog again, so its `<onload>` does not run and the trail
+misses the item. `info_swap` turns that into a normal hop, as [`info`](#info) does.
+
+You don't need to call it yourself. The [metadata
+plugin](../plugins/metadata.md#in-an-info-dialog-targetitem) runs it, with `info_hop`
+set to `forward`, when its path has `target=item`.
+
+- **The item can be opened:** the info dialogs are closed and the item's info opens.
+- **It can't** (a season, or an item not in the library): the dialog reopens on the
+  item it showed before (`info_current`) instead, with `info_hop` set to `back`.
+- **Neither can be opened:** `info_hop` is cleared and the info dialogs close.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `key` | `<dbtype>:<dbid>` | required | The item Kodi swapped in |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=info_swap,key=movie:42)</onclick>
+```
 
 ---
 
@@ -550,13 +583,14 @@ window (a `videowindow` control). The helper's background service then watches i
 | `source_prefix` | container id, or an infolabel prefix such as `Container(50).ListItem` | none | Where to read the current item's label for the `item` check. A plain number means `Container(<id>).ListItem`. |
 | `viewport` | `WxH`, in skin coordinates | none | Size of the area the trailer is shown in. Turns on zoom to fill it. |
 | `window` | text | none | The window or page the trailer plays in, stored in `trailer_window` so the skin can show it only there. |
+| `fullscreen` | any text | none | Any value that isn't empty takes the trailer full screen as soon as it starts, as [`trailer_fullscreen`](#trailer_fullscreen) does. Each request sets this again, so a full-screen request that never started can't carry over to the next trailer. |
 
 **Sets** (while the trailer request is live):
 
 | Property | Value |
 |---|---|
-| `trailer_state` | `pending` when requested. The service changes it to `playing`, or `orphaned` once paused and hidden. Cleared when playback stops. |
-| `trailer_item`, `trailer_focus_ids`, `trailer_source`, `trailer_viewport`, `trailer_window` | The values passed |
+| `trailer_state` | `pending` when requested. The service changes it to `playing`, `fullscreen`, or `orphaned` once paused and hidden. Cleared when playback stops. |
+| `trailer_item`, `trailer_focus_ids`, `trailer_source`, `trailer_viewport`, `trailer_window`, `trailer_fullscreen` | The values passed |
 | `trailer_pending_since` | Time of the request |
 
 For example, show your `videowindow` only while
@@ -814,7 +848,8 @@ Example from Copacetic, in the video OSD:
 ## tmdb_test
 
 Checks the TMDb token set in the helper's settings with a test request. A
-notification says whether the token works, the request failed, or TMDb is off.
+notification says whether the token works or the request failed. With no token set,
+TMDb is off, and the notification says so.
 
 No parameters.
 
@@ -841,13 +876,17 @@ shows the new state.
 
 ## trailer_fullscreen
 
-Takes the trailer that a window or page plays full screen, with the same parameters
-as [`play_trailer`](#play_trailer). `window` says whose trailer it is:
+Takes the trailer that a window or page plays full screen. It takes the same
+parameters as [`play_trailer`](#play_trailer), but `window` is required, and
+`fullscreen` is always on. `window` says whose trailer it is:
 
 - Its trailer is `playing`: it goes full screen at once and carries on from where it
   is (`Action(FullScreen)`, no new `PlayMedia`).
 - Its trailer is `pending`: it goes full screen as soon as it starts.
 - Otherwise: the trailer is requested now and goes full screen as soon as it starts.
+
+Without `window`, the trailer never counts as this window's, so every press starts
+it again from the beginning.
 
 Going full screen sets `trailer_state` to `fullscreen`, sets the view mode to normal
 and copies `info_current` into `trailer_return`, the info dialog to reopen when full
