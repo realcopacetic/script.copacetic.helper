@@ -59,6 +59,7 @@ class ImageProcessor:
         image = self._ensure_mode(image, "RGBA")
         thumb_size = self.cfg.crop_target_size
         if image.width > thumb_size[0] or image.height > thumb_size[1]:
+            image = image.copy()  # thumbnail() is in place; analyze shares the source
             image.thumbnail(thumb_size, Image.BILINEAR)
 
         box = image.getchannel("A").getbbox()
