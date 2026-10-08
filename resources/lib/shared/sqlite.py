@@ -67,9 +67,6 @@ class SQLiteHandler:
         :param columns: Ordered column names to write.
         :param values: Ordered values matching the columns.
         """
-        if not self.TABLE_NAME:
-            raise RuntimeError("TABLE_NAME must be defined.")
-
         cols = ", ".join(columns)
         placeholders = ", ".join("?" for _ in columns)
 
@@ -90,9 +87,6 @@ class SQLiteHandler:
         :param where: SQL WHERE clause (without the WHERE keyword).
         :param params: SQL parameters for the WHERE clause.
         """
-        if not self.TABLE_NAME:
-            raise RuntimeError("TABLE_NAME must be defined.")
-
         with self._conn as conn:
             conn.execute(
                 f"DELETE FROM {self.TABLE_NAME} WHERE {where}",
@@ -138,9 +132,6 @@ class SQLiteHandler:
         Remove all rows from TABLE_NAME.
         Clears cached data entirely.
         """
-        if not self.TABLE_NAME:
-            raise RuntimeError("TABLE_NAME must be set on subclasses.")
-
         with self._conn as conn:
             conn.execute(f"DELETE FROM {self.TABLE_NAME}")
 
