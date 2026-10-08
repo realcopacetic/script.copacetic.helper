@@ -143,6 +143,14 @@ class SQLiteHandler:
         with self._conn as conn:
             conn.execute(f"DELETE FROM {self.TABLE_NAME}")
 
+    def vacuum(self) -> None:
+        """
+        Rebuild the database file, then checkpoint the WAL that VACUUM wrote into,
+        so the space freed by deletes returns to disk. Runs outside a transaction.
+        """
+        self._conn.execute("VACUUM")
+        self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
 
 class ArtworkCacheHandler(SQLiteHandler):
     """

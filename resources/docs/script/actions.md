@@ -126,8 +126,9 @@ type and its path to the action.
 
 Deletes the helper's processed artwork (blurred, cropped and text images) and resets
 its artwork lookup database. It also empties the saved answers from web services
-(TMDb, ListenBrainz), so they are fetched again. A notification shows how much space
-was saved. Images are made again the next time they are needed.
+(TMDb, ListenBrainz), so they are fetched again, and the saved text truncations,
+then compacts the database file. A notification shows how much space was saved.
+Images are made again the next time they are needed.
 
 No parameters.
 
