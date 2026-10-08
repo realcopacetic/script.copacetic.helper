@@ -248,7 +248,7 @@ def clear_cache(**kwargs: str) -> None:
     Clears all temporary artwork processing data and every table in the lookup
     database, then compacts it. Posts a notification with the amount of space saved.
     """
-    readable_size = get_cache_size()
+    size_before = get_total_size(ADDONDATA)
 
     for folder in [BLURS, CROPS, TEXTS, TEMPS]:
         if xbmcvfs.exists(folder):
@@ -266,21 +266,22 @@ def clear_cache(**kwargs: str) -> None:
         handler.clear_all()
     handlers[-1].vacuum()  # every table lives in the one LOOKUPS file
 
+    readable_size = readable_bytes(size_before - get_total_size(ADDONDATA))
     log.info(f"Artwork cache cleared by user. {readable_size} saved.")
     message = f"{ADDON.getLocalizedString(32201)}, {readable_size} {ADDON.getLocalizedString(32202)}."
     Dialog().notification(ADDON_ID, message)
 
 
-def get_cache_size(precision: int = 1) -> str:
+def readable_bytes(size: int, precision: int = 1) -> str:
     """
-    Computes the combined size of the helper's data folder.
+    Formats a byte count for people, e.g. "1.2 MB".
     Credit Doug Latornell for bitshift method
     https://code.activestate.com/recipes/577081-humanized-representation-of-a-number-of-bytes/
 
+    :param size: Number of bytes.
     :param precision: Decimal precision for human-readable output.
-    :return: Formatted size string (e.g., "1.2 MB").
+    :return: Formatted size string.
     """
-    size = get_total_size(ADDONDATA)
     abbrevs = ((1 << 30, "GB"), (1 << 20, "MB"), (1 << 10, "KB"), (1, "bytes"))
     for factor, suffix in abbrevs:
         if size >= factor:
