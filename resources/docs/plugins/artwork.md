@@ -49,6 +49,10 @@ An image is only processed when you pass its URL (`clearlogo_url`, `background_u
 you turn them on. The images are processed in the order above, so the background and
 icon can use the clearlogo's colour.
 
+If the background can't be read (a dead remote URL), the helper tries once more with
+the item's own fanart (fanart, show fanart, artist fanart, thumb), when that is a
+different image. The icon has no such second try.
+
 "Icon" is just a name for a second image. Use it for anything: a poster, a thumbnail,
 or a second copy of the background with a lighter blur.
 

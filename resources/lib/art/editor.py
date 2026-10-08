@@ -109,7 +109,7 @@ class ImageEditor:
                         merged := self._handle_jobs(
                             art_type=art_type,
                             processes=tuple(processes),
-                            source=source or "Container.ListItem",
+                            source=source,
                             opts=opts,
                             shared=shared,
                         )
@@ -125,7 +125,7 @@ class ImageEditor:
         *,
         art_type: str,
         processes: Iterable[str],
-        source: str,
+        source: str | None,
         opts: ArtOpts,
         shared: dict[str, Any],
     ) -> dict[str, Any] | None:
@@ -196,7 +196,13 @@ class ImageEditor:
                 folder=folder,
             )
             if processed is None:
-                return None
+                return self._background_fallback(
+                    art_type=art_type,
+                    processes=processes,
+                    source=source,
+                    opts=opts,
+                    shared=shared,
+                )
 
             attrs |= processed
             log.debug(
@@ -214,6 +220,40 @@ class ImageEditor:
 
         shared["results"][art_type] = attrs
         return attrs
+
+    def _background_fallback(
+        self,
+        *,
+        art_type: str,
+        processes: Iterable[str],
+        source: str | None,
+        opts: ArtOpts,
+        shared: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """
+        A background whose image can't be used (a dead remote thumb) runs once more
+        on the item's fanart ladder, so the backstage still gets a blur.
+
+        :param art_type: Artwork type key; only "background" falls back.
+        :param processes: Ordered process names for this art_type.
+        :param source: Kodi infolabel source prefix.
+        :param opts: Parsed ArtOpts whose url failed.
+        :param shared: Shared context across jobs in this call.
+        :return: Merged attributes from the fallback art, or None.
+        """
+        if art_type != "background" or not source:
+            return None
+        url = self._fetch_art_url("fanart", source).get("fanart")
+        if not url or url == opts.url:
+            return None
+        log.debug(f"{self.__class__.__name__} → background fallback → {url}")
+        return self._handle_jobs(
+            art_type=art_type,
+            processes=processes,
+            source=source,
+            opts=dataclasses.replace(opts, url=url),
+            shared=shared,
+        )
 
     def _resolve_darken_colours(
         self, opts: ArtOpts, results: Mapping[str, Mapping[str, Any]]
