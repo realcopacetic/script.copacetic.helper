@@ -142,18 +142,15 @@ class ImageProcessor:
     ) -> dict[str, Any] | None:
         """
         Compute darken metadata without altering pixels. Colour aliases are
-        resolved upstream (ImageEditor). Returns None if disabled or failed.
+        resolved upstream (ImageEditor); only called when darken is enabled.
 
         :param image: Input PIL image.
         :param opts: Parsed ArtOpts for this art_type.
         :return: Dict with "metadata" or None on failure.
         """
-        if not (darken_opts := opts.darken) or not darken_opts.enabled:
-            return None
-
         try:
             return {
-                "metadata": self.darken_engine.compute_darken(image, opts=darken_opts)
+                "metadata": self.darken_engine.compute_darken(image, opts=opts.darken)
                 or {}
             }
         except Exception as exc:
