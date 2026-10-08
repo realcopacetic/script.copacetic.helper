@@ -134,7 +134,7 @@ follow each other in the order below.
 | `limit` | whole number | all | Most items of each kind, after the sort. The kinds add up, so the list can hold up to twice this. |
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=director_credits&amp;label=$INFO[ListItem.Director]&amp;exclude_value=$INFO[ListItem.Title]</content>
+<content>plugin://script.copacetic.helper/?info=director_credits&amp;label=$INFO[ListItem.Director]&amp;exclude_value=$INFO[ListItem.Title]&amp;limit=25</content>
 ```
 
 Pass one name in `label`. `ListItem.Director` holds several names, separated by
