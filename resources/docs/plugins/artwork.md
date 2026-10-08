@@ -108,7 +108,7 @@ values mean.
 | `target` | container id, or `item` | — | Container whose focused item this call is for; `item` is the window's own item (an info dialog's). See [Plugin Helpers](plugin_helpers.md#the-focus-guard). |
 | `prop_key` | any text | — | Suffix for the window properties the helper sets (see [Window properties](#window-properties)). |
 | `cursor_key` | any text | — | Name of the window property that marks the focused item (`artwork_cursor_<cursor_key>`). See [Is this result for the focused item?](#is-this-result-for-the-focused-item). |
-| `visit` | any text | — | A value that changes once per focus change. See the same section. A new value also refills the multiart FadeLabel. |
+| `visit` | any text | — | A value that changes once per focus change. See the same section. A new value also refills the multiart FadeLabel. If passed and not equal to `Window(home).Property(artwork_visit)`, the call does nothing: a superseded or replayed path, as the live one fires anyway. |
 | `background_match` | `true`, `false` | `false` | With `target=item` only: if the last blurred background the helper made for a window (`Window(home).Property(background_origin)`) was for this same item, blur that image at that radius instead of `background_url`. An info dialog then opens on the same blur its window was showing. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 

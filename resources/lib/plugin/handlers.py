@@ -255,6 +255,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             f"{infolabel(f'{self.target_item}.DBID')}"
         )
 
+    def _visit_superseded(self) -> bool:
+        """
+        A URL whose visit stamp is no longer live is a replay or a superseded serve:
+        the live visit's URL fires on its own, so this run must do nothing.
+
+        :return: True when the URL carries a visit that is not the live one.
+        """
+        visit = self.params.get("visit")
+        stamp = "Window(home).Property(artwork_visit)"
+        return bool(visit) and visit != infolabel(stamp)
+
     def _info_swapped(self) -> bool:
         """
         Kodi's own Information (a rail's context menu) swaps the open dialog's item
@@ -394,6 +405,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
+        if self._visit_superseded():
+            return
+
         from resources.lib.art.editor import ImageEditor
         from resources.lib.art.multiart import build_multiart_dict, seed_multiart
         from resources.lib.art.policy import ART_PROCESS_MAP
@@ -854,9 +868,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             log.warning("typewriter → label required")
             return
 
-        visit = self.params.get("visit")
-        if visit and visit != infolabel("Window(home).Property(artwork_visit)"):
-            return  # replay of a cached probe URL (e.g. post-ReloadSkin); the live URL re-fires
+        if self._visit_superseded():
+            return
 
         guard = self._guard()
         if not guard.alive():
