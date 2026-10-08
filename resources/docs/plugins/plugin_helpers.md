@@ -40,7 +40,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `jumpbutton` | Moves a button along a scrollbar and labels it with the sort letter. | [Jump Button](jumpbutton.md) |
 | `text` | Draws text into a PNG image. | [Text Image](text.md) |
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
-| `in_progress`, `next_up`, `random_movies`, `random_tvshows`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `genre_music`, `top_songs`, `discography` | Fill a container with library items. | [Library Listings](library.md) |
+| `in_progress`, `next_up`, `random_movies`, `random_tvshows`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `genre_music`, `top_songs`, `discography`, `soundtracks` | Fill a container with library items. | [Library Listings](library.md) |
 | `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |
 | `listeners` | Returns ListenBrainz's listener count for a library artist, album or song. | [Library Listings](library.md#listeners) |
 

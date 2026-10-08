@@ -14,6 +14,9 @@ python tests/skin_lint.py ../skin.copacetic2 [--window MyPics.xml ...] [--all] [
 
 # Web API layer (http, api_cache, ListenBrainz, top_songs, TMDb) against recorded answers, no network
 python tests/api_offline.py
+
+# Soundtrack title matching (plugin/soundtracks.py) against real album titles
+python tests/soundtracks_offline.py
 ```
 
 - `build_offline` stubs only the `xbmc*` calls the builders make; a new Kodi call fails loudly — add it to `install_stubs`. Any ERROR log line fails the build.

@@ -1,7 +1,7 @@
 # Library Listings
 
 These plugin paths fill a container with items from your video library (`genre_music`,
-`top_songs`, `discography`: your music library). Use them as widgets or in any list. Each item carries the usual
+`top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
 library infolabels and artwork, so your existing layouts work with them.
 
 | `info=` | What it lists |
@@ -19,6 +19,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `genre_music` | Library artists, albums or songs in any of the given genres. |
 | `top_songs` | A library artist's songs most listened to on ListenBrainz, then its most played. |
 | `discography` | A library artist's albums, most listened to on ListenBrainz first. |
+| `soundtracks` | A movie's, TV show's or season's soundtrack albums, or the movie or TV show an album is from. |
 
 ```xml
 <control type="list" id="5000"><!-- id is an example -->
@@ -224,6 +225,47 @@ Same cache and spacing as `top_songs`.
 
 ```xml
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=discography&amp;id=$INFO[ListItem.DBID]</content>
+```
+
+## `soundtracks`
+
+Links your music library's soundtrack albums to your movies and TV shows by title.
+For a movie, TV show, season or episode it lists the soundtrack albums; for an album
+it lists the movie or TV show the album is from (nothing if it isn't a soundtrack).
+
+**What counts as a soundtrack.** An album whose type, genre, style or title says
+"soundtrack". MusicBrainz Picard writes the type (`Album / Soundtrack`), so a tagged
+library needs nothing else.
+
+**How titles match.** The album's title must be the movie's or show's title or
+original title, either whole (*Black Swan*) or followed only by soundtrack wording
+after a `:`, ` - `, `,` or bracket (*Batman Begins: Original Motion Picture
+Soundtrack*, *Halt and Catch Fire, Vol. 2 (Original Television Series Soundtrack)*).
+Case, accents, punctuation and `&`/`and` don't matter, but "The" does: *The Batman*'s
+album isn't *Batman*'s. A subtitle that isn't soundtrack wording keeps the whole name,
+so *Batman: Arkham Asylum: Original Video Game Score* doesn't match *Batman*.
+
+**Same-titled movies and shows.** When the library has more than one (*The Lion King*
+1994 and 2019, or a *Watchmen* movie and show), the album goes to the one its wording
+names ("Motion Picture" for a movie, "Television", "Series", "Season" or a network for
+a show), then to the one nearest its first release year. The year is the album's
+original date when the tags have one, so a reissue still finds its movie. With only
+one candidate the year is never checked.
+
+**Seasons.** An album's title can name seasons: "Season 3", "Season One", "Seasons 3 &
+4", "Seasons 1–3", "Series 2". A season (or episode) lists the albums naming it first,
+then the albums naming no season (volumes, a limited series), oldest first; albums
+naming other seasons are left out. A TV show lists all of them, oldest first. For an
+album that names seasons, the TV show item carries them in
+`ListItem.Property(soundtrack_seasons)` (`3, 4`).
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `movie`, `tvshow`, `season`, `episode`, `album` | required | The item's type |
+| `id` | the item's `DBID` | required | The item |
+
+```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=soundtracks&amp;type=$INFO[ListItem.DBType]&amp;id=$INFO[ListItem.DBID]</content>
 ```
 
 ## `listeners`

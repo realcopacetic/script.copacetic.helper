@@ -43,6 +43,13 @@ from resources.lib.plugin.music import (
 )
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
+from resources.lib.plugin.soundtracks import (
+    SOUNDTRACK,
+    claim,
+    owner,
+    release_year,
+    title_key,
+)
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.utilities import (
@@ -50,6 +57,7 @@ from resources.lib.shared.utilities import (
     condition,
     focused_control_id,
     infolabel,
+    json_call,
     parse_bool,
     plugin_path,
     set_plugincontent,
@@ -58,6 +66,30 @@ from resources.lib.shared.utilities import (
     topmost_window_id,
     window_property,
 )
+
+_VIDEO_METHODS = {
+    "movie": "Movie",
+    "tvshow": "TVShow",
+    "season": "Season",
+    "episode": "Episode",
+}  # VideoLibrary.Get{…}s / Get{…}Details per library type
+
+
+def _video_details(type: str, dbid: int, properties: list[str]) -> dict:
+    """
+    A library film, show, season or episode's details.
+
+    :param type: movie, tvshow, season or episode.
+    :param dbid: Library id.
+    :param properties: Properties to fetch.
+    :return: The details row.
+    """
+    return json_call(
+        f"VideoLibrary.Get{_VIDEO_METHODS[type]}Details",
+        properties=properties,
+        params={f"{type}id": dbid},
+        parent="soundtracks",
+    )["result"][f"{type}details"]
 
 
 class _FocusGuard:
@@ -1233,6 +1265,118 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 }
             ]
         )
+
+    @log.duration
+    def soundtracks(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of the soundtrack albums of library film, show, season or
+        episode type= id=, matched by title; a season's own lead, other seasons' go.
+        With type=album, the film or show that soundtrack is from.
+
+        :return: List of directory items for Kodi, or None if none match.
+        """
+        if not self._require("type", "id"):
+            return
+        if self.dbtype == "album":
+            return self._soundtrack_source(int(self.dbid))
+        media, dbid, season = self.dbtype, int(self.dbid), 0
+        if media in ("season", "episode"):
+            parent = _video_details(media, dbid, ["tvshowid", "season"])
+            media, dbid, season = "tvshow", parent["tvshowid"], parent["season"]
+        item = _video_details(media, dbid, ["title", "originaltitle", "year"])
+        names = {item["title"], item["originaltitle"]}
+        keys = set(map(title_key, filter(None, names)))
+        albums = library_rows(
+            "album",
+            {
+                "or": [
+                    {"field": field, "operator": "contains", "value": SOUNDTRACK}
+                    for field in ("type", "genre", "styles", "album")
+                ]
+            },
+            None,
+            None,
+            "soundtracks",
+            [*ALBUM_RANK_PROPERTIES, "originaldate"],
+        )
+        claims = {album["albumid"]: claim(album["title"]) for album in albums}
+        if not (
+            albums := [a for a in albums if claims[a["albumid"]].fits(keys, season)]
+        ):
+            return
+        # same-titled films and shows: each album goes to the nearest one
+        rivals = [
+            (type, row)
+            for type in ("movie", "tvshow")
+            for row in fetch_raw(
+                f"VideoLibrary.Get{_VIDEO_METHODS[type]}s",
+                type,
+                [{"or": [title_filter(names), title_filter(names, "originaltitle")]}],
+                None,
+                "soundtracks",
+                properties=["title", "originaltitle", "year"],
+            )
+        ]
+        albums = [
+            album
+            for album in albums
+            if (found := owner(claims[album["albumid"]], release_year(album), rivals))
+            and (found[0], found[1][f"{found[0]}id"]) == (media, dbid)
+        ]
+        albums.sort(
+            key=lambda album: (
+                season not in claims[album["albumid"]].seasons,
+                release_year(album),
+            )
+        )
+        set_plugincontent(content="albums")
+        return [library_item(album, "album") for album in albums] or None
+
+    def _soundtrack_source(self, albumid: int) -> list[DirectoryItem] | None:
+        """
+        The film or show soundtrack album albumid is from, matched by title; a show
+        carries the seasons the album names in soundtrack_seasons ("3, 4").
+
+        :param albumid: Library album id.
+        :return: List of one directory item, or None if not a soundtrack or no match.
+        """
+        album = json_call(
+            "AudioLibrary.GetAlbumDetails",
+            properties=["genre", "originaldate", "style", "title", "type", "year"],
+            params={"albumid": albumid},
+            parent="soundtracks",
+        )["result"]["albumdetails"]
+        tags = (album["type"], album["title"], *album["genre"], *album["style"])
+        if not any(SOUNDTRACK in tag.casefold() for tag in tags):
+            return
+        album_claim = claim(album["title"])
+        shortest = album_claim.titles[-1]
+        rule = {
+            "or": [
+                {"field": field, "operator": "startswith", "value": shortest}
+                for field in ("title", "originaltitle")
+            ]
+        }
+        candidates = [
+            (type, row)
+            for type in ("movie", "tvshow")
+            for row in fetch_raw(
+                f"VideoLibrary.Get{_VIDEO_METHODS[type]}s",
+                type,
+                [rule],
+                None,
+                "soundtracks",
+            )
+        ]
+        if not (found := owner(album_claim, release_year(album), candidates)):
+            return
+        type, row = found
+        set_plugincontent(content=f"{type}s")
+        items = build_items([row], type, apply_videoinfotag)
+        named = ", ".join(map(str, sorted(album_claim.seasons)))
+        for _, li, _ in items:
+            li.setProperty("soundtrack_seasons", named)
+        return items
 
     @role_endpoint(
         field="studio",
