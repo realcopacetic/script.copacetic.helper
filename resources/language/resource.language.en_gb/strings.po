@@ -234,7 +234,7 @@ msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32208"
-msgid "TMDB disabled or token missing"
+msgid "No TMDB token set"
 msgstr ""
 
 #: /resources/lib/script/actions.py
