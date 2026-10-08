@@ -86,7 +86,7 @@ before each slide, so you can change it at any time.
 | `background_blur_radius` | Whole number of pixels | `50` | Blur strength. |
 | `background_edge_trim` | Percent per side | `0` | Border to cut away before blurring, to drop black bars. |
 | `background_darken` | `artwork`, `all` | none | Work out a darken value. Any other value turns it off. |
-| `background_darken_source` | ARGB hex, e.g. `fff0efef` | none | Colour of the text that sits on the fanart. |
+| `background_darken_source` | ARGB hex, e.g. `fff0efef` | `fff0efef` | Colour of the text that sits on the fanart. |
 | `background_darken_rects` | One or more `x,y,w,h` rectangles | none | Areas where text sits. Required for a darken value. |
 | `background_darken_strength` | `0.0`–`2.0` | `1.0` | Scales the darken value. |
 
@@ -97,7 +97,7 @@ can't be `clearlogo` here: use an ARGB colour.
 Example (from Copacetic, in the Home window):
 
 ```xml
-<onload>SetProperty(slideshow_artwork_params,"background_blur=true&amp;background_blur_radius=20&amp;background_edge_trim=2&amp;background_darken=artwork&amp;background_darken_source=fff0efef&amp;background_darken_rects=0,0,1920,1080&amp;background_darken_strength=1.2",home)</onload>
+<onload>SetProperty(slideshow_artwork_params,"background_blur=true&amp;background_blur_radius=20&amp;background_edge_trim=2&amp;background_darken=artwork&amp;background_darken_rects=0,0,1920,1080&amp;background_darken_strength=1.2",home)</onload>
 ```
 
 If the property is empty, the fanart is blurred with the default radius and no darken
