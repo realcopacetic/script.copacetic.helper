@@ -3,13 +3,14 @@
 import json
 import sqlite3
 import time
+from datetime import timedelta
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Mapping
 
 from resources.lib.art import policy
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import LOOKUPS, create_dir
+from resources.lib.shared.utilities import LOOKUPS, create_dir, log_json
 
 TRUNCATE_DB_SCHEMA = (
     ("cache_key", "TEXT NOT NULL UNIQUE"),
@@ -378,9 +379,12 @@ class ApiCacheHandler(SQLiteHandler):
         :return: (payload, fresh), payload None for a negative entry; None if absent.
         """
         if not (row := self._get_one(where="key = ?", params=(key,))):
+            log.debug(f"api_cache → miss {key}")
             return None
         payload = row["payload"] and json.loads(row["payload"])
-        return payload, row["expires_at"] > time.time()
+        fresh = row["expires_at"] > time.time()
+        self._log(f"{'fresh' if fresh else 'stale'} {key}", payload)
+        return payload, fresh
 
     def put(self, key: str, payload: Any, ttl: int) -> None:
         """
@@ -398,6 +402,24 @@ class ApiCacheHandler(SQLiteHandler):
                 int(time.time()) + ttl,
             ),
         )
+        self._log(f"stored {key} for {timedelta(seconds=ttl)}", payload)
+
+    @staticmethod
+    def _log(event: str, payload: Any) -> None:
+        """
+        One debug line: event and payload size; the payload itself with JSON logging.
+
+        :param event: What happened, with the key.
+        :param payload: The answer; None for a negative entry.
+        """
+        if payload is None:
+            size = "negative"
+        elif isinstance(payload, (list, dict)):
+            size = f"{len(payload)} items"
+        else:
+            size = payload
+        log.debug(f"api_cache → {event} ({size})")
+        log_json(f"api_cache → {event}", payload)
 
     def prune(self, grace: int = 86400 * 30) -> None:
         """

@@ -378,6 +378,17 @@ def _truncate_for_log(payload: Any) -> Any:
     return payload
 
 
+def log_json(label: str, payload: Any) -> None:
+    """
+    Debug-log payload, long lists cut short, when the JSON logging setting is on.
+
+    :param label: Line prefix naming the payload.
+    :param payload: JSON-serialisable structure.
+    """
+    if ADDON.getSettingBool("json_logging"):
+        log.debug(f"{label} " + pretty_print(_truncate_for_log(payload)))
+
+
 def json_call(
     method: str,
     properties: list[str] | None = None,

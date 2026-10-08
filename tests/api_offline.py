@@ -103,6 +103,7 @@ class Base(unittest.TestCase):
         self.cache = ApiCacheHandler()
         self.cache.clear_all()
         sys.modules["xbmcgui"].Window().clearProperty(listenbrainz.NEXT_CALL)
+        listenbrainz.Monitor = lambda: self  # waitForAbort: the clock moves on
         listenbrainz.ADDON.getSettingBool = lambda key: key == "listenbrainz_access"
 
     def row(self, mbid=GORILLAZ, key="listenbrainz:top:"):
@@ -115,6 +116,10 @@ class Base(unittest.TestCase):
 
     def tick(self, seconds):
         self.now += seconds
+
+    def waitForAbort(self, seconds):
+        self.tick(seconds)
+        return False
 
 
 class HttpTest(Base):
@@ -258,25 +263,31 @@ class ListenBrainzTest(Base):
         listenbrainz.top_recordings(GORILLAZ)
         self.assertEqual(len(self.net.requests), 3)
 
-    def test_one_request_a_second_across_calls(self):
-        self.net.answers = [FIXTURE, FIXTURE]
+    def test_calls_inside_a_second_queue(self):
+        self.net.answers = [FIXTURE, ALBUMS, FIXTURE]
+        start = self.now
         listenbrainz.top_recordings(GORILLAZ)
-        self.tick(0.5)
-        self.assertEqual(listenbrainz.top_recordings("other-artist"), [])
-        self.assertEqual(len(self.net.requests), 1)
-        self.assertIsNone(self.cache.get("listenbrainz:top:other-artist"))
-        self.tick(0.5)
+        self.assertTrue(listenbrainz.top_release_groups(GORILLAZ))
         self.assertTrue(listenbrainz.top_recordings("other-artist"))
-        self.assertEqual(len(self.net.requests), 2)
+        self.assertEqual(len(self.net.requests), 3)
+        self.assertEqual(self.now - start, 2)
+
+    def test_queue_past_max_wait_skips(self):
+        self.net.answers = [FIXTURE]
+        window = sys.modules["xbmcgui"].Window()
+        window.setProperty(listenbrainz.NEXT_CALL, f"{self.now + 3.5}")
+        self.assertEqual(listenbrainz.top_recordings(GORILLAZ), [])
+        self.assertEqual(self.net.requests, [])
+        self.assertIsNone(self.cache.get(f"listenbrainz:top:{GORILLAZ}"))
 
     def test_429_waits_reset_in(self):
         self.net.answers = [http_error(429, {"X-RateLimit-Reset-In": "30"}), FIXTURE]
         self.assertEqual(listenbrainz.top_recordings(GORILLAZ), [])
         self.assertEqual(self.row(), (None, 30))
-        self.tick(29)
+        self.tick(26)
         self.assertEqual(listenbrainz.top_recordings("other-artist"), [])
         self.assertEqual(len(self.net.requests), 1)
-        self.tick(1)
+        self.tick(4)
         self.assertTrue(listenbrainz.top_recordings(GORILLAZ))
 
     def test_prune_keeps_recently_expired(self):

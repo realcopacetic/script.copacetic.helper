@@ -3,14 +3,17 @@
 import time
 from typing import Any, Callable
 
+from xbmc import Monitor
 from xbmcgui import Window
 
 from resources.lib.apis.http import HttpError, get_json
+from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import ADDON
 
 POPULARITY = "https://api.listenbrainz.org/1/popularity/"
-NEXT_CALL = "copacetic.listenbrainz_next"  # home property: epoch before which none
+NEXT_CALL = "copacetic.listenbrainz_next"  # home property: epoch of the next free slot
+MAX_WAIT = 3  # seconds a call queues for its slot before giving up
 DAY = 86400
 TTL_HIT, TTL_EMPTY, TTL_INVALID, TTL_DOWN = 14 * DAY, 3 * DAY, 7 * DAY, 300
 
@@ -37,7 +40,7 @@ def _failure_ttl(exc: HttpError) -> int:
 def _cached(key: str, url: str, shape: Callable[[Any], Any], body: Any = None) -> Any:
     """
     The answer for key, fetched from url and shaped when stale, cached per answer
-    kind; at most one request a second across plugin calls, else the stale answer.
+    kind; one request a second across plugin calls, queued up to MAX_WAIT seconds.
 
     :param key: api_cache key.
     :param url: Endpoint URL.
@@ -47,16 +50,24 @@ def _cached(key: str, url: str, shape: Callable[[Any], Any], body: Any = None) -
     """
     cache = ApiCacheHandler()
     payload, fresh = cache.get(key) or (None, False)
-    home, now = Window(10000), time.time()
-    if fresh or now < float(home.getProperty(NEXT_CALL) or 0):
+    if fresh:
         return payload
-    home.setProperty(NEXT_CALL, f"{now + 1}")
+    home, now = Window(10000), time.time()
+    slot = max(now, float(home.getProperty(NEXT_CALL) or 0))
+    if slot - now > MAX_WAIT:
+        log.debug(f"listenbrainz → busy for {slot - now:.0f}s, skipped {key}")
+        return payload
+    home.setProperty(NEXT_CALL, f"{slot + 1}")
+    if slot > now:
+        log.debug(f"listenbrainz → queued {slot - now:.1f}s {key}")
+        if Monitor().waitForAbort(slot - now):
+            return payload
     try:
         payload = shape(get_json(url, body=body))
     except HttpError as exc:
         ttl = _failure_ttl(exc)
         if exc.status == 429:
-            home.setProperty(NEXT_CALL, f"{now + ttl}")
+            home.setProperty(NEXT_CALL, f"{slot + ttl}")
         cache.put(key, payload, ttl)  # keeps a stale answer, else a negative one
         return payload
     cache.put(key, payload, TTL_HIT if payload else TTL_EMPTY)
