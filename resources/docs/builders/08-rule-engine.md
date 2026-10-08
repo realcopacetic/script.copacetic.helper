@@ -1,6 +1,6 @@
 # Rule Engine
 
-One condition language, used everywhere: config rules, expression rules, template filters, control `visible` conditions and `confirm` conditions. Tokens fill in first, then the condition comes out true or false. It is the addon's own small language, not Kodi's: it runs in Python, at build time or in the settings window.
+One condition language, used everywhere: config rules, expression rules, template and row filters, control `visible` conditions and `confirm` conditions. Tokens fill in first, then the condition comes out true or false. It is the addon's own small language, not Kodi's: it runs in Python, at build time or in the settings window.
 
 ---
 

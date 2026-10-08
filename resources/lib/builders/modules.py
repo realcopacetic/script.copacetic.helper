@@ -139,19 +139,10 @@ class BaseBuilder:
             ]
 
         if filter_expr := element_data.get("filter"):
-            kept = []
-            for sub in substitutions:
-                rendered = self.substitute_loud(
-                    filter_expr, sub, f"filter of '{element_name}'"
-                )
-                if "{" in rendered:
-                    raise TokenError(
-                        f"filter of '{element_name}' did not fully resolve: "
-                        f"'{rendered}' (mapping '{self.mapping_name}')"
-                    )
-                if self.rules.evaluate(rendered):
-                    kept.append(sub)
-            substitutions = kept
+            what = f"filter of '{element_name}'"
+            substitutions = [
+                sub for sub in substitutions if self._passes(filter_expr, sub, what)
+            ]
 
         self._add_loop_position_flags(substitutions)
 
@@ -161,6 +152,26 @@ class BaseBuilder:
                 element_name, element_data, substitutions
             ).items()
         )
+
+    def _passes(self, filter_expr: str, sub: dict[str, str], what: str) -> bool:
+        """
+        Evaluate a build-time ``filter`` against one substitution; an empty filter
+        passes. Unknown or unresolved placeholders stop the build.
+
+        :param filter_expr: Rule-engine condition, possibly with placeholders.
+        :param sub: Substitution dictionary for formatting.
+        :param what: Caller description for the error message.
+        :return: True if the filter passes.
+        """
+        if not filter_expr:
+            return True
+        rendered = self.substitute_loud(filter_expr, sub, what)
+        if "{" in rendered:
+            raise TokenError(
+                f"{what} did not fully resolve: '{rendered}' "
+                f"(mapping '{self.mapping_name}')"
+            )
+        return self.rules.evaluate(rendered)
 
     @staticmethod
     def _delimit(value: str) -> str:
@@ -804,7 +815,11 @@ class VariablesBuilder(BaseBuilder):
         projected = []
         for block in blocks:
             pairs = [
-                {"condition": row.get("condition", ""), "value": row[output_key]}
+                {
+                    "condition": row.get("condition", ""),
+                    "filter": row.get("filter", ""),
+                    "value": row[output_key],
+                }
                 for row in block
                 if output_key in row
             ]
@@ -896,9 +911,9 @@ class VariablesBuilder(BaseBuilder):
         subs: list[dict[str, Any]],
     ) -> list[dict[str, str]]:
         """
-        Expand blocks into a flat list in declared order. A block with any placeholder
-        expands once per substitution, as a unit; a placeholder-free block emits once,
-        in place. Rows Kodi never reads are dropped (see ``_dedup_rows``).
+        Expand blocks into a flat list in declared order: a block with any placeholder
+        once per substitution, as a unit, else once in place. Rows failing their own
+        ``filter`` and rows Kodi never reads (``_dedup_rows``) are dropped.
 
         :param blocks: Normalised list of blocks.
         :param subs: Substitution group (may be empty).
@@ -906,11 +921,12 @@ class VariablesBuilder(BaseBuilder):
         """
         flattened = []
         for block in blocks:
-            if self._block_has_placeholder(block):
-                for sub in subs:
-                    flattened.extend(self._resolve_pair(p, sub) for p in block)
-            else:
-                flattened.extend(self._resolve_pair(p, {}) for p in block)
+            for sub in subs if self._block_has_placeholder(block) else [{}]:
+                flattened.extend(
+                    self._resolve_pair(p, sub)
+                    for p in block
+                    if self._passes(p.get("filter", ""), sub, "a row filter")
+                )
         return self._dedup_rows(flattened)
 
     @staticmethod

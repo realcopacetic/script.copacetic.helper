@@ -42,7 +42,7 @@ Ten variables out — `texture_primary_poster-3` through `...poster6` — each w
 | `items` | An explicit list to loop over — each value becomes `{item}`. Multiplies. |
 | `items_from` | Loop a *different* mapping's items instead of typing a list — see below |
 | `templates_from` | Stamp this template once per listed mapping, filling each one's `tokens` — see below |
-| `values` | The rows — `{condition, value}` dicts, or lists of them (blocks, below) |
+| `values` | The rows — `{condition, value}` dicts, or lists of them (blocks, below). A row may also carry a `filter` — see [Row filters](#row-filters) |
 | `filter` | Skip loop passes at build time — see [Filtering](#filtering) |
 
 Whether the template loops the mapping's items or its settings-file entries is decided by the mapping's `mode`, not by the template. A `mode` key on a template is ignored.
@@ -167,7 +167,7 @@ Details:
 - **The template name isn't a variable.** Only the `outputs` names are emitted. An output name with no placeholders is always written, even when every pass is filtered out. An unknown placeholder in an output name becomes an empty string rather than stopping the build, so check the names in the output file. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
 - **Loop controls work here too.** `index`, `items`, `items_from`, `templates_from` and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. In Copacetic, `_{texture_prefix}_base_cluster` in `variables_slots.json` borrows regions, widgets and search *and* loops `items: [poster, fanart, square]` — every container gets a main/fallback pair per art type from one cascade.
 - **Sparse rows.** A row can feed some outputs and skip others — just leave the key off. That output's cascade simply doesn't have that row. Useful when one output's chain is a subset of another's.
-- **Blocks apply.** `rows` groups with `[...]` the same way `values` does.
+- **Blocks apply.** `rows` groups with `[...]` the same way `values` does, and a row's `filter` works the same way too ([Row filters](#row-filters)).
 
 ---
 
@@ -225,6 +225,25 @@ When to reach for it: several mappings need *the same cascade* and differ only i
 Only drilldown and group widgets get their rows; other configured widgets are skipped entirely.
 
 Don't confuse it with a row's `condition`: **filter decides at build time whether rows exist; condition decides at runtime whether Kodi uses them.** The two-axis trick — different loop values covering different ranges — is covered in [Includes → Filtering](07-includes.md#filtering-skipping-loop-passes) and works identically here; Copacetic's `variables_slots.json` is a live example.
+
+### Row filters
+
+A row can carry its own `filter`, with the same language and the same rule: **filter decides at build time whether a row exists**. It is tested against each loop pass the row expands for. A row that fails is left out of that pass's variable, in place, and the rows around it keep their order:
+
+```json
+"values": [ [
+  { "filter": "{music_filter}", "condition": "String.IsEqual({listitem}.DBType,album)", "value": "$INFO[{listitem}.Genre]" },
+  { "filter": "{video_filter}", "condition": "String.IsEqual({listitem}.DBType,movie)", "value": "$INFO[{listitem}.Genre]" },
+  { "value": "$INFO[{listitem}.Label]" }
+] ]
+```
+
+Give each mapping that stamps the template the tokens it reads. In Copacetic, Home, Search and the views set `video_filter` and `music_filter` to `true`, so they keep every row. The info rails set them from the rail's `target`, so a music rail drops the movie rows and a video rail drops the album rows. A row with neither medium (add-ons, pictures) uses `"{video_filter} + {music_filter}"`.
+
+- A filter with a placeholder makes its row's block repeat per loop pass, like any other placeholder.
+- The filter is never written to the XML. A row without one always stays.
+- Unknown placeholders stop the build, as in a template `filter`. So every mapping that stamps the template needs the token, even if it's only `true`.
+- Rows dropped this way never reach the duplicate check ([Rows Kodi never reads](#rows-kodi-never-reads-are-dropped)), so the first unconditioned row that remains still ends the variable.
 
 ---
 
