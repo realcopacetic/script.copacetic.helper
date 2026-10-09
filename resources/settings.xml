@@ -57,7 +57,7 @@
 			</group>
 		</category>
 		<category id="api_keys" label="32008" help="">
-			<group id="1" label="">
+			<group id="1" label="32009">
 				<setting id="tmdb_access_token" type="string" label="32010" help="32110">
 					<level>0</level>
 					<default />
@@ -96,6 +96,8 @@
 						<heading>32016</heading>
 					</control>
 				</setting>
+			</group>
+			<group id="2" label="32018">
 				<setting id="listenbrainz_access" type="boolean" label="32021" help="32121">
 					<level>0</level>
 					<default>false</default>

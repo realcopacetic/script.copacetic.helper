@@ -124,6 +124,11 @@ msgid "API"
 msgstr ""
 
 #: /resources/settings.xml
+msgctxt "#32009"
+msgid "TMDB"
+msgstr ""
+
+#: /resources/settings.xml
 msgctxt "#32010"
 msgid "TMDB access token"
 msgstr ""
@@ -161,6 +166,11 @@ msgstr ""
 #: /resources/settings.xml
 msgctxt "#32016"
 msgid "Enter a TMDB language code"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32018"
+msgid "ListenBrainz"
 msgstr ""
 
 #: /resources/settings.xml
