@@ -238,7 +238,7 @@ A row can carry its own `filter`, with the same language and the same rule: **fi
 ] ]
 ```
 
-Give each mapping that stamps the template the tokens it reads. In Copacetic, Home, Search and the views set `video_filter` and `music_filter` to `true`, so they keep every row. The info rails set them from the rail's `target`, so a music rail drops the movie rows and a video rail drops the album rows. A row with neither medium (add-ons, pictures) uses `"{video_filter} + {music_filter}"`.
+Give each mapping that stamps the template the tokens it reads. A token can hold a rule as well as `true` or `false`. For example, a mapping for containers that can show any item sets `video_filter` and `music_filter` to `true`, so it keeps every row. A mapping for containers that show only video or only music items sets them to `equals({target}, videos)` and `equals({target}, music)` (here `target` is a `metadata` key on each item, `videos` or `music`), so a music container drops the movie rows and a video container drops the album rows. A row for neither (add-ons, pictures) uses `"{video_filter} + {music_filter}"` (`+` is AND), so only the containers that keep everything keep it.
 
 - A filter with a placeholder makes its row's block repeat per loop pass, like any other placeholder.
 - The filter is never written to the XML. A row without one always stays.
