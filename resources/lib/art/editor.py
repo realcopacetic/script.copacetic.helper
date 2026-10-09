@@ -231,17 +231,18 @@ class ImageEditor:
         shared: dict[str, Any],
     ) -> dict[str, Any] | None:
         """
-        A background whose image can't be used (a dead remote thumb) runs once more
-        on the item's fanart ladder, so the backstage still gets a blur.
+        A background whose image can't be opened (a dead remote thumb) runs once more
+        on the item's fanart ladder, so the backstage still gets a blur. A process
+        that fails on an opened image would fail again, so it doesn't.
 
         :param art_type: Artwork type key; only "background" falls back.
         :param processes: Ordered process names for this art_type.
         :param source: Kodi infolabel source prefix.
         :param opts: Parsed ArtOpts whose url failed.
-        :param shared: Shared context across jobs in this call.
+        :param shared: Shared context across jobs; its image_cache holds opened images.
         :return: Merged attributes from the fallback art, or None.
         """
-        if art_type != "background" or not source:
+        if art_type != "background" or not source or shared["image_cache"][art_type]:
             return None
         url = self._fetch_art_url("fanart", source).get("fanart")
         if not url or url == opts.url:
