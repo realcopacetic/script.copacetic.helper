@@ -47,9 +47,9 @@ def _failure_ttl(exc: HttpError) -> int:
     Seconds before asking again after a failed request.
 
     :param exc: The failure.
-    :return: 7 days when refused (bad MBID, token wanted), 429's wait, else 5 minutes.
+    :return: 7 days for a bad MBID, 429's wait, else (token refused too) 5 minutes.
     """
-    if exc.status in (400, 401, 404):
+    if exc.status in (400, 404):
         return TTL_INVALID
     if exc.status == 429:
         return exc.retry_after or 60
@@ -84,6 +84,8 @@ def _cached(key: str, path: str, shape: Callable[[Any], Any], body: Any = None) 
     try:
         payload = shape(get_json(path, body))
     except HttpError as exc:
+        if exc.status == 401:  # the one failure the user can fix
+            log.warning("listenbrainz → ListenBrainz refused the token (401)")
         ttl = _failure_ttl(exc)
         if exc.status == 429:
             home.setProperty(NEXT_CALL, f"{slot + ttl}")
@@ -102,7 +104,7 @@ def top_recordings(mbid: str) -> list[list[str]]:
     """
     return (
         _cached(
-            f"listenbrainz:top:{mbid}",
+            f"listenbrainz:top-recordings:{mbid}",
             f"popularity/top-recordings-for-artist/{mbid}",
             lambda rows: [
                 [row["recording_mbid"], row["recording_name"]] for row in rows
@@ -121,7 +123,7 @@ def top_release_groups(mbid: str) -> list[list[str]]:
     """
     return (
         _cached(
-            f"listenbrainz:albums:{mbid}",
+            f"listenbrainz:top-release-groups:{mbid}",
             f"popularity/top-release-groups-for-artist/{mbid}",
             lambda rows: [
                 [row["release_group_mbid"], row["release_group"]["name"]]

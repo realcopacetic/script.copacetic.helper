@@ -109,7 +109,7 @@ class Base(unittest.TestCase):
         self.settings = {"listenbrainz_token": " lb-token "}
         listenbrainz.ADDON.getSetting = lambda key: self.settings.get(key, "")
 
-    def row(self, mbid=GORILLAZ, key="listenbrainz:top:"):
+    def row(self, mbid=GORILLAZ, key="listenbrainz:top-recordings:"):
         """The api_cache row for mbid: (payload, seconds left)."""
         row = self.cache._get_one("key = ?", (f"{key}{mbid}",))
         return (
@@ -196,10 +196,19 @@ class ListenBrainzTest(Base):
         listenbrainz.top_recordings(GORILLAZ)
         self.assertEqual(len(self.net.requests), 2)  # negative entry served
 
-    def test_token_wanted_negative_week(self):
-        self.net.answers = [http_error(401)]
+    def test_token_refused_retried_in_five_minutes(self):
+        warnings = LOG["WARNING"]
+        self.net.answers = [http_error(401), FIXTURE]
         self.assertEqual(listenbrainz.top_recordings(GORILLAZ), [])
-        self.assertEqual(self.row(), (None, 7 * DAY))
+        self.assertEqual(self.row(), (None, 300))
+        self.assertEqual(LOG["WARNING"], warnings + 1)
+        self.tick(301)
+        self.assertTrue(listenbrainz.top_recordings(GORILLAZ))
+
+    def test_tokenless_refusals_left_behind(self):
+        self.cache.put(f"listenbrainz:top:{GORILLAZ}", None, 7 * DAY)  # pre-token key
+        self.net.answers = [FIXTURE]
+        self.assertTrue(listenbrainz.top_recordings(GORILLAZ))
 
     def test_top_release_groups(self):
         self.net.answers = [ALBUMS]
@@ -211,7 +220,9 @@ class ListenBrainzTest(Base):
                 ["b0405d2a-5720-340a-bb56-4e135d031cc2", "Gorillaz"],
             ],
         )
-        self.assertEqual(self.row(key="listenbrainz:albums:"), (albums, 14 * DAY))
+        self.assertEqual(
+            self.row(key="listenbrainz:top-release-groups:"), (albums, 14 * DAY)
+        )
         self.assertTrue(
             self.net.requests[0].full_url.endswith(
                 f"/1/popularity/top-release-groups-for-artist/{GORILLAZ}"
@@ -284,7 +295,7 @@ class ListenBrainzTest(Base):
         window.setProperty(listenbrainz.NEXT_CALL, f"{self.now + 3.5}")
         self.assertEqual(listenbrainz.top_recordings(GORILLAZ), [])
         self.assertEqual(self.net.requests, [])
-        self.assertIsNone(self.cache.get(f"listenbrainz:top:{GORILLAZ}"))
+        self.assertIsNone(self.cache.get(f"listenbrainz:top-recordings:{GORILLAZ}"))
 
     def test_429_waits_reset_in(self):
         self.net.answers = [http_error(429, {"X-RateLimit-Reset-In": "30"}), FIXTURE]
