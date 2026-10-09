@@ -177,10 +177,17 @@ for the type. The container's content is `artists`, `albums` or `songs`.
 
 One library artist's songs in the order of its most listened recordings on
 [ListenBrainz](https://listenbrainz.org) (the free popularity API,
-`/1/popularity/top-recordings-for-artist/<artist MBID>`, no key), then the artist's
-other played songs, most played first. Only with the add-on setting **Enable access to
-ListenBrainz API** on (off by default: it sends the artist's MusicBrainz ID to
-listenbrainz.org); off, the path returns nothing and sends nothing.
+`/1/popularity/top-recordings-for-artist/<artist MBID>`), then the artist's other
+played songs, most played first.
+
+**Add-on settings needed:** the user pastes the user token from their free
+ListenBrainz account (listenbrainz.org/settings) into **ListenBrainz user token**
+(setting id `listenbrainz_token`, empty by default). There is no separate on/off
+setting: the token is the user's consent, and ListenBrainz refuses this endpoint
+without one. Every request sends it as `Authorization: Token <token>` with the
+artist's MusicBrainz ID. Without it, the path returns nothing, sends nothing and
+reads no cache. **Test ListenBrainz access** checks the token. A skin can test for it
+with `!String.IsEmpty(Addon.SettingStr(script.copacetic.helper,listenbrainz_token))`.
 
 A song matches a recording by its MusicBrainz recording id (`musicbrainztrackid`,
 Picard's "MusicBrainz Track Id"), else by title: case, accents, punctuation and a
@@ -192,8 +199,9 @@ songs, as in [`genre_music`](#genre_music); the container's content is `songs`.
 
 Answers are kept in the add-on's `_lookup.db` (`api_cache`): two weeks for a list,
 three days for an empty one, a week when ListenBrainz refuses the id, as long as it
-asks after "too many requests", and five minutes when it is unreachable (an older
-list is shown meanwhile). The add-on setting **Clear addon cache** forgets them.
+asks after "too many requests", and five minutes when it refuses the token (logged
+as a warning) or is unreachable (an older list is shown meanwhile). The add-on
+setting **Clear addon cache** forgets them.
 Requests are spaced at least a second apart across all plugin calls, as ListenBrainz
 asks: a call inside that second waits its turn (an artist's info opens three at once,
 so the last fills about two seconds in). When the queue is more than three seconds
@@ -218,8 +226,8 @@ order of its most listened release groups on ListenBrainz
 (`/1/popularity/top-release-groups-for-artist/<artist MBID>`), then the albums
 ListenBrainz doesn't rank, newest first. An album matches by its release group
 (`musicbrainzreleasegroupid`), else by title as in `top_songs`, so a deluxe edition
-sits next to the original. With **Enable access to ListenBrainz API** off, no
-MusicBrainz id or no answer, all albums come newest first and nothing is sent.
+sits next to the original. With no **ListenBrainz user token**, no MusicBrainz id
+or no answer, all albums come newest first; without a token nothing is sent.
 Same cache and spacing as `top_songs`.
 
 | Param | Accepted values | Default | What it does |
@@ -296,7 +304,7 @@ It asks `POST /1/popularity/artist`, `/release-group` or `/recording` with the
 item's MusicBrainz id: an artist's `musicbrainzartistid`, an album's release group
 (`musicbrainzreleasegroupid`, so every edition counts) and a song's recording
 (`musicbrainztrackid`). Another type, no id in the library, no count from
-ListenBrainz or access off: no item.
+ListenBrainz or no token: no item.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

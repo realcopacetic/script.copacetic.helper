@@ -63,6 +63,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`info`](#info) | Replaces the open info dialog with a library item's info |
 | [`info_back`](#info_back) | Steps back along the infoscreen trail |
 | [`info_swap`](#info_swap) | Reopens the info dialog on an item Kodi swapped into it |
+| [`listenbrainz_test`](#listenbrainz_test) | Checks the ListenBrainz token |
 | [`move_pin`](#move_pin) | Moves a pinned speed dial entry up or down |
 | [`pin`](#pin) | Pins a music item to the front of speed dial |
 | [`play_album`](#play_album) | Plays an album |
@@ -453,6 +454,20 @@ set to `forward`, when its path has `target=item`.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=info_swap,key=movie:42)</onclick>
+```
+
+---
+
+## listenbrainz_test
+
+Checks the ListenBrainz user token set in the helper's settings with ListenBrainz's
+`/1/validate-token`. A notification says whether the token works or the request
+failed. With no token set, ListenBrainz is off, and the notification says so.
+
+No parameters.
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=listenbrainz_test)</onclick>
 ```
 
 ---
