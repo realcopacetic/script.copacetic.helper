@@ -93,8 +93,9 @@ before each slide, so you can change it at any time.
 `background_darken_frame`, `background_darken_label`, `background_darken_label1`,
 `background_darken_label2` and `background_darken_label_px` work too, as in the
 [artwork plugin](../plugins/artwork.md#darken-background-and-icon). Only the blur and
-the darken value are published, so `background_analyze` and
-`background_darken_contrast_source` have no effect here.
+the darken value are published, so `background_analyze`,
+`background_darken_contrast_source` and `background_darken_contrast_rects` have no
+effect here.
 
 `background_url` is always set by the service and can't be overridden. The clearlogo
 is always cropped; `clearlogo_*` parameters are ignored. `background_darken_source`

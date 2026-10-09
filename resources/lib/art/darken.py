@@ -48,7 +48,7 @@ class ColorDarken:
         if not ctx:
             return None
 
-        framed, rects, L_text, strength, label_widths = ctx
+        framed, rects, contrast_rects, L_text, strength, label_widths = ctx
         mode = opts.mode or ""
         updates = {}
         updates["darken"] = self._compute_artwork_darken(
@@ -73,7 +73,7 @@ class ColorDarken:
             updates.update(
                 self._compute_contrast_series(
                     framed=framed,
-                    rects=rects,
+                    rects=contrast_rects,
                     source=opts.contrast_source,
                     strength=strength,
                 )
@@ -207,23 +207,26 @@ class ColorDarken:
         *,
         image: Image.Image,
         opts: DarkenOpts,
-    ) -> tuple[Image.Image, list[Rect], float, float, list[int | None]] | None:
+    ) -> (
+        tuple[Image.Image, list[Rect], list[Rect], float, float, list[int | None]]
+        | None
+    ):
         """
-        Resolve image, rects, overlay luminance and strength for darken sampling.
-        opts.source is expected to be a resolved hex string at this point —
-        clearlogo resolution is handled upstream in ImageEditor._handle_jobs.
+        Resolve image, darken and contrast rects, overlay luminance and strength.
+        Contrast rects default to the darken rects. opts.source is a resolved hex
+        string here: ImageEditor._handle_jobs resolves clearlogo upstream.
 
         :param image: PIL image to sample.
         :param opts: Parsed options.
-        :return: Tuple (framed, rects, L_text, strength, label_widths) or None.
+        :return: (framed, rects, contrast_rects, L_text, strength, widths) or None.
         """
         if not opts.rects:
             return None
 
         rects_param, label_widths = self._clamp_rects_to_labels(opts)
-        framed, rects = self._prepare_image_and_rects(
+        framed, (rects, contrast_rects) = self._prepare_image_and_rects(
             image=image,
-            rects=rects_param,
+            rects=(rects_param, opts.contrast_rects or rects_param),
             frame=opts.frame,
         )
         if not rects:
@@ -238,7 +241,7 @@ class ColorDarken:
             else self.color.from_hex(cfg.element_overlay_color)
         )
         L_text = self.color.get_luminosity(text_rgb)
-        return framed, rects, L_text, opts.strength, label_widths
+        return framed, rects, contrast_rects, L_text, opts.strength, label_widths
 
     def _clamp_rects_to_labels(self, opts: DarkenOpts) -> tuple[str, list[int | None]]:
         """
@@ -273,16 +276,17 @@ class ColorDarken:
         self,
         *,
         image: Image.Image,
-        rects: str,
+        rects: Iterable[str],
         frame: str | None,
-    ) -> tuple[Image.Image, list[Rect]]:
+    ) -> tuple[Image.Image, list[list[Rect]]]:
         """
-        Normalize image to a frame and scale rects into image coordinates.
+        Normalize image to a frame and scale each rect string into image coordinates.
+        A rect string with no valid rect covers the whole frame.
 
         :param image: PIL image to sample.
-        :param rects: Rect string in frame coordinates.
+        :param rects: Rect strings in frame coordinates.
         :param frame: Optional frame size "w,h".
-        :return: Tuple (framed_image, scaled_rects).
+        :return: Tuple (framed_image, scaled rects per rect string).
         """
         cfg = self.color.cfg
         frame_w, frame_h = cfg.bg_frame
@@ -297,19 +301,17 @@ class ColorDarken:
                 except ValueError:
                     frame_w, frame_h = cfg.bg_frame
 
-        framed, frame_size = self.frame_image(image, frame_w, frame_h)
-        parsed = self.parse_overlay_rects(rects or "")
-        if not parsed:
-            parsed = [(0, 0, frame_w, frame_h)]
-
-        ref_w, ref_h = frame_size
-        scaled = self._scale_rects(
-            rects=parsed,
-            img_w=framed.width,
-            img_h=framed.height,
-            ref_w=ref_w,
-            ref_h=ref_h,
-        )
+        framed, (ref_w, ref_h) = self.frame_image(image, frame_w, frame_h)
+        scaled = [
+            self._scale_rects(
+                rects=self.parse_overlay_rects(r) or [(0, 0, frame_w, frame_h)],
+                img_w=framed.width,
+                img_h=framed.height,
+                ref_w=ref_w,
+                ref_h=ref_h,
+            )
+            for r in rects
+        ]
         return framed, scaled
 
     @staticmethod
