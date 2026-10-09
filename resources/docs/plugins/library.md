@@ -236,6 +236,10 @@ Links your music library's soundtrack albums to your movies and TV shows by titl
 For a movie, TV show, season or episode it lists the soundtrack albums; for an album
 it lists the movie or TV show the album is from (nothing if it isn't a soundtrack).
 
+The albums are music library albums, as in [`genre_music`](#genre_music), oldest
+first; the container's content is `albums`. The movie or TV show is one video item,
+as in [The items](#the-items); the container's content is `movies` or `tvshows`.
+
 **What counts as a soundtrack.** An album whose type, genre, style or title says
 "soundtrack". MusicBrainz Picard writes the type (`Album / Soundtrack`), so a tagged
 library needs nothing else.
@@ -250,8 +254,8 @@ so *Batman: Arkham Asylum: Original Video Game Score* doesn't match *Batman*.
 
 **Same-titled movies and shows.** When the library has more than one (*The Lion King*
 1994 and 2019, or a *Watchmen* movie and show), the album goes to the one its wording
-names ("Motion Picture" for a movie, "Television", "Series", "Season" or a network for
-a show), then to the one nearest its first release year. The year is the album's
+names ("Motion Picture", "Film" or "Movie" for a movie; "Television", "TV", "Series",
+"Season", "HBO", "Netflix" or "Channel" for a show), then to the one nearest its first release year. The year is the album's
 original date when the tags have one, so a reissue still finds its movie. With only
 one candidate the year is never checked.
 
@@ -259,8 +263,9 @@ one candidate the year is never checked.
 4", "Seasons 1–3", "Series 2". A season (or episode) lists the albums naming it first,
 then the albums naming no season (volumes, a limited series), oldest first; albums
 naming other seasons are left out. A TV show lists all of them, oldest first. For an
-album that names seasons, the TV show item carries them in
-`ListItem.Property(soundtrack_seasons)` (`3, 4`).
+album, the movie or TV show item carries the seasons the album names in
+`ListItem.Property(soundtrack_seasons)` (`3, 4`); it is empty when the album names
+none.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
