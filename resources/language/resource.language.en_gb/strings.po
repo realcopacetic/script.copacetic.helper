@@ -175,12 +175,22 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32021"
-msgid "Enable access to ListenBrainz API"
+msgid "ListenBrainz user token"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32121"
-msgid "Adds ListenBrainz popularity to music info: a Top songs rail for artists, listener counts for artists, albums and songs, and the Discography popularity order. Sends the item's MusicBrainz ID to listenbrainz.org (MetaBrainz); no account or key needed. Off: nothing is sent and these are hidden."
+msgid "Adds ListenBrainz popularity to music info: a Top songs rail for artists, listener counts for artists, albums and songs, and the Discography popularity order. Paste the user token from your free ListenBrainz account (listenbrainz.org/settings). Sends the item's MusicBrainz ID and your token to api.listenbrainz.org (MetaBrainz). Empty: ListenBrainz is off, nothing is sent and these are hidden."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32022"
+msgid "Enter your ListenBrainz user token"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32023"
+msgid "Test ListenBrainz access"
 msgstr ""
 
 #: /resources/settings.xml
@@ -260,6 +270,21 @@ msgstr ""
 #: /resources/lib/script/actions.py
 msgctxt "#32211"
 msgid "Skin rebuilt"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32212"
+msgid "No ListenBrainz token set"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32213"
+msgid "ListenBrainz token valid"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32214"
+msgid "ListenBrainz test failed — check token and network"
 msgstr ""
 
 

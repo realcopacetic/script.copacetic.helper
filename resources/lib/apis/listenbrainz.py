@@ -6,21 +6,40 @@ from typing import Any, Callable
 from xbmc import Monitor
 from xbmcgui import Window
 
-from resources.lib.apis.http import HttpError, get_json
+from resources.lib.apis import http
+from resources.lib.apis.http import HttpError
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import ADDON
 
-POPULARITY = "https://api.listenbrainz.org/1/popularity/"
+API = "https://api.listenbrainz.org/1/"
 NEXT_CALL = "copacetic.listenbrainz_next"  # home property: epoch of the next free slot
 MAX_WAIT = 3  # seconds a call queues for its slot before giving up
 DAY = 86400
 TTL_HIT, TTL_EMPTY, TTL_INVALID, TTL_DOWN = 14 * DAY, 3 * DAY, 7 * DAY, 300
 
 
+def _token() -> str:
+    """The user's ListenBrainz token; empty turns ListenBrainz off."""
+    return ADDON.getSetting("listenbrainz_token").strip()
+
+
 def enabled() -> bool:
-    """True when the user allowed ListenBrainz access (off by default)."""
-    return ADDON.getSettingBool("listenbrainz_access")
+    """True when the user gave a ListenBrainz token, which is their consent."""
+    return bool(_token())
+
+
+def get_json(path: str, body: Any = None) -> Any:
+    """
+    GET (POST with a body) a ListenBrainz endpoint with the user's token.
+
+    :param path: Endpoint path after /1/.
+    :param body: POST body; None for a GET.
+    :return: Decoded JSON.
+    :raises HttpError: On an HTTP error status, no connection or bad JSON.
+    """
+    headers = {"Authorization": f"Token {_token()}"}
+    return http.get_json(f"{API}{path}", headers=headers, body=body)
 
 
 def _failure_ttl(exc: HttpError) -> int:
@@ -37,13 +56,13 @@ def _failure_ttl(exc: HttpError) -> int:
     return TTL_DOWN
 
 
-def _cached(key: str, url: str, shape: Callable[[Any], Any], body: Any = None) -> Any:
+def _cached(key: str, path: str, shape: Callable[[Any], Any], body: Any = None) -> Any:
     """
-    The answer for key, fetched from url and shaped when stale, cached per answer
+    The answer for key, fetched from path and shaped when stale, cached per answer
     kind; one request a second across plugin calls, queued up to MAX_WAIT seconds.
 
     :param key: api_cache key.
-    :param url: Endpoint URL.
+    :param path: Endpoint path after /1/.
     :param shape: Turns the decoded JSON into the cached payload.
     :param body: POST body; None for a GET.
     :return: The payload, None when unknown or not fetched.
@@ -63,7 +82,7 @@ def _cached(key: str, url: str, shape: Callable[[Any], Any], body: Any = None) -
         if Monitor().waitForAbort(slot - now):
             return payload
     try:
-        payload = shape(get_json(url, body=body))
+        payload = shape(get_json(path, body))
     except HttpError as exc:
         ttl = _failure_ttl(exc)
         if exc.status == 429:
@@ -84,7 +103,7 @@ def top_recordings(mbid: str) -> list[list[str]]:
     return (
         _cached(
             f"listenbrainz:top:{mbid}",
-            f"{POPULARITY}top-recordings-for-artist/{mbid}",
+            f"popularity/top-recordings-for-artist/{mbid}",
             lambda rows: [
                 [row["recording_mbid"], row["recording_name"]] for row in rows
             ],
@@ -103,7 +122,7 @@ def top_release_groups(mbid: str) -> list[list[str]]:
     return (
         _cached(
             f"listenbrainz:albums:{mbid}",
-            f"{POPULARITY}top-release-groups-for-artist/{mbid}",
+            f"popularity/top-release-groups-for-artist/{mbid}",
             lambda rows: [
                 [row["release_group_mbid"], row["release_group"]["name"]]
                 for row in rows
@@ -123,7 +142,7 @@ def listeners(entity: str, mbid: str) -> int | None:
     """
     return _cached(
         f"listenbrainz:listeners:{entity}:{mbid}",
-        f"{POPULARITY}{entity}",
+        f"popularity/{entity}",
         lambda rows: rows[0]["total_user_count"],
         {f"{entity.replace('-', '_')}_mbids": [mbid]},
     )

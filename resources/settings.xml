@@ -98,10 +98,30 @@
 				</setting>
 			</group>
 			<group id="2" label="32018">
-				<setting id="listenbrainz_access" type="boolean" label="32021" help="32121">
+				<setting id="listenbrainz_token" type="string" label="32021" help="32121">
 					<level>0</level>
-					<default>false</default>
-					<control type="toggle" />
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="edit" format="string">
+						<heading>32022</heading>
+						<hidden>true</hidden>
+					</control>
+				</setting>
+				<setting id="listenbrainz_test" type="string" label="32023" help="32114" parent="listenbrainz_token">
+					<level>0</level>
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="button" format="action">
+						<close>true</close>
+						<data>RunScript(script.copacetic.helper,action=listenbrainz_test)</data>
+					</control>
+					<dependencies>
+						<dependency type="enable" setting="listenbrainz_token" operator="!is"></dependency>
+					</dependencies>
 				</setting>
 			</group>
 		</category>

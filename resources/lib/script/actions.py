@@ -898,6 +898,28 @@ def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) 
 
 
 @action
+def listenbrainz_test(**kwargs: str) -> None:
+    """
+    Verify the configured ListenBrainz token by making a test request.
+    Reports success or failure via notification.
+    """
+    from resources.lib.apis import listenbrainz
+    from resources.lib.apis.http import HttpError
+
+    if not listenbrainz.enabled():
+        message = 32212
+    else:
+        try:
+            valid = listenbrainz.get_json("validate-token")["valid"]
+        except HttpError:
+            valid = False
+        message = 32213 if valid else 32214
+    xbmcgui.Dialog().notification(
+        ADDON.getLocalizedString(32000), ADDON.getLocalizedString(message), time=4000
+    )
+
+
+@action
 def tmdb_test(**kwargs: str) -> None:
     """
     Verify the configured TMDb token by making a test request.

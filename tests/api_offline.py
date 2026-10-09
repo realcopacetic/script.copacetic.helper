@@ -17,6 +17,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 from urllib.error import HTTPError, URLError
 
 from build_offline import HELPER, install_stubs
@@ -38,6 +39,7 @@ from resources.lib.plugin.music import (  # noqa: E402
     rank_songs,
     title_key,
 )
+from resources.lib.script import actions  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 
 FIXTURES = HELPER / "tests" / "fixtures"
@@ -104,7 +106,8 @@ class Base(unittest.TestCase):
         self.cache.clear_all()
         sys.modules["xbmcgui"].Window().clearProperty(listenbrainz.NEXT_CALL)
         listenbrainz.Monitor = lambda: self  # waitForAbort: the clock moves on
-        listenbrainz.ADDON.getSettingBool = lambda key: key == "listenbrainz_access"
+        self.settings = {"listenbrainz_token": " lb-token "}
+        listenbrainz.ADDON.getSetting = lambda key: self.settings.get(key, "")
 
     def row(self, mbid=GORILLAZ, key="listenbrainz:top:"):
         """The api_cache row for mbid: (payload, seconds left)."""
@@ -170,7 +173,9 @@ class ListenBrainzTest(Base):
             ],
         )
         self.assertEqual(self.row(), (top, 14 * DAY))
-        self.assertTrue(self.net.requests[0].full_url.endswith(GORILLAZ))
+        request = self.net.requests[0]
+        self.assertTrue(request.full_url.endswith(GORILLAZ))
+        self.assertEqual(request.get_header("Authorization"), "Token lb-token")
         self.tick(13 * DAY)
         self.assertEqual(listenbrainz.top_recordings(GORILLAZ), top)
         self.assertEqual(len(self.net.requests), 1)
@@ -226,6 +231,7 @@ class ListenBrainzTest(Base):
         request = self.net.requests[0]
         self.assertTrue(request.full_url.endswith("/1/popularity/artist"))
         self.assertEqual(json.loads(request.data), {"artist_mbids": [GORILLAZ]})
+        self.assertEqual(request.get_header("Authorization"), "Token lb-token")
         key = "listenbrainz:listeners:artist:"
         self.assertEqual(self.row(key=key), (10, 14 * DAY))
 
@@ -290,6 +296,25 @@ class ListenBrainzTest(Base):
         self.tick(4)
         self.assertTrue(listenbrainz.top_recordings(GORILLAZ))
 
+    def test_token_test_action(self):
+        shown = []
+        notify = {
+            "notification": lambda _, heading, message, time: shown.append(message)
+        }
+        self.net.answers = [b'{"valid": true}', b'{"valid": false}', http_error(400)]
+        with (
+            mock.patch.object(actions.xbmcgui, "Dialog", type("Dialog", (), notify)),
+            mock.patch.object(actions.ADDON, "getLocalizedString", str, create=True),
+        ):
+            for token in ("lb-token", "lb-token", "lb-token", ""):
+                self.settings["listenbrainz_token"] = token
+                actions.listenbrainz_test()
+        self.assertEqual(shown, ["32213", "32214", "32214", "32212"])
+        self.assertEqual(len(self.net.requests), 3)  # no token: nothing sent
+        request = self.net.requests[0]
+        self.assertTrue(request.full_url.endswith("/1/validate-token"))
+        self.assertEqual(request.get_header("Authorization"), "Token lb-token")
+
     def test_prune_keeps_recently_expired(self):
         self.cache.put("a", [1], 0)
         self.cache.put("b", [2], 0)
@@ -348,7 +373,7 @@ class TopSongsTest(Base):
         self.artist_mbids = [GORILLAZ]
 
     def test_off_sends_nothing(self):
-        listenbrainz.ADDON.getSettingBool = lambda key: False
+        self.settings["listenbrainz_token"] = " "
         self.assertIsNone(self.handler.top_songs())
         self.assertEqual((self.calls, self.net.requests), ([], []))
 
@@ -560,7 +585,7 @@ class DiscographyTest(Base):
         )
 
     def test_off_is_date_order_without_requests(self):
-        listenbrainz.ADDON.getSettingBool = lambda key: False
+        self.settings["listenbrainz_token"] = " "
         self.assertEqual(self.handler.discography(), [6, 5, 4, 3, 2, 1])
         self.assertEqual(self.calls, ["AudioLibrary.GetAlbums"])
         self.assertEqual(self.net.requests, [])
@@ -629,7 +654,7 @@ class ListenersTest(Base):
             self.assertEqual(compact_count(count), text)
 
     def test_off_sends_nothing(self):
-        listenbrainz.ADDON.getSettingBool = lambda key: False
+        self.settings["listenbrainz_token"] = " "
         self.assertIsNone(self.handler.listeners())
         self.assertEqual((self.calls, self.net.requests), ([], []))
 
