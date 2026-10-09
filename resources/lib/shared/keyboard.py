@@ -1,6 +1,8 @@
 # author: realcopacetic
 
 
+from xml.etree.ElementTree import Element, ElementTree
+
 import xbmcvfs
 
 from resources.lib.shared.xml import XMLHandler
@@ -18,6 +20,20 @@ def keyboard_layout_trees() -> dict:
     return XMLHandler(xbmcvfs.translatePath(KEYBOARD_LAYOUTS)).data
 
 
+def usable_layouts(tree: ElementTree) -> list[Element]:
+    """
+    Return a keyboardlayout file's layouts, skipping coding-table ones (CJK input).
+
+    :param tree: ElementTree of one keyboardlayout file.
+    :return: List of layout elements.
+    """
+    return [
+        layout
+        for layout in tree.getroot().findall("layout")
+        if not layout.get("codingtable")
+    ]
+
+
 def layout_characters(layout_id: str, trees: dict) -> list[str]:
     """
     Extract letters-then-digits from a Kodi keyboardlayout, preferring the
@@ -29,21 +45,9 @@ def layout_characters(layout_id: str, trees: dict) -> list[str]:
     """
     language, _, variant = layout_id.partition(" ")
     tree = trees.get(language.lower())
-    if tree is None:
-        tree, variant = trees["english"], "ABC"
-
-    layouts = [
-        layout
-        for layout in tree.getroot().findall("layout")
-        if not layout.get("codingtable")
-    ]
+    layouts = usable_layouts(tree) if tree is not None else []
     if not layouts:
-        tree, variant = trees["english"], "ABC"
-        layouts = [
-            layout
-            for layout in tree.getroot().findall("layout")
-            if not layout.get("codingtable")
-        ]
+        layouts, variant = usable_layouts(trees["english"]), "ABC"
 
     def characters(layout) -> tuple[list[str], list[str]]:
         letters, digits = [], []
@@ -56,9 +60,9 @@ def layout_characters(layout_id: str, trees: dict) -> list[str]:
                     digits.append(ch)
         return letters, digits
 
-    chosen = next(
-        (l for l in layouts if characters(l)[0] == sorted(characters(l)[0])),
-        next((l for l in layouts if l.get("layout") == variant), layouts[0]),
+    parsed = [(layout.get("layout"), characters(layout)) for layout in layouts]
+    letters, digits = next(
+        (chars for _, chars in parsed if chars[0] == sorted(chars[0])),
+        next((chars for name, chars in parsed if name == variant), parsed[0][1]),
     )
-    letters, digits = characters(chosen)
     return (letters + sorted(digits))[:KEYBOARD_CAPACITY]
