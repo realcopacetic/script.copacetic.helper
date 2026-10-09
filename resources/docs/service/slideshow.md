@@ -90,6 +90,12 @@ before each slide, so you can change it at any time.
 | `background_darken_rects` | One or more `x,y,w,h` rectangles | none | Areas where text sits. Required for a darken value. |
 | `background_darken_strength` | `0.0`–`2.0` | `1.0` | Scales the darken value. |
 
+`background_darken_frame`, `background_darken_label`, `background_darken_label1`,
+`background_darken_label2` and `background_darken_label_px` work too, as in the
+[artwork plugin](../plugins/artwork.md#darken-background-and-icon). Only the blur and
+the darken value are published, so `background_analyze` and
+`background_darken_contrast_source` have no effect here.
+
 `background_url` is always set by the service and can't be overridden. The clearlogo
 is always cropped; `clearlogo_*` parameters are ignored. `background_darken_source`
 can't be `clearlogo` here: use an ARGB colour.
