@@ -199,7 +199,8 @@ asks: a call inside that second waits its turn (an artist's info opens three at 
 so the last fills about two seconds in). When the queue is more than three seconds
 long, the call shows the saved answer or nothing, and the next open fetches. The log
 has one `api_cache →` line per lookup (miss, fresh, stale or stored, with its size);
-with **JSON logging** on, the payload follows it.
+with the add-on setting **Include json call/response logs** on, the payload follows
+it.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
