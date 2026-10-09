@@ -10,7 +10,7 @@ from resources.lib.builders.templates import cache_is_current
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import release_refresh
-from resources.lib.shared.sqlite import ApiCacheHandler, ArtworkCacheHandler
+from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
     reset_dev_state,
@@ -22,48 +22,57 @@ from resources.lib.shared.utilities import (
 
 class Monitor(xbmc.Monitor):
     """
-    Background service monitor. Owns one-time setup (artwork directories,
-    builder outputs) and a lightweight poller for the trailer watchdog and
-    global slideshow. All work is gated on the active skin opting in.
+    Background service monitor. All work is gated on the active skin opting in
+    (shipping the builder folders): entering such a skin activates the build
+    check, player monitor and slideshow; leaving it releases them.
     """
 
     def __init__(self) -> None:
-        """Initializes the monitor, sets up handlers, and begins polling."""
-        # Poller
-        self.start = True
+        """Initialise the service state, then run the loop until Kodi exits."""
         self.idle = False
-        self._build_done = False
-        self._skindir = None
-        self._supported = False
-        # Monitors
-        self.sqlite = ArtworkCacheHandler()
+        self.skin = None
         self.player_monitor = None
         self.slideshow = None
-        # Run
+        log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
         self._run()
 
     def _run(self) -> None:
         """
-        Top-level service loop: alternate active polling and idle waiting.
-        Flat by design — the previous _on_start/_on_stop mutual recursion
-        grew the call stack by two frames per idle/resume cycle.
+        Flat service loop: follow the active skin's folder (special://skin moves
+        once the new skin loads), poll each second while it opts in and the
+        screensaver is off, else look again in 2 s (only a path check).
         """
         while not self.abortRequested():
-            self._on_start()
-            self._on_stop()
+            if (skin := skin_path()) != self.skin:
+                self.skin = skin
+                if self.player_monitor:
+                    self._deactivate()
+                if skin_uses_builder():
+                    self._activate()
+            if self.player_monitor and not self.idle:
+                self.poller()
+            else:
+                self.waitForAbort(2)
         del self.player_monitor
         log.info(f"{self.__class__.__name__} → Stopped")
 
-    def _build_optin_check(self) -> None:
+    def _activate(self) -> None:
         """
-        Run the build pipeline once, when the active skin provides builder
-        inputs. Presence of the builder folder structure is the opt-in:
-        Copacetic qualifies automatically; any skin opts in by adding it.
+        Entering an opted-in skin: check the builder outputs (reloading if any
+        were built), prune the API cache, start the player monitor and slideshow.
         """
-        if self._build_done or not self._skin_supported():
-            return
+        log.info(f"{self.__class__.__name__} → Active in {self.skin}")
         self._builder_elements()
-        self._build_done = True
+        ApiCacheHandler().prune()
+        self.player_monitor = PlayerMonitor()
+        self.slideshow = Slideshow()
+
+    def _deactivate(self) -> None:
+        """Leaving the skin: release the player monitor, clear the slideshow."""
+        self.player_monitor.release()
+        self.slideshow.clear()
+        self.player_monitor = self.slideshow = None
+        log.info(f"{self.__class__.__name__} → Inactive, skin left")
 
     def _builder_elements(self) -> None:
         """
@@ -106,52 +115,6 @@ class Monitor(xbmc.Monitor):
             return
         # The skin loaded before this build; reload so it reads the new outputs.
         xbmc.executebuiltin("ReloadSkin()")
-
-    def _on_start(self) -> None:
-        """Begins the monitor loop and attaches the player monitor."""
-        log.info(f"{self.__class__.__name__} → Python version: {sys.version}")
-        self._build_optin_check()
-        if self.start:
-            log.info(f"{self.__class__.__name__} → Started")
-            self.start = False
-            ApiCacheHandler().prune()
-            self.player_monitor = PlayerMonitor()
-            self.slideshow = Slideshow(self.sqlite)
-        elif self._conditions_met():
-            log.info(f"{self.__class__.__name__} → Resumed")
-        while not self.abortRequested() and self._conditions_met():
-            self.poller()
-
-    def _skin_supported(self) -> bool:
-        """
-        True when the active skin opts into the helper. Re-evaluates the
-        capability check only when the skin changes; cached otherwise.
-
-        :return: True when the skin opts in.
-        """
-        skindir = xbmc.getSkinDir()
-        if skindir != self._skindir:
-            self._skindir = skindir
-            self._supported = skin_uses_builder()
-
-        return self._supported
-
-    def _conditions_met(self) -> bool:
-        """
-        Polling continues while the skin opts in and the service isn't idle.
-
-        :return: True while the polling loop should keep running.
-        """
-        return self._skin_supported() and not self.idle
-
-    def _on_stop(self) -> None:
-        """Called when the polling loop exits. Waits until conditions return."""
-        if self.abortRequested():
-            return
-
-        log.info(f"{self.__class__.__name__} → Idle, waiting...")
-        while not self.abortRequested() and not self._conditions_met():
-            self.waitForAbort(10)
 
     def onScreensaverActivated(self) -> None:
         """Kodi event hook: Pause monitoring when screensaver starts."""

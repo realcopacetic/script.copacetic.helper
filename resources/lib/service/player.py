@@ -12,7 +12,12 @@ from resources.lib.service.trailer import (
     trailer_source,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.speed_dial import SpeedDial, queue_source, take_source
+from resources.lib.shared.speed_dial import (
+    SpeedDial,
+    clear_properties,
+    queue_source,
+    take_source,
+)
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -31,12 +36,31 @@ class PlayerMonitor(Player):
     """
 
     def __init__(self) -> None:
-        """Initialise player monitor and helpers; publish the speed dial pins."""
+        """
+        Initialise player monitor and helpers; publish the speed dial pins and,
+        when the skin is entered mid-playback, the playing file's properties.
+        """
         super().__init__()
         self.zoom = TrailerZoomController()
         self._published = set()
         self._dial_queue = None
         SpeedDial().publish()
+        if self.isPlaying():
+            self.onAVStarted()
+
+    def release(self) -> None:
+        """
+        Undo what the monitor published, before the service drops it: stop a
+        trailer it still holds, clear player, trailer and speed dial properties.
+        """
+        if self._is_trailer_playback():
+            # Rewind first, as the watchdog does, so the stop saves no watched state
+            self._pause_session()
+            self.seekTime(0)
+            log.execute("PlayerControl(Stop)")
+        self._publish({})
+        self._clear_trailer_props()
+        clear_properties()
 
     def onAVStarted(self) -> None:
         """Handle playback start events for video and audio."""

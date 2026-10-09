@@ -94,6 +94,17 @@ def release_refresh() -> None:
         window_property(HELD_PROPERTY)
 
 
+def clear_properties() -> None:
+    """Clears every speed dial window property: pinned keys, source and tokens."""
+    for key in (
+        *(f"speed_dial_{pin}" for pin in PIN_KEYS),
+        SOURCE_PROPERTY,
+        VERSION_PROPERTY,
+        HELD_PROPERTY,
+    ):
+        window_property(key)
+
+
 def queue_source(songid: int) -> dict:
     """
     Infers what a playback was started from: a playlist open in the music
