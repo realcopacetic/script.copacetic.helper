@@ -358,9 +358,11 @@ out of date at once, while the new call is still running. If the skin writes a v
 in a different format, the helper replaces it with its own whenever `visit` is
 passed.
 
-Set `visit` from a window property that changes once per focus change, like
-`artwork_visit` in the example. Do not put a live clock straight into the path: the
-path would change all the time and the helper would keep firing.
+Set `visit` from `Window(home).Property(artwork_visit)`, and have the skin change
+that property once per focus change. The helper compares the two: a call whose
+`visit` is not the property's current value does nothing, so another property here
+would stop every call. Do not put a live clock straight into the path: the path would
+change all the time and the helper would keep firing.
 
 ---
 
@@ -372,7 +374,7 @@ The helper reads these when you use the matching parameters:
 |---|---|---|
 | `Window(home).Property(artwork_cursor_<cursor_key>)` | `cursor_key` | The skin, at focus time. The helper may also write it (see above). |
 | A FadeLabel control with id `multiart_fadelabel` in the current window | `multiart_fadelabel` | The skin. |
-| A window property that changes once per focus change, passed as `visit` | `visit` | The skin. |
+| `Window(home).Property(artwork_visit)`, changed once per focus change and passed as `visit` | `visit` | The skin. |
 | `Window(home).Property(background_origin)` | `background_match` | The helper (see [Window properties](#window-properties)). |
 | `Window(home).Property(infoscreen_gallery_visit)` | `multiart_tiles` with `visit` | The skin, once each time the dialog shows the artwork. |
 | FadeLabel controls with the ids in `tiles`, in the topmost dialog | `multiart_tiles` | The skin. |
