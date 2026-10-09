@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from resources.lib.plugin.soundtracks import (  # noqa: E402
     claim,
+    lead,
     owner,
     release_year,
     seasons,
@@ -197,6 +198,13 @@ class Owners(unittest.TestCase):
                 [("movie", row("Batman", 1989))],
             )
         )
+
+    def test_lead_finds_a_title_with_a_colon_or_dash(self):
+        album = "Mission: Impossible – Fallout (Music from the Motion Picture)"
+        self.assertEqual(lead(album), "Mission")
+        self.assertEqual(lead("(500) Days of Summer (Soundtrack)"), "(500")
+        film = [("movie", row("Mission: Impossible - Fallout", 2018))]
+        self.assertIsNotNone(owner(claim(album), 2018, film))
 
 
 if __name__ == "__main__":

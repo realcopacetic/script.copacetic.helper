@@ -254,11 +254,11 @@ album isn't *Batman*'s. A subtitle that isn't soundtrack wording keeps the whole
 so *Batman: Arkham Asylum: Original Video Game Score* doesn't match *Batman*.
 
 From an album, the helper first asks Kodi for movies and TV shows whose title or
-original title starts with the album's title, minus the soundtrack wording and with
-its `:`, ` - `, `,` and brackets turned into spaces. That search compares the
-spelling as written, so accents, punctuation and `&`/`and` must be the same in both
-libraries. A movie or show whose own title has one of those separators in it
-(*Mission: Impossible*) isn't found from an album that adds soundtrack wording to it.
+original title starts with the album's title up to its first `:`, ` - `, `,` or
+bracket (*Mission* for *Mission: Impossible – Fallout (Music from the Motion
+Picture)*), then matches those as above. That search compares the spelling as
+written, so accents, punctuation and `&`/`and` in that first part must be the same in
+both libraries.
 
 **Same-titled movies and shows.** When the library has more than one (*The Lion King*
 1994 and 2019, or a *Watchmen* movie and show), the album goes to the one its wording

@@ -46,6 +46,7 @@ from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.plugin.soundtracks import (
     SOUNDTRACK,
     claim,
+    lead,
     owner,
     release_year,
     title_key,
@@ -1363,10 +1364,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not any(SOUNDTRACK in tag.casefold() for tag in tags):
             return
         album_claim = claim(album["title"])
-        shortest = album_claim.titles[-1]
+        # search the lead only; owner compares keys, so separators may differ
+        prefix = lead(album["title"])
         rule = {
             "or": [
-                {"field": field, "operator": "startswith", "value": shortest}
+                {"field": field, "operator": "startswith", "value": prefix}
                 for field in ("title", "originaltitle")
             ]
         }

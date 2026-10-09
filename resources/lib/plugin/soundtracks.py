@@ -107,6 +107,17 @@ def claim(title: str) -> Claim:
     return Claim(titles, frozenset(map(title_key, titles)), named, medium)
 
 
+def lead(title: str) -> str:
+    """
+    A title as written up to its first ": ", " - ", ", " or bracket after its first
+    character: "Mission" for "Mission: Impossible – Fallout", "(500" for "(500) Days".
+
+    :param title: Album title.
+    :return: Its lead.
+    """
+    return title[:1] + _SPLIT.split(title[1:], 1)[0]
+
+
 def release_year(album: dict) -> int:
     """
     An album's first release year: its original date (a reissue keeps the
