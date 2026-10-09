@@ -11,8 +11,11 @@ All properties on this page are on the Home window (`10000`).
 
 - The slideshow runs inside the service's [poll loop](index.md#the-poll-loop), so only
   for a skin that opts in, and not while the screensaver is active.
-- The first slide is published as soon as the loop starts. After that, a new slide is
-  published each time the interval passes.
+- The first slide is published as soon as the loop starts, including right after the
+  user switches to your skin. After that, a new slide is published each time the
+  interval passes.
+- Whenever the active skin changes, and when the service stops, every property below
+  is cleared. If the new skin opts in, its first slide follows at once.
 - When the source settings change, the next slide is published at once from the new
   source.
 - The slideshow pauses while `fullscreenvideo` or `visualisation` is visible.

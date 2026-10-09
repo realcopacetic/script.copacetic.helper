@@ -92,8 +92,10 @@ action lets you choose another window.
 
 ## Items the helper adds to the context menu
 
-The helper adds music items to Kodi's context menu. They show in every skin, on the
-items below, and each one runs the action named.
+The helper adds music items to Kodi's context menu. They show only while a skin that
+[opts in](../service/index.md#opting-in) is active (the service sets
+`Window(home).Property(helper_active)` for it), on the items below, and each one runs
+the action named. In any other skin they are hidden.
 
 | Item | Shows on | Runs |
 |---|---|---|

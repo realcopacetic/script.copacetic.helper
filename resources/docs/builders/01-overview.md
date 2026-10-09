@@ -63,7 +63,7 @@ Everything the builder reads lives in your skin, under `extras/templates/`:
 | `expressions/` | Expression templates | JSON |
 | `includes/` | Include templates | XML |
 
-Every `*.json` (or `*.xml` for includes) file directly inside a folder is read, in file-name order. Sub-folders are not read. Having at least one of these folders is how a skin opts in: the service only runs the builder for a skin that has one.
+Every `*.json` (or `*.xml` for includes) file directly inside a folder is read, in file-name order. Sub-folders are not read. Having at least one of these folders is how a skin opts in: the service only runs the builder, and everything else it does (see [Background Service](../service/index.md#opting-in)), for a skin that has one. The helper's context menu items also show only in such a skin.
 
 The builder writes three files into your skin's `16x9/` folder:
 
@@ -81,13 +81,13 @@ Include each one once from your skin. The addon also keeps two files in its own 
 
 | When | What runs |
 |---|---|
-| Kodi starts (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or belongs to another skin, everything is rebuilt. Otherwise only output files that are missing are built. If anything was built, `ReloadSkin()` follows. |
-| Kodi starts (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
+| Kodi starts, or the user switches to your skin (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or belongs to another skin, everything is rebuilt. Otherwise only output files that are missing are built. If anything was built, `ReloadSkin()` follows. |
+| Kodi starts, or the user switches to your skin (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
 | User closes a settings window with changes | Everything is rebuilt, then `ReloadSkin()` |
 | `action=rebuild` | Everything is rebuilt, then `ReloadSkin()` |
 | A settings window opens | Configs and controls are read from the resolver cache, which every build refreshes. Nothing is built. |
 
-"Everything" means all three output files and the resolver cache. The start-up check runs once per Kodi session.
+"Everything" means all three output files and the resolver cache. The start-up check runs each time your skin becomes active.
 
 ---
 

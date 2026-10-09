@@ -5,8 +5,9 @@ service looks up the TV show, movie set and individual artists of the playing it
 and stores them in window properties. Use them to mark the playing show, set, artist
 or album in any list, even when the list item is not the file that is playing.
 
-All properties are on the Home window (`10000`). They are set for any skin, whether
-or not it opts in to the [poll loop](index.md#opting-in).
+All properties are on the Home window (`10000`). They are set only while a skin that
+[opts in](index.md#opting-in) is active, and cleared whenever the active skin changes or
+the service stops.
 
 ## When they update
 
@@ -62,7 +63,8 @@ If focus is on a speed dial item at that moment, the new value waits in
 `speed_dial_held` until focus leaves the list (see
 [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list)).
 
-`speed_dial_version` is never cleared.
+`speed_dial_version` is cleared only when the active skin changes or the service
+stops; it stays empty until the next change.
 
 ## Example
 

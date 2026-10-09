@@ -17,7 +17,11 @@ from resources.lib.shared.utilities import (
     skin_path,
     skin_uses_builder,
     validate_path,
+    window_property,
 )
+
+# Set while an opted-in skin is active; addon.xml's context items test it.
+ACTIVE_PROPERTY = "helper_active"
 
 
 class Monitor(xbmc.Monitor):
@@ -40,7 +44,8 @@ class Monitor(xbmc.Monitor):
         """
         Flat service loop: follow the active skin's folder (special://skin moves
         once the new skin loads), poll each second while it opts in and the
-        screensaver is off, else look again in 2 s (only a path check).
+        screensaver is off, else look again in 2 s (only a path check). Stopping
+        releases the active state too: a profile switch keeps Home's properties.
         """
         while not self.abortRequested():
             if (skin := skin_path()) != self.skin:
@@ -53,22 +58,26 @@ class Monitor(xbmc.Monitor):
                 self.poller()
             else:
                 self.waitForAbort(2)
-        del self.player_monitor
+        if self.player_monitor:
+            self._deactivate()
         log.info(f"{self.__class__.__name__} → Stopped")
 
     def _activate(self) -> None:
         """
-        Entering an opted-in skin: check the builder outputs (reloading if any
-        were built), prune the API cache, start the player monitor and slideshow.
+        Entering an opted-in skin: check the builder outputs (reloading if any were
+        built), prune the API cache, start the player monitor and slideshow, then
+        show the context items.
         """
         log.info(f"{self.__class__.__name__} → Active in {self.skin}")
         self._builder_elements()
         ApiCacheHandler().prune()
         self.player_monitor = PlayerMonitor()
         self.slideshow = Slideshow()
+        window_property(ACTIVE_PROPERTY, value="true")
 
     def _deactivate(self) -> None:
-        """Leaving the skin: release the player monitor, clear the slideshow."""
+        """Leaving the skin: hide the context items, release the monitors."""
+        window_property(ACTIVE_PROPERTY)
         self.player_monitor.release()
         self.slideshow.clear()
         self.player_monitor = self.slideshow = None

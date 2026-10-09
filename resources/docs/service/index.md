@@ -19,7 +19,8 @@ The service does not process artwork for the focused item. That is done by the
 
 ## Opting in
 
-The service only polls for a skin that opts in. A skin opts in by shipping the
+The service only works for a skin that opts in; in any other skin it does nothing
+and the helper's context menu items stay hidden. A skin opts in by shipping the
 builder folder structure: at least one of these folders inside
 `extras/templates/` in the skin:
 
@@ -35,17 +36,16 @@ builder folder structure: at least one of these folders inside
 The folders can be empty. See the [builder docs](../builders/01-overview.md) for what
 goes in them.
 
-The service checks again whenever the active skin changes.
+The service checks again whenever the active skin changes, so the user can switch
+to your skin (or away from it) at any time without restarting Kodi.
 
 ## What runs when
 
-### At start-up
+### When a skin that opts in becomes active
 
-1. The service starts and attaches the player monitor. From now on, playback events
-   are handled for any skin (see [Player properties](player.md) and
-   [Play next](playnext.md)). It also sets the
-   [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties.
-2. If the skin opts in, the build runs once:
+This happens at start-up, and each time the user switches to such a skin. In order:
+
+1. The build check runs:
    - **Dev mode off (default):** the service seeds the runtime state if needed. It
      rebuilds every output if the runtime state was just seeded, or the resolver
      cache is missing or belongs to another skin. Otherwise it only builds outputs
@@ -58,6 +58,24 @@ The service checks again whenever the active skin changes.
 
    Dev mode (`dev_mode`) and *Reset on next start* (`dev_reset`) are settings of the
    helper add-on, in its *Developers* category.
+2. The service attaches the player monitor, which handles playback from now on (see
+   [Player properties](player.md) and [Play next](playnext.md)). It sets the
+   [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties and,
+   if something is already playing, that file's player properties.
+3. It sets `helper_active`, which shows the helper's
+   [context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu).
+4. The poll loop starts, and with it the slideshow.
+
+### When the active skin changes, or the service stops
+
+Whenever the active skin changes (to any skin, even another that opts in), and when
+the service stops (Kodi exits, the profile changes, the helper is updated or
+disabled), the service releases what it set. It clears `helper_active`, so the
+context menu items hide. It stops a trailer
+it is still playing (rewound first, so nothing is marked watched), clears the trailer,
+player, speed dial and slideshow properties, and detaches the player monitor. If the
+new skin opts in, everything [starts again](#when-a-skin-that-opts-in-becomes-active)
+for it; otherwise nothing else runs until a skin that opts in is active.
 
 ### The poll loop
 
@@ -70,14 +88,13 @@ once a second. Each pass it:
    focus is no longer on a speed dial item (see
    [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list)).
 
-When the screensaver starts, the loop pauses. When the screensaver stops, or the
-user switches to a skin that opts in, the loop resumes. While paused, the service
-checks again every 10 seconds.
+When the screensaver starts, the loop pauses; when it stops, the loop resumes. While
+paused, or while the skin doesn't opt in, the service checks again every 2 seconds.
 
 ### On playback events
 
-The player monitor handles playback start, stop, end and error. It runs for any skin,
-whether or not the poll loop is active.
+The player monitor handles playback start, stop, end and error while a skin that opts
+in is active, including while the screensaver pauses the poll loop.
 
 ## Full contract
 
@@ -86,8 +103,15 @@ All window properties are on the Home window (`10000`). In XML, read them with
 
 ### Window properties the service sets
 
+Whenever the active skin changes, and when the service stops, the service also clears
+`helper_active` and the trailer session, `player_*`, `speed_dial_*` and `slideshow_*`
+properties below; `trailer_return`, `info_hop` and `trailer_played_item` are left. If
+the new skin opts in, `helper_active` and the pinned-item properties are set again at
+once; the others come back with the next play, speed dial change or slide.
+
 | Property | Set when | Value | Cleared when | Page |
 |---|---|---|---|---|
+| `helper_active` | A skin that opts in becomes active | `true` | The active skin changes, or the service stops | [Opting in](#opting-in) |
 | `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
 | `trailer_return` | A trailer requested with `fullscreen` starts and goes full screen | The `info_current` key at that moment | By the `trailer_return` action | [Trailers](trailers.md#full-screen) |
@@ -103,11 +127,11 @@ All window properties are on the Home window (`10000`). In XML, read them with
 | `player_album` | A song starts | Album title | As above | [Player properties](player.md) |
 | `player_albumid` | A song starts | Album database id | As above | [Player properties](player.md) |
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
-| `speed_dial_version` | A song starts and the play changes what speed dial shows, or the poll loop releases `speed_dial_held` | A new number each time | Never | [Player properties](player.md#speed-dial) |
+| `speed_dial_version` | A song starts and the play changes what speed dial shows, or the poll loop releases `speed_dial_held` | A new number each time | Only when the active skin changes or the service stops | [Player properties](player.md#speed-dial) |
 | `speed_dial_held` | As `speed_dial_version`, but focus is on a speed dial item | The next `speed_dial_version` | The poll loop moves it to `speed_dial_version` | [Speed dial](../plugins/speed_dial.md#window-properties) |
-| `speed_dial_album1` … `speed_dial_album7`, `speed_dial_artist1` … `speed_dial_artist7`, `speed_dial_song1` … `speed_dial_song7`, `speed_dial_playlist` | The service starts | Pinned ids by type and number of digits, or pinned playlist paths, joined with `\|` | Set again on every pin, unpin or move; empty when nothing matches | [Speed dial](../plugins/speed_dial.md#window-properties) |
-| `slideshow_fanart` | Each slide | Path to the original fanart | Never (replaced by the next slide) | [Slideshow](slideshow.md) |
-| `slideshow_blur` | Each slide | Path to the blurred fanart | Never (replaced by the next slide) | [Slideshow](slideshow.md) |
+| `speed_dial_album1` … `speed_dial_album7`, `speed_dial_artist1` … `speed_dial_artist7`, `speed_dial_song1` … `speed_dial_song7`, `speed_dial_playlist` | The skin becomes active | Pinned ids by type and number of digits, or pinned playlist paths, joined with `\|` | Set again on every pin, unpin or move; empty when nothing matches | [Speed dial](../plugins/speed_dial.md#window-properties) |
+| `slideshow_fanart` | Each slide | Path to the original fanart | Only when the active skin changes or the service stops (replaced by the next slide) | [Slideshow](slideshow.md) |
+| `slideshow_blur` | Each slide | Path to the blurred fanart | Only when the active skin changes or the service stops (replaced by the next slide) | [Slideshow](slideshow.md) |
 | `slideshow_darken` | Each slide | Darken percentage, `0`–`100` | The slide has no darken value | [Slideshow](slideshow.md) |
 | `slideshow_clearlogo` | Each slide | Path to the cropped clearlogo | The slide has no clearlogo | [Slideshow](slideshow.md) |
 | `slideshow_title` | Each slide | Item label | The slide has no title | [Slideshow](slideshow.md) |

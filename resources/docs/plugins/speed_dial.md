@@ -100,12 +100,17 @@ All on the Home window: read them with `Window(home).Property(name)`.
 |---|---|---|
 | `speed_dial_version` | A new number each time | A pin, an unpin or a move, at once. A recorded play, only when it changes what speed dial shows (see below). |
 | `speed_dial_held` | The next `speed_dial_version` | A recorded play changes speed dial while focus is on a speed dial item. Cleared when it is moved to `speed_dial_version`. |
-| `speed_dial_album1` … `speed_dial_album7` | Pinned album ids with that many digits, joined with `\|` | The service starts, and on every pin, unpin or move. Empty when there are none. |
+| `speed_dial_album1` … `speed_dial_album7` | Pinned album ids with that many digits, joined with `\|` | Your skin becomes active, and on every pin, unpin or move. Empty when there are none. |
 | `speed_dial_artist1` … `speed_dial_artist7` | The same, for artists | As above |
 | `speed_dial_song1` … `speed_dial_song7` | The same, for songs | As above |
 | `speed_dial_playlist` | Pinned playlist paths, each in both spellings (`special://profile/playlists/music/…` and `special://musicplaylists/…`), joined with `\|` | As above |
 
-`speed_dial_version` is never cleared.
+All of these are cleared whenever the active skin changes and when the service stops
+(see [Background Service](../service/index.md#when-the-active-skin-changes-or-the-service-stops));
+otherwise `speed_dial_version` is never cleared. If the new skin opts in, the pinned
+ids are set again at once, but `speed_dial_version` stays empty until the next change.
+That is harmless: your skin's windows load their lists afresh anyway, and the next
+change sets a new value, which changes the path and reloads the list.
 
 ### Plays don't reload a focused list
 
@@ -117,9 +122,8 @@ to `speed_dial_version` once focus has left the list. So pressing Play in speed 
 doesn't reload the list under the user.
 
 That check is part of the service's [poll loop](../service/index.md#the-poll-loop),
-which only runs for a skin that opts in. In other skins, a held value waits until the
-next pin, unpin or move, or the next play that changes speed dial while focus is
-elsewhere.
+which only runs for a skin that opts in. In other skins no plays are recorded, and a
+held value is cleared with the other speed dial properties.
 
 ### Is this item pinned?
 
