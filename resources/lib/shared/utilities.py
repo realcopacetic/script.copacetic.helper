@@ -28,17 +28,15 @@ TEXTS = str(Path(ADDONDATA) / "text")
 TEMPS = str(Path(ADDONDATA) / "temp")
 LOOKUPS = str(Path(ADDONDATA) / "_lookup.db")
 
-SKIN = xbmcvfs.translatePath("special://skin/")
-SKINEXTRAS = str(Path(SKIN) / "extras")
-SKINXML = str(Path(SKIN) / "16x9")
-
 RUNTIME_STATE = str(Path(ADDONDATA) / "runtime_state.json")
 RESOLVER_CACHE = str(Path(ADDONDATA) / "resolver_cache.json")
 
-TEMPLATES = str(Path(SKINEXTRAS) / "templates")
-VARIABLES = str(Path(SKINXML) / "script-copacetic-helper_variables.xml")
-EXPRESSIONS = str(Path(SKINXML) / "script-copacetic-helper_expressions.xml")
-INCLUDES = str(Path(SKINXML) / "script-copacetic-helper_includes.xml")
+# Relative to the active skin: resolve with skin_path() when used, never at import.
+SKINXML = "16x9"
+TEMPLATES = "extras/templates"
+VARIABLES = f"{SKINXML}/script-copacetic-helper_variables.xml"
+EXPRESSIONS = f"{SKINXML}/script-copacetic-helper_expressions.xml"
+INCLUDES = f"{SKINXML}/script-copacetic-helper_includes.xml"
 
 LOCALIZE_TOKEN = re.compile(r"\$LOCALIZE\[(\d+)\]")
 
@@ -62,7 +60,7 @@ def reset_dev_state() -> None:
     for config in BUILDER_CONFIG.values():
         write_path = config.get("write_path")
         if write_path:
-            xbmcvfs.delete(write_path)
+            xbmcvfs.delete(skin_path(write_path))
     xbmcvfs.delete(RUNTIME_STATE)
     xbmcvfs.delete(RESOLVER_CACHE)
     log.info(f"reset_dev_state → outputs and runtime_state cleared")
@@ -318,6 +316,17 @@ def plugin_path(role: str) -> str:
     return f"plugin://{ADDON_ID}/{role}"
 
 
+def skin_path(relative: str = "") -> str:
+    """
+    Path inside the active skin's folder, translated on every call: the
+    service outlives a skin switch, so a path fixed at import keeps the old skin.
+
+    :param relative: Path below the skin root, e.g. TEMPLATES.
+    :return: Absolute path.
+    """
+    return str(Path(xbmcvfs.translatePath("special://skin/"), relative))
+
+
 def skin_uses_builder() -> bool:
     """
     True when the active skin ships the builder folder structure under
@@ -328,9 +337,8 @@ def skin_uses_builder() -> bool:
     """
     from resources.lib.builders.builder_config import TEMPLATE_SUBFOLDERS
 
-    return any(
-        validate_path(str(Path(TEMPLATES) / sub) + "/") for sub in TEMPLATE_SUBFOLDERS
-    )
+    templates = Path(skin_path(TEMPLATES))
+    return any(validate_path(f"{templates / sub}/") for sub in TEMPLATE_SUBFOLDERS)
 
 
 def url_decode_path(path: str) -> str:

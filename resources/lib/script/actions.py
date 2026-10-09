@@ -27,6 +27,7 @@ from resources.lib.shared.utilities import (
     json_call,
     play_files,
     reset_dev_state,
+    skin_path,
     to_int,
     topmost_window_id,
     window_property,
@@ -192,7 +193,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
     window_property("active_editor_name", value=name)
     window_property(mapping_slot, value=mapping)
 
-    myWindow = DynamicEditor(f"{name}.xml", SKINXML, "Default", "")
+    myWindow = DynamicEditor(f"{name}.xml", skin_path(SKINXML), "Default", "")
     myWindow.parent_filter = parent_filter
     myWindow.mapping = mapping
     myWindow.host = host

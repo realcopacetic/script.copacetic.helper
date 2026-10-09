@@ -13,6 +13,7 @@ from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import (
     TEMPLATES,
     RUNTIME_STATE,
+    skin_path,
 )
 from resources.lib.shared.xml import XMLDictConverter, XMLMerger
 
@@ -32,11 +33,12 @@ class BuildElements:
         self.selected = (
             list(BUILDER_CONFIG.keys()) if builders_to_run is None else builders_to_run
         )
+        self.templates = skin_path(TEMPLATES)
         (
             self.all_mappings,
             self.configs_data,
             self.controls_data,
-        ) = load_template_data_from_source(TEMPLATES)
+        ) = load_template_data_from_source(self.templates)
 
         self.runtime_manager = RuntimeStateManager(
             mappings=self.all_mappings,
@@ -51,7 +53,7 @@ class BuildElements:
         for the selected builders.
         """
         json_merger = JSONMerger(
-            base_folder=Path(TEMPLATES),
+            base_folder=Path(self.templates),
             subfolders=self.selected,
             grouping_key="mapping",
         )
@@ -62,7 +64,7 @@ class BuildElements:
 
         read_kwargs = BUILDER_CONFIG["includes"]["read_kwargs"]
         xml_merger = XMLMerger(
-            base_folder=Path(TEMPLATES),
+            base_folder=Path(self.templates),
             subfolders=["includes"],
             **read_kwargs,
         )
@@ -170,6 +172,7 @@ class BuildElements:
         if not write_path or not write_handler:
             return
 
+        write_path = skin_path(write_path)
         handler = write_handler(write_path)
         handler.write_xml(processed_data, **write_kwargs)
         log.info(f"{builder_name.capitalize()} saved to XML file: {write_path}")

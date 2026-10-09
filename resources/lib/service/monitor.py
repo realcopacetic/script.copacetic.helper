@@ -14,6 +14,7 @@ from resources.lib.shared.sqlite import ApiCacheHandler, ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
     reset_dev_state,
+    skin_path,
     skin_uses_builder,
     validate_path,
 )
@@ -93,7 +94,7 @@ class Monitor(xbmc.Monitor):
             builder
             for builder, config in BUILDER_CONFIG.items()
             if (write_path := config.get("write_path"))
-            and not validate_path(write_path)
+            and not validate_path(skin_path(write_path))
         ]
         if seeded or not cache_is_current():
             # Fresh ids, or a resolver cache that is missing or from another skin:

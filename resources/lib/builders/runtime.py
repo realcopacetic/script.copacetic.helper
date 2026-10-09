@@ -22,6 +22,7 @@ from resources.lib.shared.utilities import (
     condition,
     expand_localize,
     infolabel,
+    skin_path,
 )
 
 # Namespace for deterministic default-entry ids: clean reseeds reproduce
@@ -64,7 +65,9 @@ class RuntimeStateManager:
         Manager over the skin's templates (resolver cache first, else source)
         and the add-on's runtime_state.json.
         """
-        return cls(*load_template_data(TEMPLATES), runtime_state_path=RUNTIME_STATE)
+        return cls(
+            *load_template_data(skin_path(TEMPLATES)), runtime_state_path=RUNTIME_STATE
+        )
 
     @property
     def mappings(self) -> dict:
