@@ -7,6 +7,8 @@ import colorsys
 RGB = tuple[int, int, int]
 HLS = tuple[float, float, float]
 
+W = (0.2126, 0.7152, 0.0722)  # Rec.709 luminance weights
+
 
 def from_hex(hex_str: str) -> RGB:
     """
@@ -42,6 +44,16 @@ def linear(c: float) -> float:
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
+def encode(c: float) -> float:
+    """
+    sRGB OETF, the inverse of linear().
+
+    :param c: Linear channel, 0-1.
+    :return: Encoded channel, 0-1.
+    """
+    return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+
+
 def luminance(rgb: RGB) -> float:
     """
     Relative luminance per sRGB/Rec.709 with the WCAG transfer curve.
@@ -50,8 +62,7 @@ def luminance(rgb: RGB) -> float:
     :param rgb: (r, g, b) in 0-255.
     :return: L in 0-1.
     """
-    r, g, b = (linear(c / 255) for c in rgb)
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return sum(w * linear(c / 255) for w, c in zip(W, rgb))
 
 
 def contrast(a: float, b: float) -> float:
