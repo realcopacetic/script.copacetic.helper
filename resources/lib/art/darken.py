@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+from functools import reduce
 from typing import Any
 
 from PIL import Image, ImageChops, ImageFilter
@@ -21,6 +22,27 @@ def luminance_image(image: Image.Image) -> Image.Image:
     :return: "L" image of linear luminance, 0-255.
     """
     return image.point(LIN * 3).convert("L", (*W, 0))
+
+
+def ramp(size: tuple[int, int], box: Box, margin: int) -> Image.Image:
+    """
+    Smoothstep mask: full inside the box, falling to 0 over `margin` px outside it,
+    with no step at the box's edge.
+
+    :param size: Mask size (w, h).
+    :param box: Box (x0, y0, x1, y1) at full strength.
+    :param margin: Fade length outside the box, px.
+    :return: Mode "L" mask.
+    """
+
+    def axis(n: int, a: int, b: int) -> bytes:
+        ts = (max(0.0, 1 - max(a - x, x - (b - 1), 0) / margin) for x in range(n))
+        return bytes(round(255 * t * t * (3 - 2 * t)) for t in ts)
+
+    w, h = size
+    rx = Image.frombytes("L", (w, 1), axis(w, box[0], box[2]))
+    ry = Image.frombytes("L", (1, h), axis(h, box[1], box[3]))
+    return ImageChops.multiply(*(s.resize(size, Image.NEAREST) for s in (rx, ry)))
 
 
 def pull_table(text: str, tint: str, ratio: float, margin: float) -> list[int]:
@@ -116,12 +138,11 @@ class ColorDarken:
         rects, _ = self._clamp_rects_to_labels(opts.darken)
         boxes = self.boxes(blur.size, rects, opts.darken.frame)
         k, _, _ = self._cover(blur.size, opts.darken.frame)
-        feather = cfg.band_feather / k
-        m = round(3 * feather)
+        m = round(cfg.band_feather / k)
         x0, y0 = (max(0, min(b[i] for b in boxes) - m) for i in (0, 1))
         x1 = min(blur.width, max(b[2] for b in boxes) + m)
         y1 = min(blur.height, max(b[3] for b in boxes) + m)
-        area = blur.crop((x0, y0, x1, y1))  # rects plus feather: all the pull touches
+        area = blur.crop((x0, y0, x1, y1))  # rects plus fade: all the pull touches
         boxes = [
             (bx0 - x0, by0 - y0, bx1 - x0, by1 - y0) for bx0, by0, bx1, by1 in boxes
         ]
@@ -134,18 +155,15 @@ class ColorDarken:
         }
         text = min(tables, key=lambda c: sum(n * a for n, a in zip(hist, tables[c])))
 
-        pull = Image.new("L", area.size)
-        for bx0, by0, bx1, by1 in boxes:
-            pull.paste(
-                lum.crop((bx0, by0, bx1, by1))
-                .reduce(2)
-                .point(tables[text])
-                .filter(ImageFilter.MaxFilter(3))
-                .resize((bx1 - bx0, by1 - by0), Image.BILINEAR)
-                .filter(ImageFilter.GaussianBlur(2)),
-                (bx0, by0),
-            )
-        alpha = ImageChops.lighter(pull, pull.filter(ImageFilter.GaussianBlur(feather)))
+        pull = (
+            lum.reduce(2)
+            .point(tables[text])
+            .filter(ImageFilter.MaxFilter(3))
+            .resize(area.size, Image.BILINEAR)
+            .filter(ImageFilter.GaussianBlur(2))
+        )
+        fade = reduce(ImageChops.lighter, (ramp(area.size, box, m) for box in boxes))
+        alpha = ImageChops.multiply(pull, fade)
         tint = Image.new("RGB", area.size, "#" + tints[text][2:])
         out = blur.copy()
         out.paste(Image.composite(tint, area, alpha), (x0, y0))

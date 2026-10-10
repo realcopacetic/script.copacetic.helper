@@ -299,7 +299,10 @@ class ImageEditor:
         :return: (element colour, path of the copy).
         """
         spec = PROCESS_SPEC["band"]
-        expected = self._expected_from_spec(spec, opts=opts)
+        expected = {  # the fade is in the token: a new fade is a new file Kodi reloads
+            **(self._expected_from_spec(spec, opts=opts) or {}),
+            "feather": self.cfg.band_feather,
+        }
         ctx = self.cache_manager.with_process_variant(
             base_ctx, process="band", expected=expected, folder=spec["folder"]
         )
