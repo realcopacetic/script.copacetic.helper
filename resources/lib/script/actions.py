@@ -613,15 +613,18 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
     :param layout: Kodi layout identifier; prompts with a picker when absent.
     """
     from resources.lib.builders.runtime import RuntimeStateManager
-    from resources.lib.shared.keyboard import keyboard_layout_trees, layout_characters
+    from resources.lib.shared.keyboard import (
+        keyboard_layout_trees,
+        layout_characters,
+        usable_layouts,
+    )
 
     trees = keyboard_layout_trees()
     if layout is None:
         choices = [
             f"{element.get('language')} {element.get('layout')}"
             for _, tree in sorted(trees.items())
-            for element in tree.getroot().findall("layout")
-            if not element.get("codingtable")
+            for element in usable_layouts(tree)
         ]
         picked = xbmcgui.Dialog().select(ADDON.getLocalizedString(32400), choices)
         if picked < 0:
