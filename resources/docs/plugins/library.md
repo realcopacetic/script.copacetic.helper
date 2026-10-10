@@ -255,15 +255,16 @@ library needs nothing else.
 
 **How titles match.** The album's title must be the movie's or show's title or
 original title, either whole (*Black Swan*) or followed only by soundtrack wording
-after a `:`, ` - `, `,` or bracket (*Batman Begins: Original Motion Picture
-Soundtrack*, *Halt and Catch Fire, Vol. 2 (Original Television Series Soundtrack)*).
+after a `:`, a dash with a space each side (` - `, ` – ` or ` — `), a `,` or a
+bracket (*Batman Begins: Original Motion Picture Soundtrack*, *Halt and Catch Fire,
+Vol. 2 (Original Television Series Soundtrack)*).
 Case, accents, punctuation and `&`/`and` don't matter, but "The" does: *The Batman*'s
 album isn't *Batman*'s. A subtitle that isn't soundtrack wording keeps the whole name,
 so *Batman: Arkham Asylum: Original Video Game Score* doesn't match *Batman*.
 
 From an album, the helper first asks Kodi for movies and TV shows whose title or
-original title starts with the album's title up to its first `:`, ` - `, `,` or
-bracket (*Mission* for *Mission: Impossible – Fallout (Music from the Motion
+original title starts with the album's title up to its first `:`, spaced dash, `,`
+or bracket (*Mission* for *Mission: Impossible – Fallout (Music from the Motion
 Picture)*), then matches those as above. That search compares the spelling as
 written, so accents, punctuation and `&`/`and` in that first part must be the same in
 both libraries.
