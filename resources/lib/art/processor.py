@@ -70,17 +70,17 @@ class ImageProcessor:
         :return: Dict with {"image", "format", "metadata"} or None on failure.
         """
 
-        image = self._ensure_mode(image, "RGBA")
-        thumb_size = self.cfg.crop_target_size
-        if image.width > thumb_size[0] or image.height > thumb_size[1]:
-            image = image.copy()  # thumbnail() is in place; measure shares the source
-            image.thumbnail(thumb_size, Image.BILINEAR)
-
-        box = image.getchannel("A").getbbox()
-        if not box:
-            return None  # invalid clearlogo
-
         try:
+            image = self._ensure_mode(image, "RGBA")
+            thumb_size = self.cfg.crop_target_size
+            if image.width > thumb_size[0] or image.height > thumb_size[1]:
+                image = image.copy()  # thumbnail() is in place; measure shares it
+                image.thumbnail(thumb_size, Image.BILINEAR)
+
+            box = image.getchannel("A").getbbox()
+            if not box:
+                return None  # invalid clearlogo
+
             cropped = image.crop(box)
             return {
                 "image": cropped,
@@ -106,18 +106,17 @@ class ImageProcessor:
         :param opts: Parsed ArtOpts for this art_type.
         :return: Dict with {"image", "format"} or None on failure.
         """
-        if opts.edge_trim:
-            dx = round(image.width * opts.edge_trim / 100)
-            dy = round(image.height * opts.edge_trim / 100)
-            image = image.crop((dx, dy, image.width - dx, image.height - dy))
-        if opts.darken and opts.darken.frame:
-            frame_w, frame_h = map(int, opts.darken.frame.split(","))
-            image, _ = ColorDarken.frame_image(image, frame_w, frame_h)
-        else:
-            image = self._cover(image, self.cfg.blur_target_size)
-
         radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
         try:
+            if opts.edge_trim:
+                dx = round(image.width * opts.edge_trim / 100)
+                dy = round(image.height * opts.edge_trim / 100)
+                image = image.crop((dx, dy, image.width - dx, image.height - dy))
+            if opts.darken and opts.darken.frame:
+                frame_w, frame_h = map(int, opts.darken.frame.split(","))
+                image, _ = ColorDarken.frame_image(image, frame_w, frame_h)
+            else:
+                image = self._cover(image, self.cfg.blur_target_size)
             return {
                 "image": self._flatten(image).filter(
                     ImageFilter.GaussianBlur(radius=radius)
