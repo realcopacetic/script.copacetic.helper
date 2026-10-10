@@ -25,7 +25,7 @@ The path returns no list items. It drives the textbox directly.
 
 - A **textbox** with id `target_id`, in the current window (with `dialog=true` or
   `target=item`, in the topmost dialog). It must be a textbox: the helper reads
-  `Container(<target_id>).HasNext` to know when the text has wrapped. The helper sets
+  `Container(<target_id>).NumPages` to know when the text has wrapped. The helper sets
   its position, width, height and text, and makes it visible when typing starts.
 
 ## Parameters
@@ -66,8 +66,8 @@ The textbox width is the rectangle's width.
 4. The run claims `Window(home).Property(typewriter_current_<target_id>)` with a unique
    value.
 5. After `start_delay`, the textbox is cleared, placed one line tall and made visible.
-6. One character is added every 25 ms. When `Container(<target_id>).HasNext` becomes
-   true, the textbox grows by one line, up to `max_lines`.
+6. One character is added every 25 ms. When `Container(<target_id>).NumPages` goes
+   above 1, the textbox grows by one line, up to `max_lines`.
 
 Before every character the run checks the focus guard and the claimed property. If
 focus moved on, or another value is now in

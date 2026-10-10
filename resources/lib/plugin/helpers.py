@@ -849,6 +849,32 @@ class TypewriterAnimation:
         valign = (opts.valign or "center").lower()
         grows = 0
 
+        def _pages(text: str) -> int | None:
+            """NumPages for text; None while the box still holds an older layout.
+            Kodi sets the text just before re-wrapping it, so a read can still race.
+            """
+            if infolabel(f"Control.GetLabel({control_id})") != text:
+                return None
+            return to_int(infolabel(f"Container({control_id}).NumPages"))
+
+        def _grow(text: str, pages: int) -> None:
+            """Grow to the fewest lines that hold pages, keep the anchor, resend text."""
+            nonlocal current_height, current_posy, grows
+            next_h = min((pages - 1) * current_height + line_h, max_height)
+            if next_h <= current_height:
+                return
+            dy = next_h - current_height
+            current_height = next_h
+            grows += 1
+            if valign == "bottom":
+                current_posy -= dy
+            elif valign == "center":
+                current_posy -= dy // 2
+            control.setHeight(current_height)
+            control.setPosition(posx, current_posy)
+            # Resend: LABEL_SET resets the layout, so it re-wraps at the new height.
+            control.setText(text)
+
         # setText is a thread message, setVisible is immediate: let the clear land.
         control.setText("")
         if monitor.waitForAbort(self.step_time):
@@ -870,36 +896,24 @@ class TypewriterAnimation:
             sub = label[:i]
             control.setText(sub)
 
-            # Step wait: paces the animation and, importantly, gives Kodi a
-            # render frame to re-layout the new text before HasNext is read.
+            # Step wait: paces the typing. The lockless reads below can land before
+            # Kodi lays out sub, so _pages skips the check until the box holds it.
             if monitor.waitForAbort(self.step_time):
                 return
 
-            # Kodi TextBox controls expose Container(id).HasNext when text overflows
-            if (
-                i > 1
-                and condition(f"Container({control_id}).HasNext")
-                and current_height < max_height
-            ):
-                next_h = min(current_height + line_h, max_height)
-                dy = next_h - current_height
-                current_height = next_h
-                grows += 1
+            if pages := _pages(sub):
+                _grow(sub, pages)
 
-                # Shift Y to keep the alignment anchor fixed as height grows.
-                if valign == "bottom":
-                    current_posy -= dy
-                elif valign == "center":
-                    current_posy -= dy // 2
-
-                control.setHeight(current_height)
-                control.setPosition(posx, current_posy)
-
-            # Reflow nudge: append a zero-width space then revert, to force wrap.
-            control.setText(sub + "\u200b")
-            if monitor.waitForAbort(0.001):
+        # The last character's check was skipped: give its layout up to four steps.
+        for _ in range(4):
+            if pages is not None:
+                break
+            if monitor.waitForAbort(self.step_time):
                 return
-            control.setText(sub)
+            if _superseded():
+                break
+            if pages := _pages(label):
+                _grow(label, pages)
 
         log.debug(
             f"{self.__class__.__name__} → DONE → '{label}' "
