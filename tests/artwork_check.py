@@ -59,6 +59,24 @@ POSTERS = {  # name: (draw, step, winner, darken)
         GHOSTED,
         None,
     ),
+    "dark patch": (  # the lift: dark red on white, as Fallout's trousers
+        lambda _, d: (
+            d.rectangle((0, 0, 480, 720), fill="white"),
+            d.rectangle((60, 650, 200, 720), fill="#5a0a10"),
+        ),
+        3,
+        GUNMETAL,
+        None,
+    ),
+    "blue patch": (  # the lift where blue clips at white and barely lifts a grey
+        lambda _, d: (
+            d.rectangle((0, 0, 480, 720), fill="white"),
+            d.rectangle((60, 650, 200, 720), fill="#0000fa"),
+        ),
+        3,
+        GUNMETAL,
+        None,
+    ),
 }
 
 

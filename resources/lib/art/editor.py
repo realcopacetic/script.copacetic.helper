@@ -30,6 +30,8 @@ if TYPE_CHECKING:
 
     from resources.lib.art.processor import ImageProcessor
 
+BAND_VERSION = 2  # in the band's cache token: raise it when the band's output changes
+
 PROCESS_SPEC = {
     "crop": {
         "folder": CROPS,
@@ -299,9 +301,11 @@ class ImageEditor:
         :return: (element colour, path of the copy).
         """
         spec = PROCESS_SPEC["band"]
-        expected = {  # the fade is in the token: a new fade is a new file Kodi reloads
+        # fade and version are in the token: a new band is a new file Kodi loads
+        expected = {
             **(self._expected_from_spec(spec, opts=opts) or {}),
             "feather": self.cfg.band_feather,
+            "version": BAND_VERSION,
         }
         ctx = self.cache_manager.with_process_variant(
             base_ctx, process="band", expected=expected, folder=spec["folder"]
