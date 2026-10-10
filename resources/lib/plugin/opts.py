@@ -10,42 +10,39 @@ from resources.lib.shared.utilities import parse_bool, to_float, to_int
 @dataclass(frozen=True, slots=True)
 class DarkenOpts:
     """
-    Darken configuration for a given artwork type.
+    Darken configuration for a given artwork type: where elements sit (prepare)
+    and what the darken must carry (compose).
 
     :param mode: Darken mode or "None" to disable.
-    :param strength: Effect strength multiplier (0.0-2.0); 1.0 = full luminance mapping.
-    :param source: Colour source override (hex or "clearlogo").
-    :param contrast_source: Colour scored for contrast per rect (hex or "clearlogo").
-    :param contrast_rects: Rect string the contrast is scored on; default the rects.
     :param rects: Rect string for sampling in frame coordinates.
     :param frame: Frame size "w,h" as a raw string.
+    :param labels: Label text per rect, narrowing each to its estimated width.
+    :param label_px: Glyph advance for the labels, in frame px.
+    :param sources: Element colour per rect (hex or "clearlogo"); the last repeats.
+    :param surface: The image the skin darkens: "art" or "blur".
+    :param max: Cap on the darken, % black; None is no cap.
     """
 
     mode: str | None
-    strength: float
-    source: str | None
-    contrast_source: str | None
-    contrast_rects: str | None
     rects: str | None
     frame: str | None
     labels: tuple[str | None, ...]
     label_px: float | None
+    sources: tuple[str, ...]
+    surface: str
+    max: int | None
 
     def match_fields(self) -> dict[str, object]:
         """
-        Return fields that vary the cache key for this darken configuration.
-        Used by ImageEditor._expected_from_spec; values of None are excluded.
+        Return the prepare fields that vary the cache key; compose fields stay out.
+        Used by ArtOpts.match_fields; values of None are excluded.
         """
         return {
             k: v
             for k, v in {
                 policy.ART_FIELD_DARKEN_MODE: self.mode,
-                policy.ART_FIELD_DARKEN_SOURCE: self.source,
-                policy.ART_FIELD_DARKEN_CONTRAST_SOURCE: self.contrast_source,
-                policy.ART_FIELD_DARKEN_CONTRAST_RECTS: self.contrast_rects,
                 policy.ART_FIELD_DARKEN_RECTS: self.rects,
                 policy.ART_FIELD_DARKEN_FRAME: self.frame,
-                policy.ART_FIELD_DARKEN_STRENGTH: self.strength,
                 policy.ART_FIELD_DARKEN_LABEL_PX: self.label_px,
                 **{
                     f: lbl
@@ -72,19 +69,20 @@ class DarkenOpts:
         """
         return cls(
             mode=params.get(f"{prefix}_darken", None),
-            strength=max(
-                0.0,
-                min(2.0, to_float(params.get(f"{prefix}_darken_strength"), 1.0)),
-            ),
-            source=params.get(f"{prefix}_darken_source"),
-            contrast_source=params.get(f"{prefix}_darken_contrast_source"),
-            contrast_rects=params.get(f"{prefix}_darken_contrast_rects"),
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
             labels=tuple(
                 params.get(f"{prefix}_{f}") for f in policy.ART_FIELDS_DARKEN_LABEL
             ),
             label_px=to_float(params.get(f"{prefix}_darken_label_px"), None),
+            sources=tuple(
+                (
+                    params.get(f"{prefix}_darken_source")
+                    or policy.ColorConfig.element_overlay_color
+                ).split(",")
+            ),
+            surface=params.get(f"{prefix}_darken_surface", "art"),
+            max=to_int(params.get(f"{prefix}_darken_max"), None),
         )
 
 
@@ -100,6 +98,7 @@ class ArtOpts:
     :param analyze: Enable analysis.
     :param darken: Darken options for this art_type.
     :param edge_trim: Border to discard before blurring, percent per side.
+    :param ratio: Contrast target for compose.
     """
 
     url: str | None
@@ -109,6 +108,7 @@ class ArtOpts:
     blur_radius: int | None
     darken: DarkenOpts | None
     edge_trim: float
+    ratio: float
 
     def enabled(self, process: str) -> bool:
         """
@@ -156,4 +156,5 @@ class ArtOpts:
                 else None
             ),
             edge_trim=to_float(params.get(f"{art_type}_edge_trim"), 0.0),
+            ratio=to_float(params.get(f"{art_type}_ratio"), policy.ColorConfig.ratio),
         )

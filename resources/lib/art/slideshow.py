@@ -245,14 +245,9 @@ class Slideshow:
         art_opts = {"background": ArtOpts.from_params(params, "background")}
         jobs = {"background": ("blur", "darken")}
         if clearlogo:
-            art_opts["clearlogo"] = ArtOpts(
-                url=url_decode_path(clearlogo),
-                crop=True,
-                blur=False,
-                analyze=False,
-                blur_radius=None,
-                darken=None,
-                edge_trim=0.0,
+            art_opts["clearlogo"] = ArtOpts.from_params(
+                {"clearlogo_url": url_decode_path(clearlogo), "clearlogo_crop": "true"},
+                "clearlogo",
             )
             jobs["clearlogo"] = ("crop",)
         processed = self.image_processor(jobs=jobs, art_opts=art_opts)

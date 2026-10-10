@@ -1,14 +1,12 @@
 # author: realcopacetic
 
-import colorsys
-
 from PIL import Image, ImageStat
 
+from resources.lib.art.color import hls_to_rgb, luminance, rgb_to_hls, to_hex
 from resources.lib.art.policy import ColorConfig
 from resources.lib.shared import logger as log
 
 RGB = tuple[int, int, int]
-HLS = tuple[float, float, float]
 Palette = tuple[list[RGB], list[tuple[int, int]]]
 
 
@@ -38,10 +36,10 @@ class ColorAnalyzer:
             dominant, shift=self.cfg.contrast_shift
         )
         return {
-            "color": self.to_hex(dominant),
-            "accent": self.to_hex(accent),
-            "contrast": self.to_hex(contrast_rgb),
-            "luminosity": int(self.get_luminosity(dominant) * 1000),
+            "color": to_hex(dominant),
+            "accent": to_hex(accent),
+            "contrast": to_hex(contrast_rgb),
+            "luminosity": int(luminance(dominant) * 1000),
         }
 
     def colors(self, image: Image.Image) -> dict[str, str]:
@@ -56,7 +54,7 @@ class ColorAnalyzer:
         palette = None if rgb_small is None else self._quantize_palette(rgb_small)
         dominant = self.extract_dominant_color(palette)
         accent = self.extract_accent_color(im_small, palette, dominant_rgb=dominant)
-        return {"dominant": self.to_hex(dominant), "accent": self.to_hex(accent)}
+        return {"dominant": to_hex(dominant), "accent": to_hex(accent)}
 
     def extremes(self, image: Image.Image) -> list[str]:
         """
@@ -66,8 +64,8 @@ class ColorAnalyzer:
         :return: [darkest hex, lightest hex], by luminance.
         """
         swatches, counts = self._quantize_palette(self._sample_image(image))
-        used = sorted((swatches[i] for _, i in counts), key=self.get_luminosity)
-        return [self.to_hex(used[0]), self.to_hex(used[-1])]
+        used = sorted((swatches[i] for _, i in counts), key=luminance)
+        return [to_hex(used[0]), to_hex(used[-1])]
 
     @log.duration
     def extract_dominant_color(self, palette: Palette | None) -> RGB:
@@ -169,17 +167,6 @@ class ColorAnalyzer:
             log.exception(f"{self.__class__.__name__} → accent scoring failed")
             return dominant_rgb
 
-    def get_luminosity(self, rgb: RGB) -> float:
-        """
-        Relative luminance per sRGB/Rec.709 with WCAG transfer curve.
-        https://www.w3.org/TR/WCAG21/#dfn-relative-luminance
-        :param rgb: (r, g, b) in 0-255.
-        :return: L in 0-1.
-        """
-        r, g, b = rgb
-        r, g, b = self._linearize(r), self._linearize(g), self._linearize(b)
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
     @log.duration
     def get_contrasting_color(self, rgb: RGB, shift: float) -> RGB:
         """
@@ -190,9 +177,9 @@ class ColorAnalyzer:
         :param shift: Lightness delta (0-1) to apply.
         :return: Contrasting (r, g, b).
         """
-        h, l, s = self.rgb_to_hls(rgb)
+        h, l, s = rgb_to_hls(rgb)
         l = min(1.0, l + shift) if l < 0.5 else max(0.0, l - shift)
-        return self.hls_to_rgb((h, l, s))
+        return hls_to_rgb((h, l, s))
 
     # ---------- public helper methods ----------
     def plain_mean_rgb(self, im: Image.Image) -> RGB:
@@ -211,54 +198,6 @@ class ColorAnalyzer:
         stat = ImageStat.Stat(im.convert("RGB"))
         r, g, b = stat.mean
         return int(r), int(g), int(b)
-
-    @staticmethod
-    def to_hex(rgb: RGB) -> str:
-        """
-        Convert RGB to ARGB hex with full opacity.
-
-        :param rgb: (r, g, b) tuple in 0..255.
-        :return: ARGB hex string (e.g. "ff112233").
-        """
-        r, g, b = rgb
-        return f"ff{r:02x}{g:02x}{b:02x}"
-
-    @staticmethod
-    def from_hex(hex_str: str) -> RGB:
-        """
-        Convert ARGB/RGB hex to an RGB tuple.
-
-        :param hex_str: Hex string with optional leading "#" and optional alpha.
-        :return: (r, g, b) tuple in 0..255.
-        """
-        s = hex_str.lstrip("#")
-        if len(s) == 8:  # strip alpha
-            s = s[2:]
-        r, g, b = (int(s[i : i + 2], 16) for i in (0, 2, 4))
-        return r, g, b
-
-    @staticmethod
-    def rgb_to_hls(rgb: RGB) -> HLS:
-        """
-        Convert RGB to HLS in 0..1 space.
-        Uses colorsys with channels normalised from 0..255.
-
-        :param rgb: RGB tuple in 0..255.
-        :return: HLS tuple in 0..1.
-        """
-        r, g, b = [c / 255.0 for c in rgb]
-        return colorsys.rgb_to_hls(r, g, b)
-
-    @staticmethod
-    def hls_to_rgb(hls: HLS) -> RGB:
-        """
-        Convert HLS (0..1 floats) to RGB (0..255 ints).
-
-        :param hls: (h, l, s) in 0..1 space.
-        :return: (r, g, b) tuple in 0..255.
-        """
-        r, g, b = colorsys.hls_to_rgb(*hls)
-        return tuple(int(round(c * 255)) for c in (r, g, b))
 
     # ---------- private helper methods ----------
     def _sample_image(self, im: Image.Image) -> Image.Image:
@@ -315,7 +254,7 @@ class ColorAnalyzer:
         :param rgb: RGB tuple in 0-255 space.
         :return: Saturation component in 0-1.
         """
-        return self.rgb_to_hls(rgb)[2]
+        return rgb_to_hls(rgb)[2]
 
     @staticmethod
     def _rgb_dist(a: RGB, b: RGB) -> float:
@@ -327,15 +266,3 @@ class ColorAnalyzer:
         :return: Euclidean distance in RGB space.
         """
         return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
-
-    @staticmethod
-    def _linearize(channel_0_255: int) -> float:
-        """
-        sRGB EOTF (piecewise gamma) per WCAG/IEC 61966-2-1.
-        https://www.w3.org/TR/WCAG21/relative-luminance.html
-
-        :param channel_0_255: 8-bit sRGB channel.
-        :return: Linearized channel in 0-1.
-        """
-        c = channel_0_255 / 255.0
-        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4

@@ -5,7 +5,7 @@ from typing import Any, Iterable
 from PIL import Image, ImageStat
 
 from resources.lib.art import policy
-from resources.lib.art.analyzer import ColorAnalyzer
+from resources.lib.art.color import linear, luminance
 from resources.lib.plugin.opts import DarkenOpts
 from resources.lib.shared import logger as log
 
@@ -15,7 +15,7 @@ Box = tuple[int, int, int, int]
 DarkenUpdates = dict[str, int]
 
 W = (0.2126, 0.7152, 0.0722)
-LIN = [round(255 * ColorAnalyzer._linearize(v)) for v in range(256)]
+LIN = [round(255 * linear(v / 255)) for v in range(256)]
 
 
 def luminance_image(image: Image.Image) -> Image.Image:
@@ -30,9 +30,8 @@ def luminance_image(image: Image.Image) -> Image.Image:
 
 class ColorDarken:
     """
-    Compute darken percentages for artwork and overlay elements.
-
-    Public methods return dicts ready to be merged into artwork metadata.
+    Measure artwork for compose: each rect's extremes on the art and on its blur.
+    Mode "all" also returns the element darken series.
     """
 
     def __init__(self, color_analyzer: object) -> None:
@@ -50,51 +49,20 @@ class ColorDarken:
         opts: DarkenOpts,
     ) -> DarkenUpdates | None:
         """
-        Compute darken updates based on ``opts.mode``.
+        The element darken series, for mode "all" only.
 
         :param image: PIL image to sample (original, not blurred).
-        :param opts: Darken options for sampling and targets.
-        :return: Updates or None: "darken", element keys (mode="all"), contrast keys.
+        :param opts: Darken options for sampling.
+        :return: darken_element* updates, or None.
         """
-        if not opts.enabled:
+        if opts.mode != "all":
             return None
 
-        ctx = self._prepare_darken_context(image=image, opts=opts)
-        if not ctx:
-            return None
-
-        framed, rects, contrast_rects, L_text, strength, label_widths = ctx
-        mode = opts.mode or ""
-        updates = {}
-        updates["darken"] = self._compute_artwork_darken(
-            framed=framed,
-            rects=rects,
-            strength=strength,
-            L_text=L_text,
+        rects, _ = self._clamp_rects_to_labels(opts)
+        framed, (rects,) = self._prepare_image_and_rects(
+            image=image, rects=(rects,), frame=opts.frame
         )
-        for idx, w in enumerate(label_widths):
-            if w is not None and idx < len(policy.ART_FIELDS_DARKEN_LABEL_WIDTH):
-                updates[policy.ART_FIELDS_DARKEN_LABEL_WIDTH[idx]] = w
-
-        if mode == "all":
-            updates.update(
-                self._compute_darken_element_series(
-                    framed=framed,
-                    rects=rects,
-                    strength=strength,
-                )
-            )
-        if opts.contrast_source:
-            updates.update(
-                self._compute_contrast_series(
-                    framed=framed,
-                    rects=contrast_rects,
-                    source=opts.contrast_source,
-                    strength=strength,
-                )
-            )
-
-        return updates
+        return self._compute_darken_element_series(framed=framed, rects=rects)
 
     def measure(
         self, raw: Image.Image, blur: Image.Image | None, opts: DarkenOpts
@@ -166,91 +134,19 @@ class ColorDarken:
         k = max(1, round(len(px) * cfg.bg_sampling_topk))
         return [round(sum(px[:k]) / k / 255, 4), round(sum(px[-k:]) / k / 255, 4)]
 
-    def _compute_contrast_series(
-        self,
-        *,
-        framed: Image.Image,
-        rects: list[Rect],
-        source: str,
-        strength: float,
-    ) -> DarkenUpdates:
-        """
-        Score how well the contrast source reads on each rect, 0-100: 100 once its
-        WCAG ratio to the rect's background (sampled as for darken) reaches
-        darken_contrast_min times strength.
-
-        :param framed: Framed image.
-        :param rects: Scaled rects.
-        :param source: Hex colour to score.
-        :param strength: Multiplier (0.0-2.0) on the required ratio.
-        :return: Dict of darken_contrast* values.
-        """
-        L_src = self.color.get_luminosity(self.color.from_hex(source))
-        target = self.color.cfg.darken_contrast_min * strength
-        updates = {}
-        for key, (x, y, w, h) in zip(policy.ART_FIELDS_DARKEN_CONTRAST, rects):
-            _, L_bg = self._sample_bg(framed.crop((x, y, x + w, y + h)))
-            low, high = sorted((L_src, L_bg))
-            ratio = (high + 0.05) / (low + 0.05)
-            updates[key] = min(100, round(100 * ratio / target)) if target else 100
-
-        return updates
-
-    def _compute_artwork_darken(
-        self,
-        *,
-        framed: Image.Image,
-        rects: list[Rect],
-        L_text: float,
-        strength: float,
-    ) -> int:
-        """
-        Darken the artwork behind elements.
-        Finds the brightest rect, maps its luminance to 0-100 scaled by opts.strength.
-        Aborts if the overlay element is dark (no darken needed).
-
-        :param framed: Framed image.
-        :param rects: Scaled rects.
-        :param L_text: Overlay element luminance — used to abort if element is dark.
-        :param strength: Multiplier (0.0-2.0) controlling effect strength.
-        :return: Darken percentage 0..100.
-        """
-
-        def _sample(rect: Rect) -> tuple[Rect, RGB, float]:
-            x, y, w, h = rect
-            patch = framed.crop((x, y, x + w, y + h))
-            bg_rgb, L_bg = self._sample_bg(patch)
-            return rect, bg_rgb, L_bg
-
-        idx, (rect, bg_rgb, L_bg) = max(
-            ((i, _sample(r)) for i, r in enumerate(rects)),
-            key=lambda t: t[1][2],
-        )
-        pct = self._solve_bg_darken(L_bg=L_bg, L_text=L_text, strength=strength)
-        if pct > 0:
-            log.debug(
-                f"{self.__class__.__name__} → artwork winner rect[{idx}] → "
-                f"rect={rect}, bg_rgb={bg_rgb}, "
-                f"L_bg={L_bg:.4f}, L_text={L_text:.4f}, strength={strength:.2f}, darken={pct}",
-            )
-
-        return pct
-
     def _compute_darken_element_series(
         self,
         *,
         framed: Image.Image,
         rects: list[Rect],
-        strength: float,
     ) -> DarkenUpdates:
         """
         Darken elements on top of artwork (e.g. white text/logo on bright art).
         Each rect evaluated independently; complex patches return -1. Also emits a
-        strength-independent mean-luminance companion per rect (darken_element_mean*).
+        mean-luminance companion per rect (darken_element_mean*).
 
         :param framed: Framed image.
         :param rects: Scaled rects.
-        :param strength: Multiplier (0.0-2.0) controlling effect strength.
         :return: Dict of darken_element*/darken_element_mean* values.
         """
         keys = policy.ART_FIELDS_DARKEN_ELEMENT
@@ -268,9 +164,7 @@ class ColorDarken:
             else:
                 bg_rgb, L_bg = self._sample_bg(patch)
                 pct = self._solve_darken_element(
-                    L_bg=L_bg,
-                    strength=strength,
-                    floor=self.color.cfg.darken_element_floor,
+                    L_bg=L_bg, floor=self.color.cfg.darken_element_floor
                 )
                 if pct > 0 and (best is None or pct > best[0]):
                     best = (pct, idx, key, rect, bg_rgb, L_bg)
@@ -282,51 +176,10 @@ class ColorDarken:
             log.debug(
                 f"{self.__class__.__name__} → element winner rect[{idx}] → "
                 f"key={key}, rect={rect}, bg_rgb={bg_rgb}, "
-                f"L_bg={L_bg:.4f}, strength={strength:.2f}, darken={pct}",
+                f"L_bg={L_bg:.4f}, darken={pct}",
             )
 
         return updates
-
-    def _prepare_darken_context(
-        self,
-        *,
-        image: Image.Image,
-        opts: DarkenOpts,
-    ) -> (
-        tuple[Image.Image, list[Rect], list[Rect], float, float, list[int | None]]
-        | None
-    ):
-        """
-        Resolve image, darken and contrast rects, overlay luminance and strength.
-        Contrast rects default to the darken rects. opts.source is a resolved hex
-        string here: ImageEditor._handle_jobs resolves clearlogo upstream.
-
-        :param image: PIL image to sample.
-        :param opts: Parsed options.
-        :return: (framed, rects, contrast_rects, L_text, strength, widths) or None.
-        """
-        if not opts.rects:
-            return None
-
-        rects_param, label_widths = self._clamp_rects_to_labels(opts)
-        framed, (rects, contrast_rects) = self._prepare_image_and_rects(
-            image=image,
-            rects=(rects_param, opts.contrast_rects or rects_param),
-            frame=opts.frame,
-        )
-        if not rects:
-            return None
-
-        cfg = self.color.cfg
-
-        src = (opts.source or "").strip()
-        text_rgb = (
-            self.color.from_hex(src)
-            if src
-            else self.color.from_hex(cfg.element_overlay_color)
-        )
-        L_text = self.color.get_luminosity(text_rgb)
-        return framed, rects, contrast_rects, L_text, opts.strength, label_widths
 
     def _clamp_rects_to_labels(self, opts: DarkenOpts) -> tuple[str, list[int | None]]:
         """
@@ -555,11 +408,11 @@ class ColorDarken:
         else:
             r, g, b = stat.mean
             rgb = (int(r), int(g), int(b))
-        return rgb, self.color.get_luminosity(rgb)
+        return rgb, luminance(rgb)
 
     def _sample_mean_pct(self, patch: Image.Image) -> int:
         """
-        Mean luminance of a patch as a 0-100 percentage (strength-independent).
+        Mean luminance of a patch as a 0-100 percentage.
         Predicts the value the region collapses toward under a strong blur.
         Non-mutating: samples a copy so callers can still read ``patch``.
 
@@ -571,7 +424,7 @@ class ColorDarken:
         if small.width > n or small.height > n:
             small.thumbnail((n, n), Image.BOX)
         r, g, b = ImageStat.Stat(small).mean
-        L = self.color.get_luminosity((round(r), round(g), round(b)))
+        L = luminance((round(r), round(g), round(b)))
         return int(round(L * 100))
 
     def _is_simple_patch(self, patch: Image.Image) -> bool:
@@ -590,45 +443,13 @@ class ColorDarken:
         except Exception:
             return True
 
-    def _solve_bg_darken(
-        self,
-        *,
-        L_bg: float,
-        L_text: float,
-        strength: float,
-    ) -> int:
-        """
-        Map background luminance to a darken percentage for artwork behind elements.
-        Bright art → high, dark art → low or zero; aborts if the element is already
-        dark (L_text < 0.2). The skin XML maps 0-100 to opacity/tint steps.
-
-        :param L_bg: Background luminance (0..1).
-        :param L_text: Overlay element luminance (0..1) — abort gate only.
-        :param strength: Multiplier (0.0-2.0) controlling effect strength.
-        :return: Darken percentage (0..100).
-        """
-        if L_bg <= 0:
-            return 0
-
-        if L_text < 0.2:
-            log.debug(
-                f"{self.__class__.__name__} → bg darken aborted → "
-                f"element is dark (L_text={L_text:.3f})"
-            )
-            return 0
-
-        return min(100, int(round(L_bg * 100 * strength)))
-
-    def _solve_darken_element(
-        self, *, L_bg: float, strength: float, floor: float
-    ) -> int:
+    def _solve_darken_element(self, *, L_bg: float, floor: float) -> int:
         """
         Map background luminance to a darken percentage for elements on top of artwork.
         Bright art → heavy darkening, dark art → little or none; 0 below floor, where a
         light element already contrasts enough. The skin XML maps 0-100 to tint steps.
 
         :param L_bg: Background luminance (0..1).
-        :param strength: Multiplier (0.0-2.0) controlling effect strength.
         :param floor: Luminance floor (0..1) below which no darkening is applied.
         :return: Darken percentage (0..100).
         """
@@ -638,4 +459,4 @@ class ColorDarken:
         if L_bg < floor:
             return 0
 
-        return min(100, int(round(L_bg * 100 * strength)))
+        return min(100, int(round(L_bg * 100)))
