@@ -17,14 +17,7 @@ ART_FIELD_ACCENT = "accent"
 ART_FIELD_CONTRAST = "contrast"
 ART_FIELD_LUMINOSITY = "luminosity"
 ART_FIELD_DARKEN = "darken"
-ART_FIELD_DARKEN_ELEMENT = "darken_element"
-ART_FIELD_DARKEN_ELEMENT1 = "darken_element1"
-ART_FIELD_DARKEN_ELEMENT2 = "darken_element2"
-ART_FIELD_DARKEN_ELEMENT_MEAN = "darken_element_mean"
-ART_FIELD_DARKEN_ELEMENT_MEAN1 = "darken_element_mean1"
-ART_FIELD_DARKEN_ELEMENT_MEAN2 = "darken_element_mean2"
 ART_FIELD_DARKEN_FRAME = "darken_frame"
-ART_FIELD_DARKEN_MODE = "darken_mode"
 ART_FIELD_DARKEN_RECTS = "darken_rects"
 ART_FIELD_DARKEN_LABEL = "darken_label"
 ART_FIELD_DARKEN_LABEL1 = "darken_label1"
@@ -34,18 +27,10 @@ ART_FIELD_DARKEN_LABEL_WIDTH = "darken_label_width"
 ART_FIELD_DARKEN_LABEL_WIDTH1 = "darken_label_width1"
 ART_FIELD_DARKEN_LABEL_WIDTH2 = "darken_label_width2"
 ART_FIELD_MEASURE = "measure"
-
-ART_FIELDS_DARKEN_ELEMENT = (
-    ART_FIELD_DARKEN_ELEMENT,
-    ART_FIELD_DARKEN_ELEMENT1,
-    ART_FIELD_DARKEN_ELEMENT2,
-)
-
-ART_FIELDS_DARKEN_ELEMENT_MEAN = (
-    ART_FIELD_DARKEN_ELEMENT_MEAN,
-    ART_FIELD_DARKEN_ELEMENT_MEAN1,
-    ART_FIELD_DARKEN_ELEMENT_MEAN2,
-)
+ART_FIELD_RATIO = "ratio"
+ART_FIELD_ELEMENT_COLORS = "element_colors"
+ART_FIELD_ELEMENT_COLOR = "element_color"
+ART_FIELD_BAND = "band"
 
 ART_FIELDS_DARKEN_LABEL = (
     ART_FIELD_DARKEN_LABEL,
@@ -73,15 +58,15 @@ ART_DB_SCHEMA = (
     (ART_FIELD_ACCENT, "TEXT"),
     (ART_FIELD_CONTRAST, "TEXT"),
     (ART_FIELD_LUMINOSITY, "INTEGER"),
-    *((field, "INTEGER") for field in ART_FIELDS_DARKEN_ELEMENT),
-    *((field, "INTEGER") for field in ART_FIELDS_DARKEN_ELEMENT_MEAN),
     (ART_FIELD_DARKEN_FRAME, "TEXT"),
-    (ART_FIELD_DARKEN_MODE, "TEXT"),
     (ART_FIELD_DARKEN_RECTS, "TEXT"),
     *((field, "TEXT") for field in ART_FIELDS_DARKEN_LABEL),
     (ART_FIELD_DARKEN_LABEL_PX, "REAL"),
     *((field, "INTEGER") for field in ART_FIELDS_DARKEN_LABEL_WIDTH),
     (ART_FIELD_MEASURE, "TEXT"),
+    (ART_FIELD_RATIO, "REAL"),
+    (ART_FIELD_ELEMENT_COLORS, "TEXT"),
+    (ART_FIELD_ELEMENT_COLOR, "TEXT"),
 )
 ART_DB_UNIQUE = (ART_FIELD_CACHE_KEY,)
 
@@ -94,7 +79,6 @@ ART_FIELDS_INPUT = {
     "blur": (ART_FIELD_BLUR_RADIUS,),
     "analyze": (),
     "darken": (
-        ART_FIELD_DARKEN_MODE,
         ART_FIELD_DARKEN_RECTS,
         *ART_FIELDS_DARKEN_LABEL,
         ART_FIELD_DARKEN_LABEL_PX,
@@ -102,6 +86,7 @@ ART_FIELDS_INPUT = {
         ART_FIELD_BLUR_RADIUS,
         ART_FIELD_EDGE_TRIM,
     ),
+    "band": (),  # one band per art: a rewrite evicts every band of the source
 }
 
 ART_FIELDS_RESULT = {
@@ -117,21 +102,18 @@ ART_FIELDS_RESULT = {
 }
 
 ART_LISTITEM_KEYS = (
-    (
-        ART_FIELD_PROCESSED,
-        ART_FIELD_WIDTH,
-        ART_FIELD_HEIGHT,
-        ART_FIELD_BLUR_RADIUS,
-        ART_FIELD_COLOR,
-        ART_FIELD_ACCENT,
-        ART_FIELD_CONTRAST,
-        ART_FIELD_LUMINOSITY,
-        ART_FIELD_DARKEN,
-    )
-    + ART_FIELDS_DARKEN_ELEMENT
-    + ART_FIELDS_DARKEN_ELEMENT_MEAN
-    + ART_FIELDS_DARKEN_LABEL_WIDTH
-)
+    ART_FIELD_PROCESSED,
+    ART_FIELD_WIDTH,
+    ART_FIELD_HEIGHT,
+    ART_FIELD_BLUR_RADIUS,
+    ART_FIELD_COLOR,
+    ART_FIELD_ACCENT,
+    ART_FIELD_CONTRAST,
+    ART_FIELD_LUMINOSITY,
+    ART_FIELD_DARKEN,
+    ART_FIELD_ELEMENT_COLOR,
+    ART_FIELD_BAND,
+) + ART_FIELDS_DARKEN_LABEL_WIDTH
 
 ART_SOURCE_KEYS = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
@@ -254,6 +236,6 @@ class ColorConfig:
     contrast_shift: float = 0.3  # Lightness delta (0-1) for generating contrast color
     ratio: float = 3.0  # Default contrast target for darken, element and palette
     element_overlay_color: str = "fff0efef"  # Default element colour for the darken
-    element_complexity_stddev: float = 20.0  # Luma stdev limit for "simple" backgrounds
-    darken_element_floor: float = 0.18  # floor below which element darken is skipped
+    band_tolerance: float = 0.05  # Pull limits widened for 8-bit rounding, grey model
+    band_feather: int = 40  # Gaussian feather of the band's pull, frame px
     darken_label_px_per_char: float = 14  # Est. glyph width (px); skinner overrides

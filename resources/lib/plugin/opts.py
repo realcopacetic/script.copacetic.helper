@@ -40,7 +40,6 @@ class DarkenOpts:
         return {
             k: v
             for k, v in {
-                policy.ART_FIELD_DARKEN_MODE: self.mode,
                 policy.ART_FIELD_DARKEN_RECTS: self.rects,
                 policy.ART_FIELD_DARKEN_FRAME: self.frame,
                 policy.ART_FIELD_DARKEN_LABEL_PX: self.label_px,
@@ -99,6 +98,7 @@ class ArtOpts:
     :param darken: Darken options for this art_type.
     :param edge_trim: Border to discard before blurring, percent per side.
     :param ratio: Contrast target for compose.
+    :param element_colors: Candidate colours (hex) of an element drawn on the art.
     """
 
     url: str | None
@@ -109,17 +109,18 @@ class ArtOpts:
     darken: DarkenOpts | None
     edge_trim: float
     ratio: float
+    element_colors: tuple[str, ...]
 
     def enabled(self, process: str) -> bool:
         """
         Return True if the given process is enabled for this artwork. The darken
-        process measures; a clearlogo (no darken opts) is always measured.
+        process measures for compose; a clearlogo (no darken opts) always is.
 
         :param process: Process name (crop, blur, analyze, darken).
         :return: True if enabled.
         """
         return (
-            self.darken is None or self.darken.enabled
+            self.darken is None or self.darken.enabled or bool(self.element_colors)
             if process == "darken"
             else bool(getattr(self, process, False))
         )
@@ -132,6 +133,8 @@ class ArtOpts:
         return {
             policy.ART_FIELD_BLUR_RADIUS: self.blur_radius if self.blur else 0,
             policy.ART_FIELD_EDGE_TRIM: self.edge_trim if self.blur else 0.0,
+            policy.ART_FIELD_RATIO: self.ratio,
+            policy.ART_FIELD_ELEMENT_COLORS: ",".join(self.element_colors) or None,
             **(self.darken.match_fields() if self.darken else {}),
         }
 
@@ -157,4 +160,7 @@ class ArtOpts:
             ),
             edge_trim=to_float(params.get(f"{art_type}_edge_trim"), 0.0),
             ratio=to_float(params.get(f"{art_type}_ratio"), policy.ColorConfig.ratio),
+            element_colors=tuple(
+                filter(None, params.get(f"{art_type}_element_colors", "").split(","))
+            ),
         )

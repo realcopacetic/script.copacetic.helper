@@ -180,11 +180,6 @@ class ImageProcessor:
                 measure |= measured
             return {
                 "metadata": {
-                    **(
-                        self.darken_engine.compute_darken(image, opts=opts.darken) or {}
-                        if opts.darken
-                        else {}
-                    ),
                     **dict(zip(policy.ART_FIELDS_DARKEN_LABEL_WIDTH, widths)),
                     policy.ART_FIELD_MEASURE: json.dumps(
                         measure, separators=(",", ":")

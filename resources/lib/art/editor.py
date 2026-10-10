@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import time
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
 import xbmcvfs
 
-from resources.lib.art import policy
+from resources.lib.art import compose, policy
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
-from resources.lib.art.compose import compose
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
@@ -48,13 +49,22 @@ PROCESS_SPEC = {
         "match": policy.ART_FIELDS_INPUT["darken"],
         "require": policy.ART_FIELDS_RESULT["darken"],
     },
+    "band": {  # step 3's tinted copy of the blur, written by compose
+        "folder": BLURS,
+        "match": (
+            *policy.ART_FIELDS_INPUT["darken"],
+            policy.ART_FIELD_RATIO,
+            policy.ART_FIELD_ELEMENT_COLORS,
+        ),
+        "require": (policy.ART_FIELD_PROCESSED, policy.ART_FIELD_ELEMENT_COLOR),
+    },
 }
 
 
 class ImageEditor:
     """
-    Coordinate artwork processing, caching and color metadata extraction.
-    Handles crop/blur/analyze plus optional overlay darken.
+    Coordinate artwork processing and caching: prepare each art (crop, blur,
+    analyze, measure), then compose its darken and element steps.
     """
 
     def __init__(self, sqlite_handler: ArtworkCacheHandler | None = None) -> None:
@@ -99,6 +109,7 @@ class ImageEditor:
         shared = {
             "image_cache": {k: {} for k in art_types},
             "results": {k: {} for k in art_types},
+            "contexts": {},
         }
         try:
             records = {
@@ -115,7 +126,7 @@ class ImageEditor:
                     )
                 )
             }
-            compose(records, art_opts)
+            self._compose(records, art_opts, shared["contexts"])
             return policy.flatten_art_attributes(records.items())
         except Exception:
             log.exception(f"{self.__class__.__name__} → Error during image processing")
@@ -157,7 +168,9 @@ class ImageEditor:
         resolved_url = next(iter(art.values()))
         ext = ".png" if resolved_url.lower().endswith(".png") else ".jpg"
 
-        base_ctx = self.cache_manager.prepare(resolved_url, ext)
+        base_ctx = shared["contexts"][art_type] = self.cache_manager.prepare(
+            resolved_url, ext
+        )
         attrs = shared["results"][art_type] = {
             "cached_file_hash": base_ctx.cached_file_hash
         }
@@ -224,6 +237,102 @@ class ImageEditor:
             self.cache_manager.write_lookup(policy.filter_db_payload(row))
 
         return attrs
+
+    def _compose(
+        self,
+        records: Mapping[str, dict[str, Any]],
+        art_opts: Mapping[str, ArtOpts],
+        contexts: Mapping[str, CacheContext],
+    ) -> None:
+        """
+        Second pass, once every art is prepared: each art's darken and element
+        step from its measurement, into its record. Never cached.
+
+        :param records: Prepared attributes per art_type, updated in place.
+        :param art_opts: Parsed ArtOpts per art_type.
+        :param contexts: Each art's source cache context, for the band copy.
+        """
+        measures = {
+            art_type: json.loads(attrs[policy.ART_FIELD_MEASURE])
+            for art_type, attrs in records.items()
+            if policy.ART_FIELD_MEASURE in attrs
+        }
+        logo = measures.get("clearlogo", {}).get("dominant")
+        for art_type, attrs in records.items():
+            opts = art_opts[art_type]
+            if not (opts.darken and (measure := measures.get(art_type))):
+                continue
+            zones = measure["zones"]
+            if opts.darken.enabled:
+                sources = [
+                    logo or self.cfg.element_overlay_color if s == "clearlogo" else s
+                    for s in opts.darken.sources
+                ]
+                pct = compose.darken(zones, sources, opts.darken.surface, opts.ratio)
+                cap = opts.darken.max
+                attrs[policy.ART_FIELD_DARKEN] = pct if cap is None else min(pct, cap)
+            if opts.element_colors:
+                step, color = compose.element(zones, opts.element_colors, opts.ratio)
+                if step == 2:
+                    attrs[policy.ART_FIELD_BAND] = attrs[policy.ART_FIELD_PROCESSED]
+                elif step == 3:
+                    color, attrs[policy.ART_FIELD_BAND] = self._band(
+                        attrs, opts, contexts[art_type], measure["band"]
+                    )
+                attrs[policy.ART_FIELD_ELEMENT_COLOR] = color
+
+    def _band(
+        self,
+        attrs: Mapping[str, Any],
+        opts: ArtOpts,
+        base_ctx: CacheContext,
+        band: list[str],
+    ) -> tuple[str, str]:
+        """
+        Step 3: a tinted copy of the blur in a file of its own (Kodi won't reread a
+        rewritten path), cached by the blur's key plus ratio and candidates.
+
+        :param attrs: The art's prepared attributes (the blur's processed_path).
+        :param opts: Parsed ArtOpts for this art_type.
+        :param base_ctx: The art's source cache context.
+        :param band: The band palette's [darkest, lightest], hex.
+        :return: (element colour, path of the copy).
+        """
+        spec = PROCESS_SPEC["band"]
+        expected = self._expected_from_spec(spec, opts=opts)
+        ctx = self.cache_manager.with_process_variant(
+            base_ctx, process="band", expected=expected, folder=spec["folder"]
+        )
+        if cached := self.cache_manager.read_lookup(ctx, require=spec["require"]):
+            return (
+                cached[policy.ART_FIELD_ELEMENT_COLOR],
+                cached[policy.ART_FIELD_PROCESSED],
+            )
+
+        from resources.lib.art.io import write_image  # PIL: a cache miss only
+
+        color, image = self.processor.darken_engine.band(
+            self._image_open(attrs[policy.ART_FIELD_PROCESSED]).convert("RGB"),
+            opts,
+            {c: compose.tint(c, band) for c in opts.element_colors},
+        )
+        path = str(Path(spec["folder"]) / ctx.dest_thumb)
+        create_dir(spec["folder"])
+        write_image(path, image, "JPEG", self.cfg)
+        self.cache_manager.write_lookup(
+            policy.filter_db_payload(
+                {
+                    policy.ART_FIELD_CACHE_KEY: ctx.cache_key,
+                    policy.ART_FIELD_SOURCE_URL: base_ctx.source_url,
+                    policy.ART_FIELD_PROCESS: "band",
+                    policy.ART_FIELD_HASH: base_ctx.cached_file_hash,
+                    **(expected or {}),
+                    policy.ART_FIELD_PROCESSED: path,
+                    policy.ART_FIELD_ELEMENT_COLOR: color,
+                }
+            )
+        )
+        return color, path
 
     def _background_fallback(
         self,
