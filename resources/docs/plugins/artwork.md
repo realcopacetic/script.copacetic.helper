@@ -219,12 +219,14 @@ rectangle (its worst ratio), and the first step that works wins:
 2. **Blur band.** The area is busy, or no candidate reads on the image but one reads on
    its blur. `_band` is the blur, which removes the detail behind the letters.
 3. **Tinted band.** No candidate reads on the blur either. For each candidate the helper
-   works out how far each pixel of the blur must move toward a colour from the image's
-   own band area (its darkest under light text, its lightest under dark text) to read;
-   the candidate that changes the area least wins, decided from the area's brightness
-   histogram before any image is made. `_band` is a copy of the blur with only the
-   clashing pixels moved: full strength inside the rectangles, fading out around them.
-   Draw it through your own band mask.
+   works out how far each pixel of the blur must move to read: under dark text it is
+   lightened by adding the same amount to red, green and blue, so it keeps its hue and
+   colourfulness (a dark navy becomes a muted light blue, not grey); under light text it
+   moves toward the darkest colour of the image's own band area. The candidate that
+   changes the area least wins, decided from the area's brightness histogram before any
+   image is made. `_band` is a copy of the blur with only the clashing pixels moved: full
+   strength inside the rectangles, fading out over 120 px around them. Draw it through
+   your own band mask.
 
 `_element_color` is the winning candidate. The band copy is a file of its own beside
 the blur, so the image control sees a new path; it is cached with the blur and replaced

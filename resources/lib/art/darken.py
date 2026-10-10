@@ -1,6 +1,8 @@
 # author: realcopacetic
 
 from functools import reduce
+from math import ceil
+from operator import mul
 from typing import Any
 
 from PIL import Image, ImageChops, ImageFilter
@@ -80,6 +82,47 @@ def pull_table(text: str, tint: str, ratio: float, margin: float) -> list[int]:
     return table
 
 
+def lift_table(text: str, ratio: float, margin: float) -> list[int]:
+    """
+    Per linear luminance 0-255, the amount to add to R, G and B that makes a grey of
+    that luminance read under dark text at ratio. Adding keeps each pixel's hue and
+    chroma, so a lifted colour stays itself, only lighter.
+
+    :param text: Element colour, hex.
+    :param ratio: Contrast target.
+    :param margin: Tolerance on the limit for 8-bit rounding and the grey model.
+    :return: 256 amounts, 0-255.
+    """
+    hi = (ratio * (luminance(from_hex(text)) + 0.05) - 0.05) * (1 + margin)
+    floor = encode(min(hi, 1.0))
+    return [max(0, ceil(255 * (floor - encode(v / 255)))) for v in range(256)]
+
+
+def band_tables(
+    text: str, tint: str, ratio: float, margin: float
+) -> tuple[bool, list[int], list[float]]:
+    """
+    How a band carries text: lift under text darker than its tint, else pull toward
+    the tint; with each table's change to a grey, in levels, to compare candidates.
+
+    :param text: Element colour, hex.
+    :param tint: The band palette end the candidate faces, hex.
+    :param ratio: Contrast target.
+    :param margin: Tolerance on the limits.
+    :return: (lifts, table to apply, change per luminance).
+    """
+    lt = luminance(from_hex(tint))
+    if lt > luminance(from_hex(text)):
+        table = lift_table(text, ratio, margin)
+        return True, table, table
+    table = pull_table(text, tint, ratio, margin)
+    t = 255 * encode(lt)
+    change = [
+        a * max(0.0, 255 * encode(v / 255) - t) / 255 for v, a in enumerate(table)
+    ]
+    return False, table, change
+
+
 class ColorDarken:
     """
     Measure artwork for compose (each rect's extremes on the art and on its blur)
@@ -126,8 +169,9 @@ class ColorDarken:
         self, blur: Image.Image, opts: ArtOpts, tints: dict[str, str]
     ) -> tuple[str, Image.Image]:
         """
-        The candidate whose pull changes the rects least, from their luminance
-        histogram, and its copy of the blur: clashing pixels pulled toward its tint.
+        The candidate whose band changes the rects least, from their luminance
+        histogram, and its copy of the blur: clashing pixels lifted (dark text) or
+        pulled toward its tint (light text).
 
         :param blur: The band's blur, RGB.
         :param opts: ArtOpts carrying rects, frame, labels and ratio.
@@ -142,31 +186,45 @@ class ColorDarken:
         x0, y0 = (max(0, min(b[i] for b in boxes) - m) for i in (0, 1))
         x1 = min(blur.width, max(b[2] for b in boxes) + m)
         y1 = min(blur.height, max(b[3] for b in boxes) + m)
-        area = blur.crop((x0, y0, x1, y1))  # rects plus fade: all the pull touches
+        area = blur.crop((x0, y0, x1, y1))  # rects plus fade: all the band touches
         boxes = [
             (bx0 - x0, by0 - y0, bx1 - x0, by1 - y0) for bx0, by0, bx1, by1 in boxes
         ]
 
-        lum = luminance_image(area)
-        hist = [sum(n) for n in zip(*(lum.crop(box).histogram() for box in boxes))]
+        hist = [
+            sum(n)
+            for n in zip(*(luminance_image(area.crop(b)).histogram() for b in boxes))
+        ]
         tables = {
-            c: pull_table(c, t, opts.ratio, cfg.band_tolerance)
+            c: band_tables(c, t, opts.ratio, cfg.band_tolerance)
             for c, t in tints.items()
         }
-        text = min(tables, key=lambda c: sum(n * a for n, a in zip(hist, tables[c])))
-
-        pull = (
-            lum.reduce(2)
-            .point(tables[text])
-            .filter(ImageFilter.MaxFilter(3))
-            .resize(area.size, Image.BILINEAR)
-            .filter(ImageFilter.GaussianBlur(2))
-        )
+        text = min(tables, key=lambda c: sum(map(mul, hist, tables[c][2])))
+        lifts, table, _ = tables[text]
         fade = reduce(ImageChops.lighter, (ramp(area.size, box, m) for box in boxes))
-        alpha = ImageChops.multiply(pull, fade)
-        tint = Image.new("RGB", area.size, "#" + tints[text][2:])
+
+        def need(image: Image.Image) -> Image.Image:
+            return (
+                luminance_image(image)
+                .reduce(2)
+                .point(table)
+                .filter(ImageFilter.MaxFilter(3))
+                .resize(area.size, Image.BILINEAR)
+                .filter(ImageFilter.GaussianBlur(2))
+            )
+
+        if lifts:  # repeated: a channel that clips at white lifts less than a grey
+            lifted = area
+            for _ in range(4):
+                if not (amount := need(lifted)).getbbox():
+                    break
+                lifted = ImageChops.add(lifted, Image.merge("RGB", [amount] * 3))
+            area = Image.composite(lifted, area, fade)
+        else:
+            tint = Image.new("RGB", area.size, "#" + tints[text][2:])
+            area = Image.composite(tint, area, ImageChops.multiply(need(area), fade))
         out = blur.copy()
-        out.paste(Image.composite(tint, area, alpha), (x0, y0))
+        out.paste(area, (x0, y0))
         return text, out
 
     def _frame(self, frame: str | None) -> tuple[int, int]:
