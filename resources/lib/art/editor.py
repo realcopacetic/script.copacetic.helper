@@ -40,10 +40,6 @@ PROCESS_SPEC = {
         "match": policy.ART_FIELDS_INPUT["blur"],
         "require": policy.ART_FIELDS_RESULT["blur"],
     },
-    "analyze": {
-        "folder": None,
-        "require": policy.ART_FIELDS_RESULT["analyze"],
-    },
     "darken": {  # the measurement row compose reads; named before the two passes
         "folder": None,
         "match": policy.ART_FIELDS_INPUT["darken"],
@@ -64,7 +60,7 @@ PROCESS_SPEC = {
 class ImageEditor:
     """
     Coordinate artwork processing and caching: prepare each art (crop, blur,
-    analyze, measure), then compose its darken and element steps.
+    measure), then compose its darken, element steps and palette.
     """
 
     def __init__(self, sqlite_handler: ArtworkCacheHandler | None = None) -> None:
@@ -245,8 +241,8 @@ class ImageEditor:
         contexts: Mapping[str, CacheContext],
     ) -> None:
         """
-        Second pass, once every art is prepared: each art's darken and element
-        step from its measurement, into its record. Never cached.
+        Second pass, once every art is prepared: each art's darken, element step
+        and palette from its measurement, into its record. Never cached.
 
         :param records: Prepared attributes per art_type, updated in place.
         :param art_opts: Parsed ArtOpts per art_type.
@@ -262,15 +258,19 @@ class ImageEditor:
             opts = art_opts[art_type]
             if not (opts.darken and (measure := measures.get(art_type))):
                 continue
-            zones = measure["zones"]
+            zones, surface, cap = measure["zones"], opts.darken.surface, opts.darken.max
+            sources = [
+                logo or self.cfg.element_overlay_color if s == "clearlogo" else s
+                for s in opts.darken.sources
+            ]
+            pct = compose.darken(zones, sources, surface, opts.ratio)
+            pct = pct if cap is None else min(pct, cap)
             if opts.darken.enabled:
-                sources = [
-                    logo or self.cfg.element_overlay_color if s == "clearlogo" else s
-                    for s in opts.darken.sources
-                ]
-                pct = compose.darken(zones, sources, opts.darken.surface, opts.ratio)
-                cap = opts.darken.max
-                attrs[policy.ART_FIELD_DARKEN] = pct if cap is None else min(pct, cap)
+                attrs[policy.ART_FIELD_DARKEN] = pct
+            if opts.palette:
+                attrs |= compose.palette(
+                    measure, logo, surface, opts.ratio, pct, self.cfg
+                )
             if opts.element_colors:
                 step, color = compose.element(zones, opts.element_colors, opts.ratio)
                 if step == 2:

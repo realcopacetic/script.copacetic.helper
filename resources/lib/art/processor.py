@@ -15,8 +15,7 @@ from resources.lib.shared import logger as log
 
 class ImageProcessor:
     """
-    Performs artwork transforms (crop/blur/analyze) and extracts color metadata.
-    Uses ColorAnalyzer for hex/contrast/luminosity.
+    Performs artwork transforms (crop/blur) and measures art for compose.
     """
 
     def __init__(self, cfg: ColorConfig) -> None:
@@ -74,7 +73,7 @@ class ImageProcessor:
         image = self._ensure_mode(image, "RGBA")
         thumb_size = self.cfg.crop_target_size
         if image.width > thumb_size[0] or image.height > thumb_size[1]:
-            image = image.copy()  # thumbnail() is in place; analyze shares the source
+            image = image.copy()  # thumbnail() is in place; measure shares the source
             image.thumbnail(thumb_size, Image.BILINEAR)
 
         box = image.getchannel("A").getbbox()
@@ -128,29 +127,6 @@ class ImageProcessor:
             }
         except Exception as exc:
             log.error(f"{self.__class__.__name__} → Unable to blur image → {exc}")
-            return None
-
-    @log.duration
-    def analyze(self, image: Image.Image, **_: Any) -> dict[str, Any] | None:
-        """
-        Extract color metadata from arbitrary artwork without saving output.
-
-        :param image: Input PIL image.
-        :return: Dict with "metadata" or None on failure.
-        """
-        thumb_size = self.cfg.blur_target_size
-        if image.width > thumb_size[0] or image.height > thumb_size[1]:
-            image = image.copy()  # thumbnail() is in place; darken shares the source
-            image.thumbnail(thumb_size, Image.BOX)
-
-        try:
-            return {
-                "metadata": self.color_analyzer.analyze(
-                    self._ensure_mode(image, "RGBA")  # keep alpha where present
-                )
-            }
-        except Exception as exc:
-            log.error(f"{self.__class__.__name__} → Unable to analyze image → {exc}")
             return None
 
     @log.duration

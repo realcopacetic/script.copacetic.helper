@@ -182,6 +182,11 @@ class ArtworkCacheHandler(SQLiteHandler):
                     conn.execute(
                         f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN {name} {decl}"
                     )
+            conn.execute(  # pre two-pass rows: analyse, and darken without a measurement
+                f"DELETE FROM {self.TABLE_NAME} WHERE {policy.ART_FIELD_PROCESS} = 'analyze'"
+                f" OR ({policy.ART_FIELD_PROCESS} = 'darken'"
+                f" AND {policy.ART_FIELD_MEASURE} IS NULL)"
+            )
 
             for idx_name, cols in policy.ART_DB_INDEXES:
                 idx_cols_sql = ", ".join(cols)

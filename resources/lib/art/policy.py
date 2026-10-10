@@ -12,10 +12,6 @@ ART_FIELD_WIDTH = "width"
 ART_FIELD_HEIGHT = "height"
 ART_FIELD_BLUR_RADIUS = "blur_radius"
 ART_FIELD_EDGE_TRIM = "edge_trim"
-ART_FIELD_COLOR = "color"
-ART_FIELD_ACCENT = "accent"
-ART_FIELD_CONTRAST = "contrast"
-ART_FIELD_LUMINOSITY = "luminosity"
 ART_FIELD_DARKEN = "darken"
 ART_FIELD_DARKEN_FRAME = "darken_frame"
 ART_FIELD_DARKEN_RECTS = "darken_rects"
@@ -31,6 +27,19 @@ ART_FIELD_RATIO = "ratio"
 ART_FIELD_ELEMENT_COLORS = "element_colors"
 ART_FIELD_ELEMENT_COLOR = "element_color"
 ART_FIELD_BAND = "band"
+ART_FIELD_PALETTE_PRIMARY = "palette_primary"
+ART_FIELD_PALETTE_SECONDARY = "palette_secondary"
+ART_FIELD_PALETTE_LOGO = "palette_logo"
+ART_FIELD_PALETTE_DARKEN = "palette_darken"
+ART_FIELD_PALETTE_LOGO_DARKEN = "palette_logo_darken"
+
+ART_FIELDS_PALETTE = (
+    ART_FIELD_PALETTE_PRIMARY,
+    ART_FIELD_PALETTE_SECONDARY,
+    ART_FIELD_PALETTE_LOGO,
+    ART_FIELD_PALETTE_DARKEN,
+    ART_FIELD_PALETTE_LOGO_DARKEN,
+)
 
 ART_FIELDS_DARKEN_LABEL = (
     ART_FIELD_DARKEN_LABEL,
@@ -54,10 +63,6 @@ ART_DB_SCHEMA = (
     (ART_FIELD_HEIGHT, "INTEGER"),
     (ART_FIELD_BLUR_RADIUS, "INTEGER"),
     (ART_FIELD_EDGE_TRIM, "REAL"),
-    (ART_FIELD_COLOR, "TEXT"),
-    (ART_FIELD_ACCENT, "TEXT"),
-    (ART_FIELD_CONTRAST, "TEXT"),
-    (ART_FIELD_LUMINOSITY, "INTEGER"),
     (ART_FIELD_DARKEN_FRAME, "TEXT"),
     (ART_FIELD_DARKEN_RECTS, "TEXT"),
     *((field, "TEXT") for field in ART_FIELDS_DARKEN_LABEL),
@@ -77,7 +82,6 @@ ART_DB_FIELDS = tuple(name for name, _ in ART_DB_SCHEMA)
 ART_FIELDS_INPUT = {
     "crop": (),
     "blur": (ART_FIELD_BLUR_RADIUS,),
-    "analyze": (),
     "darken": (
         ART_FIELD_DARKEN_RECTS,
         *ART_FIELDS_DARKEN_LABEL,
@@ -92,12 +96,6 @@ ART_FIELDS_INPUT = {
 ART_FIELDS_RESULT = {
     "crop": (ART_FIELD_PROCESSED, ART_FIELD_WIDTH, ART_FIELD_HEIGHT),
     "blur": (ART_FIELD_PROCESSED, ART_FIELD_BLUR_RADIUS),
-    "analyze": (
-        ART_FIELD_COLOR,
-        ART_FIELD_ACCENT,
-        ART_FIELD_CONTRAST,
-        ART_FIELD_LUMINOSITY,
-    ),
     "darken": (ART_FIELD_MEASURE,),
 }
 
@@ -106,14 +104,12 @@ ART_LISTITEM_KEYS = (
     ART_FIELD_WIDTH,
     ART_FIELD_HEIGHT,
     ART_FIELD_BLUR_RADIUS,
-    ART_FIELD_COLOR,
-    ART_FIELD_ACCENT,
-    ART_FIELD_CONTRAST,
-    ART_FIELD_LUMINOSITY,
     ART_FIELD_DARKEN,
     ART_FIELD_ELEMENT_COLOR,
     ART_FIELD_BAND,
-) + ART_FIELDS_DARKEN_LABEL_WIDTH
+    *ART_FIELDS_PALETTE,
+    *ART_FIELDS_DARKEN_LABEL_WIDTH,
+)
 
 ART_SOURCE_KEYS = {
     "fanart": ("fanart", "tvshow.fanart", "artist.fanart", "thumb"),
@@ -121,9 +117,9 @@ ART_SOURCE_KEYS = {
 }
 
 ART_PROCESS_MAP = {
-    "clearlogo": ("crop", "analyze", "darken"),
-    "background": ("blur", "analyze", "darken"),
-    "icon": ("blur", "analyze", "darken"),
+    "clearlogo": ("crop", "darken"),
+    "background": ("blur", "darken"),
+    "icon": ("blur", "darken"),
 }
 
 
@@ -233,9 +229,12 @@ class ColorConfig:
     accent_dom_share_cutoff: float = 0.85  # Fast-exit if dominant covers >85%
 
     # --- Contrast & Readability ---
-    contrast_shift: float = 0.3  # Lightness delta (0-1) for generating contrast color
     ratio: float = 3.0  # Default contrast target for darken, element and palette
     element_overlay_color: str = "fff0efef"  # Default element colour for the darken
     band_tolerance: float = 0.05  # Pull limits widened for 8-bit rounding, grey model
     band_feather: int = 40  # Gaussian feather of the band's pull, frame px
+    palette_luminance: float = 0.45  # Relative luminance of the palette's colours
+    palette_chroma: float = 0.15  # A base below this chroma is neutral: no palette
+    palette_secondary_luminance: float = 0.6  # The secondary is lighter...
+    palette_secondary_saturation: float = 0.5  # ...and softer (share of saturation)
     darken_label_px_per_char: float = 14  # Est. glyph width (px); skinner overrides
