@@ -104,8 +104,12 @@ can't be `clearlogo` here: use an ARGB colour.
 Example (from Copacetic, in the Home window):
 
 ```xml
-<onload>SetProperty(slideshow_artwork_params,"background_blur=true&amp;background_blur_radius=20&amp;background_edge_trim=2&amp;background_darken=true&amp;background_darken_rects=0,0,1920,1080&amp;background_darken_surface=blur",home)</onload>
+<onload>SetProperty(slideshow_artwork_params,"background_blur=true&amp;background_blur_radius=20&amp;background_edge_trim=2&amp;background_darken=true",home)</onload>
 ```
+
+Copacetic draws `slideshow_darken` on both the sharp fanart and its blur, so it leaves
+`background_darken_surface` at `art`: the sharp image has the brighter highlights, and a
+darken that carries the text there carries it on the blur too.
 
 If the property is empty, the fanart is blurred with the default radius and no darken
 value is worked out.
