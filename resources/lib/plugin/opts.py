@@ -99,6 +99,7 @@ class ArtOpts:
     :param edge_trim: Border to discard before blurring, percent per side.
     :param ratio: Contrast target for compose.
     :param element_colors: Candidate colours (hex) of an element drawn on the art.
+    :param palette: Return the palette for this art.
     """
 
     url: str | None
@@ -110,6 +111,7 @@ class ArtOpts:
     edge_trim: float
     ratio: float
     element_colors: tuple[str, ...]
+    palette: bool
 
     def enabled(self, process: str) -> bool:
         """
@@ -120,7 +122,10 @@ class ArtOpts:
         :return: True if enabled.
         """
         return (
-            self.darken is None or self.darken.enabled or bool(self.element_colors)
+            self.darken is None
+            or self.darken.enabled
+            or bool(self.element_colors)
+            or self.palette
             if process == "darken"
             else bool(getattr(self, process, False))
         )
@@ -163,4 +168,5 @@ class ArtOpts:
             element_colors=tuple(
                 filter(None, params.get(f"{art_type}_element_colors", "").split(","))
             ),
+            palette=parse_bool(params.get(f"{art_type}_palette", "false")),
         )

@@ -108,7 +108,7 @@ class ArtworkCacheManager:
         Derive a per-process/per-variant cache context.
 
         :param base: Base CacheContext resolved from source_url.
-        :param process: Process name (e.g., "blur", "crop", "analyze").
+        :param process: Process name (e.g., "blur", "crop", "darken").
         :param expected: Variant match parameters for this process.
         :param folder: Output folder when this process writes a file.
         :return: Derived CacheContext with cache_key and dest_thumb.

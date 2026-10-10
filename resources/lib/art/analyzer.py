@@ -2,7 +2,7 @@
 
 from PIL import Image, ImageStat
 
-from resources.lib.art.color import hls_to_rgb, luminance, rgb_to_hls, to_hex
+from resources.lib.art.color import luminance, rgb_to_hls, to_hex
 from resources.lib.art.policy import ColorConfig
 from resources.lib.shared import logger as log
 
@@ -12,8 +12,7 @@ Palette = tuple[list[RGB], list[tuple[int, int]]]
 
 class ColorAnalyzer:
     """
-    Extracts a dominant color and computes derived values like luminosity/contrast.
-    Provides helpers for hex conversion and HLS/RGB transforms.
+    Extracts an image's dominant and accent colours and its palette's extremes.
     """
 
     def __init__(self, cfg: ColorConfig):
@@ -23,24 +22,6 @@ class ColorAnalyzer:
         :param cfg: Shared colour configuration.
         """
         self.cfg = cfg
-
-    @log.duration
-    def analyze(self, image: Image.Image) -> dict[str, float | str]:
-        """Extract dominant + accent; compute luminosity and a contrast colour (hex)."""
-        im_small = self._sample_image(image)
-        rgb_small = self._opaque_rgb(im_small)
-        palette = None if rgb_small is None else self._quantize_palette(rgb_small)
-        dominant = self.extract_dominant_color(palette)
-        accent = self.extract_accent_color(im_small, palette, dominant_rgb=dominant)
-        contrast_rgb = self.get_contrasting_color(
-            dominant, shift=self.cfg.contrast_shift
-        )
-        return {
-            "color": to_hex(dominant),
-            "accent": to_hex(accent),
-            "contrast": to_hex(contrast_rgb),
-            "luminosity": int(luminance(dominant) * 1000),
-        }
 
     def colors(self, image: Image.Image) -> dict[str, str]:
         """
@@ -166,38 +147,6 @@ class ColorAnalyzer:
         except Exception:
             log.exception(f"{self.__class__.__name__} → accent scoring failed")
             return dominant_rgb
-
-    @log.duration
-    def get_contrasting_color(self, rgb: RGB, shift: float) -> RGB:
-        """
-        Opposite contrast colour by shifting HLS lightness around a pivot.
-        Lighten if L<pivot else darken; clamps to min/max lightness.
-
-        :param rgb: Base colour (r, g, b).
-        :param shift: Lightness delta (0-1) to apply.
-        :return: Contrasting (r, g, b).
-        """
-        h, l, s = rgb_to_hls(rgb)
-        l = min(1.0, l + shift) if l < 0.5 else max(0.0, l - shift)
-        return hls_to_rgb((h, l, s))
-
-    # ---------- public helper methods ----------
-    def plain_mean_rgb(self, im: Image.Image) -> RGB:
-        """
-        Return mean RGB of the full image.
-        Optionally downsamples first to reduce cost.
-
-        :param im: Input PIL image.
-        :return: RGB mean of the full image.
-        """
-        if self.cfg.avg_downsample:
-            im = im.resize(
-                (self.cfg.avg_downsample, self.cfg.avg_downsample), Image.BOX
-            )
-
-        stat = ImageStat.Stat(im.convert("RGB"))
-        r, g, b = stat.mean
-        return int(r), int(g), int(b)
 
     # ---------- private helper methods ----------
     def _sample_image(self, im: Image.Image) -> Image.Image:

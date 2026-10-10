@@ -6,8 +6,18 @@ art's measurement and never cached. No PIL, so a cached serve never imports it.
 """
 
 import math
+from typing import Any
 
-from resources.lib.art.color import contrast, from_hex, luminance
+from resources.lib.art import policy
+from resources.lib.art.color import (
+    RGB,
+    contrast,
+    from_hex,
+    hls_to_rgb,
+    luminance,
+    rgb_to_hls,
+    to_hex,
+)
 
 GAMMA = 2.2  # fadediffuse multiplies encoded colour: keeping k of it keeps ~k^2.2 light
 
@@ -89,3 +99,84 @@ def tint(color: str, band: list[str]) -> str:
     """
     lt = luminance(from_hex(color))
     return max(band, key=lambda c: contrast(lt, luminance(from_hex(c))))
+
+
+def chroma(rgb: RGB) -> float:
+    """
+    HLS chroma: saturation scaled by distance from black and white.
+
+    :param rgb: (r, g, b) in 0-255.
+    :return: Chroma, 0-1.
+    """
+    _, l, s = rgb_to_hls(rgb)
+    return s * (1 - abs(2 * l - 1))
+
+
+def at_luminance(rgb: RGB, target: float, saturation: float = 1.0) -> str:
+    """
+    The colour's hue at a relative luminance, by bisection on HLS lightness
+    (luminance rises with it).
+
+    :param rgb: (r, g, b) in 0-255.
+    :param target: Relative luminance, 0-1.
+    :param saturation: Share of the colour's saturation kept.
+    :return: Hex colour.
+    """
+    h, _, s = rgb_to_hls(rgb)
+    lo, hi = 0.0, 1.0
+    for _ in range(16):
+        mid = (lo + hi) / 2
+        lo, hi = (
+            (mid, hi)
+            if luminance(hls_to_rgb((h, mid, s * saturation))) < target
+            else (lo, mid)
+        )
+    return to_hex(hls_to_rgb((h, (lo + hi) / 2, s * saturation)))
+
+
+def palette(
+    measure: dict[str, Any],
+    logo: str | None,
+    surface: str,
+    ratio: float,
+    general: int,
+    cfg: policy.ColorConfig,
+) -> dict[str, Any]:
+    """
+    Colours at a fixed luminance in the art's hue (accent when it has colour,
+    else dominant) and the logo's, each with the % black its floor needs.
+
+    :param measure: The art's measurement: colours and zones.
+    :param logo: The clearlogo's dominant colour, hex, or None.
+    :param surface: The surface the skin darkens, "art" or "blur".
+    :param ratio: Contrast target.
+    :param general: The art's general darken, for a neutral base.
+    :param cfg: Colour configuration (palette luminance and chroma).
+    :return: palette_* fields; a neutral base gives the element colour, no secondary.
+    """
+    zones = measure["zones"]
+    accent, dominant = from_hex(measure["accent"]), from_hex(measure["dominant"])
+    base = accent if chroma(accent) >= cfg.palette_chroma else dominant
+    if chroma(base) < cfg.palette_chroma:
+        out = {
+            policy.ART_FIELD_PALETTE_PRIMARY: cfg.element_overlay_color,
+            policy.ART_FIELD_PALETTE_DARKEN: general,
+        }
+    else:
+        primary = at_luminance(base, cfg.palette_luminance)
+        out = {
+            policy.ART_FIELD_PALETTE_PRIMARY: primary,
+            policy.ART_FIELD_PALETTE_SECONDARY: at_luminance(
+                base,
+                cfg.palette_secondary_luminance,
+                cfg.palette_secondary_saturation,
+            ),
+            policy.ART_FIELD_PALETTE_DARKEN: darken(zones, [primary], surface, ratio),
+        }
+    if logo and chroma(from_hex(logo)) >= cfg.palette_chroma:
+        color = at_luminance(from_hex(logo), cfg.palette_luminance)
+        out[policy.ART_FIELD_PALETTE_LOGO] = color
+        out[policy.ART_FIELD_PALETTE_LOGO_DARKEN] = darken(
+            zones, [color], surface, ratio
+        )
+    return out
