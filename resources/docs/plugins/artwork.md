@@ -5,13 +5,19 @@ single list item. It can:
 
 - **crop** a clearlogo to its visible area and report its size;
 - **blur** a background image (and a second image, the icon);
-- **analyse** each image's colours (dominant, accent, contrast, brightness);
 - work out how much to **darken** an image so that text on top stays readable;
+- make an **element on art** readable (a label over a poster): pick its colour, and
+  say whether it needs a band of blur behind it, or a tinted band;
+- return a **palette** in the art's own colours, at a fixed light level;
 - collect a family of numbered artwork (`fanart`, `fanart1`, `fanart2` …) under one
   set of keys, and optionally load it into a FadeLabel for a slideshow.
 
-Processed images and values are cached. When the source image changes, it is
-processed again; otherwise the cached result returns straight away.
+The helper works in two passes. **Prepare** crops, blurs and measures each image (its
+colours, and how dark and bright it is where your elements sit); this is cached, and
+when the source image changes it is processed again. **Compose** then works out the
+darken, the element colour and band, and the palette from those measurements, once per
+call and never cached, so changing a compose parameter (the ratio, the colours, the
+surface) costs nothing.
 
 ---
 
@@ -21,7 +27,7 @@ processed again; otherwise the cached result returns straight away.
 <control type="list" id="9300"><!-- hidden helper container; id is an example -->
   <itemlayout />
   <focusedlayout />
-  <content>plugin://script.copacetic.helper/?info=artwork&amp;target=50&amp;focus_guard=$INFO[Container(50).CurrentItem]&amp;clearlogo_url=$INFO[Container(50).ListItem.Art(clearlogo)]&amp;clearlogo_crop=true&amp;clearlogo_analyze=true&amp;background_url=$INFO[Container(50).ListItem.Art(fanart)]&amp;background_blur=true&amp;background_analyze=true</content>
+  <content>plugin://script.copacetic.helper/?info=artwork&amp;target=50&amp;focus_guard=$INFO[Container(50).CurrentItem]&amp;clearlogo_url=$INFO[Container(50).ListItem.Art(clearlogo)]&amp;clearlogo_crop=true&amp;background_url=$INFO[Container(50).ListItem.Art(fanart)]&amp;background_blur=true</content>
 </control>
 
 <control type="image">
@@ -37,17 +43,17 @@ processed again; otherwise the cached result returns straight away.
 The helper works on up to three images in one call. Each has its own parameters,
 named after it:
 
-| Image | Prefix | Processes it can run |
+| Image | Prefix | What it can do |
 |---|---|---|
-| Clearlogo | `clearlogo_` | crop, analyse |
-| Background | `background_` | blur, analyse, darken |
-| Icon | `icon_` | blur, analyse, darken |
+| Clearlogo | `clearlogo_` | crop; its colour is always measured, for `clearlogo` sources and the palette |
+| Background | `background_` | blur, darken, element on art, palette |
+| Icon | `icon_` | blur, darken, element on art, palette |
 
 An image is only processed when you pass its URL (`clearlogo_url`, `background_url`,
 `icon_url`). With no URL at all, the call returns nothing, not even multiart (with
 `target=item` it returns one empty list item, so you can tell it has run). Processes are off unless
-you turn them on. The images are processed in the order above, so the background and
-icon can use the clearlogo's colour.
+you turn them on. Compose runs once every image is prepared, so the background and
+icon can use the clearlogo's colour whatever order they come in.
 
 If the background can't be read (a dead remote URL), the helper tries once more with
 the item's own fanart, when that is a different image. That is its `fanart`, else its
@@ -69,13 +75,15 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `<prefix>_url` | image path or URL | — | The image to process. Required for anything to happen to this image. |
-| `<prefix>_analyze` | `true`, `false` | `false` | Analyse the image's colours. |
 | `clearlogo_crop` | `true`, `false` | `false` | Crop the clearlogo to its visible (non-transparent) area. |
 | `background_blur`, `icon_blur` | `true`, `false` | `false` | Blur the image. |
 | `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled to cover 480×270, or, when `<prefix>_darken_frame` is passed, scaled to cover that frame and cropped to it (centred). |
 | `background_edge_trim`, `icon_edge_trim` | decimal (percent) | `0` | Cut this percentage from each side before blurring. Hides black bars and dark edges. |
+| `background_ratio`, `icon_ratio` | decimal | `3` | Contrast ratio the darken, the element on art and the palette aim for (WCAG: 3 for large text and graphics, 4.5 for body text). |
 
 Booleans accept `true`, `1`, `yes` or `on` (any case). Anything else is false.
+Transparent art is composited on `ff121217` (Copacetic's `squidink`) before it is
+blurred or measured.
 
 A blurred image is cached by its source and radius only. Changing `_edge_trim` or
 `_darken_frame` later does not replace a blur that is already cached.
@@ -87,15 +95,24 @@ values mean.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `<prefix>_darken` | `artwork`, `all` | off | `artwork`: work out how much to darken the image. `all`: also work out how much to darken each text element. Any other value turns darken off. |
-| `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | — | Where your text sits, in frame coordinates. Required: with no value, no darken value is returned. |
-| `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in. The image is scaled to cover this frame and centred, like `<aspectratio>scale</aspectratio>`. |
-| `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo` | `fff0efef` | Colour of the text on top. `clearlogo` uses the clearlogo's dominant colour; this needs `clearlogo_url` and `clearlogo_analyze=true` in the same call, else the default is used. A value that is not a valid colour stops all results for that image. |
-| `<prefix>_darken_strength` | decimal, `0.0`–`2.0` | `1.0` | Multiplies the result. Values outside the range are clamped. |
-| `<prefix>_darken_contrast_source` | ARGB or RGB hex, or `clearlogo` | — | A colour to score for readability on each rectangle (see `<prefix>_darken_contrast` below). `clearlogo` uses the clearlogo's dominant colour, as for `_darken_source`; with no clearlogo colour, no score is returned. |
-| `<prefix>_darken_contrast_rects` | same as `_darken_rects` | `_darken_rects` | Where to score the contrast colour instead, for something that should follow the background rather than darken it (e.g. a rating's stars). These rectangles do not count towards `<prefix>_darken`, and labels do not narrow them. |
+| `<prefix>_darken` | `true`, `false` | `false` | Work out how much to darken the image. |
+| `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | the whole frame | Where your elements sit, in frame coordinates. The element on art and the palette are measured here too. |
+| `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in: the image is scaled to cover it and centred, like `<aspectratio>scale</aspectratio>`. |
+| `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo`; comma-separated, one per rectangle | `fff0efef` | Colour of the element in each rectangle, in rectangle order; the last carries on for the rest. `clearlogo` uses the clearlogo's colour (it needs `clearlogo_url` in the same call, else the default is used). |
+| `<prefix>_darken_surface` | `art`, `blur` | `art` | The image you draw the darken over: the image itself or its blur. The helper measures that one. |
+| `<prefix>_darken_max` | whole number, `0`–`100` | none | A cap on the darken. Bright art may then fall short of the ratio. |
 | `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Each rectangle is narrowed to the text's estimated width (left edge kept). |
 | `<prefix>_darken_label_px` | decimal | `14` | Estimated width of one character, in frame pixels, for the labels above. |
+
+### Element on art and palette (background and icon)
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `<prefix>_element_colors` | ARGB or RGB hex, comma-separated, e.g. `fff0efef,ff312124` | none | Candidate colours for an element drawn on the image (a label). Turns on [Element on art](#element-on-art). |
+| `<prefix>_palette` | `true`, `false` | `false` | Return the image's [palette](#palette). |
+
+The rectangles, frame and labels in the darken table set where these are measured;
+`<prefix>_darken` itself need not be on.
 
 ### Multiart
 
@@ -116,7 +133,6 @@ values mean.
 | `prop_key` | any text | — | Suffix for the window properties the helper sets (see [Window properties](#window-properties)). |
 | `cursor_key` | any text | — | Name of the window property that marks the focused item (`artwork_cursor_<cursor_key>`). See [Is this result for the focused item?](#is-this-result-for-the-focused-item). |
 | `visit` | any text | — | A value that changes once per focus change. See the same section. A new value also refills the multiart FadeLabel. If passed and not equal to `Window(home).Property(artwork_visit)`, the call does nothing: a superseded or replayed path, as the live one fires anyway. |
-| `background_match` | `true`, `false` | `false` | With `target=item` only: if the last blurred background the helper made for a window (`Window(home).Property(background_origin)`) was for this same item, blur that image at that radius instead of `background_url`. An info dialog then opens on the same blur its window was showing. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 ---
@@ -131,15 +147,15 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `clearlogo_width`, `clearlogo_height` | `clearlogo_crop=true` | Size of the cropped logo in pixels. The logo is first scaled down to fit 1600×620. |
 | `background`, `icon` | `<prefix>_blur=true` | Path to the blurred JPEG. |
 | `background_blur_radius`, `icon_blur_radius` | `<prefix>_blur=true` | The radius used. |
-| `<prefix>_color` | `<prefix>_analyze=true` | Dominant colour, as ARGB hex (`ffrrggbb`). Near-white and near-black are skipped unless they cover more than 70% of the image. |
-| `<prefix>_accent` | `<prefix>_analyze=true` | A second colour, different enough from the dominant one. |
-| `<prefix>_contrast` | `<prefix>_analyze=true` | The dominant colour made lighter (if dark) or darker (if light). |
-| `<prefix>_luminosity` | `<prefix>_analyze=true` | Brightness of the dominant colour, `0`–`1000`. |
-| `<prefix>_darken` | `<prefix>_darken=artwork` or `all` | How much to darken the image, `0`–`100`. |
-| `<prefix>_darken_element`, `…_element1`, `…_element2` | `<prefix>_darken=all` | How much to darken the text in the first, second and third rectangle, `0`–`100`, or `-1` when the area behind it is too busy to judge. |
-| `<prefix>_darken_element_mean`, `…_mean1`, `…_mean2` | `<prefix>_darken=all` | Average brightness behind each rectangle, `0`–`100`, not affected by strength. |
-| `<prefix>_darken_contrast`, `…_contrast1`, `…_contrast2` | `<prefix>_darken=artwork` or `all`, and `<prefix>_darken_contrast_source` is passed | How well that colour reads on each rectangle (of `_darken_contrast_rects` if passed), `0`–`100`: its contrast ratio with the area behind it (sampled as for darken, before any darken), as a share of the ratio needed, capped at `100`. The ratio needed is `3.0` (the WCAG minimum for graphics) times `<prefix>_darken_strength`, so `100` means it reads. |
+| `<prefix>_darken` | `<prefix>_darken=true` | How much to darken the image: the exact % black, `0`–`100`. |
 | `<prefix>_darken_label_width`, `…_width1`, `…_width2` | a matching `_darken_label` is passed | The estimated text width used for that rectangle. |
+| `<prefix>_element_color` | `<prefix>_element_colors` is passed | The candidate colour to draw the element in. |
+| `<prefix>_band` | `<prefix>_element_colors` is passed, the image is blurred and a band is needed | Image to draw behind the element: the blur itself, or a copy of it with the clashing pixels tinted. Empty when no band is needed. |
+| `<prefix>_palette_primary` | `<prefix>_palette=true` | The palette's main colour. |
+| `<prefix>_palette_secondary` | `<prefix>_palette=true`, and the image has a colour | A lighter, softer colour of the same hue. Empty for a neutral image. |
+| `<prefix>_palette_darken` | `<prefix>_palette=true` | The % black the darken surface needs for `_palette_primary` to read at the ratio. |
+| `<prefix>_palette_logo` | `<prefix>_palette=true`, and the clearlogo has a colour | The clearlogo's hue at the palette's light level. |
+| `<prefix>_palette_logo_darken` | as `_palette_logo` | The % black the darken surface needs for `_palette_logo` to read at the ratio. |
 | `multiart`, `multiart1`, `multiart2` … | `multiart` is passed | The collected family, numbered without gaps. |
 
 The list item also carries some properties; see
@@ -153,9 +169,8 @@ The helper also sets these on the home window. With `prop_key`, each name ends i
 | Property | Value |
 |---|---|
 | `background_blur` | Path of the blurred background. Only set when there is one; the last value is kept otherwise. |
-| `background_darken` | The background darken value. Cleared when there is none or it is `0`. |
-| `icon_darken` | The icon darken value. Cleared when there is none or it is `0`. |
-| `background_origin` | `<DBType>:<DBID>\|<background_blur_radius>\|<background_url>` of the last blurred background, for `background_match`. Set by every call that returns a blurred background, except `target=item` calls. Never takes `_<prop_key>`. |
+| `background_darken` | The background darken value, % black. Cleared when there is none or it is `0`. |
+| `icon_darken` | The icon darken value, % black. Cleared when there is none or it is `0`. |
 
 Use them when something outside the helper container's window needs the values, or
 to keep the last background on screen while the next one is processed.
@@ -164,32 +179,69 @@ to keep the last background on screen while the next one is processed.
 
 ## Darken
 
-Darken tells you how much to dim an image so light text on it stays readable. It
-measures the image itself; nothing is changed in the image. You apply the value in
-the skin, for example with a `fadediffuse` animation or a semi-transparent black
-image.
+Darken tells you how much to dim an image so the elements on it stay readable. It
+measures the image; nothing in the image changes. Apply the value in the skin with a
+`fadediffuse` animation.
 
-The image is scaled to cover the frame (`_darken_frame`) and centred. Your rectangles
-are then measured on it.
+In each rectangle the helper measures the darkest and brightest 10 % of the surface you
+darken (`_darken_surface`). For each rectangle it works out the least black that brings
+that rectangle's element colour (`_darken_source`) to the ratio (`_ratio`) against its
+brightest part. The largest is `<prefix>_darken`, as one value has to carry every
+rectangle. An element too dark for any floor to carry (relative luminance below
+`0.05 × (ratio − 1)`, `0.1` at 3:1) asks for nothing.
 
-- **`<prefix>_darken`** — the brightest of your rectangles decides. Its brightness is
-  mapped to `0`–`100` and multiplied by the strength. If the text colour is itself dark
-  (luminance below 0.2), the value is `0`: dark text does not need a darker
-  background.
-- **`<prefix>_darken_element*`** (`all` only) — each of the first three rectangles is
-  judged on its own, as if your text needs a backing behind it. Areas darker than
-  luminance 0.18 return `0`. Busy areas (lots of detail) return `-1`.
+The value is the exact % black for a `fadediffuse` to the grey `255 × (1 − %/100)`.
+`fadediffuse` multiplies the encoded colour, so keeping `k` of the grey keeps about
+`k^2.2` of the light: pure white art under `fff0efef` needs 47 % at 3:1. Map it to a
+ladder of fixed greys in the skin, each row taking the grey of its darker end, so the
+ratio still holds:
 
 ```xml
 <include name="DarkenBackground">
-  <animation effect="fadediffuse" end="ffbcbcbc" time="300" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(background_darken),30) + Integer.IsLess(Container(9300).ListItem.Art(background_darken),60)">Conditional</animation>
-  <animation effect="fadediffuse" end="ff939393" time="300" condition="Integer.IsGreaterOrEqual(Container(9300).ListItem.Art(background_darken),60)">Conditional</animation>
+  <animation effect="fadediffuse" end="ffd9d9d9" time="300" condition="Integer.IsGreater(Container(9300).ListItem.Art(background_darken),10) + Integer.IsLessOrEqual(Container(9300).ListItem.Art(background_darken),15)">Conditional</animation>
+  <animation effect="fadediffuse" end="ffcccccc" time="300" condition="Integer.IsGreater(Container(9300).ListItem.Art(background_darken),15) + Integer.IsLessOrEqual(Container(9300).ListItem.Art(background_darken),20)">Conditional</animation>
+  <!-- … one row per 5 % … -->
 </include>
 ```
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=artwork&amp;target=50&amp;background_url=$INFO[Container(50).ListItem.Art(fanart)]&amp;background_blur=true&amp;background_darken=artwork&amp;background_darken_source=fff0efef&amp;background_darken_rects=(120,660,960,300),(1710,960,90,60)&amp;background_darken_strength=0.8</content>
+<content>plugin://script.copacetic.helper/?info=artwork&amp;target=50&amp;background_url=$INFO[Container(50).ListItem.Art(fanart)]&amp;background_blur=true&amp;background_darken=true&amp;background_darken_surface=blur&amp;background_darken_rects=(120,660,960,300),(1710,960,90,60)</content>
 ```
+
+## Element on art
+
+For an element drawn straight on the image (a label over a poster), pass its candidate
+colours in `<prefix>_element_colors`. Each candidate is scored against both ends of each
+rectangle (its worst ratio), and the first step that works wins:
+
+1. **Nothing.** A candidate reads on the image and the area isn't busy (its own darkest
+   and brightest parts are less than the ratio apart). `_band` is empty.
+2. **Blur band.** The area is busy, or no candidate reads on the image but one reads on
+   its blur. `_band` is the blur, which removes the detail behind the letters.
+3. **Tinted band.** No candidate reads on the blur either. For each candidate the helper
+   works out how far each pixel of the blur must move toward a colour from the image's
+   own band area (its darkest under light text, its lightest under dark text) to read;
+   the candidate that changes the area least wins, decided from the area's brightness
+   histogram before any image is made. `_band` is a copy of the blur with only the
+   clashing pixels moved: full strength inside the rectangles, fading out around them.
+   Draw it through your own band mask.
+
+`_element_color` is the winning candidate. The band copy is a file of its own beside
+the blur, so the image control sees a new path; it is cached with the blur and replaced
+when the ratio or the candidates change.
+
+## Palette
+
+`<prefix>_palette=true` returns colours in the image's own hue at a fixed relative
+luminance (`0.45`), so they keep their colour on any art: the accent when it has colour
+(HLS chroma at least `0.15`), else the dominant colour. With neither, the image is
+neutral: `_palette_primary` is `fff0efef`, `_palette_secondary` is empty and
+`_palette_darken` is the image's darken. `_palette_logo` is the clearlogo's hue at the
+same level, empty when the logo is white, grey or black.
+
+Each colour comes with the % black it needs (`_palette_darken`, `_palette_logo_darken`).
+Compare them in the skin with the darken you apply, for example to colour an element in
+the logo's hue only when `Integer.IsLessOrEqual(…palette_logo_darken,…background_darken)`.
 
 ---
 
@@ -376,6 +428,5 @@ The helper reads these when you use the matching parameters:
 | `Window(home).Property(artwork_cursor_<cursor_key>)` | `cursor_key` | The skin, at focus time. The helper may also write it (see above). |
 | A FadeLabel control with id `multiart_fadelabel` in the current window | `multiart_fadelabel` | The skin. |
 | `Window(home).Property(artwork_visit)`, changed once per focus change and passed as `visit` | `visit` | The skin. |
-| `Window(home).Property(background_origin)` | `background_match` | The helper (see [Window properties](#window-properties)). |
 | `Window(home).Property(infoscreen_gallery_visit)` | `multiart_tiles` with `visit` | The skin, once each time the dialog shows the artwork. |
 | FadeLabel controls with the ids in `tiles`, in the topmost dialog | `multiart_tiles` | The skin. |

@@ -31,7 +31,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 
 | `info=` | What it does | Page |
 |--------|--------------|------|
-| `artwork` | Crops clearlogos, blurs backgrounds, analyses colours, works out darken values, collects multiart and can fill a FadeLabel with it. | [Artwork](artwork.md) |
+| `artwork` | Crops clearlogos, blurs backgrounds, works out darken values, element colours and palettes, collects multiart and can fill a FadeLabel with it. | [Artwork](artwork.md) |
 | `multiart_tiles` | Fills several FadeLabels in an info dialog with the item's artwork, so they change one at a time. | [Artwork](artwork.md#multiart_tiles) |
 | `metadata` | Returns tidied details of the focused item, with optional TMDb details. | [Metadata](metadata.md) |
 | `tmdb_details` | Returns the focused item's details and artwork from TMDb. | [Metadata](metadata.md#tmdb_details) |
@@ -224,7 +224,7 @@ It also keeps guard parameters in one place. Define the focus/identity declarati
   <value condition="$EXP[layouts_poster_visible]">
     plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]&amp;clearlogo_url=$INFO[Container(3100).ListItem.Art(clearlogo)]&amp;clearlogo_crop=true&amp;multiart=poster&amp;multiart_max=10
   </value>
-  <value>plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]&amp;background_url=$INFO[Container(3100).ListItem.Art(fanart)]&amp;background_analyze=true</value>
+  <value>plugin://script.copacetic.helper/?info=artwork&amp;$VAR[params_focus_secondary]&amp;background_url=$INFO[Container(3100).ListItem.Art(fanart)]&amp;background_palette=true</value>
 </variable>
 ```
 
