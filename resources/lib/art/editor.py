@@ -42,7 +42,7 @@ PROCESS_SPEC = {
         "folder": None,
         "require": policy.ART_FIELDS_RESULT["analyze"],
     },
-    "darken": {
+    "darken": {  # the measurement row compose reads; named before the two passes
         "folder": None,
         "match": policy.ART_FIELDS_INPUT["darken"],
         "require": policy.ART_FIELDS_RESULT["darken"],
@@ -157,8 +157,10 @@ class ImageEditor:
         ext = ".png" if resolved_url.lower().endswith(".png") else ".jpg"
 
         base_ctx = self.cache_manager.prepare(resolved_url, ext)
-        attrs = {"cached_file_hash": base_ctx.cached_file_hash}
-        if opts.enabled("darken"):
+        attrs = shared["results"][art_type] = {
+            "cached_file_hash": base_ctx.cached_file_hash
+        }
+        if opts.darken and opts.darken.enabled:
             opts = self._resolve_darken_colours(opts, shared["results"])
         for process in processes:
             if not opts.enabled(process):
@@ -183,7 +185,11 @@ class ImageEditor:
                 log.debug(
                     f"{self.__class__.__name__} → Cache hit → {art_type=} → {process=} → {ctx.cache_key=}"
                 )
-                attrs |= cached
+                attrs |= {  # a row's key fields are inputs: only its results merge
+                    k: v
+                    for k, v in cached.items()
+                    if k not in (expected or ()) or k in require
+                }
                 continue
 
             processed = self._run_processor(
@@ -218,7 +224,6 @@ class ImageEditor:
             }
             self.cache_manager.write_lookup(policy.filter_db_payload(row))
 
-        shared["results"][art_type] = attrs
         return attrs
 
     def _background_fallback(
@@ -288,25 +293,18 @@ class ImageEditor:
         self, spec: dict[str, Any], *, opts: ArtOpts
     ) -> dict[str, object] | None:
         """
-        Darken delegates to DarkenOpts.match_fields() to keep the spec decoupled
-        from ArtOpts proxies; other processes fall back to flat getattr (e.g. blur_radius).
+        The spec's match fields, picked from ArtOpts.match_fields(); None values
+        are left out of the key.
 
         :param spec: Process spec dict (may contain 'match').
         :param opts: Parsed ArtOpts for the current art_type.
         :return: Expected cache-field values, or None if no matches apply.
         """
-        match_keys = spec.get("match") or ()
-        if not match_keys:
-            return None
-
-        if opts.darken and all(k.startswith("darken_") for k in match_keys):
-            fields = opts.darken.match_fields()
-            return {k: v for k, v in fields.items() if k in match_keys} or None
-
+        fields = opts.match_fields()
         return {
             key: value
-            for key in match_keys
-            if (value := getattr(opts, key, None)) is not None
+            for key in spec.get("match") or ()
+            if (value := fields.get(key)) is not None
         } or None
 
     def _has_required(
@@ -404,7 +402,7 @@ class ImageEditor:
         result = process_method(
             image,
             opts=opts,
-            shared=shared,
+            attrs=shared["results"][art_type],
         )
         if result is None:
             return None

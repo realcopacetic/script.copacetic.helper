@@ -44,6 +44,31 @@ class ColorAnalyzer:
             "luminosity": int(self.get_luminosity(dominant) * 1000),
         }
 
+    def colors(self, image: Image.Image) -> dict[str, str]:
+        """
+        Dominant and accent colours of the image's opaque pixels.
+
+        :param image: Input PIL image (alpha kept).
+        :return: {"dominant": hex, "accent": hex}.
+        """
+        im_small = self._sample_image(image)
+        rgb_small = self._opaque_rgb(im_small)
+        palette = None if rgb_small is None else self._quantize_palette(rgb_small)
+        dominant = self.extract_dominant_color(palette)
+        accent = self.extract_accent_color(im_small, palette, dominant_rgb=dominant)
+        return {"dominant": self.to_hex(dominant), "accent": self.to_hex(accent)}
+
+    def extremes(self, image: Image.Image) -> list[str]:
+        """
+        Darkest and lightest colour of the image's adaptive palette.
+
+        :param image: RGB image.
+        :return: [darkest hex, lightest hex], by luminance.
+        """
+        swatches, counts = self._quantize_palette(self._sample_image(image))
+        used = sorted((swatches[i] for _, i in counts), key=self.get_luminosity)
+        return [self.to_hex(used[0]), self.to_hex(used[-1])]
+
     @log.duration
     def extract_dominant_color(self, palette: Palette | None) -> RGB:
         """

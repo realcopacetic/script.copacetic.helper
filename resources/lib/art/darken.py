@@ -1,16 +1,31 @@
 # author: realcopacetic
 
-from typing import Iterable
+from typing import Any, Iterable
 
 from PIL import Image, ImageStat
 
 from resources.lib.art import policy
+from resources.lib.art.analyzer import ColorAnalyzer
 from resources.lib.plugin.opts import DarkenOpts
 from resources.lib.shared import logger as log
 
 RGB = tuple[int, int, int]
 Rect = tuple[int, int, int, int]
+Box = tuple[int, int, int, int]
 DarkenUpdates = dict[str, int]
+
+W = (0.2126, 0.7152, 0.0722)
+LIN = [round(255 * ColorAnalyzer._linearize(v)) for v in range(256)]
+
+
+def luminance_image(image: Image.Image) -> Image.Image:
+    """
+    8-bit linear luminance of an RGB image: a point table, then a weighted convert.
+
+    :param image: RGB image.
+    :return: "L" image of linear luminance, 0-255.
+    """
+    return image.point(LIN * 3).convert("L", (*W, 0))
 
 
 class ColorDarken:
@@ -80,6 +95,76 @@ class ColorDarken:
             )
 
         return updates
+
+    def measure(
+        self, raw: Image.Image, blur: Image.Image | None, opts: DarkenOpts
+    ) -> tuple[dict[str, Any], list[int | None]]:
+        """
+        Darkest and brightest 10 % of each rect on the raw art and on the blur, and
+        the band palette: the blur from the rects' top down.
+
+        :param raw: Art flattened on the matte, cover-scaled to the blur's width.
+        :param blur: The blur as drawn, or None when the art isn't blurred.
+        :param opts: Darken options carrying rects, frame and labels.
+        :return: ({"zones": [{"art": [lo, hi], "blur": [lo, hi]}], "band"}, widths).
+        """
+        rects, widths = self._clamp_rects_to_labels(opts)
+        zones = [
+            {"art": self._extremes(raw, box)}
+            for box in self.boxes(raw.size, rects, opts.frame)
+        ]
+        measure = {"zones": zones}
+        if blur:
+            boxes = self.boxes(blur.size, rects, opts.frame)
+            for zone, box in zip(zones, boxes):
+                zone["blur"] = self._extremes(blur, box)
+            top = min(box[1] for box in boxes)
+            measure["band"] = self.color.extremes(
+                blur.crop((0, top, blur.width, blur.height))
+            )
+        return measure, widths
+
+    def boxes(
+        self, size: tuple[int, int], rects: str | None, frame: str | None
+    ) -> list[Box]:
+        """
+        Map frame rects onto an image drawn to cover the frame, centred (Kodi's
+        scale aspect ratio). No rects is the whole frame.
+
+        :param size: Image size (w, h).
+        :param rects: Rect string in frame coordinates.
+        :param frame: Frame size "w,h"; None is the default frame.
+        :return: (x0, y0, x1, y1) boxes in image pixels, each at least 1 px.
+        """
+        fw, fh = tuple(map(int, frame.split(","))) if frame else self.color.cfg.bg_frame
+        iw, ih = size
+        k = max(fw / iw, fh / ih)
+        ox, oy = (iw * k - fw) / 2, (ih * k - fh) / 2
+        boxes = []
+        for x, y, w, h in self.parse_overlay_rects(rects) or [(0, 0, fw, fh)]:
+            x0 = min(iw - 1, max(0, round((x + ox) / k)))
+            y0 = min(ih - 1, max(0, round((y + oy) / k)))
+            x1 = max(x0 + 1, min(iw, round((x + w + ox) / k)))
+            y1 = max(y0 + 1, min(ih, round((y + h + oy) / k)))
+            boxes.append((x0, y0, x1, y1))
+        return boxes
+
+    def _extremes(self, image: Image.Image, box: Box) -> list[float]:
+        """
+        Mean linear luminance of the darkest and brightest 10 % of a box, sampled
+        at 32x32.
+
+        :param image: RGB image.
+        :param box: Box in image pixels.
+        :return: [lo, hi], each 0-1.
+        """
+        cfg = self.color.cfg
+        n = cfg.avg_downsample
+        px = sorted(
+            luminance_image(image.crop(box).resize((n, n), Image.BOX)).getdata()
+        )
+        k = max(1, round(len(px) * cfg.bg_sampling_topk))
+        return [round(sum(px[:k]) / k / 255, 4), round(sum(px[-k:]) / k / 255, 4)]
 
     def _compute_contrast_series(
         self,

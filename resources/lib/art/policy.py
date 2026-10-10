@@ -11,6 +11,7 @@ ART_FIELD_PROCESSED = "processed_path"
 ART_FIELD_WIDTH = "width"
 ART_FIELD_HEIGHT = "height"
 ART_FIELD_BLUR_RADIUS = "blur_radius"
+ART_FIELD_EDGE_TRIM = "edge_trim"
 ART_FIELD_COLOR = "color"
 ART_FIELD_ACCENT = "accent"
 ART_FIELD_CONTRAST = "contrast"
@@ -39,6 +40,7 @@ ART_FIELD_DARKEN_LABEL_PX = "darken_label_px"
 ART_FIELD_DARKEN_LABEL_WIDTH = "darken_label_width"
 ART_FIELD_DARKEN_LABEL_WIDTH1 = "darken_label_width1"
 ART_FIELD_DARKEN_LABEL_WIDTH2 = "darken_label_width2"
+ART_FIELD_MEASURE = "measure"
 
 ART_FIELDS_DARKEN_ELEMENT = (
     ART_FIELD_DARKEN_ELEMENT,
@@ -79,6 +81,7 @@ ART_DB_SCHEMA = (
     (ART_FIELD_WIDTH, "INTEGER"),
     (ART_FIELD_HEIGHT, "INTEGER"),
     (ART_FIELD_BLUR_RADIUS, "INTEGER"),
+    (ART_FIELD_EDGE_TRIM, "REAL"),
     (ART_FIELD_COLOR, "TEXT"),
     (ART_FIELD_ACCENT, "TEXT"),
     (ART_FIELD_CONTRAST, "TEXT"),
@@ -97,6 +100,7 @@ ART_DB_SCHEMA = (
     *((field, "TEXT") for field in ART_FIELDS_DARKEN_LABEL),
     (ART_FIELD_DARKEN_LABEL_PX, "REAL"),
     *((field, "INTEGER") for field in ART_FIELDS_DARKEN_LABEL_WIDTH),
+    (ART_FIELD_MEASURE, "TEXT"),
 )
 ART_DB_UNIQUE = (ART_FIELD_CACHE_KEY,)
 
@@ -118,6 +122,8 @@ ART_FIELDS_INPUT = {
         ART_FIELD_DARKEN_LABEL_PX,
         ART_FIELD_DARKEN_FRAME,
         ART_FIELD_DARKEN_STRENGTH,
+        ART_FIELD_BLUR_RADIUS,
+        ART_FIELD_EDGE_TRIM,
     ),
 }
 
@@ -130,7 +136,7 @@ ART_FIELDS_RESULT = {
         ART_FIELD_CONTRAST,
         ART_FIELD_LUMINOSITY,
     ),
-    "darken": (ART_FIELD_DARKEN,),
+    "darken": (ART_FIELD_MEASURE,),
 }
 
 ART_LISTITEM_KEYS = (
@@ -157,7 +163,7 @@ ART_SOURCE_KEYS = {
 }
 
 ART_PROCESS_MAP = {
-    "clearlogo": ("crop", "analyze"),
+    "clearlogo": ("crop", "analyze", "darken"),
     "background": ("blur", "analyze", "darken"),
     "icon": ("blur", "analyze", "darken"),
 }
@@ -234,6 +240,7 @@ class ColorConfig:
 
     # --- Image Processing ---
     blur_radius: int = 50  # Default Gaussian blur radius in pixels
+    matte: str = "ff121217"  # Transparent art is composited on this (skin squidink)
     jpeg_quality: int = 90  # JPEG export quality (1-95)
     jpeg_optimize: bool = False  # Enable JPEG optimization (slower save, smaller file)
     jpeg_progressive: bool = False  # Enable progressive JPEG encoding
