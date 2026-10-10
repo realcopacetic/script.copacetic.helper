@@ -286,23 +286,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         log.execute(f"RunScript(script.copacetic.helper,action=info_swap,key={key})")
         return True
 
-    def _background_origin(self) -> dict[str, str]:
-        """
-        The blur the window last showed for this dialog item, so opening info
-        keeps it: same source, same radius, same cached image.
-
-        :return: background_url and background_blur_radius overrides, or {}.
-        """
-        if not (self.item and parse_bool(self.params.get("background_match"))):
-            return {}
-        origin = infolabel("Window(home).Property(background_origin)")
-        key, radius, url = (origin.split("|", 2) + ["", ""])[:3]
-        return (
-            {"background_url": url, "background_blur_radius": radius}
-            if url and key == self._item_key()
-            else {}
-        )
-
     def _get_tmdb_item(
         self,
         *,
@@ -442,9 +425,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope or str(
                 focused_control_id()
             )
-        params = self.params | self._background_origin()
         art_opts = {
-            art_type: ArtOpts.from_params(params, art_type)
+            art_type: ArtOpts.from_params(self.params, art_type)
             for art_type in ("clearlogo", "background", "icon")
         }
         jobs = {
@@ -507,17 +489,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if hold_last and not value:
                 continue
             window_property(f"{prop}_{prop_key}" if prop_key else prop, value)
-        if art.get("background") and not self.item:
-            window_property(
-                "background_origin",
-                "|".join(
-                    (
-                        self._item_key(),
-                        params.get("background_blur_radius", ""),
-                        art_opts["background"].url,
-                    )
-                ),
-            )
 
         total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 

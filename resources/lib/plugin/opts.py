@@ -13,7 +13,7 @@ class DarkenOpts:
     Darken configuration for a given artwork type: where elements sit (prepare)
     and what the darken must carry (compose).
 
-    :param mode: Darken mode or "None" to disable.
+    :param enabled: Return the darken for this art.
     :param rects: Rect string for sampling in frame coordinates.
     :param frame: Frame size "w,h" as a raw string.
     :param labels: Label text per rect, narrowing each to its estimated width.
@@ -23,7 +23,7 @@ class DarkenOpts:
     :param max: Cap on the darken, % black; None is no cap.
     """
 
-    mode: str | None
+    enabled: bool
     rects: str | None
     frame: str | None
     labels: tuple[str | None, ...]
@@ -52,11 +52,6 @@ class DarkenOpts:
             if v is not None
         }
 
-    @property
-    def enabled(self) -> bool:
-        """Return True if darken mode is valid."""
-        return self.mode in ("artwork", "all")
-
     @classmethod
     def from_params(cls, params: Mapping[str, str], prefix: str) -> "DarkenOpts":
         """
@@ -67,7 +62,7 @@ class DarkenOpts:
         :return: Parsed DarkenOpts instance.
         """
         return cls(
-            mode=params.get(f"{prefix}_darken", None),
+            enabled=parse_bool(params.get(f"{prefix}_darken", "false")),
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
             labels=tuple(
@@ -94,7 +89,6 @@ class ArtOpts:
     :param crop: Enable crop.
     :param blur: Enable blur.
     :param blur_radius: Blur radius override.
-    :param analyze: Enable analysis.
     :param darken: Darken options for this art_type.
     :param edge_trim: Border to discard before blurring, percent per side.
     :param ratio: Contrast target for compose.
@@ -105,7 +99,6 @@ class ArtOpts:
     url: str | None
     crop: bool
     blur: bool
-    analyze: bool
     blur_radius: int | None
     darken: DarkenOpts | None
     edge_trim: float
@@ -118,7 +111,7 @@ class ArtOpts:
         Return True if the given process is enabled for this artwork. The darken
         process measures for compose; a clearlogo (no darken opts) always is.
 
-        :param process: Process name (crop, blur, analyze, darken).
+        :param process: Process name (crop, blur, darken).
         :return: True if enabled.
         """
         return (
@@ -157,7 +150,6 @@ class ArtOpts:
             crop=parse_bool(params.get(f"{art_type}_crop", "false")),
             blur=parse_bool(params.get(f"{art_type}_blur", "false")),
             blur_radius=to_int(params.get(f"{art_type}_blur_radius"), None),
-            analyze=parse_bool(params.get(f"{art_type}_analyze", "false")),
             darken=(
                 DarkenOpts.from_params(params, art_type)
                 if art_type in ("background", "icon")
