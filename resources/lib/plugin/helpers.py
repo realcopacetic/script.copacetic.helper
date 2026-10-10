@@ -849,8 +849,13 @@ class TypewriterAnimation:
         valign = (opts.valign or "center").lower()
         grows = 0
 
-        # Clear before reveal so no render frame shows a stale label.
+        # setText is a thread message, setVisible is immediate: let the clear land.
         control.setText("")
+        if monitor.waitForAbort(self.step_time):
+            return
+        if _superseded():
+            _abort("superseded")
+            return
         control.setVisible(True)
 
         for i in range(1, len(label) + 1):
