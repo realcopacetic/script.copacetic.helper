@@ -11,6 +11,7 @@ import xbmcvfs
 
 from resources.lib.art import policy
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
+from resources.lib.art.compose import compose
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
@@ -86,8 +87,8 @@ class ImageEditor:
         source: str | None = None,
     ) -> dict[str, Any]:
         """
-        Process jobs into flattened ListItem.Art-style key/value pairs.
-        Uses cache-first per-art_type processing and merges deltas when needed.
+        Prepare each art (cache-first, per process), then compose across them;
+        returns flattened ListItem.Art-style key/value pairs.
 
         :param jobs: Mapping of art_type to ordered process names.
         :param art_opts: Mapping of art_type to parsed ArtOpts.
@@ -100,22 +101,22 @@ class ImageEditor:
             "results": {k: {} for k in art_types},
         }
         try:
-            return policy.flatten_art_attributes(
-                [
-                    (art_type, merged)
-                    for art_type, processes in jobs.items()
-                    if (opts := art_opts.get(art_type)) is not None
-                    and (
-                        merged := self._handle_jobs(
-                            art_type=art_type,
-                            processes=tuple(processes),
-                            source=source,
-                            opts=opts,
-                            shared=shared,
-                        )
+            records = {
+                art_type: merged
+                for art_type, processes in jobs.items()
+                if (opts := art_opts.get(art_type)) is not None
+                and (
+                    merged := self._handle_jobs(
+                        art_type=art_type,
+                        processes=tuple(processes),
+                        source=source,
+                        opts=opts,
+                        shared=shared,
                     )
-                ]
-            )
+                )
+            }
+            compose(records, art_opts)
+            return policy.flatten_art_attributes(records.items())
         except Exception:
             log.exception(f"{self.__class__.__name__} → Error during image processing")
             return {}
@@ -160,8 +161,6 @@ class ImageEditor:
         attrs = shared["results"][art_type] = {
             "cached_file_hash": base_ctx.cached_file_hash
         }
-        if opts.darken and opts.darken.enabled:
-            opts = self._resolve_darken_colours(opts, shared["results"])
         for process in processes:
             if not opts.enabled(process):
                 continue
@@ -260,34 +259,6 @@ class ImageEditor:
             opts=dataclasses.replace(opts, url=url),
             shared=shared,
         )
-
-    def _resolve_darken_colours(
-        self, opts: ArtOpts, results: Mapping[str, Mapping[str, Any]]
-    ) -> ArtOpts:
-        """
-        Swap the "clearlogo" alias in the darken source and contrast source for
-        the logo's analysed colour, before the cache key is built from them.
-
-        :param opts: Parsed ArtOpts for this art_type.
-        :param results: Results of the art types already processed in this call.
-        :return: ArtOpts with the alias resolved (None when the logo has no colour).
-        """
-        darken = opts.darken
-        color = results.get("clearlogo", {}).get(policy.ART_FIELD_COLOR)
-        swaps = {
-            name: color
-            for name in ("source", "contrast_source")
-            if (getattr(darken, name) or "").strip().lower() == "clearlogo"
-        }
-        if not swaps:
-            return opts
-
-        if not color:
-            log.debug(
-                f"{self.__class__.__name__} → darken clearlogo colour missing — "
-                f"source falls back to element_overlay_color, contrast is skipped"
-            )
-        return dataclasses.replace(opts, darken=dataclasses.replace(darken, **swaps))
 
     def _expected_from_spec(
         self, spec: dict[str, Any], *, opts: ArtOpts
