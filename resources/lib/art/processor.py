@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import json
 from typing import Any
 
 from PIL import Image, ImageFilter
@@ -30,6 +31,20 @@ class ImageProcessor:
         Normalize image mode once.
         """
         return image if image.mode == target else image.convert(target)
+
+    def _flatten(self, image: Image.Image) -> Image.Image:
+        """
+        Composite transparent art on the matte the skin shows behind it; other
+        art only changes mode.
+
+        :param image: Input PIL Image.
+        :return: RGB image.
+        """
+        if "A" not in image.getbands() and "transparency" not in image.info:
+            return self._ensure_mode(image, "RGB")
+        rgba = image.convert("RGBA")
+        matte = Image.new("RGBA", rgba.size, "#" + self.cfg.matte[2:])
+        return Image.alpha_composite(matte, rgba).convert("RGB")
 
     @staticmethod
     def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
@@ -86,7 +101,7 @@ class ImageProcessor:
     ) -> dict[str, Any] | None:
         """
         Resize (to the darken frame when given, so the blur matches the art as
-        drawn), apply Gaussian blur, coerce JPEG-safe mode.
+        drawn), flatten transparent art on the matte, apply Gaussian blur.
 
         :param image: Input PIL Image.
         :param opts: Parsed ArtOpts for this art_type.
@@ -104,9 +119,10 @@ class ImageProcessor:
 
         radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
         try:
-            image = image.filter(ImageFilter.GaussianBlur(radius=radius))
             return {
-                "image": self._ensure_mode(image, "RGB"),
+                "image": self._flatten(image).filter(
+                    ImageFilter.GaussianBlur(radius=radius)
+                ),
                 "format": "JPEG",
                 "metadata": {"blur_radius": radius},
             }
@@ -139,20 +155,41 @@ class ImageProcessor:
 
     @log.duration
     def darken(
-        self, image: Image.Image, opts: ArtOpts, **_: Any
+        self, image: Image.Image, opts: ArtOpts, attrs: dict[str, Any], **_: Any
     ) -> dict[str, Any] | None:
         """
-        Compute darken metadata without altering pixels. Colour aliases are
-        resolved upstream (ImageEditor); only called when darken is enabled.
+        Measure the art for compose: colours always; with darken opts, each rect's
+        extremes on the art and on its blur, and the band palette.
 
         :param image: Input PIL image.
         :param opts: Parsed ArtOpts for this art_type.
+        :param attrs: This art's attributes so far (the blur's processed_path).
         :return: Dict with "metadata" or None on failure.
         """
         try:
+            cover = self._cover(image, self.cfg.blur_target_size)
+            measure = self.color_analyzer.colors(cover)
+            widths = []
+            if opts.darken:
+                blur = attrs.get(policy.ART_FIELD_PROCESSED) if opts.blur else None
+                measured, widths = self.darken_engine.measure(
+                    self._flatten(cover),
+                    Image.open(blur).convert("RGB") if blur else None,
+                    opts.darken,
+                )
+                measure |= measured
             return {
-                "metadata": self.darken_engine.compute_darken(image, opts=opts.darken)
-                or {}
+                "metadata": {
+                    **(
+                        self.darken_engine.compute_darken(image, opts=opts.darken) or {}
+                        if opts.darken
+                        else {}
+                    ),
+                    **dict(zip(policy.ART_FIELDS_DARKEN_LABEL_WIDTH, widths)),
+                    policy.ART_FIELD_MEASURE: json.dumps(
+                        measure, separators=(",", ":")
+                    ),
+                }
             }
         except Exception as exc:
             log.error(f"{self.__class__.__name__} → Unable to darken image → {exc}")

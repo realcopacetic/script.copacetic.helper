@@ -112,16 +112,28 @@ class ArtOpts:
 
     def enabled(self, process: str) -> bool:
         """
-        Return True if the given process is enabled for this artwork.
+        Return True if the given process is enabled for this artwork. The darken
+        process measures; a clearlogo (no darken opts) is always measured.
 
         :param process: Process name (crop, blur, analyze, darken).
         :return: True if enabled.
         """
         return (
-            bool(self.darken and self.darken.enabled)
+            self.darken is None or self.darken.enabled
             if process == "darken"
             else bool(getattr(self, process, False))
         )
+
+    def match_fields(self) -> dict[str, object]:
+        """
+        Cache-key fields for every process; each spec picks its own. The blur's
+        radius and trim are 0 without a blur, so the measurement row tells them apart.
+        """
+        return {
+            policy.ART_FIELD_BLUR_RADIUS: self.blur_radius if self.blur else 0,
+            policy.ART_FIELD_EDGE_TRIM: self.edge_trim if self.blur else 0.0,
+            **(self.darken.match_fields() if self.darken else {}),
+        }
 
     @classmethod
     def from_params(cls, params: Mapping[str, str], art_type: str) -> "ArtOpts":
