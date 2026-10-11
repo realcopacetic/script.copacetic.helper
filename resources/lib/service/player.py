@@ -147,16 +147,18 @@ class PlayerMonitor(Player):
     def _handle_audio_start(self) -> None:
         """
         Publish music-related window properties on audio start.
-        Splits the player's artist list into player_artist_1..3 for exact matching.
+        Splits the player's artists and their ids into player_artist_1..3 and
+        player_artistid_1..3 for exact matching.
         """
         tag = self.getMusicInfoTag()
         query = json_call(
             "Player.GetItem",
-            params={"playerid": 0, "properties": ["albumid", "artist"]},
+            params={"playerid": 0, "properties": ["albumid", "artist", "artistid"]},
             parent="now_playing_song",
         )
         item = query.get("result", {}).get("item", {})
         artists = item.get("artist", [])
+        artistids = item.get("artistid", [])
         self._publish(
             {
                 "player_artist": tag.getArtist(),
@@ -166,6 +168,7 @@ class PlayerMonitor(Player):
                 "player_disc": str(tag.getDisc()),
             }
             | {f"player_artist_{i}": a for i, a in enumerate(artists[:3], 1)}
+            | {f"player_artistid_{i}": str(a) for i, a in enumerate(artistids[:3], 1)}
         )
         self._record_speed_dial(tag.getDbId())
 

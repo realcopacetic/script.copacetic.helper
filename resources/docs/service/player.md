@@ -38,13 +38,18 @@ When a library episode starts, the service also runs [Play next](playnext.md).
 | `player_artist_1` | First artist | A song starts |
 | `player_artist_2` | Second artist | A song starts |
 | `player_artist_3` | Third artist | A song starts |
+| `player_artistid_1` | First artist's database id | A library song starts |
+| `player_artistid_2` | Second artist's database id | A library song starts |
+| `player_artistid_3` | Third artist's database id | A library song starts |
 | `player_albumartist` | Album artist | A song starts |
 | `player_album` | Album title | A song starts |
 | `player_albumid` | Album database id (`-1` outside the library) | A song starts |
 | `player_disc` | Disc number | A song starts |
 
 `player_artist_1` to `player_artist_3` hold one artist each, so you can match a single
-artist exactly. A song with fewer than three artists leaves the rest empty.
+artist exactly, and `player_artistid_1` to `player_artistid_3` hold their database ids
+in the same order, so two artists with one name stay apart. A song with fewer than
+three artists leaves the rest empty.
 
 For the playing song's rating, use Kodi's own `MusicPlayer.UserRating`. It updates
 straight away when [`rate_song`](../script/actions.md#rate_song) changes the rating.
@@ -73,7 +78,7 @@ Show a "now playing" icon on the list item for the show, season, set, artist, al
 disc that is playing:
 
 ```xml
-<expression name="item_is_playing">Player.HasMedia + [ListItem.IsPlaying | [String.IsEqual(ListItem.DBType,set) + String.IsEqual(Window(home).Property(player_setid),ListItem.DBID)] | [String.IsEqual(ListItem.DBType,tvshow) + String.IsEqual(Window(home).Property(player_tvshowid),ListItem.DBID)] | [String.IsEqual(ListItem.DBType,season) + String.IsEqual(Window(home).Property(player_tvshowid),ListItem.TVShowDBID) + String.IsEqual(Window(home).Property(player_season),ListItem.Season)] | [String.IsEqual(ListItem.DBType,artist) + [String.IsEqual(Window(home).Property(player_artist_1),ListItem.Artist) | String.IsEqual(Window(home).Property(player_artist_2),ListItem.Artist) | String.IsEqual(Window(home).Property(player_artist_3),ListItem.Artist)]] | [String.IsEqual(ListItem.DBType,album) + String.IsEqual(Window(home).Property(player_albumid),ListItem.DBID) + [String.IsEmpty(ListItem.DiscNumber) | String.IsEqual(Window(home).Property(player_disc),ListItem.DiscNumber)]] | [String.IsEqual(ListItem.DBType,album) + String.IsEmpty(ListItem.DBID) + String.IsEqual(Window(home).Property(player_albumartist),ListItem.Artist) + String.IsEqual(Window(home).Property(player_album),ListItem.Album)]]</expression>
+<expression name="item_is_playing">Player.HasMedia + [ListItem.IsPlaying | [String.IsEqual(ListItem.DBType,set) + String.IsEqual(Window(home).Property(player_setid),ListItem.DBID)] | [String.IsEqual(ListItem.DBType,tvshow) + String.IsEqual(Window(home).Property(player_tvshowid),ListItem.DBID)] | [String.IsEqual(ListItem.DBType,season) + String.IsEqual(Window(home).Property(player_tvshowid),ListItem.TVShowDBID) + String.IsEqual(Window(home).Property(player_season),ListItem.Season)] | [String.IsEqual(ListItem.DBType,artist) + !String.IsEmpty(ListItem.DBID) + [String.IsEqual(Window(home).Property(player_artistid_1),ListItem.DBID) | String.IsEqual(Window(home).Property(player_artistid_2),ListItem.DBID) | String.IsEqual(Window(home).Property(player_artistid_3),ListItem.DBID)]] | [String.IsEqual(ListItem.DBType,artist) + String.IsEmpty(ListItem.DBID) + [String.IsEqual(Window(home).Property(player_artist_1),ListItem.Artist) | String.IsEqual(Window(home).Property(player_artist_2),ListItem.Artist) | String.IsEqual(Window(home).Property(player_artist_3),ListItem.Artist)]] | [String.IsEqual(ListItem.DBType,album) + !String.IsEmpty(ListItem.DBID) + String.IsEqual(Window(home).Property(player_albumid),ListItem.DBID) + [String.IsEmpty(ListItem.DiscNumber) | String.IsEqual(Window(home).Property(player_disc),ListItem.DiscNumber)]] | [String.IsEqual(ListItem.DBType,album) + String.IsEmpty(ListItem.DBID) + String.IsEqual(Window(home).Property(player_albumartist),ListItem.Artist) + String.IsEqual(Window(home).Property(player_album),ListItem.Album)]]</expression>
 
 <control type="image">
   <texture>icons/nowplaying.png</texture>

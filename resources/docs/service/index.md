@@ -124,6 +124,7 @@ next play, speed dial change or slide.
 | `player_setid` | A library movie in a set starts | Movie set database id | As above | [Player properties](player.md) |
 | `player_artist` | A song starts | Artist (all artists in one string) | As above | [Player properties](player.md) |
 | `player_artist_1` … `player_artist_3` | A song starts | First, second and third artist | As above | [Player properties](player.md) |
+| `player_artistid_1` … `player_artistid_3` | A library song starts | First, second and third artist's database id | As above | [Player properties](player.md) |
 | `player_albumartist` | A song starts | Album artist | As above | [Player properties](player.md) |
 | `player_album` | A song starts | Album title | As above | [Player properties](player.md) |
 | `player_albumid` | A song starts | Album database id | As above | [Player properties](player.md) |
