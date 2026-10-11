@@ -1,8 +1,10 @@
 # author: realcopacetic
 
+import json
 import random
 import time
 from operator import itemgetter
+from urllib.parse import quote
 
 import xbmc
 import xbmcgui
@@ -643,15 +645,19 @@ def set_edit(id: str, **kwargs: str) -> None:
 @action
 def set_search_query(id: str, **kwargs: str) -> None:
     """
-    Mirror an edit control's text into the search_query property, cleared
-    below min_length. Sole writer for the search rails' path values.
+    Mirror an edit control's text into the search_query property, JSON-escaped
+    and URL-encoded so `&`, `+` and `%` survive a library path's xsp option.
+    Cleared below min_length. Sole writer for the search rails' path values.
 
     :param id: Edit control id to read.
     :param min_length: Minimum characters before the query is published.
     """
     min_length = to_int(kwargs.get("min_length"), 3)
     text = infolabel(f"Control.GetLabel({id}).index(1)")
-    window_property("search_query", value=text if len(text) >= min_length else False)
+    window_property(
+        "search_query",
+        value=quote(json.dumps(text)[1:-1]) if len(text) >= min_length else False,
+    )
 
 
 def _year_rule(year: str) -> dict:

@@ -729,7 +729,9 @@ Examples from Copacetic:
 ## set_search_query
 
 Copies an edit control's text into a window property, ready to use in a search
-path. Text shorter than `min_length` clears the property instead.
+path: JSON-escaped and URL-encoded, so it drops between `$ESCINFO[…]`'s quotes in an
+xsp value and `&`, `+` and `%` survive. It isn't meant for a label (a space shows as
+`%20`). Text shorter than `min_length` clears the property instead.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
