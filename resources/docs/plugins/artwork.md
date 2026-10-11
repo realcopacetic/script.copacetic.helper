@@ -152,7 +152,6 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `background`, `icon` | `<prefix>_blur=true` | Path to the blurred JPEG. |
 | `background_blur_radius`, `icon_blur_radius` | `<prefix>_blur=true` | The radius used. |
 | `<prefix>_darken` | `<prefix>_darken=true` | How much to darken the image: the exact % black, `0`–`100`. |
-| `<prefix>_darken_label_width`, `…_width1`, `…_width2` | a matching `_darken_label` is passed, and `<prefix>_darken`, `<prefix>_element_colors` or `<prefix>_palette` is on | The width of that rectangle after narrowing: the estimated text width, or the rectangle's own width if that is smaller. |
 | `<prefix>_element_color` | `<prefix>_element_colors` is passed | The candidate colour to draw the element in. |
 | `<prefix>_band` | `<prefix>_element_colors` is passed, the image is blurred and a band is needed | Image to draw behind the element: the blur itself, or a copy of it with the clashing pixels tinted. Empty when no band is needed. |
 | `<prefix>_palette_primary` | `<prefix>_palette=true` | The palette's main colour. |

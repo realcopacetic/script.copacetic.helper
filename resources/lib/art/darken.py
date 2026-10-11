@@ -139,7 +139,7 @@ class ColorDarken:
 
     def measure(
         self, raw: Image.Image, blur: Image.Image | None, opts: DarkenOpts
-    ) -> tuple[dict[str, Any], list[int | None]]:
+    ) -> dict[str, Any]:
         """
         Darkest and brightest 10 % of each rect on the raw art and on the blur, and
         the band palette: the blur from the rects' top down.
@@ -147,9 +147,9 @@ class ColorDarken:
         :param raw: Art flattened on the matte, cover-scaled to the blur's width.
         :param blur: The blur as drawn, or None when the art isn't blurred.
         :param opts: Darken options carrying rects, frame and labels.
-        :return: ({"zones": [{"art": [lo, hi], "blur": [lo, hi]}], "band"}, widths).
+        :return: {"zones": [{"art": [lo, hi], "blur": [lo, hi]}], "band"}.
         """
-        rects, widths = self._clamp_rects_to_labels(opts)
+        rects = self._clamp_rects_to_labels(opts)
         zones = [
             {"art": self._extremes(raw, box)}
             for box in self.boxes(raw.size, rects, opts.frame)
@@ -163,7 +163,7 @@ class ColorDarken:
             measure["band"] = self.color.extremes(
                 blur.crop((0, top, blur.width, blur.height))
             )
-        return measure, widths
+        return measure
 
     def band(
         self, blur: Image.Image, opts: ArtOpts, tints: dict[str, str]
@@ -179,7 +179,7 @@ class ColorDarken:
         :return: (chosen element colour, tinted copy of the blur).
         """
         cfg = self.color.cfg
-        rects, _ = self._clamp_rects_to_labels(opts.darken)
+        rects = self._clamp_rects_to_labels(opts.darken)
         boxes = self.boxes(blur.size, rects, opts.darken.frame)
         k, _, _ = self._cover(blur.size, opts.darken.frame)
         m = round(cfg.band_feather / k)
@@ -294,20 +294,16 @@ class ColorDarken:
         k = max(1, round(len(px) * cfg.bg_sampling_topk))
         return [round(sum(px[:k]) / k / 255, 4), round(sum(px[-k:]) / k / 255, 4)]
 
-    def _clamp_rects_to_labels(
-        self, opts: DarkenOpts
-    ) -> tuple[str | None, list[int | None]]:
+    def _clamp_rects_to_labels(self, opts: DarkenOpts) -> str | None:
         """
-        Clamp each rect by its parallel label and collect per-rect widths.
-        Rects without a paired label pass through unclamped; no rects is the whole
-        frame, as in boxes.
+        Clamp each rect by its parallel label. Rects without a paired label pass
+        through unclamped; no rects is the whole frame, as in boxes.
 
         :param opts: Darken options carrying rects and the label series.
-        :return: (clamped rect string, per-rect width list).
+        :return: Clamped rect string.
         """
-        widths = []
         if not any(opts.labels):
-            return opts.rects, widths
+            return opts.rects
 
         cfg = self.color.cfg
         px = opts.label_px if opts.label_px else cfg.darken_label_px_per_char
@@ -317,15 +313,12 @@ class ColorDarken:
         clamped = []
         for idx, part in enumerate(parts):
             label = opts.labels[idx] if idx < len(opts.labels) else None
-            if label:
-                cr, w = self.clamp_rect_to_label(part.strip("()"), label, px)
-                clamped.append(cr)
-                widths.append(w)
-            else:
-                clamped.append(part.strip("()"))
-                widths.append(None)
-        rect_str = f"({'),('.join(clamped)})" if len(clamped) > 1 else clamped[0]
-        return rect_str, widths
+            clamped.append(
+                self.clamp_rect_to_label(part.strip("()"), label, px)
+                if label
+                else part.strip("()")
+            )
+        return f"({'),('.join(clamped)})" if len(clamped) > 1 else clamped[0]
 
     @staticmethod
     def parse_overlay_rects(param: str) -> list[Rect]:
@@ -358,32 +351,29 @@ class ColorDarken:
         return out
 
     @staticmethod
-    def clamp_rect_to_label(
-        rect: str, label: str, px_per_char: float
-    ) -> tuple[str, int | None]:
+    def clamp_rect_to_label(rect: str, label: str, px_per_char: float) -> str:
         """
         Clamp a single rect's width to an estimated label width (left-anchored).
 
         :param rect: Single rect "x,y,w,h" in frame coordinates.
         :param label: Overlay label text for this rect.
         :param px_per_char: Glyph advance in frame px.
-        :return: (clamped rect string, estimated width or None on bad input).
+        :return: Clamped rect string; the rect unchanged on bad input.
         """
         n = len(label.strip())
         if n <= 0:
-            return rect, None
+            return rect
         est = int(round(n * px_per_char))
         if est <= 0:
-            return rect, None
+            return rect
         nums = rect.replace(" ", "").strip("()").split(",")
         if len(nums) != 4:
-            return rect, None
+            return rect
         try:
             x, y, w, h = (int(v) for v in nums)
         except ValueError:
-            return rect, None
-        w = min(w, est)
-        return f"{x},{y},{w},{h}", w
+            return rect
+        return f"{x},{y},{min(w, est)},{h}"
 
     @staticmethod
     def frame_image(
