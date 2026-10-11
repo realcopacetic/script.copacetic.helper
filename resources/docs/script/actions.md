@@ -700,9 +700,10 @@ Your skin must define a mapping named `keyboard` whose items are `slot1`, `slot2
 with at least as many items as the layout has characters. If there are too few, the
 action fails and nothing is written.
 
-Where a language has several layouts, an alphabetical one is used, even if you name
-another. A language Kodi doesn't have, or one with only coding-table layouts, falls
-back to English ABC.
+Where a language has several layouts, one whose letters run in code-point order (the
+alphabetical one, for English-style layouts) is used, even if you name another;
+otherwise the one you name. A language Kodi doesn't have, or one with only coding-table
+layouts, falls back to English ABC.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

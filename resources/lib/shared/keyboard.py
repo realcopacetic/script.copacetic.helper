@@ -36,8 +36,9 @@ def usable_layouts(tree: ElementTree) -> list[Element]:
 
 def layout_characters(layout_id: str, trees: dict) -> list[str]:
     """
-    Extract letters-then-digits from a Kodi keyboardlayout, preferring the
-    alphabetical variant of the layout's language file.
+    Extract letters-then-digits from a Kodi keyboardlayout, preferring a variant
+    whose letters run in code-point order (alphabetical for English-style layouts),
+    then the named variant.
 
     :param layout_id: Kodi layout identifier (e.g. "Russian АБВ").
     :param trees: Dict of language stem to ElementTree from keyboard_layout_trees.
