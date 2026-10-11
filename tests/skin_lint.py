@@ -495,7 +495,7 @@ def main() -> None:
         if not any(fnmatch(location(f)[0], glob) for glob in args.exclude)
     ]
     by_rule = defaultdict(list)
-    for finding in sorted(shown, key=location):
+    for finding in sorted(shown, key=lambda f: (location(f), f.message)):
         by_rule[finding.rule].append(finding)
     for rule, group in sorted(by_rule.items()):
         print(f"\n== {rule} ({'error' if rule in ERRORS else 'warning'}, {len(group)})")
