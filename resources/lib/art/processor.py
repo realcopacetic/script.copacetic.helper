@@ -100,13 +100,15 @@ class ImageProcessor:
     ) -> dict[str, Any] | None:
         """
         Resize (to the darken frame when given, so the blur matches the art as
-        drawn), flatten transparent art on the matte, apply Gaussian blur.
+        drawn), flatten transparent art on the matte, apply Gaussian blur; art
+        smaller than the cover box blurs in proportion, as Kodi zooms it more.
 
         :param image: Input PIL Image.
         :param opts: Parsed ArtOpts for this art_type.
         :return: Dict with {"image", "format"} or None on failure.
         """
         radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
+        sigma = radius
         try:
             if opts.edge_trim:
                 dx = round(image.width * opts.edge_trim / 100)
@@ -117,9 +119,11 @@ class ImageProcessor:
                 image, _ = ColorDarken.frame_image(image, frame_w, frame_h)
             else:
                 image = self._cover(image, self.cfg.blur_target_size)
+                width, height = self.cfg.blur_target_size
+                sigma *= min(image.width / width, image.height / height)
             return {
                 "image": self._flatten(image).filter(
-                    ImageFilter.GaussianBlur(radius=radius)
+                    ImageFilter.GaussianBlur(radius=sigma)
                 ),
                 "format": "JPEG",
                 "metadata": {"blur_radius": radius},

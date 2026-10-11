@@ -78,7 +78,7 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 | `<prefix>_url` | image path or URL | — | The image to process. Required for anything to happen to this image. |
 | `clearlogo_crop` | `true`, `false` | `false` | Crop the clearlogo to its visible (non-transparent) area. |
 | `background_blur`, `icon_blur` | `true`, `false` | `false` | Blur the image. |
-| `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled down (never up) to cover 480×270, or, when `<prefix>_darken_frame` is passed, scaled to cover that frame and cropped to it (centred). |
+| `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled down (never up) to cover 480×270, in pixels of that 480×270 box: smaller art blurs in proportion, so it looks the same once Kodi zooms it. Or, when `<prefix>_darken_frame` is passed, scaled to cover that frame and cropped to it (centred). |
 | `background_edge_trim`, `icon_edge_trim` | decimal (percent) | `0` | Cut this percentage from each side before blurring. Hides black bars and dark edges. |
 | `background_ratio`, `icon_ratio` | decimal | `3` | Contrast ratio the darken, the element on art and the palette aim for (WCAG: 3 for large text and graphics, 4.5 for body text). |
 

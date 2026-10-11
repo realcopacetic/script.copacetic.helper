@@ -86,7 +86,7 @@ before each slide, so you can change it at any time.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `background_blur` | `true` / `false` | `true` | Blur the fanart. With `false` no slides are published, because `slideshow_blur` is the processed image. |
-| `background_blur_radius` | Whole number of pixels | `50` | Blur strength. |
+| `background_blur_radius` | Whole number of pixels | `50` | Blur strength, in pixels of a 480×270 cover (see the artwork plugin). |
 | `background_edge_trim` | Percent per side | `0` | Border to cut away before blurring, to drop black bars. |
 | `background_darken` | `true` / `false` | `false` | Work out a darken value. |
 | `background_darken_source` | ARGB hex, e.g. `fff0efef`, one per rectangle | `fff0efef` | Colour of the text that sits on the fanart. |
