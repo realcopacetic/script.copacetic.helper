@@ -157,18 +157,15 @@ class ImageProcessor:
                 )
                 seen = cover.crop((min(x0), min(y0), max(x1), max(y1)))
             measure = self.color_analyzer.colors(seen)
-            widths = []
             if opts.darken:
                 blur = attrs.get(policy.ART_FIELD_PROCESSED) if opts.blur else None
-                measured, widths = self.darken_engine.measure(
+                measure |= self.darken_engine.measure(
                     self._flatten(cover),
                     Image.open(blur).convert("RGB") if blur else None,
                     opts.darken,
                 )
-                measure |= measured
             return {
                 "metadata": {
-                    **dict(zip(policy.ART_FIELDS_DARKEN_LABEL_WIDTH, widths)),
                     policy.ART_FIELD_MEASURE: json.dumps(
                         measure, separators=(",", ":")
                     ),
