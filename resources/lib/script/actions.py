@@ -346,6 +346,7 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
         return
 
     window_property("trailer_state", value="pending")
+    window_property("trailer_request", value=trailer)
     window_property("trailer_pending_since", value=str(time.time()))
     window_property("trailer_viewport", value=kwargs.get("viewport", ""))
     window_property("trailer_source", value=kwargs.get("source_prefix", ""))

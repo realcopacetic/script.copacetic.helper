@@ -64,19 +64,14 @@ class PlayerMonitor(Player):
 
     def onAVStarted(self) -> None:
         """Handle playback start events for video and audio."""
-        if self.isPlayingVideo():
-            state = infolabel("Window(home).Property(trailer_state)")
-            # Trailers start windowed; a film the user started goes fullscreen,
-            # so under a pending or cancelled request it is still real playback.
-            if state in ("pending", "cancelled") and not condition(
-                "Window.IsActive(fullscreenvideo)"
-            ):
+        state = infolabel("Window(home).Property(trailer_state)")
+        if state in ("pending", "cancelled"):
+            path = infolabel("Player.Filenameandpath")
+            if path == infolabel("Window(home).Property(trailer_request)"):
                 if state == "cancelled":  # requested in a window since left
                     log.execute("PlayerControl(Stop)")
                     return
-                window_property(
-                    "trailer_file", value=infolabel("Player.Filenameandpath")
-                )
+                window_property("trailer_file", value=path)
                 if self._trailer_is_stale():
                     self._orphan_trailer()
                 elif infolabel("Window(home).Property(trailer_fullscreen)"):
@@ -85,6 +80,14 @@ class PlayerMonitor(Player):
                     window_property("trailer_state", value="playing")
                     self.zoom.apply_zoom_if_needed()
                 return
+            # The user's media started while the trailer may still be resolving:
+            # Back on the busy dialog drops the resolve, else the trailer replaces it
+            log.execute("Action(Back,busydialog)")
+            if not self.isPlayingVideo():
+                self._clear_trailer_props()  # the video path below clears its own
+            elif not condition("Window.IsActive(fullscreenvideo)"):
+                log.execute("Action(FullScreen)")  # took the request's windowed start
+        if self.isPlayingVideo():
             # Not a trailer: any leftover trailer state was superseded by a
             # real video — clear it and take the normal video path.
             self._clear_trailer_props()
@@ -238,6 +241,7 @@ class PlayerMonitor(Player):
         """Reset the trailer session to idle."""
         for key in (
             "trailer_state",
+            "trailer_request",
             "trailer_item",
             "trailer_source",
             "trailer_focus_ids",

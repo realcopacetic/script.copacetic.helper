@@ -139,7 +139,7 @@ next play, speed dial change or slide.
 | `slideshow_title` | Each slide | Item label | The slide has no title | [Slideshow](slideshow.md) |
 
 The service also clears the trailer request properties that `action=play_trailer`
-sets (`trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_window`,
+sets (`trailer_request`, `trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_window`,
 `trailer_fullscreen`, `trailer_viewport`, `trailer_pending_since`) when a trailer
 session ends. It clears `trailer_fullscreen` as the trailer goes full screen, too.
 
@@ -149,6 +149,7 @@ session ends. It clears `trailer_fullscreen` as the trailer goes full screen, to
 |---|---|---|---|
 | `extras/templates/<folder>/` | Skin folder | Start-up and skin change | This page |
 | `trailer_state` | Window property | On playback start, stop, end and error, and each poll | [Trailers](trailers.md) |
+| `trailer_request` | Window property | When playback starts during a request | [Trailers](trailers.md) |
 | `trailer_item` | Window property | When checking if a trailer is stale | [Trailers](trailers.md) |
 | `trailer_source` | Window property | Staleness check and trailer zoom | [Trailers](trailers.md) |
 | `trailer_focus_ids` | Window property | When checking if a trailer is stale | [Trailers](trailers.md) |

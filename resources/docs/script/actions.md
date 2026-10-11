@@ -590,6 +590,7 @@ watches it:
 |---|---|
 | `trailer_state` | `pending` when requested. The service changes it to `playing`, `fullscreen`, or `orphaned` once paused and hidden. Cleared when playback stops. |
 | `trailer_item`, `trailer_focus_ids`, `trailer_source`, `trailer_viewport`, `trailer_window`, `trailer_fullscreen` | The values passed |
+| `trailer_request` | The `trailer` param |
 | `trailer_pending_since` | Time of the request |
 
 For example, show your `videowindow` only while

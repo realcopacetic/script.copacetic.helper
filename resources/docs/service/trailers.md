@@ -24,9 +24,14 @@ A trailer session moves through these states, stored in
 
 1. Your skin runs `action=play_trailer`. The action sets `trailer_state` to `pending`,
    stores the request properties below, and plays the trailer.
-2. When the video starts, the service checks that it is the trailer. Trailers start
-   windowed, so a video that starts fullscreen is one the user started: it plays as
-   normal, sets the [player properties](player.md), and the session is cleared.
+2. When playback starts, the service checks that it is the trailer: its
+   `Player.Filenameandpath` must equal `trailer_request`. Anything else is media the
+   user started while the request was on its way. A plugin trailer resolves on Kodi's
+   main thread behind the busy dialog, and when it finishes Kodi plays it in place of
+   whatever started meanwhile, so the service sends `Action(Back,busydialog)` to drop
+   the resolve. A video started that way inherits the request's windowed start, so it
+   is taken full screen. It then plays as normal, sets the
+   [player properties](player.md), and the session is cleared.
    - `cancelled`: the trailer is stopped at once.
    - `pending`: the service stores the trailer's path in `trailer_file`, then checks
      that it is still wanted (see [Stale trailers](#stale-trailers)):
@@ -92,6 +97,7 @@ The action sets these properties, which the service reads:
 | Property | Value |
 |---|---|
 | `trailer_state` | `pending` |
+| `trailer_request` | The `trailer` param |
 | `trailer_pending_since` | Time of the request, in seconds since the epoch |
 | `trailer_item` | The `item` param |
 | `trailer_source` | The `source_prefix` param |
@@ -164,7 +170,8 @@ When a trailer starts playing, the service sets the player's view mode:
 | `trailer_return` | `info_current` at the moment the trailer goes full screen | As `fullscreen` | By `trailer_return` |
 | `info_hop` | `fullscreen` | As `fullscreen`, when `info_current` is set and is not a season | The info dialog's `<onload>`, or `trailer_return` when there is no dialog to reopen |
 
-When a session is cleared, the service clears `trailer_state`, `trailer_item`,
+When a session is cleared, the service clears `trailer_state`, `trailer_request`,
+`trailer_item`,
 `trailer_source`, `trailer_focus_ids`, `trailer_window`, `trailer_fullscreen`,
 `trailer_viewport`, `trailer_pending_since` and `trailer_file`. `trailer_return` is
 left for [`trailer_return`](../script/actions.md#trailer_return).
