@@ -17,7 +17,8 @@ colours, and how dark and bright it is where your elements sit); this is cached,
 when the source image changes it is processed again. **Compose** then works out the
 darken, the element colour and band, and the palette from those measurements, once per
 call and never cached, so changing a compose parameter (the ratio, the colours, the
-surface) costs nothing.
+surface) costs nothing. The one exception is a tinted band (step 3 of
+[Element on art](#element-on-art)): it is a new image, so it is made again.
 
 ---
 
@@ -77,13 +78,14 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 | `<prefix>_url` | image path or URL | — | The image to process. Required for anything to happen to this image. |
 | `clearlogo_crop` | `true`, `false` | `false` | Crop the clearlogo to its visible (non-transparent) area. |
 | `background_blur`, `icon_blur` | `true`, `false` | `false` | Blur the image. |
-| `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled to cover 480×270, or, when `<prefix>_darken_frame` is passed, scaled to cover that frame and cropped to it (centred). |
+| `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled down (never up) to cover 480×270, or, when `<prefix>_darken_frame` is passed, scaled to cover that frame and cropped to it (centred). |
 | `background_edge_trim`, `icon_edge_trim` | decimal (percent) | `0` | Cut this percentage from each side before blurring. Hides black bars and dark edges. |
 | `background_ratio`, `icon_ratio` | decimal | `3` | Contrast ratio the darken, the element on art and the palette aim for (WCAG: 3 for large text and graphics, 4.5 for body text). |
 
 Booleans accept `true`, `1`, `yes` or `on` (any case). Anything else is false.
 Transparent art is composited on `ff121217` (Copacetic's `squidink`) before it is
-blurred or measured.
+blurred or its darkness is measured. Its colours, for the palette and the clearlogo
+colour, come from its opaque pixels only.
 
 A blurred image is cached by its source and radius only. Changing `_edge_trim` or
 `_darken_frame` later does not replace a blur that is already cached.
@@ -96,12 +98,12 @@ values mean.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `<prefix>_darken` | `true`, `false` | `false` | Work out how much to darken the image. |
-| `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | the whole frame | Where your elements sit, in frame coordinates. The element on art and the palette are measured here too. |
+| `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | the whole frame | Where your elements sit, in frame coordinates. The element on art and the palette's darken values are measured here too. |
 | `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in: the image is scaled to cover it and centred, like `<aspectratio>scale</aspectratio>`. |
 | `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo`; comma-separated, one per rectangle | `fff0efef` | Colour of the element in each rectangle, in rectangle order; the last carries on for the rest. `clearlogo` uses the clearlogo's colour (it needs `clearlogo_url` in the same call, else the default is used). |
-| `<prefix>_darken_surface` | `art`, `blur` | `art` | The image you draw the darken over: the image itself or its blur. The helper measures that one. |
-| `<prefix>_darken_max` | whole number, `0`–`100` | none | A cap on the darken. Bright art may then fall short of the ratio. |
-| `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Each rectangle is narrowed to the text's estimated width (left edge kept). |
+| `<prefix>_darken_surface` | `art`, `blur` | `art` | The image you draw the darken over: the image itself or its blur. The helper measures that one. With `blur` on an image that is not blurred, it measures the image itself. |
+| `<prefix>_darken_max` | whole number | none | A cap on the darken: the value returned is never higher. Bright art may then fall short of the ratio. The value is not checked, so keep it between `0` and `100`. |
+| `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Each rectangle is narrowed to the text's estimated width, never widened (left edge kept). Needs `<prefix>_darken_rects`: a label without rectangles makes the whole image fail. |
 | `<prefix>_darken_label_px` | decimal | `14` | Estimated width of one character, in frame pixels, for the labels above. |
 
 ### Element on art and palette (background and icon)
@@ -112,7 +114,8 @@ values mean.
 | `<prefix>_palette` | `true`, `false` | `false` | Return the image's [palette](#palette). |
 
 The rectangles, frame and labels in the darken table set where these are measured;
-`<prefix>_darken` itself need not be on.
+`<prefix>_darken` itself need not be on. The palette's colours come from the whole
+image; only its darken values use the rectangles.
 
 ### Multiart
 
@@ -148,7 +151,7 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `background`, `icon` | `<prefix>_blur=true` | Path to the blurred JPEG. |
 | `background_blur_radius`, `icon_blur_radius` | `<prefix>_blur=true` | The radius used. |
 | `<prefix>_darken` | `<prefix>_darken=true` | How much to darken the image: the exact % black, `0`–`100`. |
-| `<prefix>_darken_label_width`, `…_width1`, `…_width2` | a matching `_darken_label` is passed | The estimated text width used for that rectangle. |
+| `<prefix>_darken_label_width`, `…_width1`, `…_width2` | a matching `_darken_label` is passed, and `<prefix>_darken`, `<prefix>_element_colors` or `<prefix>_palette` is on | The width of that rectangle after narrowing: the estimated text width, or the rectangle's own width if that is smaller. |
 | `<prefix>_element_color` | `<prefix>_element_colors` is passed | The candidate colour to draw the element in. |
 | `<prefix>_band` | `<prefix>_element_colors` is passed, the image is blurred and a band is needed | Image to draw behind the element: the blur itself, or a copy of it with the clashing pixels tinted. Empty when no band is needed. |
 | `<prefix>_palette_primary` | `<prefix>_palette=true` | The palette's main colour. |
@@ -222,15 +225,19 @@ rectangle (its worst ratio), and the first step that works wins:
    works out how far each pixel of the blur must move to read: under dark text it is
    lightened by adding the same amount to red, green and blue, so it keeps its hue and
    colourfulness (a dark navy becomes a muted light blue, not grey); under light text it
-   moves toward the darkest colour of the image's own band area. The candidate that
-   changes the area least wins, decided from the area's brightness histogram before any
-   image is made. `_band` is a copy of the blur with only the clashing pixels moved: full
-   strength inside the rectangles, fading out over 120 px around them. Draw it through
-   your own band mask.
+   moves toward the darkest colour of the blur, measured from the top of the highest
+   rectangle down. The candidate that changes the rectangles least wins, decided from
+   their brightness histogram before any image is made. `_band` is a copy of the blur
+   with only the clashing pixels moved: full strength inside the rectangles, fading out
+   over 120 frame pixels around them. Draw it through your own band mask.
+
+Steps 2 and 3 need the blur. If the image is not blurred, the helper always stops at
+step 1 and returns the candidate that reads best, even if it falls short of the ratio.
 
 `_element_color` is the winning candidate. The band copy is a file of its own beside
 the blur, so the image control sees a new path; it is cached with the blur and replaced
-when the ratio or the candidates change.
+when the ratio, the candidates, the rectangles, the frame, the labels or the blur
+change.
 
 ## Palette
 
