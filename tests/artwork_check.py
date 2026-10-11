@@ -95,7 +95,7 @@ def install(tmp: Path) -> None:
     vfs.exists = os.path.exists
     vfs.mkdirs = lambda p: os.makedirs(p, exist_ok=True) or True
     vfs.copy = lambda src, dst: bool(shutil.copy(src, dst))
-    vfs.delete = lambda p: os.path.exists(p) and os.remove(p)
+    vfs.delete = lambda p: os.path.exists(p) and not os.remove(p)
     vfs.File = open
     sys.path.insert(0, str(HELPER))
 

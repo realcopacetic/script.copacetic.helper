@@ -511,17 +511,10 @@ class ImageEditor:
                 )
         finally:  # a temp copy left behind would fail every later serve of its source
             if self.temp_folder in source_path:
-                try:
-                    xbmcvfs.delete(source_path)
-                    log.debug(
-                        f"{self.__class__.__name__} → Temp file deleted → "
-                        f"{source_path}",
-                    )
-                except Exception:
-                    log.debug(
-                        f"{self.__class__.__name__} → Temp file cleanup failed → "
-                        f"{source_path}",
-                    )
+                outcome = "deleted" if xbmcvfs.delete(source_path) else "cleanup failed"
+                log.debug(
+                    f"{self.__class__.__name__} → Temp file {outcome} → {source_path}"
+                )
 
         meta = result.get("metadata") or {}
         return {
