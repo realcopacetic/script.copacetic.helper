@@ -477,45 +477,51 @@ class ImageEditor:
                 else:
                     return None
 
-        if image is None:
-            image = shared["image_cache"][art_type].get(
-                source_path
-            ) or self._image_open(source_path)
+        try:
+            if image is None:
+                image = shared["image_cache"][art_type].get(
+                    source_path
+                ) or self._image_open(source_path)
 
-        if image is None:
-            return None
+            if image is None:
+                return None
 
-        shared["image_cache"][art_type][source_path] = image
-        result = process_method(
-            image,
-            opts=opts,
-            attrs=shared["results"][art_type],
-        )
-        if result is None:
-            return None
-
-        if folder and "image" in result:
-            processed_path = destination_path
-            create_dir(folder)
-            write_image(
-                processed_path, result["image"], result.get("format", "PNG"), self.cfg
+            shared["image_cache"][art_type][source_path] = image
+            result = process_method(
+                image,
+                opts=opts,
+                attrs=shared["results"][art_type],
             )
+            if result is None:
+                return None
 
-            log.debug(
-                f"{self.__class__.__name__} → File processed: "
-                f"{url} → {processed_path}",
-            )
+            if folder and "image" in result:
+                processed_path = destination_path
+                create_dir(folder)
+                write_image(
+                    processed_path,
+                    result["image"],
+                    result.get("format", "PNG"),
+                    self.cfg,
+                )
 
-        if self.temp_folder in source_path:
-            try:
-                xbmcvfs.delete(source_path)
                 log.debug(
-                    f"{self.__class__.__name__} → Temp file deleted → {source_path}",
+                    f"{self.__class__.__name__} → File processed: "
+                    f"{url} → {processed_path}",
                 )
-            except Exception:
-                log.debug(
-                    f"{self.__class__.__name__} → Temp file cleanup failed → {source_path}",
-                )
+        finally:  # a temp copy left behind would fail every later serve of its source
+            if self.temp_folder in source_path:
+                try:
+                    xbmcvfs.delete(source_path)
+                    log.debug(
+                        f"{self.__class__.__name__} → Temp file deleted → "
+                        f"{source_path}",
+                    )
+                except Exception:
+                    log.debug(
+                        f"{self.__class__.__name__} → Temp file cleanup failed → "
+                        f"{source_path}",
+                    )
 
         meta = result.get("metadata") or {}
         return {
