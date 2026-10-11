@@ -11,7 +11,8 @@ the service stops.
 
 ## When they update
 
-- **Set** when playback of a video or song starts (Kodi's AV started event).
+- **Set** when playback of a video or song starts (Kodi's AV started event), and at
+  once when the user switches to a skin that opts in while something is playing.
 - **Cleared** when playback stops, ends or fails and nothing else starts. A skip or a
   playlist advance replaces them in place, so they never blank between files.
 

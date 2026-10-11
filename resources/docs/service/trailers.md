@@ -48,6 +48,10 @@ A trailer session moves through these states, stored in
 4. When playback stops, ends or fails, the session is cleared. A newer `pending`
    request is left alone.
 
+The service only watches trailers while a skin that [opts in](index.md#opting-in) is
+active. When the active skin changes, or the service stops, it stops the trailer it
+started (rewound first) and clears the session.
+
 If a video starts that the skin did not request as a trailer, any trailer session is
 cleared and the video is treated as normal playback.
 
@@ -150,7 +154,7 @@ When a trailer starts playing, the service sets the player's view mode:
 
 | Property | Value | Set when | Cleared when |
 |---|---|---|---|
-| `trailer_state` | `playing` | The requested trailer starts and is still wanted | Playback stops, ends or fails; a real video starts |
+| `trailer_state` | `playing` | The requested trailer starts and is still wanted | Playback stops, ends or fails; a real video starts; the active skin changes or the service stops |
 | `trailer_state` | `orphaned` | The trailer goes stale or nears its end, or a newer request never started | As above |
 | `trailer_state` | `fullscreen` | A request made with `fullscreen` starts and is still wanted | As above |
 | `trailer_file` | `Player.Filenameandpath` of the trailer | The requested trailer starts | As above |

@@ -37,7 +37,8 @@ Entries whose album, artist or song is no longer in the library are left out.
 
 - **Pinned:** with [`pin`](../script/actions.md#pin), or the **Pin to speed dial**
   item the helper adds to Kodi's context menu.
-- **Recent:** the background service adds an entry each time music starts playing
+- **Recent:** the background service adds an entry each time music starts playing,
+  and once when the user switches to a skin that opts in while a song is playing
   (see [Player properties](../service/player.md#speed-dial)). It works out what the
   user started:
   - [`shuffle`](../script/actions.md#shuffle) and

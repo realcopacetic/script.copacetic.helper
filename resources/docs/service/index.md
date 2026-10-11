@@ -71,8 +71,8 @@ This happens at start-up, and each time the user switches to such a skin. In ord
 Whenever the active skin changes (to any skin, even another that opts in), and when
 the service stops (Kodi exits, the profile changes, the helper is updated or
 disabled), the service releases what it set. It clears `helper_active`, so the
-context menu items hide. It stops a trailer
-it is still playing (rewound first, so nothing is marked watched), clears the trailer,
+context menu items hide. It stops the trailer it started, whether it is playing,
+paused or full screen (rewound first, so nothing is marked watched), clears the trailer,
 player, speed dial and slideshow properties, and detaches the player monitor. If the
 new skin opts in, everything [starts again](#when-a-skin-that-opts-in-becomes-active)
 for it; otherwise nothing else runs until a skin that opts in is active.
@@ -106,8 +106,9 @@ All window properties are on the Home window (`10000`). In XML, read them with
 Whenever the active skin changes, and when the service stops, the service also clears
 `helper_active` and the trailer session, `player_*`, `speed_dial_*` and `slideshow_*`
 properties below; `trailer_return`, `info_hop` and `trailer_played_item` are left. If
-the new skin opts in, `helper_active` and the pinned-item properties are set again at
-once; the others come back with the next play, speed dial change or slide.
+the new skin opts in, `helper_active`, the pinned-item properties and, if something is
+playing, the `player_*` properties are set again at once. The others come back with the
+next play, speed dial change or slide.
 
 | Property | Set when | Value | Cleared when | Page |
 |---|---|---|---|---|

@@ -20,7 +20,7 @@ Play next is off until your skin turns on the skin setting `playnext_enabled`:
 
 Once per episode, when playback of a library episode starts and the service can find
 the episode's TV show, while a skin that [opts in](index.md#opting-in) is
-active.
+active. It also runs when the user switches to such a skin during an episode.
 
 It does nothing when:
 
