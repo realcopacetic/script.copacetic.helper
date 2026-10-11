@@ -17,7 +17,7 @@ colours, and how dark and bright it is where your elements sit); this is cached,
 when the source image changes it is processed again. **Compose** then works out the
 darken, the element colour and band, and the palette from those measurements, once per
 call and never cached, so changing a compose parameter (the ratio, the colours, the
-surface) costs nothing. The one exception is a tinted band (step 3 of
+surface) costs nothing. The one exception is a band (steps 2 and 3 of
 [Element on art](#element-on-art)): it is a new image, so it is made again.
 
 ---
@@ -103,14 +103,16 @@ values mean.
 | `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo`; comma-separated, one per rectangle | `fff0efef` | Colour of the element in each rectangle, in rectangle order; the last carries on for the rest. `clearlogo` uses the clearlogo's colour (it needs `clearlogo_url` in the same call, else the default is used). |
 | `<prefix>_darken_surface` | `art`, `blur` | `art` | The image you draw the darken over: the image itself or its blur. The helper measures that one. With `blur` on an image that is not blurred, it measures the image itself. |
 | `<prefix>_darken_max` | whole number | none | A cap on the darken: the value returned is never higher. Bright art may then fall short of the ratio. The value is not checked, so keep it between `0` and `100`. |
-| `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Each rectangle is narrowed to the text's estimated width, never widened (left edge kept). Needs `<prefix>_darken_rects`: a label without rectangles makes the whole image fail. |
-| `<prefix>_darken_label_px` | decimal | `14` | Estimated width of one character, in frame pixels, for the labels above. |
+| `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Pass the label's whole text box as its rectangle: the helper wraps the label at the box's width as Kodi does (at plain spaces; a no-break space holds) and shrinks the rectangle to the widest line, left edge kept, never widened. Needs `<prefix>_darken_label_font`; without it the rectangles are used as passed. |
+| `<prefix>_darken_label_font` | a font name from your `Font.xml`, e.g. `description_l` | — | The font the labels are drawn in. The helper reads its file and size from the first fontset in `16x9/Font.xml`, and measures at your skin's own size (frame pixels are skin pixels). `<style>` (e.g. uppercase) is not applied. Measurements are cached by the font's name: after changing the font in `Font.xml`, run [`clear_cache`](../script/actions.md#clear_cache). |
+| `<prefix>_darken_label_pitch` | whole number, signed | — | The label's line pitch in frame pixels. The rectangle also shrinks to whole lines of this from the side the sign names: negative for text that hangs from the bottom of its box and wraps upward (`-37`), positive for text that starts at the top. At most the box's height in lines. Without it the rectangle keeps its height. |
 
 ### Element on art and palette (background and icon)
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `<prefix>_element_colors` | ARGB or RGB hex, comma-separated, e.g. `fff0efef,ff312124` | none | Candidate colours for an element drawn on the image (a label). Turns on [Element on art](#element-on-art). |
+| `<prefix>_band_feather` | whole number | `120` | How far the band fades out around its rectangles, in frame pixels. |
 | `<prefix>_palette` | `true`, `false` | `false` | Return the image's [palette](#palette). |
 
 The rectangles, frame and labels in the darken table set where these are measured;
@@ -153,7 +155,7 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `background_blur_radius`, `icon_blur_radius` | `<prefix>_blur=true` | The radius used. |
 | `<prefix>_darken` | `<prefix>_darken=true` | How much to darken the image: the exact % black, `0`–`100`. |
 | `<prefix>_element_color` | `<prefix>_element_colors` is passed | The candidate colour to draw the element in. |
-| `<prefix>_band` | `<prefix>_element_colors` is passed, the image is blurred and a band is needed | Image to draw behind the element: the blur itself, or a copy of it with the clashing pixels tinted. Empty when no band is needed. |
+| `<prefix>_band` | `<prefix>_element_colors` is passed, the image is blurred and a band is needed | PNG to draw behind the element, the blur's size, with its own alpha: the blur, or a copy of it with the clashing pixels tinted. Empty when no band is needed. |
 | `<prefix>_palette_primary` | `<prefix>_palette=true` | The palette's main colour. |
 | `<prefix>_palette_secondary` | `<prefix>_palette=true`, and the image has a colour | A lighter, softer colour of the same hue. Empty for a neutral image. |
 | `<prefix>_palette_darken` | `<prefix>_palette=true` | The % black the darken surface needs for `_palette_primary` to read at the ratio. |
@@ -228,16 +230,24 @@ rectangle (its worst ratio), and the first step that works wins:
    moves toward the darkest colour of the blur, measured from the top of the highest
    rectangle down. The candidate that changes the rectangles least wins, decided from
    their brightness histogram before any image is made. `_band` is a copy of the blur
-   with only the clashing pixels moved: full strength inside the rectangles, fading out
-   over 120 frame pixels around them. Draw it through your own band mask.
+   with only the clashing pixels moved: full strength inside the rectangles (narrowed
+   to the label), fading out over `_band_feather` frame pixels around them.
 
 Steps 2 and 3 need the blur. If the image is not blurred, the helper always stops at
 step 1 and returns the candidate that reads best, even if it falls short of the ratio.
 
-`_element_color` is the winning candidate. The band copy is a file of its own beside
-the blur, so the image control sees a new path; it is cached with the blur and replaced
-when the ratio, the candidates, the rectangles, the frame, the labels' lengths or the
-blur change.
+**The band's shape.** At steps 2 and 3 `_band` is a PNG the size of the blur. Its
+alpha is solid over each rectangle as you pass it, at the label's lines (the height a
+label rectangle shrinks to; its width stays yours), falls smoothly to 0 over
+`_band_feather` frame pixels around it, and is clear everywhere else. Draw it in a
+control with the art's own size, position and `<aspectratio>`, through the art's own
+diffuse: it then lines up with the art at any screen shape and takes the art's corners,
+and needs no mask of its own.
+
+`_element_color` is the winning candidate. The band is a file of its own beside the
+blur, so the image control sees a new path; it is cached with the blur and replaced
+when the ratio, the candidates, the rectangles, the frame, the labels, their font or
+pitch, the feather or the blur change.
 
 ## Palette
 
