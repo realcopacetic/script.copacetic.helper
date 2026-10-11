@@ -103,6 +103,7 @@ class ArtworkCacheManager:
         process: str,
         expected: Mapping[str, object] | None = None,
         folder: str | None = None,
+        suffix: str | None = None,
     ) -> CacheContext:
         """
         Derive a per-process/per-variant cache context.
@@ -111,19 +112,21 @@ class ArtworkCacheManager:
         :param process: Process name (e.g., "blur", "crop", "darken").
         :param expected: Variant match parameters for this process.
         :param folder: Output folder when this process writes a file.
+        :param suffix: The written file's extension; None keeps the source's.
         :return: Derived CacheContext with cache_key and dest_thumb.
         """
         token = self._variant_token(expected)
         key_id = base.cached_file_hash or base.source_url
         cache_key = f"{key_id}|{process}" + (f"|{token}" if token else "")
+        suffix = suffix or base.suffix
 
         # Only need unique filenames for file-writing processes (folder is not None).
         if folder and token:
             stem = base.cached_file_hash or Path(base.cached_thumb).stem
             vhash = self.hash_manager.short_hash_str(token, length=8)
-            dest_thumb = f"{stem}__{vhash}{base.suffix}"
+            dest_thumb = f"{stem}__{vhash}{suffix}"
         else:
-            dest_thumb = base.cached_thumb
+            dest_thumb = str(Path(base.cached_thumb).with_suffix(suffix))
 
         return CacheContext(
             source_url=base.source_url,

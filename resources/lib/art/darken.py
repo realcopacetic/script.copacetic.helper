@@ -16,6 +16,7 @@ Rect = tuple[int, int, int, int]
 Box = tuple[int, int, int, int]
 
 LIN = [round(255 * linear(v / 255)) for v in range(256)]
+SHOWN = [0] + [255] * 255  # alpha to a paste mask: any alpha shows
 
 
 def luminance_image(image: Image.Image) -> Image.Image:
@@ -169,41 +170,79 @@ class ColorDarken:
 
     def band(
         self, blur: Image.Image, opts: ArtOpts, tints: dict[str, str]
-    ) -> tuple[str, Image.Image]:
+    ) -> tuple[str | None, Image.Image]:
         """
-        The candidate whose band changes the rects least, from their luminance
-        histogram, and its copy of the blur: clashing pixels lifted (dark text) or
-        pulled toward its tint (light text).
+        The band behind the element, the blur's size: the blur (step 2) or its
+        changed copy (step 3, with tints) over the rects as the skin passes them at
+        the label's lines, its alpha falling to 0 over the feather; clear elsewhere.
 
         :param blur: The band's blur, RGB.
-        :param opts: ArtOpts carrying rects, frame, labels and ratio.
-        :param tints: Tint (hex) per candidate element colour (hex).
-        :return: (chosen element colour, tinted copy of the blur).
+        :param opts: ArtOpts carrying rects, frame, labels, ratio and feather.
+        :param tints: Tint (hex) per candidate element colour (hex); empty at step 2.
+        :return: (chosen element colour, None without tints; the RGBA band).
         """
-        cfg = self.color.cfg
-        rects = self._clamp_rects_to_labels(opts.darken)
-        boxes = self.boxes(blur.size, rects, opts.darken.frame)
-        k, _, _ = self._cover(blur.size, opts.darken.frame)
-        m = round(cfg.band_feather / k)
-        x0, y0 = (max(0, min(b[i] for b in boxes) - m) for i in (0, 1))
-        x1 = min(blur.width, max(b[2] for b in boxes) + m)
-        y1 = min(blur.height, max(b[3] for b in boxes) + m)
-        area = blur.crop((x0, y0, x1, y1))  # rects plus fade: all the band touches
-        boxes = [
-            (bx0 - x0, by0 - y0, bx1 - x0, by1 - y0) for bx0, by0, bx1, by1 in boxes
+        clamped = self._clamp_rects_to_labels(opts.darken)
+        shown = [  # full width as passed, at the label's lines
+            (x, cy, w, ch)
+            for (x, _, w, _), (_, cy, _, ch) in zip(self.rects(opts.darken), clamped)
         ]
+        frame = opts.darken.frame
+        k, _, _ = self._cover(blur.size, frame)
+        m = max(1, round(opts.band_feather / k))  # ramp divides by it
+        bands = self.boxes(blur.size, shown, frame)
+        x0, y0 = (max(0, min(b[i] for b in bands) - m) for i in (0, 1))
+        x1 = min(blur.width, max(b[2] for b in bands) + m)
+        y1 = min(blur.height, max(b[3] for b in bands) + m)
+        area = blur.crop((x0, y0, x1, y1))  # the band and its fade: all it touches
 
+        def local(boxes: list[Box]) -> list[Box]:
+            return [(a - x0, b - y0, c - x0, d - y0) for a, b, c, d in boxes]
+
+        text = None
+        if tints:  # the change stays label-width: no art changes behind no text
+            boxes = local(self.boxes(blur.size, clamped, frame))
+            text, area = self._change(area, boxes, m, opts.ratio, tints)
+        alpha = reduce(
+            ImageChops.lighter, (ramp(area.size, b, m) for b in local(bands))
+        )
+        area.putalpha(alpha)
+        out = Image.new("RGBA", blur.size)  # black wherever it's clear: a small PNG
+        out.paste(area, (x0, y0), alpha.point(SHOWN))
+        return text, out
+
+    def _change(
+        self,
+        area: Image.Image,
+        boxes: list[Box],
+        margin: int,
+        ratio: float,
+        tints: dict[str, str],
+    ) -> tuple[str, Image.Image]:
+        """
+        The candidate whose band changes the boxes least, from their luminance
+        histogram, and its copy of the area: clashing pixels lifted (dark text) or
+        pulled toward its tint (light text), fading out over the margin.
+
+        :param area: The blur under the band, RGB.
+        :param boxes: The label-clamped rects, in the area's pixels.
+        :param margin: Fade length outside the boxes, px.
+        :param ratio: Contrast target.
+        :param tints: Tint (hex) per candidate element colour (hex).
+        :return: (chosen element colour, changed copy of the area).
+        """
         hist = [
             sum(n)
             for n in zip(*(luminance_image(area.crop(b)).histogram() for b in boxes))
         ]
         tables = {
-            c: band_tables(c, t, opts.ratio, cfg.band_tolerance)
+            c: band_tables(c, t, ratio, self.color.cfg.band_tolerance)
             for c, t in tints.items()
         }
         text = min(tables, key=lambda c: sum(map(mul, hist, tables[c][2])))
         lifts, table, _ = tables[text]
-        fade = reduce(ImageChops.lighter, (ramp(area.size, box, m) for box in boxes))
+        fade = reduce(
+            ImageChops.lighter, (ramp(area.size, box, margin) for box in boxes)
+        )
 
         def need(image: Image.Image) -> Image.Image:
             return (
@@ -221,13 +260,9 @@ class ColorDarken:
                 if not (amount := need(lifted)).getbbox():
                     break
                 lifted = ImageChops.add(lifted, Image.merge("RGB", [amount] * 3))
-            area = Image.composite(lifted, area, fade)
-        else:
-            tint = Image.new("RGB", area.size, "#" + tints[text][2:])
-            area = Image.composite(tint, area, ImageChops.multiply(need(area), fade))
-        out = blur.copy()
-        out.paste(area, (x0, y0))
-        return text, out
+            return text, Image.composite(lifted, area, fade)
+        tint = Image.new("RGB", area.size, "#" + tints[text][2:])
+        return text, Image.composite(tint, area, ImageChops.multiply(need(area), fade))
 
     def _frame(self, frame: str | None) -> tuple[int, int]:
         """
