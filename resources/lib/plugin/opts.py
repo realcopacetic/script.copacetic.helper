@@ -16,8 +16,9 @@ class DarkenOpts:
     :param enabled: Return the darken for this art.
     :param rects: Rect string for sampling in frame coordinates.
     :param frame: Frame size "w,h" as a raw string.
-    :param labels: Label text per rect, narrowing each to its estimated width.
-    :param label_px: Glyph advance for the labels, in frame px.
+    :param labels: Label text per rect, shrinking each rect to the label as drawn.
+    :param label_font: Kodi font name (Font.xml) the labels are drawn in.
+    :param label_pitch: Line pitch in frame px; negative: text hangs from the bottom.
     :param sources: Element colour per rect (hex or "clearlogo"); the last repeats.
     :param surface: The image the skin darkens: "art" or "blur".
     :param max: Cap on the darken, % black; None is no cap.
@@ -27,7 +28,8 @@ class DarkenOpts:
     rects: str | None
     frame: str | None
     labels: tuple[str | None, ...]
-    label_px: float | None
+    label_font: str | None
+    label_pitch: int | None
     sources: tuple[str, ...]
     surface: str
     max: int | None
@@ -42,12 +44,9 @@ class DarkenOpts:
             for k, v in {
                 policy.ART_FIELD_DARKEN_RECTS: self.rects,
                 policy.ART_FIELD_DARKEN_FRAME: self.frame,
-                policy.ART_FIELD_DARKEN_LABEL_PX: self.label_px,
-                **{  # only a label's length narrows its rect; a string, as the column
-                    f: str(len(lbl.strip()))
-                    for f, lbl in zip(policy.ART_FIELDS_DARKEN_LABEL, self.labels)
-                    if lbl
-                },
+                policy.ART_FIELD_DARKEN_LABEL_FONT: self.label_font,
+                policy.ART_FIELD_DARKEN_LABEL_PITCH: self.label_pitch,
+                **dict(zip(policy.ART_FIELDS_DARKEN_LABEL, self.labels)),
             }.items()
             if v is not None
         }
@@ -66,9 +65,11 @@ class DarkenOpts:
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
             labels=tuple(
-                params.get(f"{prefix}_{f}") for f in policy.ART_FIELDS_DARKEN_LABEL
+                params.get(f"{prefix}_{f}", "").strip() or None
+                for f in policy.ART_FIELDS_DARKEN_LABEL
             ),
-            label_px=to_float(params.get(f"{prefix}_darken_label_px"), None),
+            label_font=params.get(f"{prefix}_darken_label_font"),
+            label_pitch=to_int(params.get(f"{prefix}_darken_label_pitch"), None),
             sources=tuple(
                 (
                     params.get(f"{prefix}_darken_source")

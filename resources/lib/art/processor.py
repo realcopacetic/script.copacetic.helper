@@ -152,7 +152,9 @@ class ImageProcessor:
             if opts.darken:  # colours from where the rects sit: the part the skin shows
                 x0, y0, x1, y1 = zip(
                     *self.darken_engine.boxes(
-                        cover.size, opts.darken.rects, opts.darken.frame
+                        cover.size,
+                        self.darken_engine.rects(opts.darken),
+                        opts.darken.frame,
                     )
                 )
                 seen = cover.crop((min(x0), min(y0), max(x1), max(y1)))

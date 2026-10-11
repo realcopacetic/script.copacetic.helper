@@ -1,9 +1,31 @@
 # author: realcopacetic
 
+from __future__ import annotations
+
+import io
+import math
 import re
+import time
+from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import xbmcvfs
+
+from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import SKINXML, skin_path
+
+if TYPE_CHECKING:
+    from PIL import ImageFont
 
 # Kodi wraps at U+0020 only; tabs and newlines fold into a break as before
 _WORDS = re.compile(r"[^ \t\n\r\f\v]+")
+
+# Measurement size: advances are taken unhinted here and scaled to the render size.
+_REF_SIZE = 1000
+
+# Rendered pixels Kodi's last-glyph ink extent can add past its advance.
+_INK_OVERHANG = 2
 
 DEFAULT_ELLIPSIS = "..."
 DEFAULT_ABBREV = {
@@ -58,6 +80,107 @@ DEFAULT_ABBREV = {
     "e.g",
     "i.e",
 }
+
+
+def skin_font(name: str) -> tuple[str, int]:
+    """
+    File and size of a font in the skin's Font.xml (its first fontset), as Kodi
+    loads it for a control that names it.
+
+    :param name: Kodi font name, e.g. "description_l".
+    :return: (special://skin/fonts/ path, size in skin px).
+    """
+    xml = Path(skin_path(f"{SKINXML}/Font.xml")).read_text("utf-8")
+    font = next((b for b in xml.split("</font>") if f"<name>{name}</name>" in b), "")
+    if not font:
+        raise LookupError(name)
+    filename, size = (
+        re.search(rf"<{tag}>\s*(.+?)\s*</{tag}>", font)[1]
+        for tag in ("filename", "size")
+    )
+    return f"special://skin/fonts/{filename}", int(size)
+
+
+@lru_cache(maxsize=8)
+def load_font(font_path: str) -> ImageFont.FreeTypeFont | None:
+    """Load a font at _REF_SIZE via direct path, falling back to a VFS read
+    for resource:// paths. BASIC layout: Kodi applies no GPOS kerning.
+
+    :param font_path: special://, resource://, or absolute font path.
+    :return: Loaded font, or None if unreadable.
+    """
+
+    t0 = time.perf_counter()
+    from PIL import ImageFont
+
+    log.debug(f"load_font → PIL import {(time.perf_counter() - t0) * 1000:.0f}ms")
+    try:
+        return ImageFont.truetype(
+            xbmcvfs.translatePath(font_path),
+            _REF_SIZE,
+            layout_engine=ImageFont.LAYOUT_BASIC,
+        )
+    except OSError:
+        pass
+    handle = xbmcvfs.File(font_path)
+    try:
+        data = handle.readBytes()
+    finally:
+        handle.close()
+    if not data:
+        log.warning(f"load_font → unreadable: {font_path}")
+        return None
+    try:
+        return ImageFont.truetype(
+            io.BytesIO(data), _REF_SIZE, layout_engine=ImageFont.LAYOUT_BASIC
+        )
+    except OSError:
+        log.warning(f"load_font → not a valid font: {font_path}")
+        return None
+
+
+class KodiMetric:
+    """
+    Line width as CGUIFontTTF computes it: unhinted advances (LIGHT target) at
+    the rendered size and xdpi aspect, rounded half up, summed without kerning.
+    """
+
+    def __init__(
+        self,
+        font: ImageFont.FreeTypeFont,
+        font_size: int,
+        scale_x: float,
+        scale_y: float,
+    ) -> None:
+        """
+        Model GUIFontManager::RescaleFontSizeAndAspect for the current GUI scale.
+
+        :param font: Font loaded at _REF_SIZE.
+        :param font_size: Font size in skin-coordinate pixels.
+        :param scale_x: ScreenWidth / skin width.
+        :param scale_y: ScreenHeight / skin height.
+        """
+        xdpi = math.floor(72 * scale_x / scale_y + 0.5)
+        self.font = font
+        self.px = font_size * scale_y * xdpi / 72 / _REF_SIZE
+        self.scale_x = scale_x
+        self.advances = {}
+
+    def getlength(self, text: str) -> float:
+        """
+        Width of text in skin-coordinate pixels, last-glyph ink headroom included.
+
+        :param text: Single line to measure.
+        :return: Sum of rounded rendered advances divided by scale_x.
+        """
+        total = _INK_OVERHANG
+        for ch in text:
+            if (advance := self.advances.get(ch)) is None:
+                advance = self.advances[ch] = math.floor(
+                    self.font.getlength(ch) * self.px + 0.5
+                )
+            total += advance
+        return total / self.scale_x
 
 
 def sentence_cap(text: str, abbrev: set[str] | None = None) -> str | None:
