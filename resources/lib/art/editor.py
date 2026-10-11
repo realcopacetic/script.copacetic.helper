@@ -166,9 +166,10 @@ class ImageEditor:
         resolved_url = next(iter(art.values()))
         ext = ".png" if resolved_url.lower().endswith(".png") else ".jpg"
 
-        base_ctx = shared["contexts"][art_type] = self.cache_manager.prepare(
-            resolved_url, ext
-        )
+        base_ctx = shared["contexts"][art_type] = next(  # one hash per source per serve
+            (c for c in shared["contexts"].values() if c.source_url == resolved_url),
+            None,
+        ) or self.cache_manager.prepare(resolved_url, ext)
         attrs = shared["results"][art_type] = {
             "cached_file_hash": base_ctx.cached_file_hash
         }
