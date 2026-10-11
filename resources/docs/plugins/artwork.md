@@ -172,7 +172,7 @@ The helper also sets these on the home window. With `prop_key`, each name ends i
 
 | Property | Value |
 |---|---|
-| `background_blur` | Path of the blurred background. Only set when there is one; the last value is kept otherwise. |
+| `background_blur` | Path of the blurred background. Cleared when there is none. |
 | `background_darken` | The background darken value, % black. Cleared when there is none or it is `0`. |
 | `icon_darken` | The icon darken value, % black. Cleared when there is none or it is `0`. |
 

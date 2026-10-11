@@ -480,15 +480,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         prop_key = self.params.get("prop_key", "")
-        for field, prop, hold_last in (
-            ("background", "background_blur", True),
-            ("background_darken", "background_darken", False),
-            ("icon_darken", "icon_darken", False),
+        for field, prop in (
+            ("background", "background_blur"),
+            ("background_darken", "background_darken"),
+            ("icon_darken", "icon_darken"),
         ):
-            value = art.get(field, "")
-            if hold_last and not value:
-                continue
-            window_property(f"{prop}_{prop_key}" if prop_key else prop, value)
+            window_property(
+                f"{prop}_{prop_key}" if prop_key else prop, art.get(field, "")
+            )
 
         total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 
