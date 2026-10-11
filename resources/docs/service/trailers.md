@@ -24,14 +24,17 @@ A trailer session moves through these states, stored in
 
 1. Your skin runs `action=play_trailer`. The action sets `trailer_state` to `pending`,
    stores the request properties below, and plays the trailer.
-2. When the video starts, the service stores its path in `trailer_file`. It then
-   checks that the trailer is still wanted (see [Stale trailers](#stale-trailers)):
-   - Still wanted and `trailer_fullscreen` set: the trailer goes full screen (see
-     [Full screen](#full-screen)).
-   - Still wanted otherwise: `trailer_state` becomes `playing` and the zoom is applied.
-   - Not wanted: the trailer is paused and `trailer_state` becomes `orphaned`.
-   - `cancelled`: the trailer is stopped at once. A video that starts fullscreen is
-     not a trailer (trailers start windowed), so it plays as normal.
+2. When the video starts, the service checks that it is the trailer. Trailers start
+   windowed, so a video that starts fullscreen is one the user started: it plays as
+   normal, sets the [player properties](player.md), and the session is cleared.
+   - `cancelled`: the trailer is stopped at once.
+   - `pending`: the service stores the trailer's path in `trailer_file`, then checks
+     that it is still wanted (see [Stale trailers](#stale-trailers)):
+     - Still wanted and `trailer_fullscreen` set: the trailer goes full screen (see
+       [Full screen](#full-screen)).
+     - Still wanted otherwise: `trailer_state` becomes `playing` and the zoom is
+       applied.
+     - Not wanted: the trailer is paused and `trailer_state` becomes `orphaned`.
 3. Once a second, the poll loop checks the session:
    - `pending` or `cancelled` for 5 seconds or more with nothing new playing: the request is
      retired. If an older paused trailer is still playing, it goes back to

@@ -66,7 +66,14 @@ class PlayerMonitor(Player):
         """Handle playback start events for video and audio."""
         if self.isPlayingVideo():
             state = infolabel("Window(home).Property(trailer_state)")
-            if state == "pending":
+            # Trailers start windowed; a film the user started goes fullscreen,
+            # so under a pending or cancelled request it is still real playback.
+            if state in ("pending", "cancelled") and not condition(
+                "Window.IsActive(fullscreenvideo)"
+            ):
+                if state == "cancelled":  # requested in a window since left
+                    log.execute("PlayerControl(Stop)")
+                    return
                 window_property(
                     "trailer_file", value=infolabel("Player.Filenameandpath")
                 )
@@ -78,15 +85,8 @@ class PlayerMonitor(Player):
                     window_property("trailer_state", value="playing")
                     self.zoom.apply_zoom_if_needed()
                 return
-            # Requested in a window the user has since left; a film the user
-            # started goes fullscreen (trailers start windowed).
-            if state == "cancelled" and not condition(
-                "Window.IsActive(fullscreenvideo)"
-            ):
-                log.execute("PlayerControl(Stop)")
-                return
-            # No pending request: any leftover trailer state was superseded
-            # by a real video — clear it and take the normal video path.
+            # Not a trailer: any leftover trailer state was superseded by a
+            # real video — clear it and take the normal video path.
             self._clear_trailer_props()
             self._handle_video_start()
             return
