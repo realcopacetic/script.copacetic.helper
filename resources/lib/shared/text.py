@@ -1,5 +1,9 @@
 # author: realcopacetic
 
+import re
+
+# Kodi wraps at U+0020 only; tabs and newlines fold into a break as before
+_WORDS = re.compile(r"[^ \t\n\r\f\v]+")
 
 DEFAULT_ELLIPSIS = "..."
 DEFAULT_ABBREV = {
@@ -100,7 +104,9 @@ def text_width(font, text: str, tracking: float = 0.0) -> float:
 
 
 def wrap_text(font, text: str, max_width: int, tracking: float = 0.0) -> list[str]:
-    """Greedy word-wrap by advance width; never drops an over-long word.
+    """Greedy word-wrap by advance width, as CGUITextLayout::WrapText: breaks at
+    ASCII spaces only, so a no-break space holds, and a word wider than the line
+    is cut after the last character that fits.
 
     :param font: FreeType font object exposing ``getlength``.
     :param text: String to wrap.
@@ -110,13 +116,22 @@ def wrap_text(font, text: str, max_width: int, tracking: float = 0.0) -> list[st
     """
     lines = []
     cur = ""
-    for word in text.split():
-        trial = f"{cur} {word}".strip()
-        if not cur or text_width(font, trial, tracking) <= max_width:
+    for word in _WORDS.findall(text):
+        trial = f"{cur} {word}" if cur else word
+        if text_width(font, trial, tracking) <= max_width:
             cur = trial
-        else:
+            continue
+        if cur:
             lines.append(cur)
-            cur = word
+        while len(word) > 1 and text_width(font, word, tracking) > max_width:
+            cut = next(
+                i
+                for i in range(1, len(word))
+                if text_width(font, word[: i + 1], tracking) > max_width
+            )
+            lines.append(word[:cut])
+            word = word[cut:]
+        cur = word
     if cur:
         lines.append(cur)
     return lines
