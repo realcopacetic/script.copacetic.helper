@@ -17,7 +17,7 @@ from resources.lib.plugin.geometry import (
     compute_rect,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.text import KodiMetric, fit_lines, load_font
+from resources.lib.shared.text import KodiMetric, fit_lines, load_font, skin_font
 from resources.lib.shared.utilities import (
     clamp,
     condition,
@@ -565,17 +565,15 @@ class ProgressBarManager:
 def clamp_text(
     *,
     text: str,
-    font_path: str,
-    font_size: int,
+    font: str,
     max_width: int,
     max_lines: int,
 ) -> str:
-    """Clamp text to max_lines when wrapped at max_width with the given font.
+    """Clamp text to max_lines when wrapped at max_width in a Font.xml font.
     Lines are pinned with [CR] so Kodi renders the measured breaks verbatim.
 
     :param text: Full input string.
-    :param font_path: special://, resource://, or absolute font path.
-    :param font_size: Font size in skin-coordinate pixels.
+    :param font: Kodi font name, e.g. "description_l".
     :param max_width: Wrap width in skin-coordinate pixels.
     :param max_lines: Maximum rendered lines to keep.
     :return: Clamped lines joined with [CR].
@@ -590,8 +588,7 @@ def clamp_text(
         "|".join(
             (
                 _CLAMP_VERSION,
-                font_path,
-                str(font_size),
+                font,
                 f"{scale_x:.4f}",
                 f"{scale_y:.4f}",
                 str(max_width),
@@ -604,10 +601,10 @@ def clamp_text(
     if (cached := cache.get_entry(key)) is not None:
         return cached
 
-    font = load_font(font_path)
-    if font is None:
+    path, size = skin_font(font)
+    if (face := load_font(path)) is None:
         return text
-    metric = KodiMetric(font, font_size, scale_x, scale_y)
+    metric = KodiMetric(face, size, scale_x, scale_y)
     result = "[CR]".join(fit_lines(metric, text, max_width, max_lines))
     cache.upsert_entry(key, result)
     return result
