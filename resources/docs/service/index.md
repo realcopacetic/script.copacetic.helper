@@ -139,9 +139,9 @@ next play, speed dial change or slide.
 | `slideshow_title` | Each slide | Item label | The slide has no title | [Slideshow](slideshow.md) |
 
 The service also clears the trailer request properties that `action=play_trailer`
-sets (`trailer_request`, `trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_window`,
-`trailer_fullscreen`, `trailer_viewport`, `trailer_pending_since`) when a trailer
-session ends. It clears `trailer_fullscreen` as the trailer goes full screen, too.
+sets (`trailer_request`, `trailer_item`, `trailer_source`, `trailer_focus_ids`,
+`trailer_window`, `trailer_fullscreen`, `trailer_viewport`, `trailer_pending_since`)
+when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes full screen, too.
 
 ### What the service reads from the skin
 

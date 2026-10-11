@@ -80,9 +80,7 @@ class PlayerMonitor(Player):
                     window_property("trailer_state", value="playing")
                     self.zoom.apply_zoom_if_needed()
                 return
-            # The user's media started while the trailer may still be resolving:
-            # Back on the busy dialog drops the resolve, else the trailer replaces it
-            log.execute("Action(Back,busydialog)")
+            # The user's media (onPlayBackStarted dropped the resolve)
             if not self.isPlayingVideo():
                 self._clear_trailer_props()  # the video path below clears its own
             elif not condition("Window.IsActive(fullscreenvideo)"):
@@ -95,6 +93,17 @@ class PlayerMonitor(Player):
             return
         if self.isPlayingAudio():
             self._handle_audio_start()
+
+    def onPlayBackStarted(self) -> None:
+        """
+        Media other than the requested trailer started while it may still be
+        resolving: drop the resolve, or Kodi plays the trailer in its place.
+        """
+        state = infolabel("Window(home).Property(trailer_state)")
+        if state in ("pending", "cancelled") and infolabel(
+            "Player.Filenameandpath"
+        ) != infolabel("Window(home).Property(trailer_request)"):
+            log.execute("Action(Back,busydialog)")  # ends the busy dialog's wait
 
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
@@ -298,9 +307,9 @@ class PlayerMonitor(Player):
 
     def _reap_stale_pending(self, max_age: float = 5.0) -> None:
         """
-        Retire a pending request that never started (e.g. a failed plugin
-        resolve): the paused trailer it was to replace goes back to the reaper,
-        else clear to idle. A video that has since arrived is left for onAVStarted.
+        Retire a pending request that never started (e.g. a failed or slow plugin
+        resolve, which is dropped): the paused trailer it was to replace goes back
+        to the reaper, else clear to idle. Media that has arrived is left alone.
 
         :param max_age: Seconds a pending request may sit before reaping.
         """
@@ -311,6 +320,7 @@ class PlayerMonitor(Player):
         if not zombie and condition("Player.HasMedia"):
             return
         log.debug("PlayerMonitor: Reaping stale pending trailer request")
+        log.execute("Action(Back,busydialog)")  # else a late resolve plays anyway
         window_property("trailer_played_item")
         if zombie:
             window_property("trailer_state", value="orphaned")

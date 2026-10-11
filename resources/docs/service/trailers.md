@@ -29,9 +29,12 @@ A trailer session moves through these states, stored in
    user started while the request was on its way. A plugin trailer resolves on Kodi's
    main thread behind the busy dialog, and when it finishes Kodi plays it in place of
    whatever started meanwhile, so the service sends `Action(Back,busydialog)` to drop
-   the resolve. A video started that way inherits the request's windowed start, so it
-   is taken full screen. It then plays as normal, sets the
-   [player properties](player.md), and the session is cleared.
+   the resolve as soon as that media starts opening (`onPlayBackStarted`). A video
+   started that way inherits the request's windowed start, so it is taken full screen.
+   It then plays as normal, sets the [player properties](player.md), and the session
+   is cleared. A trailer from an older request that starts after a newer one replaced
+   `trailer_request` counts as the user's media too: it plays full screen and the
+   newer request is dropped.
    - `cancelled`: the trailer is stopped at once.
    - `pending`: the service stores the trailer's path in `trailer_file`, then checks
      that it is still wanted (see [Stale trailers](#stale-trailers)):
@@ -41,9 +44,11 @@ A trailer session moves through these states, stored in
        applied.
      - Not wanted: the trailer is paused and `trailer_state` becomes `orphaned`.
 3. Once a second, the poll loop checks the session:
-   - `pending` or `cancelled` for 5 seconds or more with nothing new playing: the request is
-     retired. If an older paused trailer is still playing, it goes back to
-     `orphaned`; otherwise the session is cleared.
+   - `pending` or `cancelled` for 5 seconds or more with nothing new playing: the
+     request is retired, and a plugin resolve still running is dropped
+     (`Action(Back,busydialog)`), so a trailer slower than 5 seconds never plays. If
+     an older paused trailer is still playing, it goes back to `orphaned`; otherwise
+     the session is cleared.
    - `playing` and stale, or within 2 seconds of its end: the trailer is paused and
      becomes `orphaned`.
    - `fullscreen` and within 2 seconds of its end: the trailer is paused, rewound
@@ -171,9 +176,8 @@ When a trailer starts playing, the service sets the player's view mode:
 | `info_hop` | `fullscreen` | As `fullscreen`, when `info_current` is set and is not a season | The info dialog's `<onload>`, or `trailer_return` when there is no dialog to reopen |
 
 When a session is cleared, the service clears `trailer_state`, `trailer_request`,
-`trailer_item`,
-`trailer_source`, `trailer_focus_ids`, `trailer_window`, `trailer_fullscreen`,
-`trailer_viewport`, `trailer_pending_since` and `trailer_file`. `trailer_return` is
+`trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_window`,
+`trailer_fullscreen`, `trailer_viewport`, `trailer_pending_since` and `trailer_file`. `trailer_return` is
 left for [`trailer_return`](../script/actions.md#trailer_return).
 
 ### `trailer_played_item`
