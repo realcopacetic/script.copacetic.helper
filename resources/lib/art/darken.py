@@ -297,7 +297,8 @@ class ColorDarken:
     def _clamp_rects_to_labels(self, opts: DarkenOpts) -> tuple[str, list[int | None]]:
         """
         Clamp each rect by its parallel label and collect per-rect widths.
-        Rects without a paired label pass through unclamped.
+        Rects without a paired label pass through unclamped; no rects is the whole
+        frame, as in boxes.
 
         :param opts: Darken options carrying rects and the label series.
         :return: (clamped rect string, per-rect width list).
@@ -308,7 +309,8 @@ class ColorDarken:
 
         cfg = self.color.cfg
         px = opts.label_px if opts.label_px else cfg.darken_label_px_per_char
-        raw = opts.rects.replace(" ", "")
+        rects = opts.rects or "0,0,{},{}".format(*self._frame(opts.frame))
+        raw = rects.replace(" ", "")
         parts = raw.split("),(") if "(" in raw else [raw]
         clamped = []
         for idx, part in enumerate(parts):
