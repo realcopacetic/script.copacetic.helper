@@ -1,7 +1,7 @@
 # Library Listings
 
-These plugin paths fill a container with items from your video library (`genre_music`,
-`top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
+These plugin paths fill a container with items from your video library (`random_albums`,
+`genre_music`, `top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
 library infolabels and artwork, so your existing layouts work with them.
 
 | `info=` | What it lists |
@@ -10,6 +10,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `next_up` | The next unwatched episode of each TV show you are watching. |
 | `random_movies` | Movies in random order. |
 | `random_tvshows` | TV shows in random order. |
+| `random_albums` | Music library albums in random order. |
 | `actor_credits` | Movies and TV shows with a given actor. |
 | `director_credits` | Movies and music videos by a given director. |
 | `writer_credits` | Movies and episodes by a given writer. |
@@ -107,6 +108,23 @@ the home screen. A plugin path that never changes is only called once.
 ```xml
 <content>plugin://script.copacetic.helper/?info=random_tvshows&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
 ```
+
+## `random_albums`
+
+Music library albums, as in [`genre_music`](#genre_music): `DBType` `album`, opening
+as `musicdb://` folders. The container's content is `albums`.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `limit` | whole number | — | Most albums to return. |
+| `randomise` | any text | — | A seed. The same seed gives the same order. Without it, the order changes on every call. |
+
+```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=random_albums&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
+```
+
+`sortby="userpreference"` keeps the helper's order, as for
+[`genre_music`](#genre_music).
 
 ## `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`
 

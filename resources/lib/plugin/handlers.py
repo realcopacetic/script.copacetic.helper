@@ -1032,6 +1032,26 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             filters=[],
         )
 
+    @log.duration
+    def random_albums(self) -> list[DirectoryItem] | None:
+        """Build a seed-stable randomised container of library albums."""
+        set_plugincontent(content="albums", category=ADDON.getLocalizedString(32610))
+        rows = random_rows(
+            lambda filters, properties: library_rows(
+                "album",
+                {"and": filters} if filters else None,  # "and" needs 1+ rules
+                None,
+                None,
+                "random_albums",
+                properties,
+            ),
+            [],
+            ("albumid", "album"),
+            self.randomise,
+            self.limit,
+        )
+        return [library_item(row, "album") for row in rows] or None
+
     def _random_video(
         self,
         *,

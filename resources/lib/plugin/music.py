@@ -175,7 +175,7 @@ def rank_albums(groups: list[list[str]], albums: list[dict]) -> list[dict]:
 
 def library_rows(
     type: str,
-    query_filter: dict,
+    query_filter: dict | None,
     sort: dict | None,
     limit: int | None,
     parent: str,
@@ -186,7 +186,7 @@ def library_rows(
     properties and art unless properties says otherwise.
 
     :param type: album, artist or song.
-    :param query_filter: AudioLibrary filter, a rule tree or an id filter.
+    :param query_filter: AudioLibrary filter, a rule tree or an id filter; None for all.
     :param sort: JSON-RPC sort, applied before the limit; None for Kodi's order.
     :param limit: Most rows to return; None for all.
     :param parent: Caller name for logging.

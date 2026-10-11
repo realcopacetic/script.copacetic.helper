@@ -360,6 +360,11 @@ msgctxt "#32609"
 msgid "Artist credits"
 msgstr ""
 
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32610"
+msgid "Random albums"
+msgstr ""
+
 
 
 #########################################################################################################
