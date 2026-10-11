@@ -43,8 +43,8 @@ class DarkenOpts:
                 policy.ART_FIELD_DARKEN_RECTS: self.rects,
                 policy.ART_FIELD_DARKEN_FRAME: self.frame,
                 policy.ART_FIELD_DARKEN_LABEL_PX: self.label_px,
-                **{
-                    f: lbl
+                **{  # only a label's length narrows its rect; a string, as the column
+                    f: str(len(lbl.strip()))
                     for f, lbl in zip(policy.ART_FIELDS_DARKEN_LABEL, self.labels)
                     if lbl
                 },

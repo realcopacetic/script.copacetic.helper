@@ -237,16 +237,16 @@ step 1 and returns the candidate that reads best, even if it falls short of the 
 
 `_element_color` is the winning candidate. The band copy is a file of its own beside
 the blur, so the image control sees a new path; it is cached with the blur and replaced
-when the ratio, the candidates, the rectangles, the frame, the labels or the blur
-change.
+when the ratio, the candidates, the rectangles, the frame, the labels' lengths or the
+blur change.
 
 ## Palette
 
 `<prefix>_palette=true` returns colours in the image's own hue at a fixed relative
 luminance (`0.45`), so they keep their colour on any art: the accent when it has colour
 (HLS chroma at least `0.15`), else the dominant colour, both taken where the rectangles
-sit (see [above](#element-on-art-and-palette-background-and-icon)). With neither, the image is
-neutral: `_palette_primary` is `fff0efef`, `_palette_secondary` is empty and
+sit (see [above](#element-on-art-and-palette-background-and-icon)). With neither, the
+image is neutral: `_palette_primary` is `fff0efef`, `_palette_secondary` is empty and
 `_palette_darken` is the image's darken. `_palette_logo` is the clearlogo's hue at the
 same level, empty when the logo is white, grey or black.
 
