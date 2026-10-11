@@ -18,7 +18,7 @@ import zlib
 from pathlib import Path
 
 from build_offline import HELPER, install_stubs
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 ImageFont.LAYOUT_BASIC = ImageFont.Layout.BASIC  # Kodi's Pillow (8.4, 9.0) name
 
@@ -137,10 +137,17 @@ def main() -> None:
         img.save(path := str(tmp / f"{name}.jpg"), quality=95)
         art, cold = serve({"icon_url": path, **STRIP})
         again, warm = serve({"icon_url": path, **STRIP})
-        band = art.get("icon_band", "")
-        got = 3 if band and band != art["icon"] else 2 if band else 1
-        note = ""
-        ok = (got, art["icon_element_color"]) == (step, winner) and art == again
+        got, note, ok = 1, "", art == again
+        if band := art.get("icon_band"):  # a PNG with alpha; step 3 changed the blur
+            image = Image.open(band)
+            ok &= (image.format, image.mode) == ("PNG", "RGBA")
+            shown = Image.new("RGB", image.size)
+            seen = image.getchannel("A").point(lambda a: 255 * (a > 0))
+            shown.paste(Image.open(art["icon"]), mask=seen)  # the blur, under alpha
+            got = (
+                3 if ImageChops.difference(shown, image.convert("RGB")).getbbox() else 2
+            )
+        ok &= (got, art["icon_element_color"]) == (step, winner)
         if darken is not None:
             ok &= art["icon_darken"] == darken
         if got == 3:

@@ -94,6 +94,7 @@ class ArtOpts:
     :param edge_trim: Border to discard before blurring, percent per side.
     :param ratio: Contrast target for compose.
     :param element_colors: Candidate colours (hex) of an element drawn on the art.
+    :param band_feather: The band's fade outside its rects, frame px.
     :param palette: Return the palette for this art.
     """
 
@@ -105,6 +106,7 @@ class ArtOpts:
     edge_trim: float
     ratio: float
     element_colors: tuple[str, ...]
+    band_feather: int
     palette: bool
 
     def enabled(self, process: str) -> bool:
@@ -160,6 +162,9 @@ class ArtOpts:
             ratio=to_float(params.get(f"{art_type}_ratio"), policy.ColorConfig.ratio),
             element_colors=tuple(
                 filter(None, params.get(f"{art_type}_element_colors", "").split(","))
+            ),
+            band_feather=to_int(
+                params.get(f"{art_type}_band_feather"), policy.ColorConfig.band_feather
             ),
             palette=parse_bool(params.get(f"{art_type}_palette", "false")),
         )

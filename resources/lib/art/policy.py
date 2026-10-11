@@ -83,7 +83,7 @@ ART_FIELDS_INPUT = {
         ART_FIELD_BLUR_RADIUS,
         ART_FIELD_EDGE_TRIM,
     ),
-    "band": (),  # one band per art: a rewrite evicts every band of the source
+    "band": ART_FIELDS_DARKEN_LABEL,  # per art and label: a rewrite evicts its own
 }
 
 ART_FIELDS_RESULT = {
@@ -224,7 +224,7 @@ class ColorConfig:
     ratio: float = 3.0  # Default contrast target for darken, element and palette
     element_overlay_color: str = "fff0efef"  # Default element colour for the darken
     band_tolerance: float = 0.05  # Pull limits widened for 8-bit rounding, grey model
-    band_feather: int = 120  # The band's change fades out over this, frame px
+    band_feather: int = 120  # The band fades out over this, frame px; skin overrides
     palette_luminance: float = 0.45  # Relative luminance of the palette's colours
     palette_chroma: float = 0.15  # A base below this chroma is neutral: no palette
     palette_secondary_luminance: float = 0.6  # The secondary is lighter...

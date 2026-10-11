@@ -30,15 +30,17 @@ if TYPE_CHECKING:
 
     from resources.lib.art.processor import ImageProcessor
 
-BAND_VERSION = 2  # in the band's cache token: raise it when the band's output changes
+BAND_VERSION = 3  # in the band's cache token: raise it when the band's output changes
 
-PROCESS_SPEC = {
+PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
     "crop": {
         "folder": CROPS,
+        "suffix": ".png",
         "require": policy.ART_FIELDS_RESULT["crop"],
     },
     "blur": {
         "folder": BLURS,
+        "suffix": ".jpg",
         "match": policy.ART_FIELDS_INPUT["blur"],
         "require": policy.ART_FIELDS_RESULT["blur"],
     },
@@ -47,8 +49,9 @@ PROCESS_SPEC = {
         "match": policy.ART_FIELDS_INPUT["darken"],
         "require": policy.ART_FIELDS_RESULT["darken"],
     },
-    "band": {  # step 3's tinted copy of the blur, written by compose
+    "band": {  # the blur (step 2) or its tinted copy (step 3) with alpha, by compose
         "folder": BLURS,
+        "suffix": ".png",
         "match": (
             *policy.ART_FIELDS_INPUT["darken"],
             policy.ART_FIELD_RATIO,
@@ -186,6 +189,7 @@ class ImageEditor:
                 process=process,
                 expected=expected,
                 folder=folder,
+                suffix=spec.get("suffix"),
             )
             cached = (
                 self.cache_manager.read_lookup(ctx, require=tuple(require or ())) or {}
@@ -276,11 +280,17 @@ class ImageEditor:
                 )
             if opts.element_colors:
                 step, color = compose.element(zones, opts.element_colors, opts.ratio)
-                if step == 2:
-                    attrs[policy.ART_FIELD_BAND] = attrs[policy.ART_FIELD_PROCESSED]
-                elif step == 3:
+                if step > 1:  # step 3 changes the blur toward each candidate's tint
+                    tints = (
+                        {
+                            c: compose.tint(c, measure["band"])
+                            for c in opts.element_colors
+                        }
+                        if step == 3
+                        else {}
+                    )
                     color, attrs[policy.ART_FIELD_BAND] = self._band(
-                        attrs, opts, contexts[art_type], measure["band"]
+                        attrs, opts, contexts[art_type], tints, color
                     )
                 attrs[policy.ART_FIELD_ELEMENT_COLOR] = color
 
@@ -289,27 +299,33 @@ class ImageEditor:
         attrs: Mapping[str, Any],
         opts: ArtOpts,
         base_ctx: CacheContext,
-        band: list[str],
+        tints: dict[str, str],
+        color: str,
     ) -> tuple[str, str]:
         """
-        Step 3: a tinted copy of the blur in a file of its own (Kodi won't reread a
-        rewritten path), cached by the blur's key plus ratio and candidates.
+        Steps 2 and 3: the band as a PNG of its own (Kodi won't reread a rewritten
+        path), cached by the blur's key plus ratio, candidates and feather.
 
         :param attrs: The art's prepared attributes (the blur's processed_path).
         :param opts: Parsed ArtOpts for this art_type.
         :param base_ctx: The art's source cache context.
-        :param band: The band palette's [darkest, lightest], hex.
-        :return: (element colour, path of the copy).
+        :param tints: Tint (hex) per candidate (hex) at step 3; empty at step 2.
+        :param color: The step's element colour, kept when there are no tints.
+        :return: (element colour, path of the band).
         """
         spec = PROCESS_SPEC["band"]
         # fade and version are in the token: a new band is a new file Kodi loads
         expected = {
             **(self._expected_from_spec(spec, opts=opts) or {}),
-            "feather": self.cfg.band_feather,
+            "feather": opts.band_feather,
             "version": BAND_VERSION,
         }
         ctx = self.cache_manager.with_process_variant(
-            base_ctx, process="band", expected=expected, folder=spec["folder"]
+            base_ctx,
+            process="band",
+            expected=expected,
+            folder=spec["folder"],
+            suffix=spec["suffix"],
         )
         if cached := self.cache_manager.read_lookup(ctx, require=spec["require"]):
             return (
@@ -319,14 +335,15 @@ class ImageEditor:
 
         from resources.lib.art.io import write_image  # PIL: a cache miss only
 
-        color, image = self.processor.darken_engine.band(
+        text, image = self.processor.darken_engine.band(
             self._image_open(attrs[policy.ART_FIELD_PROCESSED]).convert("RGB"),
             opts,
-            {c: compose.tint(c, band) for c in opts.element_colors},
+            tints,
         )
+        color = text or color
         path = str(Path(spec["folder"]) / ctx.dest_thumb)
         create_dir(spec["folder"])
-        write_image(path, image, "JPEG", self.cfg)
+        write_image(path, image, "PNG", self.cfg)
         self.cache_manager.write_lookup(
             policy.filter_db_payload(
                 {
