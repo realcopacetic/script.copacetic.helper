@@ -22,7 +22,6 @@ from resources.lib.shared.utilities import (
     clear_playlists,
     condition,
     container_position,
-    focused_control_id,
     infolabel,
     json_call,
     play_files,
@@ -69,30 +68,6 @@ def clear_label(id: int | str, **kwargs: str) -> None:
     single-writer doctrine.
     """
     _clear_label_util(id)
-
-
-@action
-def container_move(offset: str, **kwargs: str) -> None:
-    """
-    Move a container by an offset, clamping at the list ends when wrap is
-    false. Targets the id param, else the focused control.
-
-    :param id: Container id; falls back to focused control when absent.
-    :param offset: Signed move distance (default 1).
-    :param wrap: 'false' to clamp at both ends; otherwise Kodi's native wrap.
-    """
-    container = kwargs.get("id") or focused_control_id()
-    if not container:
-        return
-
-    offset = to_int(kwargs.get("offset"), 1)
-    if kwargs.get("wrap") == "false":
-        pos = to_int(infolabel(f"Container({container}).CurrentItem"), 0)
-        total = to_int(infolabel(f"Container({container}).NumItems"), 0)
-        if not (1 <= pos + offset <= total):
-            return
-
-    log.execute(f"Control.Move({container},{offset})")
 
 
 @action

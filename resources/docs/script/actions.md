@@ -54,7 +54,6 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 |---|---|
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
-| [`container_move`](#container_move) | Moves a container one item, with optional stop at the ends |
 | [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
 | [`delete_orphans`](#delete_orphans) | Removes builder entries whose parent entry is gone |
 | [`dialog_yesno`](#dialog_yesno) | Asks a yes/no question and runs builtins for the answer |
@@ -157,26 +156,6 @@ fadelabel controls.
 
 ```xml
 <onload>RunScript(script.copacetic.helper,action=clear_label,id=1500)</onload>
-```
-
----
-
-## container_move
-
-Moves a container's selection with `Control.Move`. With `wrap=false` it stops at the
-first and last item instead of wrapping round. Useful for auto-scrolling timers that
-should stop at the end of a list.
-
-| Param | Accepted values | Default | What it does |
-|---|---|---|---|
-| `id` | container id | the focused control | The container to move |
-| `offset` | a whole number | required | Must be present. In the current version the move is always 1 item forward, whatever value you pass. |
-| `wrap` | `false` | — | `false` does nothing when the move would pass either end. Any other value lets Kodi wrap as normal. |
-
-Example from Copacetic, at the end of an auto-scroll timer:
-
-```xml
-<onstop>RunScript(script.copacetic.helper,action=container_move,id=$INFO[Window(home).Property(autoscroll_id)],offset=1,wrap=false)</onstop>
 ```
 
 ---
