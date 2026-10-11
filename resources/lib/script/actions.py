@@ -615,12 +615,15 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
 @action
 def set_edit(id: str, **kwargs: str) -> None:
     """
-    Focuses a Kodi edit control and sets its text via Input.SendText.
+    Focuses a Kodi edit control and sets its text via Input.SendText; with
+    query=true, also publishes the text as set_search_query does.
 
     :param id: Control ID to write to.
     :param return_id: Optional control to refocus after the write.
     :param text: Text payload for set/append modes.
     :param mode: set (default) | append | backspace | space | clear.
+    :param query: 'true' to publish the new text to search_query.
+    :param min_length: With query, minimum characters before it is published.
     """
     mode = kwargs.get("mode", "set")
     text = str(kwargs.get("text", ""))
@@ -636,6 +639,8 @@ def set_edit(id: str, **kwargs: str) -> None:
     window_property("edit_scripted_write", value="true")
     log.execute(f"SetFocus({id})", wait=True)
     json_call("Input.SendText", params={"text": text, "done": True}, parent="set_edit")
+    if kwargs.get("query") == "true":
+        _publish_query(text, to_int(kwargs.get("min_length"), 3))
     return_id = kwargs.get("return_id")
     if return_id:
         log.execute(f"SetFocus({return_id})", wait=True)
@@ -645,15 +650,24 @@ def set_edit(id: str, **kwargs: str) -> None:
 @action
 def set_search_query(id: str, **kwargs: str) -> None:
     """
-    Mirror an edit control's text into the search_query property, JSON-escaped
-    and URL-encoded so `&`, `+` and `%` survive a library path's xsp option.
-    Cleared below min_length. Sole writer for the search rails' path values.
+    Mirror an edit control's text into the search_query property. With
+    set_edit's query option, the only writers for the search rails' paths.
 
     :param id: Edit control id to read.
     :param min_length: Minimum characters before the query is published.
     """
-    min_length = to_int(kwargs.get("min_length"), 3)
     text = infolabel(f"Control.GetLabel({id}).index(1)")
+    _publish_query(text, to_int(kwargs.get("min_length"), 3))
+
+
+def _publish_query(text: str, min_length: int) -> None:
+    """
+    Write text to search_query JSON-escaped and URL-encoded, so `&`, `+` and
+    `%` survive a library path's xsp option; cleared below min_length.
+
+    :param text: Query text.
+    :param min_length: Minimum characters before the query is published.
+    """
     window_property(
         "search_query",
         value=quote(json.dumps(text)[1:-1]) if len(text) >= min_length else False,

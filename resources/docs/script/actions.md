@@ -708,9 +708,13 @@ on-screen keyboard from buttons.
 | `mode` | `set`, `append`, `backspace`, `space`, `clear` | `set` | `set` replaces the text with `text`. `append` adds `text` to the end. `backspace` removes the last character. `space` adds a space. `clear` empties it. Any other value works like `set`. |
 | `text` | text | empty | The text for `set` and `append` |
 | `return_id` | control id | none | Control to focus again afterwards |
+| `query` | `true` | none | Also writes the new text to `search_query`, as [`set_search_query`](#set_search_query) does |
+| `min_length` | whole number | `3` | With `query`: fewest characters before the text is written; fewer clears it |
 
 The edit control is focused while the text is written, which fires its
-`<ontextchange>`.
+`<ontextchange>`. With `query=true`, skip your `<ontextchange>`'s
+`set_search_query` while `edit_scripted_write` is set, so a key starts one script,
+not two.
 
 **Sets:** `Window(home).Property(edit_scripted_write)` = `true` during the write,
 then clears it. Test it to tell these writes from the user's own typing.
@@ -719,9 +723,9 @@ Examples from Copacetic:
 
 ```xml
 <!-- a letter key -->
-<onclick>RunScript(script.copacetic.helper,action=set_edit,id=4200,return_id=215,mode=append,text=a)</onclick>
+<onclick>RunScript(script.copacetic.helper,action=set_edit,id=4200,return_id=215,mode=append,text=a,query=true,min_length=1)</onclick>
 <!-- delete key -->
-<onclick>RunScript(script.copacetic.helper,action=set_edit,id=4200,return_id=215,mode=backspace)</onclick>
+<onclick>RunScript(script.copacetic.helper,action=set_edit,id=4200,return_id=215,mode=backspace,query=true,min_length=1)</onclick>
 ```
 
 ---
@@ -743,8 +747,8 @@ xsp value and `&`, `+` and `%` survive. It isn't meant for a label (a space show
 Example from Copacetic:
 
 ```xml
-<!-- on the edit control -->
-<ontextchange>RunScript(script.copacetic.helper,action=set_search_query,id=4200,min_length=1)</ontextchange>
+<!-- on the edit control: typing and Kodi's keyboard; the on-screen keys publish through set_edit -->
+<ontextchange condition="String.IsEmpty(Window(home).Property(edit_scripted_write))">RunScript(script.copacetic.helper,action=set_search_query,id=4200,min_length=1)</ontextchange>
 <!-- on a results container: movies whose title contains the query -->
 <content>videodb://movies/titles/?xsp=%7B%22rules%22%3A%7B%22and%22%3A%5B%7B%22field%22%3A%22title%22%2C%22operator%22%3A%22contains%22%2C%22value%22%3A%5B$ESCINFO[Window(home).Property(search_query)]%5D%7D%5D%7D%2C%22type%22%3A%22movies%22%7D</content>
 ```
