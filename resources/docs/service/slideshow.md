@@ -95,8 +95,8 @@ before each slide, so you can change it at any time.
 | `background_ratio` | decimal | `3` | Contrast ratio the darken aims for. |
 
 `background_darken_frame`, `background_darken_max`, `background_darken_label`,
-`background_darken_label1`, `background_darken_label2` and `background_darken_label_px`
-work too, as in the [artwork plugin](../plugins/artwork.md#darken-background-and-icon).
+`background_darken_label1`, `background_darken_label2`, `background_darken_label_font`
+and `background_darken_label_pitch` work too, as in the [artwork plugin](../plugins/artwork.md#darken-background-and-icon).
 Only the blur and the darken value are published, so `background_element_colors` and
 `background_palette` have no effect here.
 

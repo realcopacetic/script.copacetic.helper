@@ -189,13 +189,15 @@ sentence fits, the last word that fits gets an ellipsis. The text is returned in
 breaks the lines exactly where the helper measured them.
 
 The width is measured the way Kodi draws the font at the current screen resolution,
-with sizes in 1920×1080 skin pixels. Results are cached.
+with sizes in 1920×1080 skin pixels, and lines break where Kodi breaks them: at plain
+spaces (a no-break space holds), with a word wider than the label cut after the last
+letter that fits. Results are cached by the font's name, so after changing the font in `Font.xml` run
+[`clear_cache`](../script/actions.md#clear_cache).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `truncate_width` | whole number (skin pixels) | `0` | Width of the label. `0` turns cutting off. |
-| `truncate_font` | font file path (`special://`, `resource://` or absolute) | — | Font of the label. Required with `truncate_width`. |
-| `truncate_size` | whole number | `0` | Font size as in your `Font.xml`. Required with `truncate_width`. |
+| `truncate_font` | a font name from your `Font.xml`, e.g. `description_l` | — | Font of the label. The helper reads its file and size from the first fontset in `16x9/Font.xml`. Required with `truncate_width`. |
 | `truncate_lines` | whole number | `3` | Most lines to keep. |
 | `truncate_label` | any text | — | Text to cut. |
 | `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). |
@@ -204,5 +206,5 @@ The text used is the first that is not empty: `truncate_label`, the label of
 `truncate_label_id`, the returned plot, then `ListItem.Plot` of the focused item.
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=special://skin/fonts/MyFont-Regular.ttf&amp;truncate_size=30</content>
+<content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=font_plot</content>
 ```

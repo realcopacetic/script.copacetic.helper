@@ -1,9 +1,10 @@
 """
 Run the artwork pipeline (prepare, then compose) on synthetic posters outside Kodi.
 
-Checks the element-on-art step, its winning colour and, at step 3, that the tinted
-band reads at the ratio; prints each serve's time. Needs Pillow and the skin (its
-Font.xml and fonts measure the label); no network.
+Checks the label's measured rect (lines, widest line), the element-on-art step, its
+winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
+away) and, at step 3, that the tinted band reads at the ratio; prints each serve's
+time. Needs Pillow and the skin (its Font.xml and fonts measure the label); no network.
 
     python tests/artwork_check.py ../skin.copacetic2
 """
@@ -41,6 +42,22 @@ def noise(img: Image.Image, _: ImageDraw.ImageDraw) -> None:
     rng = random.Random(1)
     img.putdata([tuple(rng.randrange(256) for _ in "rgb") for _ in range(480 * 720)])
 
+
+LABELS = {  # label: its rect in the strip poster's text box, one to three lines
+    "Up •\xa02009": (20, 663, 146, 37),
+    "Radiohead • OK Computer •\xa01997": (20, 626, 372, 74),  # "• 1997" holds
+    "Mission: Impossible – Dead Reckoning Part One •\xa02023": (20, 626, 384, 74),
+    "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb "
+    "•\xa01964": (20, 589, 437, 111),
+    "Borat: Cultural Learnings of America for Make Benefit Glorious Nation of "
+    "Kazakhstan •\xa02006": (
+        20,
+        589,
+        429,
+        111,
+    ),  # four lines, capped at the box's three
+    "Supercalifragilisticexpialidociousness •\xa02000": (20, 626, 434, 74),  # cut
+}
 
 POSTERS = {  # name: (draw, step, winner, darken)
     "white": (lambda _, d: d.rectangle((0, 0, 480, 720), "white"), 1, GUNMETAL, 47),
@@ -131,6 +148,11 @@ def main() -> None:
     engine = ColorDarken(ColorAnalyzer(cfg))
     label = engine._clamp_rects_to_labels(ArtOpts.from_params(STRIP, "icon").darken)
     failures = 0
+    for text, want in LABELS.items():
+        opts = ArtOpts.from_params({**STRIP, "icon_darken_label": text}, "icon")
+        got = engine._clamp_rects_to_labels(opts.darken)
+        failures += got != [want]
+        print(f"{'ok  ' if got == [want] else 'FAIL'} label {got[0]}  {text[:44]!r}")
     for name, (draw, step, winner, darken) in POSTERS.items():
         img = Image.new("RGB", (480, 720))
         draw(img, ImageDraw.Draw(img))
@@ -141,6 +163,7 @@ def main() -> None:
         if band := art.get("icon_band"):  # a PNG with alpha; step 3 changed the blur
             image = Image.open(band)
             ok &= (image.format, image.mode) == ("PNG", "RGBA")
+            ok &= solid(image, label[0]) and clear(image, label[0], cfg.band_feather)
             shown = Image.new("RGB", image.size)
             seen = image.getchannel("A").point(lambda a: 255 * (a > 0))
             shown.paste(Image.open(art["icon"]), mask=seen)  # the blur, under alpha
@@ -163,8 +186,41 @@ def main() -> None:
             f"{art['icon_element_color']} darken {art['icon_darken']:>3} "
             f"{cold:5.0f} ms uncached, {warm:3.0f} ms cached  {note}"
         )
+    narrow = {"icon_url": path, **STRIP, "icon_band_feather": "60"}  # last poster
+    image = Image.open(serve(narrow)[0]["icon_band"])
+    ok = solid(image, label[0]) and clear(image, label[0], 60)
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} feather 60: clear 60 px past the label's lines")
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
+
+
+def solid(band: Image.Image, rect: tuple[int, int, int, int]) -> bool:
+    """
+    The band's alpha is full over the label's lines across the whole text box
+    (frame px are blur px).
+
+    :param band: The band, RGBA.
+    :param rect: The label's measured rect.
+    :return: True when every pixel there is opaque.
+    """
+    bx, _, bw, _ = map(int, STRIP["icon_darken_rects"].split(","))
+    box = (bx, rect[1], bx + bw, rect[1] + rect[3])
+    return band.getchannel("A").crop(box).getextrema() == (255, 255)
+
+
+def clear(band: Image.Image, rect: tuple[int, int, int, int], feather: int) -> bool:
+    """
+    The band's alpha is 0 a feather above the label's lines, and so above it.
+
+    :param band: The band, RGBA.
+    :param rect: The label's measured rect.
+    :param feather: The band's feather, frame px.
+    :return: True when the rows from there up are clear.
+    """
+    return (
+        band.getchannel("A").crop((0, 0, 480, rect[1] - feather + 1)).getbbox() is None
+    )
 
 
 if __name__ == "__main__":
