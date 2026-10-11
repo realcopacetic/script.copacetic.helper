@@ -932,31 +932,17 @@ def tmdb_test(**kwargs: str) -> None:
     from resources.lib.apis.http import HttpError
     from resources.lib.apis.tmdb.client import get_tmdb_client
 
-    client = get_tmdb_client()
-    if not client:
-        xbmcgui.Dialog().notification(
-            ADDON.getLocalizedString(32000),
-            ADDON.getLocalizedString(32208),
-            time=4000,
-        )
-        return
-
-    try:
-        valid = "images" in client.get_json("/configuration")
-    except HttpError:
-        valid = False
-    if valid:
-        xbmcgui.Dialog().notification(
-            ADDON.getLocalizedString(32000),
-            ADDON.getLocalizedString(32209),
-            time=4000,
-        )
+    if not (client := get_tmdb_client()):
+        message = 32208
     else:
-        xbmcgui.Dialog().notification(
-            ADDON.getLocalizedString(32000),
-            ADDON.getLocalizedString(32210),
-            time=4000,
-        )
+        try:
+            valid = "images" in client.get_json("/configuration")
+        except HttpError:
+            valid = False
+        message = 32209 if valid else 32210
+    xbmcgui.Dialog().notification(
+        ADDON.getLocalizedString(32000), ADDON.getLocalizedString(message), time=4000
+    )
 
 
 @action
