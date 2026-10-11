@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from PIL import ImageFont
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
-_CLAMP_VERSION = "2"
+_CLAMP_VERSION = "3"
 
 # Skin authoring resolution; Kodi rasterises fonts at size * ScreenHeight / height.
 _SKIN_WIDTH = 1920
