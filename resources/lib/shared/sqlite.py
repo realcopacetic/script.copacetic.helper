@@ -177,16 +177,16 @@ class ArtworkCacheHandler(SQLiteHandler):
             have = {
                 row[1] for row in conn.execute(f"PRAGMA table_info({self.TABLE_NAME})")
             }
-            for name, decl in policy.ART_DB_SCHEMA:
-                if name not in have:
-                    conn.execute(
-                        f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN {name} {decl}"
-                    )
-            conn.execute(  # pre two-pass rows: analyse, and darken without a measurement
-                f"DELETE FROM {self.TABLE_NAME} WHERE {policy.ART_FIELD_PROCESS} = 'analyze'"
-                f" OR ({policy.ART_FIELD_PROCESS} = 'darken'"
-                f" AND {policy.ART_FIELD_MEASURE} IS NULL)"
-            )
+            missing = [(n, d) for n, d in policy.ART_DB_SCHEMA if n not in have]
+            for name, decl in missing:
+                conn.execute(f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN {name} {decl}")
+            if missing:  # an older cache: drop its pre two-pass rows, once
+                conn.execute(
+                    f"DELETE FROM {self.TABLE_NAME}"
+                    f" WHERE {policy.ART_FIELD_PROCESS} = 'analyze'"
+                    f" OR ({policy.ART_FIELD_PROCESS} = 'darken'"
+                    f" AND {policy.ART_FIELD_MEASURE} IS NULL)"
+                )
 
             for idx_name, cols in policy.ART_DB_INDEXES:
                 idx_cols_sql = ", ".join(cols)
