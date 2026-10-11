@@ -153,12 +153,7 @@ class ArtworkCacheManager:
             )
             return source_path, destination_path
 
-        temp_path = str(Path(self.temp_folder) / ctx.cached_thumb)
-        if not validate_path(temp_path) and xbmcvfs.copy(ctx.decoded_url, temp_path):
-            log.debug(f"{self.__class__.__name__} → Temp file created → {temp_path}")
-            return temp_path, destination_path
-
-        return None, destination_path
+        return self.source_temp_path(ctx), destination_path
 
     def source_temp_path(self, ctx: CacheContext) -> str | None:
         """Copy the source artwork to a temp file for processing; return its path."""
