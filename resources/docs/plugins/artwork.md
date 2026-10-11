@@ -98,7 +98,7 @@ values mean.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `<prefix>_darken` | `true`, `false` | `false` | Work out how much to darken the image. |
-| `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | the whole frame | Where your elements sit, in frame coordinates. The element on art and the palette's darken values are measured here too. |
+| `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | the whole frame | Where your elements sit, in frame coordinates. The element on art and the palette are measured here too. |
 | `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in: the image is scaled to cover it and centred, like `<aspectratio>scale</aspectratio>`. |
 | `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo`; comma-separated, one per rectangle | `fff0efef` | Colour of the element in each rectangle, in rectangle order; the last carries on for the rest. `clearlogo` uses the clearlogo's colour (it needs `clearlogo_url` in the same call, else the default is used). |
 | `<prefix>_darken_surface` | `art`, `blur` | `art` | The image you draw the darken over: the image itself or its blur. The helper measures that one. With `blur` on an image that is not blurred, it measures the image itself. |
@@ -114,8 +114,9 @@ values mean.
 | `<prefix>_palette` | `true`, `false` | `false` | Return the image's [palette](#palette). |
 
 The rectangles, frame and labels in the darken table set where these are measured;
-`<prefix>_darken` itself need not be on. The palette's colours come from the whole
-image; only its darken values use the rectangles.
+`<prefix>_darken` itself need not be on. The palette's colours come from the smallest
+box that holds every rectangle, so they are the colours of the part of the image you
+show; with no rectangles that is the part of the image the frame shows.
 
 ### Multiart
 
@@ -243,7 +244,8 @@ change.
 
 `<prefix>_palette=true` returns colours in the image's own hue at a fixed relative
 luminance (`0.45`), so they keep their colour on any art: the accent when it has colour
-(HLS chroma at least `0.15`), else the dominant colour. With neither, the image is
+(HLS chroma at least `0.15`), else the dominant colour, both taken where the rectangles
+sit (see [above](#element-on-art-and-palette-background-and-icon)). With neither, the image is
 neutral: `_palette_primary` is `fff0efef`, `_palette_secondary` is empty and
 `_palette_darken` is the image's darken. `_palette_logo` is the clearlogo's hue at the
 same level, empty when the logo is white, grey or black.

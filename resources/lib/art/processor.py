@@ -137,8 +137,9 @@ class ImageProcessor:
         self, image: Image.Image, opts: ArtOpts, attrs: dict[str, Any], **_: Any
     ) -> dict[str, Any] | None:
         """
-        Measure the art for compose: colours always; with darken opts, each rect's
-        extremes on the art and on its blur, and the band palette.
+        Measure the art for compose: colours from the area the rects cover (a
+        clearlogo's whole image); with darken opts, each rect's extremes on the art
+        and on its blur, and the band palette.
 
         :param image: Input PIL image.
         :param opts: Parsed ArtOpts for this art_type.
@@ -147,7 +148,15 @@ class ImageProcessor:
         """
         try:
             cover = self._cover(image, self.cfg.blur_target_size)
-            measure = self.color_analyzer.colors(cover)
+            seen = cover
+            if opts.darken:  # colours from where the rects sit: the part the skin shows
+                x0, y0, x1, y1 = zip(
+                    *self.darken_engine.boxes(
+                        cover.size, opts.darken.rects, opts.darken.frame
+                    )
+                )
+                seen = cover.crop((min(x0), min(y0), max(x1), max(y1)))
+            measure = self.color_analyzer.colors(seen)
             widths = []
             if opts.darken:
                 blur = attrs.get(policy.ART_FIELD_PROCESSED) if opts.blur else None
