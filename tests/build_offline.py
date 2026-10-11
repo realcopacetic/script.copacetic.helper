@@ -109,6 +109,7 @@ def install_stubs(
     _module(
         "xbmcgui",
         Dialog=lambda: None,
+        ListItem=type("ListItem", (), {}),
         Window=Window,
         getCurrentWindowDialogId=lambda: 9999,
         getCurrentWindowId=lambda: 10000,
