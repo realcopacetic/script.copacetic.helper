@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 from functools import reduce
+from itertools import zip_longest
 from math import ceil
 from operator import mul
 from typing import Any
@@ -9,6 +10,7 @@ from PIL import Image, ImageChops, ImageFilter
 
 from resources.lib.art.color import W, encode, from_hex, linear, luminance
 from resources.lib.plugin.opts import ArtOpts, DarkenOpts
+from resources.lib.shared.text import KodiMetric, load_font, skin_font, wrap_text
 
 Rect = tuple[int, int, int, int]
 Box = tuple[int, int, int, int]
@@ -252,24 +254,33 @@ class ColorDarken:
         k = max(fw / iw, fh / ih)
         return k, (iw * k - fw) / 2, (ih * k - fh) / 2
 
+    def rects(self, opts: DarkenOpts) -> list[Rect]:
+        """
+        The rects as the skin passes them; no rects is the whole frame.
+
+        :param opts: Darken options carrying rects and frame.
+        :return: (x, y, w, h) rects in frame coordinates.
+        """
+        return self.parse_overlay_rects(opts.rects) or [
+            (0, 0, *self._frame(opts.frame))
+        ]
+
     def boxes(
-        self, size: tuple[int, int], rects: str | None, frame: str | None
+        self, size: tuple[int, int], rects: list[Rect], frame: str | None
     ) -> list[Box]:
         """
         Map frame rects onto an image drawn to cover the frame, centred (Kodi's
-        scale aspect ratio). No rects is the whole frame.
+        scale aspect ratio).
 
         :param size: Image size (w, h).
-        :param rects: Rect string in frame coordinates.
+        :param rects: Rects in frame coordinates.
         :param frame: Frame size "w,h"; None is the default frame.
         :return: (x0, y0, x1, y1) boxes in image pixels, each at least 1 px.
         """
         k, ox, oy = self._cover(size, frame)
         iw, ih = size
         boxes = []
-        for x, y, w, h in self.parse_overlay_rects(rects) or [
-            (0, 0, *self._frame(frame))
-        ]:
+        for x, y, w, h in rects:
             x0 = min(iw - 1, max(0, round((x + ox) / k)))
             y0 = min(ih - 1, max(0, round((y + oy) / k)))
             x1 = max(x0 + 1, min(iw, round((x + w + ox) / k)))
@@ -294,31 +305,29 @@ class ColorDarken:
         k = max(1, round(len(px) * cfg.bg_sampling_topk))
         return [round(sum(px[:k]) / k / 255, 4), round(sum(px[-k:]) / k / 255, 4)]
 
-    def _clamp_rects_to_labels(self, opts: DarkenOpts) -> str | None:
+    def _clamp_rects_to_labels(self, opts: DarkenOpts) -> list[Rect]:
         """
-        Clamp each rect by its parallel label. Rects without a paired label pass
-        through unclamped; no rects is the whole frame, as in boxes.
+        Shrink each rect to its parallel label in the label font, measured at GUI
+        scale 1 (frame px are skin px). Rects without a label, or with no font,
+        pass through.
 
-        :param opts: Darken options carrying rects and the label series.
-        :return: Clamped rect string.
+        :param opts: Darken options carrying rects, labels, font and pitch.
+        :return: Clamped rects, one per rect.
         """
-        if not any(opts.labels):
-            return opts.rects
+        rects = self.rects(opts)
+        if not (opts.label_font and any(opts.labels)):
+            return rects
 
-        cfg = self.color.cfg
-        px = opts.label_px if opts.label_px else cfg.darken_label_px_per_char
-        rects = opts.rects or "0,0,{},{}".format(*self._frame(opts.frame))
-        raw = rects.replace(" ", "")
-        parts = raw.split("),(") if "(" in raw else [raw]
-        clamped = []
-        for idx, part in enumerate(parts):
-            label = opts.labels[idx] if idx < len(opts.labels) else None
-            clamped.append(
-                self.clamp_rect_to_label(part.strip("()"), label, px)
+        path, size = skin_font(opts.label_font)
+        metric = KodiMetric(load_font(path), size, 1.0, 1.0)
+        return [
+            (
+                self.clamp_rect_to_label(rect, label, metric, opts.label_pitch)
                 if label
-                else part.strip("()")
+                else rect
             )
-        return f"({'),('.join(clamped)})" if len(clamped) > 1 else clamped[0]
+            for rect, label in zip_longest(rects, opts.labels[: len(rects)])
+        ]
 
     @staticmethod
     def parse_overlay_rects(param: str) -> list[Rect]:
@@ -351,29 +360,27 @@ class ColorDarken:
         return out
 
     @staticmethod
-    def clamp_rect_to_label(rect: str, label: str, px_per_char: float) -> str:
+    def clamp_rect_to_label(
+        rect: Rect, label: str, metric: KodiMetric, pitch: int | None
+    ) -> Rect:
         """
-        Clamp a single rect's width to an estimated label width (left-anchored).
+        Shrink a label's text box to the label as Kodi wraps it at the box's width:
+        the widest line, left edge kept; with a pitch, whole lines of it from the
+        side its sign names (negative: the text hangs from the bottom).
 
-        :param rect: Single rect "x,y,w,h" in frame coordinates.
-        :param label: Overlay label text for this rect.
-        :param px_per_char: Glyph advance in frame px.
-        :return: Clamped rect string; the rect unchanged on bad input.
+        :param rect: The label's text box (x, y, w, h) in frame coordinates.
+        :param label: The label's text.
+        :param metric: The label font's KodiMetric.
+        :param pitch: Line pitch in frame px, signed; None keeps the box's height.
+        :return: The shrunk rect.
         """
-        n = len(label.strip())
-        if n <= 0:
-            return rect
-        est = int(round(n * px_per_char))
-        if est <= 0:
-            return rect
-        nums = rect.replace(" ", "").strip("()").split(",")
-        if len(nums) != 4:
-            return rect
-        try:
-            x, y, w, h = (int(v) for v in nums)
-        except ValueError:
-            return rect
-        return f"{x},{y},{min(w, est)},{h}"
+        x, y, w, h = rect
+        lines = wrap_text(metric, label, w)
+        if pitch:
+            lines = lines[: max(1, h // abs(pitch))]
+            lh = len(lines) * abs(pitch)
+            y, h = y + (h - lh) * (pitch < 0), lh
+        return x, y, min(w, ceil(max(map(metric.getlength, lines)))), h
 
     @staticmethod
     def frame_image(

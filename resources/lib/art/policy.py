@@ -18,7 +18,8 @@ ART_FIELD_DARKEN_RECTS = "darken_rects"
 ART_FIELD_DARKEN_LABEL = "darken_label"
 ART_FIELD_DARKEN_LABEL1 = "darken_label1"
 ART_FIELD_DARKEN_LABEL2 = "darken_label2"
-ART_FIELD_DARKEN_LABEL_PX = "darken_label_px"
+ART_FIELD_DARKEN_LABEL_FONT = "darken_label_font"
+ART_FIELD_DARKEN_LABEL_PITCH = "darken_label_pitch"
 ART_FIELD_MEASURE = "measure"
 ART_FIELD_RATIO = "ratio"
 ART_FIELD_ELEMENT_COLORS = "element_colors"
@@ -57,7 +58,8 @@ ART_DB_SCHEMA = (
     (ART_FIELD_DARKEN_FRAME, "TEXT"),
     (ART_FIELD_DARKEN_RECTS, "TEXT"),
     *((field, "TEXT") for field in ART_FIELDS_DARKEN_LABEL),
-    (ART_FIELD_DARKEN_LABEL_PX, "REAL"),
+    (ART_FIELD_DARKEN_LABEL_FONT, "TEXT"),
+    (ART_FIELD_DARKEN_LABEL_PITCH, "INTEGER"),
     (ART_FIELD_MEASURE, "TEXT"),
     (ART_FIELD_RATIO, "REAL"),
     (ART_FIELD_ELEMENT_COLORS, "TEXT"),
@@ -75,7 +77,8 @@ ART_FIELDS_INPUT = {
     "darken": (
         ART_FIELD_DARKEN_RECTS,
         *ART_FIELDS_DARKEN_LABEL,
-        ART_FIELD_DARKEN_LABEL_PX,
+        ART_FIELD_DARKEN_LABEL_FONT,
+        ART_FIELD_DARKEN_LABEL_PITCH,
         ART_FIELD_DARKEN_FRAME,
         ART_FIELD_BLUR_RADIUS,
         ART_FIELD_EDGE_TRIM,
@@ -226,4 +229,3 @@ class ColorConfig:
     palette_chroma: float = 0.15  # A base below this chroma is neutral: no palette
     palette_secondary_luminance: float = 0.6  # The secondary is lighter...
     palette_secondary_saturation: float = 0.5  # ...and softer (share of saturation)
-    darken_label_px_per_char: float = 14  # Est. glyph width (px); skinner overrides

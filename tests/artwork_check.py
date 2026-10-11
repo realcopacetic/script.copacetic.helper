@@ -2,7 +2,10 @@
 Run the artwork pipeline (prepare, then compose) on synthetic posters outside Kodi.
 
 Checks the element-on-art step, its winning colour and, at step 3, that the tinted
-band reads at the ratio; prints each serve's time. Needs Pillow; no network.
+band reads at the ratio; prints each serve's time. Needs Pillow and the skin (its
+Font.xml and fonts measure the label); no network.
+
+    python tests/artwork_check.py ../skin.copacetic2
 """
 
 import os
@@ -15,20 +18,22 @@ import zlib
 from pathlib import Path
 
 from build_offline import HELPER, install_stubs
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
+
+ImageFont.LAYOUT_BASIC = ImageFont.Layout.BASIC  # Kodi's Pillow (8.4, 9.0) name
 
 GHOSTED, GUNMETAL = "fff0efef", "ff312124"
 STRIP = {
     "icon_blur": "true",
     "icon_blur_radius": "4",
     "icon_darken": "true",
-    "icon_darken_rects": "10,665,460,45",
+    "icon_darken_rects": "20,589,440,111",  # the typewriter's text box, 3 lines
     "icon_darken_frame": "480,720",
     "icon_darken_label": "Mission Impossible Dead",
-    "icon_darken_label_px": "15",
+    "icon_darken_label_font": "description_l",
+    "icon_darken_label_pitch": "-37",
     "icon_element_colors": f"{GHOSTED},{GUNMETAL}",
 }
-LABEL_RECT = "10,665,345,45"  # the rect clamped to the label: 23 characters x 15 px
 
 
 def noise(img: Image.Image, _: ImageDraw.ImageDraw) -> None:
@@ -80,14 +85,15 @@ POSTERS = {  # name: (draw, step, winner, darken)
 }
 
 
-def install(tmp: Path) -> None:
+def install(tmp: Path, skin: Path) -> None:
     """
     build_offline's stubs, plus the file calls the artwork cache makes.
 
     :param tmp: Scratch root: add-on data, texture cache and posters.
+    :param skin: Skin root, read as special://skin/ for its fonts.
     """
     (tmp / "out" / "temp").mkdir(parents=True)
-    install_stubs(HELPER, HELPER, tmp / "stage", tmp / "out", verbose=False)  # no skin
+    install_stubs(HELPER, skin, skin, tmp / "out", verbose=False)
     xbmc, vfs = sys.modules["xbmc"], sys.modules["xbmcvfs"]
     special = vfs.translatePath
     xbmc.getCacheThumbName = lambda url: f"{zlib.crc32(url.encode()):08x}.tbn"
@@ -102,7 +108,7 @@ def install(tmp: Path) -> None:
 
 def main() -> None:
     tmp = Path(tempfile.mkdtemp(prefix="artwork-check-"))
-    install(tmp)
+    install(tmp, Path(sys.argv[1]).resolve())
     from resources.lib.art.analyzer import ColorAnalyzer
     from resources.lib.art.color import contrast, from_hex, luminance
     from resources.lib.art.darken import ColorDarken
@@ -123,6 +129,7 @@ def main() -> None:
 
     cfg = ColorConfig()
     engine = ColorDarken(ColorAnalyzer(cfg))
+    label = engine._clamp_rects_to_labels(ArtOpts.from_params(STRIP, "icon").darken)
     failures = 0
     for name, (draw, step, winner, darken) in POSTERS.items():
         img = Image.new("RGB", (480, 720))
@@ -138,7 +145,7 @@ def main() -> None:
             ok &= art["icon_darken"] == darken
         if got == 3:
             copy = Image.open(band).convert("RGB")
-            box = engine.boxes(copy.size, LABEL_RECT, STRIP["icon_darken_frame"])[0]
+            box = engine.boxes(copy.size, label, STRIP["icon_darken_frame"])[0]
             text = luminance(from_hex(art["icon_element_color"]))
             worst = min(contrast(text, end) for end in engine._extremes(copy, box))
             ok &= worst >= cfg.ratio
