@@ -339,13 +339,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         truncate_width = to_int(self.params.get("truncate_width", 0))
         truncate_font = self.params.get("truncate_font", "")
-        truncate_size = to_int(self.params.get("truncate_size", 0))
         if not truncate_width:
             return
-        if not truncate_font or truncate_size <= 0:
+        if not truncate_font:
             log.warning(
                 f"{self.__class__.__name__} → truncate_width without "
-                f"truncate_font/truncate_size; skipping"
+                f"truncate_font; skipping"
             )
             return
 
@@ -361,8 +360,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         truncated = clamp_text(
             text=truncate_label,
-            font_path=truncate_font,
-            font_size=truncate_size,
+            font=truncate_font,
             max_width=truncate_width,
             max_lines=to_int(self.params.get("truncate_lines"), 3),
         )
