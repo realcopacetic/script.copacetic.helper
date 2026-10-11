@@ -582,7 +582,9 @@ the same parameters. Without `type`, it starts a mix from a song.
 ## play_trailer
 
 Plays a trailer without switching to full screen, so the skin can show it inside a
-window (a `videowindow` control). The helper's background service then watches it:
+window (a `videowindow` control). If a skin that
+[opts in](../service/index.md#opting-in) is active, the helper's background service then
+watches it:
 
 - If focus moves to another item, before or during playback, the trailer is paused
   and hidden instead of stopped.
@@ -698,12 +700,13 @@ Your skin must define a mapping named `keyboard` whose items are `slot1`, `slot2
 with at least as many items as the layout has characters. If there are too few, the
 action fails and nothing is written.
 
-Where a language has several layouts, an alphabetical one is preferred. An unknown
-language falls back to English ABC.
+Where a language has several layouts, an alphabetical one is used, even if you name
+another. A language Kodi doesn't have, or one with only coding-table layouts, falls
+back to English ABC.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `layout` | `<language> <layout>`, as in Kodi's keyboard layout files (for example `English ABC`, `Russian АБВ`) | ask | Without it, a dialog lists every layout to choose from. Cancel writes nothing. |
+| `layout` | `<language> <layout>`, as in Kodi's keyboard layout files (for example `English ABC`, `Russian АБВ`) | ask | Without it, a dialog lists every layout to choose from, except the coding-table ones (Chinese, Japanese and Korean input). Cancel writes nothing. |
 
 It does not rebuild by itself. Run it from a control inside a settings window, so
 the rebuild happens when the window closes. Example from Copacetic's templates:
