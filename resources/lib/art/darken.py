@@ -294,7 +294,9 @@ class ColorDarken:
         k = max(1, round(len(px) * cfg.bg_sampling_topk))
         return [round(sum(px[:k]) / k / 255, 4), round(sum(px[-k:]) / k / 255, 4)]
 
-    def _clamp_rects_to_labels(self, opts: DarkenOpts) -> tuple[str, list[int | None]]:
+    def _clamp_rects_to_labels(
+        self, opts: DarkenOpts
+    ) -> tuple[str | None, list[int | None]]:
         """
         Clamp each rect by its parallel label and collect per-rect widths.
         Rects without a paired label pass through unclamped; no rects is the whole
