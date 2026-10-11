@@ -10,7 +10,7 @@ Five edits. The skin reloads.
 
 ## Before you start — turn on dev mode
 
-Addon Settings → Developers → **Enable Dev mode**. With it on, every Kodi start rebuilds everything and reloads the skin. **Rebuild now** in the same panel does it without a restart.
+Addon Settings → Developers → **Enable Dev mode**. With it on, everything is rebuilt and the skin reloaded each time your skin becomes active (Kodi start, or switching to it). **Rebuild now** in the same panel does it without a restart.
 
 Without dev mode, the service only builds files that are missing (or rebuilds everything when the settings file gains a new mapping) — right for users, annoying while you're iterating. See [Overview → When things build](01-overview.md#when-things-build).
 
