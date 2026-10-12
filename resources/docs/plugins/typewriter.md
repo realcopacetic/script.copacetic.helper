@@ -65,9 +65,13 @@ The textbox width is the rectangle's width.
    `Window(home).Property(typewriter_pos)` to that container's `CurrentItem`.
 4. The run claims `Window(home).Property(typewriter_current_<target_id>)` with a unique
    value.
-5. After `start_delay`, the textbox is cleared, placed one line tall and made visible.
-6. One character is added every 25 ms. When `Container(<target_id>).NumPages` goes
-   above 1, the textbox grows by one line, up to `max_lines`.
+5. After `start_delay`, the textbox is cleared and placed one line tall. It is made
+   visible 25 ms later, once the clear has landed, so the old text never shows.
+6. One character is added every 25 ms. After each one, once the textbox shows the new
+   text, the helper reads `Container(<target_id>).NumPages`. When it is above 1, the
+   textbox grows to fit the text, up to `max_lines`, in the direction `valign` sets.
+   After the last character the helper checks for up to four more steps, so a wrap
+   on the last character is not missed.
 
 Before every character the run checks the focus guard and the claimed property. If
 focus moved on, or another value is now in
