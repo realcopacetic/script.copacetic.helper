@@ -601,10 +601,9 @@ def clamp_text(
     if (cached := cache.get_entry(key)) is not None:
         return cached
 
-    path, size = skin_font(font)
-    if (face := load_font(path)) is None:
+    if (spec := skin_font(font)) is None or (face := load_font(spec[0])) is None:
         return text
-    metric = KodiMetric(face, size, scale_x, scale_y)
+    metric = KodiMetric(face, spec[1], scale_x, scale_y)
     result = "[CR]".join(fit_lines(metric, text, max_width, max_lines))
     cache.upsert_entry(key, result)
     return result

@@ -197,7 +197,7 @@ letter that fits. Results are cached by the font's name, so after changing the f
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `truncate_width` | whole number (skin pixels) | `0` | Width of the label. `0` turns cutting off. |
-| `truncate_font` | a font name from your `Font.xml`, e.g. `description_l` | — | Font of the label. The helper reads its file and size from the first fontset in `16x9/Font.xml`. Required with `truncate_width`. A name that is not in `Font.xml` makes the call fail: no item is returned. |
+| `truncate_font` | a font name from your `Font.xml`, e.g. `description_l` | — | Font of the label. The helper reads its file and size from the first fontset in `16x9/Font.xml`. Required with `truncate_width`. A name that is not in `Font.xml` logs a warning and the text is returned uncut. |
 | `truncate_lines` | whole number | `3` | Most lines to keep. |
 | `truncate_label` | any text | — | Text to cut. |
 | `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). |

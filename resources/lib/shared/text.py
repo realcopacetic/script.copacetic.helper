@@ -82,18 +82,19 @@ DEFAULT_ABBREV = {
 }
 
 
-def skin_font(name: str) -> tuple[str, int]:
+def skin_font(name: str) -> tuple[str, int] | None:
     """
     File and size of a font in the skin's Font.xml (its first fontset), as Kodi
-    loads it for a control that names it.
+    loads it for a control that names it. None, with a warning, for an unknown name.
 
     :param name: Kodi font name, e.g. "description_l".
-    :return: (special://skin/fonts/ path, size in skin px).
+    :return: (special://skin/fonts/ path, size in skin px), or None.
     """
     xml = Path(skin_path(f"{SKINXML}/Font.xml")).read_text("utf-8")
     font = next((b for b in xml.split("</font>") if f"<name>{name}</name>" in b), "")
     if not font:
-        raise LookupError(name)
+        log.warning(f"skin_font → not in Font.xml: {name}")
+        return None
     filename, size = (
         re.search(rf"<{tag}>\s*(.+?)\s*</{tag}>", font)[1]
         for tag in ("filename", "size")

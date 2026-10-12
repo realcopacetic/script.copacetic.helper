@@ -343,7 +343,7 @@ class ColorDarken:
     def _clamp_rects_to_labels(self, opts: DarkenOpts) -> list[Rect]:
         """
         Shrink each rect to its parallel label in the label font, measured at GUI
-        scale 1 (frame px are skin px). Rects without a label, or with no font,
+        scale 1 (frame px are skin px). Rects without a label, or with no known font,
         pass through.
 
         :param opts: Darken options carrying rects, labels, font and pitch.
@@ -353,7 +353,9 @@ class ColorDarken:
         if not (opts.label_font and any(opts.labels)):
             return rects
 
-        path, size = skin_font(opts.label_font)
+        if (spec := skin_font(opts.label_font)) is None:
+            return rects
+        path, size = spec
         metric = KodiMetric(load_font(path), size, 1.0, 1.0)
         return [
             (
