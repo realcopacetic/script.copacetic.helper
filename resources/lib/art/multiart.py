@@ -279,26 +279,16 @@ def set_multiart_fadelabel(
     ordered: list[str],
     *,
     alive: Callable[[], bool] | None = None,
-    preserve_frozen: bool = True,
 ) -> bool:
     """
-    Seed a FadeLabel control with a multiart sequence. Parking the displayed frame
-    in multiart_frozen is skipped on cross-container serves, where it belongs to the
-    previous region and would contaminate the scroll fallback.
+    Seed a FadeLabel control with a multiart sequence.
 
     :param fadelabel_id: Control id of the FadeLabel to populate.
     :param ordered: URLs in display order (see order_multiart).
-    :param alive: Focus guard; seeding aborts if it returns False after the park.
-    :param preserve_frozen: Park the displayed frame in multiart_frozen; False skips it.
+    :param alive: Focus guard; seeding stops before the extras if it returns False.
     :return: True if labels were set successfully.
     """
     try:
-        if preserve_frozen and (
-            displayed := infolabel(f"Control.GetLabel({fadelabel_id})")
-        ):
-            window_property(f"multiart_frozen_{fadelabel_id}", displayed)
-        elif not preserve_frozen:
-            window_property(f"multiart_frozen_{fadelabel_id}")
         return seed_registers(
             getCurrentWindowId(), {to_int(fadelabel_id): ordered}, alive=alive
         )
@@ -332,8 +322,8 @@ def seed_multiart(
 ) -> dict[str, str] | None:
     """
     Seed/clear a multiart register and reconcile multiart art keys. Register identity
-    is the listing (region + folder), not the item: same-listing serves preserve the
-    frozen snapshot, any other clears it. Sole entry point (artwork handler only).
+    is the listing (region + folder): a new listing clears the frozen frame, a refire
+    parks the slide on screen, any other serve keeps the skin's. Artwork handler only.
 
     :param fadelabel_id: Register control id; None/empty is a no-op.
     :param multiart_dict: Candidate multiart family from the listitem.
@@ -349,6 +339,7 @@ def seed_multiart(
     seed_scope_key = f"multiart_seed_scope_{fadelabel_id}"
     same_scope = infolabel(f"Window(home).Property({seed_scope_key})") == seed_scope
     sig_key = f"multiart_seed_sig_{fadelabel_id}"
+    stored = infolabel(f"Window(home).Property({sig_key})")
     signature = f"{seed_item}:{_multiart_signature(multiart_dict)}"
     # Interruptor guard: a refire that would reseed the identical set for the
     # SAME item and visit into a live register (announcement invalidation,
@@ -359,30 +350,34 @@ def seed_multiart(
     if (
         len(multiart_dict) > 1
         and same_scope
-        and infolabel(f"Window(home).Property({sig_key})") == signature
+        and stored == signature
         and infolabel(f"Control.GetLabel({fadelabel_id})")
     ):
         log.debug(
             f"seed_multiart → skip: register {fadelabel_id} already carries this set"
         )
         return art
+    frozen_key = f"multiart_frozen_{fadelabel_id}"
+    if not same_scope:
+        window_property(frozen_key)  # the frame belongs to the previous region
+    elif (
+        len(multiart_dict) > 1
+        and stored.startswith(f"{seed_item}:")
+        and (displayed := infolabel(f"Control.GetLabel({fadelabel_id})"))
+    ):
+        # A refire of the item on screen with a changed set holds its slide through
+        # the reset; other arrivals keep the skin's frame (notes: wrong-item law).
+        window_property(frozen_key, displayed)
     seeded = False
     if len(multiart_dict) > 1:
         ordered = order_multiart(multiart_dict)
-        seeded = set_multiart_fadelabel(
-            fadelabel_id=fadelabel_id,
-            ordered=ordered,
-            alive=alive,
-            preserve_frozen=same_scope,
-        )
+        seeded = set_multiart_fadelabel(fadelabel_id, ordered, alive=alive)
     if seeded:
         log.debug(
             f"seed_multiart → seeded register {fadelabel_id} ({len(ordered)} items)"
         )
     elif alive():
         clear_label(fadelabel_id)
-        if not same_scope:
-            window_property(f"multiart_frozen_{fadelabel_id}")
         art = {k: v for k, v in art.items() if not k.startswith("multiart")}
     else:
         return None

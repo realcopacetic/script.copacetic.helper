@@ -325,7 +325,7 @@ properties, with `<id>` the FadeLabel id:
 
 | Property | What it holds |
 |---|---|
-| `multiart_frozen_<id>` | The image that was showing when the FadeLabel was refilled, so you can keep it on screen during the change. Cleared when the new item is from a different container or folder. |
+| `multiart_frozen_<id>` | Written only when the same item and `visit` are refilled with a changed image set: the image that was showing, so you can keep it on screen during the change. Left to the skin for any other item in the same container and folder; cleared when the new item is from a different one. |
 | `multiart_seed_scope_<id>` | Which container and folder the FadeLabel was last filled for. |
 | `multiart_seed_sig_<id>` | Which item and image set it was last filled with. |
 
