@@ -33,7 +33,7 @@ straight away.
 | `text` | any text | — | The text to draw. Nothing is returned when empty. |
 | `text_font` | font file path (`special://` or absolute) | — | The `.ttf` or `.otf` font to draw with. |
 | `text_size` | whole number (pixels) | `42` | Font size. |
-| `text_width` | whole number (pixels) | `1280` | Wrap width, and the width of the image. |
+| `text_width` | whole number (pixels) | `1280` | Wrap width, and the width of the image. Lines break where Kodi breaks them: at plain spaces (a no-break space holds), with a word wider than this cut after the last letter that fits. |
 | `text_height` | whole number (pixels) | `720` | Most height allowed. Text that does not fit is cut at a whole line: at the last full sentence that fits, else with an ellipsis. |
 | `text_line_height` | decimal | `1.3` | Line spacing, as a multiple of the font size. |
 | `text_letter_spacing` | decimal | `0.0` | Extra space between letters, as a percentage of the font size. Negative values pull letters closer. |
