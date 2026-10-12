@@ -2,7 +2,8 @@
 Lint a skin's ``16x9/*.xml`` together with freshly generated helper outputs.
 
 Mirrors Omega's ``CGUIIncludes`` load and resolve rules. By default only what
-the migrated (C2) windows load is checked; ``--all`` checks everything. Errors exit 1.
+the migrated (C2) windows load is checked; ``--all`` checks everything. Also checks
+that ``media`` textures store white under fully transparent pixels. Errors exit 1.
 """
 
 import argparse
@@ -17,6 +18,7 @@ from typing import Iterator, NamedTuple
 from xml.parsers import expat
 
 from build_offline import build_isolated
+from PIL import Image, ImageChops, ImageSequence
 
 REF = re.compile(r"\$(?:ESC)?(VAR|EXP)\[((?:[^\[\]]|\[[^\[\]]*\])+)\]")
 PARAM = re.compile(r"\$PARAM\[([^\[\]]*)\]")
@@ -34,6 +36,7 @@ ERRORS = {
     "undefined-expression",
     "undefined-include",
     "undefined-variable",
+    "texture-clear",
 }
 
 
@@ -455,6 +458,26 @@ class Skin:
         return self.findings
 
 
+def check_textures(skin: Path) -> Iterator[Finding]:
+    """
+    Report textures with a colour other than white under fully transparent pixels;
+    Kodi samples them with ``GL_LINEAR``, which blends it into the visible edge.
+
+    :param skin: Skin root directory.
+    :return: One finding per texture, naming its first offending frame.
+    """
+    for path in sorted((skin / "media").rglob("*.*png")):
+        for n, frame in enumerate(ImageSequence.Iterator(Image.open(path))):
+            r, g, b, a = frame.convert("RGBA").split()
+            darkest = ImageChops.darker(ImageChops.darker(r, g), b)
+            visible = a.point(lambda v: v and 255)
+            if ImageChops.lighter(darkest, visible).getextrema()[0] < 255:
+                frame_no = f" (frame {n})" if n else ""
+                message = f"not white under transparent pixels{frame_no}"
+                yield Finding("texture-clear", f"{path.relative_to(skin)}:0", message)
+                break
+
+
 def location(finding: Finding) -> tuple[str, int]:
     """Sort key: file name, then numeric line."""
     file, _, line = finding.src.rpartition(":")
@@ -487,7 +510,7 @@ def main() -> None:
         windows = None if args.all else sorted({*skin.migrated(), *args.window})
         if windows:
             print(f"windows: {', '.join(windows)}")
-        findings = skin.lint(windows)
+        findings = skin.lint(windows) | set(check_textures(args.skin))
 
     shown = [
         f
