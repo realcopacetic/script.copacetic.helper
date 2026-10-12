@@ -572,6 +572,8 @@ watches it:
 - A paused, hidden trailer is rewound to the start, then stopped after 10 seconds
   without input. So Kodi never marks a trailer as watched.
 - A request that never starts is dropped after 5 seconds.
+- If the user starts a film or song while the trailer is still on its way, that
+  plays instead (a film full screen) and the request is dropped.
 - With `viewport`, the service zooms the video to fill that area.
 
 | Param | Accepted values | Default | What it does |
@@ -682,8 +684,9 @@ action fails and nothing is written.
 
 Where a language has several layouts, one whose letters run in code-point order (the
 alphabetical one, for English-style layouts) is used, even if you name another;
-otherwise the one you name. A language Kodi doesn't have, or one with only coding-table
-layouts, falls back to English ABC.
+otherwise the one you name, or the language's first layout if none has that name. A
+language Kodi doesn't have, or one with only coding-table layouts, falls back to
+English ABC.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
