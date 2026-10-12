@@ -69,19 +69,8 @@ class TrailerZoomController:
         vp = infolabel("Window(home).Property(trailer_viewport)")
         if not vp:
             return 0.0
-
-        if "x" not in vp:
-            return 0.0
-
-        try:
-            w, h = map(float, vp.lower().split("x"))
-            return round(w / h, 6)
-
-        except Exception as exc:
-            log.debug(
-                f"PlayerMonitor → Trailer zoom → Viewport parse error for {vp}: {exc}"
-            )
-            return 0.0
+        w, h = map(float, vp.split("x"))
+        return w / h
 
     def _set_zoom(self, zoom: float) -> None:
         """
