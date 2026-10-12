@@ -168,7 +168,7 @@ When a trailer starts playing, the service sets the player's view mode:
 
 | Property | Value | Set when | Cleared when |
 |---|---|---|---|
-| `trailer_state` | `playing` | The requested trailer starts and is still wanted | Playback stops, ends or fails; a real video starts; the active skin changes or the service stops |
+| `trailer_state` | `playing` | The requested trailer starts and is still wanted | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request; the active skin changes or the service stops |
 | `trailer_state` | `orphaned` | The trailer goes stale or nears its end, or a newer request never started | As above |
 | `trailer_state` | `fullscreen` | A request made with `fullscreen` starts and is still wanted | As above |
 | `trailer_file` | `Player.Filenameandpath` of the trailer | The requested trailer starts | As above |
