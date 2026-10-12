@@ -791,16 +791,17 @@ class TypewriterAnimation:
                 _abort("lost focus")
                 return
 
-            if _superseded():
-                _abort("superseded")
-                return
-
             sub = label[:i]
             control.setText(sub)
 
             # Step wait: paces the typing. The lockless reads below can land before
             # Kodi lays out sub, so _pages skips the check until the box holds it.
             if monitor.waitForAbort(self.step_time):
+                return
+
+            # After the wait, so a run taken over meanwhile never grows the box.
+            if _superseded():
+                _abort("superseded")
                 return
 
             if pages := _pages(sub):
