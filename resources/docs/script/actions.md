@@ -582,7 +582,7 @@ watches it:
 | `item` | text | none | The focused item's label when the request was made. If the item under `source_prefix` has a different label when playback starts, the trailer is treated as out of date. |
 | `focus_ids` | control ids, comma separated | none | If none of these has focus when playback starts, the trailer is treated as out of date |
 | `source_prefix` | container id, or an infolabel prefix such as `Container(50).ListItem` | none | Where to read the current item's label for the `item` check. A plain number means `Container(<id>).ListItem`. |
-| `viewport` | `WxH`, in skin coordinates | none | Size of the area the trailer is shown in. Turns on zoom to fill it. |
+| `viewport` | `WxH`, in skin coordinates, with a lower-case `x` | none | Size of the area the trailer is shown in. Turns on zoom to fill it. Not checked: see [Zoom](../service/trailers.md#zoom). |
 | `window` | text | none | The window or page the trailer plays in, stored in `trailer_window` so the skin can show it only there. |
 | `fullscreen` | any text | none | Any value that isn't empty takes the trailer full screen as soon as it starts, as [`trailer_fullscreen`](#trailer_fullscreen) does. Each request sets this again, so a full-screen request that never started can't carry over to the next trailer. |
 

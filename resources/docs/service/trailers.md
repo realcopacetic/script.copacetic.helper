@@ -162,7 +162,10 @@ When a trailer starts playing, the service sets the player's view mode:
   zoom Kodi stored for the file.
 - **Full screen:** the view mode is set to normal, whatever `trailer_viewport` says.
 
-`trailer_viewport` must use a lower-case `x`, e.g. `1088x612`.
+`trailer_viewport` must be two numbers joined by a lower-case `x`, e.g. `1088x612`.
+Only the ratio counts, so `16x9` works too. The value is not checked: anything else
+(an upper-case `X`, a missing number) puts an error in kodi.log when the trailer
+starts, and no zoom is set.
 
 ## Window properties set
 
