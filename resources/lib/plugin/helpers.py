@@ -740,10 +740,6 @@ class TypewriterAnimation:
         control.setHeight(line_h)
         control.setPosition(posx, posy)
 
-        if not _alive():
-            _abort("lost focus")
-            return
-
         # Animate: add line_h per wrap, up to max_lines
         current_height = line_h
         current_posy = posy
@@ -780,16 +776,15 @@ class TypewriterAnimation:
         control.setText("")
         if monitor.waitForAbort(self.step_time):
             return
+        if not _alive():
+            _abort("lost focus")
+            return
         if _superseded():
             _abort("superseded")
             return
         control.setVisible(True)
 
         for i in range(1, len(label) + 1):
-            if not _alive():
-                _abort("lost focus")
-                return
-
             sub = label[:i]
             control.setText(sub)
 
@@ -798,7 +793,10 @@ class TypewriterAnimation:
             if monitor.waitForAbort(self.step_time):
                 return
 
-            # After the wait, so a run taken over meanwhile never grows the box.
+            # After the wait, so a run that lost focus or was taken over never grows.
+            if not _alive():
+                _abort("lost focus")
+                return
             if _superseded():
                 _abort("superseded")
                 return
@@ -812,7 +810,7 @@ class TypewriterAnimation:
                 break
             if monitor.waitForAbort(self.step_time):
                 return
-            if _superseded():
+            if not _alive() or _superseded():
                 break
             if pages := _pages(label):
                 _grow(label, pages)

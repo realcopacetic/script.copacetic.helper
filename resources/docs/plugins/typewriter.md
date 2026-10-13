@@ -73,9 +73,10 @@ The textbox width is the rectangle's width.
    After the last character the helper checks for up to four more steps, so a wrap
    on the last character is not missed.
 
-Before every character the run checks the focus guard and the claimed property. If
-focus moved on, or another value is now in
-`typewriter_current_<target_id>`, the textbox is cleared and the run stops.
+After every 25 ms wait the run checks the focus guard and the claimed property, so
+the textbox never shows or grows for a run that is no longer current. If focus moved
+on, or another value is now in `typewriter_current_<target_id>`, the textbox is
+cleared and the run stops (during the last four checks it just stops growing).
 
 ## Resetting
 
