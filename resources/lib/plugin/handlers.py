@@ -380,15 +380,47 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return False
         return True
 
+    def _bridge_props(self) -> list[tuple[str, str]]:
+        """
+        The artwork serve's art fields and the window properties they are written to.
+        """
+        suffix = f"_{key}" if (key := self.params.get("prop_key")) else ""
+        return [
+            ("background", f"background_blur{suffix}"),
+            ("background_darken", f"background_darken{suffix}"),
+            ("icon_darken", f"icon_darken{suffix}"),
+        ]
+
+    def _artwork_held(self) -> list[DirectoryItem]:
+        """
+        An aborted serve re-serves the last blur and darkens this list wrote, under
+        an identity no cursor matches, so the list never empties between serves.
+        """
+        return set_items(
+            [
+                {
+                    "file": plugin_path("artwork"),
+                    "art": {
+                        field: infolabel(f"Window(home).Property({prop})")
+                        for field, prop in self._bridge_props()
+                    },
+                    "properties": {
+                        "current": f"held/{self.params.get('prop_key', '')}"
+                    },
+                }
+            ]
+        )
+
     @log.duration
     def artwork(self) -> list[DirectoryItem] | None:
         """
-        Process/calculate artwork and attach to listitem; aborts if focus changes.
+        Process/calculate artwork and attach to listitem; an aborted serve (focus
+        or visit moved on) holds the last blur and darkens instead.
 
-        :return: List of directory items for Kodi, or None if aborted/failed.
+        :return: List of directory items for Kodi, or None when there is no art.
         """
         if self._visit_superseded():
-            return
+            return self._artwork_held()
 
         from resources.lib.art.editor import ImageEditor
         from resources.lib.art.multiart import build_multiart_dict, seed_multiart
@@ -398,7 +430,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         guard = self._guard()
         if not guard.alive():
-            return
+            return self._artwork_held()
 
         # The window's own item has no position: no cursor stamp, no neighbours.
         current_position = (
@@ -444,7 +476,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             source=self.target_item,
         )
         if not guard.alive():
-            return
+            return self._artwork_held()
 
         multiart_type = self.params.get("multiart")
         # Cache only: no network wait before the seed; another serve fills it.
@@ -462,7 +494,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
         if not guard.alive():
-            return
+            return self._artwork_held()
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
         dbid = infolabel(f"{self.identity_item}.DBID")
@@ -475,17 +507,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             alive=guard.alive,
         )
         if art is None:
-            return
+            return self._artwork_held()
 
-        prop_key = self.params.get("prop_key", "")
-        for field, prop in (
-            ("background", "background_blur"),
-            ("background_darken", "background_darken"),
-            ("icon_darken", "icon_darken"),
-        ):
-            window_property(
-                f"{prop}_{prop_key}" if prop_key else prop, art.get(field, "")
-            )
+        for field, prop in self._bridge_props():
+            window_property(prop, art.get(field, ""))
 
         total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 

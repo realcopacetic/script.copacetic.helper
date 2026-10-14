@@ -162,7 +162,7 @@ The addon imposes **no skin topology**. Which controls form a unit, and what con
 
 - Kodi resolves the snapshot at dispatch: if item 5 is focused, the helper receives `focus_guard=5`.
 - By default, the live side is derived as `Container(<identity_container>).CurrentItem` (`identity_container` defaults to `target`; with neither, `Container.CurrentItem`) — so only the snapshot needs passing.
-- At every checkpoint, the helper compares snapshot to live. Any mismatch aborts.
+- At every checkpoint, the helper compares snapshot to live. Any mismatch aborts (`artwork` then returns its held item, see [Window properties](artwork.md#window-properties)).
 
 `CurrentItem` is the right default identity for **scrolling within one container** — it changes on every item move. It is **not** sufficient across containers: `Container(3202).CurrentItem` and `Container(3206).CurrentItem` can both be `1`. That is what the focus check is for.
 

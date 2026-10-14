@@ -138,7 +138,7 @@ show; with no rectangles that is the part of the image the frame shows.
 | `target` | container id, or `item` | — | Container whose focused item this call is for; `item` is the window's own item (an info dialog's). See [Plugin Helpers](plugin_helpers.md#the-focus-guard). |
 | `prop_key` | any text | — | Suffix for the window properties the helper sets (see [Window properties](#window-properties)). |
 | `cursor_key` | any text | — | Name of the window property that marks the focused item (`artwork_cursor_<cursor_key>`). See [Is this result for the focused item?](#is-this-result-for-the-focused-item). |
-| `visit` | any text | — | A value that changes once per focus change. See the same section. A new value also refills the multiart FadeLabel. If passed and not equal to `Window(home).Property(artwork_visit)`, the call does nothing: a superseded or replayed path, as the live one fires anyway. |
+| `visit` | any text | — | A value that changes once per focus change. See the same section. A new value also refills the multiart FadeLabel. If passed and not equal to `Window(home).Property(artwork_visit)`, the call is a superseded or replayed path (the live one fires anyway) and returns the held item (see [Window properties](#window-properties)). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 ---
@@ -179,6 +179,16 @@ The helper also sets these on the home window. With `prop_key`, each name ends i
 
 Use them when something outside the helper container's window needs the values, or
 to keep the last background on screen while the next one is processed.
+
+**Aborted calls hold the last values.** A call that stops early (its `visit` is no
+longer live, or the focus guard fails) returns one item whose `background`,
+`background_darken` and `icon_darken` art are these three properties as they stand,
+with `ListItem.Property(current)` = `held/<prop_key>`. Kodi replaces a container's
+items with whatever a listing returns, so returning nothing would empty the list; the
+held item keeps its picture and darken until the next call lands. Its `current`
+never equals a cursor value, so currency checks stay false, and it carries no
+`previous`, `next` or position properties. A call with no image URL still returns
+nothing.
 
 ---
 
@@ -433,9 +443,9 @@ passed.
 
 Set `visit` from `Window(home).Property(artwork_visit)`, and have the skin change
 that property once per focus change. The helper compares the two: a call whose
-`visit` is not the property's current value does nothing, so another property here
-would stop every call. Do not put a live clock straight into the path: the path would
-change all the time and the helper would keep firing.
+`visit` is not the property's current value only returns the held item, so any other
+property here would make every call a held one. Do not put a live clock straight
+into the path: the path would change all the time and the helper would keep firing.
 
 ---
 
