@@ -29,6 +29,23 @@ LAYOUTS = {"itemlayout", "focusedlayout"}
 GENERATED = "script-copacetic-helper_"
 UNMIGRATED = ("_addonbrowser", "_pictures")  # pre-built for windows not yet migrated
 C2_SHELLS = ("tpl_window", "blk_modal_", "tpl_modal_", "img_modal_", "blk_hud_")
+MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow returns
+    *("AddonBrowser.xml", "EventLog.xml", "MyFavourites.xml", "MyGames.xml"),
+    *("MyMusicNav.xml", "MyMusicPlaylistEditor.xml", "MyPics.xml", "MyPlaylist.xml"),
+    *("MyPrograms.xml", "MyPVRChannels.xml", "MyPVRGuide.xml", "MyPVRRecordings.xml"),
+    *("MyPVRSearch.xml", "MyPVRTimers.xml", "MyVideoNav.xml"),
+}
+MEDIA_FAMILIES = (  # generated per-window definitions of the builder's media windows
+    *("_videos", "_music", "_addonbrowser", "_favourites"),
+    *("_pictures", "_programs", "_playlist"),
+)
+FALSE_FIRST = re.compile(r"\s*(\[\s*)?(?:false|!true)(?(1)\s*\])\s*\+", re.I)
+MEDIA_INFO = re.compile(  # label forms with no id; Row/Column/Position(n) are bools
+    r"(?<![\w.])Container(?:\(\s*0?\s*\))?\."
+    r"(?:NumItems|CurrentItem|NumPages|CurrentPage|NumAllItems|NumNonFolderItems"
+    r"|Position|Row|Column)\b(?!\()",
+    re.IGNORECASE,
+)
 ERRORS = {
     "parse",
     "empty-definition",
@@ -142,6 +159,26 @@ def exclusive(a: tuple, b: tuple) -> bool:
     return a[: len(b)] != b[: len(a)]
 
 
+def dead(condition: str) -> bool:
+    """
+    True when ``condition`` starts ``false +`` or ``[false] +`` with no ``|`` outside
+    brackets: ``+`` binds tighter than ``|``, so ``false + a | b`` is still live.
+    """
+    if not FALSE_FIRST.match(condition):
+        return False
+    depth = 0
+    for char in condition:
+        depth += (char in "[(") - (char in "])")
+        if char == "|" and not depth:
+            return False
+    return True
+
+
+def first_three(names: list[str]) -> str:
+    """Join up to three names, with an ellipsis when there are more."""
+    return ", ".join(names[:3]) + (", …" if len(names) > 3 else "")
+
+
 class Skin:
     """Parsed skin files plus the definitions Kodi would register from them."""
 
@@ -165,6 +202,7 @@ class Skin:
         self.calls = defaultdict(lambda: (set(), set()))
         self.duplicates = defaultdict(list)
         self.reached = set()
+        self.media_info = defaultdict(set)
         self.loaded = []
         self._load("Includes.xml")
         for name, root in self.roots.items():
@@ -399,20 +437,47 @@ class Skin:
         root = clone(self.roots[name])
         self.check_calls(root)
         self.expand(root, budget=[100_000])
-        queue = [root]
+        live = name not in MEDIA_WINDOWS
+        queue, reached = [(root, live)], {}
         for branch in {b for node in root.iter() for b in getattr(node, "branch", ())}:
             src, _, condition = branch.partition(" ")
-            queue.append(Node("include", {"condition": condition}))
-            queue[-1].src = src
+            include = Node("include", {"condition": condition})
+            include.src = src
+            queue.append((include, live))
         while queue:
-            for node, value in values(queue.pop()):
+            top, live = queue.pop()
+            for node, value in values(top):
+                live_here = live and not dead(value)
+                if live_here:
+                    self.check_media_info(node.src, value, name)
                 for token, ref in REF.findall(value):
                     self.check_reference(token, ref, node.src)
                     kind, ref = KINDS[token], ref.split(",")[0]
-                    if (kind, ref) not in self.reached and ref in self.defs[kind]:
-                        self.reached.add((kind, ref))
-                        queue.append(self.defs[kind][ref])
+                    if ref not in self.defs[kind]:
+                        continue
+                    definition = self.defs[kind][ref]
+                    live_ref = live_here and not (
+                        node.src.startswith(GENERATED)
+                        and definition.src.startswith(GENERATED)
+                        and ref.endswith(MEDIA_FAMILIES)
+                    )
+                    if (kind, ref) not in reached or live_ref > reached[kind, ref]:
+                        reached[kind, ref] = live_ref
+                        queue.append((definition, live_ref))
+        self.reached |= reached.keys()
         self.check_ids(name, self.roots[name])
+
+    def check_media_info(self, src: str, value: str, context: str) -> None:
+        """
+        Record label-form container infos with no id in ``value``: they read only a
+        media window's view, so in ``context`` (not a media window) they are empty.
+
+        :param src: Where ``value`` was parsed.
+        :param value: Text or attribute value.
+        :param context: Non-media window or ``Timers.xml`` that reaches it.
+        """
+        for info in MEDIA_INFO.findall(value):
+            self.media_info[src, info].add(context)
 
     def check_unreferenced(self) -> None:
         """
@@ -448,12 +513,22 @@ class Skin:
                 self.check_ids(name, root)
         if windows is not None:
             self.check_unreferenced()
+        if "Timers.xml" in self.roots:
+            for node, value in values(self.roots["Timers.xml"]):
+                self.check_media_info(node.src, value, "Timers.xml")
+        for (src, info), contexts in self.media_info.items():
+            where = first_three(sorted(contexts))
+            message = (
+                f"{info} with no id reads only the active media window: empty on Home"
+                f" and search, and in dialogs over them [{where}]"
+            )
+            self.report("media-window-info", src, message)
         self.check_params()
         for (cid, srcs), windows in self.duplicates.items():
             where = ", ".join(
                 f"{src} ×{n}" if n > 1 else src for src, n in Counter(srcs).items()
             )
-            shown = ", ".join(windows[:3]) + (", …" if len(windows) > 3 else "")
+            shown = first_three(windows)
             self.report("duplicate-id", srcs[0], f"id {cid}: {where} [{shown}]")
         return self.findings
 
