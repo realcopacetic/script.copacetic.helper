@@ -37,7 +37,7 @@ The path returns no list items. It drives the textbox directly.
 | `reset` | `true`, `false` | `false` | Stop any run on this textbox and hide it. See [Resetting](#resetting). |
 | `max_lines` | whole number | `3` | Most lines the textbox may grow to. |
 | `start_delay` | seconds (decimal) | `0` | Wait before typing starts. Focus is checked again after the wait. |
-| `visit` | any text | — | If passed, the run only goes ahead when it equals `Window(home).Property(artwork_visit)`. |
+| `visit` | any text | — | If passed, even empty, the run only goes ahead when it equals `Window(home).Property(artwork_visit)`. |
 | `target` | container id, or `item` | — | Container the label belongs to. Used by the focus guard and the window properties below. `item` means the window's own item (an info dialog's); `typewriter_container` is then empty. |
 | `dialog` | `true`, `false` | `false` | The controls are in the topmost dialog, not the current window. `target=item` implies it. See [Plugin Helpers](plugin_helpers.md#the-focus-guard). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -56,9 +56,10 @@ The textbox width is the rectangle's width.
 
 ## What happens on each run
 
-1. With `visit` passed: if it does not equal `Window(home).Property(artwork_visit)`,
-   the run stops. This drops replays of old cached paths (for example after
-   `ReloadSkin()`), as the live path fires again anyway.
+1. With `visit` passed (even empty): if it does not equal
+   `Window(home).Property(artwork_visit)`, the run stops. This drops replays of old
+   cached paths (for example after `ReloadSkin()`) and a path read while the property
+   was cleared, as the live path fires again anyway.
 2. The focus guard is checked.
 3. `Window(home).Property(typewriter_container)` is set to the container id
    (`identity_container`, else `target`; empty when neither is passed), and

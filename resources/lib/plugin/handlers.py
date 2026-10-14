@@ -261,11 +261,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         A URL whose visit stamp is no longer live is a replay or a superseded serve:
         the live visit's URL fires on its own, so this run must do nothing.
 
-        :return: True when the URL carries a visit that is not the live one.
+        :return: True when the URL carries a visit, even an empty one, not the live one.
         """
         visit = self.params.get("visit")
         stamp = "Window(home).Property(artwork_visit)"
-        return bool(visit) and visit != infolabel(stamp)
+        return visit is not None and visit != infolabel(stamp)
 
     def _info_swapped(self) -> bool:
         """
