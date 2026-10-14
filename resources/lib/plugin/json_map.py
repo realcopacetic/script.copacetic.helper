@@ -58,7 +58,6 @@ JSON_PROPERTIES = {
         "sortname",
         "type",
         "gender",
-        "disambiguation",
         "art",
         "datemodified",
         "datenew",
