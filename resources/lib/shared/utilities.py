@@ -151,13 +151,14 @@ def container_position(container: str, prop: str, value: str) -> int | None:
     return None
 
 
-def focused_control_id() -> int:
+def focused_control_id(window_id: int) -> int:
     """
-    Return the id of the focused control in the current window.
+    Return the id of the focused control in a window.
 
+    :param window_id: Window to read.
     :return: Focused control id, or 0 if nothing is focused.
     """
-    return Window(getCurrentWindowId()).getFocusId()
+    return Window(window_id).getFocusId()
 
 
 def topmost_window_id() -> int:

@@ -104,6 +104,7 @@ class _FocusGuard:
         "expected_identity",
         "identity_getter",
         "focus_ids",
+        "window_id",
     )
 
     def __init__(
@@ -111,6 +112,7 @@ class _FocusGuard:
         caller_name: str,
         expected_identity: str | None,
         identity_getter: Callable[[], str],
+        window_id: int,
         focus_ids: tuple[str, ...] = (),
     ):
         """
@@ -119,11 +121,13 @@ class _FocusGuard:
         :param caller_name: Name of the calling handler, used for logging.
         :param expected_identity: Snapshot identity for the focused item; None to disable identity guarding.
         :param identity_getter: Callable returning current item identity.
+        :param window_id: Window whose focus is read: the one that holds the serve's controls.
         :param focus_ids: Control ids of which one must hold focus; empty to disable focus guarding.
         """
         self.caller_name = caller_name
         self.expected_identity = expected_identity
         self.identity_getter = identity_getter
+        self.window_id = window_id
         self.focus_ids = focus_ids
 
     def alive(self) -> bool:
@@ -132,7 +136,7 @@ class _FocusGuard:
 
         :return: True if guard conditions still hold, otherwise False.
         """
-        if not (focus_id := focused_control_id()):
+        if not (focus_id := focused_control_id(self.window_id)):
             return True
         current = str(focus_id)
 
@@ -232,7 +236,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         else:
             getter = lambda: infolabel(f"{self.identity_container}.CurrentItem")
         return _FocusGuard(
-            self.params.get("info", ""), self.expected_identity, getter, self.focus_ids
+            self.params.get("info", ""),
+            self.expected_identity,
+            getter,
+            self.window_id,
+            self.focus_ids,
         )
 
     @property
@@ -453,7 +461,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         else:
             # A cleared cursor (back from an info dialog) scopes to the focused view.
             stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope or str(
-                focused_control_id()
+                focused_control_id(self.window_id)
             )
         art_opts = {
             art_type: ArtOpts.from_params(self.params, art_type)

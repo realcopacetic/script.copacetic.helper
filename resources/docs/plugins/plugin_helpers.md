@@ -143,7 +143,9 @@ focused list (for example the cast list). The item never scrolls, so it takes no
 `progressbar` and `typewriter` move controls. They use the current window, even when
 a dialog is open on top of it. With `dialog=true`, or with `target=item`, they use the
 topmost dialog instead. Pass `dialog=true` when the controls are in a dialog and the
-path reads a list in it (`target=<id>`).
+path reads a list in it (`target=<id>`). On every path the focus check reads that same
+window: the dialog's focus with `dialog=true` or `target=item`, else the current
+window's.
 
 Two cases always pass: when no control has focus at all, and when the live identity
 reads as empty.
