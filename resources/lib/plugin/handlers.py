@@ -119,10 +119,10 @@ class _FocusGuard:
         Create a guard that checks container focus and item identity.
 
         :param caller_name: Name of the calling handler, used for logging.
-        :param expected_identity: Snapshot identity for the focused item; None to disable identity guarding.
+        :param expected_identity: Focused item's snapshot identity; None to skip.
         :param identity_getter: Callable returning current item identity.
-        :param window_id: Window whose focus is read: the one that holds the serve's controls.
-        :param focus_ids: Control ids of which one must hold focus; empty to disable focus guarding.
+        :param window_id: Window whose focus is read, which holds the serve's controls.
+        :param focus_ids: Control ids of which one must hold focus; empty to skip.
         """
         self.caller_name = caller_name
         self.expected_identity = expected_identity
@@ -854,7 +854,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def typewriter(self) -> None:
         """
-        Run typewriter animation for the current listitem; guarded against focus changes.
+        Run typewriter animation for the current item; guarded against focus changes.
         A reset=true invocation supersedes any run and hides the control.
         """
         if not self._require("target_id"):
