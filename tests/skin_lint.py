@@ -23,6 +23,10 @@ from PIL import Image, ImageChops, ImageSequence
 REF = re.compile(r"\$(?:ESC)?(VAR|EXP)\[((?:[^\[\]]|\[[^\[\]]*\])+)\]")
 PARAM = re.compile(r"\$PARAM\[([^\[\]]*)\]")
 WHOLE_EXP = re.compile(r"\[?\$EXP\[([^\[\]]+)\]\]?")
+INCLUDE_REF = re.compile(r"\$(?:EXP|PARAM)\[[^\[\]]*\]")  # resolved by includes only
+CONDITION_REF = re.compile(r"\$(?:EXP|PARAM|(?:ESC)?VAR)\[[^\[\]]*\]")
+TIMER_CONDITIONS = {"start", "reset", "stop"}
+TIMER_ACTIONS = {"onstart", "onstop"}
 KINDS = {"VAR": "variable", "EXP": "expression"}
 DEFINITIONS = ("include", "expression", "variable")
 LAYOUTS = {"itemlayout", "focusedlayout"}
@@ -54,6 +58,7 @@ ERRORS = {
     "undefined-include",
     "undefined-variable",
     "texture-clear",
+    "timer-unresolved",
 }
 
 
@@ -479,6 +484,24 @@ class Skin:
         for info in MEDIA_INFO.findall(value):
             self.media_info[src, info].add(context)
 
+    def check_timers(self, root: Node) -> None:
+        """
+        Report references Kodi leaves literal in ``Timers.xml``: it skips includes, so
+        ``$EXP``/``$PARAM`` anywhere; ``$VAR`` everywhere but action text.
+
+        :param root: Parsed ``Timers.xml``.
+        """
+        for node in root.iter():
+            if node.tag in TIMER_CONDITIONS:
+                refs = CONDITION_REF.findall(node.text or "")
+            elif node.tag in TIMER_ACTIONS:
+                refs = CONDITION_REF.findall(node.get("condition", ""))
+                refs += INCLUDE_REF.findall(node.text or "")
+            else:
+                continue
+            for ref in refs:
+                self.report("timer-unresolved", node.src, f"{ref} stays literal")
+
     def check_unreferenced(self) -> None:
         """
         Report generated variables and expressions that no linted window reaches,
@@ -516,6 +539,7 @@ class Skin:
         if "Timers.xml" in self.roots:
             for node, value in values(self.roots["Timers.xml"]):
                 self.check_media_info(node.src, value, "Timers.xml")
+            self.check_timers(self.roots["Timers.xml"])
         for (src, info), contexts in self.media_info.items():
             where = first_three(sorted(contexts))
             message = (
