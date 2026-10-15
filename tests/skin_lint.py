@@ -7,6 +7,7 @@ that ``media`` textures store white under fully transparent pixels. Errors exit 
 """
 
 import argparse
+import json
 import re
 import sys
 import tempfile
@@ -39,10 +40,6 @@ MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow
     *("MyPrograms.xml", "MyPVRChannels.xml", "MyPVRGuide.xml", "MyPVRRecordings.xml"),
     *("MyPVRSearch.xml", "MyPVRTimers.xml", "MyVideoNav.xml"),
 }
-MEDIA_FAMILIES = (  # generated per-window definitions of the builder's media windows
-    *("_videos", "_music", "_addonbrowser", "_favourites"),
-    *("_pictures", "_programs", "_playlist"),
-)
 FALSE_FIRST = re.compile(r"\s*(\[\s*)?(?:false|!true)(?(1)\s*\])\s*\+", re.I)
 MEDIA_INFO = re.compile(  # label forms with no id; Row/Column/Position(n) are bools
     r"(?<![\w.])Container(?:\(\s*0?\s*\))?\."
@@ -187,14 +184,16 @@ def first_three(names: list[str]) -> str:
 class Skin:
     """Parsed skin files plus the definitions Kodi would register from them."""
 
-    def __init__(self, paths: list[Path]):
+    def __init__(self, paths: list[Path], media_families: tuple[str, ...]):
         """
         Parse every file, then register definitions from the include files
         ``Includes.xml`` loads, in load order.
 
         :param paths: XML files to lint.
+        :param media_families: Name suffixes of the builder's media window definitions.
         """
         self.findings = set()
+        self.media_families = media_families
         self.roots = {}
         for path in paths:
             try:
@@ -464,7 +463,7 @@ class Skin:
                     live_ref = live_here and not (
                         node.src.startswith(GENERATED)
                         and definition.src.startswith(GENERATED)
-                        and ref.endswith(MEDIA_FAMILIES)
+                        and ref.endswith(self.media_families)
                     )
                     if (kind, ref) not in reached or live_ref > reached[kind, ref]:
                         reached[kind, ref] = live_ref
@@ -577,6 +576,19 @@ def check_textures(skin: Path) -> Iterator[Finding]:
                 break
 
 
+def media_families(skin: Path) -> tuple[str, ...]:
+    """
+    Name suffixes of the generated per-window definitions of the builder's media
+    windows: the ``mappings_windows.json`` windows with ``mode`` ``media``.
+
+    :param skin: Skin root directory.
+    :return: Suffixes such as ``_videos``.
+    """
+    path = skin / "extras/templates/mappings/mappings_windows.json"
+    metadata = json.loads(path.read_text())["windows"]["metadata"]
+    return tuple(f"_{w}" for w, meta in metadata.items() if meta["mode"] == "media")
+
+
 def location(finding: Finding) -> tuple[str, int]:
     """Sort key: file name, then numeric line."""
     file, _, line = finding.src.rpartition(":")
@@ -605,7 +617,7 @@ def main() -> None:
             print(f"build: {build_isolated(args.skin, generated)}")
         files = {p.name: p for p in sorted((args.skin / "16x9").glob("*.xml"))}
         files |= {p.name: p for p in sorted((generated / "16x9").glob("*.xml"))}
-        skin = Skin(list(files.values()))
+        skin = Skin(list(files.values()), media_families(args.skin))
         windows = None if args.all else sorted({*skin.migrated(), *args.window})
         if windows:
             print(f"windows: {', '.join(windows)}")
