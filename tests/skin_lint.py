@@ -28,6 +28,7 @@ INCLUDE_REF = re.compile(r"\$(?:EXP|PARAM)\[[^\[\]]*\]")  # resolved by includes
 CONDITION_REF = re.compile(r"\$(?:EXP|PARAM|(?:ESC)?VAR)\[[^\[\]]*\]")
 TIMER_CONDITIONS = {"start", "reset", "stop"}
 TIMER_ACTIONS = {"onstart", "onstop"}
+TIMER_IGNORED = {"include", "constant"}  # CGUIIncludes elements
 KINDS = {"VAR": "variable", "EXP": "expression"}
 DEFINITIONS = ("include", "expression", "variable")
 LAYOUTS = {"itemlayout", "focusedlayout"}
@@ -503,11 +504,17 @@ class Skin:
     def check_timers(self, root: Node) -> None:
         """
         Check what Kodi reads in ``Timers.xml`` for media infos and for references it
-        leaves literal: it skips includes, so ``$EXP``/``$PARAM`` anywhere; ``$VAR``
-        everywhere but action text.
+        leaves literal: it skips includes, so ``<include>``, ``<constant>``, ``$EXP``
+        and ``$PARAM`` anywhere; ``$VAR`` everywhere but action text.
 
         :param root: Parsed ``Timers.xml``.
         """
+        for node in root.iter():
+            if node.tag in TIMER_IGNORED:
+                name = node.get("name") or include_name(node)
+                self.report(
+                    "timer-unresolved", node.src, f"<{node.tag}> {name} is ignored"
+                )
         for node, condition, action in timer_reads(root):
             for value in (condition, action):
                 self.check_media_info(node.src, value, "Timers.xml")
