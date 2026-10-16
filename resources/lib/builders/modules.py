@@ -794,7 +794,7 @@ class VariablesBuilder(BaseBuilder):
 
             for name, group_subs in grouped.items():
                 result[name] = self._ensure_nonempty(
-                    self._expand_blocks(projected, group_subs)
+                    self._expand_blocks(projected, group_subs, name)
                 )
 
         return result
@@ -846,7 +846,9 @@ class VariablesBuilder(BaseBuilder):
         return [
             {
                 "name": name,
-                "values": self._ensure_nonempty(self._expand_blocks(blocks, subs)),
+                "values": self._ensure_nonempty(
+                    self._expand_blocks(blocks, subs, name)
+                ),
             }
         ]
 
@@ -909,6 +911,7 @@ class VariablesBuilder(BaseBuilder):
         self,
         blocks: list[list[dict[str, str]]],
         subs: list[dict[str, Any]],
+        name: str,
     ) -> list[dict[str, str]]:
         """
         Expand blocks into a flat list in declared order: a block with any placeholder
@@ -917,15 +920,17 @@ class VariablesBuilder(BaseBuilder):
 
         :param blocks: Normalised list of blocks.
         :param subs: Substitution group (may be empty).
+        :param name: Variable name, for the row filter's error message.
         :return: Flat list of formatted value dicts.
         """
         flattened = []
+        what = f"a row filter of '{name}'"
         for block in blocks:
             for sub in subs if self._block_has_placeholder(block) else [{}]:
                 flattened.extend(
                     self._resolve_pair(p, sub)
                     for p in block
-                    if self._passes(p.get("filter", ""), sub, "a row filter")
+                    if self._passes(p.get("filter", ""), sub, what)
                 )
         return self._dedup_rows(flattened)
 
