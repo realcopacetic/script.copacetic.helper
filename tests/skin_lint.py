@@ -176,6 +176,23 @@ def dead(condition: str) -> bool:
     return True
 
 
+def timer_reads(root: Node) -> Iterator[tuple[Node, str, str]]:
+    """
+    Yield ``(element, condition, action text)`` for what ``LoadTimerInternal`` reads:
+    the first ``<start>``, ``<reset>``, ``<stop>`` and every ``<onstart>``/``<onstop>``
+    of each ``<timer>`` with a ``<name>``.
+    """
+    for timer in root.iterfind("timer"):
+        if not timer.findtext("name"):
+            continue
+        for tag in TIMER_CONDITIONS:
+            if (node := timer.find(tag)) is not None:
+                yield node, node.text or "", ""
+        for tag in TIMER_ACTIONS:
+            for node in timer.iterfind(tag):
+                yield node, node.get("condition", ""), node.text or ""
+
+
 def first_three(names: list[str]) -> str:
     """Join up to three names, with an ellipsis when there are more."""
     return ", ".join(names[:3]) + (", …" if len(names) > 3 else "")
@@ -485,20 +502,16 @@ class Skin:
 
     def check_timers(self, root: Node) -> None:
         """
-        Report references Kodi leaves literal in ``Timers.xml``: it skips includes, so
-        ``$EXP``/``$PARAM`` anywhere; ``$VAR`` everywhere but action text.
+        Check what Kodi reads in ``Timers.xml`` for media infos and for references it
+        leaves literal: it skips includes, so ``$EXP``/``$PARAM`` anywhere; ``$VAR``
+        everywhere but action text.
 
         :param root: Parsed ``Timers.xml``.
         """
-        for node in root.iter():
-            if node.tag in TIMER_CONDITIONS:
-                refs = CONDITION_REF.findall(node.text or "")
-            elif node.tag in TIMER_ACTIONS:
-                refs = CONDITION_REF.findall(node.get("condition", ""))
-                refs += INCLUDE_REF.findall(node.text or "")
-            else:
-                continue
-            for ref in refs:
+        for node, condition, action in timer_reads(root):
+            for value in (condition, action):
+                self.check_media_info(node.src, value, "Timers.xml")
+            for ref in CONDITION_REF.findall(condition) + INCLUDE_REF.findall(action):
                 self.report("timer-unresolved", node.src, f"{ref} stays literal")
 
     def check_unreferenced(self) -> None:
@@ -536,8 +549,6 @@ class Skin:
         if windows is not None:
             self.check_unreferenced()
         if "Timers.xml" in self.roots:
-            for node, value in values(self.roots["Timers.xml"]):
-                self.check_media_info(node.src, value, "Timers.xml")
             self.check_timers(self.roots["Timers.xml"])
         for (src, info), contexts in self.media_info.items():
             where = first_three(sorted(contexts))
