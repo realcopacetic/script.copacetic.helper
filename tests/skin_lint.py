@@ -21,7 +21,8 @@ from xml.parsers import expat
 from build_offline import build_isolated
 from PIL import Image, ImageChops, ImageSequence
 
-REF = re.compile(r"\$(?:ESC)?(VAR|EXP)\[((?:[^\[\]]|\[[^\[\]]*\])+)\]")
+REF = re.compile(r"\$(?:ESC(?=VAR))?(VAR|EXP)\[((?:[^\[\]]|\[[^\[\]]*\])+)\]")
+ESCEXP = re.compile(r"\$ESCEXP\[(?:[^\[\]]|\[[^\[\]]*\])+\]")  # not a Kodi token
 PARAM = re.compile(r"\$PARAM\[([^\[\]]*)\]")
 WHOLE_EXP = re.compile(r"\[?\$EXP\[([^\[\]]+)\]\]?")
 INCLUDE_REF = re.compile(r"\$(?:EXP|PARAM)\[[^\[\]]*\]")  # resolved by includes only
@@ -51,6 +52,7 @@ MEDIA_INFO = re.compile(  # label forms with no id; Row/Column/Position(n) are b
 ERRORS = {
     "parse",
     "empty-definition",
+    "escaped-expression",
     "include-recursion",
     "undefined-expression",
     "undefined-include",
@@ -278,8 +280,9 @@ class Skin:
             self.report(f"undefined-{kind}", src, f"${token}[{name}]")
 
     def check_references(self, root: Node) -> None:
-        """Check every literal ``$VAR``/``$EXP`` reference in ``root``."""
+        """Check every literal ``$VAR``/``$EXP``/``$ESCEXP`` token in ``root``."""
         for node, value in values(root):
+            self.check_escexp(node.src, value)
             for token, name in REF.findall(value):
                 self.check_reference(token, name, node.src)
 
@@ -472,6 +475,7 @@ class Skin:
                 live_here = live and not dead(value)
                 if live_here:
                     self.check_media_info(node.src, value, name)
+                self.check_escexp(node.src, value)
                 for token, ref in REF.findall(value):
                     self.check_reference(token, ref, node.src)
                     kind, ref = KINDS[token], ref.split(",")[0]
@@ -488,6 +492,11 @@ class Skin:
                         queue.append((definition, live_ref))
         self.reached |= reached.keys()
         self.check_ids(name, self.roots[name])
+
+    def check_escexp(self, src: str, value: str) -> None:
+        """Report ``$ESCEXP[…]`` in ``value``, which Kodi leaves literal."""
+        for token in ESCEXP.findall(value):
+            self.report("escaped-expression", src, f"{token} stays literal")
 
     def check_media_info(self, src: str, value: str, context: str) -> None:
         """
@@ -518,6 +527,7 @@ class Skin:
         for node, condition, action in timer_reads(root):
             for value in (condition, action):
                 self.check_media_info(node.src, value, "Timers.xml")
+                self.check_escexp(node.src, value)
             for ref in CONDITION_REF.findall(condition) + INCLUDE_REF.findall(action):
                 self.report("timer-unresolved", node.src, f"{ref} stays literal")
 
