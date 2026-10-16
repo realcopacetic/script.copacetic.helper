@@ -160,7 +160,7 @@ def controls(node: Node, branch: tuple = ()) -> Iterator[tuple[Node, tuple]]:
 
 
 def exclusive(a: tuple, b: tuple) -> bool:
-    """True when two include-condition paths diverge, so they may never load together."""
+    """True when two include-condition paths diverge, so they never load together."""
     return a[: len(b)] != b[: len(a)]
 
 
