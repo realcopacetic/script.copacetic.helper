@@ -489,7 +489,7 @@ def expand_index(index_obj: dict[str, Any]) -> list[str]:
     """
     Expands a dict with start/end/step into a list of string indices.
 
-    :param index_obj: Dictionary with "start", "end", and optional "step".
+    :param index_obj: Dictionary with "start", and optional "end" and "step".
     :return: List of stringified index values.
     """
     if not index_obj:
@@ -502,7 +502,10 @@ def expand_index(index_obj: dict[str, Any]) -> list[str]:
         step = int(keys.get("step", 1))
         return [str(i) for i in range(start, end + (1 if step > 0 else -1), step)]
     except (KeyError, TypeError, ValueError):
-        log.debug(f"expand_index: Failed to expand {index_obj} — 'end' is required")
+        log.debug(
+            f"expand_index: Failed to expand {index_obj} — needs an integer 'start'; "
+            "'end' and 'step' are optional integers, 'step' not 0"
+        )
         return []
 
 
