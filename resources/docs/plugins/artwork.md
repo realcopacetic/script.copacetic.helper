@@ -190,8 +190,9 @@ with `ListItem.Property(current)` = `held/<prop_key>`. Kodi replaces a container
 items with whatever a listing returns, so returning nothing would empty the list; the
 held item keeps its picture and darken until the next call lands. Its `current`
 never equals a cursor value, so currency checks stay false, and it carries no
-`previous`, `next` or position properties. A call with no image URL still returns
-nothing.
+`previous`, `next` or position properties. These two checks come first, so a stale
+call returns the held item even with no image URL. A live call with no image URL
+still returns nothing.
 
 ---
 

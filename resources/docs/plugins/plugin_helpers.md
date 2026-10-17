@@ -205,7 +205,7 @@ Guarded handlers don't check once at startup — they re-check before every stag
 - **`metadata`** checks before reading the item, after the TMDb lookup, and before returning the item.
 - **`tmdb_details`** checks before and after the TMDb lookup.
 - **`text`** checks before and after drawing the image.
-- **`typewriter`** receives the guard's `alive` callable and checks it **per character**, alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
+- **`typewriter`** receives the guard's `alive` callable and checks it **after every 25 ms wait** (once before the textbox shows, then after each character), alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating and again before moving UI controls (the data result is still returned; only the UI update is skipped).
 - **`reposition`**, `multiart_tiles`, the library listings and `speed_dial` are unguarded. `multiart_tiles` has its own check instead (see [Artwork](artwork.md#multiart_tiles)).
 
