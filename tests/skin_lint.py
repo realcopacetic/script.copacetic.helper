@@ -35,7 +35,10 @@ DEFINITIONS = ("include", "expression", "variable")
 LAYOUTS = {"itemlayout", "focusedlayout"}
 GENERATED = "script-copacetic-helper_"
 UNMIGRATED = ("_addonbrowser", "_pictures")  # pre-built for windows not yet migrated
-C2_SHELLS = ("tpl_window", "blk_modal_", "tpl_modal_", "img_modal_", "blk_hud_")
+C2_SHELLS = (
+    *("tpl_window", "blk_modal_", "tpl_modal_", "img_modal_", "blk_hud_"),
+    *("tpl_editor", "blk_settings_panels"),  # the editors and the settings windows
+)
 MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow returns
     *("AddonBrowser.xml", "EventLog.xml", "MyFavourites.xml", "MyGames.xml"),
     *("MyMusicNav.xml", "MyMusicPlaylistEditor.xml", "MyPics.xml", "MyPlaylist.xml"),
