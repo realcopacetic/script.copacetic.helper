@@ -40,7 +40,7 @@ JSON files in `extras/templates/expressions/`:
 | `items_from` | Loop another mapping's items, under its own placeholder names — same behaviour as [Variables → items_from](03-variables.md#items_from--borrow-another-mappings-list) |
 | `templates_from` | Stamp the template once per listed mapping with its `tokens` filled — [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings) |
 | `index` | `{"start": N}` — numbers the passes as `{index}`; never adds passes |
-| `range` | Numeric loop (`start`, `end` inclusive, optional `step`, default 1; a negative `step` counts down) — multiplies every pass, available as `{range}`; `ready_typewriter_{region}_{range}` uses it |
+| `range` | Numeric loop (`start`, `end` inclusive, optional `step`, default 1; a negative `step` counts down; without `end`, just `start`) — multiplies every pass, available as `{range}`; `ready_typewriter_{region}_{range}` uses it |
 | `rules` | Condition / type / value rows — see below |
 | `fallback_key` | Which token groups expressions for the fallback step |
 | `fallbacks` | What the catch-all in each group gets |

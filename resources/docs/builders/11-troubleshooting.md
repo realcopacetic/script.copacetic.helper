@@ -76,7 +76,7 @@ Editor labels, descriptions, `visible` conditions and onclick actions use plain 
 
 ## "A whole family of variables vanished after I touched a mapping"
 
-A filter on those templates is failing every pass — usually a condition that's well-formed but always false: a typo'd operator (`!equals`), a token that rendered to something the rule never matches, a `+` or `|` inside a token's value (the rule engine splits at every one; it has no grouping). The engine doesn't log these. Diff the generated output against the last good build; the missing names tell you which template's filter to check. (An unresolved `{placeholder}` in a filter *does* stop the build, naming the template.)
+A filter on those templates is failing every pass — usually a condition that's well-formed but always false: a typo'd operator (`!equals`), a token that rendered to something the rule never matches, a `+` or `|` inside a token's value (the rule engine splits at every one; it has no grouping). The engine doesn't log these. Diff the generated output against the last good build; the missing names tell you which template's filter to check. (An unresolved `{placeholder}` in a filter *does* stop the build, naming the template, or the variable for a row filter.)
 
 ---
 

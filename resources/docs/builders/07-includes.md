@@ -35,7 +35,7 @@ XML files in `extras/templates/includes/`:
 | `<mapping>` | Mapping name. Missing = `none`. |
 | `<template>` | One unit to expand (several per file is fine) |
 | `<index start="N">` | Start number for `{index}` (default 1) — numbers the passes, never multiplies them |
-| `<range start="" end="" step="">` | Numeric loop (`end` inclusive, `step` optional, default 1; a negative `step` counts down to `end`) — every pass repeats once per value as `{range}` |
+| `<range start="" end="" step="">` | Numeric loop (`end` inclusive, `step` optional, default 1; a negative `step` counts down to `end`; without `end` it gives the single value `start`) — every pass repeats once per value as `{range}` |
 | `<items>` | An extra comma-separated loop on the template itself |
 | `<items_from>` | Loop another mapping's items under its own placeholder names — [Variables → items_from](03-variables.md#items_from--borrow-another-mappings-list) |
 | `<templates_from>` | Comma-separated mappings; the template expands once per mapping with its `tokens` filled — [Variables → templates_from](03-variables.md#templates_from--one-template-several-mappings). In Copacetic, `includes_scoped.xml` builds one include each for widgets and search from one body. |
