@@ -1040,28 +1040,52 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             category=ADDON.getLocalizedString(32600),
             sort_method=SORT_METHOD_LASTPLAYED,
         )
-        # 1: In-progress shows, ordered by lastplayed desc.
-        shows = fetch_raw(
-            "VideoLibrary.GetTVShows",
-            "tvshow",
-            [self.filter_inprogress],
-            sort=self.sort_lastplayed,
-            parent="next_up",
-            limit=self.limit,
-            properties=[
-                "title",
-                "studio",
-                "mpaa",
-                "lastplayed",
-                "episode",
-                "watchedepisodes",
-                "art",
-            ],
-        )
-        if not shows:
-            log.debug(f"{self.__class__.__name__} → next_up: No TV shows found.")
+        # 1: In-progress shows, ordered by lastplayed desc: the first `limit`, then
+        # the rest in one uncapped round only if specials-only shows (no card)
+        # left the first page short. Omitting "end" returns all (List.Amount -1),
+        # and a start at the end returns every show again, so seen ones are dropped.
+        page = self.limit
+        rounds = [{"start": 0, "end": page}, {"start": page}] if page else [None]
+        ordered_episodes, seen = [], set()
+        for limits in rounds:
+            fetched = fetch_raw(
+                "VideoLibrary.GetTVShows",
+                "tvshow",
+                [self.filter_inprogress],
+                sort=self.sort_lastplayed,
+                parent="next_up",
+                params=limits and {"limits": limits},
+                properties=[
+                    "title",
+                    "studio",
+                    "mpaa",
+                    "lastplayed",
+                    "episode",
+                    "watchedepisodes",
+                    "art",
+                ],
+            )
+            if shows := [s for s in fetched if s["tvshowid"] not in seen]:
+                ordered_episodes += self._next_up_cards(shows)
+                seen.update(s["tvshowid"] for s in shows)
+            if not page or len(fetched) < page or len(ordered_episodes) >= page:
+                break
+
+        if not ordered_episodes:
+            log.debug(f"{self.__class__.__name__} → next_up: No next up episodes.")
             return None
 
+        return build_items(
+            ordered_episodes[:page], "episode", tag_applier=apply_videoinfotag
+        )
+
+    def _next_up_cards(self, shows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Lowest unwatched non-special episode per show, in the shows' order.
+
+        :param shows: In-progress shows from VideoLibrary.GetTVShows.
+        :return: Episode dicts carrying show-level studio, mpaa and art.
+        """
         pending_ids = {s["tvshowid"] for s in shows}
 
         # 2: Unwatched non-special episodes for the pending shows only,
@@ -1090,7 +1114,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         # Assemble in pending_shows order to preserve lastplayed desc.
         # Attach show-level studio/mpaa to each episode.
-        ordered_episodes = []
+        cards = []
         for s in shows:
             ep = first_per_show.get(s["tvshowid"])
             if ep is None:
@@ -1100,15 +1124,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             ep["studio"] = s.get("studio", [])
             ep["mpaa"] = s.get("mpaa", "")
             ep["art"] = {f"tvshow.{k}": v for k, v in s.get("art", {}).items()}
-            ordered_episodes.append(ep)
-
-        if not ordered_episodes:
-            log.debug(
-                f"{self.__class__.__name__} → next_up: No unwatched episodes found."
-            )
-            return None
-
-        return build_items(ordered_episodes, "episode", tag_applier=apply_videoinfotag)
+            cards.append(ep)
+        return cards
 
     @log.duration
     def random_movies(self) -> list[DirectoryItem] | None:

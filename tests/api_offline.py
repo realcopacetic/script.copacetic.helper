@@ -743,5 +743,72 @@ class ListenersTest(Base):
         self.assertIsNone(self.handler.listeners())
 
 
+class NextUpTest(unittest.TestCase):
+    shows = [
+        {"tvshowid": 1, "title": "Specials Left"},
+        {"tvshowid": 2, "title": "Bluey"},
+        {"tvshowid": 3, "title": "Taskmaster"},
+    ]
+    episodes = [{"tvshowid": 3, "title": "TM 1x01"}, {"tvshowid": 2, "title": "B 1x01"}]
+
+    def setUp(self):
+        self.calls = []
+
+        def rpc(request):
+            request = json.loads(request)
+            self.calls.append(request["method"])
+            if request["method"] == "VideoLibrary.GetEpisodes":
+                return json.dumps({"result": {"episodes": self.episodes}})
+            # as SortUtils::Sort: a start at or past the end trims nothing
+            limits = request["params"].get("limits", {})
+            start = limits.get("start", 0)
+            rows = self.shows[start if start < len(self.shows) else 0 :]
+            rows = rows[: limits["end"] - start] if "end" in limits else rows
+            return json.dumps({"result": {"tvshows": rows}})
+
+        for target, name, value in (
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (handlers, "set_plugincontent", lambda **kwargs: None),
+            (handlers, "build_items", lambda rows, *a, **k: [r["title"] for r in rows]),
+            (handlers.ADDON, "getLocalizedString", str),
+        ):
+            patcher = mock.patch.object(target, name, value, create=True)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.handler = object.__new__(handlers.PluginHandlers)
+        self.handler.sort_lastplayed = None
+        self.handler.filter_inprogress = self.handler.filter_unwatched = {}
+        self.handler.filter_no_specials = {}
+
+    def test_full_page_is_one_round(self):
+        self.handler.limit = 1
+        self.shows = self.shows[1:]
+        self.assertEqual(self.handler.next_up(), ["B 1x01"])
+        self.assertEqual(len(self.calls), 2)
+
+    def test_specials_only_show_pages_on(self):
+        # the most recent show has only specials left; limit 2 still gives two
+        self.handler.limit = 2
+        self.assertEqual(self.handler.next_up(), ["B 1x01", "TM 1x01"])
+        self.assertEqual(self.calls.count("VideoLibrary.GetTVShows"), 2)
+
+    def test_rest_comes_in_one_round(self):
+        # limit 1: the first page is specials-only, the other two come together
+        self.handler.limit = 1
+        self.assertEqual(self.handler.next_up(), ["B 1x01"])
+        self.assertEqual(self.calls.count("VideoLibrary.GetTVShows"), 2)
+
+    def test_start_at_the_end_does_not_repeat(self):
+        # exactly `limit` shows, one specials-only: round 2 gets them all again
+        self.handler.limit = 3
+        self.assertEqual(self.handler.next_up(), ["B 1x01", "TM 1x01"])
+        self.assertEqual(self.calls.count("VideoLibrary.GetTVShows"), 2)
+
+    def test_no_limit_is_one_round(self):
+        self.handler.limit = None
+        self.assertEqual(self.handler.next_up(), ["B 1x01", "TM 1x01"])
+        self.assertEqual(len(self.calls), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
