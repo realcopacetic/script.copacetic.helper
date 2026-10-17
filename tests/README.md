@@ -20,6 +20,9 @@ python tests/api_offline.py
 
 # Soundtrack title matching (plugin/soundtracks.py) against real album titles
 python tests/soundtracks_offline.py
+
+# Gallery tiles' share-out (art/multiart.py): an image shows in one tile only
+python tests/multiart_offline.py
 ```
 
 - `build_offline` stubs only the `xbmc*` calls the builders make; a new Kodi call fails loudly — add it to `install_stubs`. Any ERROR log line fails the build.

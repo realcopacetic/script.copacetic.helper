@@ -351,8 +351,8 @@ that is no longer focused never refills it.
 
 Fills several FadeLabels in an info dialog, one per art type, with the dialog item's
 artwork. The FadeLabels take turns: only one changes at a time, in the order you list
-them, and each starts on the item's main image. Use it for a grid of artwork tiles
-that should not all change at once.
+them, and each starts on the item's main image unless another FadeLabel already shows
+it (see below). Use it for a grid of artwork tiles that should not all change at once.
 
 ```xml
 <control type="list" id="9401"><!-- hidden helper container; ids are examples -->
@@ -376,8 +376,9 @@ that should not all change at once.
   rest are shuffled.
 - An image is shown in one FadeLabel only. When several art types hold the same image
   (the same URL, or the same TMDb file in another size), the FadeLabels take turns
-  claiming their shuffled images, and the others leave it out. Main images always stay,
-  so two FadeLabels can start on the same image.
+  claiming their shuffled images, and the others leave it out. The first FadeLabel in
+  `tiles` order keeps a shared main image; a later one starts on an image no other
+  FadeLabel holds, or is reset and left empty when it has none.
 - With `k` FadeLabels that have more than one image, each image stays for `k` steps,
   and the FadeLabels change one after another. A FadeLabel with one image stays still.
 - A FadeLabel whose art type the item does not have is left as it is.

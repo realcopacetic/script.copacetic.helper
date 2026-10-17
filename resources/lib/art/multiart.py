@@ -210,7 +210,7 @@ def seed_registers(
     a row at a time, so every register starts at index 0 with a fresh dwell.
 
     :param window_id: Window that holds the registers.
-    :param sequences: Register id → labels in display order, main image first.
+    :param sequences: Register id → labels in display order, main first; [] resets.
     :param alive: Focus guard; seeding stops before the extras if it returns False.
     :return: True when every register was seeded.
     """
@@ -223,9 +223,10 @@ def seed_registers(
     # are dispatched; each main image then reads back only after its own dispatch,
     # so the extras land a pass later, after a frame at index 0 (notes: handshake).
     _read_back(dict.fromkeys(sequences, ""), monitor)
-    for i, (main, *_) in sequences.items():
+    mains = {i: labels[0] for i, labels in sequences.items() if labels}
+    for i, main in mains.items():
         controls[i].addLabel(main)
-    _read_back({i: labels[0] for i, labels in sequences.items()}, monitor)
+    _read_back(mains, monitor)
     if monitor.abortRequested() or (alive and not alive()):
         return False
     for row in zip_longest(*(labels[1:] for labels in sequences.values())):
@@ -237,14 +238,24 @@ def seed_registers(
 
 def share_out(families: Mapping[int, list[str]]) -> dict[int, list[str]]:
     """
-    Give each image to one family only, so no two tiles show it: every main image
-    stays, and the families take turns claiming their shuffled extras.
+    Give each image to one family only, so no two tiles show it: a main image stays
+    with the first family that has it, a later one starts on a free extra (or stays
+    empty), and the families take turns claiming the rest.
 
     :param families: Register id → URLs, main image first.
     :return: Register id → URLs in the same order, without images held elsewhere.
     """
-    seen = {_image_identity(urls[0]) for urls in families.values()}
-    shared = {i: urls[:1] for i, urls in families.items()}
+    seen = set()
+    shared = {}
+    for i, (main, *_) in families.items():
+        shared[i] = [] if (identity := _image_identity(main)) in seen else [main]
+        seen.add(identity)
+    for i, urls in shared.items():
+        if not urls:
+            free = (url for url in families[i][1:] if _image_identity(url) not in seen)
+            if url := next(free, ""):
+                seen.add(_image_identity(url))
+                urls.append(url)
     for row in zip_longest(*(urls[1:] for urls in families.values())):
         for urls, url in zip(shared.values(), row):
             if url and (identity := _image_identity(url)) not in seen:
