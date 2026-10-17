@@ -285,7 +285,12 @@ def fit_lines(
     if len(lines) <= max_lines:
         return lines
 
-    visible = " ".join(lines[:max_lines])
+    # Slice the visible text from the source: a word cut at a character has no space.
+    words = " ".join(_WORDS.findall(text))
+    end = 0
+    for line in lines[:max_lines]:
+        end = words.index(line, end) + len(line)
+    visible = words[:end]
     if capped := sentence_cap(visible, abbrev):
         return wrap_text(font, capped, max_width, tracking)[:max_lines]
 

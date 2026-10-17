@@ -13,7 +13,7 @@ from resources.lib.shared.text import fit_lines
 from resources.lib.shared.utilities import TEXTS, create_dir, validate_path
 
 # Bump when the render logic changes so stale cached PNGs are superseded.
-_RENDER_VERSION = "5"
+_RENDER_VERSION = "6"
 
 
 class TextRenderer:

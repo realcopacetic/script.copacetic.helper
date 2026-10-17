@@ -33,7 +33,7 @@ from resources.lib.shared.utilities import (
 )
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
-_CLAMP_VERSION = "3"
+_CLAMP_VERSION = "4"
 
 # Skin authoring resolution; Kodi rasterises fonts at size * ScreenHeight / height.
 _SKIN_WIDTH = 1920
