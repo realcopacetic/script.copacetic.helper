@@ -64,9 +64,37 @@ def library_item(details: dict, type: str) -> DirectoryItem:
     li = ListItem(details["label"], offscreen=True)
     li.setArt(details["art"] | {"icon": _ICONS[type]})
     apply_musicinfotag(li, details, type)
+    if description := details.get("description"):  # as Kodi's own items carry it
+        li.setProperty(f"{type.title()}_Description", description)
     if type == "song":
         return details["file"], li, False
     return f"musicdb://{type}s/{details[f'{type}id']}/", li, True
+
+
+def details_item(
+    type: str, dbid: int, parent: str, extra: tuple[str, ...] = ()
+) -> DirectoryItem | None:
+    """
+    A library album, artist or song by id, as library_item builds it.
+
+    :param type: album, artist or song.
+    :param dbid: Library id.
+    :param parent: Caller name for logging.
+    :param extra: Properties to fetch beyond _DETAILS (an album's description).
+    :return: (path, ListItem, is_folder), or None if the library lost the item.
+    """
+    method, properties = _DETAILS[type]
+    details = (
+        json_call(
+            method,
+            properties=[*properties, *extra, "art"],
+            params={f"{type}id": dbid},
+            parent=parent,
+        )
+        .get("result", {})
+        .get(f"{type}details")
+    )
+    return library_item(details, type) if details else None
 
 
 def musicbrainz_id(type: str, dbid: int, parent: str) -> tuple[str, str]:
@@ -222,20 +250,9 @@ def dial_item(entry: dict, offsets: tuple[int, ...] | None) -> DirectoryItem | N
         li.setArt({"icon": _ICONS[type]})
         path, args = ref, f'type=playlist,"path={ref}"'
     else:
-        method, properties = _DETAILS[type]
-        details = (
-            json_call(
-                method,
-                properties=[*properties, "art"],
-                params={f"{type}id": int(ref)},
-                parent="speed_dial",
-            )
-            .get("result", {})
-            .get(f"{type}details")
-        )
-        if not details:
+        if not (item := details_item(type, int(ref), "speed_dial")):
             return None
-        path, li, _ = library_item(details, type)
+        path, li, _ = item
         args = f"type={type},id={ref}"
     li.setProperty("speed_dial", "true")  # focused(); addon.xml rows hide on it
     run = f"RunScript(script.copacetic.helper,{args},action="

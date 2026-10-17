@@ -19,7 +19,12 @@ from resources.lib.plugin.helpers import (
     reposition_control,
 )
 from resources.lib.plugin.identity import ArtworkIdentity
-from resources.lib.plugin.json_map import HEAVY_FIELDS, trim_properties
+from resources.lib.plugin.json_map import (
+    HEAVY_FIELDS,
+    JSON_PROPERTIES,
+    json_to_canonical,
+    trim_properties,
+)
 from resources.lib.plugin.library import (
     DirectoryItem,
     build_items,
@@ -34,6 +39,7 @@ from resources.lib.plugin.music import (
     ALBUM_RANK_PROPERTIES,
     SONG_RANK_PROPERTIES,
     compact_count,
+    details_item,
     dial_item,
     library_item,
     library_rows,
@@ -73,24 +79,33 @@ _VIDEO_METHODS = {
     "tvshow": "TVShow",
     "season": "Season",
     "episode": "Episode",
+    "musicvideo": "MusicVideo",
+    "set": "MovieSet",
 }  # VideoLibrary.Get{…}s / Get{…}Details per library type
 
 
-def _video_details(type: str, dbid: int, properties: list[str]) -> dict:
+def _video_details(
+    type: str, dbid: int, properties: list[str], parent: str
+) -> dict | None:
     """
-    A library film, show, season or episode's details.
+    A library video item's details: a film, show, season, episode, music video or set.
 
-    :param type: movie, tvshow, season or episode.
+    :param type: A _VIDEO_METHODS key.
     :param dbid: Library id.
     :param properties: Properties to fetch.
-    :return: The details row.
+    :param parent: Caller name for logging.
+    :return: The details row, or None if the library lost the item.
     """
-    return json_call(
-        f"VideoLibrary.Get{_VIDEO_METHODS[type]}Details",
-        properties=properties,
-        params={f"{type}id": dbid},
-        parent="soundtracks",
-    )["result"][f"{type}details"]
+    return (
+        json_call(
+            f"VideoLibrary.Get{_VIDEO_METHODS[type]}Details",
+            properties=properties,
+            params={f"{type}id": dbid},
+            parent=parent,
+        )
+        .get("result", {})
+        .get(f"{type}details")
+    )
 
 
 class _FocusGuard:
@@ -636,6 +651,46 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             sortletter=self.params.get("sortletter"),
             opts=PlacementOpts.from_params(self.params),
         )
+
+    @log.duration
+    def favourite(self) -> list[DirectoryItem] | None:
+        """
+        A favourite's library item, whole, for the metadata, progress bar and
+        artwork serves to read; it echoes favourite.index so the skin knows it.
+
+        :return: The item, or None when the favourite names no library item.
+        """
+        from resources.lib.plugin.favourites import forget, library_key
+
+        if not self._require("path"):
+            return
+        guard = self._guard()
+        if not (guard.alive() and (key := library_key(self.params["path"]))):
+            return
+        dbtype, dbid = key.split(":")
+        index = self.params.get("index", "")
+        if dbtype in ("album", "artist", "song"):
+            extra = () if dbtype == "song" else ("description",)
+            if not (found := details_item(dbtype, int(dbid), "favourite", extra)):
+                forget(self.params["path"], dbtype)
+                return
+            _, li, _ = found
+            li.setProperty("favourite.index", index)
+            items = [(plugin_path("favourite"), li, False)]
+        else:
+            properties = JSON_PROPERTIES["movieset" if dbtype == "set" else dbtype]
+            if not (row := _video_details(dbtype, int(dbid), properties, "favourite")):
+                forget(self.params["path"], dbtype)
+                return
+            item = json_to_canonical(row, dbtype)
+            item["file"] = plugin_path("favourite")  # no thumb loader on the file
+            item["properties"]["favourite.index"] = index
+            if dbtype in ("tvshow", "season") and row["episode"]:
+                # A show's or season's share watched, as Kodi's own items carry it
+                percent = row["watchedepisodes"] * 100 // row["episode"]
+                item["properties"]["WatchedEpisodePercent"] = str(percent)
+            items = set_items([item], media_type=dbtype, tag_applier=apply_videoinfotag)
+        return items if guard.alive() else None
 
     @log.duration
     def metadata(self) -> list[DirectoryItem] | None:
@@ -1316,9 +1371,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return self._soundtrack_source(int(self.dbid))
         media, dbid, season = self.dbtype, int(self.dbid), 0
         if media in ("season", "episode"):
-            parent = _video_details(media, dbid, ["tvshowid", "season"])
+            parent = _video_details(
+                media, dbid, ["tvshowid", "season"], parent="soundtracks"
+            )
             media, dbid, season = "tvshow", parent["tvshowid"], parent["season"]
-        item = _video_details(media, dbid, ["title", "originaltitle", "year"])
+        item = _video_details(
+            media, dbid, ["title", "originaltitle", "year"], parent="soundtracks"
+        )
         names = {item["title"], item["originaltitle"]}
         keys = set(map(title_key, filter(None, names)))
         albums = library_rows(
