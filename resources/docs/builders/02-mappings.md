@@ -68,12 +68,12 @@ Facts attached to specific items. During that item's loop pass, they're all avai
 
 ```json
 "metadata": {
-  "next_up": {
-    "label": "$LOCALIZE[31201]",
+  "latest_movies": {
+    "label": "$LOCALIZE[31202]",
     "target": "videos",
-    "content": "plugin://script.copacetic.helper/?info=next_up&limit=20",
-    "icon": "icons/FastForward.png",
-    "parent": "tvshows"
+    "content": "videodb://movies/titles/",
+    "icon": "icons/Ticket.png",
+    "parent": "movies"
   },
   "custom": { "label": "$LOCALIZE[31210]", "content": "" }
 }
