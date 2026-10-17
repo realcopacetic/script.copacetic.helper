@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Mapping, NamedTuple, Optional
 
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import clamp, parse_bool, to_int
+from resources.lib.shared.utilities import to_int
 
 
 def parse_inset(s: str | None) -> tuple[int, int, int, int]:
@@ -97,20 +97,6 @@ def resolve_rect(
     return None
 
 
-def axis_travel(start: int, span: int, item_size: int, fraction: float) -> int:
-    """
-    Slide an item of size 'item_size' across span, clamped to 0..1.
-
-    :param start: Track start coordinate (x or y).
-    :param span: Track length (w or h).
-    :param item_size: Size of the sliding item (w or h).
-    :param fraction: 0..1 position along the track.
-    :return: Aligned coordinate on the main axis.
-    """
-    travel = max(0, span - item_size)
-    return int(start + clamp(fraction, 0.0, 1.0) * travel)
-
-
 def align_x(posx: int, width: int, w: int, align: str = "center", pad: int = 0) -> int:
     """
     Align width 'w' inside a horizontal track.
@@ -161,7 +147,6 @@ class PlacementOpts(NamedTuple):
     :param anchor_id: Control to derive rect from when coords empty.
     :param track_w: Optional content width within the resolved rect.
     :param track_h: Optional content height within the resolved rect.
-    :param relative: Preserve thin-axis position when sliding along track.
     :param valign: Inside-rect vertical align: top|center|bottom.
     :param halign: Inside-rect horizontal align: left|center|right.
     :param vpad: Thin-axis nudge (Y for horizontal tracks).
@@ -174,7 +159,6 @@ class PlacementOpts(NamedTuple):
     anchor_id: Optional[int] = None
     track_w: Optional[int] = None
     track_h: Optional[int] = None
-    relative: bool = False
     valign: str = "center"
     halign: str = "center"
     vpad: int = 0
@@ -195,7 +179,6 @@ class PlacementOpts(NamedTuple):
             anchor_id=to_int(params.get("anchor_id"), None),
             track_w=to_int(params.get("track_w"), None),
             track_h=to_int(params.get("track_h"), None),
-            relative=parse_bool(params.get("relative"), False),
             valign=(params.get("valign") or "center"),
             halign=(params.get("halign") or "center"),
             vpad=to_int(params.get("vpad"), 0),

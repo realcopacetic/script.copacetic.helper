@@ -1,12 +1,11 @@
 # Placement Options
 
-Three plugin paths move controls on screen: `jumpbutton`, `progressbar` and
-`typewriter`. They share one set of placement parameters. This page describes them.
+Two plugin paths move controls on screen: `progressbar` and `typewriter`. They
+share one set of placement parameters. This page describes them.
 
 Each of these helpers first works out a rectangle (x, y, width, height). What it then
 does with the rectangle depends on the helper:
 
-- `jumpbutton` slides a button along it.
 - `progressbar` moves and sizes the progress bar to fill it.
 - `typewriter` moves and sizes a textbox inside it.
 
@@ -43,9 +42,6 @@ Then:
 | `hpad` | whole number | `0` | With `left` or `right`: the gap from that edge. With `center`: a nudge (positive moves right). |
 | `vpad` | whole number | `0` | With `top` or `bottom`: the gap from that edge. With `center`: a nudge (positive moves down). |
 | `outside` | `below`, `above`, `left`, `right` | — | Places the box next to the anchor instead of inside it. Needs `anchor_id`. |
-| `relative` | `true`, `false` | `false` | `jumpbutton` only. Keeps the button's current position across the track instead of aligning it. |
-
-Booleans accept `true`, `1`, `yes` or `on` (any case). Anything else is false.
 
 ## Outside placement
 

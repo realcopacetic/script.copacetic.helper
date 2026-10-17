@@ -37,14 +37,13 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `tmdb_details` | Returns the focused item's details and artwork from TMDb. | [Metadata](metadata.md#tmdb_details) |
 | `progressbar` | Works out watched progress and places a progress bar. | [Progress Bar](progressbar.md) |
 | `typewriter` | Types a label into a textbox one character at a time. | [Typewriter](typewriter.md) |
-| `jumpbutton` | Moves a button along a scrollbar and labels it with the sort letter. | [Jump Button](jumpbutton.md) |
 | `text` | Draws text into a PNG image. | [Text Image](text.md) |
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
 | `in_progress`, `next_up`, `random_movies`, `random_tvshows`, `random_albums`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `genre_music`, `top_songs`, `discography`, `soundtracks` | Fill a container with library items. | [Library Listings](library.md) |
 | `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |
 | `listeners` | Returns ListenBrainz's listener count for a library artist, album or song. | [Library Listings](library.md#listeners) |
 
-`jumpbutton`, `progressbar` and `typewriter` share the [placement options](placement.md).
+`progressbar` and `typewriter` share the [placement options](placement.md).
 
 An unknown `info=` value returns an empty list. With no `info=` at all, the add-on
 lists its own folders (see [Library Listings](library.md#the-add-ons-own-directory)).
@@ -203,7 +202,6 @@ Guarded handlers don't check once at startup — they re-check before every stag
 - **`text`** checks before and after drawing the image.
 - **`typewriter`** receives the guard's `alive` callable and checks it **per character**, alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating and again before moving UI controls (the data result is still returned; only the UI update is skipped).
-- **`jumpbutton`** is deliberately **unguarded** — it must stay responsive during scroll.
 - **`reposition`**, `multiart_tiles`, the library listings and `speed_dial` are unguarded. `multiart_tiles` has its own check instead (see [Artwork](artwork.md#multiart_tiles)).
 
 ---
@@ -251,7 +249,6 @@ Then reference the variable in your container:
 - [Metadata and TMDb details](metadata.md)
 - [Progress Bar](progressbar.md)
 - [Typewriter](typewriter.md)
-- [Jump Button](jumpbutton.md)
 - [Text Image](text.md)
 - [Reposition](reposition.md)
 - [Library Listings](library.md)

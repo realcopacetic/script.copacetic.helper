@@ -11,7 +11,6 @@ from xbmcplugin import SORT_METHOD_LASTPLAYED
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
-    JumpButton,
     ProgressBarManager,
     TypewriterAnimation,
     clamp_text,
@@ -660,25 +659,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         return set_items(
             [{"file": plugin_path("multiart_tiles"), "properties": {"visit": visit}}]
-        )
-
-    @log.duration
-    def jumpbutton(self) -> None:
-        """
-        Update jump button overlay using params and placement options.
-        No focus guard as needs to remain responsive to scroll.
-        """
-        if not self._require("target_id"):
-            return
-
-        target_id = to_int(self.params.get("target_id"), None)
-        jump = JumpButton(
-            container=self.target_container,
-            btn_id=target_id,
-        )
-        jump.update(
-            sortletter=self.params.get("sortletter"),
-            opts=PlacementOpts.from_params(self.params),
         )
 
     @log.duration

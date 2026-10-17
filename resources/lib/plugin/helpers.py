@@ -7,13 +7,11 @@ import time
 from typing import Any, Callable, Collection, Iterable, Mapping
 
 from xbmc import Monitor
-from xbmcgui import Window, getCurrentWindowId
+from xbmcgui import Window
 
 from resources.lib.plugin.geometry import (
     PlacementOpts,
-    align_x,
     align_y,
-    axis_travel,
     compute_rect,
 )
 from resources.lib.shared import logger as log
@@ -29,7 +27,6 @@ from resources.lib.shared.utilities import (
     split_random,
     to_int,
     topmost_window_id,
-    window_property,
 )
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
@@ -278,109 +275,6 @@ class DataHandler:
         )
         movies = details.get("result", {}).get("setdetails", {}).get("movies", [])
         return next(iter(movies[0]["studio"]), "") if movies else ""
-
-
-class JumpButton:
-    """
-    Scrollbar thumb indicator with optional sort letter.
-    Positioning is fully driven by compute_rect + PlacementOpts.
-    """
-
-    def __init__(self, container: str, btn_id: int) -> None:
-        """
-        Initialize the fraction source and the indicator button id.
-
-        :param container: InfoLabel prefix of the list ("Container" or "Container(id)").
-        :param btn_id: Indicator button control ID.
-        """
-
-        self.window = Window(getCurrentWindowId())
-        self.container = container
-        self.btn_id = btn_id
-
-    def _fraction(self) -> float:
-        """
-        Cursor fraction from CurrentItem / NumItems of the list (1-based, move-synchronous).
-
-        :return: 0.0 at first item, 1.0 at last; 0.0 when fewer than two items.
-        """
-
-        cur = to_int(infolabel(f"{self.container}.CurrentItem"), 0)
-        total = to_int(infolabel(f"{self.container}.NumItems"), 0)
-        return (cur - 1) / (total - 1) if total > 1 else 0.0
-
-    def update(self, *, sortletter: str | None, opts: PlacementOpts) -> None:
-        """
-        Update indicator label and position along the resolved track.
-
-        :param sortletter: Custom label or fallback to ListItem.SortLetter if None.
-        :param opts: Placement options (coords/anchor_id/inset/track_w/track_h/…).
-        """
-        try:
-            btn = self.window.getControl(self.btn_id)
-        except RuntimeError:
-            log.debug(f"{self.__class__.__name__} → Button {self.btn_id} not found.")
-            return
-
-        expected = sortletter or infolabel(f"{self.container}.ListItem.SortLetter")
-        seen_key = "|".join(
-            (
-                infolabel("Container.FolderPath"),
-                expected,
-                infolabel(f"{self.container}.NumItems"),
-            )
-        )
-        if (
-            seen_key == infolabel("Window(home).Property(jumpbutton_seen)")
-            and btn.getLabel() == expected
-        ):
-            return  # same letter in the same list: stay pinned to the letter's first item
-
-        fraction = self._fraction()
-
-        rect = compute_rect(
-            window=self.window,
-            caller_name=self.__class__.__name__,
-            opts=opts,
-        )
-        if rect is None:
-            return
-        posx, posy, width, height = rect
-
-        btn_w = btn.getWidth()
-        btn_h = btn.getHeight()
-        if not (btn_w and btn_h):
-            log.warning(
-                f"{self.__class__.__name__} → target_id {self.btn_id} has no size; set width/height in XML"
-            )
-            return
-        horizontal = width >= height
-
-        if horizontal:
-            btn_posx = axis_travel(posx, width, btn_w, fraction)
-            btn_posy = (
-                btn.getY()
-                if opts.relative
-                else align_y(posy, height, btn_h, opts.valign, opts.vpad)
-            )
-        else:
-            btn_posy = axis_travel(posy, height, btn_h, fraction)
-            btn_posx = (
-                btn.getX()
-                if opts.relative
-                else align_x(posx, width, btn_w, opts.halign, opts.hpad)
-            )
-
-        btn.setLabel(expected)
-        btn.setPosition(btn_posx, btn_posy)
-        window_property("jumpbutton_seen", seen_key)
-        log.debug(
-            f"{self.__class__.__name__} → DONE → "
-            f"rect=({posx},{posy},{width},{height}) "
-            f"label='{expected}' fraction={fraction:.3f} "
-            f"btn=({btn_posx},{btn_posy}) {btn_w}x{btn_h} "
-            f"axis={'h' if horizontal else 'v'}"
-        )
 
 
 class ProgressBarManager:
