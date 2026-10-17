@@ -267,6 +267,10 @@ class Skin:
                 self.defaults[name] = params_of(node, "default")
                 used = {p for _, value in values(node) for p in PARAM.findall(value)}
                 self.params[name] = self.defaults[name].keys() | used
+                for call in node.iter("include"):  # $PARAM-named: reaches its default
+                    whole = PARAM.fullmatch(include_name(call))
+                    if whole and (default := self.defaults[name].get(whole[1])):
+                        self.calls[call.src][0].add(default)
 
     def body(self, name: str) -> Node:
         """Included part of an include definition."""
@@ -310,10 +314,10 @@ class Skin:
     def check_params(self) -> None:
         """
         Report params a call site passes that no include it reached mentions:
-        a call named by ``$PARAM`` passes what any of its targets needs.
+        a call named by ``$PARAM`` passes what any of its targets or its default needs.
         """
         for src, (targets, passed) in self.calls.items():
-            known = set().union(*(self.params[name] for name in targets))
+            known = set().union(*(self.params.get(name, ()) for name in targets))
             for param in passed - known:
                 names = "/".join(sorted(targets))
                 self.report("unknown-param", src, f"{names}: no param {param!r}")
