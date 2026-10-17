@@ -120,6 +120,7 @@ class _FocusGuard:
         "identity_getter",
         "focus_ids",
         "window_id",
+        "dialog",
     )
 
     def __init__(
@@ -128,6 +129,7 @@ class _FocusGuard:
         expected_identity: str | None,
         identity_getter: Callable[[], str],
         window_id: int,
+        dialog: bool,
         focus_ids: tuple[str, ...] = (),
     ):
         """
@@ -137,12 +139,14 @@ class _FocusGuard:
         :param expected_identity: Focused item's snapshot identity; None to skip.
         :param identity_getter: Callable returning current item identity.
         :param window_id: Window whose focus is read, which holds the serve's controls.
+        :param dialog: Whether window_id is a dialog, so its closing aborts the run.
         :param focus_ids: Control ids of which one must hold focus; empty to skip.
         """
         self.caller_name = caller_name
         self.expected_identity = expected_identity
         self.identity_getter = identity_getter
         self.window_id = window_id
+        self.dialog = dialog
         self.focus_ids = focus_ids
 
     def alive(self) -> bool:
@@ -151,6 +155,18 @@ class _FocusGuard:
 
         :return: True if guard conditions still hold, otherwise False.
         """
+        # A closed info dialog still reports the rail it closed on as focused.
+        if (
+            self.dialog
+            and topmost_window_id() != self.window_id
+            and not condition(f"Window.IsActive({self.window_id})")
+        ):
+            log.debug(
+                f"{LOG_TAG} → {self.caller_name}: ABORTED → "
+                f"dialog {self.window_id} closed"
+            )
+            return False
+
         if not (focus_id := focused_control_id(self.window_id)):
             return True
         current = str(focus_id)
@@ -206,6 +222,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.target_item = (
             "ListItem" if self.item else f"{self.target_container}.ListItem"
         )
+        self.dialog = self.item or parse_bool(params.get("dialog"))
         self.identity_id = to_int(params.get("identity_container"), self.target)
         self.identity_container = (
             f"Container({self.identity_id})"
@@ -255,6 +272,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.expected_identity,
             getter,
             self.window_id,
+            self.dialog,
             self.focus_ids,
         )
 
@@ -264,11 +282,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Window whose controls this serve draws into: an info dialog's own for its
         serves (dialog=true, target=item); else the active window, under any dialog.
         """
-        return (
-            topmost_window_id()
-            if self.item or parse_bool(self.params.get("dialog"))
-            else getCurrentWindowId()
-        )
+        return topmost_window_id() if self.dialog else getCurrentWindowId()
 
     def _item_key(self) -> str:
         """

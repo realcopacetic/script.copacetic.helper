@@ -147,7 +147,9 @@ a dialog is open on top of it. With `dialog=true`, or with `target=item`, they u
 topmost dialog instead. Pass `dialog=true` when the controls are in a dialog and the
 path reads a list in it (`target=<id>`). On every path the focus check reads that same
 window: the dialog's focus with `dialog=true` or `target=item`, else the current
-window's.
+window's. A dialog run also aborts once its dialog has closed, since a closed info
+dialog still reports the control it closed on as focused; a modal opened over it, such
+as the context menu, does not stop the run.
 
 Two cases always pass: when no control has focus at all, and when the live identity
 reads as empty.
