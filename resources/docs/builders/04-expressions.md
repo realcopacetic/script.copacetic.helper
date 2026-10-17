@@ -72,7 +72,7 @@ For each expression, the builder walks its passes in order and, for each pass, i
 
 `layout_list_include_videos` becomes `true` if *any* content type in the videos window uses layout `list`.
 
-**`append`** — every true rule adds its value; results join with ` | ` (Kodi OR). If movies and tvshows both use fanart:
+**`append`** — every true rule adds its value; results join with ` | ` (Kodi OR). A value that is already in the list is not added again, so each term appears once, where it first fired. If movies and tvshows both use fanart:
 
 ```xml
 <expression name="art_fanart_visible_videos">Container.Content(movies) | Container.Content(tvshows)</expression>

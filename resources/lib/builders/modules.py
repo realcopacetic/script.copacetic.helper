@@ -507,6 +507,7 @@ class ExpressionsBuilder(BaseBuilder):
     def resolve_values(self, subs, data) -> list[str]:
         """
         Resolves rules for each substitution group and returns values.
+        Repeated values are kept once, in the order they first fired.
 
         :param subs: List of substitution dictionaries for one group.
         :param data: Template rule data.
@@ -533,7 +534,7 @@ class ExpressionsBuilder(BaseBuilder):
                     resolved.append(value)
                 else:
                     raise ValueError(f"Unsupported rule type: {rule['type']}")
-        return resolved if resolved else ["false"]
+        return list(dict.fromkeys(resolved)) or ["false"]
 
     def _apply_fallbacks(
         self, resolved: dict[str, str | None], expr_data
