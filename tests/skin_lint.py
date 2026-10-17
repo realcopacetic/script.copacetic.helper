@@ -183,11 +183,14 @@ def timer_reads(root: Node) -> Iterator[tuple[Node, str, str]]:
     """
     Yield ``(element, condition, action text)`` for what ``LoadTimerInternal`` reads:
     the first ``<start>``, ``<reset>``, ``<stop>`` and every ``<onstart>``/``<onstop>``
-    of each ``<timer>`` with a ``<name>``.
+    of each ``<timer>`` with a ``<name>`` no earlier timer took.
     """
+    seen = set()
     for timer in root.iterfind("timer"):
-        if not timer.findtext("name"):
+        name = timer.findtext("name")
+        if not name or name in seen:
             continue
+        seen.add(name)
         for tag in TIMER_CONDITIONS:
             if (node := timer.find(tag)) is not None:
                 yield node, node.text or "", ""
@@ -514,7 +517,7 @@ class Skin:
         """
         Check what Kodi reads in ``Timers.xml`` for media infos and for references it
         leaves literal: it skips includes, so ``<include>``, ``<constant>``, ``$EXP``
-        and ``$PARAM`` anywhere; ``$VAR`` everywhere but action text.
+        and ``$PARAM`` anywhere; ``$VAR`` everywhere but action text (checked defined).
 
         :param root: Parsed ``Timers.xml``.
         """
@@ -530,6 +533,9 @@ class Skin:
                 self.check_escexp(node.src, value)
             for ref in CONDITION_REF.findall(condition) + INCLUDE_REF.findall(action):
                 self.report("timer-unresolved", node.src, f"{ref} stays literal")
+            for token, ref in REF.findall(action):  # $VAR resolves when the action runs
+                if token == "VAR":
+                    self.check_reference(token, ref, node.src)
 
     def check_unreferenced(self) -> None:
         """
@@ -556,6 +562,8 @@ class Skin:
             if windows is not None:
                 if name in windows:
                     self.check_window(name)
+                continue
+            if name == "Timers.xml":  # check_timers reads only what Kodi reads
                 continue
             if root.tag == "includes" and name not in self.loaded:
                 continue
