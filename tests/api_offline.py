@@ -32,7 +32,7 @@ sys.path.insert(0, str(HELPER))
 from resources.lib.apis import http, listenbrainz  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
-from resources.lib.plugin import handlers  # noqa: E402
+from resources.lib.plugin import handlers, helpers  # noqa: E402
 from resources.lib.plugin.music import (  # noqa: E402
     compact_count,
     rank_albums,
@@ -534,6 +534,36 @@ class TmdbTest(Base):
         self.net.answers = [http_error(401)]
         self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
         self.assertEqual(LOG["WARNING"], warnings + 1)
+
+    def test_metadata_keeps_library_plot_and_tagline(self):
+        library = {"Plot": "Library plot", "Writer": "Library writer"}
+        self.net.answers = [TMDB_TV] * 2
+        handlers.set_items = lambda items, **kwargs: items
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {"enrich_with_tmdb": "true"}
+        handler.item, handler.dbtype, handler.dbid = False, "tvshow", "7"
+        handler.target_item = "Container(50).ListItem"
+        handler._guard = lambda: mock.Mock(alive=lambda: True)
+        handler._get_tmdb_item = lambda **kwargs: transform.tmdb_to_canonical(
+            "tvshow", 1399
+        )
+        handler._apply_truncated_label = lambda *args, **kwargs: None
+        label = lambda path: library.get(path.rpartition(".")[2], "")
+        with mock.patch.object(helpers, "infolabel", label):
+            (item,) = handler.metadata()
+            self.assertEqual(item["Plot"], "Library plot")
+            self.assertEqual(item["TagLine"], "Winter is coming.")  # library has none
+            self.assertNotEqual(item["Writers"], ["Library writer"])  # TMDb still wins
+            library["Tagline"] = "Library tagline"
+            library["Plot"] = ""
+            (item,) = handler.metadata()
+        self.assertEqual(item["TagLine"], "Library tagline")
+        self.assertTrue(item["Plot"].startswith("Seven noble families"))
+        handler.dbtype, library["Plot"] = "season", "The show's plot"
+        with mock.patch.object(helpers, "infolabel", label):
+            (item,) = handler.metadata()
+        self.assertTrue(item["Plot"].startswith("Seven noble families"))
+        self.assertEqual(item["TagLine"], "Library tagline")
 
 
 def album(albumid, title, year, mbid=""):

@@ -753,15 +753,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             if tmdb_item:
                 # Library trailer outranks TMDb's YouTube URL: local file,
-                # no plugin dependency. Merge fills it only when absent.
-                trailer = data["Trailer"]
+                # no plugin dependency. Library plot and tagline keep their language.
+                fill_only = ("Plot", "TagLine", "Trailer")
+                if self.dbtype == "season":  # Kodi gives seasons their show's plot
+                    fill_only = fill_only[1:]
                 data = merge_metadata(
                     base=data,
                     incoming=tmdb_item,
                     prefer_incoming=True,
+                    fill_only=fill_only,
                     ignore_keys=("art", "file"),
                 )
-                data["Trailer"] = trailer or data["Trailer"]
 
         if not guard.alive():
             return

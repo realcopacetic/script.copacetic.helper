@@ -107,6 +107,7 @@ def merge_metadata(
     incoming: Mapping[str, Any],
     *,
     prefer_incoming: bool = False,
+    fill_only: Collection[str] = (),
     ignore_keys: Collection[str] = ("art", "file"),
 ) -> dict[str, Any]:
     """Merge incoming metadata into a base metadata dict.
@@ -115,6 +116,7 @@ def merge_metadata(
     :param base: Local metadata dict to update in place.
     :param incoming: Metadata dict to merge values from.
     :param prefer_incoming: If true, prefer incoming over non-empty base.
+    :param fill_only: Keys incoming only fills when empty, whatever prefer_incoming.
     :param ignore_keys: Top-level keys to skip entirely when merging.
     :return: Updated base metadata dict.
     """
@@ -124,7 +126,10 @@ def merge_metadata(
             if (
                 key not in skip
                 and has_value(value)
-                and (prefer_incoming or not has_value(dst.get(key)))
+                and (
+                    (prefer_incoming and key not in fill_only)
+                    or not has_value(dst.get(key))
+                )
             ):
                 dst[key] = value
 
@@ -174,6 +179,7 @@ class DataHandler:
                 "Studio",
                 "Plot",
                 "PlotOutline",
+                "Tagline",
                 "Trailer",
             ],
         )
@@ -213,6 +219,7 @@ class DataHandler:
             "Writers": split(self.infolabels["Writer"]),
             "Plot": self.infolabels["Plot"],
             "PlotOutline": self.infolabels["PlotOutline"],
+            "TagLine": self.infolabels["Tagline"],
             "Trailer": self.infolabels["Trailer"],
             "properties": properties,
         }
