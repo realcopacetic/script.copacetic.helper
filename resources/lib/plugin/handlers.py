@@ -15,6 +15,7 @@ from resources.lib.plugin.helpers import (
     ProgressBarManager,
     TypewriterAnimation,
     clamp_text,
+    fit_height,
     merge_metadata,
     reposition_control,
 )
@@ -437,13 +438,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def artwork(self) -> list[DirectoryItem] | None:
         """
-        Process/calculate artwork and attach to listitem; an aborted serve (focus
-        or visit moved on) holds the last blur and darkens instead.
+        Process/calculate artwork and attach to listitem, sizing any clearlogo_fit_ids
+        to the cropped logo; an aborted serve (focus or visit moved on) holds the last
+        blur and darkens instead.
 
         :return: List of directory items for Kodi, or None when there is no art.
         """
         if self._visit_superseded():
             return self._artwork_held()
+        # A serve with no focus_ids (the primary view) is unguarded on focus moves.
+        focus = focused_control_id(self.window_id)
 
         from resources.lib.art.editor import ImageEditor
         from resources.lib.art.multiart import build_multiart_dict, seed_multiart
@@ -531,6 +535,31 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         if art is None:
             return self._artwork_held()
+
+        # Sized before the list lands; the old items stay up until then (no blank).
+        # A cancelled job still runs: size only while the URL's item is still shown.
+        if (
+            (fit := self.params.get("clearlogo_fit"))
+            and guard.alive()
+            and not self._visit_superseded()
+            and (
+                self.item
+                or self.focus_ids
+                or focused_control_id(self.window_id) == focus
+            )
+            and self.params.get("clearlogo_fit_key") in (None, self._item_key())
+            and (
+                h := fit_height(
+                    fit,
+                    to_int(art.get("clearlogo_width"), 0),
+                    to_int(art.get("clearlogo_height"), 0),
+                )
+            )
+        ):
+            for control_id in filter(
+                None, self.params.get("clearlogo_fit_ids", "").split(",")
+            ):
+                reposition_control(int(control_id), h=h)
 
         for field, prop in self._bridge_props():
             window_property(prop, art.get(field, ""))
@@ -810,15 +839,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         target_ids = [to_int(v, None) for v in self.params["target_id"].split(",")]
         h = to_int(self.params.get("h"), None)
+        src_w, _, src_h = self.params.get("src", "").partition(",")
         if fit := self.params.get("fit"):
-            fit_w, fit_h = (to_int(v, 0) for v in fit.split(","))
-            src_w, src_h = (
-                to_int(v, 0) for v in self.params.get("src", ",").split(",")
-            )
-            if not (fit_w and src_w and src_h):
+            if (h := fit_height(fit, to_int(src_w, 0), to_int(src_h, 0))) is None:
                 log.warning("reposition → fit requires src=w,h")
                 return
-            h = min(fit_h, round(fit_w * src_h / src_w))
         for target_id in target_ids:
             reposition_control(
                 target_id,
@@ -827,7 +852,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 w=to_int(self.params.get("w"), None),
                 h=h,
             )
-        src_w, _, src_h = self.params.get("src", "").partition(",")
         return set_items(
             [
                 {

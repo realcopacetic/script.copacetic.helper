@@ -18,7 +18,9 @@ It works on the topmost dialog when one is open, else on the current window.
 
 This sets the height of controls 4040 and 4041 so that a logo of the given size,
 scaled to fit a 520×174 box, keeps its shape. (Ids are examples; the clearlogo size
-comes from the [artwork](artwork.md) helper.)
+comes from the [artwork](artwork.md) helper.) To size a logo to the artwork helper's
+own crop, pass `clearlogo_fit` to that call instead: it sets the height in the same
+call, with no second plugin path to wait for.
 
 Once the controls are set, the path returns one list item with
 `ListItem.Property(src_w)` and `ListItem.Property(src_h)`: the two values of `src`, as

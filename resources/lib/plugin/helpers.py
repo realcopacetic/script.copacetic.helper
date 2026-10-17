@@ -84,6 +84,22 @@ def reposition_control(
         ctrl.setPosition(x, y)
 
 
+def fit_height(fit: str, src_w: int, src_h: int) -> int | None:
+    """
+    Height of a src_w x src_h image kept to its aspect in a "W,H" box: the width
+    fills first, and the height never passes H.
+
+    :param fit: The box, "W,H".
+    :param src_w: Image width in px.
+    :param src_h: Image height in px.
+    :return: The fitted height, or None without a box width or an image size.
+    """
+    fit_w, fit_h = (to_int(v, 0) for v in fit.split(","))
+    if not (fit_w and src_w and src_h):
+        return None
+    return min(fit_h, round(fit_w * src_h / src_w))
+
+
 def has_value(value: Any) -> bool:
     """Whether a value should be preserved and not overwritten."""
     return value not in (None, "", [], {})
