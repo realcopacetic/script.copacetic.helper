@@ -961,10 +961,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "typewriter_container",
             value=str(self.identity_id) if self.identity_id is not None else "",
         )
-        window_property(
-            "typewriter_pos",
-            value=infolabel(f"{self.identity_container}.CurrentItem"),
-        )
+        window_property("typewriter_pos", value=self.expected_identity)
         t = TypewriterAnimation(control_id=target_id, window_id=self.window_id)
         t.update(
             label=self.label,

@@ -63,7 +63,8 @@ The textbox width is the rectangle's width.
 2. The focus guard is checked.
 3. `Window(home).Property(typewriter_container)` is set to the container id
    (`identity_container`, else `target`; empty when neither is passed), and
-   `Window(home).Property(typewriter_pos)` to that container's `CurrentItem`.
+   `Window(home).Property(typewriter_pos)` to the run's `focus_guard` (the item
+   identity the guard checks: `CurrentItem`, or the `identity_labels` values).
 4. The run claims `Window(home).Property(typewriter_current_<target_id>)` with a unique
    value.
 5. After `start_delay`, the textbox is cleared and placed one line tall. It is made
@@ -103,7 +104,7 @@ moment to start.
 | Property (home window) | Set by | Value |
 |---|---|---|
 | `typewriter_container` | each run; cleared by `reset=true` | Container id the label belongs to. |
-| `typewriter_pos` | each run; cleared by `reset=true` | `CurrentItem` of that container. |
+| `typewriter_pos` | each run; cleared by `reset=true` | The run's `focus_guard`: the item's identity in that container. |
 | `typewriter_current_<target_id>` | each run, `reset=true`, or the skin | The value of the run allowed to type. |
 
 Compare `typewriter_container` and `typewriter_pos` with the live container to tell
