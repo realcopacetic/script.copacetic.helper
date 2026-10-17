@@ -39,4 +39,5 @@ skipped, so the other parts of a multi-part episode are not queued again.
 
 The service sets no window properties for this feature. The queued episode appears in
 the video playlist, so Kodi's own infolabels show it, for example
-`$INFO[VideoPlayer.NextTitle]` and `$INFO[Playlist.Length(video)]`.
+`$INFO[VideoPlayer.Offset(1).Title]` and `$INFO[Playlist.Length(video)]`.
+(`VideoPlayer.NextTitle` is the next PVR programme, not the next playlist item.)
