@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import partial
 from typing import Any, Callable
 
-from xbmcgui import getCurrentWindowId
+from xbmcgui import Window, getCurrentWindowId
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.plugin.geometry import PlacementOpts
@@ -876,7 +876,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def text(self) -> list | None:
         """
-        Rasterise a string to a cached white PNG mask and return its path.
+        Rasterise a string to a cached white PNG mask and return its path; with
+        target_id, first set that control's height to the text's, in the serve's
+        window as it started (a modal on top since doesn't take the resize).
 
         :return: Single ListItem carrying Art(text), or None if aborted/empty.
         """
@@ -900,6 +902,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         path, height = result
+        if target_id := to_int(self.params.get("target_id"), None):
+            window = Window(guard.window_id)  # keep: holds the control's native ref
+            window.getControl(target_id).setHeight(height)
         return set_items(
             [
                 {

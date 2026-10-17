@@ -37,6 +37,7 @@ straight away.
 | `text_height` | whole number (pixels) | `720` | Most height allowed. Text that does not fit is cut at a whole line: at the last full sentence that fits, else with an ellipsis. |
 | `text_line_height` | decimal | `1.3` | Line spacing, as a multiple of the font size. |
 | `text_letter_spacing` | decimal | `0.0` | Extra space between letters, as a percentage of the font size. Negative values pull letters closer. |
+| `target_id` | control id | — | A control to size to the text: its height is set to the image's before the item returns, in the window that was topmost when the serve started. |
 | `target` | container id | — | Container used by the focus guard. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
@@ -47,8 +48,10 @@ straight away.
 | `ListItem.Art(text)` | Path to the PNG image. |
 | `ListItem.Property(text_height)` | Height of the image in pixels (only as tall as the lines drawn). |
 
-Use `text_height` to size the image control to the text. The
-[reposition](reposition.md) helper can do this:
+To size a control to the text, pass its id as `target_id`: the height is set before
+the item lands, so a condition on `ListItem.Art(text)` never sees the old size. To
+size it from somewhere else, the [reposition](reposition.md) helper can read
+`text_height`:
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=reposition&amp;target_id=4360&amp;w=1280&amp;h=$INFO[Container(9360).ListItem.Property(text_height)]</content>

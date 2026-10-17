@@ -136,8 +136,11 @@ Every guarded helper builds a guard object at startup and re-checks it at key po
 item the path works on. Without it, `Container` (the current container) is used.
 `target=item` reads the window's own item instead (bare `ListItem.*`), which in an
 info dialog is the item the dialog shows; a `Container` read there lands on the
-focused list (for example the cast list). The item never scrolls, so it takes no
-`focus_guard`; `focus_ids` still works, and artwork returns no position properties.
+focused list (for example the cast list). The item never scrolls, but a hop or a
+forced reopen can change it under a running serve: a serve that acts on the dialog
+passes `focus_guard` with `identity_labels` naming the item's own infolabels (`text`
+with `target_id` does). `focus_ids` still works, and artwork returns no position
+properties.
 
 `progressbar` and `typewriter` move controls. They use the current window, even when
 a dialog is open on top of it. With `dialog=true`, or with `target=item`, they use the
