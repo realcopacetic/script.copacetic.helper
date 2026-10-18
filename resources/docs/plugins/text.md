@@ -37,9 +37,9 @@ straight away.
 | `text_height` | whole number (pixels) | `720` | Most height allowed. Text that does not fit is cut at a whole line: at the last full sentence that fits, else with an ellipsis. |
 | `text_line_height` | decimal | `1.3` | Line spacing, as a multiple of the font size. |
 | `text_letter_spacing` | decimal | `0.0` | Extra space between letters, as a percentage of the font size. Negative values pull letters closer. |
-| `target_id` | control id | — | A control to size to the text: its height is set to the image's before the item returns, in the window that was topmost when the serve started. |
-| `target` | container id | — | Container used by the focus guard. |
-| `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
+| `target_id` | control id | — | A control to size to the text: its height is set to the image's before the item returns. The control is looked up in the window the call started in: the topmost dialog with `dialog=true` or `target=item`, else the current window. A dialog opened on top since then does not change this. |
+| `target` | container id, or `item` | — | Container used by the focus guard. `item` reads the window's own item, as in an info dialog. |
+| `focus_guard`, `focus_ids`, `identity_labels`, `identity_container`, `dialog` | | | Focus guard. `dialog=true` also picks the window for `target_id`. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 ## What you get back
 
