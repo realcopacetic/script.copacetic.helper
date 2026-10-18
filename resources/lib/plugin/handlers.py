@@ -1283,6 +1283,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if empty.
         """
+        if not (self._require("type") and self.dbtype in ("album", "artist", "song")):
+            return
         name = {"artist": "artist", "album": "album"}.get(self.dbtype, "title")
         genres = {*self.label.split(" / ")}  # a list value matches any of them
         if self.dbid:  # a scraped artist genre may tag none of the library's songs
