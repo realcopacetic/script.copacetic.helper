@@ -77,7 +77,7 @@ The episodes carry the **show's** artwork, as `ListItem.Art(tvshow.poster)`,
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `limit` | whole number | — | Most TV shows to look at. |
+| `limit` | whole number | — | Most episodes to return, one per show. A show with only specials left gives no episode, so more shows are read until the list is full or there are no more. Without it, every show you are part-way through is read. |
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=next_up&amp;limit=20</content>
