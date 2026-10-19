@@ -151,8 +151,6 @@ class ArtworkCacheHandler(SQLiteHandler):
     """
 
     TABLE_NAME = "artwork"
-    _IMMUTABLE_COLUMNS = {policy.ART_FIELD_CACHE_KEY}
-    _ALLOWED_UPDATE_COLS = set(policy.ART_DB_FIELDS) - _IMMUTABLE_COLUMNS
 
     def __init__(self) -> None:
         super().__init__()
@@ -253,53 +251,6 @@ class ArtworkCacheHandler(SQLiteHandler):
             where=f"{policy.ART_FIELD_CACHE_KEY} = ?",
             params=(cache_key,),
         )
-
-    def update_fields(self, cache_key: str, fields: Mapping[str, Any]) -> int:
-        """
-        Update mutable artwork fields for a cache_key.
-
-        :param cache_key: Unique key for a process+variant row.
-        :param fields: Field/value mapping to update.
-        :return: Number of rows updated.
-        """
-        safe_items = [
-            (col, val)
-            for col, val in fields.items()
-            if col in self._ALLOWED_UPDATE_COLS and val is not None
-        ]
-        if not safe_items:
-            return 0
-
-        cols, vals = zip(*safe_items)
-        assignments = ", ".join(f"{c} = ?" for c in cols)
-
-        try:
-            with self._conn as conn:
-                cur = conn.execute(
-                    f"""
-                    UPDATE {self.TABLE_NAME}
-                    SET {assignments}
-                    WHERE cache_key = ?
-                    """,
-                    (*vals, cache_key),
-                )
-                return cur.rowcount or 0
-        except Exception:
-            log.debug(
-                f"{self.__class__.__name__} → update_fields failed for {cache_key=}"
-            )
-            return 0
-
-    def update_field(self, cache_key: str, column: str, value: Any) -> int:
-        """
-        Update a single mutable field for a cache_key.
-
-        :param cache_key: Unique key for a process+variant row.
-        :param column: Column name to update.
-        :param value: New column value.
-        :return: Number of rows updated.
-        """
-        return self.update_fields(cache_key, {column: value})
 
 
 class TruncateCacheHandler(SQLiteHandler):

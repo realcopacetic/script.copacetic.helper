@@ -177,9 +177,9 @@ class ArtworkCacheManager:
         require: tuple[str, ...] = (),
     ) -> dict[str, Any] | None:
         """
-        Read cached metadata and validate against the current source hash.
+        Read a cached row; a row missing its file or a required field is a miss.
 
-        :param ctx: CacheContext with cache_key and cached_file_hash.
+        :param ctx: CacheContext with cache_key.
         :param require: Required field names that must be present.
         :return: Cached metadata dict if valid, else None.
         """
@@ -200,23 +200,7 @@ class ArtworkCacheManager:
             if missing:
                 return None
 
-        # If we couldn't hash the source yet, trust the cached row.
-        if not ctx.cached_file_hash:
-            return cleaned
-
-        db_hash = entry.get(policy.ART_FIELD_HASH)
-        if db_hash and db_hash == ctx.cached_file_hash:
-            return cleaned
-
-        if not db_hash:
-            # Backfill the hash so we can validate next time without reprocessing.
-            self.sqlite.update_field(
-                ctx.cache_key, policy.ART_FIELD_HASH, ctx.cached_file_hash
-            )
-            return cleaned
-
-        # Hash mismatch → stale entry.
-        return None
+        return cleaned  # the key holds the source's hash: a changed source misses
 
     def write_lookup(self, metadata: dict[str, Any]) -> None:
         """

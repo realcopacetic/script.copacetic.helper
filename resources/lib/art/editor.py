@@ -23,7 +23,6 @@ from resources.lib.shared.utilities import (
     create_dir,
     infolabel,
     to_float,
-    validate_path,
 )
 
 if TYPE_CHECKING:
@@ -192,11 +191,8 @@ class ImageEditor:
                 folder=folder,
                 suffix=spec.get("suffix"),
             )
-            cached = (
-                self.cache_manager.read_lookup(ctx, require=tuple(require or ())) or {}
-            )
-            if cached and (
-                require is None or self._has_required(cached, require, expected)
+            if cached := self.cache_manager.read_lookup(
+                ctx, require=tuple(require or ())
             ):
                 log.debug(
                     f"{self.__class__.__name__} → Cache hit → {art_type=} → {process=} → {ctx.cache_key=}"
@@ -416,33 +412,6 @@ class ImageEditor:
             for key in spec.get("match") or ()
             if (value := fields.get(key)) is not None
         } or None
-
-    def _has_required(
-        self,
-        row: dict[str, Any],
-        require: tuple[str, ...],
-        expected: Mapping[str, object] | None = None,
-    ) -> bool:
-        """
-        Validate that a cache row satisfies required fields.
-        Treats processed_path as a special-case path validity check.
-
-        :param row: Cached attribute row to validate.
-        :param require: Required field names for a process.
-        :return: True if requirements are satisfied, else False.
-        """
-        return (
-            (
-                policy.ART_FIELD_PROCESSED not in require
-                or validate_path(row.get(policy.ART_FIELD_PROCESSED))
-            )
-            and all(
-                row.get(k) is not None
-                for k in require
-                if k != policy.ART_FIELD_PROCESSED
-            )
-            and (not expected or all(row.get(k) == v for k, v in expected.items()))
-        )
 
     def _run_processor(
         self,
