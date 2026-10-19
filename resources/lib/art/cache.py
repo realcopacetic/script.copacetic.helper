@@ -14,8 +14,10 @@ from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     TEMPS,
     THUMB_DB,
+    infolabel,
     url_decode_path,
     validate_path,
+    window_property,
 )
 
 
@@ -159,10 +161,20 @@ class ArtworkCacheManager:
         return self.source_temp_path(ctx), destination_path
 
     def source_temp_path(self, ctx: CacheContext) -> str | None:
-        """Copy the source artwork to a temp file for processing; return its path."""
+        """
+        Copy the source artwork to a temp file for processing; return its path. A
+        web source that fails to copy is not asked for again this Kodi session.
+        """
         temp_path = str(Path(self.temp_folder) / ctx.cached_thumb)
-        if validate_path(temp_path) or xbmcvfs.copy(ctx.decoded_url, temp_path):
+        if validate_path(temp_path):
             return temp_path
+        dead = f"artwork_dead_{Path(ctx.cached_thumb).stem}"
+        if infolabel(f"Window(home).Property({dead})"):
+            return None
+        if xbmcvfs.copy(ctx.decoded_url, temp_path):
+            return temp_path
+        if ctx.decoded_url.startswith(("http://", "https://")):
+            window_property(dead, "true")
         return None
 
     def read_lookup(

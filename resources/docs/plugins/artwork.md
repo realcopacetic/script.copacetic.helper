@@ -62,6 +62,14 @@ the item's own fanart, when that is a different image. That is its `fanart`, els
 whose `fanart` is missing or is the same as its `tvshow.fanart` (most episodes) uses
 its `thumb`. The icon has no such second try.
 
+A web image (`http://`, `https://`) that Kodi hasn't cached and that fails to download
+is not asked for again until Kodi restarts, so a dead logo doesn't hold up every call.
+Changed art has a new URL, so it is fetched as usual. A URL that fails only once, in
+an outage (the network still waking, a 429 or 503, a sleeping server), waits too: until
+Kodi caches the image itself when it draws it, or until Kodi restarts. A whole outage
+counts: on a device waking from sleep before its network is back, every web image
+asked for in that time waits, so restart Kodi if art is missing after a wake.
+
 "Icon" is just a name for a second image. Use it for anything: a poster, a thumbnail,
 or a second copy of the background with a lighter blur.
 
