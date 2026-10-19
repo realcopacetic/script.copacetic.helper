@@ -141,24 +141,17 @@ class ArtworkCacheManager:
             dest_thumb=dest_thumb,
         )
 
-    def get_image_paths(self, folder: str, ctx: CacheContext) -> tuple[str | None, str]:
+    def source_path(self, ctx: CacheContext) -> str | None:
         """
-        Resolve (source_path, destination_path) for processing.
+        The file to open the source from: Kodi's texture-cache copy, else a temp copy.
 
-        :param folder: Destination folder for processed images.
-        :param ctx: CacheContext for source/variant.
-        :return: Tuple of (source_path or None, destination_path).
+        :param ctx: CacheContext for the source.
+        :return: Path of the file, or None when the source can't be copied.
         """
-        source_path = str(ctx.cached_image_path)
-        destination_path = str(Path(folder) / ctx.dest_thumb)
-        if validate_path(source_path):
-            log.debug(
-                f"{self.__class__.__name__} → get_image_paths: "
-                f"using existing texture-cache file → {source_path}"
-            )
-            return source_path, destination_path
-
-        return self.source_temp_path(ctx), destination_path
+        if validate_path(path := str(ctx.cached_image_path)):
+            log.debug(f"{self.__class__.__name__} → texture-cache file → {path}")
+            return path
+        return self.source_temp_path(ctx)
 
     def source_temp_path(self, ctx: CacheContext) -> str | None:
         """

@@ -109,7 +109,7 @@ class ImageEditor:
         """
         art_types = tuple(jobs)
         shared = {
-            "image_cache": {k: {} for k in art_types},
+            "images": {},  # opened sources by URL: one open per source per serve
             "results": {k: {} for k in art_types},
             "contexts": {},
         }
@@ -381,10 +381,11 @@ class ImageEditor:
         :param processes: Ordered process names for this art_type.
         :param source: Kodi infolabel source prefix.
         :param opts: Parsed ArtOpts whose url failed.
-        :param shared: Shared context across jobs; its image_cache holds opened images.
+        :param shared: Shared context across jobs; its images hold opened sources.
         :return: Merged attributes from the fallback art, or None.
         """
-        if art_type != "background" or not source or shared["image_cache"][art_type]:
+        failed = shared["contexts"][art_type].source_url
+        if art_type != "background" or not source or failed in shared["images"]:
             return None
         url = self._fetch_art_url("fanart", source).get("fanart")
         if not url or url == opts.url:
@@ -470,7 +471,6 @@ class ImageEditor:
         from resources.lib.art.io import write_image
 
         processed_path = None
-        image = None
         process_method = getattr(self.processor, process, None)
         if not process_method:
             return None
@@ -479,36 +479,17 @@ class ImageEditor:
         if not url:
             return None
 
-        if folder:
-            source_path, destination_path = self.cache_manager.get_image_paths(
-                folder, ctx
-            )
-            if not source_path:
+        source_path = ""  # only the call that opens the source resolves and deletes it
+        if (image := shared["images"].get(url)) is None:
+            if not (source_path := self.cache_manager.source_path(ctx)):
                 return None
-
-        else:
-            source_path = str(ctx.cached_image_path)
-            if not validate_path(source_path):
-                # Texture cache miss — reuse an image opened by a prior step
-                # (e.g. blur), else copy the source to temp.
-                cached_images = shared["image_cache"].get(art_type, {})
-                if cached_images:
-                    source_path, image = next(iter(cached_images.items()))
-                elif temp := self.cache_manager.source_temp_path(ctx):
-                    source_path = temp
-                else:
-                    return None
 
         try:
             if image is None:
-                image = shared["image_cache"][art_type].get(
-                    source_path
-                ) or self._image_open(source_path)
+                if (image := self._image_open(source_path)) is None:
+                    return None
+                shared["images"][url] = image
 
-            if image is None:
-                return None
-
-            shared["image_cache"][art_type][source_path] = image
             result = process_method(
                 image,
                 opts=opts,
@@ -518,7 +499,7 @@ class ImageEditor:
                 return None
 
             if folder and "image" in result:
-                processed_path = destination_path
+                processed_path = str(Path(folder) / ctx.dest_thumb)
                 create_dir(folder)
                 write_image(
                     processed_path,
