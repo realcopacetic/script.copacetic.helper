@@ -738,7 +738,11 @@ class EditHandler(BaseControlHandler):
         :param focused_control_id: ID of the focused control.
         :param a_id: Kodi action ID.
         """
-        value = self.instance.getText().strip()
+        text = self.instance.getText()
+        if self.control.get("plain_text"):
+            text = "".join(char for char in text if char.isalnum() or char == " ")
+            self.instance.setText(text.strip())
+        value = text.strip()
         if value == self._cached_text:
             return
 

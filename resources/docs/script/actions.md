@@ -73,6 +73,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
 | [`roll_seed`](#roll_seed) | Writes a fresh random number to a window property |
+| [`search_backspace`](#search_backspace) | Rewrites `search_query` from the on-screen keys' log, deletes included |
 | [`seed_keyboard_layout`](#seed_keyboard_layout) | Fills the `keyboard` mapping from a Kodi keyboard layout |
 | [`set_edit`](#set_edit) | Writes text into an edit control |
 | [`set_search_query`](#set_search_query) | Copies an edit control's text into a window property |
@@ -672,6 +673,51 @@ Example from Copacetic, on window load:
 
 ---
 
+## search_backspace
+
+For an on-screen keyboard whose keys append to `Window(home).Property(search_query)`
+in XML rather than typing into an edit control. XML can't remove a character, so the
+delete key needs a script, and a script starts a moment after the click (about 0.25 s
+on a Mac, longer on slower boxes). Until its first write the deleted character is still
+in the query, and anything reading the query, such as search rails, sees it.
+
+So every key also appends to a log, `Window(home).Property(search_log)`, in the same
+click: a letter key its text, the delete key `←`. This action replays the log (each `←`
+removes the character before it) and writes the result to `search_query`. It reads the
+log again after the write and repeats until the log hasn't changed. The write is a
+`SetProperty` builtin run with `wait`, which Kodi runs on its main thread between
+frames, never in the middle of a click. So keys pressed while the script runs, and
+several delete scripts in any order, end on the log's text. Removing the only character
+leaves the property empty.
+
+The property holds the text itself: letters, digits and spaces as the keys wrote them,
+not the encoded text [`set_search_query`](#set_search_query) writes. A letter or digit,
+in any alphabet, needs no encoding in a search path's xsp, and a space only needs its
+quotes kept. Keep key values to those characters (Copacetic's key editor uses
+`plain_text`, see [Controls → edit](../builders/06-controls.md#edit--free-text)): `"`
+breaks the keys' `SetProperty` and this action's, and `&`, `+`, `%` and `|` change a
+library path's options.
+
+Clear `search_log` whenever you clear `search_query` by other means, and clear a
+`search_query` that has no log, so the two always agree.
+
+No params.
+
+**Sets:** `Window(home).Property(search_query)`.
+
+Examples from Copacetic:
+
+```xml
+<!-- a letter key: $INFO resolves when the click runs, and the quotes keep a trailing space -->
+<onclick>SetProperty(search_query,"$INFO[Window(home).Property(search_query)]a",home)</onclick>
+<onclick>SetProperty(search_log,"$INFO[Window(home).Property(search_log)]a",home)</onclick>
+<!-- delete key -->
+<onclick>SetProperty(search_log,"$INFO[Window(home).Property(search_log)]←",home)</onclick>
+<onclick>RunScript(script.copacetic.helper,action=search_backspace)</onclick>
+```
+
+---
+
 ## seed_keyboard_layout
 
 Fills the builder mapping called `keyboard` with the letters and then the digits of a
@@ -712,24 +758,16 @@ on-screen keyboard from buttons.
 | `mode` | `set`, `append`, `backspace`, `space`, `clear` | `set` | `set` replaces the text with `text`. `append` adds `text` to the end. `backspace` removes the last character. `space` adds a space. `clear` empties it. Any other value works like `set`. |
 | `text` | text | empty | The text for `set` and `append` |
 | `return_id` | control id | none | Control to focus again afterwards |
-| `query` | `true` | none | Also writes the new text to `search_query`, as [`set_search_query`](#set_search_query) does |
-| `min_length` | whole number | `3` | With `query`: fewest characters before the text is written; fewer clears it |
 
 The edit control is focused while the text is written, which fires its
-`<ontextchange>`. With `query=true`, skip your `<ontextchange>`'s
-`set_search_query` while `edit_scripted_write` is set, so a key starts one script,
-not two.
+`<ontextchange>`. Focus moves when the script runs, a moment after the click, so a
+move the user makes in between is undone. For a search box, the keys can write the
+query property themselves instead (see [`search_backspace`](#search_backspace)).
 
-**Sets:** `Window(home).Property(edit_scripted_write)` = `true` during the write,
-then clears it. Test it to tell these writes from the user's own typing.
-
-Examples from Copacetic:
+Example from Copacetic, the view menu's clear button, which empties the filter box:
 
 ```xml
-<!-- a letter key -->
-<onclick>RunScript(script.copacetic.helper,action=set_edit,id=4200,return_id=215,mode=append,text=a,query=true,min_length=1)</onclick>
-<!-- delete key -->
-<onclick>RunScript(script.copacetic.helper,action=set_edit,id=4200,return_id=215,mode=backspace,query=true,min_length=1)</onclick>
+<onclick>RunScript(script.copacetic.helper,action=set_edit,id=19,return_id=19)</onclick>
 ```
 
 ---
@@ -751,8 +789,8 @@ xsp value and `&`, `+` and `%` survive. It isn't meant for a label (a space show
 Example from Copacetic:
 
 ```xml
-<!-- on the edit control: typing and Kodi's keyboard; the on-screen keys publish through set_edit -->
-<ontextchange condition="String.IsEmpty(Window(home).Property(edit_scripted_write))">RunScript(script.copacetic.helper,action=set_search_query,id=4200,min_length=1)</ontextchange>
+<!-- on the edit control: typing and Kodi's keyboard -->
+<ontextchange>RunScript(script.copacetic.helper,action=set_search_query,id=4200,min_length=1)</ontextchange>
 <!-- on a results container: movies whose title contains the query -->
 <content>videodb://movies/titles/?xsp=%7B%22rules%22%3A%7B%22and%22%3A%5B%7B%22field%22%3A%22title%22%2C%22operator%22%3A%22contains%22%2C%22value%22%3A%5B$ESCINFO[Window(home).Property(search_query)]%5D%7D%5D%7D%2C%22type%22%3A%22movies%22%7D</content>
 ```

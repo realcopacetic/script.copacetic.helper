@@ -129,6 +129,8 @@ Kodi keyboard input; saves on select, or when the user moves away or presses Bac
 }
 ```
 
+With `"plain_text": true`, only letters, digits and spaces are kept, in any alphabet; anything else is dropped before saving and the field shows what was kept. Use it for text that goes into XML actions or paths unescaped, such as an on-screen key's value.
+
 ### `cycle` — step through values
 
 Each press moves to the next allowed value, wrapping at the end. For short lists where a slider is overkill. Disables itself below two options.

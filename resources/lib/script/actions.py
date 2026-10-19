@@ -3,6 +3,7 @@
 import json
 import random
 import time
+from functools import reduce
 from operator import itemgetter
 from urllib.parse import quote
 
@@ -613,15 +614,12 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
 @action
 def set_edit(id: str, **kwargs: str) -> None:
     """
-    Focuses a Kodi edit control and sets its text via Input.SendText; with
-    query=true, also publishes the text as set_search_query does.
+    Focuses a Kodi edit control and sets its text via Input.SendText.
 
     :param id: Control ID to write to.
     :param return_id: Optional control to refocus after the write.
     :param text: Text payload for set/append modes.
     :param mode: set (default) | append | backspace | space | clear.
-    :param query: 'true' to publish the new text to search_query.
-    :param min_length: With query, minimum characters before it is published.
     """
     mode = kwargs.get("mode", "set")
     text = str(kwargs.get("text", ""))
@@ -634,22 +632,44 @@ def set_edit(id: str, **kwargs: str) -> None:
         text = current + " "
     elif mode == "clear":
         text = ""
-    window_property("edit_scripted_write", value="true")
     log.execute(f"SetFocus({id})", wait=True)
     json_call("Input.SendText", params={"text": text, "done": True}, parent="set_edit")
-    if kwargs.get("query") == "true":
-        _publish_query(text, to_int(kwargs.get("min_length"), 3))
     return_id = kwargs.get("return_id")
     if return_id:
         log.execute(f"SetFocus({return_id})", wait=True)
-    window_property("edit_scripted_write")
+
+
+@action
+def search_backspace(**kwargs: str) -> None:
+    """
+    Rewrite search_query from search_log, the on-screen keys' record (← a delete),
+    on Kodi's main thread between clicks, until the log is unchanged after the
+    write: keys pressed meanwhile and runs in any order end on the log's text.
+    """
+    home = xbmcgui.Window(10000)
+    keys = None
+    while (logged := home.getProperty("search_log")) != keys:
+        keys = logged
+        query = reduce(_key, keys, "")
+        log.execute(f'SetProperty(search_query,"{query}",home)', wait=True)
+
+
+def _key(text: str, key: str) -> str:
+    """
+    Apply one search_log entry: ← deletes the last character, anything else appends.
+
+    :param text: Query so far.
+    :param key: One log character.
+    :return: The query after the key.
+    """
+    return text[:-1] if key == "←" else text + key
 
 
 @action
 def set_search_query(id: str, **kwargs: str) -> None:
     """
-    Mirror an edit control's text into the search_query property. With
-    set_edit's query option, the only writers for the search rails' paths.
+    Mirror an edit control's text into the search_query property, encoded
+    for the search rails' paths. Keyboard mode's writer; the keys write raw.
 
     :param id: Edit control id to read.
     :param min_length: Minimum characters before the query is published.
