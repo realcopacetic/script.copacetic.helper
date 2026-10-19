@@ -17,12 +17,12 @@ RECENT_MAX = 30
 SOURCE_PROPERTY = "speed_dial_source"
 VERSION_PROPERTY = "speed_dial_version"  # widgets put it in their URL to refetch
 HELD_PROPERTY = "speed_dial_held"  # a version waiting for focus to leave speed dial
-LIBRARY_TYPES = ("album", "artist", "song")
+MUSIC_TYPES = ("album", "artist", "song")
 PLAYLIST_SUFFIXES = (".xsp", ".m3u")
 PLAYLISTS = "special://profile/playlists/music/"
 PLAYLISTS_ALIAS = "special://musicplaylists/"  # same folder, as library nodes say it
 # addon.xml's Pin/Unpin rows test one property per type and ID length (IDs to 7 digits)
-PIN_KEYS = (*(f"{t}{n}" for t in LIBRARY_TYPES for n in range(1, 8)), "playlist")
+PIN_KEYS = (*(f"{t}{n}" for t in MUSIC_TYPES for n in range(1, 8)), "playlist")
 
 
 def entry(type: str, id: str = "", path: str = "") -> dict:
@@ -35,7 +35,7 @@ def entry(type: str, id: str = "", path: str = "") -> dict:
     :param path: Playlist path.
     :return: Dict with type and ref.
     """
-    if type in LIBRARY_TYPES:
+    if type in MUSIC_TYPES:
         return {"type": type, "ref": str(id)}
     return {"type": "playlist", "ref": path.replace(PLAYLISTS_ALIAS, PLAYLISTS, 1)}
 

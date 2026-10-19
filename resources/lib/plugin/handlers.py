@@ -58,7 +58,7 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.speed_dial import SpeedDial
+from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.utilities import (
     ADDON,
     condition,
@@ -692,7 +692,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         dbtype, dbid = key.split(":")
         index = self.params.get("index", "")
-        if dbtype in ("album", "artist", "song"):
+        if dbtype in MUSIC_TYPES:
             extra = () if dbtype == "song" else ("description",)
             if not (found := details_item(dbtype, int(dbid), "favourite", extra)):
                 forget(self.params["path"], dbtype)
@@ -1283,7 +1283,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if empty.
         """
-        if not (self._require("type") and self.dbtype in ("album", "artist", "song")):
+        if not (self._require("type") and self.dbtype in MUSIC_TYPES):
             return
         name = {"artist": "artist", "album": "album"}.get(self.dbtype, "title")
         genres = {*self.label.split(" / ")}  # a list value matches any of them
@@ -1380,7 +1380,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.apis import listenbrainz
 
         if not (
-            self.dbtype in ("album", "artist", "song")
+            self.dbtype in MUSIC_TYPES
             and listenbrainz.enabled()
             and self._require("id")
         ):
