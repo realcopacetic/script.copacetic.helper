@@ -169,14 +169,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._mgmt_buttons = []
         self._mgmt_ids = set()
         for entry in self._mgmt_map.values():
-            try:
-                entry["btn"] = self.getControl(entry["id"])
-            except RuntimeError:
+            if entry["mutation"] and not self._has_governor:
                 continue
+            entry["btn"] = self.getControl(entry["id"])
             self._mgmt_buttons.append(entry["btn"])
-            show = not entry["mutation"] or self._has_governor
-            entry["btn"].setVisible(show)
-            if show and entry["mutation"]:
+            if entry["mutation"]:
                 self._mgmt_ids.add(entry["id"])
 
         # Attach handlers to dynamic controls
@@ -365,7 +362,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
     def _update_mgmt_buttons(self) -> None:
         """Enable/disable mutation buttons based on list position and size."""
         m = self._mgmt_map
-        if not (self._has_governor and m["btn_delete"]["btn"]):
+        if not self._has_governor:
             return
 
         has_items = bool(self.listitems)

@@ -151,12 +151,9 @@ def dynamic_settings_window(**kwargs: str) -> None:
         log.error("dynamic_settings_window: 'mapping' kwarg is required")
         return
 
-    controls_from_raw = kwargs.get("controls_from", "")
-    controls_from = (
-        [m.strip() for m in controls_from_raw.split(",") if m.strip()]
-        if controls_from_raw
-        else []
-    )
+    controls_from = [
+        m.strip() for m in kwargs.get("controls_from", "").split(",") if m.strip()
+    ]
     name = kwargs.get("name", "dynamic_window")
     host = kwargs.get("host")
     host_focus = kwargs.get("host_focus")
