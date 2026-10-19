@@ -36,7 +36,6 @@ The file's `mapping` names the mapping these controls edit. Each key under `cont
 | `icon` | No | Row icon (listitems only) |
 | `visible` | No | Show/hide condition, re-checked as the user moves and edits |
 | `onclick` | No | What a button does — see [Onclick](#onclick) |
-| `textcolor`, `focusedcolor`, `disabledcolor`, `shadowcolor` | No | Colour as `AARRGGBB` hex without `0x`, or `$INFO[...]` that returns one. Passed to the control; `textcolor` also tints label2 while the control isn't focused. |
 
 The allowed values for a `field` come from the mapping's `config_fields` — the control just names the field. (See [One setting, four names](00-quickstart.md#one-setting-four-names) if that chain is fuzzy.)
 

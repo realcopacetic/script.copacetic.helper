@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from xbmcgui import (
@@ -21,28 +20,6 @@ from resources.lib.windows import onclick_actions
 
 if TYPE_CHECKING:
     from resources.lib.builders.runtime import RuntimeStateManager
-
-COLOR_KEYS = {
-    "textcolor": "textColor",
-    "focusedcolor": "focusedColor",
-    "disabledcolor": "disabledColor",
-    "shadowcolor": "shadowColor",
-}
-
-
-def resolve_color(value: str) -> str:
-    """
-    Parse a colour value from a hex string or ``$INFO[]`` reference.
-
-    :param value: Raw colour string (hex or ``$INFO[...]`` expression).
-    :return: Colour in ``0xRRGGBBAA`` format.
-    """
-    info_match = re.match(r"\$INFO\[(.*?)\]", value)
-    if info_match:
-        resolved = infolabel(info_match.group(1)).strip()
-        return f"0x{resolved}"
-    else:
-        return f"0x{value}"
 
 
 class BaseControlHandler:
@@ -304,7 +281,6 @@ class BaseControlHandler:
 
     def set_instance_labels(
         self,
-        focused_control_id: int,
         instance: object | None = None,
         label_color: str | None = None,
         label2_color: str | None = None,
@@ -312,10 +288,9 @@ class BaseControlHandler:
         """
         Update the label and label2 on a control instance.
 
-        :param focused_control_id: GUI control ID with current focus.
         :param instance: Target control instance; defaults to ``self.instance``.
-        :param label_color: Optional colour wrap for label (palette name or hex), overriding focus styling.
-        :param label2_color: Optional colour wrap for label2 (palette name or hex), overriding focus styling.
+        :param label_color: Optional colour wrap for label (palette name or hex).
+        :param label2_color: Optional colour wrap for label2 (palette name or hex).
         """
         if instance is None:
             instance = self.instance
@@ -327,24 +302,12 @@ class BaseControlHandler:
         label2 = self.runtime_manager.format_metadata(
             self.mapping_key, self.source_index, raw_label2, localize=True
         )
-        colors = {
-            param: resolve_color(self.control[color_key])
-            for color_key, param in COLOR_KEYS.items()
-            if self.control.get(color_key)
-        }
-
-        if (
-            label2_color is None
-            and focused_control_id != instance.getId()
-            and (c := colors.get("textColor"))
-        ):
-            label2 = f"[COLOR {c}]{label2}[/COLOR]"
         if label_color:
             label = f"[COLOR {label_color}]{label}[/COLOR]"
         if label2_color:
             label2 = f"[COLOR {label2_color}]{label2}[/COLOR]"
 
-        instance.setLabel(label=label or " ", label2=label2 or " ", **colors)
+        instance.setLabel(label=label or " ", label2=label2 or " ")
 
     def update_value(self) -> None:
         """Hook: sync the control instance to the selected entry's value."""
@@ -368,7 +331,7 @@ class BaseControlHandler:
 
         self.instance.setVisible(is_visible)
         if self._updates_labels:
-            self.set_instance_labels(focused_control_id)
+            self.set_instance_labels()
 
     def handle_interaction(self, focused_control_id: int, a_id: int) -> None:
         """
@@ -932,7 +895,6 @@ class SliderExHandler(SliderHandler):
         slider_focused = focused_control_id == self.instance.getId()
         colors = self.parent._colors if self.parent else {}
         self.set_instance_labels(
-            focused_control_id,
             instance=self.button_instance,
             label_color=colors.get("focused") if slider_focused else None,
             label2_color=(
