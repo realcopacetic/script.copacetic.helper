@@ -66,6 +66,11 @@ class BaseControlHandler:
         )
         self.focus_target_id = None
         self.parent = None  # set by DynamicEditor.onInit
+        # Last values written to the GUI, keyed by control id: each write
+        # waits for the main thread's once-a-frame window, so repeat none.
+        self._shown = None
+        self._enabled_by_id = {}
+        self._labels_by_id = {}
 
     @property
     def config_field_template(self) -> str | None:
@@ -286,7 +291,7 @@ class BaseControlHandler:
         label2_color: str | None = None,
     ) -> None:
         """
-        Update the label and label2 on a control instance.
+        Update the label and label2 on a control instance, skipping an unchanged pair.
 
         :param instance: Target control instance; defaults to ``self.instance``.
         :param label_color: Optional colour wrap for label (palette name or hex).
@@ -307,7 +312,23 @@ class BaseControlHandler:
         if label2_color:
             label2 = f"[COLOR {label2_color}]{label2}[/COLOR]"
 
-        instance.setLabel(label=label or " ", label2=label2 or " ")
+        labels = (label or " ", label2 or " ")
+        if self._labels_by_id.get(instance.getId()) != labels:
+            self._labels_by_id[instance.getId()] = labels
+            instance.setLabel(label=labels[0], label2=labels[1])
+
+    def set_enabled(self, enabled: bool, instance: object | None = None) -> None:
+        """
+        Enable or disable a control instance, skipping a write that changes nothing.
+
+        :param enabled: Target enabled state.
+        :param instance: Target control instance; defaults to ``self.instance``.
+        """
+        if instance is None:
+            instance = self.instance
+        if self._enabled_by_id.get(instance.getId()) != enabled:
+            self._enabled_by_id[instance.getId()] = enabled
+            instance.setEnabled(enabled)
 
     def update_value(self) -> None:
         """Hook: sync the control instance to the selected entry's value."""
@@ -329,7 +350,9 @@ class BaseControlHandler:
             else True
         )
 
-        self.instance.setVisible(is_visible)
+        if is_visible != self._shown:
+            self._shown = is_visible
+            self.instance.setVisible(is_visible)
         if self._updates_labels:
             self.set_instance_labels()
 
@@ -677,7 +700,7 @@ class CycleHandler(BaseControlHandler):
         """Snap to an allowed value, then update enabled state."""
         super().update_value()
         self._coerce_to_allowed()
-        self.instance.setEnabled(len(self._allowed_items()) > 1)
+        self.set_enabled(len(self._allowed_items()) > 1)
 
 
 class EditHandler(BaseControlHandler):
@@ -774,7 +797,7 @@ class RadioButtonHandler(BaseControlHandler):
         # a config filtered to one item can't toggle, so its own value decides.
         on_value = allowed[0] if len(allowed) > 1 else "true"
         self.instance.setSelected(current == on_value)
-        self.instance.setEnabled(len(allowed) > 1)
+        self.set_enabled(len(allowed) > 1)
 
 
 class SliderHandler(BaseControlHandler):
@@ -824,7 +847,7 @@ class SliderHandler(BaseControlHandler):
         idx = values.index(current) if current in values else 0
         self.instance.setInt(idx, 0, 1, max(len(values) - 1, 0))
         enabled = len(values) > 1
-        self.instance.setEnabled(enabled)
+        self.set_enabled(enabled)
         self._enabled = enabled
 
 
@@ -883,7 +906,7 @@ class SliderExHandler(SliderHandler):
     def update_value(self) -> None:
         """Passes slider update from parent class then enables/disables button accordingly."""
         super().update_value()
-        self.button_instance.setEnabled(self._enabled)
+        self.set_enabled(self._enabled, self.button_instance)
 
     def update_visibility(self, focused_control_id: int) -> None:
         """
