@@ -6,6 +6,7 @@ import math
 import operator
 import random
 import re
+import string
 import sys
 import urllib.parse as urllib
 from pathlib import Path
@@ -39,6 +40,8 @@ EXPRESSIONS = f"{SKINXML}/script-copacetic-helper_expressions.xml"
 INCLUDES = f"{SKINXML}/script-copacetic-helper_includes.xml"
 
 LOCALIZE_TOKEN = re.compile(r"\$LOCALIZE\[(\d+)\]")
+URL_SAFE = frozenset(f"{string.ascii_letters}{string.digits}-._!()".encode())
+"""The bytes Kodi's CURL::Encode leaves unescaped; it writes the rest as lowercase %xx."""
 
 
 _JSON_RESPONSE_LIMIT = 5
@@ -344,11 +347,17 @@ def skin_uses_builder() -> bool:
 
 def url_decode_path(path: str) -> str:
     """
-    Decodes a Kodi image:// path into a usable file path.
+    The path Kodi caches and opens an image by: a plain image:// wrapper unwraps to
+    its file; a typed one (music@, video@) is kept whole, in CURL::Encode's encoding.
 
-    :param path: Encoded image path.
-    :return: Decoded file path.
+    :param path: Image path, encoded or (as a plugin param arrives) decoded once.
+    :return: Decoded file path, or the typed wrapper as Kodi stores it.
     """
+    kind, at, file = path.removeprefix("image://").removesuffix("/").partition("@")
+    if path.startswith("image://") and at and kind.isidentifier():
+        raw = file.encode() if "/" in file else urllib.unquote_to_bytes(file)
+        encoded = "".join(chr(b) if b in URL_SAFE else f"%{b:02x}" for b in raw)
+        return f"image://{kind}@{encoded}/"
     return urllib.unquote(path.replace("image://", "").rstrip("/"))
 
 
