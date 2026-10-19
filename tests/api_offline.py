@@ -415,6 +415,7 @@ class TmdbTest(Base):
         super().setUp()
         self.settings = {"tmdb_access_token": "v3key"}
         http.ADDON.getSetting = lambda key: self.settings.get(key, "")
+        sys.modules["xbmcgui"].Window().clearProperty(transform.TOKEN_REFUSED)
 
     def tmdb_row(self, key="tmdb:tvshow:1399:en-US"):
         """The api_cache row for key: (payload, seconds left)."""
@@ -529,10 +530,12 @@ class TmdbTest(Base):
         self.assertNotIn("include_image_language", url)
         self.assertTrue(self.tmdb_row("tmdb:tvshow:1399:en-US|noart")[0])
 
-    def test_refused_token_warns(self):
+    def test_refused_token_warns_once(self):
         warnings = LOG["WARNING"]
-        self.net.answers = [http_error(401)]
+        self.net.answers = [http_error(401), http_error(403)]
         self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), {})
+        self.assertEqual(transform.tmdb_to_canonical("movie", 603), {})
+        self.assertEqual(len(self.net.requests), 2)
         self.assertEqual(LOG["WARNING"], warnings + 1)
 
     def test_metadata_keeps_library_plot_and_tagline(self):

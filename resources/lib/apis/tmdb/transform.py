@@ -2,6 +2,8 @@
 
 from typing import Any, Mapping
 
+from xbmcgui import Window
+
 from resources.lib.apis.http import HttpError
 from resources.lib.apis.tmdb.client import (
     fetch_tmdb_fields,
@@ -18,11 +20,12 @@ from resources.lib.apis.tmdb.fields import (
 )
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
-from resources.lib.shared.utilities import plugin_path
+from resources.lib.shared.utilities import plugin_path, window_property
 
 DAY = 86400
 EPISODE_KEYS = ("file", "art", "properties", "Trailer")  # show-level, fit an episode
 TTL_HIT, TTL_MISSING, TTL_DOWN = 7 * DAY, DAY, 300
+TOKEN_REFUSED = "tmdb_token_refused"  # Home property: the warning logs once a session
 IMAGE_LIST_ROLES = {
     "images_posters": [
         ("poster", "lang"),
@@ -96,7 +99,8 @@ def tmdb_to_canonical(
             append_artwork=append_artwork,
         )
     except HttpError as exc:
-        if exc.status in (401, 403):  # the one failure the user can fix
+        if exc.status in (401, 403) and not Window(10000).getProperty(TOKEN_REFUSED):
+            window_property(TOKEN_REFUSED, exc.status)  # the failure the user can fix
             log.warning(f"tmdb_to_canonical → TMDb refused the token ({exc.status})")
         cache.put(key, payload, _failure_ttl(exc))  # keeps a stale item, else negative
         return payload or {}
