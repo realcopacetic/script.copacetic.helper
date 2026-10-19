@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -15,10 +16,13 @@ from resources.lib.shared.utilities import (
     TEMPS,
     THUMB_DB,
     infolabel,
+    to_float,
     url_decode_path,
     validate_path,
     window_property,
 )
+
+DEAD_SOURCE_TTL = 900  # seconds a failed web source is not asked for again
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,18 +160,19 @@ class ArtworkCacheManager:
     def source_temp_path(self, ctx: CacheContext) -> str | None:
         """
         Copy the source artwork to a temp file for processing; return its path. A
-        web source that fails to copy is not asked for again this Kodi session.
+        web source that fails to copy is not asked for again for DEAD_SOURCE_TTL.
         """
         temp_path = str(Path(self.temp_folder) / ctx.cached_thumb)
         if validate_path(temp_path):
             return temp_path
         dead = f"artwork_dead_{Path(ctx.cached_thumb).stem}"
-        if infolabel(f"Window(home).Property({dead})"):
+        failed = to_float(infolabel(f"Window(home).Property({dead})"))
+        if 0 <= time.time() - failed < DEAD_SOURCE_TTL:
             return None
         if xbmcvfs.copy(ctx.decoded_url, temp_path):
             return temp_path
         if ctx.decoded_url.startswith(("http://", "https://")):
-            window_property(dead, "true")
+            window_property(dead, str(time.time()))
         return None
 
     def read_lookup(
