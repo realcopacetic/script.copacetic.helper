@@ -103,7 +103,7 @@ values mean.
 | `<prefix>_darken` | `true`, `false` | `false` | Work out how much to darken the image. |
 | `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | the whole frame | Where your elements sit, in frame coordinates. The element on art and the palette are measured here too. |
 | `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in: the image is scaled to cover it and centred, like `<aspectratio>scale</aspectratio>`. |
-| `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo`; comma-separated, one per rectangle | `fff0efef` | Colour of the element in each rectangle, in rectangle order; the last carries on for the rest. `clearlogo` uses the clearlogo's colour (it needs `clearlogo_url` in the same call, else the default is used). |
+| `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo`, each with an optional `:ratio`; comma-separated, one per rectangle | `fff0efef` | Colour of the element in each rectangle, in rectangle order; the last carries on for the rest. `clearlogo` uses the clearlogo's colour (it needs `clearlogo_url` in the same call, else the default is used). `:ratio` gives that rectangle its own contrast target in place of `_ratio`: `clearlogo:1.5,fff0efef` asks less of a logo than of the text under it; with no logo, that rectangle falls back to the default colour at `_ratio`. |
 | `<prefix>_darken_surface` | `art`, `blur` | `art` | The image you draw the darken over: the image itself or its blur. The helper measures that one. With `blur` on an image that is not blurred, it measures the image itself. |
 | `<prefix>_darken_max` | whole number | none | A cap on the darken: the value returned is never higher. Bright art may then fall short of the ratio. The value is not checked, so keep it between `0` and `100`. |
 | `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Pass the label's whole text box as its rectangle: the helper wraps the label at the box's width as Kodi does (at plain spaces; a no-break space holds) and shrinks the rectangle to the widest line, left edge kept, never widened. Needs `<prefix>_darken_label_font`; without it the rectangles are used as passed. With no `<prefix>_darken_rects`, the first label's box is the whole frame. |
@@ -204,10 +204,12 @@ measures the image; nothing in the image changes. Apply the value in the skin wi
 
 In each rectangle the helper measures the darkest and brightest 10 % of the surface you
 darken (`_darken_surface`). For each rectangle it works out the least black that brings
-that rectangle's element colour (`_darken_source`) to the ratio (`_ratio`) against its
-brightest part. The largest is `<prefix>_darken`, as one value has to carry every
-rectangle. An element too dark for any floor to carry (relative luminance below
-`0.05 × (ratio − 1)`, `0.1` at 3:1) asks for nothing.
+that rectangle's element colour (`_darken_source`) to the ratio (`_ratio`, or the
+rectangle's own `:ratio`) against its brightest part. The largest is `<prefix>_darken`,
+as one value has to carry every rectangle. An element too dark for any floor to carry
+(relative luminance below `0.05 × (ratio − 1)`, `0.1` at 3:1) asks for nothing, and so
+does one the rectangle's darkest part already reads against from above (a mid-tone logo
+on pale art): darkening would only pull the art down into the element's own tone.
 
 The value is the exact % black for a `fadediffuse` to the grey `255 × (1 − %/100)`.
 `fadediffuse` multiplies the encoded colour, so keeping `k` of the grey keeps about

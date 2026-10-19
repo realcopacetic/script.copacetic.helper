@@ -22,6 +22,7 @@ from resources.lib.shared.utilities import (
     CROPS,
     create_dir,
     infolabel,
+    to_float,
     validate_path,
 )
 
@@ -261,16 +262,19 @@ class ImageEditor:
             if policy.ART_FIELD_MEASURE in attrs
         }
         logo = measures.get("clearlogo", {}).get("dominant")
+        overlay = self.cfg.element_overlay_color
         for art_type, attrs in records.items():
             opts = art_opts[art_type]
             if not (opts.darken and (measure := measures.get(art_type))):
                 continue
             zones, surface, cap = measure["zones"], opts.darken.surface, opts.darken.max
-            sources = [
-                logo or self.cfg.element_overlay_color if s == "clearlogo" else s
-                for s in opts.darken.sources
-            ]
-            pct = compose.darken(zones, sources, surface, opts.ratio)
+            sources = []
+            for source in opts.darken.sources:  # "colour:ratio": that rect's own target
+                color, _, ratio = source.partition(":")
+                if color == "clearlogo":  # no logo: the default colour and target
+                    color, ratio = (logo, ratio) if logo else (overlay, "")
+                sources.append((color, to_float(ratio, opts.ratio)))
+            pct = compose.darken(zones, sources, surface)
             pct = pct if cap is None else min(pct, cap)
             if opts.darken.enabled:
                 attrs[policy.ART_FIELD_DARKEN] = pct

@@ -22,39 +22,36 @@ from resources.lib.art.color import (
 GAMMA = 2.2  # fadediffuse multiplies encoded colour: keeping k of it keeps ~k^2.2 light
 
 
-def solve_darken(lt: float, hi: float, ratio: float) -> int:
+def solve_darken(lt: float, zone: list[float], ratio: float) -> int:
     """
-    Least % black over a zone whose brightest end is hi for an element of
-    luminance lt to read at ratio; 0 when no floor can carry it or none is needed.
+    Least % black over a zone for an element of luminance lt to read at ratio;
+    0 when no floor can carry it, or the zone already does, darker or brighter.
 
     :param lt: Element luminance, 0-1.
-    :param hi: Luminance of the zone's brightest 10 %, 0-1.
+    :param zone: [lo, hi], luminance of the zone's darkest and brightest 10 %.
     :param ratio: Contrast target.
     :return: % black, 0-100, rounded up so the ratio holds.
     """
+    lo, hi = zone
     floor = (lt + 0.05) / ratio - 0.05
-    if floor < 0 or hi <= floor:
+    if floor < 0 or hi <= floor or lo >= (lt + 0.05) * ratio - 0.05:
         return 0
     return math.ceil(100 * (1 - (floor / hi) ** (1 / GAMMA)))
 
 
-def darken(zones: list[dict], sources: list[str], surface: str, ratio: float) -> int:
+def darken(zones: list[dict], sources: list[tuple[str, float]], surface: str) -> int:
     """
     The largest of each rect's least darken: one value carries every zone.
 
     :param zones: The measurement's zones, in rect order.
-    :param sources: Element colour (hex) per rect; the last repeats.
+    :param sources: (element colour hex, contrast target) per rect; the last repeats.
     :param surface: "art" or "blur"; an art with no blur measures the art.
-    :param ratio: Contrast target.
     :return: % black, 0-100.
     """
+    pad = sources[-1:] * (len(zones) - len(sources))
     return max(
-        solve_darken(
-            luminance(from_hex(sources[min(i, len(sources) - 1)])),
-            zone.get(surface, zone["art"])[1],
-            ratio,
-        )
-        for i, zone in enumerate(zones)
+        solve_darken(luminance(from_hex(color)), zone.get(surface, zone["art"]), ratio)
+        for zone, (color, ratio) in zip(zones, sources + pad)
     )
 
 
