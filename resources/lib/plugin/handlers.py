@@ -708,10 +708,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             item = json_to_canonical(row, dbtype)
             item["file"] = plugin_path("favourite")  # no thumb loader on the file
             item["properties"]["favourite.index"] = index
-            if dbtype in ("tvshow", "season") and row["episode"]:
-                # A show's or season's share watched, as Kodi's own items carry it
-                percent = row["watchedepisodes"] * 100 // row["episode"]
-                item["properties"]["WatchedEpisodePercent"] = str(percent)
             items = set_items([item], media_type=dbtype, tag_applier=apply_videoinfotag)
         return items if guard.alive() else None
 

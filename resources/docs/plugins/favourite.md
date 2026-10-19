@@ -62,9 +62,10 @@ file or its share.
   `ListItem.DBID`, `ListItem.DBType` and `ListItem.PlayCount`, and the library
   artwork as `ListItem.Art(...)`. Each type has the details the library keeps for it:
   a movie has its year, rating and resume point; a set or season has few (a season
-  has no plot). A TV show or season also has
-  `ListItem.Property(WatchedEpisodePercent)`: the share of its episodes you have
-  watched, as Kodi's own library items carry it.
+  has no plot). A TV show or season also has the episode counts Kodi's own library
+  items carry: `ListItem.Property(TotalEpisodes)`, `WatchedEpisodes`,
+  `UnWatchedEpisodes` and `WatchedEpisodePercent`, and a TV show
+  `ListItem.Property(TotalSeasons)`.
 - **Music** (artist, album, song): the library details and artwork. An artist has
   `ListItem.Property(Artist_Description)` and an album
   `ListItem.Property(Album_Description)`.

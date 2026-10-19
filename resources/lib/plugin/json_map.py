@@ -189,4 +189,16 @@ def json_to_canonical(
 
         item[canonical] = value
 
+    if content_type in ("tvshow", "season") and "watchedepisodes" in raw:
+        # The episode counts Kodi's own library items carry (CVideoDatabase)
+        total, watched = raw["episode"], raw["watchedepisodes"]
+        item["properties"].update(
+            totalepisodes=str(total),
+            watchedepisodes=str(watched),
+            unwatchedepisodes=str(total - watched),
+            watchedepisodepercent=str(watched * 100 // total if total else 0),
+        )
+        if content_type == "tvshow":
+            item["properties"]["totalseasons"] = str(raw["season"])
+
     return item

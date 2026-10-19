@@ -41,6 +41,9 @@ library infolabels and artwork, so your existing layouts work with them.
   `thumb`, Kodi's default icon for its type is used.
 - Episodes and TV shows also have `ListItem.Property(tvshowid)`. Episodes carry the
   show's `Studio` and `MPAA`.
+- TV shows carry the episode counts Kodi's own library items have:
+  `ListItem.Property(TotalSeasons)`, `TotalEpisodes`, `WatchedEpisodes`,
+  `UnWatchedEpisodes` and `WatchedEpisodePercent`.
 - `in_progress`, `next_up`, `random_movies` and `random_tvshows` leave out stream
   details, directors and writers to keep them fast. So `ListItem.Director`,
   `ListItem.Writer` and the `ListItem.VideoResolution` family are empty on those
