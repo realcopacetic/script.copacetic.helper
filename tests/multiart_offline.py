@@ -1,7 +1,8 @@
 """
 Offline checks for the gallery tiles' share-out (resources/lib/art/multiart.py):
-an image shows in one tile only, matched by the helper's image identity (a TMDb
-file name in any size). Run from the helper root: python tests/multiart_offline.py
+an image shows in one tile only (matched by the helper's image identity, a TMDb
+file name in any size) unless a tile has no other image free. Run from the helper root:
+python tests/multiart_offline.py
 """
 
 import sys
@@ -47,9 +48,13 @@ class ShareOut(unittest.TestCase):
         families = {3402: ["p", "x"], 3404: ["p", "x"]}
         self.assertEqual(share_out(families), {3402: ["p"], 3404: ["x"]})
 
-    def test_duplicate_without_extra_is_empty(self):
+    def test_duplicate_without_extra_keeps_its_main(self):
         families = {3402: ["p", "p1"], 3404: ["p"]}
-        self.assertEqual(share_out(families), {3402: ["p", "p1"], 3404: []})
+        self.assertEqual(share_out(families), {3402: ["p", "p1"], 3404: ["p"]})
+
+    def test_duplicate_whose_extras_are_held_keeps_its_main(self):
+        families = {3402: ["p", "s"], 3404: ["p", "s"], 3405: ["s"]}
+        self.assertEqual(share_out(families), {3402: ["p"], 3404: ["p"], 3405: ["s"]})
 
 
 if __name__ == "__main__":

@@ -377,11 +377,11 @@ it (see below). Use it for a grid of artwork tiles that should not all change at
   is open. Give them all the same scroll speed and delay.
 - Library artwork only; no TMDb artwork is added. The main image comes first and the
   rest are shuffled.
-- An image is shown in one FadeLabel only. When several art types hold the same image
-  (the same URL, or the same TMDb file in another size), the FadeLabels take turns
-  claiming their shuffled images, and the others leave it out. The first FadeLabel in
-  `tiles` order keeps a shared main image; a later one starts on an image no other
-  FadeLabel holds, or is reset and left empty when it has none.
+- An image is shown in one FadeLabel where it can be. When several art types hold the
+  same image (the same URL, or the same TMDb file in another size), the FadeLabels take
+  turns claiming their shuffled images, and the others leave it out. The first
+  FadeLabel in `tiles` order keeps a shared main image; a later one starts on an image
+  no other FadeLabel holds, or keeps the shared main when none is free.
 - With `k` FadeLabels that have more than one image, each image stays for `k` steps,
   and the FadeLabels change one after another. A FadeLabel with one image stays still.
 - A FadeLabel whose art type the item does not have is left as it is.

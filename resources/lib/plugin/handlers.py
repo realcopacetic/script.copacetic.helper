@@ -636,7 +636,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Seed one register per artwork tile of the info dialog's item so the tiles
         take turns on one beat, each starting on its main image unless an earlier
-        tile holds it; an image shows in one tile only.
+        tile holds it; an image repeats only in a tile with no other image free.
 
         :return: One item echoing the visit once the registers are seeded.
         """

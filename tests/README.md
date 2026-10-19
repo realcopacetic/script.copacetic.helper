@@ -21,7 +21,8 @@ python tests/api_offline.py
 # Soundtrack title matching (plugin/soundtracks.py) against real album titles
 python tests/soundtracks_offline.py
 
-# Gallery tiles' share-out (art/multiart.py): an image shows in one tile only
+# Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,
+# unless a tile has no other image free
 python tests/multiart_offline.py
 ```
 

@@ -238,12 +238,12 @@ def seed_registers(
 
 def share_out(families: Mapping[int, list[str]]) -> dict[int, list[str]]:
     """
-    Give each image to one family only, so no two tiles show it: a main image stays
-    with the first family that has it, a later one starts on a free extra (or stays
-    empty), and the families take turns claiming the rest.
+    Give each image to one family where it can: a main image stays with the first
+    family that has it, a later one starts on a free extra (or keeps the main if it
+    has none), and the families take turns claiming the rest.
 
     :param families: Register id → URLs, main image first.
-    :return: Register id → URLs in the same order, without images held elsewhere.
+    :return: Register id → URLs, without images held elsewhere bar a lone shared main.
     """
     seen = set()
     shared = {}
@@ -253,9 +253,9 @@ def share_out(families: Mapping[int, list[str]]) -> dict[int, list[str]]:
     for i, urls in shared.items():
         if not urls:
             free = (url for url in families[i][1:] if _image_identity(url) not in seen)
-            if url := next(free, ""):
-                seen.add(_image_identity(url))
-                urls.append(url)
+            url = next(free, families[i][0])
+            seen.add(_image_identity(url))
+            urls.append(url)
     for row in zip_longest(*(urls[1:] for urls in families.values())):
         for urls, url in zip(shared.values(), row):
             if url and (identity := _image_identity(url)) not in seen:
