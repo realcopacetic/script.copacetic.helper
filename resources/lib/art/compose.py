@@ -168,12 +168,12 @@ def palette(
                 cfg.palette_secondary_luminance,
                 cfg.palette_secondary_saturation,
             ),
-            policy.ART_FIELD_PALETTE_DARKEN: darken(zones, [primary], surface, ratio),
+            policy.ART_FIELD_PALETTE_DARKEN: darken(zones, [(primary, ratio)], surface),
         }
     if logo and chroma(from_hex(logo)) >= cfg.palette_chroma:
         color = at_luminance(from_hex(logo), cfg.palette_luminance)
         out[policy.ART_FIELD_PALETTE_LOGO] = color
         out[policy.ART_FIELD_PALETTE_LOGO_DARKEN] = darken(
-            zones, [color], surface, ratio
+            zones, [(color, ratio)], surface
         )
     return out
