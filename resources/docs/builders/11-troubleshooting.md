@@ -30,7 +30,7 @@ If the control exists but is *hidden*, its `visible` condition is false for the 
 
 ## "The Add/Delete/Move buttons don't appear"
 
-Add, Move, and Delete only attach when one of the window's controls has `role: "item_picker"` or `role: "add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). No role, no mutation buttons: the window is a fixed list on purpose. Reset and Close are separate — they work in fixed lists too.
+Add, Move, and Delete only attach when one of the window's controls has `role: "item_picker"` or `role: "add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). No role, no mutation buttons: the window is a fixed list on purpose. The addon doesn't hide 410–413 in a fixed list, so if they show and do nothing, take them out of the window XML or hide them. Reset and Close are separate — they work in fixed lists too.
 
 If a control *has* the role but its XML control is missing, the role never attaches — fix the XML control first (previous section).
 

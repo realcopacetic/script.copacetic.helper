@@ -153,7 +153,7 @@ Hosting composes with the other session kwargs. Editors opened *from inside* a h
 
 ## Fixed vs editable
 
-**Fixed list** (view settings): no control has a `role`. One row per automatic entry; the user edits each row's settings but the list itself never changes. The addon enforces this — without a role, the mutation buttons (410–413) are hidden and never attached, even if the window XML has them.
+**Fixed list** (view settings): no control has a `role`. One row per automatic entry; the user edits each row's settings but the list itself never changes. The addon enforces this — without a role, the mutation buttons (410–413) are never attached. The addon doesn't hide them, so leave them out of a fixed list's window XML, or hide them yourself.
 
 **Editable list** (widgets, menus): one control has `role: "item_picker"` or `"add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). The management buttons appear and the user adds, deletes, and reorders. If the list opens empty (for example a parent with no children yet), the editor runs Add straight away; cancel it and the window closes.
 
@@ -169,8 +169,8 @@ The right-hand controls work the same in both: each edits one setting on the hig
 | Textbox | 6 | Description text at the bottom. Set automatically. Must be a `textbox`: the addon sets it with `setText`. |
 | Your controls | as declared | IDs matching each control template's `id`. A sliderex also needs its button at the id + a trailing `0`. |
 | Colour labels | 420 / 421 | Optional. Hidden labels whose *text* names your focused / unfocused colours; used to tint sliderex value text. White / 50% white if absent. |
-| Mutation buttons | 410–413 | Optional. Editable lists only — hidden and never attached without an Add control. |
-| Reset / Close | 414–415 | Optional. Any window. Reset returns settings to defaults; Close ends the session. |
+| Mutation buttons | 410–413 | Required in an editable list: all four. Without an Add control they are never attached, and not hidden either. |
+| Reset / Close | 414–415 | Required in every editor window. Reset returns settings to defaults; Close ends the session. |
 
 | Button | ID | Does |
 |---|---|---|
@@ -183,9 +183,11 @@ The right-hand controls work the same in both: each edits one setting on the hig
 
 You only supply focusable buttons; the editor handles the presses. Only Add, Move up/down, and Delete require the Add control — Reset and Close work in fixed lists too.
 
+The editor looks these buttons up when the window opens. If a required one is missing, it stops while setting up and the window stays empty, as with the list and the textbox.
+
 ### A minimal window XML
 
-Add your own styling. The list (100) and the description textbox (6) are required — without them the editor stops while setting up and the window stays empty:
+Add your own styling. The list (100), the description textbox (6), Reset (414) and Close (415) are required, and so are 410–413 when a control has a `role` — without them the editor stops while setting up and the window stays empty:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
