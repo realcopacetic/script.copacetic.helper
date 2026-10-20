@@ -679,35 +679,40 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def favourite(self) -> list[DirectoryItem] | None:
         """
         A favourite's library item, whole, for the metadata, progress bar and
-        artwork serves to read; it echoes favourite.index so the skin knows it.
+        artwork serves to read; it echoes favourite.index and favourite.path (the
+        favourite's FileNameAndPath, as Kodi lists it) so the skin knows it.
 
         :return: The item, or None when the favourite names no library item.
         """
-        from resources.lib.plugin.favourites import forget, library_key
+        from resources.lib.plugin.favourites import forget, library_key, listed_path
 
         if not self._require("path"):
             return
         guard = self._guard()
-        if not (guard.alive() and (key := library_key(self.params["path"]))):
+        path = self.params["path"]
+        if not (guard.alive() and (key := library_key(path))):
             return
         dbtype, dbid = key.split(":")
-        index = self.params.get("index", "")
+        echo = {
+            "favourite.index": self.params.get("index", ""),
+            "favourite.path": listed_path(path),
+        }
         if dbtype in MUSIC_TYPES:
             extra = () if dbtype == "song" else ("description",)
             if not (found := details_item(dbtype, int(dbid), "favourite", extra)):
-                forget(self.params["path"], dbtype)
+                forget(path, dbtype)
                 return
             _, li, _ = found
-            li.setProperty("favourite.index", index)
+            li.setProperties(echo)
             items = [(plugin_path("favourite"), li, False)]
         else:
             properties = JSON_PROPERTIES["movieset" if dbtype == "set" else dbtype]
             if not (row := _video_details(dbtype, int(dbid), properties, "favourite")):
-                forget(self.params["path"], dbtype)
+                forget(path, dbtype)
                 return
             item = json_to_canonical(row, dbtype)
             item["file"] = plugin_path("favourite")  # no thumb loader on the file
-            item["properties"]["favourite.index"] = index
+            item["properties"] |= echo
             items = set_items([item], media_type=dbtype, tag_applier=apply_videoinfotag)
         return items if guard.alive() else None
 

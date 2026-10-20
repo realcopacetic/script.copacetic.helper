@@ -2,6 +2,7 @@
 
 import re
 import time
+from urllib.parse import quote
 
 from xbmcgui import Window
 
@@ -84,6 +85,18 @@ def favourite_target(path: str) -> str:
     params = _split_params(rest.rpartition(")")[0])
     index = _TARGET_PARAM.get(function.strip().lower())
     return params[index] if index is not None and index < len(params) else ""
+
+
+def listed_path(path: str) -> str:
+    """
+    A favourite's path as Kodi lists it (ListItem.FileNameAndPath): the exec
+    string encoded as CURL::Encode does, which keeps only alphanumerics and -_.!().
+
+    :param path: The favourite's ListItem.FileNameAndPath, URL-decoded.
+    :return: The listed path, hex in upper case (String.IsEqual ignores case).
+    """
+    exec_string = path.removeprefix("favourites://").removesuffix("/")
+    return f"favourites://{quote(exec_string, safe='!()').replace('~', '%7E')}/"
 
 
 def _rows(method: str, key: str, **kwargs) -> list[dict] | None:

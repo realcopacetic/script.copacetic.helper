@@ -12,7 +12,7 @@ that holds it, and a favourite gets the same details as the library item would.
 <control type="list" id="9040"><!-- hidden helper container; ids are examples -->
   <itemlayout />
   <focusedlayout />
-  <content>plugin://script.copacetic.helper/?info=favourite&amp;target=50&amp;focus_guard=$INFO[Container(50).CurrentItem]&amp;index=$INFO[Container(50).ListItem.Property(favourite.index)]&amp;path=$INFO[Container(50).ListItem.FileNameAndPath]</content>
+  <content>plugin://script.copacetic.helper/?info=favourite&amp;target=50&amp;focus_guard=$INFO[Container(50).CurrentItem]&amp;path=$INFO[Container(50).ListItem.FileNameAndPath]</content>
 </control>
 ```
 
@@ -32,7 +32,7 @@ other helper's `<visible>` condition.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `path` | the favourite's `ListItem.FileNameAndPath` | — | **Required.** The favourite to look up. Nothing is returned without it. |
-| `index` | any text | — | Returned on the item as `ListItem.Property(favourite.index)`, so you can check that 9040 holds the focused favourite. Pass the favourite's own `ListItem.Property(favourite.index)`. |
+| `index` | any text | — | Returned on the item as `ListItem.Property(favourite.index)`. Pass the favourite's own `ListItem.Property(favourite.index)`. To check that 9040 holds the focused favourite, match `favourite.path` instead (below): an index is a position in the list. |
 | `target` | container id | — | Container used by the focus guard. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container`, `dialog` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
@@ -70,6 +70,12 @@ file or its share.
   `ListItem.Property(Artist_Description)` and an album
   `ListItem.Property(Album_Description)`.
 - `ListItem.Property(favourite.index)`: the `index` you passed.
+- `ListItem.Property(favourite.path)`: the favourite's `ListItem.FileNameAndPath`, as
+  Kodi lists it, so
+  `String.IsEqual(Container(9040).ListItem.Property(favourite.path),Container(50).ListItem.FileNameAndPath)`
+  is true while 9040 holds the focused favourite. It stays true while Kodi refreshes
+  9040 in place (after a library update), as Kodi keeps the old item until the new
+  one arrives.
 
 The item is for reading only. Its path is the helper's own, so selecting it does not
 play or open anything: keep your `<onclick>` on the favourite itself.
