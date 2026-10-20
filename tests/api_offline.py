@@ -550,7 +550,8 @@ class TmdbTest(Base):
         handler._get_tmdb_item = lambda **kwargs: transform.tmdb_to_canonical(
             "tvshow", 1399
         )
-        handler._apply_truncated_label = lambda *args, **kwargs: None
+        probes = []
+        handler._apply_truncated_label = lambda *a, **kw: probes.append(kw["probe"])
         label = lambda path: library.get(path.rpartition(".")[2], "")
         with mock.patch.object(helpers, "infolabel", label):
             (item,) = handler.metadata()
@@ -567,6 +568,31 @@ class TmdbTest(Base):
             (item,) = handler.metadata()
         self.assertTrue(item["Plot"].startswith("Seven noble families"))
         self.assertEqual(item["TagLine"], "Library tagline")
+        handler.params["season_probe"] = "false"
+        with mock.patch.object(helpers, "infolabel", label):
+            handler.metadata()
+            handler.dbtype = "episode"  # an episode's plot is its own: keeps the probe
+            handler.metadata()
+        self.assertEqual(probes, [True, True, True, False, True])
+
+    def test_truncated_label_probe(self):
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {
+            "truncate_font": "description_l",
+            "truncate_label_id": "6009",
+            "truncate_width": "520",
+        }
+        probe = lambda path: "Probe" if path == "Control.GetLabel(6009)" else ""
+        clamp = lambda text, **kwargs: text
+        with mock.patch.object(handlers, "infolabel", probe), mock.patch.object(
+            handlers, "clamp_text", clamp
+        ):
+            for use_probe, expected in ((True, "Probe"), (False, "Merged")):
+                data = {}
+                handler._apply_truncated_label(
+                    data, target="ListItem", default_text="Merged", probe=use_probe
+                )
+                self.assertEqual(data["properties"]["truncated_label"], expected)
 
 
 def album(albumid, title, year, mbid=""):

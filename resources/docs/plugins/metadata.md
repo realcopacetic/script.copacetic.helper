@@ -201,9 +201,13 @@ letter that fits. Results are cached by the font's name, so after changing the f
 | `truncate_lines` | whole number | `3` | Most lines to keep. |
 | `truncate_label` | any text | — | Text to cut. |
 | `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). |
+| `season_probe` | `true`, `false` | `true` | `false`: a season ignores `truncate_label_id` (below). |
 
 The text used is the first that is not empty: `truncate_label`, the label of
 `truncate_label_id`, the returned plot, then `ListItem.Plot` of the focused item.
+With `season_probe=false` a season skips `truncate_label_id`: a label that reads Kodi's
+plot reads its show's, so the returned plot (TMDb's season overview when there is one)
+is cut instead.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=font_plot</content>

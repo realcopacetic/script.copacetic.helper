@@ -365,6 +365,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         *,
         target: str,
         default_text: str | None = None,
+        probe: bool = True,
     ) -> None:
         """Attach a truncated label to a metadata dict.
         Text precedence: truncate_label, truncate_label_id probe, default_text, Plot.
@@ -373,6 +374,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param data: Metadata dict to update in place.
         :param target: ListItem infolabel prefix for plot fallback.
         :param default_text: Optional plot to use before infolabel fallback.
+        :param probe: Whether to read the truncate_label_id probe.
         """
         truncate_width = to_int(self.params.get("truncate_width", 0))
         truncate_font = self.params.get("truncate_font", "")
@@ -385,7 +387,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             return
 
-        label_id = to_int(self.params.get("truncate_label_id", 0))
+        label_id = to_int(self.params.get("truncate_label_id", 0)) if probe else 0
         truncate_label = (
             self.params.get("truncate_label")
             or (infolabel(f"Control.GetLabel({label_id})") if label_id else "")
@@ -769,10 +771,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
+        # season_probe=false: the skin's probe reads Kodi's plot, a season's show's
         self._apply_truncated_label(
             data,
             target=target,
             default_text=data.get("Plot"),
+            probe=self.dbtype != "season"
+            or parse_bool(self.params.get("season_probe", "true")),
         )
 
         return set_items([data], tag_applier=apply_videoinfotag)
