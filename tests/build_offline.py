@@ -167,7 +167,7 @@ def build_isolated(
 ) -> str:
     """
     Run this script in a fresh interpreter, since the helper resolves its
-    paths at import time; exit 2 if the build fails or logs an error.
+    profile paths at import time; exit 2 if the build fails or logs an error.
 
     :param skin: Skin root to build.
     :param out: Output directory.
