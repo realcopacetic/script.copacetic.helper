@@ -19,7 +19,7 @@ class DarkenOpts:
     :param labels: Label text per rect, shrinking each rect to the label as drawn.
     :param label_font: Kodi font name (Font.xml) the labels are drawn in.
     :param label_pitch: Line pitch in frame px; negative: text hangs from the bottom.
-    :param sources: Element colour per rect (hex or "clearlogo"); the last repeats.
+    :param sources: Per rect, element colour (hex or "clearlogo")[:ratio]; last repeats.
     :param surface: The image the skin darkens: "art" or "blur".
     :param max: Cap on the darken, % black; None is no cap.
     """
