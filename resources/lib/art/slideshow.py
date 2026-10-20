@@ -7,7 +7,6 @@ from urllib.parse import parse_qsl
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
-from resources.lib.shared.sqlite import ArtworkCacheHandler
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -43,14 +42,9 @@ class Slideshow:
         "artists": ("music",),
     }
 
-    def __init__(self, sqlite_handler: ArtworkCacheHandler | None = None) -> None:
-        """
-        Initialise processing pipeline and scheduling state.
-
-        :param sqlite_handler: Optional ArtworkCacheHandler instance.
-        """
-        self.sqlite = sqlite_handler or ArtworkCacheHandler()
-        self.image_processor = ImageEditor(self.sqlite).image_processor
+    def __init__(self) -> None:
+        """Initialise processing pipeline and scheduling state."""
+        self.image_processor = ImageEditor().image_processor
         self.art = []
         self.seen = set()
         self.profile = None
