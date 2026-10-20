@@ -1,6 +1,8 @@
 # author: realcopacetic
 
 import sys
+import time
+
 import xbmc
 
 from resources.lib.art.slideshow import Slideshow
@@ -13,15 +15,20 @@ from resources.lib.shared.speed_dial import release_refresh
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
+    condition,
+    infolabel,
     reset_dev_state,
     skin_path,
     skin_uses_builder,
+    skin_version,
     validate_path,
     window_property,
 )
 
 # Set while an opted-in skin is active; addon.xml's context items test it.
 ACTIVE_PROPERTY = "helper_active"
+# Token _settle posts through Kodi's builtin queue to see when the queue has run.
+SETTLE_PROPERTY = "helper_settle"
 
 
 class Monitor(xbmc.Monitor):
@@ -34,7 +41,8 @@ class Monitor(xbmc.Monitor):
     def __init__(self) -> None:
         """Initialise the service state, then run the loop until Kodi exits."""
         self.idle = False
-        self.skin = None
+        self.skin = None, None
+        self.reload_due = False
         self.player_monitor = None
         self.slideshow = None
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
@@ -42,33 +50,52 @@ class Monitor(xbmc.Monitor):
 
     def _run(self) -> None:
         """
-        Flat service loop: follow the active skin's folder (special://skin moves
-        once the new skin loads), poll each second while it opts in and the
-        screensaver is off, else look again in 2 s (only a path check). Stopping
-        releases the active state too: a profile switch keeps Home's properties.
+        Service loop: follow every change of the loaded skin's folder, and a new version
+        in the same folder unless it's empty (Kodi unregisters a skin it is installing);
+        poll each second while it opts in and the screensaver is off, else every 2 s.
         """
         while not self.abortRequested():
-            if (skin := skin_path()) != self.skin:
-                self.skin = skin
-                if self.player_monitor:
-                    self._deactivate()
-                if skin_uses_builder():
-                    self._activate()
+            skin = skin_path()
+            version = skin_version(skin)
+            if skin != self.skin[0] or version and version != self.skin[1]:
+                self._follow(skin, version)
             if self.player_monitor and not self.idle:
                 self.poller()
             else:
                 self.waitForAbort(2)
+        # A profile switch keeps Home's properties: release the active state too.
         if self.player_monitor:
             self._deactivate()
         log.info(f"{self.__class__.__name__} → Stopped")
 
+    def _follow(self, skin: str, version: str) -> None:
+        """
+        Take a new (folder, version) key. A new folder (a switch) drops any due reload
+        and releases the active state; a new version in the same folder (an update)
+        keeps it, so a trailer plays on. Activates only with a readable version.
+
+        :param skin: Loaded skin's folder.
+        :param version: Its registered version, "" when unreadable.
+        """
+        if skin != self.skin[0]:
+            self.reload_due = False
+            if self.player_monitor:
+                self._deactivate()
+        self.skin = skin, version
+        if self.player_monitor:
+            log.info(f"{self.__class__.__name__} → Skin updated to version {version}")
+            self._builder_elements()
+        elif version and skin_uses_builder():
+            self._activate()
+
     def _activate(self) -> None:
         """
-        Entering an opted-in skin: check the builder outputs (reloading if any were
-        built), prune the API cache, start the player monitor and slideshow, then
+        Entering an opted-in skin: check the builder outputs (reloading if any
+        changed), prune the API cache, start the player monitor and slideshow, then
         show the context items.
         """
-        log.info(f"{self.__class__.__name__} → Active in {self.skin}")
+        path, version = self.skin
+        log.info(f"{self.__class__.__name__} → Active in {path}, version {version}")
         self._builder_elements()
         ApiCacheHandler().prune()
         self.player_monitor = PlayerMonitor()
@@ -85,10 +112,9 @@ class Monitor(xbmc.Monitor):
 
     def _builder_elements(self) -> None:
         """
-        Run the build pipeline, then reload the skin if anything was built.
-        Production: rebuild missing outputs, or all when ids are fresh or the
-        resolver cache is missing or stale (other skin, new skin or helper version).
-        Dev: clear state if requested, rebuild everything.
+        Build, then reload if an output changed. Production: missing outputs, or all
+        when ids are fresh or the resolver cache is missing or stale (other skin, new
+        skin or helper version). Dev: clear state if requested, rebuild, reload.
         """
         dev_mode = ADDON.getSettingBool("dev_mode")
         dev_reset = ADDON.getSettingBool("dev_reset")
@@ -103,7 +129,7 @@ class Monitor(xbmc.Monitor):
 
         if dev_mode:
             BuildElements().run()
-            xbmc.executebuiltin("ReloadSkin()")
+            self._reload()
             return
 
         build = BuildElements()
@@ -117,14 +143,61 @@ class Monitor(xbmc.Monitor):
         if seeded or not cache_is_current(build.stamp):
             # Fresh ids, or a resolver cache that is missing or stale: full
             # rebuild so every output bakes the same state generation.
-            build.run()
+            written = build.run()
         elif builders:
             build.selected = builders
-            build.run()
+            written = build.run()
         else:
+            written = False
+        if written or self.reload_due:
+            # The skin loaded before this build; reload so it reads the new outputs.
+            self._reload()
+
+    def _reload(self) -> None:
+        """
+        Once Kodi has settled, ReloadSkin unless the skin switched since the check
+        began (dropped) or started updating (deferred: reloading an unregistered skin
+        resets Kodi to the default one).
+        """
+        if not self._settle():
             return
-        # The skin loaded before this build; reload so it reads the new outputs.
-        xbmc.executebuiltin("ReloadSkin()")
+        path, version = self.skin
+        if skin_path() != path:
+            self.reload_due = False
+            log.info(f"{self.__class__.__name__} → Reload dropped, skin switched")
+            return
+        self.reload_due = skin_version(path) != version
+        if self.reload_due:
+            log.info(f"{self.__class__.__name__} → Reload deferred, skin updating")
+        else:
+            xbmc.executebuiltin("ReloadSkin()")
+
+    def _settle(self) -> bool:
+        """
+        Post tokens through Kodi's builtin queue until one lands with no yes/no dialog
+        seen (a YES queues "Keep this skin?", which runs queued builtins; a reload there
+        answers no). Polled: executebuiltin(wait=True) holds the GIL a stop needs.
+
+        :return: False when Kodi is exiting.
+        """
+        deadline = time.monotonic() + 60  # a dropped Home property or a stuck dialog
+        while time.monotonic() < deadline:
+            token = str(time.monotonic_ns())
+            xbmc.executebuiltin(f"SetProperty({SETTLE_PROPERTY},{token},home)")
+            seen = False
+            while True:
+                seen |= condition("Window.IsVisible(yesnodialog)")
+                if infolabel(f"Window(home).Property({SETTLE_PROPERTY})") == token:
+                    break
+                if self.waitForAbort(0.2):
+                    return False
+                if time.monotonic() >= deadline:
+                    return True
+            if not seen:
+                return True
+            if self.waitForAbort(0.2):
+                return False
+        return True
 
     def onScreensaverActivated(self) -> None:
         """Kodi event hook: Pause monitoring when screensaver starts."""

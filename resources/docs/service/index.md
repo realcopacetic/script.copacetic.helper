@@ -36,25 +36,39 @@ builder folder structure: at least one of these folders inside
 The folders can be empty. See the [builder docs](../builders/01-overview.md) for what
 goes in them.
 
-The service checks again whenever the active skin changes, so the user can switch
-to your skin (or away from it) at any time without restarting Kodi.
+The service checks again whenever the active skin changes or is updated in place
+(same folder, new version), so the user can switch to your skin (or away from it) at
+any time without restarting Kodi.
 
 ## What runs when
 
 ### When a skin that opts in becomes active
 
-This happens at start-up, and each time the user switches to such a skin. In order:
+This happens at start-up and each time the user switches to such a skin. After an
+in-place update (same folder, new version, once Kodi has registered it) only step 1
+runs again: the player monitor and slideshow keep running, so playback isn't
+interrupted. In order:
 
 1. The build check runs:
    - **Dev mode off (default):** the service seeds the runtime state if needed. It
      rebuilds every output if the runtime state was just seeded, or the resolver
      cache is missing or was built for another skin or another version of the skin
-     or helper. Otherwise it only builds outputs that are missing. If it built
-     anything, it then runs `ReloadSkin()`, so the skin loads the new files at once.
-     If nothing needed building, the skin is not reloaded.
-   - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`. If
-     *Reset on next start* is also on, it first deletes all outputs, the runtime
-     state and the resolver cache, then turns that setting off again.
+     or helper. Otherwise it only builds outputs that are missing. A file is written
+     only when its content changed; if one was, it then runs `ReloadSkin()`, so the
+     skin loads the new files at once. The reload first waits until Kodi has run the
+     commands already queued, and repeats that until no yes/no dialog showed
+     meanwhile: a skin still loading, or a *Yes* to an install's switch prompt, would
+     otherwise get the reload inside the next *Keep this skin?* dialog, which a reload
+     answers no. The wait gives up after a minute. If the user switched skin since
+     the check began, the reload is dropped; if the skin started updating, it waits
+     for the next check. If nothing was written, the skin is not reloaded. The
+     output files are generated, not for editing: a hand edit lasts until the next
+     full rebuild. Reinstalling the same version brings back the zip's factory
+     files, and they stay until `action=rebuild` or a settings change rebuilds.
+   - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`,
+     waiting, dropped or postponed as above. If *Reset on next start* is also on, it
+     first deletes all outputs, the runtime state and the resolver cache, then turns
+     that setting off again.
 
    Dev mode (`dev_mode`) and *Reset on next start* (`dev_reset`) are settings of the
    helper add-on, in its *Developers* category.
@@ -68,7 +82,8 @@ This happens at start-up, and each time the user switches to such a skin. In ord
 
 ### When the active skin changes, or the service stops
 
-Whenever the active skin changes (to any skin, even another that opts in), and when
+Whenever the active skin changes (to any skin, even another that opts in, or one whose
+`addon.xml` the helper can't read, which then stays inactive), and when
 the service stops (Kodi exits, the profile changes, the helper is updated or
 disabled), the service releases what it set. It clears `helper_active`, so the
 context menu items hide. It stops the trailer it started, whether it is playing,

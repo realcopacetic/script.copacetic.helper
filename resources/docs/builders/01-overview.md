@@ -81,8 +81,9 @@ Include each one once from your skin. The addon also keeps two files in its own 
 
 | When | What runs |
 |---|---|
-| Kodi starts, or the user switches to your skin (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or was built for another skin or another version of the skin or helper, everything is rebuilt. Otherwise only output files that are missing are built. If anything was built, `ReloadSkin()` follows. |
-| Kodi starts, or the user switches to your skin (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
+| Kodi starts, or the user switches to your skin (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or was built for another skin or another version of the skin or helper, everything is rebuilt. Otherwise only output files that are missing are built. A file is written only when its content changed, and `ReloadSkin()` follows only if one was. |
+| The skin is updated in place (same folder, new version) | The same check as at start-up. |
+| Kodi starts, the user switches to your skin, or it is updated in place (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
 | User closes a settings window with changes | Everything is rebuilt, then `ReloadSkin()` |
 | `action=rebuild` | Everything is rebuilt, then `ReloadSkin()` |
 | A settings window opens | Configs and controls are read from the resolver cache, which every build refreshes. Nothing is built. |
@@ -93,9 +94,9 @@ Include each one once from your skin. The addon also keeps two files in its own 
 
 ## Working on your skin
 
-**Production (default):** the service only builds what is missing, as above. Fast starts for users: the skin reloads only on a start that built something.
+**Production (default):** the service only builds what is missing, as above. Fast starts for users: the skin reloads only on a start that changed an output file. The output files are generated, not for editing: a hand edit lasts until the next full rebuild.
 
-**Dev mode** (Addon Settings → Developers): rebuild everything each time your skin becomes active (Kodi start, or switching to it), then reload the skin.
+**Dev mode** (Addon Settings → Developers): rebuild everything each time your skin becomes active (Kodi start, switching to it, or an in-place update), then reload the skin.
 
 **Reset on next start** (sub-toggle of dev mode): also deletes the settings file, the resolver cache and all outputs first, so everything regenerates from defaults. Clears itself after running. You need a reset only when the *list of entries* should change: a new `items` or `default_order` on an existing dynamic mapping, or a changed `parent` in metadata. Other metadata and `config_fields` are read live, so a rebuild picks them up. A brand-new dynamic mapping gets its entries on the next start without a reset.
 
