@@ -23,7 +23,7 @@ from urllib.error import HTTPError, URLError
 from build_offline import HELPER, install_stubs
 
 STAGE = Path(tempfile.mkdtemp())
-LOG = install_stubs(HELPER, HELPER, STAGE, STAGE, verbose=False)
+LOG = install_stubs(HELPER, STAGE, STAGE, verbose=False)
 for name in ("xbmc", "xbmcgui", "xbmcplugin"):  # handlers need more than builders
     sys.modules[name].__getattr__ = lambda attr: type(attr, (), {})
 sys.modules["xbmcvfs"].mkdirs = lambda path: Path(path).mkdir(exist_ok=True) or 1

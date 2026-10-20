@@ -32,14 +32,13 @@ def _module(name: str, **attrs) -> None:
 
 
 def install_stubs(
-    helper: Path, skin: Path, stage: Path, out: Path, verbose: bool
+    helper: Path, stage: Path, out: Path, verbose: bool
 ) -> dict[str, int]:
     """
     Stub ``xbmc*`` modules: special:// paths map to ``stage`` and ``out``,
     logs go to stdout, settings come from the add-on's settings.xml defaults.
 
     :param helper: Helper add-on root.
-    :param skin: Skin root (read for its add-on id only).
     :param stage: Scratch skin root holding templates and generated XML.
     :param out: Directory receiving add-on profile files.
     :param verbose: Print DEBUG lines too.
@@ -47,7 +46,6 @@ def install_stubs(
     """
     addon = ET.parse(helper / "addon.xml").getroot()
     addon_id = addon.get("id")
-    skin_id = ET.parse(skin / "addon.xml").getroot().get("id")
     settings = {
         s.get("id"): s.findtext("default", "")
         for s in ET.parse(helper / "resources" / "settings.xml").iter("setting")
@@ -100,7 +98,6 @@ def install_stubs(
         PLAYLIST_VIDEO=1,
         PlayList=lambda kind: None,
         log=log,
-        getSkinDir=lambda: skin_id,
         getCondVisibility=lambda condition: False,
         getInfoLabel=lambda label: "",
         executebuiltin=lambda action, wait=False: log(f"builtin: {action}"),
@@ -152,8 +149,9 @@ def build(
         stage = Path(tmp)
         templates = Path("extras") / "templates"
         shutil.copytree(skin / templates, stage / templates)
+        shutil.copy(skin / "addon.xml", stage)  # cache_stamp reads the skin's id
         (stage / "16x9").mkdir()
-        counts = install_stubs(helper, skin, stage, out, verbose)
+        counts = install_stubs(helper, stage, out, verbose)
         sys.path.insert(0, str(helper))
         from resources.lib.builders.build_elements import BuildElements
 

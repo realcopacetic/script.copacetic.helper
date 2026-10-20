@@ -13,7 +13,7 @@ from pathlib import Path
 from build_offline import HELPER, install_stubs
 
 STAGE = Path(tempfile.mkdtemp())
-install_stubs(HELPER, HELPER, STAGE, STAGE, verbose=False)
+install_stubs(HELPER, STAGE, STAGE, verbose=False)
 for name in ("xbmc", "xbmcgui"):  # multiart imports Monitor and Window
     sys.modules[name].__getattr__ = lambda attr: type(attr, (), {})
 sys.path.insert(0, str(HELPER))

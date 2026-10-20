@@ -5,6 +5,7 @@ from pathlib import Path
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.runtime import RuntimeStateManager
 from resources.lib.builders.templates import (
+    cache_stamp,
     load_template_data_from_source,
     write_template_cache,
 )
@@ -26,7 +27,8 @@ class BuildElements:
 
     def __init__(self, builders_to_run: list[str] | None = None):
         """
-        Load templates and prepare the runtime manager.
+        Load templates, read the cache stamp once for the whole check, and
+        prepare the runtime manager.
 
         :param builders_to_run: Subset of builders to run; default is all.
         """
@@ -34,6 +36,7 @@ class BuildElements:
             list(BUILDER_CONFIG.keys()) if builders_to_run is None else builders_to_run
         )
         self.templates = skin_path(TEMPLATES)
+        self.stamp = cache_stamp()
         (
             self.all_mappings,
             self.configs_data,
@@ -158,7 +161,9 @@ class BuildElements:
             )
             written |= self._write_file(builder_data, builder)
 
-        write_template_cache(self.all_mappings, self.configs_data, self.controls_data)
+        write_template_cache(
+            self.all_mappings, self.configs_data, self.controls_data, self.stamp
+        )
         return written
 
     def _write_file(self, processed_data, builder_name: str) -> bool:

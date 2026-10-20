@@ -7,27 +7,43 @@ build. The Dynamic Editor reads it on open instead of walking source
 folders. Falls back to source on cache miss.
 """
 
-import xbmc
-
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler, JSONMerger
-from resources.lib.shared.utilities import RESOLVER_CACHE
+from resources.lib.shared.utilities import (
+    ADDON,
+    RESOLVER_CACHE,
+    skin_id,
+    skin_path,
+    skin_version,
+)
 
 _CACHE_VERSION = "1"
 
 
-def _cache_stamp() -> str:
-    """Identity of the cache: manual schema version plus the owning skin."""
-    return f"{_CACHE_VERSION}/{xbmc.getSkinDir()}"
+def cache_stamp() -> str:
+    """
+    Identity of the cache: schema version, the loaded skin's id and version (from
+    its folder: lookandfeel.skin changes first on a switch), and the running helper's.
+
+    :return: Stamp string, e.g. ``1/skin.copacetic2/2.0.1/1.1.13``.
+    """
+    skin = skin_path()
+    helper = ADDON.getAddonInfo("version")
+    return "/".join((_CACHE_VERSION, skin_id(skin), skin_version(skin), helper))
 
 
-def cache_is_current() -> bool:
-    """True when the resolver cache exists and matches the current stamp."""
+def cache_is_current(stamp: str) -> bool:
+    """
+    True when the resolver cache exists and matches ``stamp``.
+
+    :param stamp: The check's cache_stamp(), read once so compare and write agree.
+    :return: True when the stored stamp equals ``stamp``.
+    """
     handler = JSONHandler(RESOLVER_CACHE)
     if not handler.exists:
         return False
     cache = next(iter(handler.data.values()), {})
-    return cache.get("stamp") == _cache_stamp()
+    return cache.get("stamp") == stamp
 
 
 def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
@@ -42,7 +58,7 @@ def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
     handler = JSONHandler(RESOLVER_CACHE)
     if handler.exists:
         cache = next(iter(handler.data.values()), {})
-        if cache.get("stamp") != _cache_stamp():
+        if cache.get("stamp") != cache_stamp():
             log.info(
                 "load_template_data: resolver cache stamp mismatch — "
                 "reading templates from source"
@@ -92,7 +108,7 @@ def load_template_data_from_source(base_folder: str) -> tuple[dict, dict, dict]:
 
 
 def write_template_cache(
-    mappings: dict, configs_data: dict, controls_data: dict
+    mappings: dict, configs_data: dict, controls_data: dict, stamp: str
 ) -> None:
     """
     Write the consolidated template cache to disk for fast editor startup.
@@ -100,10 +116,11 @@ def write_template_cache(
     :param mappings: Merged mappings dict (built-in + custom).
     :param configs_data: {mapping_name: {tpl_name: tpl_data}}.
     :param controls_data: {mapping_name: {tpl_name: tpl_data}}.
+    :param stamp: The build's cache_stamp().
     """
     JSONHandler(RESOLVER_CACHE).write_json(
         {
-            "stamp": _cache_stamp(),
+            "stamp": stamp,
             "mappings": mappings,
             "configs": configs_data,
             "controls": controls_data,

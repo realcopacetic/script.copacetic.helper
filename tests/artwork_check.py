@@ -110,7 +110,7 @@ def install(tmp: Path, skin: Path) -> None:
     :param skin: Skin root, read as special://skin/ for its fonts.
     """
     (tmp / "out" / "temp").mkdir(parents=True)
-    install_stubs(HELPER, skin, skin, tmp / "out", verbose=False)
+    install_stubs(HELPER, skin, tmp / "out", verbose=False)
     xbmc, vfs = sys.modules["xbmc"], sys.modules["xbmcvfs"]
     special = vfs.translatePath
     xbmc.getCacheThumbName = lambda url: f"{zlib.crc32(url.encode()):08x}.tbn"

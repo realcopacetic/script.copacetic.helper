@@ -81,7 +81,7 @@ Include each one once from your skin. The addon also keeps two files in its own 
 
 | When | What runs |
 |---|---|
-| Kodi starts, or the user switches to your skin (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or belongs to another skin, everything is rebuilt. Otherwise only output files that are missing are built. If anything was built, `ReloadSkin()` follows. |
+| Kodi starts, or the user switches to your skin (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or was built for another skin or another version of the skin or helper, everything is rebuilt. Otherwise only output files that are missing are built. If anything was built, `ReloadSkin()` follows. |
 | Kodi starts, or the user switches to your skin (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
 | User closes a settings window with changes | Everything is rebuilt, then `ReloadSkin()` |
 | `action=rebuild` | Everything is rebuilt, then `ReloadSkin()` |

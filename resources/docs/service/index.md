@@ -48,10 +48,10 @@ This happens at start-up, and each time the user switches to such a skin. In ord
 1. The build check runs:
    - **Dev mode off (default):** the service seeds the runtime state if needed. It
      rebuilds every output if the runtime state was just seeded, or the resolver
-     cache is missing or belongs to another skin. Otherwise it only builds outputs
-     that are missing. If it built anything, it then runs `ReloadSkin()`, so the
-     skin loads the new files at once. If nothing needed building, the skin is not
-     reloaded.
+     cache is missing or was built for another skin or another version of the skin
+     or helper. Otherwise it only builds outputs that are missing. If it built
+     anything, it then runs `ReloadSkin()`, so the skin loads the new files at once.
+     If nothing needed building, the skin is not reloaded.
    - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`. If
      *Reset on next start* is also on, it first deletes all outputs, the runtime
      state and the resolver cache, then turns that setting off again.

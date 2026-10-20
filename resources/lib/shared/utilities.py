@@ -9,6 +9,7 @@ import re
 import string
 import sys
 import urllib.parse as urllib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -329,6 +330,43 @@ def skin_path(relative: str = "") -> str:
     :return: Absolute path.
     """
     return str(Path(xbmcvfs.translatePath("special://skin/"), relative))
+
+
+_SKIN_IDS = {}
+
+
+def skin_id(folder: str) -> str:
+    """
+    Add-on id from ``folder``'s addon.xml (Kodi doesn't tie the folder name to it),
+    cached per file version. A missing file (mid-install) is retried on every call;
+    one Python's parser rejects (Kodi's is lenient) is logged once and gives "".
+
+    :param folder: Skin root, as skin_path() returns it.
+    :return: Add-on id, or "" when unreadable.
+    """
+    path = Path(folder, "addon.xml")
+    try:
+        key = folder, path.stat().st_mtime_ns
+        if key not in _SKIN_IDS:
+            try:
+                _SKIN_IDS[key] = ET.parse(path).getroot().get("id")
+            except ET.ParseError as e:
+                log.error(f"skin_id → can't parse {path}: {e}")
+                _SKIN_IDS[key] = ""
+    except FileNotFoundError:
+        return ""
+    return _SKIN_IDS[key]
+
+
+def skin_version(folder: str) -> str:
+    """
+    Version Kodi has registered for the skin in ``folder``: empty while it's unloaded
+    for an install (System.AddonVersion only finds enabled, registered add-ons).
+
+    :param folder: Skin root, as skin_path() returns it.
+    :return: Version string, or "".
+    """
+    return (id_ := skin_id(folder)) and infolabel(f"System.AddonVersion({id_})")
 
 
 def skin_uses_builder() -> bool:
