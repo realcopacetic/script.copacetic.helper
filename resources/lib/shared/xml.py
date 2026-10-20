@@ -45,7 +45,7 @@ def xml_functions(func):
 
         if not transform_func:
             log.warning(f"{self.__class__.__name__} → No transform function provided!")
-            return
+            return False
 
         # Inject the retrieved parameters into kwargs before calling the original function
         kwargs.update(
@@ -90,18 +90,20 @@ class XMLHandler:
         return self._data
 
     @xml_functions
-    def write_xml(self, data_dict, **kwargs) -> None:
+    def write_xml(self, data_dict, **kwargs) -> bool:
         """
         Writes an XML file using the specified transform function and dictionary data.
 
         :param data_dict: Dictionary to convert into XML elements.
         :param kwargs: Configuration arguments, including `transform_func`, `root_tag`, etc.
+        :return: True when the file was written, False when unchanged or failed.
         """
         try:
             tree = ET.ElementTree(kwargs["transform_func"](data_dict, **kwargs))
-            self._save_xml(tree)
+            return self._save_xml(tree)
         except Exception as e:
             log.error(f"{self.__class__.__name__} → Unable to write XML --> {e}")
+            return False
 
     def _read_xml(self):
         """
@@ -147,25 +149,30 @@ class XMLHandler:
             )
             return None
 
-    def _save_xml(self, tree: ET.ElementTree) -> None:
+    def _save_xml(self, tree: ET.ElementTree) -> bool:
         """
-        Saves an ElementTree to disk atomically (temp file + os.replace)
-        with indentation and UTF-8 encoding.
+        Saves an indented, UTF-8 ElementTree to disk atomically (temp file +
+        os.replace), skipping the write when the file already holds those bytes.
 
         :param tree: XML ElementTree to write.
+        :return: True when the file was written.
         """
+        ET.indent(tree, space="  ")
+        data = ET.tostring(tree.getroot(), encoding="utf-8", xml_declaration=True)
+        if self.path.is_file() and self.path.read_bytes() == data:
+            log.debug(f"{self.__class__.__name__} → XML file '{self.path}' unchanged")
+            return False
         tmp_path = self.path.with_name(self.path.name + ".tmp")
         try:
-            with open(tmp_path, "wb") as file:
-                ET.indent(tree, space="  ")  # Ensures properly formatted XML
-                tree.write(file, encoding="utf-8", xml_declaration=True)
+            tmp_path.write_bytes(data)
             os.replace(tmp_path, self.path)
         except IOError as e:
             log.error(f"{self.__class__.__name__} → Error updating XML file --> {e}")
-        else:
-            log.debug(
-                f"{self.__class__.__name__} → XML file '{self.path}' updated successfully."
-            )
+            return False
+        log.debug(
+            f"{self.__class__.__name__} → XML file '{self.path}' updated successfully."
+        )
+        return True
 
     @staticmethod
     def _simple_dict_to_xml(data_dict, **kwargs) -> ET.Element:

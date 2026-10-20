@@ -139,30 +139,35 @@ class BuildElements:
             target[key] = value
 
     @log.duration
-    def run(self) -> None:
+    def run(self) -> bool:
         """
-        Execute the build pipeline. Runs the selected builders, writes
-        outputs, and refreshes the template cache. Seeds any runtime state
-        mappings missing from disk before builders run.
+        Execute the build pipeline. Seeds missing runtime state mappings, runs
+        the selected builders, writes the outputs whose bytes changed, and
+        always refreshes the template cache.
+
+        :return: True when any output file was written.
         """
         self.runtime_manager.initialize_runtime_state()
         values_to_write = self._process_builders()
 
+        written = False
         for builder, builder_data in values_to_write.items():
             log.debug(
                 f"{self.__class__.__name__} → {builder} → "
                 f"{len(builder_data)} entries generated"
             )
-            self._write_file(builder_data, builder)
+            written |= self._write_file(builder_data, builder)
 
         write_template_cache(self.all_mappings, self.configs_data, self.controls_data)
+        return written
 
-    def _write_file(self, processed_data, builder_name: str) -> None:
+    def _write_file(self, processed_data, builder_name: str) -> bool:
         """
         Write builder output to disk using the handler in BUILDER_CONFIG.
 
         :param processed_data: Dictionary containing processed builder output.
         :param builder_name: Builder identifier used to look up file details.
+        :return: True when the file was written.
         """
         builder_info = BUILDER_CONFIG.get(builder_name, {})
         write_path = builder_info.get("write_path")
@@ -170,9 +175,10 @@ class BuildElements:
         write_kwargs = builder_info.get("write_kwargs", {})
 
         if not write_path or not write_handler:
-            return
+            return False
 
         write_path = skin_path(write_path)
         handler = write_handler(write_path)
-        handler.write_xml(processed_data, **write_kwargs)
-        log.info(f"{builder_name.capitalize()} saved to XML file: {write_path}")
+        if written := handler.write_xml(processed_data, **write_kwargs):
+            log.info(f"{builder_name.capitalize()} saved to XML file: {write_path}")
+        return written
