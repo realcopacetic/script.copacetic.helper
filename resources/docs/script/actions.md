@@ -260,7 +260,7 @@ editable lists and hosting — is in
 | Textbox or label | 6 | Required. Shows the description of the focused control. |
 | Your controls | as declared in the control templates | Missing ones are skipped |
 | Add, Move up, Move down, Delete | 410, 411, 412, 413 | Required when a control has `role` `item_picker` or `add_action`. Otherwise never attached, and not hidden for you. |
-| Reset, Close | 414, 415 | Required. Reset asks for confirmation first. |
+| Reset, Close | 414, 415 | Optional; Back from the list closes too. Reset asks for confirmation first. |
 | Colour labels | 420, 421 | Optional hidden labels holding the focused and unfocused colour. Default `FFFFFFFF` and `80FFFFFF`. |
 
 ### Window properties

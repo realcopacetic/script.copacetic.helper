@@ -149,7 +149,7 @@ Each press moves to the next allowed value, wrapping at the end. For short lists
 
 ## The Add control: `item_picker` and `add_action`
 
-Give exactly one control a `role` and the window becomes an **editable list**: the Add / Move / Delete buttons attach and the user manages the entries. No role anywhere → fixed list: the addon never attaches the mutation buttons. It doesn't hide them either, so leave them out of that window's XML, or hide them yourself. With a role, the window must have all four. Reset and Close aren't part of this — every editor window needs them, and they work in every window (see [Runtime State → window XML](09-runtime-state.md#what-your-window-xml-must-contain)).
+Give exactly one control a `role` and the window becomes an **editable list**: the Add / Move / Delete buttons attach and the user manages the entries. No role anywhere → fixed list: the addon never attaches the mutation buttons. It doesn't hide them either, so leave them out of that window's XML, or hide them yourself. With a role, the window must have all four. Reset and Close aren't part of this — they're optional, and work in every window that has them (see [Runtime State → window XML](09-runtime-state.md#what-your-window-xml-must-contain)).
 
 The role also decides what pressing **Add** does. Two flavours:
 

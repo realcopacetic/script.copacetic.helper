@@ -170,7 +170,7 @@ The right-hand controls work the same in both: each edits one setting on the hig
 | Your controls | as declared | IDs matching each control template's `id`. A sliderex also needs its button at the id + a trailing `0`. |
 | Colour labels | 420 / 421 | Optional. Hidden labels whose *text* names your focused / unfocused colours; used to tint sliderex value text. White / 50% white if absent. |
 | Mutation buttons | 410–413 | Required in an editable list: all four. Without an Add control they are never attached, and not hidden either. |
-| Reset / Close | 414–415 | Required in every editor window. Reset returns settings to defaults; Close ends the session. |
+| Reset / Close | 414–415 | Optional in every editor window. Reset returns settings to defaults; Close ends the session (Back from the list does too). Kodi logs a 'Non-Existent Control' line for each one a window leaves out. |
 
 | Button | ID | Does |
 |---|---|---|
@@ -183,11 +183,11 @@ The right-hand controls work the same in both: each edits one setting on the hig
 
 You only supply focusable buttons; the editor handles the presses. Only Add, Move up/down, and Delete require the Add control — Reset and Close work in fixed lists too.
 
-The editor looks these buttons up when the window opens. If a required one is missing, it stops while setting up and the window stays empty, as with the list and the textbox.
+The editor looks these buttons up when the window opens. If a required one is missing, it stops while setting up and the window stays empty, as with the list and the textbox. A missing Reset or Close is skipped.
 
 ### A minimal window XML
 
-Add your own styling. The list (100), the description textbox (6), Reset (414) and Close (415) are required, and so are 410–413 when a control has a `role` — without them the editor stops while setting up and the window stays empty:
+Add your own styling. The list (100) and the description textbox (6) are required, and so are 410–413 when a control has a `role` — without them the editor stops while setting up and the window stays empty. Reset (414) and Close (415) are optional:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
