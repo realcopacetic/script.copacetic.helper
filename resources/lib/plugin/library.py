@@ -1,8 +1,9 @@
 # author: realcopacetic
 
+import json
 import random
 from functools import partial, wraps
-from operator import itemgetter
+from hashlib import blake2b
 from typing import Any, Callable, Iterable
 
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
@@ -79,20 +80,24 @@ def random_rows(
     properties: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Rows matching filters in an order fixed by seed (a new one each call without),
-    cut to limit: an id and label pool, then one details fetch of the slice by name.
+    Rows matching filters, ranked by a hash of seed, pool (keys, filters) and id, so
+    each pool has its own order and a title added or removed moves no other: an id
+    and label pool cut to limit, then one details fetch of the slice by name.
 
     :param fetch: Called as fetch(filters, properties=...) for a list of row dicts.
     :param filters: Filter rules, ANDed.
     :param keys: The rows' id key and the filter field that matches their label.
-    :param seed: Shuffle seed; empty for a fresh order.
+    :param seed: Order seed; empty for a fresh order.
     :param limit: Most rows; None for all.
     :param properties: Details for the slice; None for fetch's default set.
-    :return: Rows in the shuffled order.
+    :return: Rows in the seeded order.
     """
     id_key, name_field = keys
-    pool = sorted(fetch(filters, properties=[]), key=itemgetter(id_key))
-    (random.Random(seed) if seed else random).shuffle(pool)
+    salt = json.dumps([seed or random.getrandbits(64), keys, filters], sort_keys=True)
+    pool = sorted(
+        fetch(filters, properties=[]),
+        key=lambda row: blake2b(f"{salt}:{row[id_key]}".encode()).digest(),
+    )
     if not (picked := pool[:limit]):
         return []
     order = {row[id_key]: i for i, row in enumerate(picked)}
@@ -218,7 +223,7 @@ def role_credits(
 ) -> list[DirectoryItem] | None:
     """
     Generic role-based credits fetcher for actors/directors/writers.
-    A random sort is shuffled in Python by seed, so a refetch keeps the order.
+    A random sort is ranked in Python by seed, so a refetch keeps the order.
 
     :param field: VideoLibrary filter field ("actor", "director", "writer").
     :param label: Actor/director/writer name to filter by.
@@ -229,7 +234,7 @@ def role_credits(
     :param tag_applier: Optional tag-applier for the VideoInfoTag.
     :param postprocess: Optional in-place mutator for the raw item list.
     :param limit: Most items per source, after the sort; None for all.
-    :param seed: Shuffle seed for a random sort; empty for a fresh order.
+    :param seed: Order seed for a random sort; empty for a fresh order.
     :return: List of (file, ListItem, isFolder) tuples, or None if empty.
     """
     results = []

@@ -1194,7 +1194,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     ) -> list[DirectoryItem] | None:
         """
         Seed-stable random container in two queries: an id+label pool fetch,
-        then one title-filtered details fetch for the shuffled slice.
+        then one title-filtered details fetch for the seeded slice.
         """
         set_plugincontent(content=content, category=ADDON.getLocalizedString(category))
         rows = random_rows(
