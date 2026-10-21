@@ -128,6 +128,7 @@ next play, speed dial change or slide.
 | Property | Set when | Value | Cleared when | Page |
 |---|---|---|---|---|
 | `helper_active` | A skin that opts in becomes active | `true` | The active skin changes, or the service stops | [Opting in](#opting-in) |
+| `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Never | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
 | `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
 | `trailer_return` | A trailer requested with `fullscreen` starts and goes full screen | The `info_current` key at that moment | By the `trailer_return` action | [Trailers](trailers.md#full-screen) |
@@ -163,6 +164,7 @@ when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes 
 | Name | Kind | Read when | Page |
 |---|---|---|---|
 | `extras/templates/<folder>/` | Skin folder | Start-up and skin change | This page |
+| `addon.xml` (`id`) and `System.AddonVersion(<id>)` | Skin file and infolabel | Every pass of the service loop, to notice a skin change or an in-place update | [Opting in](#opting-in) |
 | `trailer_state` | Window property | On playback start, stop, end and error, and each poll | [Trailers](trailers.md) |
 | `trailer_request` | Window property | When playback starts during a request | [Trailers](trailers.md) |
 | `trailer_item` | Window property | When checking if a trailer is stale | [Trailers](trailers.md) |
