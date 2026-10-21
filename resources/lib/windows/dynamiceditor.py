@@ -157,8 +157,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if self.listitems:
             self._list_container.selectItem(self.container_position)
 
-        # Management buttons — reset/close are universal; mutation buttons
-        # (add/delete/move) require a runtime list with a governing control.
+        # Management buttons — reset/close are optional in every window;
+        # mutation buttons (add/delete/move) are required in a governed one.
         # Every editor mapping is runtime-backed, so governor presence is
         # the sole gate: governed windows manage their entry list, seeded
         # windows edit fields on a fixed one.
@@ -169,12 +169,17 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._mgmt_buttons = []
         self._mgmt_ids = set()
         for entry in self._mgmt_map.values():
-            if entry["mutation"] and not self._has_governor:
-                continue
-            entry["btn"] = self.getControl(entry["id"])
-            self._mgmt_buttons.append(entry["btn"])
             if entry["mutation"]:
+                if not self._has_governor:
+                    continue
+                entry["btn"] = self.getControl(entry["id"])
                 self._mgmt_ids.add(entry["id"])
+            else:
+                try:
+                    entry["btn"] = self.getControl(entry["id"])
+                except RuntimeError:
+                    continue
+            self._mgmt_buttons.append(entry["btn"])
 
         # Attach handlers to dynamic controls
         for control_id, control in self.dynamic_controls.items():
