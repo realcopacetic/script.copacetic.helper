@@ -86,7 +86,7 @@ Include each one once from your skin. The addon also keeps two files in its own 
 | Kodi starts, the user switches to your skin, or it is updated in place (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
 | User closes a settings window with changes | Everything is rebuilt, then `ReloadSkin()` |
 | `action=rebuild` | Everything is rebuilt, then `ReloadSkin()` |
-| A settings window opens | Configs and controls are read from the resolver cache, which every build refreshes. Nothing is built. |
+| A settings window opens | Configs and controls are read from the resolver cache, which every build refreshes. If the cache was built for another skin or another version of the skin or helper, they are read from your template files instead. Nothing is built. |
 
 "Everything" means all three output files and the resolver cache. The start-up check runs each time your skin becomes active.
 
