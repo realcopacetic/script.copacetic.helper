@@ -468,7 +468,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.art.multiart import build_multiart_dict, seed_multiart
         from resources.lib.art.policy import ART_PROCESS_MAP
         from resources.lib.plugin.opts import ArtOpts
-        from resources.lib.shared.sqlite import ArtworkCacheHandler
 
         guard = self._guard()
         if not guard.alive():
@@ -511,7 +510,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             # A dialog item with no art still lands, so the page isn't held back.
             return set_items([{"file": plugin_path("artwork")}]) if self.item else None
 
-        image_processor = ImageEditor(ArtworkCacheHandler()).image_processor
+        image_processor = ImageEditor().image_processor
         art = image_processor(
             jobs=jobs,
             art_opts=art_opts,

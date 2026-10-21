@@ -68,13 +68,9 @@ class ImageEditor:
     measure), then compose its darken, element steps and palette.
     """
 
-    def __init__(self, sqlite_handler: ArtworkCacheHandler | None = None) -> None:
-        """
-        Initialize caches, processors and lookup dependencies.
-
-        :param sqlite_handler: Optional SQLite handler instance.
-        """
-        self.sqlite = sqlite_handler or ArtworkCacheHandler()
+    def __init__(self) -> None:
+        """Initialize caches, processors and lookup dependencies."""
+        self.sqlite = ArtworkCacheHandler()
         self.cache_manager = ArtworkCacheManager(self.sqlite, HashManager())
         self.temp_folder = self.cache_manager.temp_folder
         self.cfg = policy.ColorConfig()
