@@ -76,7 +76,7 @@ One list item in the helper container:
 | `ListItem.Property(time_left)` | A part-watched movie or episode: the runtime left, rounded up to the minute, e.g. `1h 23m` or `48m`. |
 | `ListItem.Property(next_episode)` | A started TV show or season with unwatched episodes: the lowest unwatched episode outside the specials, e.g. `S02E10`. |
 | `ListItem.Property(new)` | `true` for a started TV show whose newest unwatched episode (specials included) was added after the show was last played. |
-| `ListItem.Property(next_air)` | A TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
+| `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
 with `String.IsEmpty`. They are worked out after the bar has moved, so they never
@@ -99,10 +99,14 @@ delay the placement; the item itself returns once they are ready.
   the Specials season (season 0) has none and makes no call.
   For `new`, one `VideoLibrary.GetTVShowDetails` call reads the show's `lastplayed`:
   `ListItem.LastPlayed` gives a date with no time.
-- **`next_air`**: TMDb's next episode air date, read from the add-on's cache only;
-  this path never asks TMDb. The [metadata](metadata.md#tmdb-lookups) plugin fills
-  the cache when called with `enrich_with_tmdb=true` and a TMDb token is set. Until
-  it has, and once the date is past, `next_air` is empty.
+- **`next_air`**: only for a fully watched show (some episodes watched, none left)
+  with a TMDb token set; any other show makes no lookup for it. TMDb's next episode
+  air date, read from the add-on's cache only; this path never asks TMDb. The
+  [metadata](metadata.md#tmdb-lookups) plugin fills the cache when called with
+  `enrich_with_tmdb=true`. Until it has, and once the date is past, `next_air` is
+  empty. A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its
+  default id) costs one `VideoLibrary.GetTVShowDetails` call to find its TMDb id, as
+  the metadata plugin does.
 
 ## Focus guard
 

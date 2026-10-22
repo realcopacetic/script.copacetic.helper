@@ -31,6 +31,7 @@ sys.modules["xbmcvfs"].mkdirs = lambda path: Path(path).mkdir(exist_ok=True) or 
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.apis import http, listenbrainz  # noqa: E402
+from resources.lib.apis.tmdb import client as tmdb_client  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.plugin import handlers, helpers  # noqa: E402
@@ -548,6 +549,23 @@ class TmdbTest(Base):
             self.assertEqual(handler._next_air(), day.strftime("%d %b"))
         self.assertEqual(len(self.net.requests), 1)
 
+    def test_next_air_off_looks_nothing_up(self):
+        self.settings = {}  # no TMDb token
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params, handler.target_item = {}, "Container(50).ListItem"
+        labels = {"DBType": "tvshow", "DBID": "7"}  # no UniqueID(tmdb): a TVDB show
+        label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
+        rpc = mock.Mock(return_value="{}")
+        with (
+            mock.patch("resources.lib.apis.tmdb.context.infolabel", label),
+            mock.patch.object(sys.modules["xbmc"], "executeJSONRPC", rpc, create=True),
+        ):
+            self.assertEqual(handler._next_air(), "")
+            rpc.assert_not_called()  # no uniqueid lookup
+            self.settings = {"tmdb_access_token": "v3key"}
+            self.assertEqual(handler._next_air(), "")  # on: looks the id up, no cache
+        self.assertEqual(rpc.call_count, 1)
+
     def test_refused_token_warns_once(self):
         warnings = LOG["WARNING"]
         self.net.answers = [http_error(401), http_error(403)]
@@ -869,7 +887,7 @@ class ProgressbarTest(unittest.TestCase):
     lastplayed = "2026-10-12 20:15:00"
 
     def setUp(self):
-        self.labels, self.calls, self.shows = {}, [], []
+        self.labels, self.calls, self.shows, self.tmdb_on = {}, [], [], True
 
         def rpc(request):
             request = json.loads(request)
@@ -887,6 +905,7 @@ class ProgressbarTest(unittest.TestCase):
             (helpers.ProgressBarManager, "update", lambda self, percent, **kw: None),
             (handlers, "set_items", lambda items, **kwargs: items),
             (handlers, "getCurrentWindowId", lambda: 10025),
+            (tmdb_client, "get_tmdb_client", lambda: self.tmdb_on),
         ):
             patcher = mock.patch.object(target, name, value, create=True)
             patcher.start()
@@ -902,10 +921,13 @@ class ProgressbarTest(unittest.TestCase):
     def label(self, path):
         return self.labels.get(path.removeprefix("Container(50).ListItem."), "")
 
-    def prop(self, name, **labels):
+    def prop_all(self, **labels):
         self.labels = labels
         (item,) = self.handler.progressbar()
-        return item["properties"][name]
+        return item["properties"]
+
+    def prop(self, name, **labels):
+        return self.prop_all(**labels)[name]
 
     def test_time_left(self):
         movie = {"DBType": "movie", "Duration(secs)": "7200"}
@@ -972,7 +994,8 @@ class ProgressbarTest(unittest.TestCase):
             return cached.get("item")
 
         self.handler._get_tmdb_item = tmdb
-        show = {"DBType": "tvshow", "DBID": "7"}  # fully watched: no episode query
+        show = {"DBType": "tvshow", "DBID": "7", "Property(WatchedEpisodes)": "9"}
+        show["Property(UnwatchedEpisodes)"] = "0"  # fully watched: no episode query
         self.assertEqual(self.prop("next_air", **show), "")  # not cached
         cached["item"] = {"properties": {}}  # ended, or between seasons
         self.assertEqual(self.prop("next_air", **show), "")
@@ -987,11 +1010,22 @@ class ProgressbarTest(unittest.TestCase):
         cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
         self.assertEqual(self.prop("next_air", **show), day.strftime("%A %d %B"))
         self.assertEqual(asks[0], {"append_artwork": False, "cache_only": True})
-        for dbtype in ("season", "episode", "movie"):
-            self.labels = show | {"DBType": dbtype}
+        for labels in (
+            show | {"DBType": dbtype} for dbtype in ("season", "episode", "movie")
+        ):
+            self.labels = labels
             (item,) = self.handler.progressbar()
             self.assertNotIn("next_air", item["properties"])
         self.assertEqual((self.calls, len(asks)), ([], 7))
+        # Unstarted (an ended show never begun too) and started shows: no lookup
+        for watched, left in (("0", "10"), ("9", "1")):
+            counts = {"Property(WatchedEpisodes)": watched}
+            counts["Property(UnwatchedEpisodes)"] = left
+            self.assertNotIn("next_air", self.prop_all(**show | counts))
+        self.calls.clear()
+        self.tmdb_on = None  # no token: no lookup, not even the cache
+        self.assertEqual(self.prop("next_air", **show), "")
+        self.assertEqual(len(asks), 7)
 
 
 if __name__ == "__main__":

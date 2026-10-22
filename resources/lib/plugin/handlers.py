@@ -825,16 +825,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "time_left": pb.time_left(resume),
                 **self._show_context(pb.infolabels),
             }
-            if pb.infolabels["DBType"] == "tvshow":
-                item["properties"]["next_air"] = self._next_air()
 
         return set_items([item], tag_applier=apply_videoinfotag)
 
     def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
         """
-        A started show's or season's next_episode (Kodi's inprogress rule, as next_up),
-        and a show's new: an unwatched episode added since it was last played.
-        One GetEpisodes call, plus the show's lastplayed for new.
+        A started show's or season's next_episode (Kodi's inprogress rule, as next_up)
+        and a show's new, from one GetEpisodes call plus the show's lastplayed;
+        a fully watched show's next_air. Nothing else costs a call.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :return: Properties for the progress item; none for other types.
@@ -852,14 +850,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "TvShowDBID",
             ],
         )
+        watched = to_int(labels["Property(WatchedEpisodes)"])
+        left = to_int(labels["Property(UnwatchedEpisodes)"])
+        if dbtype == "tvshow" and watched and not left:  # fully watched
+            return {"next_air": self._next_air()}
+
         # No library id (a plugin's item): tvshowid 0 would ask for every show
         show_id = to_int(labels["TvShowDBID" if dbtype == "season" else "DBID"])
-        started = to_int(labels["Property(WatchedEpisodes)"]) or to_int(
-            labels["Property(InProgressEpisodes)"]
-        )
+        started = watched or to_int(labels["Property(InProgressEpisodes)"])
         # A show's Season is its season count; "* All seasons" has none
         season = to_int(labels["Season"], None) if dbtype == "season" else None
-        left = to_int(labels["Property(UnwatchedEpisodes)"])
         if not (show_id and started and left) or season == 0:  # 0: Specials, no next
             return {"next_episode": "", "new": ""}
 
@@ -894,10 +894,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _next_air(self) -> str:
         """
         The focused show's next air date from the TMDb cache, never fetched here,
-        in date_format (strftime, default "%d %b").
+        in date_format (strftime, default "%d %b"). Nothing is looked up with TMDb off.
 
         :return: The formatted date; empty if not cached, none is due, or it has passed.
         """
+        from resources.lib.apis.tmdb.client import get_tmdb_client
+
+        # Off: no cache to read, so skip resolve_tmdb_context's uniqueid lookup too
+        if not get_tmdb_client():
+            return ""
         # No art: the art-less entry at any age, or the art one while fresh
         tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
         if not (tmdb and (iso := tmdb["properties"].get("tmdb_next_air_date"))):
