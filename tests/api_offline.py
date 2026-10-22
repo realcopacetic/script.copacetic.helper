@@ -942,7 +942,7 @@ class ProgressbarTest(unittest.TestCase):
         call = self.calls.pop()
         self.assertEqual((call["tvshowid"], call["season"]), (7, 4))
         self.prop("next_episode", **season | {"Season": ""})  # * All seasons
-        self.assertEqual(self.calls.pop()["season"], -1)
+        self.assertNotIn("season", self.calls.pop())  # -1 fails GetEpisodes' minimum
         self.episodes = self.episodes[:1]  # only a special left
         self.assertEqual(self.prop("next_episode", **season), "")
         self.assertEqual(self.shows, [7, 7, 7])  # lastplayed: shows only, when queried

@@ -860,9 +860,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (show_id and started and to_int(labels["Property(UnwatchedEpisodes)"])):
             return {"next_episode": "", "new": ""}
 
-        scope = {"tvshowid": show_id}
-        if dbtype == "season":  # "* All seasons" has no Season: -1 asks for every one
-            scope["season"] = to_int(labels["Season"], -1)
+        # A show's Season is its season count; "* All seasons" has none
+        season = to_int(labels["Season"], None) if dbtype == "season" else None
+        # GetEpisodes rejects season -1 (its schema minimum is 0): omit it for all
+        scope = {"tvshowid": show_id} | ({} if season is None else {"season": season})
         unwatched = fetch_raw(
             "VideoLibrary.GetEpisodes",
             "episode",

@@ -94,9 +94,10 @@ delay the placement; the item itself returns once they are ready.
   isn't in the library makes no episode call.
 - **`next_episode`** and **`new`**: one `VideoLibrary.GetEpisodes` call for the
   started show's unwatched episodes (a season's own, or the whole show for
-  *All seasons*). `next_episode` is the episode [`next_up`](library.md#next_up)
-  lists for the show. For `new`, one `VideoLibrary.GetTVShowDetails` call reads the
-  show's `lastplayed`: `ListItem.LastPlayed` gives a date with no time.
+  *All seasons*, which sends no `season`: `GetEpisodes` rejects `-1`).
+  `next_episode` is the episode [`next_up`](library.md#next_up) lists for the show.
+  For `new`, one `VideoLibrary.GetTVShowDetails` call reads the show's `lastplayed`:
+  `ListItem.LastPlayed` gives a date with no time.
 - **`next_air`**: TMDb's next episode air date, read from the add-on's cache only;
   this path never asks TMDb. The [metadata](metadata.md#tmdb-lookups) plugin fills
   the cache when called with `enrich_with_tmdb=true` and a TMDb token is set. Until
