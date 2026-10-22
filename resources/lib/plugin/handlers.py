@@ -787,7 +787,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def progressbar(self) -> list[DirectoryItem] | None:
         """
         Compute resume/unwatched values and expose a helper item for the list.
-        If focus changes before the bar moves, return the bare item and skip the rest.
+        If focus changes before or after the bar moves, return the bare item.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -811,31 +811,38 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "properties": {"unwatchedepisodes": str(unwatched)},
         }
 
+        if not guard.alive():
+            return set_items([item], tag_applier=apply_videoinfotag)
+
+        pb.update(
+            percent=resume,
+            opts=PlacementOpts.from_params(self.params),
+            progress_id=to_int(self.params.get("progress_id"), None),
+            btn_id=to_int(self.params.get("btn_id"), None),
+            img_id=to_int(self.params.get("img_id"), None),
+            img_h=to_int(self.params.get("img_h"), None),
+        )
+        # After the move: the context labels never hold back the bar's placement.
+        # A superseded serve spends no library call on them.
         if guard.alive():
-            pb.update(
-                percent=resume,
-                opts=PlacementOpts.from_params(self.params),
-                progress_id=to_int(self.params.get("progress_id"), None),
-                btn_id=to_int(self.params.get("btn_id"), None),
-                img_id=to_int(self.params.get("img_id"), None),
-                img_h=to_int(self.params.get("img_h"), None),
-            )
-            # After the move: the context labels never hold back the bar's placement
             item["properties"] |= {
                 "time_left": pb.time_left(resume),
-                **self._show_context(pb.infolabels),
+                **self._show_context(pb.infolabels, guard.alive),
             }
 
         return set_items([item], tag_applier=apply_videoinfotag)
 
-    def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
+    def _show_context(
+        self, labels: dict[str, str], alive: Callable[[], bool]
+    ) -> dict[str, str]:
         """
         A started show's or season's next_episode (Kodi's inprogress rule, as next_up)
         and a show's new, from one GetEpisodes call plus the show's lastplayed;
         a fully watched show's next_air. Nothing else costs a call.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
-        :return: Properties for the progress item; none for other types.
+        :param alive: The focus guard's check, made again between the library calls.
+        :return: Properties for the progress item; none for other types or a lost focus.
         """
         dbtype = labels["DBType"]
         if dbtype not in ("tvshow", "season"):
@@ -881,6 +888,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         new = False
         if dbtype == "tvshow" and unwatched:
+            if not alive():
+                return {}
             # compute_new_unwatched's rule, on dateadded. ListItem.LastPlayed is a date
             # only; Kodi's "YYYY-MM-DD HH:MM:SS" strings sort in time order.
             show = _video_details("tvshow", show_id, ["lastplayed"], "progressbar")

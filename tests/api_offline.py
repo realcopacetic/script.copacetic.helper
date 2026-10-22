@@ -914,7 +914,8 @@ class ProgressbarTest(unittest.TestCase):
         self.handler.params = {"target_id": "4010"}
         self.handler.target_item = "Container(50).ListItem"
         self.handler.dialog = False
-        self.handler._guard = lambda: mock.Mock(alive=lambda: True)
+        self.alive = lambda: True
+        self.handler._guard = lambda: mock.Mock(alive=lambda: self.alive())
         self.handler._get_tmdb_item = lambda **kwargs: None
         self.handler.filter_unwatched = {}
 
@@ -985,6 +986,24 @@ class ProgressbarTest(unittest.TestCase):
         self.episodes = []  # the library lost them since the item was listed
         self.assertEqual(self.prop("new", **show), "")
         self.assertEqual(len(self.shows), 3)
+
+    def test_focus_lost(self):
+        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
+        show["Property(WatchedEpisodes)"] = "9"
+        moved = mock.Mock()
+        for checks, queries in (
+            ([True, False], 0),  # before the move
+            ([True, True, False], 0),  # after it
+            ([True, True, True, False], 1),  # between the episodes and lastplayed
+        ):
+            self.alive = iter(checks).__next__
+            self.calls.clear()
+            with mock.patch.object(helpers.ProgressBarManager, "update", moved):
+                properties = self.prop_all(**show)
+            shown = {key: value for key, value in properties.items() if value}
+            self.assertEqual(shown, {"unwatchedepisodes": "4"})  # a show: time_left ""
+            self.assertEqual((len(self.calls), self.shows), (queries, []))
+        self.assertEqual(moved.call_count, 2)
 
     def test_next_air(self):
         cached, asks = {}, []

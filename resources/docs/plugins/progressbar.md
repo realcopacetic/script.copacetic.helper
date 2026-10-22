@@ -110,6 +110,7 @@ delay the placement; the item itself returns once they are ready.
 
 ## Focus guard
 
-The guard is checked before the value is worked out and again before any control
-moves. If focus moved on in between, the list item is still returned without the
-context values, and no control moves.
+The guard is checked before the value is worked out, before any control moves, after
+the move, and between the two library calls for a started show. Once focus has moved
+on, the list item is still returned without the context values, and nothing else
+runs: no control moves if it hadn't yet, and no further library call is made.
