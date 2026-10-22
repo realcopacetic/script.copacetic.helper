@@ -46,6 +46,8 @@ MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow
     *("MyPVRSearch.xml", "MyPVRTimers.xml", "MyVideoNav.xml"),
 }
 FALSE_FIRST = re.compile(r"\s*(\[\s*)?(?:false|!true)(?(1)\s*\])\s*\+", re.I)
+CONSTANT = re.compile(r"(?:true|false|[\s!+|\[\]])*")  # lowercased; never changes
+PYTHON = str.maketrans({"!": " not ", "+": " and ", "|": " or ", "[": "(", "]": ")"})
 MEDIA_INFO = re.compile(  # label forms with no id; Row/Column/Position(n) are bools
     r"(?<![\w.])Container(?:\(\s*0?\s*\))?\."
     r"(?:NumItems|CurrentItem|NumPages|CurrentPage|NumAllItems|NumNonFolderItems"
@@ -228,6 +230,7 @@ class Skin:
                 self.report("parse", f"{path.name}:{e.lineno}", str(e))
         self.defs = {kind: {} for kind in DEFINITIONS}
         self.defaults = {}
+        self.types = {}
         self.params = {}
         self.calls = defaultdict(lambda: (set(), set()))
         self.duplicates = defaultdict(list)
@@ -256,6 +259,8 @@ class Skin:
                 self._load(node.get("file"), node.src)
             elif node.tag in DEFINITIONS and node.get("name"):
                 self._register(node)
+            elif node.tag == "default" and node.get("type") and len(node):
+                self.types.setdefault(node.get("type"), node)  # first one wins
 
     def _register(self, node: Node) -> None:
         """Register a definition unless Kodi's loader drops it (first one wins)."""
@@ -351,7 +356,7 @@ class Skin:
             if clashing:
                 self.duplicates[cid, tuple(clashing)].append(window)
 
-    def expand(self, node: Node, budget: list[int]) -> None:
+    def expand(self, node: Node, budget: list[int], keep: bool = False) -> None:
         """
         Resolve includes under ``node`` in place like ``ResolveIncludes``:
         ``<nested/>`` filled, params substituted, constant-false conditions
@@ -359,13 +364,18 @@ class Skin:
 
         :param node: Element whose include children are replaced.
         :param budget: Remaining expansions, shared to stop include recursion.
+        :param keep: Keep skipped calls, as Kodi does, skipping all constant-false ones.
         """
+        skipped = self.never if keep else self.constant_false
         index = 0
         while index < len(node):
             call = node[index]
             name = include_name(call) if call.tag == "include" else None
-            if name is not None and self.constant_false(call.get("condition", "")):
-                del node[index]  # Kodi skips it before looking the name up
+            if name is not None and skipped(call.get("condition", "")):
+                if keep:
+                    index += 1  # Kodi steps past it; its payload is still resolved
+                else:
+                    del node[index]  # Kodi skips it before looking the name up
                 continue
             if name not in self.defs["include"] or "file" in call.attrib:
                 if name is not None and "file" not in call.attrib:
@@ -397,7 +407,7 @@ class Skin:
             for new in resolve:
                 self.resolve_params(new, params, node)
         for child in elements(node):
-            self.expand(child, budget)
+            self.expand(child, budget, keep)
 
     def constant_false(self, condition: str) -> bool:
         """
@@ -415,6 +425,50 @@ class Skin:
             seen.add(name)
             condition = (self.defs["expression"][name].text or "").strip()
         return condition.lower() in ("false", "!true")
+
+    def never(self, condition: str) -> bool:
+        """
+        True when ``condition`` is constant and false once flattened, ``+`` before
+        ``|`` as Kodi parses it, so ``ResolveIncludes`` always skips the call.
+
+        :param condition: Include condition after param substitution.
+        :return: Whether Kodi never loads the include.
+        """
+        text = self.flatten(condition).strip().lower()
+        if not text or not CONSTANT.fullmatch(text):
+            return False
+        return not eval(text.title().translate(PYTHON))
+
+    def set_defaults(self, control: Node) -> list[Node]:
+        """
+        Tags ``SetDefaults`` appends to ``control``: its type's ``<default>`` children.
+
+        :param control: Expanded ``<control>`` element.
+        :return: Default tags appended, in order.
+        """
+        default = self.types.get(control.get("type", ""))
+        return [] if default is None else elements(default)
+
+    def flatten(self, condition: str, seen: tuple[str, ...] = ()) -> str:
+        """
+        Replace each ``$EXP[name]`` with its ``[body]``, flattened, as Omega's
+        ``ResolveExpressions`` does; unknown or circular names become empty.
+
+        :param condition: Include condition after param substitution.
+        :param seen: Expression names being flattened, for the circular check.
+        :return: The text Kodi registers.
+        """
+
+        def body(match: re.Match) -> str:
+            name = match[2]
+            if match[1] == "VAR":
+                return match[0]
+            if name in seen or name not in self.defs["expression"]:
+                return ""
+            text = self.defs["expression"][name].text or ""
+            return f"[{self.flatten(text, (*seen, name))}]"
+
+        return REF.sub(body, condition)
 
     def resolve_params(self, node: Node, params: dict[str, str], parent: Node) -> None:
         """
@@ -454,6 +508,36 @@ class Skin:
             return
         for child in elements(node):
             self.resolve_params(child, params, node)
+
+    def count(self, name: str) -> str:
+        """
+        Size what ``CGUIWindow::Prepare`` builds for window ``name``: the expanded
+        tree with skipped includes left in place and control defaults added, and the
+        non-constant include conditions Kodi records (one changing reloads it).
+
+        :param name: Window file name.
+        :return: One summary line.
+        """
+        root = clone(self.roots[name])
+        self.expand(root, budget=[100_000], keep=True)
+        nodes = [e for e in root.iter() if isinstance(e.tag, str)]
+        dead = [
+            e
+            for e in nodes
+            if e.tag == "include" and self.never(e.get("condition", ""))
+        ]
+        carried = {c for e in dead for c in e.iter() if isinstance(c.tag, str)}
+        ctrls = [e for e in nodes if e.tag == "control"]
+        added = [c for e in ctrls for tag in self.set_defaults(e) for c in tag.iter()]
+        size = len(nodes) + sum(isinstance(c.tag, str) for c in added)
+        branches = {b.partition(" ")[2] for e in nodes for b in e.branch}
+        conditions = {self.flatten(c).strip().lower() for c in branches}
+        live = sum(not CONSTANT.fullmatch(c) for c in conditions)
+        return (
+            f"{name}: {size} elements, {len(ctrls)} controls, "
+            f"{len(dead)} skipped includes carrying {len(carried - {*dead})} elements, "
+            f"{live} live include conditions"
+        )
 
     def migrated(self) -> list[str]:
         """Window files that call a C2 shell include (``C2_SHELLS``)."""
@@ -651,6 +735,9 @@ def main() -> None:
     parser.add_argument(
         "--window", action="append", default=[], help="also lint this window file"
     )
+    parser.add_argument(
+        "--count", action="store_true", help="size each window's prepared tree"
+    )
     args = parser.parse_args()
 
     with tempfile.TemporaryDirectory() as name:
@@ -665,6 +752,10 @@ def main() -> None:
         if windows:
             print(f"windows: {', '.join(windows)}")
         findings = skin.lint(windows) | set(check_textures(args.skin))
+        if args.count:  # after lint: expanding again records calls and findings
+            for window in windows or sorted(skin.roots):
+                if skin.roots[window].tag == "window":
+                    print(skin.count(window))
 
     shown = [
         f
