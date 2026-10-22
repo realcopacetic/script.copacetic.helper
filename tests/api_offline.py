@@ -843,17 +843,23 @@ class ProgressbarTest(unittest.TestCase):
     """info=progressbar's context properties, read off the item it returns."""
 
     episodes = [
-        {"season": 0, "episode": 1},
-        {"season": 2, "episode": 11},
-        {"season": 3, "episode": 1},
-        {"season": 2, "episode": 10},
+        {"season": 0, "episode": 1, "dateadded": "2026-10-20 21:00:00"},
+        {"season": 2, "episode": 11, "dateadded": "2026-10-01 09:00:00"},
+        {"season": 3, "episode": 1, "dateadded": "2026-10-01 09:00:00"},
+        {"season": 2, "episode": 10, "dateadded": "2026-10-01 09:00:00"},
     ]
+    lastplayed = "2026-10-12 20:15:00"
 
     def setUp(self):
-        self.labels, self.calls = {}, []
+        self.labels, self.calls, self.shows = {}, [], []
 
         def rpc(request):
-            self.calls.append(json.loads(request)["params"])
+            request = json.loads(request)
+            if request["method"] == "VideoLibrary.GetTVShowDetails":
+                self.shows.append(request["params"]["tvshowid"])
+                details = {"lastplayed": self.lastplayed}
+                return json.dumps({"result": {"tvshowdetails": details}})
+            self.calls.append(request["params"])
             return json.dumps({"result": {"episodes": self.episodes}})
 
         for target, name, value in (
@@ -920,6 +926,22 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.calls.pop()["season"], -1)
         self.episodes = self.episodes[:1]  # only a special left
         self.assertEqual(self.prop("next_episode", **season), "")
+        self.assertEqual(self.shows, [7, 7, 7])  # lastplayed: shows only, when queried
+
+    def test_new(self):
+        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
+        show["Property(WatchedEpisodes)"] = "9"
+        self.assertEqual(self.prop("new", **show), "true")  # the special, added 20 Oct
+        self.lastplayed = "2026-10-20 21:00:00"  # the same second: not later
+        self.assertEqual(self.prop("new", **show), "")
+        self.lastplayed = ""  # no lastplayed: nothing to be newer than
+        self.assertEqual(self.prop("new", **show), "")
+        season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "2"}
+        self.lastplayed = "2026-01-01 00:00:00"
+        self.assertEqual(self.prop("new", **season), "")  # a show-only property
+        self.episodes = []  # the library lost them since the item was listed
+        self.assertEqual(self.prop("new", **show), "")
+        self.assertEqual(len(self.shows), 3)
 
 
 if __name__ == "__main__":

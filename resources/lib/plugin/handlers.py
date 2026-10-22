@@ -829,8 +829,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
         """
-        next_episode for a started show or season (Kodi's inprogress rule, as next_up
-        uses): its lowest unwatched non-special episode, from one GetEpisodes call.
+        A started show's or season's next_episode (Kodi's inprogress rule, as next_up),
+        and a show's new: an unwatched episode added since it was last played.
+        One GetEpisodes call, plus the show's lastplayed for new.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :return: Properties for the progress item; none for other types.
@@ -854,7 +855,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             labels["Property(InProgressEpisodes)"]
         )
         if not (show_id and started and to_int(labels["Property(UnwatchedEpisodes)"])):
-            return {"next_episode": ""}
+            return {"next_episode": "", "new": ""}
 
         scope = {"tvshowid": show_id}
         if dbtype == "season":  # "* All seasons" has no Season: -1 asks for every one
@@ -866,17 +867,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             sort=None,
             parent="progressbar",
             params=scope,
-            properties=["season", "episode"],
+            properties=["dateadded", "episode", "season"],
         )
         # As next_up's episode sort, which orders non-specials by season then episode
-        next_episode = min(
+        first = min(
             ((ep["season"], ep["episode"]) for ep in unwatched if ep["season"] > 0),
             default=None,
         )
+        new = False
+        if dbtype == "tvshow" and unwatched:
+            # compute_new_unwatched's rule, on dateadded. ListItem.LastPlayed is a date
+            # only; Kodi's "YYYY-MM-DD HH:MM:SS" strings sort in time order.
+            show = _video_details("tvshow", show_id, ["lastplayed"], "progressbar")
+            lastplayed = show["lastplayed"]
+            new = lastplayed and max(ep["dateadded"] for ep in unwatched) > lastplayed
         return {
-            "next_episode": (
-                "S{:02d}E{:02d}".format(*next_episode) if next_episode else ""
-            )
+            "next_episode": "S{:02d}E{:02d}".format(*first) if first else "",
+            "new": "true" if new else "",
         }
 
     @log.duration
