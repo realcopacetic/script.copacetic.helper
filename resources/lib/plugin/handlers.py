@@ -15,6 +15,7 @@ from resources.lib.plugin.helpers import (
     TypewriterAnimation,
     clamp_text,
     fit_height,
+    get_infolabels,
     merge_metadata,
     reposition_control,
 )
@@ -819,9 +820,64 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 img_h=to_int(self.params.get("img_h"), None),
             )
             # After the move: the context labels never hold back the bar's placement
-            item["properties"]["time_left"] = pb.time_left(resume)
+            item["properties"] |= {
+                "time_left": pb.time_left(resume),
+                **self._show_context(pb.infolabels),
+            }
 
         return set_items([item], tag_applier=apply_videoinfotag)
+
+    def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
+        """
+        next_episode for a started show or season (Kodi's inprogress rule, as next_up
+        uses): its lowest unwatched non-special episode, from one GetEpisodes call.
+
+        :param labels: The focused item's infolabels, as ProgressBarManager read them.
+        :return: Properties for the progress item; none for other types.
+        """
+        dbtype = labels["DBType"]
+        if dbtype not in ("tvshow", "season"):
+            return {}
+        labels = labels | get_infolabels(
+            self.target_item,
+            [
+                "DBID",
+                "Property(InProgressEpisodes)",
+                "Property(WatchedEpisodes)",
+                "Season",
+                "TvShowDBID",
+            ],
+        )
+        # No library id (a plugin's item): tvshowid 0 would ask for every show
+        show_id = to_int(labels["TvShowDBID" if dbtype == "season" else "DBID"])
+        started = to_int(labels["Property(WatchedEpisodes)"]) or to_int(
+            labels["Property(InProgressEpisodes)"]
+        )
+        if not (show_id and started and to_int(labels["Property(UnwatchedEpisodes)"])):
+            return {"next_episode": ""}
+
+        scope = {"tvshowid": show_id}
+        if dbtype == "season":  # "* All seasons" has no Season: -1 asks for every one
+            scope["season"] = to_int(labels["Season"], -1)
+        unwatched = fetch_raw(
+            "VideoLibrary.GetEpisodes",
+            "episode",
+            [self.filter_unwatched],
+            sort=None,
+            parent="progressbar",
+            params=scope,
+            properties=["season", "episode"],
+        )
+        # As next_up's episode sort, which orders non-specials by season then episode
+        next_episode = min(
+            ((ep["season"], ep["episode"]) for ep in unwatched if ep["season"] > 0),
+            default=None,
+        )
+        return {
+            "next_episode": (
+                "S{:02d}E{:02d}".format(*next_episode) if next_episode else ""
+            )
+        }
 
     @log.duration
     def reposition(self) -> list[DirectoryItem] | None:

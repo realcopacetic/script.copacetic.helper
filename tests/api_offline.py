@@ -842,12 +842,19 @@ class NextUpTest(unittest.TestCase):
 class ProgressbarTest(unittest.TestCase):
     """info=progressbar's context properties, read off the item it returns."""
 
+    episodes = [
+        {"season": 0, "episode": 1},
+        {"season": 2, "episode": 11},
+        {"season": 3, "episode": 1},
+        {"season": 2, "episode": 10},
+    ]
+
     def setUp(self):
         self.labels, self.calls = {}, []
 
         def rpc(request):
-            self.calls.append(json.loads(request))
-            return json.dumps({"result": {}})
+            self.calls.append(json.loads(request)["params"])
+            return json.dumps({"result": {"episodes": self.episodes}})
 
         for target, name, value in (
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
@@ -865,6 +872,7 @@ class ProgressbarTest(unittest.TestCase):
         self.handler.target_item = "Container(50).ListItem"
         self.handler.dialog = False
         self.handler._guard = lambda: mock.Mock(alive=lambda: True)
+        self.handler.filter_unwatched = {}
 
     def label(self, path):
         return self.labels.get(path.removeprefix("Container(50).ListItem."), "")
@@ -886,6 +894,32 @@ class ProgressbarTest(unittest.TestCase):
         season["Property(WatchedEpisodePercent)"] = "50"
         self.assertEqual(self.prop("time_left", **season), "")
         self.assertEqual(self.calls, [])
+
+    def test_next_episode(self):
+        show = {"DBType": "tvshow", "DBID": "7", "Season": "4"}  # a show's Season: 4
+        show["Property(UnwatchedEpisodes)"] = "4"
+        show["Property(WatchedEpisodes)"] = "9"
+        self.assertEqual(self.prop("next_episode", **show), "S02E10")
+        self.assertNotIn("season", self.calls.pop())
+        show["Property(WatchedEpisodes)"] = "0"
+        self.assertEqual(self.prop("next_episode", **show), "")  # not started
+        show["Property(InProgressEpisodes)"] = "1"  # its first episode, part-watched
+        self.assertEqual(self.prop("next_episode", **show), "S02E10")
+        self.calls.clear()
+        self.assertEqual(self.prop("next_episode", **show, TvShowDBID=""), "S02E10")
+        self.assertEqual(self.calls.pop()["tvshowid"], 7)
+        for empty in ({"Property(UnwatchedEpisodes)": "0"}, {"DBID": ""}):
+            self.assertEqual(self.prop("next_episode", **show | empty), "")
+        self.assertEqual(self.calls, [])  # watched, or a plugin's show: no query
+
+        season = show | {"DBType": "season", "DBID": "40", "TvShowDBID": "7"}
+        self.assertEqual(self.prop("next_episode", **season), "S02E10")
+        call = self.calls.pop()
+        self.assertEqual((call["tvshowid"], call["season"]), (7, 4))
+        self.prop("next_episode", **season | {"Season": ""})  # * All seasons
+        self.assertEqual(self.calls.pop()["season"], -1)
+        self.episodes = self.episodes[:1]  # only a special left
+        self.assertEqual(self.prop("next_episode", **season), "")
 
 
 if __name__ == "__main__":
