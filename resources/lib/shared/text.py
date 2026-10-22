@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import math
 import re
+import struct
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -20,9 +21,6 @@ if TYPE_CHECKING:
 
 # Kodi wraps at U+0020 only; tabs and newlines fold into a break as before
 _WORDS = re.compile(r"[^ \t\n\r\f\v]+")
-
-# Measurement size: advances are taken unhinted here and scaled to the render size.
-_REF_SIZE = 1000
 
 # Rendered pixels Kodi's last-glyph ink extent can add past its advance.
 _INK_OVERHANG = 2
@@ -102,10 +100,25 @@ def skin_font(name: str) -> tuple[str, int] | None:
     return f"special://skin/fonts/{filename}", int(size)
 
 
+def units_per_em(data: bytes) -> int:
+    """unitsPerEm from an sfnt's head table: the denominator of FreeType's scale.
+
+    :param data: TrueType/OpenType font bytes.
+    :return: Font units per em.
+    """
+    (count,) = struct.unpack_from(">H", data, 4)
+    offset = next(
+        off
+        for tag, _, off, _ in struct.iter_unpack(">4sIII", data[12 : 12 + 16 * count])
+        if tag == b"head"
+    )
+    return struct.unpack_from(">H", data, offset + 18)[0]
+
+
 @lru_cache(maxsize=8)
 def load_font(font_path: str) -> ImageFont.FreeTypeFont | None:
-    """Load a font at _REF_SIZE via direct path, falling back to a VFS read
-    for resource:// paths. BASIC layout: Kodi applies no GPOS kerning.
+    """Load a font at its units-per-em, so a glyph's length is its advance in font
+    units. A VFS read covers every path scheme. BASIC layout: no GPOS kerning.
 
     :param font_path: special://, resource://, or absolute font path.
     :return: Loaded font, or None if unreadable.
@@ -115,14 +128,6 @@ def load_font(font_path: str) -> ImageFont.FreeTypeFont | None:
     from PIL import ImageFont
 
     log.debug(f"load_font → PIL import {(time.perf_counter() - t0) * 1000:.0f}ms")
-    try:
-        return ImageFont.truetype(
-            xbmcvfs.translatePath(font_path),
-            _REF_SIZE,
-            layout_engine=ImageFont.LAYOUT_BASIC,
-        )
-    except OSError:
-        pass
     handle = xbmcvfs.File(font_path)
     try:
         data = handle.readBytes()
@@ -133,17 +138,17 @@ def load_font(font_path: str) -> ImageFont.FreeTypeFont | None:
         return None
     try:
         return ImageFont.truetype(
-            io.BytesIO(data), _REF_SIZE, layout_engine=ImageFont.LAYOUT_BASIC
+            io.BytesIO(data), units_per_em(data), layout_engine=ImageFont.LAYOUT_BASIC
         )
-    except OSError:
+    except (OSError, StopIteration, struct.error):
         log.warning(f"load_font → not a valid font: {font_path}")
         return None
 
 
 class KodiMetric:
     """
-    Line width as CGUIFontTTF computes it: unhinted advances (LIGHT target) at
-    the rendered size and xdpi aspect, rounded half up, summed without kerning.
+    Line width as CGUIFontTTF computes it: advances in FreeType's 16.16 scale and
+    26.6 fixed point at the rendered size and xdpi aspect, summed without kerning.
     """
 
     def __init__(
@@ -154,16 +159,18 @@ class KodiMetric:
         scale_y: float,
     ) -> None:
         """
-        Model GUIFontManager::RescaleFontSizeAndAspect for the current GUI scale.
+        Model RescaleFontSizeAndAspect and FT_Set_Char_Size for the current GUI scale.
+        Float scaling misses the 1/64 px quantisation that tips advances past .5.
 
-        :param font: Font loaded at _REF_SIZE.
+        :param font: Font loaded by load_font, at its units-per-em.
         :param font_size: Font size in skin-coordinate pixels.
         :param scale_x: ScreenWidth / skin width.
         :param scale_y: ScreenHeight / skin height.
         """
         xdpi = math.floor(72 * scale_x / scale_y + 0.5)
+        width = (int(font_size * scale_y * 64 + 0.5) * xdpi + 36) // 72
         self.font = font
-        self.px = font_size * scale_y * xdpi / 72 / _REF_SIZE
+        self.x_scale = ((width << 16) + font.size // 2) // font.size
         self.scale_x = scale_x
         self.advances = {}
 
@@ -177,9 +184,10 @@ class KodiMetric:
         total = _INK_OVERHANG
         for ch in text:
             if (advance := self.advances.get(ch)) is None:
-                advance = self.advances[ch] = math.floor(
-                    self.font.getlength(ch) * self.px + 0.5
-                )
+                units = round(self.font.getlength(ch))
+                advance = self.advances[ch] = (
+                    ((units * self.x_scale + 0x8000) >> 16) + 32
+                ) >> 6
             total += advance
         return total / self.scale_x
 
