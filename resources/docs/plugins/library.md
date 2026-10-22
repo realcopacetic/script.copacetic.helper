@@ -91,7 +91,7 @@ The episodes carry the **show's** artwork, as `ListItem.Art(tvshow.poster)`,
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | — | Most movies to return. |
-| `randomise` | any text | — | A seed. The same seed gives the same order, and a movie added or left out moves no other; each rail has its own order. Without it, the order changes on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same order, and a movie added to or removed from the list moves no other. A path with other parameters gets its own order from the same seed; `limit` only cuts it. Without it, the order changes on every call. |
 | `exclude_played_days` | whole number | — | Leave out movies played in the last N days. |
 
 ```xml
@@ -106,7 +106,7 @@ the home screen. A plugin path that never changes is only called once.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | — | Most TV shows to return. |
-| `randomise` | any text | — | A seed. The same seed gives the same order, and a show added or left out moves no other. Without it, the order changes on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same order, and a show added to or removed from the library moves no other. Without it, the order changes on every call. |
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=random_tvshows&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
@@ -120,7 +120,7 @@ as `musicdb://` folders. The container's content is `albums`.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | — | Most albums to return. |
-| `randomise` | any text | — | A seed. The same seed gives the same order, and an album added or left out moves no other. Without it, the order changes on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same order, and an album added to or removed from the library moves no other. Without it, the order changes on every call. |
 
 ```xml
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=random_albums&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
@@ -151,7 +151,7 @@ follow each other in the order below.
 | `exclude_value` | any text | — | Leave out items whose `exclude_key` field equals this. Use it to hide the item you came from. |
 | `exclude_key` | a Kodi library filter field | `title` | The field `exclude_value` is compared with. |
 | `sort` | a JSON-RPC sort method (`year`, `votes` …), or `random` | `year` | The order Kodi fetches in, descending. `random` is ordered by the helper, by `randomise`. |
-| `randomise` | any text | — | With `sort=random`: a seed, as in [`random_movies`](#random_movies). The same seed gives the same order, so a refetch keeps it, and a title added or left out moves no other. |
+| `randomise` | any text | — | With `sort=random`: a seed, as in [`random_movies`](#random_movies). The same seed gives the same order, so a refetch keeps it, and a title added to or removed from the library moves no other. A different `label` or `exclude_value` gets its own order from the same seed. |
 | `limit` | whole number | all | Most items of each kind, after the sort. The kinds add up, so the list can hold up to twice this. |
 
 ```xml
@@ -184,7 +184,7 @@ for the type. The container's content is `artists`, `albums` or `songs`.
 | `id` | an artist's `DBID` | — | Add the genres of that artist's albums. An artist's own `ListItem.Genre` is the scraper's (TheAudioDB's "Alternative"), while Kodi matches an artist's genre through its songs' tags, so pass it for an artist |
 | `exclude_value` | a name | — | Leave out the artist, album or song (by title) with this name |
 | `limit` | whole number | all | Most items, picked at random |
-| `randomise` | any text | — | A seed. The same seed gives the same items in the same order, and a title added or left out moves no other. |
+| `randomise` | any text | — | A seed. The same seed gives the same items in the same order, and a title added to or removed from the library moves no other. A different `label`, `id` or `exclude_value` gets its own order from the same seed. |
 
 ```xml
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=genre_music&amp;type=artist&amp;id=$INFO[ListItem.DBID]&amp;label=$INFO[ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Artist]&amp;limit=20</content>
