@@ -822,8 +822,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             img_id=to_int(self.params.get("img_id"), None),
             img_h=to_int(self.params.get("img_h"), None),
         )
-        # After the move: the context labels never hold back the bar's placement.
-        # A superseded serve spends no library call on them.
+        # The bar is placed first, but it appears only when the item returns, so a
+        # started show adds two library calls to that. A superseded serve makes none.
         if guard.alive():
             item["properties"] |= {
                 "time_left": pb.time_left(resume),

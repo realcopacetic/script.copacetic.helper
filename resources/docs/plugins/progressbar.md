@@ -79,8 +79,15 @@ One list item in the helper container:
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
-with `String.IsEmpty`. They are worked out after the bar has moved, so they never
-delay the placement; the item itself returns once they are ready.
+with `String.IsEmpty`. They are worked out after the bar has moved, so the bar is
+placed first, but it appears only when the item returns: a skin that shows the bar
+once the helper container has finished updating (`!Container(id).IsUpdating`) waits
+for them too. A started show adds two library calls to that (a started season one),
+a fully watched show at most one; nothing else adds a call.
+
+To see the cost on your device, turn on *Troubleshooting → Enable extra debug logs*
+in the add-on's settings and look for `PluginHandlers → progressbar took … seconds`
+in the Kodi log: compare a started show with a movie.
 
 ## How the context values are worked out
 
