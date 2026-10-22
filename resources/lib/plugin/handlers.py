@@ -857,11 +857,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         started = to_int(labels["Property(WatchedEpisodes)"]) or to_int(
             labels["Property(InProgressEpisodes)"]
         )
-        if not (show_id and started and to_int(labels["Property(UnwatchedEpisodes)"])):
-            return {"next_episode": "", "new": ""}
-
         # A show's Season is its season count; "* All seasons" has none
         season = to_int(labels["Season"], None) if dbtype == "season" else None
+        left = to_int(labels["Property(UnwatchedEpisodes)"])
+        if not (show_id and started and left) or season == 0:  # 0: Specials, no next
+            return {"next_episode": "", "new": ""}
+
         # GetEpisodes rejects season -1 (its schema minimum is 0): omit it for all
         scope = {"tvshowid": show_id} | ({} if season is None else {"season": season})
         unwatched = fetch_raw(
