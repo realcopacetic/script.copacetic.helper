@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 import time
 from typing import Any, Callable, Collection, Iterable, Mapping
@@ -367,6 +368,23 @@ class ProgressBarManager:
             return watched / total * 100, str(total - watched)
 
         return 0, unwatched
+
+    def time_left(self, percent: float) -> str:
+        """
+        Remaining runtime of a part-watched movie or episode, rounded up to the
+        minute. PercentPlayed is whole, so it's within half a percent of runtime.
+
+        :param percent: Progress from calculate().
+        :return: "1h 23m" or "48m"; empty unless a movie or episode is part-watched.
+        """
+        if not (
+            0 < percent < 100
+            and self.infolabels["DBType"] in ("movie", "episode")
+            and (secs := to_int(infolabel(f"{self.target}.Duration(secs)")))
+        ):
+            return ""
+        hours, mins = divmod(math.ceil(secs * (100 - percent) / 6000), 60)
+        return f"{hours}h {mins}m" if hours else f"{mins}m"
 
     def update(
         self,

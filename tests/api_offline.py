@@ -839,5 +839,54 @@ class NextUpTest(unittest.TestCase):
         self.assertEqual(len(self.calls), 2)
 
 
+class ProgressbarTest(unittest.TestCase):
+    """info=progressbar's context properties, read off the item it returns."""
+
+    def setUp(self):
+        self.labels, self.calls = {}, []
+
+        def rpc(request):
+            self.calls.append(json.loads(request))
+            return json.dumps({"result": {}})
+
+        for target, name, value in (
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (helpers, "infolabel", self.label),
+            (helpers, "condition", lambda expr: False),
+            (helpers.ProgressBarManager, "update", lambda self, percent, **kw: None),
+            (handlers, "set_items", lambda items, **kwargs: items),
+            (handlers, "getCurrentWindowId", lambda: 10025),
+        ):
+            patcher = mock.patch.object(target, name, value, create=True)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.handler = object.__new__(handlers.PluginHandlers)
+        self.handler.params = {"target_id": "4010"}
+        self.handler.target_item = "Container(50).ListItem"
+        self.handler.dialog = False
+        self.handler._guard = lambda: mock.Mock(alive=lambda: True)
+
+    def label(self, path):
+        return self.labels.get(path.removeprefix("Container(50).ListItem."), "")
+
+    def prop(self, name, **labels):
+        self.labels = labels
+        (item,) = self.handler.progressbar()
+        return item["properties"][name]
+
+    def test_time_left(self):
+        movie = {"DBType": "movie", "Duration(secs)": "7200"}
+        self.assertEqual(self.prop("time_left", **movie, PercentPlayed="30"), "1h 24m")
+        self.assertEqual(self.prop("time_left", **movie, PercentPlayed="99"), "2m")
+        episode = {"DBType": "episode", "Duration(secs)": "2700"}
+        self.assertEqual(self.prop("time_left", **episode, PercentPlayed="1"), "45m")
+        self.assertEqual(self.prop("time_left", **movie), "")  # not started
+        self.assertEqual(self.prop("time_left", DBType="movie", PercentPlayed="5"), "")
+        season = {"DBType": "season", "Duration(secs)": "2700"}
+        season["Property(WatchedEpisodePercent)"] = "50"
+        self.assertEqual(self.prop("time_left", **season), "")
+        self.assertEqual(self.calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()

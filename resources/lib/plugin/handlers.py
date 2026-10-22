@@ -785,7 +785,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def progressbar(self) -> list[DirectoryItem] | None:
         """
         Compute resume/unwatched values and expose a helper item for the list.
-        If focus changes after item creation, return it but skip UI update.
+        If focus changes before the bar moves, return the bare item and skip the rest.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -803,29 +803,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_id=self.window_id,
         )
         resume, unwatched = pb.calculate()
-        result = set_items(
-            [
-                {
-                    "file": plugin_path("progress"),
-                    "resume": {"position": resume, "total": 100},
-                    "properties": {"unwatchedepisodes": str(unwatched)},
-                }
-            ],
-            tag_applier=apply_videoinfotag,
-        )
+        item = {
+            "file": plugin_path("progress"),
+            "resume": {"position": resume, "total": 100},
+            "properties": {"unwatchedepisodes": str(unwatched)},
+        }
 
-        if not guard.alive():
-            return result
+        if guard.alive():
+            pb.update(
+                percent=resume,
+                opts=PlacementOpts.from_params(self.params),
+                progress_id=to_int(self.params.get("progress_id"), None),
+                btn_id=to_int(self.params.get("btn_id"), None),
+                img_id=to_int(self.params.get("img_id"), None),
+                img_h=to_int(self.params.get("img_h"), None),
+            )
+            # After the move: the context labels never hold back the bar's placement
+            item["properties"]["time_left"] = pb.time_left(resume)
 
-        pb.update(
-            percent=resume,
-            opts=PlacementOpts.from_params(self.params),
-            progress_id=to_int(self.params.get("progress_id"), None),
-            btn_id=to_int(self.params.get("btn_id"), None),
-            img_id=to_int(self.params.get("img_id"), None),
-            img_h=to_int(self.params.get("img_h"), None),
-        )
-        return result
+        return set_items([item], tag_applier=apply_videoinfotag)
 
     @log.duration
     def reposition(self) -> list[DirectoryItem] | None:
