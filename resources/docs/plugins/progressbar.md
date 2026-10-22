@@ -1,7 +1,9 @@
 # Progress Bar Helper
 
 Works out how much of the focused item has been watched, returns it on a list item,
-and moves and sizes a progress bar group to fit your layout.
+and moves and sizes a progress bar group to fit your layout. The same item carries
+short context values for a label beside the bar: time left, the next episode, a "new"
+flag and the next air date.
 
 It handles movies, episodes, TV shows, seasons and movie sets. For a set it counts the
 watched movies in the set.
@@ -43,6 +45,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `btn_id` | control id | `target_id + 2` | Button id. |
 | `img_id` | control id | `target_id + 3` | Image id. |
 | `img_h` | whole number | the bar height | Height of the image. |
+| `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air`, e.g. `14 Nov`. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 Placement parameters (`coords`, `anchor_id`, `inset`, `track_w`, `track_h`,
@@ -70,9 +73,37 @@ One list item in the helper container:
 |---|---|
 | `ListItem.PercentPlayed` | The value above, 0–100 (set as the resume point out of 100). |
 | `ListItem.Property(unwatchedepisodes)` | `ListItem.Property(UnwatchedEpisodes)` of the focused item. For a set, the number of unwatched movies. Empty when the item is watched. |
+| `ListItem.Property(time_left)` | A part-watched movie or episode: the runtime left, rounded up to the minute, e.g. `1h 23m` or `48m`. |
+| `ListItem.Property(next_episode)` | A started TV show or season with unwatched episodes: the lowest unwatched episode outside the specials, e.g. `S02E10`. |
+| `ListItem.Property(new)` | `true` for a started TV show whose newest unwatched episode (specials included) was added after the show was last played. |
+| `ListItem.Property(next_air)` | A TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
+
+Each context value is empty when it doesn't apply, so a label can test them in turn
+with `String.IsEmpty`. They are worked out after the bar has moved, so they never
+delay the placement; the item itself returns once they are ready.
+
+## How the context values are worked out
+
+- **`time_left`**: `ListItem.Duration` × (100 − `ListItem.PercentPlayed`) / 100.
+  `PercentPlayed` is a whole number, so the result is within half a percent of the
+  runtime.
+- **Started** means what Kodi's `inprogress` smart-playlist rule means for a show,
+  read from the focused item (`WatchedEpisodes`, `InProgressEpisodes`,
+  `UnwatchedEpisodes`): some episodes watched and some not, or none watched and at
+  least one part-watched. A show or season that isn't started, is fully watched or
+  isn't in the library makes no episode call.
+- **`next_episode`** and **`new`**: one `VideoLibrary.GetEpisodes` call for the
+  started show's unwatched episodes (a season's own, or the whole show for
+  *All seasons*). `next_episode` is the episode [`next_up`](library.md#next_up)
+  lists for the show. For `new`, one `VideoLibrary.GetTVShowDetails` call reads the
+  show's `lastplayed`: `ListItem.LastPlayed` gives a date with no time.
+- **`next_air`**: TMDb's next episode air date, read from the add-on's cache only;
+  this path never asks TMDb. The [metadata](metadata.md#tmdb-lookups) plugin fills
+  the cache when called with `enrich_with_tmdb=true` and a TMDb token is set. Until
+  it has, and once the date is past, `next_air` is empty.
 
 ## Focus guard
 
 The guard is checked before the value is worked out and again before any control
-moves. If focus moved on in between, the list item is still returned but no control
-moves.
+moves. If focus moved on in between, the list item is still returned without the
+context values, and no control moves.

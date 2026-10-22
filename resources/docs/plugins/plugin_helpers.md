@@ -35,7 +35,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `multiart_tiles` | Fills several FadeLabels in an info dialog with the item's artwork, so they change one at a time. | [Artwork](artwork.md#multiart_tiles) |
 | `metadata` | Returns tidied details of the focused item, with optional TMDb details. | [Metadata](metadata.md) |
 | `tmdb_details` | Returns the focused item's details and artwork from TMDb. | [Metadata](metadata.md#tmdb_details) |
-| `progressbar` | Works out watched progress and places a progress bar. | [Progress Bar](progressbar.md) |
+| `progressbar` | Works out watched progress and context labels (time left, next episode, new, next air date) and places a progress bar. | [Progress Bar](progressbar.md) |
 | `typewriter` | Types a label into a textbox one character at a time. | [Typewriter](typewriter.md) |
 | `text` | Draws text into a PNG image. | [Text Image](text.md) |
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
@@ -207,7 +207,7 @@ Guarded handlers don't check once at startup — they re-check before every stag
 - **`tmdb_details`** checks before and after the TMDb lookup.
 - **`text`** checks before and after drawing the image.
 - **`typewriter`** receives the guard's `alive` callable and checks it **after every 25 ms wait** (once before the textbox shows, then after each character), alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
-- **`progressbar`** checks before calculating and again before moving UI controls (the data result is still returned; only the UI update is skipped).
+- **`progressbar`** checks before calculating and again before moving UI controls (the progress value is still returned; the UI update and the context values are skipped).
 - **`reposition`**, `multiart_tiles`, the library listings and `speed_dial` are unguarded. `multiart_tiles` has its own check instead (see [Artwork](artwork.md#multiart_tiles)).
 
 ---
