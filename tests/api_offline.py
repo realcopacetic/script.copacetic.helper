@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 from urllib.error import HTTPError, URLError
@@ -530,6 +531,23 @@ class TmdbTest(Base):
         self.assertNotIn("include_image_language", url)
         self.assertTrue(self.tmdb_row("tmdb:tvshow:1399:en-US|noart")[0])
 
+    def test_next_air_reads_the_cache_only(self):
+        day = date.today() + timedelta(days=30)
+        tv = json.loads(TMDB_TV) | {"next_episode_to_air": {"air_date": str(day)}}
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params, handler.dbtype = {}, ""
+        handler.target_item = "Container(50).ListItem"
+        labels = {"DBType": "tvshow", "DBID": "7", "UniqueID(tmdb)": "1399"}
+        label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
+        with mock.patch("resources.lib.apis.tmdb.context.infolabel", label):
+            self.assertEqual(handler._next_air(), "")  # nothing cached: no request
+            self.assertEqual(self.net.requests, [])
+            self.net.answers = [json.dumps(tv).encode()]  # the metadata serve's fetch
+            transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
+            self.tick(8 * DAY)  # stale, still served
+            self.assertEqual(handler._next_air(), day.strftime("%d %b"))
+        self.assertEqual(len(self.net.requests), 1)
+
     def test_refused_token_warns_once(self):
         warnings = LOG["WARNING"]
         self.net.answers = [http_error(401), http_error(403)]
@@ -878,6 +896,7 @@ class ProgressbarTest(unittest.TestCase):
         self.handler.target_item = "Container(50).ListItem"
         self.handler.dialog = False
         self.handler._guard = lambda: mock.Mock(alive=lambda: True)
+        self.handler._get_tmdb_item = lambda **kwargs: None
         self.handler.filter_unwatched = {}
 
     def label(self, path):
@@ -942,6 +961,35 @@ class ProgressbarTest(unittest.TestCase):
         self.episodes = []  # the library lost them since the item was listed
         self.assertEqual(self.prop("new", **show), "")
         self.assertEqual(len(self.shows), 3)
+
+    def test_next_air(self):
+        cached, asks = {}, []
+
+        def tmdb(**kwargs):
+            asks.append(kwargs)
+            return cached.get("item")
+
+        self.handler._get_tmdb_item = tmdb
+        show = {"DBType": "tvshow", "DBID": "7"}  # fully watched: no episode query
+        self.assertEqual(self.prop("next_air", **show), "")  # not cached
+        cached["item"] = {"properties": {}}  # ended, or between seasons
+        self.assertEqual(self.prop("next_air", **show), "")
+        for days, shown in ((23, True), (0, True), (-1, False)):
+            day = date.today() + timedelta(days=days)
+            cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
+            expected = day.strftime("%d %b") if shown else ""
+            self.assertEqual(self.prop("next_air", **show), expected)
+        self.handler.params["date_format"] = "%A %d %B"
+        self.assertEqual(self.prop("next_air", **show), "")  # still yesterday
+        day = date.today() + timedelta(days=2)
+        cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
+        self.assertEqual(self.prop("next_air", **show), day.strftime("%A %d %B"))
+        self.assertEqual(asks[0], {"append_artwork": False, "cache_only": True})
+        for dbtype in ("season", "episode", "movie"):
+            self.labels = show | {"DBType": dbtype}
+            (item,) = self.handler.progressbar()
+            self.assertNotIn("next_air", item["properties"])
+        self.assertEqual((self.calls, len(asks)), ([], 7))
 
 
 if __name__ == "__main__":

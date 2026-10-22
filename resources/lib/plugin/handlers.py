@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from functools import partial
 from typing import Any, Callable
 
@@ -824,6 +825,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "time_left": pb.time_left(resume),
                 **self._show_context(pb.infolabels),
             }
+            if pb.infolabels["DBType"] == "tvshow":
+                item["properties"]["next_air"] = self._next_air()
 
         return set_items([item], tag_applier=apply_videoinfotag)
 
@@ -885,6 +888,22 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "next_episode": "S{:02d}E{:02d}".format(*first) if first else "",
             "new": "true" if new else "",
         }
+
+    def _next_air(self) -> str:
+        """
+        The focused show's next air date from the TMDb cache, never fetched here,
+        in date_format (strftime, default "%d %b").
+
+        :return: The formatted date; empty if not cached, none is due, or it has passed.
+        """
+        # No art: the art-less entry at any age, or the art one while fresh
+        tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
+        if not (tmdb and (iso := tmdb["properties"].get("tmdb_next_air_date"))):
+            return ""
+        day = date.fromisoformat(iso)
+        if day < date.today():
+            return ""
+        return day.strftime(self.params.get("date_format", "%d %b"))
 
     @log.duration
     def reposition(self) -> list[DirectoryItem] | None:
