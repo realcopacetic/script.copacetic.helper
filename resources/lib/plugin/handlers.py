@@ -893,7 +893,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             # compute_new_unwatched's rule, on dateadded. ListItem.LastPlayed is a date
             # only; Kodi's "YYYY-MM-DD HH:MM:SS" strings sort in time order.
             show = _video_details("tvshow", show_id, ["lastplayed"], "progressbar")
-            lastplayed = show["lastplayed"]
+            lastplayed = show and show["lastplayed"]  # None: an error answer
             new = lastplayed and max(ep["dateadded"] for ep in unwatched) > lastplayed
         return {
             "next_episode": "S{:02d}E{:02d}".format(*first) if first else "",

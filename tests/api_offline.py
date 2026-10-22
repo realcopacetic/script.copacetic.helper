@@ -893,6 +893,8 @@ class ProgressbarTest(unittest.TestCase):
             request = json.loads(request)
             if request["method"] == "VideoLibrary.GetTVShowDetails":
                 self.shows.append(request["params"]["tvshowid"])
+                if self.lastplayed is None:  # e.g. the MySQL connection dropped
+                    return json.dumps({"error": {"code": -32100}})
                 details = {"lastplayed": self.lastplayed}
                 return json.dumps({"result": {"tvshowdetails": details}})
             self.calls.append(request["params"])
@@ -980,12 +982,15 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("new", **show), "")
         self.lastplayed = ""  # no lastplayed: nothing to be newer than
         self.assertEqual(self.prop("new", **show), "")
+        self.lastplayed = None  # an error answer: next_episode still stands
+        self.assertEqual(self.prop_all(**show)["next_episode"], "S02E10")
+        self.assertEqual(self.prop("new", **show), "")
         season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "2"}
         self.lastplayed = "2026-01-01 00:00:00"
         self.assertEqual(self.prop("new", **season), "")  # a show-only property
         self.episodes = []  # the library lost them since the item was listed
         self.assertEqual(self.prop("new", **show), "")
-        self.assertEqual(len(self.shows), 3)
+        self.assertEqual(len(self.shows), 5)
 
     def test_focus_lost(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
