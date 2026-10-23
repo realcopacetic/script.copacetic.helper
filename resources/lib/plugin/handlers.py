@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from functools import partial
 from typing import Any, Callable
 
@@ -827,7 +827,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             img_h=to_int(self.params.get("img_h"), None),
         )
         # The bar is placed first, but it appears only when the item returns, so a
-        # started show adds two library calls to that. A superseded serve makes none.
+        # started show adds up to two library calls to that. A superseded serve, none.
         if guard.alive():
             item["properties"] |= {
                 "time_left": pb.time_left(resume),
@@ -841,8 +841,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     ) -> dict[str, str]:
         """
         A started show's or season's next_episode (Kodi's inprogress rule, as next_up)
-        and a show's new, from one GetEpisodes call plus the show's lastplayed;
-        a fully watched show's next_air. Nothing else costs a call.
+        and a show's new, from one GetEpisodes call plus the show's lastplayed when its
+        newest unwatched episode is within new_days; a fully watched show's next_air.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :param alive: The focus guard's check, made again between the library calls.
@@ -890,19 +890,30 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             ((ep["season"], ep["episode"]) for ep in unwatched if ep["season"] > 0),
             default=None,
         )
-        new = False
-        if dbtype == "tvshow" and unwatched:
+        added = max((ep["dateadded"] for ep in unwatched), default="")
+        new = dbtype == "tvshow" and added >= self._added_since()
+        if new:
             if not alive():
                 return {}
             # compute_new_unwatched's rule, on dateadded. ListItem.LastPlayed is a date
             # only; Kodi's "YYYY-MM-DD HH:MM:SS" strings sort in time order.
             show = _video_details("tvshow", show_id, ["lastplayed"], "progressbar")
             lastplayed = show and show["lastplayed"]  # None: an error answer
-            new = lastplayed and max(ep["dateadded"] for ep in unwatched) > lastplayed
+            new = lastplayed and added > lastplayed
         return {
             "next_episode": "S{:02d}E{:02d}".format(*first) if first else "",
             "new": "true" if new else "",
         }
+
+    def _added_since(self) -> str:
+        """
+        The earliest dateadded that is still new: new_days (default 30) before now,
+        as JSON-RPC writes it ("YYYY-MM-DD HH:MM:SS"), so string order is time order.
+
+        :return: The cutoff as "YYYY-MM-DD HH:MM:SS", local time.
+        """
+        days = to_int(self.params.get("new_days"), 30)
+        return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
 
     def _next_air(self) -> str:
         """

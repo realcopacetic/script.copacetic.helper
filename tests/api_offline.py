@@ -16,7 +16,7 @@ import sys
 import tempfile
 import time
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest import mock
 from urllib.error import HTTPError, URLError
@@ -888,16 +888,21 @@ class NextUpTest(unittest.TestCase):
         self.assertEqual(len(self.calls), 2)
 
 
+def days_ago(days):
+    """A JSON-RPC dateadded or lastplayed string, days before now."""
+    return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
+
+
 class ProgressbarTest(unittest.TestCase):
     """info=progressbar's context properties, read off the item it returns."""
 
     episodes = [
-        {"season": 0, "episode": 1, "dateadded": "2026-10-20 21:00:00"},
-        {"season": 2, "episode": 11, "dateadded": "2026-10-01 09:00:00"},
-        {"season": 3, "episode": 1, "dateadded": "2026-10-01 09:00:00"},
-        {"season": 2, "episode": 10, "dateadded": "2026-10-01 09:00:00"},
+        {"season": 0, "episode": 1, "dateadded": days_ago(3)},
+        {"season": 2, "episode": 11, "dateadded": days_ago(22)},
+        {"season": 3, "episode": 1, "dateadded": days_ago(22)},
+        {"season": 2, "episode": 10, "dateadded": days_ago(22)},
     ]
-    lastplayed = "2026-10-12 20:15:00"
+    lastplayed = days_ago(11)
 
     def setUp(self):
         self.labels, self.calls, self.shows = {}, [], []
@@ -989,8 +994,8 @@ class ProgressbarTest(unittest.TestCase):
     def test_new(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
         show["Property(WatchedEpisodes)"] = "9"
-        self.assertEqual(self.prop("new", **show), "true")  # the special, added 20 Oct
-        self.lastplayed = "2026-10-20 21:00:00"  # the same second: not later
+        self.assertEqual(self.prop("new", **show), "true")  # the special, 3 days ago
+        self.lastplayed = self.episodes[0]["dateadded"]  # the same second: not later
         self.assertEqual(self.prop("new", **show), "")
         self.lastplayed = ""  # no lastplayed: nothing to be newer than
         self.assertEqual(self.prop("new", **show), "")
@@ -998,11 +1003,30 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop_all(**show)["next_episode"], "S02E10")
         self.assertEqual(self.prop("new", **show), "")
         season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "2"}
-        self.lastplayed = "2026-01-01 00:00:00"
+        self.lastplayed = days_ago(100)
         self.assertEqual(self.prop("new", **season), "")  # a show-only property
         self.episodes = []  # the library lost them since the item was listed
         self.assertEqual(self.prop("new", **show), "")
         self.assertEqual(len(self.shows), 5)
+
+    def test_new_expires(self):
+        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
+        show["Property(WatchedEpisodes)"] = "9"
+        self.lastplayed = days_ago(100)
+        self.handler.params["new_days"] = "2"  # the special was added 3 days ago
+        self.assertEqual(self.prop("new", **show), "")
+        self.handler.params["new_days"] = "4"
+        self.assertEqual(self.prop("new", **show), "true")
+        del self.handler.params["new_days"]  # 30: only the 22-day-old ones left
+        self.episodes = self.episodes[1:]
+        self.assertEqual(self.prop_all(**show)["next_episode"], "S02E10")
+        self.assertEqual(self.prop("new", **show), "true")
+        self.episodes = [ep | {"dateadded": days_ago(31)} for ep in self.episodes]
+        self.assertEqual(self.prop("new", **show), "")
+        self.episodes = [ep | {"dateadded": ""} for ep in self.episodes]  # none known
+        self.assertEqual(self.prop("new", **show), "")
+        self.assertEqual(len(self.calls), 6)
+        self.assertEqual(len(self.shows), 3)  # no lastplayed once none is new
 
     def test_focus_lost(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
