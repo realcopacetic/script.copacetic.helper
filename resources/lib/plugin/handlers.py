@@ -827,7 +827,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             img_h=to_int(self.params.get("img_h"), None),
         )
         # The bar is placed first, but it appears only when the item returns, so a
-        # started show adds up to two library calls to that. A superseded serve, none.
+        # show adds up to two library calls to that. A superseded serve makes none.
         if guard.alive():
             item["properties"] |= {
                 "time_left": pb.time_left(resume),
@@ -840,8 +840,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self, labels: dict[str, str], alive: Callable[[], bool]
     ) -> dict[str, str]:
         """
-        A started show's or season's next_episode (Kodi's inprogress rule, as next_up)
-        and a show's new, from one GetEpisodes call plus the show's lastplayed when its
+        A started season's or any unfinished show's next_episode (as next_up) and a
+        show's new, from one GetEpisodes call plus a started show's lastplayed when its
         newest unwatched episode is within new_days; a fully watched show's next_air.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
@@ -871,8 +871,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         started = watched or to_int(labels["Property(InProgressEpisodes)"])
         # A show's Season is its season count; "* All seasons" has none
         season = to_int(labels["Season"], None) if dbtype == "season" else None
-        if not (show_id and started and left) or season == 0:  # 0: Specials, no next
-            return {"next_episode": "", "new": ""}
+        # A season needs a start (Kodi's inprogress rule); an unwatched show's next is
+        # its first episode
+        if not (show_id and left and (started or dbtype == "tvshow")) or season == 0:
+            return {"next_episode": "", "new": ""}  # 0: Specials, no next
 
         # GetEpisodes rejects season -1 (its schema minimum is 0): omit it for all
         scope = {"tvshowid": show_id} | ({} if season is None else {"season": season})
@@ -892,7 +894,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         added = max((ep["dateadded"] for ep in unwatched), default="")
         new = dbtype == "tvshow" and added >= self._added_since()
-        if new:
+        if new and started:  # an unwatched show has no lastplayed
             if not alive():
                 return {}
             # compute_new_unwatched's rule, on dateadded. ListItem.LastPlayed is a date

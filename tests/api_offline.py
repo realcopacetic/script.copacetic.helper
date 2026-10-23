@@ -968,8 +968,12 @@ class ProgressbarTest(unittest.TestCase):
         show["Property(WatchedEpisodes)"] = "9"
         self.assertEqual(self.prop("next_episode", **show), "S02E10")
         self.assertNotIn("season", self.calls.pop())
-        show["Property(WatchedEpisodes)"] = "0"
-        self.assertEqual(self.prop("next_episode", **show), "")  # not started
+        show["Property(WatchedEpisodes)"] = "0"  # unwatched: its first episode too
+        self.assertEqual(self.prop("next_episode", **show), "S02E10")
+        self.assertNotIn("season", self.calls.pop())
+        unwatched_season = show | {"DBType": "season", "TvShowDBID": "7"}
+        self.assertEqual(self.prop("next_episode", **unwatched_season), "")
+        self.assertEqual(self.calls, [])  # a season needs a start: no query
         show["Property(InProgressEpisodes)"] = "1"  # its first episode, part-watched
         self.assertEqual(self.prop("next_episode", **show), "S02E10")
         self.calls.clear()
@@ -1027,6 +1031,16 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("new", **show), "")
         self.assertEqual(len(self.calls), 6)
         self.assertEqual(len(self.shows), 3)  # no lastplayed once none is new
+
+    def test_new_unwatched_show(self):
+        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
+        properties = self.prop_all(**show)  # nothing watched or in progress
+        self.assertEqual(
+            (properties["next_episode"], properties["new"]), ("S02E10", "true")
+        )
+        self.handler.params["new_days"] = "2"  # the special was added 3 days ago
+        self.assertEqual(self.prop("new", **show), "")
+        self.assertEqual((len(self.calls), self.shows), (2, []))  # no lastplayed
 
     def test_focus_lost(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
