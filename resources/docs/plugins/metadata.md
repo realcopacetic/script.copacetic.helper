@@ -201,13 +201,15 @@ letter that fits. Results are cached by the font's name, so after changing the f
 | `truncate_lines` | whole number | `3` | Most lines to keep. |
 | `truncate_label` | any text | — | Text to cut. |
 | `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). |
-| `season_probe` | `true`, `false` | `true` | `false`: a season ignores `truncate_label_id` (below). |
+| `truncate_probe` | `true`, `false`, a `DBType` such as `season` | `true` | `false`: every type but `album`, `artist` and `song` ignores `truncate_label_id` (below); a `DBType`: items of that type ignore it. |
 
 The text used is the first that is not empty: `truncate_label`, the label of
 `truncate_label_id`, the returned plot, then `ListItem.Plot` of the focused item.
-With `season_probe=false` a season skips `truncate_label_id`: a label that reads Kodi's
-plot reads its show's, so the returned plot (TMDb's season overview when there is one)
-is cut instead.
+`truncate_probe` skips `truncate_label_id` where that label reads something else:
+`season` for a season, whose Kodi plot is its show's, so the returned plot (TMDb's
+season overview when there is one) is cut; `false` for a favourite read with `target=`,
+whose caption may be its action text, so the returned plot (the library's, else TMDb's)
+is cut. Music keeps the label: an album's or artist's caption is its description.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=font_plot</content>

@@ -617,12 +617,19 @@ class TmdbTest(Base):
             (item,) = handler.metadata()
         self.assertTrue(item["Plot"].startswith("Seven noble families"))
         self.assertEqual(item["TagLine"], "Library tagline")
-        handler.params["season_probe"] = "false"
+        handler.params["truncate_probe"] = "season"
         with mock.patch.object(helpers, "infolabel", label):
             handler.metadata()
             handler.dbtype = "episode"  # an episode's plot is its own: keeps the probe
             handler.metadata()
-        self.assertEqual(probes, [True, True, True, False, True])
+            handler.params["truncate_probe"] = "false"  # a favourite: video skips
+            handler.metadata()
+            handler._get_tmdb_item, library["Plot"] = lambda **kwargs: {}, ""
+            handler.dbtype = "season"  # a favourite season, no plot: still skips
+            handler.metadata()
+            handler.params["truncate_probe"], handler.dbtype = "false", "album"
+            handler.metadata()  # music keeps the probe (an album caption: description)
+        self.assertEqual(probes, [True, True, True, False, True, False, False, True])
 
     def test_truncated_label_probe(self):
         handler = object.__new__(handlers.PluginHandlers)

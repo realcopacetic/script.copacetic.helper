@@ -776,13 +776,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
-        # season_probe=false: the skin's probe reads Kodi's plot, a season's show's
+        # truncate_probe=<dbtype>: that type skips the skin's probe (a season's reads
+        # its show's plot); =false: every video type does (a favourite's reads its
+        # action text). Music keeps it: an album's or artist's caption is its
+        # description
+        skip = self.params.get("truncate_probe", "true")
         self._apply_truncated_label(
             data,
             target=target,
             default_text=data.get("Plot"),
-            probe=self.dbtype != "season"
-            or parse_bool(self.params.get("season_probe", "true")),
+            probe=skip != self.dbtype
+            and (skip != "false" or self.dbtype in MUSIC_TYPES),
         )
 
         return set_items([data], tag_applier=apply_videoinfotag)
