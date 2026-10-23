@@ -46,6 +46,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `img_id` | control id | `target_id + 3` | Image id. |
 | `img_h` | whole number | the bar height | Height of the image. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air`, e.g. `14 Nov`. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
+| `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDb data `next_air` reads, as in [TMDb lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 Placement parameters (`coords`, `anchor_id`, `inset`, `track_w`, `track_h`,
@@ -111,7 +112,9 @@ in the Kodi log: compare a started show with a movie.
   air date, read from the add-on's cache only; this path never asks TMDb. The
   [metadata](metadata.md#tmdb-lookups) plugin fills the cache when called with
   `enrich_with_tmdb=true`. Until it has, and once the date is past, `next_air` is
-  empty. A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its
+  empty. The cache is kept per TMDb language, so a `metadata` call with a `language`
+  fills it for a `progressbar` call with the same `language` only.
+  A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its
   default id) costs one `VideoLibrary.GetTVShowDetails` call to find its TMDb id, as
   the metadata plugin does.
 
