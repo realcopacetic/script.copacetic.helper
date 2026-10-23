@@ -28,7 +28,7 @@ One list of entries per dynamic mapping:
 
 ### Life of the file
 
-**Created** on first run: every dynamic mapping gets entries from its `default_order` (or full `items`). A dynamic mapping added to your skin later gets its entries the same way on the next start. A [fixed list](#fixed-vs-editable) with no `default_order` also gains rows for items added to its `items` later, so a new content type shows up without a reset; editable lists never do, because a missing row there may be one the user deleted. Each entry stores only its identity — `runtime_id`, `mapping_item` and, if the item's metadata has one, `parent`. Metadata is read from the mapping live, not copied.
+**Created** on first run: every dynamic mapping gets entries from its `default_order` (or full `items`). A dynamic mapping added to your skin later gets its entries the same way on the next start. A [fixed list](#fixed-vs-editable) with no `default_order` also gains rows for items added to its `items` later, so a new content type shows up without a reset, and loses the rows of items removed from it that hold no saved choice, so a dropped category doesn't linger as a blank row (a row with saved choices is kept, last, until its item returns). Its rows are kept in `items` order on every start, so a returning or reordered item takes its own slot. Editable lists do none of this, because a missing row there may be one the user deleted. Each entry stores only its identity — `runtime_id`, `mapping_item` and, if the item's metadata has one, `parent`. Metadata is read from the mapping live, not copied.
 
 **Settings appear when changed.** An untouched setting isn't stored; it reads its config default live, every time. Two consequences worth knowing: changing a default in your templates instantly reaches every entry the user never overrode, and an entry in the file tells you exactly what the user has deliberately set — nothing more.
 
@@ -53,7 +53,7 @@ They're different operations and the difference matters:
 | **Reset** (`reset=true`, dev-mode "Reset on next start") | No — the whole file goes back to defaults | Yes |
 | The editor's **Reset** button | No — for that mapping only (or one parent's entries) | Yes, when the window closes |
 
-Removed or reordered `items`, changed `default_order` or an item's `parent`, and want the *list itself* regenerated? That's a reset (items added to a fixed list arrive on their own). Other metadata and `config_fields` changes are read live, so a rebuild is enough.
+Removed or reordered `items`, changed `default_order` or an item's `parent`, and want the *list itself* regenerated? That's a reset for an editable list. A fixed list follows `items` on its own: new rows, order, and dropping removed items' rows that hold no saved choices. Other metadata and `config_fields` changes are read live, so a rebuild is enough.
 
 ---
 

@@ -29,6 +29,9 @@ from resources.lib.shared.utilities import (
 # identical runtime_ids, keeping baked XML references valid across seeds.
 RUNTIME_ID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "script.copacetic.helper")
 
+# Fields every entry carries; a row with nothing else holds no user choice.
+IDENTITY_FIELDS = frozenset({"runtime_id", "mapping_item", "parent"})
+
 
 class RuntimeStateManager:
     """
@@ -270,31 +273,50 @@ class RuntimeStateManager:
     def initialize_runtime_state(self) -> bool:
         """
         Create runtime_state.json from defaults if absent; in an existing file,
-        add missing mappings and the rows a fixed list gained since it was seeded.
+        add missing mappings; a fixed list gains rows for new items, drops bare rows
+        (no saved choice) of removed ones, and keeps its rows in ``items`` order.
 
-        :return: True when state was written (fresh seed, new mappings or rows).
+        :return: True when state was written (fresh seed, new mappings, rows changed).
         """
         state = self.runtime_state if self.exists else {}
-        added = {}
+        changed = {}
         for mapping_key, mapping in self.mappings.items():
             if mapping.get("mode") != "dynamic":
                 continue
+            kept, order = state.get(mapping_key, []), {}
             if mapping_key not in state:
                 items = mapping.get("default_order", mapping.get("items", []))
             elif self._is_fixed_list(mapping_key):
-                present = {entry["mapping_item"] for entry in state[mapping_key]}
-                items = [item for item in mapping["items"] if item not in present]
+                order = {item: i for i, item in enumerate(mapping["items"])}
+                kept, dropped = [], []
+                for entry in state[mapping_key]:
+                    if entry["mapping_item"] in order or entry.keys() - IDENTITY_FIELDS:
+                        kept.append(entry)
+                    else:
+                        dropped.append(entry["mapping_item"])
+                if dropped:
+                    log.info(
+                        f"{self.__class__.__name__} → {mapping_key}: dropped rows "
+                        f"for {dropped}"
+                    )
+                present = {entry["mapping_item"] for entry in kept}
+                items = [item for item in order if item not in present]
             else:
                 continue
-            new = [
+            rows = kept + [
                 self._build_default_entry(mapping_key, item, deterministic=True)
                 for item in items
             ]
-            if new or mapping_key not in state:
-                added[mapping_key] = state.get(mapping_key, []) + new
+            if order:
+                # Users can't reorder a fixed list: rows follow items, orphans last.
+                rows.sort(
+                    key=lambda entry: order.get(entry["mapping_item"], len(order))
+                )
+            if rows != state.get(mapping_key):
+                changed[mapping_key] = rows
         seeded = False
-        if added or not self.exists:
-            merged = {**state, **added}
+        if changed or not self.exists:
+            merged = {**state, **changed}
             self._resolve_parent_refs(merged)
             self._write_and_invalidate(merged)
             seeded = True
