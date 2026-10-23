@@ -861,6 +861,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.target_item,
             [
                 "DBID",
+                "LastPlayed",
                 "Property(InProgressEpisodes)",
                 "Property(WatchedEpisodes)",
                 "Season",
@@ -874,7 +875,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         # No library id (a plugin's item): tvshowid 0 would ask for every show
         show_id = to_int(labels["TvShowDBID" if dbtype == "season" else "DBID"])
-        started = watched or to_int(labels["Property(InProgressEpisodes)"])
+        # Kodi's own items carry InProgressEpisodes, "0" too. A helper item has none
+        # (JSON-RPC has no such field), so any play counts: a lastplayed.
+        inprogress = labels["Property(InProgressEpisodes)"]
+        started = watched or (
+            to_int(inprogress) if inprogress else labels["LastPlayed"]
+        )
         # A show's Season is its season count; "* All seasons" has none
         season = to_int(labels["Season"], None) if dbtype == "season" else None
         # A season needs a start (Kodi's inprogress rule); an unwatched show's next is

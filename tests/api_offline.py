@@ -1092,6 +1092,19 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("new", **show), "")
         self.assertEqual((len(self.calls), self.shows), (2, []))  # no lastplayed
 
+    def test_new_played_show(self):
+        # A helper item has no InProgressEpisodes: a lastplayed alone means started
+        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
+        show["LastPlayed"] = "12/10/2026"  # a date only, in the region's format
+        self.assertEqual(self.prop("new", **show), "true")  # the special came after
+        self.lastplayed = days_ago(1)  # played since the special was added
+        self.assertEqual(self.prop("new", **show), "")
+        # Kodi's own item keeps Kodi's rule: a short play's lastplayed survives Mark
+        # unwatched, so with "0" in progress the show is unwatched
+        show["Property(InProgressEpisodes)"] = "0"
+        self.assertEqual(self.prop("new", **show), "true")
+        self.assertEqual((len(self.calls), self.shows), (3, [7, 7]))
+
     def test_new_film(self):
         film = {"DBType": "movie", "DBID": "12"}
         self.assertEqual(self.prop("new", **film), "true")  # added 5 days ago
