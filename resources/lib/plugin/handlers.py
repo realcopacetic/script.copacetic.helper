@@ -337,8 +337,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param cache_only: Read the TMDb cache only; never fetch.
         :return: canonical item dict or None.
         """
+        from resources.lib.apis.tmdb.client import get_tmdb_client
         from resources.lib.apis.tmdb.context import resolve_tmdb_context
         from resources.lib.apis.tmdb.transform import tmdb_to_canonical
+
+        if not get_tmdb_client():  # off: skip resolve_tmdb_context's uniqueid lookup
+            return
 
         target = self.target_item
         ctx = resolve_tmdb_context(self.params, target=target)
@@ -907,11 +911,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: The formatted date; empty if not cached, none is due, or it has passed.
         """
-        from resources.lib.apis.tmdb.client import get_tmdb_client
-
-        # Off: no cache to read, so skip resolve_tmdb_context's uniqueid lookup too
-        if not get_tmdb_client():
-            return ""
         # No art: the art-less entry at any age, or the art one while fresh
         tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
         if not (tmdb and (iso := tmdb["properties"].get("tmdb_next_air_date"))):

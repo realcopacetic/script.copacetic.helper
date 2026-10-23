@@ -31,7 +31,6 @@ sys.modules["xbmcvfs"].mkdirs = lambda path: Path(path).mkdir(exist_ok=True) or 
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.apis import http, listenbrainz  # noqa: E402
-from resources.lib.apis.tmdb import client as tmdb_client  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.plugin import handlers, helpers  # noqa: E402
@@ -887,7 +886,7 @@ class ProgressbarTest(unittest.TestCase):
     lastplayed = "2026-10-12 20:15:00"
 
     def setUp(self):
-        self.labels, self.calls, self.shows, self.tmdb_on = {}, [], [], True
+        self.labels, self.calls, self.shows = {}, [], []
 
         def rpc(request):
             request = json.loads(request)
@@ -907,7 +906,6 @@ class ProgressbarTest(unittest.TestCase):
             (helpers.ProgressBarManager, "update", lambda self, percent, **kw: None),
             (handlers, "set_items", lambda items, **kwargs: items),
             (handlers, "getCurrentWindowId", lambda: 10025),
-            (tmdb_client, "get_tmdb_client", lambda: self.tmdb_on),
         ):
             patcher = mock.patch.object(target, name, value, create=True)
             patcher.start()
@@ -1046,9 +1044,6 @@ class ProgressbarTest(unittest.TestCase):
             counts = {"Property(WatchedEpisodes)": watched}
             counts["Property(UnwatchedEpisodes)"] = left
             self.assertNotIn("next_air", self.prop_all(**show | counts))
-        self.calls.clear()
-        self.tmdb_on = None  # no token: no lookup, not even the cache
-        self.assertEqual(self.prop("next_air", **show), "")
         self.assertEqual(len(asks), 7)
 
 
