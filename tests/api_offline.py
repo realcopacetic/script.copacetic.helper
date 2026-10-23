@@ -1,7 +1,7 @@
 """
 Offline checks for the web API layer: apis/http.py, the api_cache table,
 apis/listenbrainz.py (TTLs, stale-on-failure, rate limit), top_songs and the
-TMDb client and cache (apis/tmdb).
+TMDb client and cache (apis/tmdb), and the plugin URL parser (shared/parser.py).
 
 Network calls are replaced by recorded ListenBrainz answers
 (tests/fixtures/listenbrainz_*.json, Gorillaz, fetched Oct 2026), the documented
@@ -41,6 +41,7 @@ from resources.lib.plugin.music import (  # noqa: E402
     title_key,
 )
 from resources.lib.script import actions  # noqa: E402
+from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 
 FIXTURES = HELPER / "tests" / "fixtures"
@@ -826,6 +827,39 @@ class ListenersTest(Base):
         self.mbid = "f959a46a-a136-3134-9412-6572b23fad95"
         self.answer(None)
         self.assertIsNone(self.handler.listeners())
+
+
+class ParserTest(unittest.TestCase):
+    def parse(self, query):
+        return parse_plugin_argv(["plugin://script.copacetic.helper/", "1", query])
+
+    def test_empty_var_separators(self):
+        # An empty $VAR leaves a trailing '&' or '&&': neither joins the value
+        for query in (
+            "?info=metadata&random_pick=true&",
+            "?info=metadata&random_pick=true&&",
+            "?info=metadata&random_pick=true&&season_probe=false",
+            "?&info=metadata&&random_pick=true",
+        ):
+            params = self.parse(query)
+            self.assertEqual(params["info"], "metadata")
+            self.assertEqual(params["random_pick"], "true")
+        self.assertEqual(
+            self.parse("?focus_ids=3200,4200,215&&target_id=4010&img_h=2"),
+            {"focus_ids": "3200,4200,215", "target_id": "4010", "img_h": "2"},
+        )
+        self.assertEqual(self.parse("?label=&id=3&"), {"label": "", "id": "3"})
+
+    def test_raw_and_encoded_ampersands(self):
+        # A raw '&' not followed by key= stays in the value; '%26' always does
+        self.assertEqual(
+            self.parse("?label=Tom & Jerry&amp;id=3&tag=R&&B"),
+            {"label": "Tom & Jerry", "id": "3", "tag": "R&&B"},
+        )
+        self.assertEqual(
+            self.parse("?label=Tom %26 Jerry&tag=true%26&"),
+            {"label": "Tom & Jerry", "tag": "true&"},
+        )
 
 
 class NextUpTest(unittest.TestCase):

@@ -4,8 +4,12 @@ from typing import Iterable, Iterator
 import re
 import urllib.parse as urllib
 
-_PLUGIN_KV = re.compile(r"([A-Za-z0-9_.%-]+)=(.*?)(?=&[A-Za-z0-9_.%-]+=|$)", re.DOTALL)
-"""Extract k=v where value runs up to the next &KEY= or end; preserves raw '&' in values."""
+_PLUGIN_KV = re.compile(
+    r"([A-Za-z0-9_.%-]+)=(.*?)(?=&+[A-Za-z0-9_.%-]+=|&*$)", re.DOTALL
+)
+"""Extract k=v; a value runs to the next &KEY= or the end, keeping other raw '&'.
+A run of '&' before a key or at the end separates (an empty $VAR leaves '&&' or '&'),
+so a value's own trailing '&' is dropped: label "Rock &" → "Rock ", label=& → ""."""
 
 
 def parse_params(argv: list[str], mode: str = "plugin") -> dict[str, str]:
@@ -24,7 +28,8 @@ def parse_params(argv: list[str], mode: str = "plugin") -> dict[str, str]:
 def parse_plugin_argv(argv: list[str]) -> dict[str, str]:
     """
     Parse plugin argv. Accepts '?k=v&k=v' or 'k=v&k=v' in argv[2].
-    Preserves raw '&' inside values by splitting only at '&KEY='.
+    Preserves raw '&' inside values by splitting only at '&KEY=' ('&&KEY=') or a
+    trailing '&'.
 
     :param argv: sys.argv list; querystring is expected in argv[2].
     :return: Dict of parsed key-value parameter pairs.
