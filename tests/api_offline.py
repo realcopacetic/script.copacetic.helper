@@ -964,8 +964,11 @@ class ProgressbarTest(unittest.TestCase):
                     return json.dumps({"error": {"code": -32100}})
                 details = {"lastplayed": self.lastplayed}
                 return json.dumps({"result": {"tvshowdetails": details}})
-            self.calls.append(request["params"])
-            return json.dumps({"result": {"episodes": self.episodes}})
+            params = request["params"]
+            self.calls.append(params)
+            season = params.get("season")  # none: the whole show
+            rows = [ep for ep in self.episodes if season in (None, ep["season"])]
+            return json.dumps({"result": {"episodes": rows}})
 
         for target, name, value in (
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
@@ -1021,9 +1024,24 @@ class ProgressbarTest(unittest.TestCase):
         show["Property(WatchedEpisodes)"] = "0"  # unwatched: its first episode too
         self.assertEqual(self.prop("next_episode", **show), "S02E10")
         self.assertNotIn("season", self.calls.pop())
-        unwatched_season = show | {"DBType": "season", "TvShowDBID": "7"}
-        self.assertEqual(self.prop("next_episode", **unwatched_season), "")
-        self.assertEqual(self.calls, [])  # a season needs a start: no query
+        unwatched_season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "3"}
+        properties = self.prop_all(**unwatched_season)  # not started: its next too
+        self.assertEqual(
+            (properties["next_episode"], properties["new"]), ("S03E01", "")
+        )
+        self.assertEqual(self.calls.pop()["season"], 3)
+        favourite = unwatched_season | {"DBID": "40", "TvShowDBID": ""}
+        favourite["Property(tvshowid)"] = "7"
+        self.assertEqual(self.prop("next_episode", **favourite), "S03E01")
+        self.assertEqual(self.calls.pop()["tvshowid"], 7)  # a helper season's show id
+        for empty in (
+            {"Season": "0"},
+            {"Property(UnwatchedEpisodes)": "0"},
+            {"Property(tvshowid)": ""},
+            {"DBID": ""},  # another add-on's season: its tvshowid may be a TMDb id
+        ):
+            self.assertEqual(self.prop("next_episode", **favourite | empty), "")
+        self.assertEqual(self.calls, [])  # Specials, none left or no show id: no query
         show["Property(InProgressEpisodes)"] = "1"  # its first episode, part-watched
         self.assertEqual(self.prop("next_episode", **show), "S02E10")
         self.calls.clear()
@@ -1034,15 +1052,17 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.calls, [])  # watched, or a plugin's show: no query
 
         season = show | {"DBType": "season", "DBID": "40", "TvShowDBID": "7"}
-        self.assertEqual(self.prop("next_episode", **season), "S02E10")
+        self.assertEqual(
+            self.prop("next_episode", **season | {"Season": "2"}), "S02E10"
+        )
         call = self.calls.pop()
-        self.assertEqual((call["tvshowid"], call["season"]), (7, 4))
+        self.assertEqual((call["tvshowid"], call["season"]), (7, 2))
         self.prop("next_episode", **season | {"Season": ""})  # * All seasons
         self.assertNotIn("season", self.calls.pop())  # -1 fails GetEpisodes' minimum
         self.assertEqual(self.prop("next_episode", **season | {"Season": "0"}), "")
         self.assertEqual(self.calls, [])  # Specials: no query
         self.episodes = self.episodes[:1]  # only a special left
-        self.assertEqual(self.prop("next_episode", **season), "")
+        self.assertEqual(self.prop("next_episode", **season | {"Season": ""}), "")
         self.assertEqual(self.shows, [7, 7, 7])  # lastplayed: shows only, when queried
 
     def test_new(self):

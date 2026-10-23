@@ -831,8 +831,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             img_h=to_int(self.params.get("img_h"), None),
         )
         # The bar is placed first, but it appears only when the item returns, so a
-        # show adds up to two library calls to that and a film one. A superseded
-        # serve makes none.
+        # show adds up to two library calls to that and a season or film one. A
+        # superseded serve makes none.
         if guard.alive():
             item["properties"] |= {
                 "time_left": pb.time_left(resume),
@@ -846,9 +846,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self, labels: dict[str, str], alive: Callable[[], bool]
     ) -> dict[str, str]:
         """
-        A started season's or any unfinished show's next_episode (as next_up) and a
-        show's new, from one GetEpisodes call plus a started show's lastplayed when its
-        newest unwatched episode is within new_days; a fully watched show's next_air.
+        An unfinished show's or season's next_episode (as next_up) and a show's new,
+        from one GetEpisodes call plus a started show's lastplayed when its newest
+        unwatched episode is within new_days; a fully watched show's next_air.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :param alive: The focus guard's check, made again between the library calls.
@@ -864,6 +864,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "LastPlayed",
                 "Property(InProgressEpisodes)",
                 "Property(WatchedEpisodes)",
+                "Property(tvshowid)",
                 "Season",
                 "TvShowDBID",
             ],
@@ -873,19 +874,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if dbtype == "tvshow" and watched and not left:  # fully watched
             return {"next_air": self._next_air()}
 
-        # No library id (a plugin's item): tvshowid 0 would ask for every show
-        show_id = to_int(labels["TvShowDBID" if dbtype == "season" else "DBID"])
-        # Kodi's own items carry InProgressEpisodes, "0" too. A helper item has none
-        # (JSON-RPC has no such field), so any play counts: a lastplayed.
-        inprogress = labels["Property(InProgressEpisodes)"]
-        started = watched or (
-            to_int(inprogress) if inprogress else labels["LastPlayed"]
-        )
+        # No library id (a plugin's item): tvshowid 0 would ask for every show. A
+        # favourite's season (a helper item) has a DBID but no TvShowDBID, only
+        # Property(tvshowid); another add-on's may hold some other id.
+        if dbtype == "tvshow":
+            show_id = to_int(labels["DBID"])
+        else:
+            show_id = to_int(
+                labels["TvShowDBID"]
+                or (labels["DBID"] and labels["Property(tvshowid)"])
+            )
         # A show's Season is its season count; "* All seasons" has none
         season = to_int(labels["Season"], None) if dbtype == "season" else None
-        # A season needs a start (Kodi's inprogress rule); an unwatched show's next is
-        # its first episode
-        if not (show_id and left and (started or dbtype == "tvshow")) or season == 0:
+        # Started or not: an unwatched show's or season's next is its first episode
+        if not (show_id and left) or season == 0:
             return {"next_episode": "", "new": ""}  # 0: Specials, no next
 
         # GetEpisodes rejects season -1 (its schema minimum is 0): omit it for all
@@ -906,7 +908,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         added = max((ep["dateadded"] for ep in unwatched), default="")
         new = dbtype == "tvshow" and added >= self._added_since()
-        if new and started:  # an unwatched show has no lastplayed
+        # Kodi's own items carry InProgressEpisodes, "0" too. A helper item has none
+        # (JSON-RPC has no such field), so any play counts: a lastplayed.
+        inprogress = labels["Property(InProgressEpisodes)"]
+        started = watched or (
+            to_int(inprogress) if inprogress else labels["LastPlayed"]
+        )
+        if new and started:  # an unstarted show's new is its dateadded alone
             if not alive():
                 return {}
             # compute_new_unwatched's rule, on dateadded. ListItem.LastPlayed is a date
