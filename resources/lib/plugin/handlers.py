@@ -827,11 +827,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             img_h=to_int(self.params.get("img_h"), None),
         )
         # The bar is placed first, but it appears only when the item returns, so a
-        # show adds up to two library calls to that. A superseded serve makes none.
+        # show adds up to two library calls to that and a film one. A superseded
+        # serve makes none.
         if guard.alive():
             item["properties"] |= {
                 "time_left": pb.time_left(resume),
                 **self._show_context(pb.infolabels, guard.alive),
+                **self._film_new(pb.infolabels, resume),
             }
 
         return set_items([item], tag_applier=apply_videoinfotag)
@@ -906,6 +908,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "next_episode": "S{:02d}E{:02d}".format(*first) if first else "",
             "new": "true" if new else "",
         }
+
+    def _film_new(self, labels: dict[str, str], resume: float) -> dict[str, str]:
+        """
+        A film's new when it has no resume point and no play count and was added within
+        new_days, from one GetMovieDetails call: ListItem.DateAdded is in the region's
+        short date format, not parseable.
+
+        :param labels: The focused item's infolabels, as ProgressBarManager read them.
+        :param resume: Progress from ProgressBarManager.calculate: 0 for unwatched.
+        :return: The new property; none for other types, or a started or watched film.
+        """
+        # No library id (a plugin's item): nothing to look up
+        if (
+            labels["DBType"] != "movie"
+            or resume
+            or not (dbid := to_int(infolabel(f"{self.target_item}.DBID")))
+        ):
+            return {}
+        film = _video_details("movie", dbid, ["dateadded"], "progressbar")
+        new = film and film["dateadded"] >= self._added_since()  # None: an error answer
+        return {"new": "true" if new else ""}
 
     def _added_since(self) -> str:
         """

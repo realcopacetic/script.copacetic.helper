@@ -903,12 +903,20 @@ class ProgressbarTest(unittest.TestCase):
         {"season": 2, "episode": 10, "dateadded": days_ago(22)},
     ]
     lastplayed = days_ago(11)
+    film_added = days_ago(5)
 
     def setUp(self):
-        self.labels, self.calls, self.shows = {}, [], []
+        self.labels, self.calls, self.shows, self.films = {}, [], [], []
+        self.watched = False
 
         def rpc(request):
             request = json.loads(request)
+            if request["method"] == "VideoLibrary.GetMovieDetails":
+                self.films.append(request["params"]["movieid"])
+                if self.film_added is None:  # an error answer
+                    return json.dumps({"error": {"code": -32100}})
+                details = {"dateadded": self.film_added}
+                return json.dumps({"result": {"moviedetails": details}})
             if request["method"] == "VideoLibrary.GetTVShowDetails":
                 self.shows.append(request["params"]["tvshowid"])
                 if self.lastplayed is None:  # e.g. the MySQL connection dropped
@@ -921,7 +929,8 @@ class ProgressbarTest(unittest.TestCase):
         for target, name, value in (
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
             (helpers, "infolabel", self.label),
-            (helpers, "condition", lambda expr: False),
+            (handlers, "infolabel", self.label),
+            (helpers, "condition", lambda expr: self.watched),
             (helpers.ProgressBarManager, "update", lambda self, percent, **kw: None),
             (handlers, "set_items", lambda items, **kwargs: items),
             (handlers, "getCurrentWindowId", lambda: 10025),
@@ -1041,6 +1050,31 @@ class ProgressbarTest(unittest.TestCase):
         self.handler.params["new_days"] = "2"  # the special was added 3 days ago
         self.assertEqual(self.prop("new", **show), "")
         self.assertEqual((len(self.calls), self.shows), (2, []))  # no lastplayed
+
+    def test_new_film(self):
+        film = {"DBType": "movie", "DBID": "12"}
+        self.assertEqual(self.prop("new", **film), "true")  # added 5 days ago
+        self.handler.params["new_days"] = "4"
+        self.assertEqual(self.prop("new", **film), "")
+        del self.handler.params["new_days"]
+        self.film_added = None
+        self.assertEqual(self.prop("new", **film), "")
+        self.film_added = ""  # no dateadded
+        self.assertEqual(self.prop("new", **film), "")
+        self.assertEqual(self.films, [12] * 4)
+        for labels in (
+            film | {"PercentPlayed": "30"},  # started
+            film | {"DBID": ""},  # a plugin's film
+            film | {"DBType": "episode"},
+            film | {"DBType": "musicvideo"},
+        ):
+            self.assertNotIn("new", self.prop_all(**labels))
+        self.watched = True
+        self.assertNotIn("new", self.prop_all(**film))
+        self.watched = False
+        self.alive = iter([True, True, False]).__next__  # focus left after the move
+        self.assertNotIn("new", self.prop_all(**film))
+        self.assertEqual((self.films, self.calls, self.shows), ([12] * 4, [], []))
 
     def test_focus_lost(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
