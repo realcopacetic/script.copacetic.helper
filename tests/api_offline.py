@@ -531,6 +531,20 @@ class TmdbTest(Base):
         self.assertNotIn("include_image_language", url)
         self.assertTrue(self.tmdb_row("tmdb:tvshow:1399:en-US|noart")[0])
 
+    def test_no_art_falls_back_to_a_stale_art_entry(self):
+        self.net.answers = [TMDB_TV, TimeoutError()]
+        item = transform.tmdb_to_canonical("tvshow", 1399)
+        self.tick(8 * DAY)
+        no_art = dict(append_artwork=False)
+        self.assertEqual(
+            transform.tmdb_to_canonical("tvshow", 1399, cache_only=True, **no_art), item
+        )
+        self.assertEqual(len(self.net.requests), 1)  # cache only: no request
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399, **no_art), item)
+        self.assertEqual(self.tmdb_row("tmdb:tvshow:1399:en-US|noart"), (None, 300))
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399, **no_art), item)
+        self.assertEqual(len(self.net.requests), 2)  # no retry inside the 5 minutes
+
     def test_next_air_reads_the_cache_only(self):
         day = date.today() + timedelta(days=30)
         tv = json.loads(TMDB_TV) | {"next_episode_to_air": {"air_date": str(day)}}

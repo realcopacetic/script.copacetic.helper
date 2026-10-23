@@ -911,7 +911,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: The formatted date; empty if not cached, none is due, or it has passed.
         """
-        # No art: the art-less entry at any age, or the art one while fresh
+        # No art: the art entry while fresh, else the art-less one, else stale art
         tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
         if not (tmdb and (iso := tmdb["properties"].get("tmdb_next_air_date"))):
             return ""

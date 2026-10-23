@@ -81,14 +81,15 @@ def tmdb_to_canonical(
 
     cache = ApiCacheHandler()
     key = f"tmdb:{cache_kind}:{tmdb_id}:{language_key}"
+    full = None
     if not append_artwork:
         full, fresh = cache.get(key) or (None, False)
         if full and fresh:  # the art-bearing entry is a superset
             return full
         key += "|noart"
     payload, fresh = cache.get(key) or (None, False)
-    if fresh or cache_only:
-        return payload or {}
+    if fresh or cache_only:  # a stale art-bearing entry still beats nothing
+        return payload or full or {}
 
     try:
         raw = fetch_tmdb_fields(
@@ -103,7 +104,7 @@ def tmdb_to_canonical(
             window_property(TOKEN_REFUSED, exc.status)  # the failure the user can fix
             log.warning(f"tmdb_to_canonical → TMDb refused the token ({exc.status})")
         cache.put(key, payload, _failure_ttl(exc))  # keeps a stale item, else negative
-        return payload or {}
+        return payload or full or {}
     if not raw:
         return {}
 
