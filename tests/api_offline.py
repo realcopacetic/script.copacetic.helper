@@ -938,10 +938,10 @@ class ProgressbarTest(unittest.TestCase):
     """info=progressbar's context properties, read off the item it returns."""
 
     episodes = [
-        {"season": 0, "episode": 1, "dateadded": days_ago(3)},
-        {"season": 2, "episode": 11, "dateadded": days_ago(22)},
-        {"season": 3, "episode": 1, "dateadded": days_ago(22)},
-        {"season": 2, "episode": 10, "dateadded": days_ago(22)},
+        {"season": 0, "episode": 1, "dateadded": days_ago(3), "runtime": 600},
+        {"season": 2, "episode": 11, "dateadded": days_ago(22), "runtime": 2700},
+        {"season": 3, "episode": 1, "dateadded": days_ago(22), "runtime": 3720},
+        {"season": 2, "episode": 10, "dateadded": days_ago(22), "runtime": 2581},
     ]
     lastplayed = days_ago(11)
     film_added = days_ago(5)
@@ -1096,6 +1096,24 @@ class ProgressbarTest(unittest.TestCase):
         self.episodes = self.episodes[:1]  # only a special left
         self.assertEqual(self.prop("next_episode", **season | {"Season": ""}), "")
         self.assertEqual(self.shows, [7, 7, 7])  # lastplayed: shows only, when queried
+
+    def test_next_runtime(self):
+        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
+        show["Property(WatchedEpisodes)"] = "9"
+        self.assertEqual(self.prop("next_runtime", **show), "43m")  # S02E10, 43:01
+        self.assertIn("runtime", self.calls.pop()["properties"])
+        season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "3"}
+        self.assertEqual(self.prop("next_runtime", **season), "1h 2m")  # S03E01
+        episodes = self.episodes
+        for runtime, shown in ((2610, "44m"), (3590, "1h")):  # half up; a round hour
+            self.episodes = [ep | {"runtime": runtime} for ep in episodes]
+            self.assertEqual(self.prop("next_runtime", **show), shown)
+        self.episodes = [ep | {"runtime": 0} for ep in episodes]  # none known
+        self.assertEqual(self.prop("next_runtime", **show), "")
+        self.episodes = self.episodes[:1]  # only a special left: no next
+        self.assertEqual(self.prop("next_runtime", **show), "")
+        self.assertEqual(self.prop("next_runtime", **season | {"Season": "0"}), "")
+        self.assertEqual(len(self.calls), 5)  # one GetEpisodes per serve; Season 0 none
 
     def test_new(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from datetime import date, datetime, timedelta
 from functools import partial
+from operator import itemgetter
 from typing import Any, Callable
 
 from xbmcgui import Window, getCurrentWindowId
@@ -859,9 +860,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self, labels: dict[str, str], alive: Callable[[], bool]
     ) -> dict[str, str]:
         """
-        An unfinished show's or season's next_episode (as next_up) and a show's new,
-        from one GetEpisodes call plus a started show's lastplayed when its newest
-        unwatched episode is within new_days; a fully watched show's next_air.
+        An unfinished show's or season's next_episode (as next_up), next_runtime and a
+        show's new, from one GetEpisodes call plus a started show's lastplayed when its
+        newest unwatched episode is in new_days; a fully watched show's next_air.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :param alive: The focus guard's check, made again between the library calls.
@@ -901,7 +902,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         season = to_int(labels["Season"], None) if dbtype == "season" else None
         # Started or not: an unwatched show's or season's next is its first episode
         if not (show_id and left) or season == 0:
-            return {"next_episode": "", "new": ""}  # 0: Specials, no next
+            return {"next_episode": "", "next_runtime": "", "new": ""}  # 0: Specials
 
         # GetEpisodes rejects season -1 (its schema minimum is 0): omit it for all
         scope = {"tvshowid": show_id} | ({} if season is None else {"season": season})
@@ -912,11 +913,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             sort=None,
             parent="progressbar",
             params=scope,
-            properties=["dateadded", "episode", "season"],
+            properties=["dateadded", "episode", "runtime", "season"],
         )
         # As next_up's episode sort, which orders non-specials by season then episode
         first = min(
-            ((ep["season"], ep["episode"]) for ep in unwatched if ep["season"] > 0),
+            (ep for ep in unwatched if ep["season"] > 0),
+            key=itemgetter("season", "episode"),
             default=None,
         )
         added = max((ep["dateadded"] for ep in unwatched), default="")
@@ -936,7 +938,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             lastplayed = show and show["lastplayed"]  # None: an error answer
             new = lastplayed and added > lastplayed
         return {
-            "next_episode": "S{:02d}E{:02d}".format(*first) if first else "",
+            "next_episode": (
+                "S{season:02d}E{episode:02d}".format_map(first) if first else ""
+            ),
+            # JSON-RPC's runtime: seconds, 0 when the library has none. To the nearest
+            # minute: a runtime, not time left
+            "next_runtime": (
+                hours_minutes((first["runtime"] + 30) // 60)
+                if first and first["runtime"]
+                else ""
+            ),
             "new": "true" if new else "",
         }
 
