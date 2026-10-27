@@ -327,6 +327,7 @@ class ProgressBarManager:
         self.infolabels = get_infolabels(
             self.target,
             [
+                "DBID",
                 "DBType",
                 "PercentPlayed",
                 "Property(WatchedEpisodePercent)",
@@ -358,7 +359,7 @@ class ProgressBarManager:
             return 100, ""
 
         if self.infolabels["DBType"] == "set":
-            set_id = int(infolabel(f"{self.target}.DBID") or 0)
+            set_id = int(self.infolabels["DBID"] or 0)
             if not set_id:
                 return 0, ""
 

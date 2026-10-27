@@ -843,15 +843,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             img_h=to_int(self.params.get("img_h"), None),
         )
         # The bar is placed first, but it appears only when the item returns, so a
-        # show adds up to two library calls to that and a season or film one. A
-        # superseded serve makes none.
+        # show or episode adds up to two library calls to that and a season or film
+        # one. A superseded serve makes none.
         if guard.alive():
             item["properties"] |= {
                 "time_left": (
                     hours_minutes(math.ceil((secs - position) / 60)) if secs else ""
                 ),
                 **self._show_context(pb.infolabels, guard.alive),
-                **self._film_new(pb.infolabels, resume),
+                **self._unwatched_new(pb.infolabels, resume, guard.alive),
             }
 
         return set_items([item], tag_applier=apply_videoinfotag)
@@ -874,7 +874,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         labels = labels | get_infolabels(
             self.target_item,
             [
-                "DBID",
                 "LastPlayed",
                 "Property(InProgressEpisodes)",
                 "Property(WatchedEpisodes)",
@@ -951,25 +950,39 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "new": "true" if new else "",
         }
 
-    def _film_new(self, labels: dict[str, str], resume: float) -> dict[str, str]:
+    def _unwatched_new(
+        self, labels: dict[str, str], resume: float, alive: Callable[[], bool]
+    ) -> dict[str, str]:
         """
-        A film's new when it has no resume point and no play count and was added within
-        new_days, from one GetMovieDetails call: ListItem.DateAdded is in the region's
-        short date format, not parseable.
+        A film's or episode's new: no resume point or play count, added within new_days
+        (one Get…Details call: ListItem.DateAdded is a regional date) and, for an
+        episode, after its show's lastplayed (one GetTVShowDetails, only then).
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :param resume: Progress from ProgressBarManager.calculate: 0 for unwatched.
-        :return: The new property; none for other types, or a started or watched film.
+        :param alive: The focus guard's check, made again before the lastplayed call.
+        :return: The new property; none for other types, or a started or watched item.
         """
         # No library id (a plugin's item): nothing to look up
         if (
-            labels["DBType"] != "movie"
+            (dbtype := labels["DBType"]) not in ("movie", "episode")
             or resume
-            or not (dbid := to_int(infolabel(f"{self.target_item}.DBID")))
+            or not (dbid := to_int(labels["DBID"]))
         ):
             return {}
-        film = _video_details("movie", dbid, ["dateadded"], "progressbar")
-        new = film and film["dateadded"] >= self._added_since()  # None: an error answer
+        fields = ["dateadded"] + (["tvshowid"] if dbtype == "episode" else [])
+        item = _video_details(dbtype, dbid, fields, "progressbar")
+        new = item and item["dateadded"] >= self._added_since()  # None: an error answer
+        if new and dbtype == "episode":
+            if not alive():
+                return {}
+            # The show rule, so a binge's later episodes aren't all new. No lastplayed
+            # (never played) or an error answer: new_days alone
+            show = _video_details(
+                "tvshow", item["tvshowid"], ["lastplayed"], "progressbar"
+            )
+            lastplayed = show and show["lastplayed"]
+            new = not lastplayed or item["dateadded"] > lastplayed
         return {"new": "true" if new else ""}
 
     def _added_since(self) -> str:

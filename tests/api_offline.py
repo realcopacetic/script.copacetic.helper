@@ -945,9 +945,11 @@ class ProgressbarTest(unittest.TestCase):
     ]
     lastplayed = days_ago(11)
     film_added = days_ago(5)
+    episode_added = days_ago(2)
 
     def setUp(self):
         self.labels, self.calls, self.shows, self.films = {}, [], [], []
+        self.episode_ids = []
         self.watched = False
 
         def rpc(request):
@@ -958,6 +960,12 @@ class ProgressbarTest(unittest.TestCase):
                     return json.dumps({"error": {"code": -32100}})
                 details = {"dateadded": self.film_added}
                 return json.dumps({"result": {"moviedetails": details}})
+            if request["method"] == "VideoLibrary.GetEpisodeDetails":
+                self.episode_ids.append(request["params"]["episodeid"])
+                if self.episode_added is None:  # an error answer
+                    return json.dumps({"error": {"code": -32100}})
+                details = {"dateadded": self.episode_added, "tvshowid": 7}
+                return json.dumps({"result": {"episodedetails": details}})
             if request["method"] == "VideoLibrary.GetTVShowDetails":
                 self.shows.append(request["params"]["tvshowid"])
                 if self.lastplayed is None:  # e.g. the MySQL connection dropped
@@ -1189,7 +1197,6 @@ class ProgressbarTest(unittest.TestCase):
         for labels in (
             film | {"PercentPlayed": "30"},  # started
             film | {"DBID": ""},  # a plugin's film
-            film | {"DBType": "episode"},
             film | {"DBType": "musicvideo"},
         ):
             self.assertNotIn("new", self.prop_all(**labels))
@@ -1199,6 +1206,53 @@ class ProgressbarTest(unittest.TestCase):
         self.alive = iter([True, True, False]).__next__  # focus left after the move
         self.assertNotIn("new", self.prop_all(**film))
         self.assertEqual((self.films, self.calls, self.shows), ([12] * 4, [], []))
+        self.assertEqual(self.episode_ids, [])
+
+    def test_new_episode(self):
+        episode = {"DBType": "episode", "DBID": "301"}
+        self.assertEqual(self.prop("new", **episode), "true")  # added 2 days ago
+        self.handler.params["new_days"] = "1"
+        self.assertEqual(self.prop("new", **episode), "")
+        del self.handler.params["new_days"]
+        self.episode_added = days_ago(31)
+        self.assertEqual(self.prop("new", **episode), "")
+        self.episode_added = None
+        self.assertEqual(self.prop("new", **episode), "")
+        self.episode_added = ""  # no dateadded
+        self.assertEqual(self.prop("new", **episode), "")
+        self.assertEqual(self.episode_ids, [301] * 5)
+        self.assertEqual(self.shows, [7])  # lastplayed only once new_days passes
+        for labels in (
+            episode | {"PercentPlayed": "30", "Duration(secs)": "2700"},  # started
+            episode | {"DBID": ""},  # a plugin's episode
+        ):
+            self.assertNotIn("new", self.prop_all(**labels))
+        self.watched = True
+        self.assertNotIn("new", self.prop_all(**episode))
+        self.watched = False
+        self.alive = iter([True, True, False]).__next__  # focus left after the move
+        self.assertNotIn("new", self.prop_all(**episode))
+        self.assertEqual(self.episode_ids, [301] * 5)
+        self.assertEqual((self.films, self.calls, self.shows), ([], [], [7]))
+
+    def test_new_episode_binge(self):
+        # The show rule: mid-binge, an episode added before the show was last played
+        # isn't new; one added after it is
+        episode = {"DBType": "episode", "DBID": "301"}
+        self.episode_added = days_ago(5)
+        self.lastplayed = days_ago(1)
+        self.assertEqual(self.prop("new", **episode), "")
+        self.lastplayed = days_ago(6)
+        self.assertEqual(self.prop("new", **episode), "true")
+        self.lastplayed = self.episode_added  # the same second: not later
+        self.assertEqual(self.prop("new", **episode), "")
+        for never in ("", None):  # never played, or an error answer: new_days alone
+            self.lastplayed = never
+            self.assertEqual(self.prop("new", **episode), "true")
+        self.assertEqual(self.shows, [7] * 5)
+        self.alive = iter([True, True, True, False]).__next__  # lost before lastplayed
+        self.assertNotIn("new", self.prop_all(**episode))
+        self.assertEqual((self.episode_ids, self.shows), ([301] * 6, [7] * 5))
 
     def test_focus_lost(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
