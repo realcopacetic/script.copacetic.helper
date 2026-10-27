@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, timedelta
 from functools import partial
 from typing import Any, Callable
@@ -17,6 +18,7 @@ from resources.lib.plugin.helpers import (
     clamp_text,
     fit_height,
     get_infolabels,
+    hours_minutes,
     merge_metadata,
     reposition_control,
 )
@@ -813,9 +815,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_id=self.window_id,
         )
         resume, unwatched = pb.calculate()
+        # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)
+        # is unchanged
+        secs = pb.runtime(resume)
+        position = secs * resume / 100
         item = {
             "file": plugin_path("progress"),
-            "resume": {"position": resume, "total": 100},
+            "Duration": secs,
+            "resume": (
+                {"position": position, "total": secs}
+                if secs
+                else {"position": resume, "total": 100}
+            ),
             "properties": {"unwatchedepisodes": str(unwatched)},
         }
 
@@ -835,7 +846,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # superseded serve makes none.
         if guard.alive():
             item["properties"] |= {
-                "time_left": pb.time_left(resume),
+                "time_left": (
+                    hours_minutes(math.ceil((secs - position) / 60)) if secs else ""
+                ),
                 **self._show_context(pb.infolabels, guard.alive),
                 **self._film_new(pb.infolabels, resume),
             }

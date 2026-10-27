@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import random
 import time
 from typing import Any, Callable, Collection, Iterable, Mapping
@@ -285,6 +284,19 @@ class DataHandler:
         return next(iter(movies[0]["studio"]), "") if movies else ""
 
 
+def hours_minutes(minutes: int) -> str:
+    """
+    A duration as the progress bar's labels show it.
+
+    :param minutes: The duration in whole minutes.
+    :return: "1h 23m", "1h" or "48m".
+    """
+    hours, mins = divmod(minutes, 60)
+    if not hours:
+        return f"{mins}m"
+    return f"{hours}h {mins}m" if mins else f"{hours}h"
+
+
 class ProgressBarManager:
     """
     Calculates playback or set progress for a focused item and
@@ -369,22 +381,16 @@ class ProgressBarManager:
 
         return 0, unwatched
 
-    def time_left(self, percent: float) -> str:
+    def runtime(self, percent: float) -> int:
         """
-        Remaining runtime of a part-watched movie or episode, rounded up to the
-        minute. PercentPlayed is whole, so it's within half a percent of runtime.
+        Runtime in seconds of a part-watched movie or episode, as Duration(secs).
 
         :param percent: Progress from calculate().
-        :return: "1h 23m" or "48m"; empty unless a movie or episode is part-watched.
+        :return: The runtime; 0 for other items, or when Kodi has none.
         """
-        if not (
-            0 < percent < 100
-            and self.infolabels["DBType"] in ("movie", "episode")
-            and (secs := to_int(infolabel(f"{self.target}.Duration(secs)")))
-        ):
-            return ""
-        hours, mins = divmod(math.ceil(secs * (100 - percent) / 6000), 60)
-        return f"{hours}h {mins}m" if hours else f"{mins}m"
+        if 0 < percent < 100 and self.infolabels["DBType"] in ("movie", "episode"):
+            return to_int(infolabel(f"{self.target}.Duration(secs)"))
+        return 0
 
     def update(
         self,

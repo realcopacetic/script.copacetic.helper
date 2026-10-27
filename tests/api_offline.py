@@ -1006,6 +1006,7 @@ class ProgressbarTest(unittest.TestCase):
         movie = {"DBType": "movie", "Duration(secs)": "7200"}
         self.assertEqual(self.prop("time_left", **movie, PercentPlayed="30"), "1h 24m")
         self.assertEqual(self.prop("time_left", **movie, PercentPlayed="99"), "2m")
+        self.assertEqual(self.prop("time_left", **movie, PercentPlayed="50"), "1h")
         episode = {"DBType": "episode", "Duration(secs)": "2700"}
         self.assertEqual(self.prop("time_left", **episode, PercentPlayed="1"), "45m")
         self.assertEqual(self.prop("time_left", **movie), "")  # not started
@@ -1014,6 +1015,37 @@ class ProgressbarTest(unittest.TestCase):
         season["Property(WatchedEpisodePercent)"] = "50"
         self.assertEqual(self.prop("time_left", **season), "")
         self.assertEqual(self.calls, [])
+
+    def test_resume_seconds(self):
+        def served(**labels):
+            self.labels = labels
+            (item,) = self.handler.progressbar()
+            return item["Duration"], item["resume"]
+
+        # Part-watched with a runtime: seconds, for EndTimeResume (now + 5040 s)
+        movie = {"DBType": "movie", "Duration(secs)": "7200", "PercentPlayed": "30"}
+        self.assertEqual(served(**movie), (7200, {"position": 2160, "total": 7200}))
+        episode = movie | {"DBType": "episode", "Duration(secs)": "2700"}
+        self.assertEqual(served(**episode), (2700, {"position": 810, "total": 2700}))
+        # A fractional position: 180.67 s of 2581, still 7 %, 2400.33 s (41m) left
+        odd = episode | {"Duration(secs)": "2581", "PercentPlayed": "7"}
+        _, resume = served(**odd)
+        self.assertAlmostEqual(resume["position"], 180.67)
+        self.assertEqual(round(resume["position"] / resume["total"] * 100), 7)
+        self.assertEqual(self.prop("time_left", **odd), "41m")
+        # Percent of 100 otherwise: no runtime, a season, unstarted, watched
+        percent = {"position": 30, "total": 100}
+        self.assertEqual(served(**movie | {"Duration(secs)": ""}), (0, percent))
+        season = {"DBType": "season", "Duration(secs)": "2700"}
+        season["Property(WatchedEpisodePercent)"] = "30"
+        self.assertEqual(served(**season), (0, percent))
+        unstarted = movie | {"PercentPlayed": "0"}
+        self.assertEqual(served(**unstarted), (0, {"position": 0, "total": 100}))
+        self.watched = True
+        self.assertEqual(served(**unstarted), (0, {"position": 100, "total": 100}))
+        self.watched = False
+        self.alive = iter([True, False]).__next__  # superseded: the bare item too
+        self.assertEqual(served(**movie)[1], {"position": 2160, "total": 7200})
 
     def test_next_episode(self):
         show = {"DBType": "tvshow", "DBID": "7", "Season": "4"}  # a show's Season: 4
