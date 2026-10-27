@@ -2,8 +2,8 @@
 
 Works out how much of the focused item has been watched, returns it on a list item,
 and moves and sizes a progress bar group to fit your layout. The same item carries
-short context values for a label beside the bar: time left, the next episode, a "new"
-flag and the next air date.
+short context values for labels beside the bar: time left and the end time, the next
+episode and its runtime, a "new" flag and the next air date.
 
 It handles movies, episodes, TV shows, seasons and movie sets. For a set it counts the
 watched movies in the set.
@@ -73,10 +73,12 @@ One list item in the helper container:
 
 | Infolabel | Value |
 |---|---|
-| `ListItem.PercentPlayed` | The value above, 0–100 (set as the resume point out of 100). |
+| `ListItem.PercentPlayed` | The value above, 0–100, set as the resume point: in seconds for a part-watched movie or episode with a runtime (see below), otherwise out of 100. |
+| `ListItem.Duration`, `ListItem.EndTimeResume` | A part-watched movie or episode with a runtime: its runtime, and the time it would end if resumed now, e.g. `22:30` (Kodi's own label, kept current). Empty or meaningless for anything else, so test `time_left` first. |
 | `ListItem.Property(unwatchedepisodes)` | `ListItem.Property(UnwatchedEpisodes)` of the focused item. For a set, the number of unwatched movies. Empty when the item is watched. |
-| `ListItem.Property(time_left)` | A part-watched movie or episode: the runtime left, rounded up to the minute, e.g. `1h 23m` or `48m`. |
+| `ListItem.Property(time_left)` | A part-watched movie or episode: the runtime left, rounded up to the minute, e.g. `1h 23m`, `1h` or `48m`. |
 | `ListItem.Property(next_episode)` | A TV show or season with unwatched episodes, started or not: the lowest unwatched episode outside the specials, e.g. `S02E10` (`S01E01` for a show not yet begun, `S03E01` for a Season 3 not yet begun). |
+| `ListItem.Property(next_runtime)` | That episode's library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
 | `ListItem.Property(new)` | `true` for a TV show whose newest unwatched episode (specials included) was added within `new_days`, and, once the show is started, after it was last played; or for a film with no resume point and no play count, added within `new_days`. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
 
@@ -107,6 +109,14 @@ in the Kodi log: compare a started show with a movie.
 - **`time_left`**: `ListItem.Duration` × (100 − `ListItem.PercentPlayed`) / 100.
   `PercentPlayed` is a whole number, so the result is within half a percent of the
   runtime.
+- **The resume point in seconds** (a part-watched movie or episode): the returned
+  item gets the focused item's `ListItem.Duration` as its runtime and
+  `ListItem.Duration` × `ListItem.PercentPlayed` / 100 as its resume point, so Kodi
+  works out its `ListItem.EndTimeResume` (now + runtime − resume point) every frame
+  and it never goes stale. It ends when `time_left` runs out, within the same half
+  percent. `ListItem.PercentPlayed` is the resume point over its total in Kodi, so it
+  is the same whole number in either form; with no runtime the item keeps the
+  out-of-100 form. No library call: the runtime is the one `time_left` reads.
 - **Started** (a show, for `new`) means what Kodi's `inprogress` smart-playlist rule
   means, read from the focused item (`WatchedEpisodes`, `InProgressEpisodes`,
   `UnwatchedEpisodes`): some episodes watched and some not, or none watched and at
@@ -127,7 +137,9 @@ in the Kodi log: compare a started show with a movie.
   left, and anything not in the library, make no episode call. A favourite's season
   (an add-on item, with no `TvShowDBID`) is found by its `Property(tvshowid)`.
   `next_episode` is the episode [`next_up`](library.md#next_up) lists for the show,
-  or the season's lowest unwatched one: its first episode if it isn't started. The
+  or the season's lowest unwatched one: its first episode if it isn't started, and
+  `next_runtime` is its `runtime` from the same call (seconds in JSON-RPC; without
+  `streamdetails` asked for, that's the library's runtime alone). The
   Specials season (season 0) has none and makes no call. `new` needs the newest
   unwatched episode's `dateadded` within `new_days` of now. For a started show it
   must also be later than the show's `lastplayed`, read with one
