@@ -66,7 +66,9 @@ shared by every skin.
 
 - Albums, artists and songs carry their library artwork, `DBID`, `Artist` and
   `Genre`. Albums and songs also carry `Title`, `Year` and `UserRating`. Songs also
-  carry `Album`, `Duration` and `TrackNumber`.
+  carry `Album`, `Duration` and `TrackNumber`; artists the dates Kodi's own artist
+  items carry (`ListItem.Property(Artist_Born)`, `Artist_Formed`,
+  `Artist_YearsActive`, `Artist_Disbanded`, `Artist_Died`).
 - `ListItem.Art(icon)` is Kodi's default icon for the type (`DefaultAlbumCover.png`,
   `DefaultArtist.png`, `DefaultMusicSongs.png`, `DefaultMusicPlaylists.png`).
 - Every item has `ListItem.Property(speed_dial)` set to `true`. The helper reads it

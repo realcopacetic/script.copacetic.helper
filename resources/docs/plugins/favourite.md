@@ -67,8 +67,9 @@ file or its share.
   `UnWatchedEpisodes` and `WatchedEpisodePercent`, and a TV show
   `ListItem.Property(TotalSeasons)`.
 - **Music** (artist, album, song): the library details and artwork. An artist has
-  `ListItem.Property(Artist_Description)` and an album
-  `ListItem.Property(Album_Description)`.
+  Kodi's artist description and dates: `ListItem.Property(Artist_Description)`,
+  `Artist_Born`, `Artist_Formed`, `Artist_YearsActive`, `Artist_Disbanded` and
+  `Artist_Died`. An album has `ListItem.Property(Album_Description)`.
 - `ListItem.Property(favourite.index)`: the `index` you passed.
 - `ListItem.Property(favourite.path)`: the favourite's `ListItem.FileNameAndPath`, as
   Kodi lists it, so

@@ -174,7 +174,9 @@ Library artists, albums or songs in any of the given genres, in random order (fi
 `randomise`, as in [`random_movies`](#random_movies)). Pass the item's own `ListItem.Genre`, so a genre that holds only this item still leaves the
 others. The items are music library items: `DBType` `artist`, `album` or `song` and
 their `DBID`; artists and albums open as `musicdb://` folders, songs play their file. They carry their library
-artwork, `Genre`, `Artist`, `Year` and so on; `Art(icon)` is always Kodi's default icon
+artwork, `Genre`, `Artist`, `Year` and so on; artists also carry the dates Kodi's own
+artist items do (`ListItem.Property(Artist_Born)`, `Artist_Formed`, `Artist_YearsActive`,
+`Artist_Disbanded`, `Artist_Died`). `Art(icon)` is always Kodi's default icon
 for the type. The container's content is `artists`, `albums` or `songs`.
 
 | Param | Accepted values | Default | What it does |
