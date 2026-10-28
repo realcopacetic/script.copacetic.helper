@@ -78,6 +78,11 @@ Parameter values are URL-decoded (`%20` becomes a space). A value may contain a 
 `&`: the path is only split where `&` is followed by `name=`. In XML, write `&amp;`
 between parameters.
 
+Several `&` in a row before a `name=`, or at the end of the path, count as one
+separator. So a `$VAR[]` that resolves empty, leaving `&&` or a trailing `&`, does no
+harm. The other side of this: a `&` at the very end of a value is dropped, so
+`label=Rock &` gives `Rock `. Write it as `%26` to keep it.
+
 **Important:** infolabels and variables in parameters are **resolved at dispatch time**. The helper receives plain values (`focus_guard=5`), never live references. Anything the helper must re-check *during* its run has to be reconstructible plugin-side — this is what the guard parameters below are for.
 
 ---
