@@ -36,6 +36,7 @@ from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.plugin import handlers, helpers  # noqa: E402
 from resources.lib.plugin.music import (  # noqa: E402
     compact_count,
+    library_item,
     rank_albums,
     rank_songs,
     title_key,
@@ -357,6 +358,43 @@ class MatchTest(unittest.TestCase):
 
     def test_no_match_no_list(self):
         self.assertEqual(rank_songs([["x", "Unknown"]], SONGS), [])
+
+
+class LibraryItemTest(unittest.TestCase):
+    @mock.patch("resources.lib.plugin.music.apply_musicinfotag")
+    @mock.patch("resources.lib.plugin.music.ListItem")
+    def test_properties_as_kodi_sets_them(self, list_item, _):
+        artist = {
+            "artistid": 4,
+            "art": {},
+            "born": "",
+            "description": "Virtual band.",
+            "died": "",
+            "disbanded": "",
+            "formed": "1998",
+            "genre": ["Alternative"],
+            "label": "Gorillaz",
+            "yearsactive": ["1990s", "2000s"],
+        }
+        song = {"art": {}, "file": "f.mp3", "genre": [], "label": "Dare", "songid": 2}
+        self.assertEqual(library_item(artist, "artist")[0], "musicdb://artists/4/")
+        library_item(song, "song")
+        self.assertEqual(
+            [call.args for call in list_item.return_value.setProperties.call_args_list],
+            [
+                (
+                    {
+                        "artist_born": "",
+                        "artist_description": "Virtual band.",
+                        "artist_died": "",
+                        "artist_disbanded": "",
+                        "artist_formed": "1998",
+                        "artist_yearsactive": "1990s / 2000s",
+                    },
+                ),
+                ({},),
+            ],
+        )
 
 
 class TopSongsTest(Base):

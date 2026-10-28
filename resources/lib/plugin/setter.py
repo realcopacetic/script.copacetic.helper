@@ -216,19 +216,20 @@ def apply_videoinfotag(
                 continue
 
 
-def _joined(value: str | list[str]) -> str:
+def joined(value: str | list[str]) -> str:
     """
-    Artists are a list on songs and albums, and a plain string on artists.
+    A JSON-RPC field that is a list on some rows and a string on others,
+    such as artist (songs, albums) or yearsactive.
 
-    :param value: JSON-RPC artist field.
-    :return: Artists joined with Kodi's default separator.
+    :param value: JSON-RPC string or list field.
+    :return: The value, a list joined with Kodi's default separator.
     """
     return value if isinstance(value, str) else " / ".join(value)
 
 
 _MUSIC_SETTERS = {
     "album": ("setAlbum", str),
-    "artist": ("setArtist", _joined),
+    "artist": ("setArtist", joined),
     "duration": ("setDuration", int),
     "genre": ("setGenres", list),
     "title": ("setTitle", str),

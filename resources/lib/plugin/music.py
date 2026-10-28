@@ -10,7 +10,7 @@ from xbmc import getLocalizedString
 from xbmcgui import ListItem
 
 from resources.lib.plugin.library import DirectoryItem
-from resources.lib.plugin.setter import apply_musicinfotag
+from resources.lib.plugin.setter import apply_musicinfotag, joined
 from resources.lib.shared.utilities import ADDON, json_call
 
 _DETAILS = {
@@ -18,7 +18,10 @@ _DETAILS = {
         "AudioLibrary.GetAlbumDetails",
         ["artist", "genre", "title", "userrating", "year"],
     ),
-    "artist": ("AudioLibrary.GetArtistDetails", ["genre"]),
+    "artist": (
+        "AudioLibrary.GetArtistDetails",
+        ["born", "died", "disbanded", "formed", "genre", "yearsactive"],
+    ),
     "song": (
         "AudioLibrary.GetSongDetails",
         [
@@ -45,6 +48,8 @@ _MBIDS = {  # MusicBrainz entity and AudioLibrary field per library type
     "artist": ("artist", "musicbrainzartistid"),
     "song": ("recording", "musicbrainztrackid"),
 }
+# Details Kodi's own musicdb items carry as {type}_{field} properties too
+_PROPERTIES = {"born", "description", "died", "disbanded", "formed", "yearsactive"}
 ALBUM_RANK_PROPERTIES = [*_DETAILS["album"][1], "art", "musicbrainzreleasegroupid"]
 SONG_RANK_PROPERTIES = [*_DETAILS["song"][1], "art", "musicbrainztrackid", "playcount"]
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
@@ -64,8 +69,13 @@ def library_item(details: dict, type: str) -> DirectoryItem:
     li = ListItem(details["label"], offscreen=True)
     li.setArt(details["art"] | {"icon": _ICONS[type]})
     apply_musicinfotag(li, details, type)
-    if description := details.get("description"):  # as Kodi's own items carry it
-        li.setProperty(f"{type.title()}_Description", description)
+    li.setProperties(
+        {
+            f"{type}_{key}": joined(value)
+            for key, value in details.items()
+            if key in _PROPERTIES
+        }
+    )
     if type == "song":
         return details["file"], li, False
     return f"musicdb://{type}s/{details[f'{type}id']}/", li, True
