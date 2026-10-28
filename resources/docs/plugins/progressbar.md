@@ -45,7 +45,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `btn_id` | control id | `target_id + 2` | Button id. |
 | `img_id` | control id | `target_id + 3` | Image id. |
 | `img_h` | whole number | the bar height | Height of the image. |
-| `new_days` | whole number | `30` | How long an item stays `new`: its newest unwatched episode (a show), or the film or episode itself, was added at most this many days ago. |
+| `new_days` | whole number | `30` | How long an item stays `new`: a film was added, or an episode (for a show, its newest unwatched one, specials included) first aired, at most this many days ago. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air`, e.g. `14 Nov`. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
 | `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDb data `next_air` reads, as in [TMDb lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -79,7 +79,7 @@ One list item in the helper container:
 | `ListItem.Property(time_left)` | A part-watched movie or episode: the runtime left, rounded up to the minute, e.g. `1h 23m`, `1h` or `48m`. |
 | `ListItem.Property(next_episode)` | A TV show or season with unwatched episodes, started or not: the lowest unwatched episode outside the specials, e.g. `S02E10` (`S01E01` for a show not yet begun, `S03E01` for a Season 3 not yet begun). |
 | `ListItem.Property(next_runtime)` | That episode's library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
-| `ListItem.Property(new)` | `true` for a TV show whose newest unwatched episode (specials included) was added within `new_days`, and, once the show is started, after it was last played; or for a film or episode with no resume point and no play count, added within `new_days` (an episode also after its show was last played). |
+| `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
@@ -90,12 +90,10 @@ for them too. The library calls they add, per focus:
 
 | Focused item | Calls | Which |
 |---|---|---|
-| Started show (anything watched or in progress; for the add-on's own items, anything watched or played) | 1 or 2 | `GetEpisodes`; `GetTVShowDetails` (`lastplayed`) only when its newest unwatched episode was added within `new_days` |
-| Unwatched show (not started) | 1 | `GetEpisodes` |
+| Show or season with episodes left, started or not (a favourite's season too) | 1 | `GetEpisodes` |
 | Fully watched show | 0 or 1 | `GetTVShowDetails` for its TMDb id, only with a TMDb token and no `UniqueID(tmdb)` |
-| Season with episodes left, started or not (a favourite's too) | 1 | `GetEpisodes` |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
-| Unwatched episode (no resume point, no play count) | 1 or 2 | `GetEpisodeDetails` (`dateadded`, `tvshowid`); `GetTVShowDetails` (`lastplayed`) only when it was added within `new_days` |
+| Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
 | Watched or part-watched film or episode, fully watched or Specials season, set, plugin item | 0 | |
 
 A movie set's value itself costs one `GetMovieSetDetails` call (rule 3 above), made
@@ -103,7 +101,7 @@ before the bar moves.
 
 To see the cost on your device, turn on *Troubleshooting → Enable extra debug logs*
 in the add-on's settings and look for `PluginHandlers → progressbar took … seconds`
-in the Kodi log: compare a started show with a movie.
+in the Kodi log: compare a show with episodes left with a watched movie.
 
 ## How the context values are worked out
 
@@ -118,19 +116,6 @@ in the Kodi log: compare a started show with a movie.
   percent. `ListItem.PercentPlayed` is the resume point over its total in Kodi, so it
   is the same whole number in either form; with no runtime the item keeps the
   out-of-100 form. No library call: the runtime is the one `time_left` reads.
-- **Started** (a show, for `new`) means what Kodi's `inprogress` smart-playlist rule
-  means, read from the focused item (`WatchedEpisodes`, `InProgressEpisodes`,
-  `UnwatchedEpisodes`): some episodes watched and some not, or none watched and at
-  least one part-watched. Kodi's own items always carry `InProgressEpisodes` (`0`
-  too) and follow that rule exactly. The add-on's own show items (`random_tvshows`,
-  credits, favourites) carry none, as JSON-RPC has no in-progress count for a show,
-  so one of them is started when any episode is watched or it has a
-  `ListItem.LastPlayed`: played at all, even stopped before a resume point was kept.
-  So the same show can read started on an add-on tile and unstarted in Kodi's own
-  library views, and its `new` can differ between the two. To reset such a show
-  whose plays are all unfinished, use *Mark as watched* then *Mark as unwatched*:
-  *Mark as unwatched* alone isn't offered without a watched episode, and it skips
-  episodes with no play count, so their last-played dates stay.
 - **`next_episode`** and **`new`** (shows and seasons): one
   `VideoLibrary.GetEpisodes` call for the unwatched episodes of a show or season with
   any left, started or not (a season's own, or the whole show for *All seasons*,
@@ -142,20 +127,20 @@ in the Kodi log: compare a started show with a movie.
   `next_runtime` is its `runtime` from the same call (seconds in JSON-RPC; without
   `streamdetails` asked for, that's the library's runtime alone). The
   Specials season (season 0) has none and makes no call. `new` needs the newest
-  unwatched episode's `dateadded` within `new_days` of now. For a started show it
-  must also be later than the show's `lastplayed`, read with one
-  `VideoLibrary.GetTVShowDetails` call, made only when the first test passes
-  (`ListItem.LastPlayed` gives a date with no time). Seasons get no `new`.
+  `firstaired` among those unwatched episodes, specials included, on or after the
+  date `new_days` before today, started or not: a part-watched episode still counts,
+  as it has no play count. So a show stays new while you start its new episodes,
+  and a show added with its back catalogue isn't new however recently it was added.
+  A special counts by its air date like any episode: an old one is never new, a
+  recently aired one is. Seasons get no `new`.
 - **`new`** (films and episodes): a film or episode with no resume point and no play
-  count whose `dateadded` is within `new_days`, read with one
-  `VideoLibrary.GetMovieDetails` or `VideoLibrary.GetEpisodeDetails` call. An
-  episode's `dateadded` must also be later than its show's `lastplayed` (the latest
-  play of any of its episodes), as for a started show, so the rest of a season you are
-  part-way through isn't all new: one `VideoLibrary.GetTVShowDetails` call, made only
-  when the first test passes. With no `lastplayed` (a show never played) or an error
-  answer, `new_days` decides alone.
-  `ListItem.DateAdded` can't stand in: it prints the date in the region's short date
-  format, which the user can change, and with no time.
+  count, read with one `VideoLibrary.GetMovieDetails` or
+  `VideoLibrary.GetEpisodeDetails` call. A film's `dateadded` must be within
+  `new_days` of now; an episode's `firstaired` (a date) on or after the date
+  `new_days` before today. A future air date (a file released early) counts; an
+  episode with no air date is never new. `ListItem.DateAdded` and
+  `ListItem.Premiered` can't stand in: they print the date in the region's short date
+  format, which the user can change.
 - **`next_air`**: only for a fully watched show (some episodes watched, none left)
   with a TMDb token set; any other show makes no lookup for it. TMDb's next episode
   air date, read from the add-on's cache only; this path never asks TMDb. The
@@ -169,8 +154,7 @@ in the Kodi log: compare a started show with a movie.
 
 ## Focus guard
 
-The guard is checked before the value is worked out, before any control moves, after
-the move (so before the first library call of the context values), and between the
-two library calls for a started show or an unwatched episode. Once focus has moved
-on, the list item is still returned without the context values, and nothing else
-runs: no control moves if it hadn't yet, and no further library call is made.
+The guard is checked before the value is worked out, before any control moves, and
+after the move (so before the library call of the context values). Once focus has
+moved on, the list item is still returned without the context values, and nothing
+else runs: no control moves if it hadn't yet, and no library call is made.
