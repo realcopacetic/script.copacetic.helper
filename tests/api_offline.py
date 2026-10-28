@@ -930,48 +930,52 @@ class NextUpTest(unittest.TestCase):
 
 
 def days_ago(days):
-    """A JSON-RPC dateadded or lastplayed string, days before now."""
+    """A JSON-RPC dateadded string, days before now."""
     return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
+
+
+def aired(days):
+    """A JSON-RPC firstaired string (a date), days before now; negative: to come."""
+    # Not date.today(): it reads time.time, which Base.setUp replaces
+    return f"{datetime.now() - timedelta(days=days):%Y-%m-%d}"
 
 
 class ProgressbarTest(unittest.TestCase):
     """info=progressbar's context properties, read off the item it returns."""
 
     episodes = [
-        {"season": 0, "episode": 1, "dateadded": days_ago(3), "runtime": 600},
-        {"season": 2, "episode": 11, "dateadded": days_ago(22), "runtime": 2700},
-        {"season": 3, "episode": 1, "dateadded": days_ago(22), "runtime": 3720},
-        {"season": 2, "episode": 10, "dateadded": days_ago(22), "runtime": 2581},
+        {"season": 0, "episode": 1, "firstaired": aired(3), "runtime": 600},
+        {"season": 2, "episode": 11, "firstaired": aired(400), "runtime": 2700},
+        {"season": 3, "episode": 1, "firstaired": aired(10), "runtime": 3720},
+        {"season": 2, "episode": 10, "firstaired": aired(400), "runtime": 2581},
     ]
-    lastplayed = days_ago(11)
     film_added = days_ago(5)
-    episode_added = days_ago(2)
+    episode_aired = aired(2)
 
     def setUp(self):
         self.labels, self.calls, self.shows, self.films = {}, [], [], []
-        self.episode_ids = []
+        self.episode_ids, self.fields = [], []
         self.watched = False
 
         def rpc(request):
             request = json.loads(request)
             if request["method"] == "VideoLibrary.GetMovieDetails":
                 self.films.append(request["params"]["movieid"])
+                self.fields.append(request["params"]["properties"])
                 if self.film_added is None:  # an error answer
                     return json.dumps({"error": {"code": -32100}})
                 details = {"dateadded": self.film_added}
                 return json.dumps({"result": {"moviedetails": details}})
             if request["method"] == "VideoLibrary.GetEpisodeDetails":
                 self.episode_ids.append(request["params"]["episodeid"])
-                if self.episode_added is None:  # an error answer
+                self.fields.append(request["params"]["properties"])
+                if self.episode_aired is None:  # an error answer
                     return json.dumps({"error": {"code": -32100}})
-                details = {"dateadded": self.episode_added, "tvshowid": 7}
+                details = {"firstaired": self.episode_aired}
                 return json.dumps({"result": {"episodedetails": details}})
             if request["method"] == "VideoLibrary.GetTVShowDetails":
-                self.shows.append(request["params"]["tvshowid"])
-                if self.lastplayed is None:  # e.g. the MySQL connection dropped
-                    return json.dumps({"error": {"code": -32100}})
-                details = {"lastplayed": self.lastplayed}
-                return json.dumps({"result": {"tvshowdetails": details}})
+                self.shows.append(request["params"]["tvshowid"])  # none expected
+                return json.dumps({"result": {"tvshowdetails": {}}})
             params = request["params"]
             self.calls.append(params)
             season = params.get("season")  # none: the whole show
@@ -1103,7 +1107,7 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.calls, [])  # Specials: no query
         self.episodes = self.episodes[:1]  # only a special left
         self.assertEqual(self.prop("next_episode", **season | {"Season": ""}), "")
-        self.assertEqual(self.shows, [7, 7, 7])  # lastplayed: shows only, when queried
+        self.assertEqual(self.shows, [])  # no lastplayed, started or not
 
     def test_next_runtime(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
@@ -1126,62 +1130,68 @@ class ProgressbarTest(unittest.TestCase):
     def test_new(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
         show["Property(WatchedEpisodes)"] = "9"
-        self.assertEqual(self.prop("new", **show), "true")  # the special, 3 days ago
-        self.lastplayed = self.episodes[0]["dateadded"]  # the same second: not later
+        self.assertEqual(self.prop("new", **show), "true")  # S03E01, aired 10 days ago
+        self.assertIn("firstaired", self.calls.pop()["properties"])
+        self.handler.params["new_days"] = "10"  # on the cutoff date: still new
+        self.assertEqual(self.prop("new", **show), "true")
+        self.handler.params["new_days"] = "9"  # the special aired 3 days ago counts
+        self.assertEqual(self.prop("new", **show), "true")
+        self.handler.params["new_days"] = "2"  # before both
         self.assertEqual(self.prop("new", **show), "")
-        self.lastplayed = ""  # no lastplayed: nothing to be newer than
-        self.assertEqual(self.prop("new", **show), "")
-        self.lastplayed = None  # an error answer: next_episode still stands
-        self.assertEqual(self.prop_all(**show)["next_episode"], "S02E10")
-        self.assertEqual(self.prop("new", **show), "")
-        season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "2"}
-        self.lastplayed = days_ago(100)
+        del self.handler.params["new_days"]
+        # Started or not, Kodi's item or the add-on's: no lastplayed rule
+        for started in (
+            {"Property(WatchedEpisodes)": "0"},
+            {"Property(WatchedEpisodes)": "0", "Property(InProgressEpisodes)": "1"},
+            {"Property(WatchedEpisodes)": "0", "LastPlayed": "27/10/2026"},
+        ):
+            self.assertEqual(self.prop("new", **show | started), "true")
+        season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "3"}
         self.assertEqual(self.prop("new", **season), "")  # a show-only property
         self.episodes = []  # the library lost them since the item was listed
         self.assertEqual(self.prop("new", **show), "")
-        self.assertEqual(len(self.shows), 5)
+        self.assertEqual((len(self.calls), self.shows), (8, []))
 
-    def test_new_expires(self):
+    def test_new_by_air_date(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
         show["Property(WatchedEpisodes)"] = "9"
-        self.lastplayed = days_ago(100)
-        self.handler.params["new_days"] = "2"  # the special was added 3 days ago
+        episodes = self.episodes
+        # Long aired, added (and half watched) this week: never new
+        self.episodes = [ep | {"firstaired": aired(4000)} for ep in episodes]
         self.assertEqual(self.prop("new", **show), "")
-        self.handler.params["new_days"] = "4"
+        self.episodes = [ep | {"firstaired": aired(31)} for ep in episodes]
+        self.assertEqual(self.prop("new", **show), "")
+        self.episodes = [ep | {"firstaired": ""} for ep in episodes]  # none known
+        self.assertEqual(self.prop("new", **show), "")
+        self.episodes[2] = episodes[2] | {"firstaired": aired(-7)}  # a pre-release
         self.assertEqual(self.prop("new", **show), "true")
-        del self.handler.params["new_days"]  # 30: only the 22-day-old ones left
-        self.episodes = self.episodes[1:]
-        self.assertEqual(self.prop_all(**show)["next_episode"], "S02E10")
-        self.assertEqual(self.prop("new", **show), "true")
-        self.episodes = [ep | {"dateadded": days_ago(31)} for ep in self.episodes]
-        self.assertEqual(self.prop("new", **show), "")
-        self.episodes = [ep | {"dateadded": ""} for ep in self.episodes]  # none known
-        self.assertEqual(self.prop("new", **show), "")
-        self.assertEqual(len(self.calls), 6)
-        self.assertEqual(len(self.shows), 3)  # no lastplayed once none is new
-
-    def test_new_unwatched_show(self):
-        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
-        properties = self.prop_all(**show)  # nothing watched or in progress
+        # Only a special aired lately: new, and its next is still S02E10
+        self.episodes = [ep | {"firstaired": aired(400)} for ep in episodes]
+        self.episodes[0] = episodes[0]
+        properties = self.prop_all(**show)
         self.assertEqual(
             (properties["next_episode"], properties["new"]), ("S02E10", "true")
         )
-        self.handler.params["new_days"] = "2"  # the special was added 3 days ago
-        self.assertEqual(self.prop("new", **show), "")
-        self.assertEqual((len(self.calls), self.shows), (2, []))  # no lastplayed
+        self.assertEqual((len(self.calls), self.shows), (5, []))
 
-    def test_new_played_show(self):
-        # A helper item has no InProgressEpisodes: a lastplayed alone means started
-        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
-        show["LastPlayed"] = "12/10/2026"  # a date only, in the region's format
-        self.assertEqual(self.prop("new", **show), "true")  # the special came after
-        self.lastplayed = days_ago(1)  # played since the special was added
-        self.assertEqual(self.prop("new", **show), "")
-        # Kodi's own item keeps Kodi's rule: a short play's lastplayed survives Mark
-        # unwatched, so with "0" in progress the show is unwatched
-        show["Property(InProgressEpisodes)"] = "0"
-        self.assertEqual(self.prop("new", **show), "true")
-        self.assertEqual((len(self.calls), self.shows), (3, [7, 7]))
+    def test_new_abbott(self):
+        # 6x01 part-watched (no play count: still in the unwatched call), 6x02 not
+        # started, both aired lately; Kodi's show lastplayed is 6x01's part-play
+        self.episodes = [
+            {"season": 6, "episode": 1, "firstaired": aired(17), "runtime": 1320},
+            {"season": 6, "episode": 2, "firstaired": aired(10), "runtime": 1320},
+        ]
+        show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "2"}
+        show |= {"Property(WatchedEpisodes)": "95", "Property(InProgressEpisodes)": "1"}
+        properties = self.prop_all(**show)
+        self.assertEqual(
+            (properties["next_episode"], properties["new"]), ("S06E01", "true")
+        )
+        started = {"DBType": "episode", "DBID": "601", "PercentPlayed": "40"}
+        self.assertNotIn("new", self.prop_all(**started | {"Duration(secs)": "1320"}))
+        self.episode_aired = aired(10)
+        self.assertEqual(self.prop("new", DBType="episode", DBID="602"), "true")
+        self.assertEqual((self.episode_ids, self.shows), ([602], []))
 
     def test_new_film(self):
         film = {"DBType": "movie", "DBID": "12"}
@@ -1194,6 +1204,7 @@ class ProgressbarTest(unittest.TestCase):
         self.film_added = ""  # no dateadded
         self.assertEqual(self.prop("new", **film), "")
         self.assertEqual(self.films, [12] * 4)
+        self.assertEqual(self.fields, [["dateadded"]] * 4)  # a film: still added
         for labels in (
             film | {"PercentPlayed": "30"},  # started
             film | {"DBID": ""},  # a plugin's film
@@ -1210,18 +1221,19 @@ class ProgressbarTest(unittest.TestCase):
 
     def test_new_episode(self):
         episode = {"DBType": "episode", "DBID": "301"}
-        self.assertEqual(self.prop("new", **episode), "true")  # added 2 days ago
+        self.assertEqual(self.prop("new", **episode), "true")  # aired 2 days ago
         self.handler.params["new_days"] = "1"
         self.assertEqual(self.prop("new", **episode), "")
         del self.handler.params["new_days"]
-        self.episode_added = days_ago(31)
+        for days, new in ((30, "true"), (31, ""), (-3, "true"), (4000, "")):
+            self.episode_aired = aired(days)  # -3: a pre-release file; 4000: GoT
+            self.assertEqual(self.prop("new", **episode), new)
+        self.episode_aired = None
         self.assertEqual(self.prop("new", **episode), "")
-        self.episode_added = None
+        self.episode_aired = ""  # not aired yet, or the scraper had no date
         self.assertEqual(self.prop("new", **episode), "")
-        self.episode_added = ""  # no dateadded
-        self.assertEqual(self.prop("new", **episode), "")
-        self.assertEqual(self.episode_ids, [301] * 5)
-        self.assertEqual(self.shows, [7])  # lastplayed only once new_days passes
+        self.assertEqual(self.episode_ids, [301] * 8)
+        self.assertEqual(self.fields, [["firstaired"]] * 8)
         for labels in (
             episode | {"PercentPlayed": "30", "Duration(secs)": "2700"},  # started
             episode | {"DBID": ""},  # a plugin's episode
@@ -1232,45 +1244,29 @@ class ProgressbarTest(unittest.TestCase):
         self.watched = False
         self.alive = iter([True, True, False]).__next__  # focus left after the move
         self.assertNotIn("new", self.prop_all(**episode))
-        self.assertEqual(self.episode_ids, [301] * 5)
-        self.assertEqual((self.films, self.calls, self.shows), ([], [], [7]))
-
-    def test_new_episode_binge(self):
-        # The show rule: mid-binge, an episode added before the show was last played
-        # isn't new; one added after it is
-        episode = {"DBType": "episode", "DBID": "301"}
-        self.episode_added = days_ago(5)
-        self.lastplayed = days_ago(1)
-        self.assertEqual(self.prop("new", **episode), "")
-        self.lastplayed = days_ago(6)
+        self.alive = iter([True, True, True]).__next__  # one check before the call
+        self.episode_aired = aired(2)
         self.assertEqual(self.prop("new", **episode), "true")
-        self.lastplayed = self.episode_added  # the same second: not later
-        self.assertEqual(self.prop("new", **episode), "")
-        for never in ("", None):  # never played, or an error answer: new_days alone
-            self.lastplayed = never
-            self.assertEqual(self.prop("new", **episode), "true")
-        self.assertEqual(self.shows, [7] * 5)
-        self.alive = iter([True, True, True, False]).__next__  # lost before lastplayed
-        self.assertNotIn("new", self.prop_all(**episode))
-        self.assertEqual((self.episode_ids, self.shows), ([301] * 6, [7] * 5))
+        self.assertEqual(self.episode_ids, [301] * 9)
+        self.assertEqual((self.films, self.calls, self.shows), ([], [], []))
 
     def test_focus_lost(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
         show["Property(WatchedEpisodes)"] = "9"
         moved = mock.Mock()
-        for checks, queries in (
-            ([True, False], 0),  # before the move
-            ([True, True, False], 0),  # after it
-            ([True, True, True, False], 1),  # between the episodes and lastplayed
+        for checks in (
+            [True, False],  # before the move
+            [True, True, False],  # after it
         ):
             self.alive = iter(checks).__next__
-            self.calls.clear()
             with mock.patch.object(helpers.ProgressBarManager, "update", moved):
                 properties = self.prop_all(**show)
             shown = {key: value for key, value in properties.items() if value}
             self.assertEqual(shown, {"unwatchedepisodes": "4"})  # a show: time_left ""
-            self.assertEqual((len(self.calls), self.shows), (queries, []))
-        self.assertEqual(moved.call_count, 2)
+            self.assertEqual(self.calls, [])
+        self.alive = iter([True, True, True]).__next__  # no check after the move's
+        self.assertEqual(self.prop("new", **show), "true")
+        self.assertEqual((len(self.calls), self.shows, moved.call_count), (1, [], 1))
 
     def test_next_air(self):
         cached, asks = {}, []

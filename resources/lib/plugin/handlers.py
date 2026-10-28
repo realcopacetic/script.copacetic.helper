@@ -842,31 +842,26 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             img_id=to_int(self.params.get("img_id"), None),
             img_h=to_int(self.params.get("img_h"), None),
         )
-        # The bar is placed first, but it appears only when the item returns, so a
-        # show or episode adds up to two library calls to that and a season or film
-        # one. A superseded serve makes none.
+        # The bar is placed first, but it appears only when the item returns, so any
+        # item adds at most one library call to that. A superseded serve makes none.
         if guard.alive():
             item["properties"] |= {
                 "time_left": (
                     hours_minutes(math.ceil((secs - position) / 60)) if secs else ""
                 ),
-                **self._show_context(pb.infolabels, guard.alive),
-                **self._unwatched_new(pb.infolabels, resume, guard.alive),
+                **self._show_context(pb.infolabels),
+                **self._unwatched_new(pb.infolabels, resume),
             }
 
         return set_items([item], tag_applier=apply_videoinfotag)
 
-    def _show_context(
-        self, labels: dict[str, str], alive: Callable[[], bool]
-    ) -> dict[str, str]:
+    def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
         """
-        An unfinished show's or season's next_episode (as next_up), next_runtime and a
-        show's new, from one GetEpisodes call plus a started show's lastplayed when its
-        newest unwatched episode is in new_days; a fully watched show's next_air.
+        An unfinished show's or season's next_episode (as next_up) and next_runtime,
+        and a show's new, from one GetEpisodes call; a fully watched show's next_air.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
-        :param alive: The focus guard's check, made again between the library calls.
-        :return: Properties for the progress item; none for other types or a lost focus.
+        :return: Properties for the progress item; none for other types.
         """
         dbtype = labels["DBType"]
         if dbtype not in ("tvshow", "season"):
@@ -874,8 +869,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         labels = labels | get_infolabels(
             self.target_item,
             [
-                "LastPlayed",
-                "Property(InProgressEpisodes)",
                 "Property(WatchedEpisodes)",
                 "Property(tvshowid)",
                 "Season",
@@ -912,7 +905,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             sort=None,
             parent="progressbar",
             params=scope,
-            properties=["dateadded", "episode", "runtime", "season"],
+            properties=["episode", "firstaired", "runtime", "season"],
         )
         # As next_up's episode sort, which orders non-specials by season then episode
         first = min(
@@ -920,22 +913,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             key=itemgetter("season", "episode"),
             default=None,
         )
-        added = max((ep["dateadded"] for ep in unwatched), default="")
-        new = dbtype == "tvshow" and added >= self._added_since()
-        # Kodi's own items carry InProgressEpisodes, "0" too. A helper item has none
-        # (JSON-RPC has no such field), so any play counts: a lastplayed.
-        inprogress = labels["Property(InProgressEpisodes)"]
-        started = watched or (
-            to_int(inprogress) if inprogress else labels["LastPlayed"]
-        )
-        if new and started:  # an unstarted show's new is its dateadded alone
-            if not alive():
-                return {}
-            # compute_new_unwatched's rule, on dateadded. ListItem.LastPlayed is a date
-            # only; Kodi's "YYYY-MM-DD HH:MM:SS" strings sort in time order.
-            show = _video_details("tvshow", show_id, ["lastplayed"], "progressbar")
-            lastplayed = show and show["lastplayed"]  # None: an error answer
-            new = lastplayed and added > lastplayed
+        # By air date, specials too, started or not: a back catalogue isn't new
+        aired = max((ep["firstaired"] for ep in unwatched), default="")
+        new = dbtype == "tvshow" and aired >= self._new_since("firstaired")
         return {
             "next_episode": (
                 "S{season:02d}E{episode:02d}".format_map(first) if first else ""
@@ -950,17 +930,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "new": "true" if new else "",
         }
 
-    def _unwatched_new(
-        self, labels: dict[str, str], resume: float, alive: Callable[[], bool]
-    ) -> dict[str, str]:
+    def _unwatched_new(self, labels: dict[str, str], resume: float) -> dict[str, str]:
         """
-        A film's or episode's new: no resume point or play count, added within new_days
-        (one Get…Details call: ListItem.DateAdded is a regional date) and, for an
-        episode, after its show's lastplayed (one GetTVShowDetails, only then).
+        A film's or episode's new: no resume point or play count, and a film added or
+        an episode aired within new_days (one Get…Details call: ListItem.DateAdded and
+        ListItem.Premiered are regional dates).
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :param resume: Progress from ProgressBarManager.calculate: 0 for unwatched.
-        :param alive: The focus guard's check, made again before the lastplayed call.
         :return: The new property; none for other types, or a started or watched item.
         """
         # No library id (a plugin's item): nothing to look up
@@ -970,30 +947,24 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             or not (dbid := to_int(labels["DBID"]))
         ):
             return {}
-        fields = ["dateadded"] + (["tvshowid"] if dbtype == "episode" else [])
-        item = _video_details(dbtype, dbid, fields, "progressbar")
-        new = item and item["dateadded"] >= self._added_since()  # None: an error answer
-        if new and dbtype == "episode":
-            if not alive():
-                return {}
-            # The show rule, so a binge's later episodes aren't all new. No lastplayed
-            # (never played) or an error answer: new_days alone
-            show = _video_details(
-                "tvshow", item["tvshowid"], ["lastplayed"], "progressbar"
-            )
-            lastplayed = show and show["lastplayed"]
-            new = not lastplayed or item["dateadded"] > lastplayed
+        # An episode by air date: a show added late, or a binge, isn't new. Empty (not
+        # aired, or unknown) sorts first; a future date (a pre-release file) is new
+        field = "firstaired" if dbtype == "episode" else "dateadded"
+        item = _video_details(dbtype, dbid, [field], "progressbar")
+        new = item and item[field] >= self._new_since(field)  # None: an error answer
         return {"new": "true" if new else ""}
 
-    def _added_since(self) -> str:
+    def _new_since(self, field: str) -> str:
         """
-        The earliest dateadded that is still new: new_days (default 30) before now,
-        as JSON-RPC writes it ("YYYY-MM-DD HH:MM:SS"), so string order is time order.
+        The earliest dateadded or firstaired that is still new: new_days (default 30)
+        before now, as JSON-RPC writes that field, so string order is time order.
 
-        :return: The cutoff as "YYYY-MM-DD HH:MM:SS", local time.
+        :param field: "dateadded" ("YYYY-MM-DD HH:MM:SS") or "firstaired" (a date).
+        :return: The cutoff in the field's format, local time.
         """
         days = to_int(self.params.get("new_days"), 30)
-        return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
+        fmt = "%Y-%m-%d %H:%M:%S" if field == "dateadded" else "%Y-%m-%d"
+        return f"{datetime.now() - timedelta(days=days):{fmt}}"
 
     def _next_air(self) -> str:
         """
