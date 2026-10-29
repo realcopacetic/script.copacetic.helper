@@ -103,7 +103,9 @@ def http_error(code, headers=None):
 class Base(unittest.TestCase):
     def setUp(self):
         self.now = 1_800_000_000.0
-        time.time = lambda: self.now
+        patcher = mock.patch.object(time, "time", lambda: self.now)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.net = http.urlopen = Net()
         self.cache = ApiCacheHandler()
         self.cache.clear_all()
