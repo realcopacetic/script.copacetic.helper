@@ -41,6 +41,7 @@ from resources.lib.plugin.music import (  # noqa: E402
     rank_songs,
     title_key,
 )
+from resources.lib.plugin.setter import apply_musicinfotag  # noqa: E402
 from resources.lib.script import actions  # noqa: E402
 from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
@@ -407,6 +408,13 @@ class LibraryItemTest(unittest.TestCase):
                 ({},),
             ],
         )
+
+    def test_album_artist_as_kodi_shows_it(self):
+        li = mock.Mock()
+        row = {"albumid": 3, "displayartist": "JAY-Z & Kanye West", "title": "WTT"}
+        apply_musicinfotag(li, row, "album")
+        tag = li.getMusicInfoTag.return_value
+        tag.setArtist.assert_called_once_with("JAY-Z & Kanye West")
 
 
 class TopSongsTest(Base):

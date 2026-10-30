@@ -16,7 +16,7 @@ from resources.lib.shared.utilities import ADDON, json_call
 _DETAILS = {
     "album": (
         "AudioLibrary.GetAlbumDetails",
-        ["artist", "genre", "title", "userrating", "year"],
+        ["displayartist", "genre", "title", "userrating", "year"],
     ),
     "artist": (
         "AudioLibrary.GetArtistDetails",
