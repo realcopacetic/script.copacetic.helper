@@ -650,8 +650,9 @@ class TypewriterAnimation:
             return
 
         def _abort(reason: str) -> None:
-            """Clear the control and log why the animation stopped."""
-            control.setText("")
+            """Log the stop; clear the control unless another run has taken it over."""
+            if not _superseded():
+                control.setText("")
             log.debug(f"{self.__class__.__name__} → ABORTED → '{label}' {reason}")
 
         if not _alive():
