@@ -100,19 +100,29 @@ def http_error(code, headers=None):
     return HTTPError("https://api.listenbrainz.org/x", code, "", headers or {}, None)
 
 
+def patch(test, *patches):
+    """Set each (target, name, value) until test ends, creating absent names."""
+    for target, name, value in patches:
+        patcher = mock.patch.object(target, name, value, create=True)
+        patcher.start()
+        test.addCleanup(patcher.stop)
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.now = 1_800_000_000.0
-        patcher = mock.patch.object(time, "time", lambda: self.now)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        self.net = http.urlopen = Net()
+        self.net = Net()
+        self.settings = {"listenbrainz_token": " lb-token "}
+        patch(
+            self,
+            (time, "time", lambda: self.now),
+            (http, "urlopen", self.net),
+            (listenbrainz, "Monitor", lambda: self),  # waitForAbort: the clock moves on
+            (listenbrainz.ADDON, "getSetting", lambda key: self.settings.get(key, "")),
+        )
         self.cache = ApiCacheHandler()
         self.cache.clear_all()
         sys.modules["xbmcgui"].Window().clearProperty(listenbrainz.NEXT_CALL)
-        listenbrainz.Monitor = lambda: self  # waitForAbort: the clock moves on
-        self.settings = {"listenbrainz_token": " lb-token "}
-        listenbrainz.ADDON.getSetting = lambda key: self.settings.get(key, "")
 
     def row(self, mbid=GORILLAZ, key="listenbrainz:top-recordings:"):
         """The api_cache row for mbid: (payload, seconds left)."""
@@ -455,8 +465,7 @@ class TopSongsTest(Base):
 class TmdbTest(Base):
     def setUp(self):
         super().setUp()
-        self.settings = {"tmdb_access_token": "v3key"}
-        http.ADDON.getSetting = lambda key: self.settings.get(key, "")
+        self.settings = {"tmdb_access_token": "v3key"}  # Base's getSetting reads it
         sys.modules["xbmcgui"].Window().clearProperty(transform.TOKEN_REFUSED)
 
     def tmdb_row(self, key="tmdb:tvshow:1399:en-US"):
@@ -925,15 +934,13 @@ class NextUpTest(unittest.TestCase):
             rows = rows[: limits["end"] - start] if "end" in limits else rows
             return json.dumps({"result": {"tvshows": rows}})
 
-        for target, name, value in (
+        patch(
+            self,
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
             (handlers, "set_plugincontent", lambda **kwargs: None),
             (handlers, "build_items", lambda rows, *a, **k: [r["title"] for r in rows]),
             (handlers.ADDON, "getLocalizedString", str),
-        ):
-            patcher = mock.patch.object(target, name, value, create=True)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        )
         self.handler = object.__new__(handlers.PluginHandlers)
         self.handler.sort_lastplayed = None
         self.handler.filter_inprogress = self.handler.filter_unwatched = {}
@@ -1022,7 +1029,8 @@ class ProgressbarTest(unittest.TestCase):
             rows = [ep for ep in self.episodes if season in (None, ep["season"])]
             return json.dumps({"result": {"episodes": rows}})
 
-        for target, name, value in (
+        patch(
+            self,
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
             (helpers, "infolabel", self.label),
             (handlers, "infolabel", self.label),
@@ -1030,10 +1038,7 @@ class ProgressbarTest(unittest.TestCase):
             (helpers.ProgressBarManager, "update", lambda self, percent, **kw: None),
             (handlers, "set_items", lambda items, **kwargs: items),
             (handlers, "getCurrentWindowId", lambda: 10025),
-        ):
-            patcher = mock.patch.object(target, name, value, create=True)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        )
         self.handler = object.__new__(handlers.PluginHandlers)
         self.handler.params = {"target_id": "4010"}
         self.handler.target_item = "Container(50).ListItem"
