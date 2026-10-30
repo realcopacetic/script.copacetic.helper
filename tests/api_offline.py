@@ -996,8 +996,7 @@ def days_ago(days):
 
 def aired(days):
     """A JSON-RPC firstaired string (a date), days before now; negative: to come."""
-    # Not date.today(): it reads time.time, which Base.setUp replaces
-    return f"{datetime.now() - timedelta(days=days):%Y-%m-%d}"
+    return str(date.today() - timedelta(days=days))
 
 
 class ProgressbarTest(unittest.TestCase):
