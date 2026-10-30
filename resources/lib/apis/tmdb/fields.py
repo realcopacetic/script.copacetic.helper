@@ -36,6 +36,8 @@ TMDB_PROPERTIES = {
             "created_by",
             "first_air_date",
             ("next_episode_air_date", ("next_episode_to_air", "air_date")),
+            ("next_episode_number", ("next_episode_to_air", "episode_number")),
+            ("next_episode_season", ("next_episode_to_air", "season_number")),
             "backdrop_path",
             "poster_path",
             ("images_backdrops", ("images", "backdrops")),
@@ -103,6 +105,14 @@ TMDB_FIELD_MAP = {
     "next_episode_air_date": {
         "target": "property",
         "label": "tmdb_next_air_date",
+    },
+    "next_episode_number": {
+        "target": "property",
+        "label": "tmdb_next_air_episode",
+    },
+    "next_episode_season": {
+        "target": "property",
+        "label": "tmdb_next_air_season",
     },
     "original_name": {
         "target": "info",

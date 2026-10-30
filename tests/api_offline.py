@@ -608,19 +608,22 @@ class TmdbTest(Base):
 
     def test_next_air_reads_the_cache_only(self):
         day = date.today() + timedelta(days=30)
-        tv = json.loads(TMDB_TV) | {"next_episode_to_air": {"air_date": str(day)}}
+        next_ep = {"air_date": str(day), "episode_number": 1, "season_number": 3}
+        tv = json.loads(TMDB_TV) | {"next_episode_to_air": next_ep}
         handler = object.__new__(handlers.PluginHandlers)
         handler.params, handler.dbtype = {}, ""
         handler.target_item = "Container(50).ListItem"
         labels = {"DBType": "tvshow", "DBID": "7", "UniqueID(tmdb)": "1399"}
         label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
         with mock.patch("resources.lib.apis.tmdb.context.infolabel", label):
-            self.assertEqual(handler._next_air(), "")  # nothing cached: no request
+            empty = {"next_air": "", "next_air_episode": ""}
+            self.assertEqual(handler._next_air(), empty)  # nothing cached: no request
             self.assertEqual(self.net.requests, [])
             self.net.answers = [json.dumps(tv).encode()]  # the metadata serve's fetch
             transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
             self.tick(8 * DAY)  # stale, still served
-            self.assertEqual(handler._next_air(), day.strftime("%d %b"))
+            shown = {"next_air": day.strftime("%d %b"), "next_air_episode": "S03E01"}
+            self.assertEqual(handler._next_air(), shown)
         self.assertEqual(len(self.net.requests), 1)
 
     def test_next_air_off_looks_nothing_up(self):
@@ -630,14 +633,17 @@ class TmdbTest(Base):
         labels = {"DBType": "tvshow", "DBID": "7"}  # no UniqueID(tmdb): a TVDB show
         label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
         rpc = mock.Mock(return_value="{}")
+        empty = {"next_air": "", "next_air_episode": ""}
         with (
             mock.patch("resources.lib.apis.tmdb.context.infolabel", label),
             mock.patch.object(sys.modules["xbmc"], "executeJSONRPC", rpc, create=True),
         ):
-            self.assertEqual(handler._next_air(), "")
+            self.assertEqual(handler._next_air(), empty)
             rpc.assert_not_called()  # no uniqueid lookup
             self.settings = {"tmdb_access_token": "v3key"}
-            self.assertEqual(handler._next_air(), "")  # on: looks the id up, no cache
+            self.assertEqual(
+                handler._next_air(), empty
+            )  # on: looks the id up, no cache
         self.assertEqual(rpc.call_count, 1)
 
     def test_refused_token_warns_once(self):
@@ -1357,19 +1363,26 @@ class ProgressbarTest(unittest.TestCase):
         cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
         self.assertEqual(self.prop("next_air", **show), day.strftime("%A %d %B"))
         self.assertEqual(asks[0], {"append_artwork": False, "cache_only": True})
+        # Cached before the numbers were kept: the date alone
+        self.assertEqual(self.prop("next_air_episode", **show), "")
+        numbers = {"tmdb_next_air_episode": "1", "tmdb_next_air_season": "3"}
+        cached["item"]["properties"] |= numbers
+        self.assertEqual(self.prop("next_air_episode", **show), "S03E01")
+        cached["item"]["properties"]["tmdb_next_air_date"] = "2000-01-01"
+        self.assertEqual(self.prop_all(**show)["next_air_episode"], "")  # past
         for labels in (
             show | {"DBType": dbtype} for dbtype in ("season", "episode", "movie")
         ):
             self.labels = labels
             (item,) = self.handler.progressbar()
             self.assertNotIn("next_air", item["properties"])
-        self.assertEqual((self.calls, len(asks)), ([], 7))
+        self.assertEqual((self.calls, len(asks)), ([], 10))
         # Unstarted (an ended show never begun too) and started shows: no lookup
         for watched, left in (("0", "10"), ("9", "1")):
             counts = {"Property(WatchedEpisodes)": watched}
             counts["Property(UnwatchedEpisodes)"] = left
             self.assertNotIn("next_air", self.prop_all(**show | counts))
-        self.assertEqual(len(asks), 7)
+        self.assertEqual(len(asks), 10)
 
 
 if __name__ == "__main__":

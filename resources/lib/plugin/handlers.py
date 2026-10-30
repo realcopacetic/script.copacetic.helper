@@ -858,7 +858,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
         """
         An unfinished show's or season's next_episode (as next_up) and next_runtime,
-        and a show's new, from one GetEpisodes call; a fully watched show's next_air.
+        and a show's new, from one GetEpisodes call; a fully watched show's next_air
+        and next_air_episode.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :return: Properties for the progress item; none for other types.
@@ -878,7 +879,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         watched = to_int(labels["Property(WatchedEpisodes)"])
         left = to_int(labels["Property(UnwatchedEpisodes)"])
         if dbtype == "tvshow" and watched and not left:  # fully watched
-            return {"next_air": self._next_air()}
+            return self._next_air()
 
         # No library id (a plugin's item): tvshowid 0 would ask for every show. A
         # favourite's season (a helper item) has a DBID but no TvShowDBID, only
@@ -966,21 +967,30 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         fmt = "%Y-%m-%d %H:%M:%S" if field == "dateadded" else "%Y-%m-%d"
         return f"{datetime.now() - timedelta(days=days):{fmt}}"
 
-    def _next_air(self) -> str:
+    def _next_air(self) -> dict[str, str]:
         """
-        The focused show's next air date from the TMDb cache, never fetched here,
-        in date_format (strftime, default "%d %b"). Nothing is looked up with TMDb off.
+        The focused show's next air date, in date_format (strftime, default "%d %b"),
+        and episode code from the TMDb cache, never fetched here. Nothing is looked up
+        with TMDb off.
 
-        :return: The formatted date; empty if not cached, none is due, or it has passed.
+        :return: next_air and next_air_episode; empty if none is cached or it is past.
         """
         # No art: the art entry while fresh, else the art-less one, else stale art
         tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
-        if not (tmdb and (iso := tmdb["properties"].get("tmdb_next_air_date"))):
-            return ""
-        day = date.fromisoformat(iso)
-        if day < date.today():
-            return ""
-        return day.strftime(self.params.get("date_format", "%d %b"))
+        props = tmdb["properties"] if tmdb else {}
+        iso = props.get("tmdb_next_air_date")
+        if not iso or (day := date.fromisoformat(iso)) < date.today():
+            return {"next_air": "", "next_air_episode": ""}
+        # An entry cached before the numbers were kept (7-day TTL) has the date alone
+        episode = props.get("tmdb_next_air_episode")
+        return {
+            "next_air": day.strftime(self.params.get("date_format", "%d %b")),
+            "next_air_episode": (
+                f"S{int(props['tmdb_next_air_season']):02d}E{int(episode):02d}"
+                if episode
+                else ""
+            ),
+        }
 
     @log.duration
     def reposition(self) -> list[DirectoryItem] | None:
