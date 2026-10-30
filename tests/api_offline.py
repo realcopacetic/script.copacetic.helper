@@ -427,9 +427,12 @@ class TopSongsTest(Base):
                 )
             return json.dumps({"result": {"songs": SONGS}})
 
-        sys.modules["xbmc"].executeJSONRPC = rpc
-        handlers.set_plugincontent = lambda **kwargs: None
-        handlers.library_item = lambda row, type: row["title"]
+        patch(
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (handlers, "set_plugincontent", lambda **kwargs: None),
+            (handlers, "library_item", lambda row, type: row["title"]),
+        )
         self.handler = object.__new__(handlers.PluginHandlers)
         self.handler.params = {"info": "top_songs", "id": "4"}
         self.handler.dbid, self.handler.limit = "4", 3
@@ -551,7 +554,7 @@ class TmdbTest(Base):
             show = {"uniqueid": {"tmdb": "1399"}}
             return json.dumps({"result": {"tvshowdetails": show}})
 
-        sys.modules["xbmc"].executeJSONRPC = rpc
+        patch(self, (sys.modules["xbmc"], "executeJSONRPC", rpc))
         params = {"type": "episode", "id": "5", "tvshowid": "7", "tmdb_id": "63056"}
         ctx = resolve_tmdb_context(params, "ListItem")
         self.assertEqual((ctx["kind"], ctx["tmdb_id"]), ("episode", "1399"))
@@ -640,7 +643,11 @@ class TmdbTest(Base):
     def test_metadata_keeps_library_plot_and_tagline(self):
         library = {"Plot": "Library plot", "Writer": "Library writer"}
         self.net.answers = [TMDB_TV] * 2
-        handlers.set_items = lambda items, **kwargs: items
+        patch(  # an empty JSON-RPC answer: the album has no album artist
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", lambda request: "{}"),
+            (handlers, "set_items", lambda items, **kwargs: items),
+        )
         handler = object.__new__(handlers.PluginHandlers)
         handler.params = {"enrich_with_tmdb": "true"}
         handler.item, handler.dbtype, handler.dbid = False, "tvshow", "7"
@@ -740,9 +747,12 @@ class DiscographyTest(Base):
                 )
             return json.dumps({"result": {"albums": ALBUM_ROWS}})
 
-        sys.modules["xbmc"].executeJSONRPC = rpc
-        handlers.set_plugincontent = lambda **kwargs: None
-        handlers.library_item = lambda row, type: row["albumid"]
+        patch(
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (handlers, "set_plugincontent", lambda **kwargs: None),
+            (handlers, "library_item", lambda row, type: row["albumid"]),
+        )
         self.handler = object.__new__(handlers.PluginHandlers)
         self.handler.params = {"info": "discography", "id": "4"}
         self.handler.dbid, self.handler.limit = "4", None
@@ -792,8 +802,11 @@ class ListenersTest(Base):
             field = request["params"]["properties"][0]
             return json.dumps({"result": {kind: {field: self.mbid}}})
 
-        sys.modules["xbmc"].executeJSONRPC = rpc
-        handlers.set_items = lambda items: items
+        patch(
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (handlers, "set_items", lambda items: items),
+        )
         self.handler = object.__new__(handlers.PluginHandlers)
         self.handler.params = {"info": "listeners", "id": "7", "type": "album"}
         self.handler.dbid, self.handler.dbtype = "7", "album"
