@@ -130,6 +130,7 @@ Returns the item's details from TMDb. It needs a TMDb token in the add-on settin
 | `ListItem.Property(tmdb_budget)` | budget | — | — |
 | `ListItem.Property(tmdb_revenue)` | revenue | — | — |
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |
+| `ListItem.Property(tmdb_next_air_season)`, `ListItem.Property(tmdb_next_air_episode)` | — | next episode's season and episode number | — |
 | `ListItem.Art(poster)`, `ListItem.Art(fanart)` | main poster and backdrop | same | — |
 
 `ListItem.Label` is empty; use `ListItem.Title`.

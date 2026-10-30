@@ -81,6 +81,7 @@ One list item in the helper container:
 | `ListItem.Property(next_runtime)` | That episode's library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
 | `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
+| `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `S03E01`, as `next_episode` writes them. Empty while the cached TMDb data predates it (see below). |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
 with `String.IsEmpty`. They are worked out after the bar has moved, so the bar is
@@ -141,13 +142,16 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   episode with no air date is never new. `ListItem.DateAdded` and
   `ListItem.Premiered` can't stand in: they print the date in the region's short date
   format, which the user can change.
-- **`next_air`**: only for a fully watched show (some episodes watched, none left)
-  with a TMDb token set; any other show makes no lookup for it. TMDb's next episode
-  air date, read from the add-on's cache only; this path never asks TMDb. The
-  [metadata](metadata.md#tmdb-lookups) plugin fills the cache when called with
-  `enrich_with_tmdb=true`. Until it has, and once the date is past, `next_air` is
-  empty. The cache is kept per TMDb language, so a `metadata` call with a `language`
-  fills it for a `progressbar` call with the same `language` only.
+- **`next_air`** and **`next_air_episode`**: only for a fully watched show (some
+  episodes watched, none left) with a TMDb token set; any other show makes no lookup
+  for them. TMDb's next episode air date, season and number, read from the add-on's
+  cache only; this path never asks TMDb. The [metadata](metadata.md#tmdb-lookups)
+  plugin fills the cache when called with `enrich_with_tmdb=true`. Until it has, and
+  once the date is past, both are empty. An entry cached by an older version of the
+  add-on holds the date alone, so `next_air_episode` stays empty until a `metadata`
+  call fetches the show again, once the entry is 7 days old. The cache is kept per
+  TMDb language, so a `metadata` call with a `language` fills it for a `progressbar`
+  call with the same `language` only.
   A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its
   default id) costs one `VideoLibrary.GetTVShowDetails` call to find its TMDb id, as
   the metadata plugin does.
