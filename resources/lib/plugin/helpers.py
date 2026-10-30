@@ -577,6 +577,7 @@ class TypewriterAnimation:
         """
 
         self.window = Window(window_id)
+        self.window_id = window_id
         self.control_id = control_id
         self.step_time = step_time
         self.default_line_h = default_line_h
@@ -650,8 +651,11 @@ class TypewriterAnimation:
             return
 
         def _abort(reason: str) -> None:
-            """Log the stop; clear the control unless another run has taken it over."""
-            if not _superseded():
+            """
+            Log the stop; clear the control unless a run or reset took it over while
+            this window is in front (one in another window can't reach this control).
+            """
+            if not _superseded() or topmost_window_id() != self.window_id:
                 control.setText("")
             log.debug(f"{self.__class__.__name__} → ABORTED → '{label}' {reason}")
 

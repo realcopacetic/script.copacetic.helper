@@ -77,8 +77,11 @@ The textbox width is the rectangle's width.
 
 After every 25 ms wait the run checks the focus guard and the claimed property, so
 the textbox never shows or grows for a run that is no longer current. If focus moved
-on, or another value is now in `typewriter_current_<target_id>`, the textbox is
-cleared and the run stops (during the last four checks it just stops growing).
+on, the textbox is cleared and the run stops. If another value is now in
+`typewriter_current_<target_id>`, the run stops and leaves the textbox to the newer
+run or reset; it still clears it when another window or dialog is in front, since
+that one's run or reset can't reach this window's textbox. During the last four
+checks the run just stops growing.
 
 ## Resetting
 
