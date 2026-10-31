@@ -219,7 +219,7 @@ def apply_videoinfotag(
 def joined(value: str | list[str]) -> str:
     """
     A JSON-RPC field that is a list on some rows and a string on others,
-    such as artist (songs) or yearsactive.
+    such as artist (a list on songs, the name on artist rows) or yearsactive.
 
     :param value: JSON-RPC string or list field.
     :return: The value, a list joined with Kodi's default separator.
