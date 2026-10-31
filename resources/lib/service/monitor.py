@@ -194,9 +194,10 @@ class Monitor(xbmc.Monitor):
                 if time.monotonic() >= deadline:
                     return True
             if not seen:
-                return True
+                break
             if self.waitForAbort(0.2):
                 return False
+        window_property(SETTLE_PROPERTY)  # the last token landed: none pending
         return True
 
     def onScreensaverActivated(self) -> None:
