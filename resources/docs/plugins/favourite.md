@@ -72,7 +72,7 @@ file or its share.
   `Artist_Died`. An album has `ListItem.Property(Album_Description)`.
 - `ListItem.Property(favourite.index)`: the `index` you passed.
 - `ListItem.Property(favourite.path)`: the favourite's `ListItem.FileNameAndPath`, as
-  Kodi lists it, so
+  Kodi lists it but with its `%` hex in upper case (`String.IsEqual` ignores case), so
   `String.IsEqual(Container(9040).ListItem.Property(favourite.path),Container(50).ListItem.FileNameAndPath)`
   is true while 9040 holds the focused favourite. It stays true while Kodi refreshes
   9040 in place (after a library update), as Kodi keeps the old item until the new
