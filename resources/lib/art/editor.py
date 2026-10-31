@@ -436,13 +436,8 @@ class ImageEditor:
         from resources.lib.art.io import write_image
 
         processed_path = None
-        process_method = getattr(self.processor, process, None)
-        if not process_method:
-            return None
-
-        url = next(iter(art.values()), None)
-        if not url:
-            return None
+        process_method = getattr(self.processor, process)
+        url = next(iter(art.values()))
 
         source_path = ""  # only the call that opens the source resolves and deletes it
         if (image := shared["images"].get(url)) is None:
@@ -487,9 +482,7 @@ class ImageEditor:
         meta = result.get("metadata") or {}
         return {
             **(
-                {"processed_path": processed_path}
-                if processed_path is not None and folder and "image" in result
-                else {}
+                {"processed_path": processed_path} if processed_path is not None else {}
             ),
             **{k: v for k, v in meta.items() if v is not None},
         }
