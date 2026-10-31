@@ -45,6 +45,7 @@ and so on.
 |---|---|
 | `ListItem.Label`, `ListItem.Label2` | The focused item's `Label`. |
 | `ListItem.Title` | The focused item's `Title`, which a list's label may not be (a search node, Files with library titles off): use it where a library title is compared, such as the `exclude_value` of [`genre_credits`](library.md). With TMDb, the TMDb title is used only when the item has none. |
+| `ListItem.TVShowTitle` | The focused item's show title (a show, season or episode), to leave its show out of a TV rail, such as `genre_credits` with `type=tvshow`. |
 | `ListItem.Property(dbid)` | The `id` it was read for. With `Label`, it tells a skin whose metadata the container holds while the next item's is still loading. |
 | `ListItem.Director` | All directors, or one at random with `random_pick=true`, whole, as the library names them. |
 | `ListItem.Genre` | All genres, or one at random with `random_pick=true`, cleaned for display (below). |

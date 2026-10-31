@@ -186,6 +186,7 @@ class DataHandler:
                 "Tagline",
                 "Title",
                 "Trailer",
+                "TVShowTitle",
             ],
         )
 
@@ -230,6 +231,7 @@ class DataHandler:
             "PlotOutline": self.infolabels["PlotOutline"],
             "TagLine": self.infolabels["Tagline"],
             "Title": self.infolabels["Title"],
+            "TvShowTitle": self.infolabels["TVShowTitle"],
             "Trailer": self.infolabels["Trailer"],
             "properties": properties,
         }
