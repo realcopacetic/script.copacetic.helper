@@ -212,6 +212,8 @@ The text used is the first that is not empty: `truncate_label`, the label of
 season overview when there is one) is cut; `false` for a favourite read with `target=`,
 whose caption may be its action text, so the returned plot (the library's, else TMDb's)
 is cut. Music keeps the label: an album's or artist's caption is its description.
+An item with no plot of its own skips the label whenever TMDb returned one, so TMDb's
+plot is cut rather than the skin's fallback caption.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=font_plot</content>

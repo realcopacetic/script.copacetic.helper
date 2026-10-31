@@ -684,7 +684,7 @@ class TmdbTest(Base):
             self.assertNotEqual(item["Writers"], ["Library writer"])  # TMDb still wins
             library["Tagline"] = "Library tagline"
             library["Plot"] = ""
-            (item,) = handler.metadata()
+            (item,) = handler.metadata()  # a plot only TMDb has: skips the probe
         self.assertEqual(item["TagLine"], "Library tagline")
         self.assertTrue(item["Plot"].startswith("Seven noble families"))
         handler.dbtype, library["Plot"] = "season", "The show's plot"
@@ -704,7 +704,7 @@ class TmdbTest(Base):
             handler.metadata()
             handler.params["truncate_probe"], handler.dbtype = "false", "album"
             handler.metadata()  # music keeps the probe (an album caption: description)
-        self.assertEqual(probes, [True, True, True, False, True, False, False, True])
+        self.assertEqual(probes, [True, False, True, False, True, False, False, True])
 
     def test_truncated_label_probe(self):
         handler = object.__new__(handlers.PluginHandlers)

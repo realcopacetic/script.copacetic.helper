@@ -756,6 +756,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
+        own_plot = data["Plot"]
         enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb", "false"))
         if enrich_with_tmdb:
             # tmdb_art: the one request also caches the art-bearing entry (a superset)
@@ -783,14 +784,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # truncate_probe=<dbtype>: that type skips the skin's probe (a season's reads
         # its show's plot); =false: every video type does (a favourite's reads its
         # action text). Music keeps it: an album's or artist's caption is its
-        # description
+        # description. A plot only TMDb has skips it too: the caption is the meta line
         skip = self.params.get("truncate_probe", "true")
         self._apply_truncated_label(
             data,
             target=target,
             default_text=data.get("Plot"),
             probe=skip != self.dbtype
-            and (skip != "false" or self.dbtype in MUSIC_TYPES),
+            and (skip != "false" or self.dbtype in MUSIC_TYPES)
+            and (bool(own_plot) or not data.get("Plot")),
         )
 
         return set_items([data], tag_applier=apply_videoinfotag)
