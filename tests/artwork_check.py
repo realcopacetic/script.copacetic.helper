@@ -9,6 +9,7 @@ time. Needs Pillow and the skin (its Font.xml and fonts measure the label); no n
     python tests/artwork_check.py ../skin.copacetic2
 """
 
+import io
 import os
 import random
 import shutil
@@ -119,7 +120,16 @@ def install(tmp: Path, skin: Path) -> None:
     vfs.mkdirs = lambda p: os.makedirs(p, exist_ok=True) or True
     vfs.copy = lambda src, dst: bool(shutil.copy(src, dst))
     vfs.delete = lambda p: os.path.exists(p) and not os.remove(p)
-    vfs.File = open
+
+    class File(io.FileIO):
+        """xbmcvfs.File: special:// paths, readBytes and the "wb" mode."""
+
+        def __init__(self, path: str, mode: str = "r") -> None:
+            super().__init__(vfs.translatePath(path), mode.replace("b", ""))
+
+        readBytes = io.FileIO.readall
+
+    vfs.File = File
     sys.path.insert(0, str(HELPER))
 
 
