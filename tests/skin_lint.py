@@ -33,6 +33,8 @@ TIMER_IGNORED = {"include", "constant"}  # CGUIIncludes elements
 KINDS = {"VAR": "variable", "EXP": "expression"}
 DEFINITIONS = ("include", "expression", "variable")
 LAYOUTS = {"itemlayout", "focusedlayout"}
+TIMED = {"animation", "effect"}  # time and delay: constants, then QueryFloatAttribute
+NUMBER = re.compile(r"\s*[-+]?\.?\d")  # the prefix sscanf's %f needs
 GENERATED = "script-copacetic-helper_"
 UNMIGRATED = ("_addonbrowser", "_pictures")  # pre-built for windows not yet migrated
 C2_SHELLS = (
@@ -257,6 +259,7 @@ class Skin:
         self.defs = {kind: {} for kind in DEFINITIONS}
         self.defaults = {}
         self.types = {}
+        self.constants = {}
         self.params = {}
         self.calls = defaultdict(lambda: (set(), set()))
         self.duplicates = defaultdict(list)
@@ -287,6 +290,8 @@ class Skin:
                 self._register(node)
             elif node.tag == "default" and node.get("type") and len(node):
                 self.types.setdefault(node.get("type"), node)  # first one wins
+            elif node.tag == "constant" and node.get("name") and node.text:
+                self.constants.setdefault(node.get("name"), node.text)
 
     def _register(self, node: Node) -> None:
         """Register a definition unless Kodi's loader drops it (first one wins)."""
@@ -608,7 +613,19 @@ class Skin:
                         reached[kind, ref] = live_ref
                         queue.append((definition, live_ref))
         self.reached |= reached.keys()
+        self.check_times(root)
         self.check_ids(name, self.roots[name])
+
+    def check_times(self, root: Node) -> None:
+        """
+        Report animation ``time``/``delay`` values that are no number once
+        ``ResolveConstant`` has swapped in constants: Kodi drops them silently.
+        """
+        for node in (e for e in root.iter() if e.tag in TIMED):
+            for key in ("time", "delay"):
+                value = node.get(key, "")
+                if value and not NUMBER.match(self.constants.get(value, value)):
+                    self.report("undefined-constant", node.src, f'{key}="{value}"')
 
     def check_escexp(self, src: str, value: str) -> None:
         """Report ``$ESCEXP[…]`` in ``value``, which Kodi leaves literal."""
