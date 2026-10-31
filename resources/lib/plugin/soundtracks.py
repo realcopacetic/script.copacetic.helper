@@ -37,17 +37,19 @@ class Claim(NamedTuple):
     seasons: frozenset[int]  # seasons it names; empty for none
     medium: str  # "movie" or "tvshow" when its wording says, else ""
 
-    def fits(self, keys: set[str], season: int) -> bool:
+    def fits(self, keys: set[str], season: int | None) -> bool:
         """
         Whether it can be the soundtrack of a film or show titled keys: for a
-        season (0 for none), naming that season or no season.
+        season (0 is specials), naming that season or no season.
 
         :param keys: The film or show's title keys.
-        :param season: Season number, 0 for the film or show itself.
+        :param season: Season number, None for the film or show itself.
         :return: True when it fits.
         """
         named = self.seasons
-        return bool(self.keys & keys) and (not season or not named or season in named)
+        return bool(self.keys & keys) and (
+            season is None or not named or season in named
+        )
 
 
 def title_key(title: str) -> str:

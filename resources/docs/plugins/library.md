@@ -302,7 +302,8 @@ one candidate the year is never checked.
 **Seasons.** An album's title can name seasons: "Season 3", "Season One", "Seasons 3 &
 4", "Seasons 1–3", "Series 2". A season (or episode) lists the albums naming it first,
 then the albums naming no season (volumes, a limited series), oldest first; albums
-naming other seasons are left out. A TV show lists all of them, oldest first. For an
+naming other seasons are left out, so specials (season 0) list only the albums naming
+no season. A TV show lists all of them, oldest first. For an
 album, the movie or TV show item carries the seasons the album names in
 `ListItem.Property(soundtrack_seasons)` (`3, 4`); it is empty when the album names
 none.

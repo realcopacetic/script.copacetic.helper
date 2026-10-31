@@ -1586,7 +1586,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         if self.dbtype == "album":
             return self._soundtrack_source(int(self.dbid))
-        media, dbid, season = self.dbtype, int(self.dbid), 0
+        media, dbid, season = self.dbtype, int(self.dbid), None
         if media in ("season", "episode"):
             parent = _video_details(
                 media, dbid, ["tvshowid", "season"], parent="soundtracks"

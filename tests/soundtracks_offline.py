@@ -128,9 +128,11 @@ class Claims(unittest.TestCase):
         both = claim(
             "Person of Interest: Seasons 3 & 4: Original Television Soundtrack"
         )
-        self.assertTrue(both.fits(keys, 0))  # the show
+        self.assertTrue(both.fits(keys, None))  # the show
         self.assertTrue(both.fits(keys, 4))
         self.assertFalse(both.fits(keys, 2))
+        self.assertFalse(both.fits(keys, 0))  # specials: albums naming no season
+        self.assertTrue(claim("Person of Interest").fits(keys, 0))
         volume = claim(
             "Halt and Catch Fire, Vol. 2 (Original Television Series Soundtrack)"
         )
