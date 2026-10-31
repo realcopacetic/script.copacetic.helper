@@ -15,6 +15,8 @@ class RuleEngine:
     # Regex to match conditions in the form: "[not] EvaluatorKeyword(param1, param2)"
     CONDITION_PATTERN = re.compile(r"^(not\s+)?(\w+)\(\s*([^,]+)\s*,\s*([^)]+)\s*\)$")
 
+    CONSTANTS = {"true": True, "false": False, "not true": False, "not false": True}
+
     CONDITION_MAP = {
         "in": lambda subj, vals: subj
         in [x.strip() for x in vals.strip("[]").split(",")],
@@ -58,9 +60,9 @@ class RuleEngine:
         :param condition_str: The full condition string to evaluate.
         :return: True if the condition evaluates successfully, else False.
         """
-        # Simple "true" / "false" strings
-        if condition_str in ("true", "false"):
-            return condition_str == "true"
+        # Constants, bare or negated (a token substituted into "not {flag}")
+        if (constant := self.CONSTANTS.get(condition_str)) is not None:
+            return constant
 
         # Native Kodi XML boolean expression in format xml()
         if condition_str.lower().startswith("xml("):
