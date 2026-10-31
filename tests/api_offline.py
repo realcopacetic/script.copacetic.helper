@@ -615,14 +615,18 @@ class TmdbTest(Base):
         handler.target_item = "Container(50).ListItem"
         labels = {"DBType": "tvshow", "DBID": "7", "UniqueID(tmdb)": "1399"}
         label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
-        with mock.patch("resources.lib.apis.tmdb.context.infolabel", label):
+        with (
+            mock.patch("resources.lib.apis.tmdb.context.infolabel", label),
+            mock.patch.object(handlers, "getLocalizedString", "#{}".format),
+        ):
             empty = {"next_air": "", "next_air_episode": ""}
             self.assertEqual(handler._next_air(), empty)  # nothing cached: no request
             self.assertEqual(self.net.requests, [])
             self.net.answers = [json.dumps(tv).encode()]  # the metadata serve's fetch
             transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
             self.tick(8 * DAY)  # stale, still served
-            shown = {"next_air": day.strftime("%d %b"), "next_air_episode": "S03E01"}
+            when = f"{day:%d} #{50 + day.month}"  # Kodi's short month: 51 is Jan
+            shown = {"next_air": when, "next_air_episode": "S03E01"}
             self.assertEqual(handler._next_air(), shown)
         self.assertEqual(len(self.net.requests), 1)
 
@@ -1064,6 +1068,7 @@ class ProgressbarTest(unittest.TestCase):
             (helpers.ProgressBarManager, "update", lambda self, percent, **kw: None),
             (handlers, "set_items", lambda items, **kwargs: items),
             (handlers, "getCurrentWindowId", lambda: 10025),
+            (handlers, "getLocalizedString", "#{}".format),
         )
         self.handler = object.__new__(handlers.PluginHandlers)
         self.handler.params = {"target_id": "4010"}
@@ -1355,13 +1360,14 @@ class ProgressbarTest(unittest.TestCase):
         for days, shown in ((23, True), (0, True), (-1, False)):
             day = date.today() + timedelta(days=days)
             cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
-            expected = day.strftime("%d %b") if shown else ""
+            expected = f"{day:%d} #{50 + day.month}" if shown else ""  # Kodi's %b
             self.assertEqual(self.prop("next_air", **show), expected)
-        self.handler.params["date_format"] = "%A %d %B"
+        self.handler.params["date_format"] = "%A %d %B, %b"
         self.assertEqual(self.prop("next_air", **show), "")  # still yesterday
         day = date.today() + timedelta(days=2)
         cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
-        self.assertEqual(self.prop("next_air", **show), day.strftime("%A %d %B"))
+        when = f"{day:%A %d %B}, #{50 + day.month}"  # only %b is Kodi's
+        self.assertEqual(self.prop("next_air", **show), when)
         self.assertEqual(asks[0], {"append_artwork": False, "cache_only": True})
         # Cached before the numbers were kept: the date alone
         self.assertEqual(self.prop("next_air_episode", **show), "")

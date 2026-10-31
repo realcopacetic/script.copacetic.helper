@@ -8,6 +8,7 @@ from functools import partial
 from operator import itemgetter
 from typing import Any, Callable
 
+from xbmc import getLocalizedString
 from xbmcgui import Window, getCurrentWindowId
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
@@ -969,9 +970,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _next_air(self) -> dict[str, str]:
         """
-        The focused show's next air date, in date_format (strftime, default "%d %b"),
-        and episode code from the TMDb cache, never fetched here. Nothing is looked up
-        with TMDb off.
+        The focused show's next air date, in date_format (strftime, default "%d %b";
+        %b is Kodi's short month name), and episode code from the TMDb cache, never
+        fetched here. Nothing is looked up with TMDb off.
 
         :return: next_air and next_air_episode; empty if none is cached or it is past.
         """
@@ -983,8 +984,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return {"next_air": "", "next_air_episode": ""}
         # An entry cached before the numbers were kept (7-day TTL) has the date alone
         episode = props.get("tmdb_next_air_episode")
+        # strftime's %b is the C locale's (English): Kodi's own (51-62) follow its
+        # language, as its dates' "mmm" does
+        month = getLocalizedString(50 + day.month)
         return {
-            "next_air": day.strftime(self.params.get("date_format", "%d %b")),
+            "next_air": day.strftime(
+                self.params.get("date_format", "%d %b").replace("%b", month)
+            ),
             "next_air_episode": (
                 f"S{int(props['tmdb_next_air_season']):02d}E{int(episode):02d}"
                 if episode
