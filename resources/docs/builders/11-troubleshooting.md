@@ -12,7 +12,7 @@ In production mode the service only builds files that are **missing** (or everyt
 RunScript(script.copacetic.helper,action=rebuild)
 ```
 
-If you changed a dynamic mapping's `items` or `default_order`, or an item's `parent`, and want the settings list itself regenerated, use dev mode's **Reset on next start** (or `rebuild` with `reset=true`) — a plain rebuild keeps the user's existing entries. Other metadata and `config_fields` changes only need a rebuild.
+A fixed list (no `default_order`, no Add control, like the view settings) follows its `items` by itself on the next start or rebuild: new items gain rows, removed ones drop unless they hold a saved choice. If you changed a user-built list's `items` or `default_order`, or an item's `parent`, and want the settings list itself regenerated, use dev mode's **Reset on next start** (or `rebuild` with `reset=true`) — a plain rebuild keeps the user's existing entries. Other metadata and `config_fields` changes only need a rebuild.
 
 ---
 
