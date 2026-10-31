@@ -437,8 +437,8 @@ class Skin:
 
     def constant_false(self, condition: str) -> bool:
         """
-        True for ``false``, ``!true`` or a bare ``$EXP`` chain whose generated body
-        is ``false``: Kodi evaluates an include condition at load and skips it.
+        True when ``condition``, or the body a bare ``$EXP`` chain ends at, is false
+        whatever its infos: Kodi evaluates an include condition at load and skips it.
 
         :param condition: Include condition after param substitution.
         :return: Whether Kodi never loads the include.
@@ -450,7 +450,7 @@ class Skin:
                 return False
             seen.add(name)
             condition = (self.defs["expression"][name].text or "").strip()
-        return condition.lower() in ("false", "!true")
+        return fold(condition) is False
 
     def never(self, condition: str) -> bool:
         """
