@@ -33,7 +33,6 @@ TIMER_IGNORED = {"include", "constant"}  # CGUIIncludes elements
 KINDS = {"VAR": "variable", "EXP": "expression"}
 DEFINITIONS = ("include", "expression", "variable")
 LAYOUTS = {"itemlayout", "focusedlayout"}
-TIMED = {"animation", "effect"}  # time and delay: constants, then QueryFloatAttribute
 NUMBER = re.compile(r"\s*[-+]?\.?\d")  # the prefix sscanf's %f needs
 GENERATED = "script-copacetic-helper_"
 UNMIGRATED = ("_addonbrowser", "_pictures")  # pre-built for windows not yet migrated
@@ -284,6 +283,9 @@ class Skin:
             self.report("undefined-include", src or f"{name}:0", f"file {name}")
             return
         self.loaded.append(name)
+        for node in self.roots[name].iterfind("constant"):  # before any included file
+            if node.get("name") and node.text:
+                self.constants.setdefault(node.get("name"), node.text)
         for node in elements(self.roots[name]):
             if node.tag == "include" and "file" in node.attrib:
                 self._load(node.get("file"), node.src)
@@ -291,8 +293,6 @@ class Skin:
                 self._register(node)
             elif node.tag == "default" and node.get("type") and len(node):
                 self.types.setdefault(node.get("type"), node)  # first one wins
-            elif node.tag == "constant" and node.get("name") and node.text:
-                self.constants.setdefault(node.get("name"), node.text)
 
     def _register(self, node: Node) -> None:
         """Register a definition unless Kodi's loader drops it (first one wins)."""
@@ -625,7 +625,12 @@ class Skin:
         Report animation ``time``/``delay`` values that are no number once
         ``ResolveConstant`` has swapped in constants: Kodi drops them silently.
         """
-        for node in (e for e in root.iter() if e.tag in TIMED):
+        timed = (  # CAnimation::Create: an animation's own only when it has no <effect>
+            e
+            for e in root.iter()
+            if e.tag == "effect" or e.tag == "animation" and e.find("effect") is None
+        )
+        for node in timed:
             for key in ("time", "delay"):
                 value = node.get(key, "")
                 if value and not NUMBER.match(self.constants.get(value, value)):
