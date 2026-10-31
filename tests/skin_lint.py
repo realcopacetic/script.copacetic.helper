@@ -45,9 +45,9 @@ MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow
     *("MyPrograms.xml", "MyPVRChannels.xml", "MyPVRGuide.xml", "MyPVRRecordings.xml"),
     *("MyPVRSearch.xml", "MyPVRTimers.xml", "MyVideoNav.xml"),
 }
-CONSTANT = re.compile(r"(?:true|false|[\s!+|\[\]])*")  # lowercased; never changes
 OPAQUE = re.compile(r"\$\w+\[[^\[\]]*\]")  # $INFO[…], $VAR[…]: one unknown operand
-TOKEN = re.compile(r"[!+|\[\]]|[^!+|\[\]\s]+")  # InfoExpression::GetOperator's split
+# operators, and the operands between them trimmed as CGUIInfoManager::Register does
+TOKEN = re.compile(r"[!+|\[\]]|[^!+|\[\]\s](?:[^!+|\[\]]*[^!+|\[\]\s])?")
 BINARY = (("|", max), ("+", min))  # loosest first; Kleene logic over 0, 0.5, 1
 MEDIA_INFO = re.compile(  # label forms with no id; Row/Column/Position(n) are bools
     r"(?<![\w.])Container(?:\(\s*0?\s*\))?\."
@@ -189,7 +189,7 @@ def fold(condition: str) -> bool | None:
             if token == "!":
                 return 1 - parse(level)
             if token != "[":
-                return {"true": 1, "false": 0}.get(token, 0.5)
+                return {"true": 1, "yes": 1, "false": 0, "no": 0}.get(token, 0.5)
             value = parse()
             if tokens[-1:] == ["]"]:
                 tokens.pop()
@@ -555,7 +555,7 @@ class Skin:
         size = len(nodes) + sum(isinstance(c.tag, str) for c in added)
         branches = {b.partition(" ")[2] for e in nodes for b in e.branch}
         conditions = {self.flatten(c).strip().lower() for c in branches}
-        live = sum(not CONSTANT.fullmatch(c) for c in conditions)
+        live = sum(fold(c) is None for c in conditions if c)
         return (
             f"{name}: {size} elements, {len(ctrls)} controls, "
             f"{len(dead)} skipped includes carrying {len(carried - {*dead})} elements, "
