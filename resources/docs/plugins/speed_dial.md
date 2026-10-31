@@ -69,6 +69,8 @@ shared by every skin.
   carry `Album`, `Duration` and `TrackNumber`; artists the dates Kodi's own artist
   items carry (`ListItem.Property(Artist_Born)`, `Artist_Formed`,
   `Artist_YearsActive`, `Artist_Disbanded`, `Artist_Died`).
+- An album's `Artist` is its artist credit, as on Kodi's own album items (for example
+  `JAY-Z & Kanye West`), so it matches `ListItem.AlbumArtist` on its songs.
 - `ListItem.Art(icon)` is Kodi's default icon for the type (`DefaultAlbumCover.png`,
   `DefaultArtist.png`, `DefaultMusicSongs.png`, `DefaultMusicPlaylists.png`).
 - Every item has `ListItem.Property(speed_dial)` set to `true`. The helper reads it

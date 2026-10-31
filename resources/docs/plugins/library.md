@@ -51,6 +51,10 @@ library infolabels and artwork, so your existing layouts work with them.
 - TV shows are folders, with the path `videodb://tvshows/titles/<DBID>/`, so
   selecting one opens the show as in the library. Other video items are not folders;
   their path is the library file path.
+- Music albums (`random_albums`, `genre_music`, `discography`, `soundtracks`) carry
+  the album's artist credit in `ListItem.Artist`, as Kodi's own album items do, for
+  example `JAY-Z & Kanye West`. So it matches `ListItem.AlbumArtist` on the album's
+  songs. Songs carry their artist names joined with ` / `.
 
 ---
 
