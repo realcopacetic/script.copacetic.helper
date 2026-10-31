@@ -341,11 +341,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param cache_only: Read the TMDb cache only; never fetch.
         :return: canonical item dict or None.
         """
-        from resources.lib.apis.tmdb.client import get_tmdb_client
+        from resources.lib.apis.tmdb.client import tmdb_token
         from resources.lib.apis.tmdb.context import resolve_tmdb_context
         from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 
-        if not get_tmdb_client():  # off: skip resolve_tmdb_context's uniqueid lookup
+        if not tmdb_token():  # off: skip resolve_tmdb_context's uniqueid lookup
             return
 
         target = self.target_item

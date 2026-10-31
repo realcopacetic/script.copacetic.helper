@@ -18,6 +18,13 @@ def tmdb_language(language: str | None = None) -> str:
     return language or ADDON.getSetting("tmdb_language") or "en-US"
 
 
+def tmdb_token() -> str:
+    """
+    The user's TMDb token; empty when TMDb is off.
+    """
+    return ADDON.getSetting("tmdb_access_token").strip()
+
+
 def get_tmdb_client(language: str | None = None) -> "TmdbClient | None":
     """
     A TmdbClient when the user gave a TMDb token, which is their consent: no
@@ -26,7 +33,7 @@ def get_tmdb_client(language: str | None = None) -> "TmdbClient | None":
     :param language: TMDb language code; None uses tmdb_language()'s default.
     :return: TmdbClient, or None without a token.
     """
-    if not (token := ADDON.getSetting("tmdb_access_token").strip()):
+    if not (token := tmdb_token()):
         return None
     return TmdbClient(token=token, language=tmdb_language(language))
 
