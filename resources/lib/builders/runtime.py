@@ -107,12 +107,29 @@ class RuntimeStateManager:
 
     def _write_and_invalidate(self, state: dict) -> None:
         """
-        Write state to disk and invalidate the in-memory cache.
+        Write state to disk and invalidate the in-memory cache. When an unparseable
+        file can't be set aside, it stays and the state is held in memory instead.
 
         :param state: Full runtime state dict to persist.
         """
-        self._runtime_state_handler.write_json(state)
-        self._runtime_state_cache = None
+        handler = self._runtime_state_handler
+        held = None
+        if handler.exists and not handler.data:
+            # The file is there but didn't parse: keep it rather than overwrite it.
+            try:
+                backup = handler.path.replace(handler.path.with_suffix(".json.bak"))
+            except OSError as e:
+                log.error(
+                    f"{self.__class__.__name__} → unreadable state left as is: {e}"
+                )
+                held = state
+            else:
+                log.error(
+                    f"{self.__class__.__name__} → unreadable state kept as {backup}"
+                )
+        if held is None:
+            handler.write_json(state)
+        self._runtime_state_cache = held
         self._resolved_cache.clear()
         self.state_version += 1
         self._sync_skin_mirrors(state)
