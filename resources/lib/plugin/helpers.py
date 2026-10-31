@@ -251,16 +251,13 @@ class DataHandler:
     def _studio(self) -> str:
         """
         Returns first studio name, as the library has it, so studio queries match.
-        Sets carry none: a list reads the item before it, a set's own dialog
-        (target=item) its earliest movie's.
+        Sets carry none, so a set takes its earliest movie's.
 
         :return: Studio string or empty string.
         """
-        if self.dbtype != "set":
-            return split(self.infolabels["Studio"])
-        if self.target == "ListItem":
+        if self.dbtype == "set":
             return self._first_movie_studio()
-        return split(infolabel(f"{self.target}(-1).Studio"))
+        return split(self.infolabels["Studio"])
 
     def _first_movie_studio(self) -> str:
         """

@@ -48,7 +48,7 @@ and so on.
 | `ListItem.Director` | All directors, or one at random with `random_pick=true`, whole, as the library names them. |
 | `ListItem.Genre` | All genres, or one at random with `random_pick=true`, cleaned for display (below). |
 | `ListItem.Property(genre_query)` | With `random_pick=true`: the same pick, whole, as the library names it (`Action & Adventure`, `R&B`). Pass this, not `ListItem.Genre`, to [`genre_credits`](library.md). |
-| `ListItem.Studio` | The first studio, as the library names it (`Disney+`). Kodi sets have no studio: with `type=set` it is read from `ListItem(-1).Studio` of the container, and with `target=item` (a set's own info dialog) it is the first studio of the set's earliest movie. |
+| `ListItem.Studio` | The first studio, as the library names it (`Disney+`). Kodi sets have no studio: with `type=set` it is the first studio of the set's earliest movie, in a list and in the set's own info dialog alike. |
 | `ListItem.Writer` | The first writer. |
 | `ListItem.Plot`, `ListItem.PlotOutline`, `ListItem.TagLine` | As on the focused item. With TMDb, the TMDb plot and tagline are used only when the library has none; a season takes the TMDb season overview where it has one, as Kodi gives seasons their show's plot. |
 | `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used only when the library has none. |
