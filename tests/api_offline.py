@@ -35,6 +35,7 @@ from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.plugin import handlers, helpers  # noqa: E402
 from resources.lib.plugin.music import (  # noqa: E402
+    ALBUM_RANK_PROPERTIES,
     compact_count,
     library_item,
     rank_albums,
@@ -410,6 +411,7 @@ class LibraryItemTest(unittest.TestCase):
         )
 
     def test_album_artist_as_kodi_shows_it(self):
+        self.assertIn("displayartist", ALBUM_RANK_PROPERTIES)  # what album rows fetch
         li = mock.Mock()
         row = {"albumid": 3, "displayartist": "JAY-Z & Kanye West", "title": "WTT"}
         apply_musicinfotag(li, row, "album")
