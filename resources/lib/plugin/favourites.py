@@ -11,17 +11,23 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import json_call, window_property
 
 # Library folders a favourite can open, by their ids: a show or season under
-# titles or one filter node (genres/3, years/2010 …); an all-seasons or
-# all-albums node is the show or artist itself
-_SHOW_NODE = r"videodb://tvshows/(?:titles|(?!titles/)[a-z]+/[^/]+)/(\d+)/"
+# titles, in progress or one filter node (genres/3, years/2010 …); an artist
+# under artists or a genre, role or source; an album under an artist, a year or
+# an album node. An all-seasons or all-albums node is the show or artist itself
+_SHOW_NODE = (
+    r"videodb://(?:inprogresstvshows|tvshows/(?:titles|(?!titles/)[a-z]+/[^/]+))"
+    r"/(\d+)/"
+)
+_ARTIST_NODE = r"musicdb://(?:artists|(?:genres|roles|sources)/\d+)/"
 _DB_FOLDERS = (
     (re.compile(_SHOW_NODE + r"(?:-1/)?$"), "tvshow"),
     (re.compile(r"videodb://movies/sets/(\d+)/$"), "set"),
-    (re.compile(r"musicdb://artists/(\d+)/(?:-1/)?$"), "artist"),
+    (re.compile(_ARTIST_NODE + r"(\d+)/(?:-1/)?$"), "artist"),
     (
         re.compile(
-            r"musicdb://(?:artists/\d+|albums|recentlyaddedalbums"
-            r"|recentlyplayedalbums)/(\d+)/$"
+            rf"(?:{_ARTIST_NODE}-?\d+|musicdb://(?:albums|compilations"
+            r"|recentlyaddedalbums|recentlyplayedalbums|(?:original)?years/\d+))"
+            r"/(\d+)/$"
         ),
         "album",
     ),

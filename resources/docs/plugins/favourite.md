@@ -44,11 +44,11 @@ command finds nothing. It then looks the path up:
 
 | The path is | The item returned |
 |---|---|
-| A TV show folder: `videodb://tvshows/titles/<id>/`, or under one filter node such as `videodb://tvshows/genres/3/<id>/` (also with `-1/`, all seasons) | The TV show |
-| A season folder: `videodb://tvshows/titles/<id>/<season>/` (or under one filter node) | That season of the show |
+| A TV show folder: `videodb://tvshows/titles/<id>/`, `videodb://inprogresstvshows/<id>/`, or under one filter node such as `videodb://tvshows/genres/3/<id>/` (also with `-1/`, all seasons) | The TV show |
+| A season folder: `videodb://tvshows/titles/<id>/<season>/` (or in progress, or under one filter node) | That season of the show |
 | A movie set: `videodb://movies/sets/<id>/` | The set |
-| An artist: `musicdb://artists/<id>/` (also with `-1/`, all albums) | The artist |
-| An album: `musicdb://albums/<id>/`, `musicdb://artists/<artist>/<id>/`, `musicdb://recentlyaddedalbums/<id>/` or `musicdb://recentlyplayedalbums/<id>/` | The album |
+| An artist: `musicdb://artists/<id>/`, or under a genre, role or source such as `musicdb://genres/3/<id>/` (also with `-1/`, all albums) | The artist |
+| An album: `musicdb://albums/<id>/`, `musicdb://compilations/<id>/`, `musicdb://recentlyaddedalbums/<id>/`, `musicdb://recentlyplayedalbums/<id>/`, under an artist (`musicdb://artists/<artist>/<id>/`, `musicdb://genres/3/<artist>/<id>/`) or under a year (`musicdb://years/2010/<id>/`, `musicdb://originalyears/1999/<id>/`) | The album |
 | A media file | The movie, episode, music video or song in your library with that exact file |
 
 Plugin paths, other library folders and files that are not in the library find
