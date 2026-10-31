@@ -755,7 +755,10 @@ class TypewriterAnimation:
             if monitor.waitForAbort(self.step_time):
                 return
             if not _alive() or _superseded():
-                break
+                log.debug(
+                    f"{self.__class__.__name__} → ABORTED → '{label}' settling, kept"
+                )
+                return
             if pages := _pages(label):
                 _grow(label, pages)
 
