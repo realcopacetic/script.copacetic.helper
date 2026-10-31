@@ -57,6 +57,7 @@ MEDIA_INFO = re.compile(  # label forms with no id; Row/Column/Position(n) are b
     r"|Position|Row|Column)\b(?!\()",
     re.IGNORECASE,
 )
+EMPTY_ID = re.compile(r"(?<![\w.])Container\(\s*\)", re.I)  # a $PARAM id left empty
 ERRORS = {
     "parse",
     "empty-definition",
@@ -597,6 +598,9 @@ class Skin:
                 live_here = live and not dead(value)
                 if live_here:
                     self.check_media_info(node.src, value, name)
+                    if EMPTY_ID.search(value):
+                        message = "Container() reads the focused control here"
+                        self.report("empty-container-id", node.src, message)
                 self.check_escexp(node.src, value)
                 for token, ref in REF.findall(value):
                     self.check_reference(token, ref, node.src)
