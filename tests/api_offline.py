@@ -618,9 +618,20 @@ class TmdbTest(Base):
         )
         self.assertEqual(len(self.net.requests), 1)  # cache only: no request
         self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399, **no_art), item)
-        self.assertEqual(self.tmdb_row("tmdb:tvshow:1399:en-US|noart"), (None, 300))
+        # The stale art entry is kept in its place for the wait
+        self.assertEqual(self.tmdb_row("tmdb:tvshow:1399:en-US|noart"), (item, 300))
         self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399, **no_art), item)
         self.assertEqual(len(self.net.requests), 2)  # no retry inside the 5 minutes
+
+    def test_failed_fetch_prefers_a_stale_art_entry(self):
+        self.cache.put("tmdb:tvshow:1399:en-US|noart", {"Title": "older"}, DAY)
+        self.cache.put("tmdb:tvshow:1399:en-US", {"Title": "renewed"}, DAY)
+        self.tick(2 * DAY)
+        self.net.answers = [TimeoutError()]
+        for _ in range(2):  # the second read, inside the wait, serves the same
+            item = transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
+            self.assertEqual(item, {"Title": "renewed"})
+        self.assertEqual(len(self.net.requests), 1)
 
     def test_next_air_reads_the_cache_only(self):
         day = date.today() + timedelta(days=30)

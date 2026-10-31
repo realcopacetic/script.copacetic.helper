@@ -107,8 +107,11 @@ def tmdb_to_canonical(
         if exc.status in (401, 403) and not Window(10000).getProperty(TOKEN_REFUSED):
             window_property(TOKEN_REFUSED, exc.status)  # the failure the user can fix
             log.warning(f"tmdb_to_canonical → TMDb refused the token ({exc.status})")
-        cache.put(key, payload, _failure_ttl(exc))  # keeps a stale item, else negative
-        return payload or full or {}
+        # Both stale: the art entry first, as a cache-only read (with multiart off an
+        # older one can win until |noart is renewed), kept in |noart for the wait
+        payload = full or payload
+        cache.put(key, payload, _failure_ttl(exc))  # the stale item, else negative
+        return payload or {}
     if not raw:
         return {}
 
