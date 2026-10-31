@@ -363,7 +363,7 @@ class ProgressBarManager:
             response = json_call(
                 method="VideoLibrary.GetMovieSetDetails",
                 params={
-                    "setid": int(set_id),
+                    "setid": set_id,
                     "movies": {"properties": ["playcount"], "limits": {"start": 0}},
                 },
                 parent=self.__class__.__name__,
