@@ -646,10 +646,8 @@ class TmdbTest(Base):
         ):
             self.assertEqual(handler._next_air(), empty)
             rpc.assert_not_called()  # no uniqueid lookup
-            self.settings = {"tmdb_access_token": "v3key"}
-            self.assertEqual(
-                handler._next_air(), empty
-            )  # on: looks the id up, no cache
+            self.settings = {"tmdb_access_token": "v3key"}  # on: looks the id up
+            self.assertEqual(handler._next_air(), empty)  # no cache: still empty
         self.assertEqual(rpc.call_count, 1)
 
     def test_refused_token_warns_once(self):
