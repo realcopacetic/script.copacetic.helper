@@ -978,7 +978,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: next_air and next_air_episode; empty if none is cached or it is past.
         """
-        # No art: the art entry while fresh, else the art-less one, else stale art
+        # No art: the art entry while fresh, else a fresh art-less one, else stale art
+        # first (renewed by the metadata serve with TMDb multiart on; off, an older art
+        # entry can win until the art-less one is renewed on the next focus)
         tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
         props = tmdb["properties"] if tmdb else {}
         iso = props.get("tmdb_next_air_date")

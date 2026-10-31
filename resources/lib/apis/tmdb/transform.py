@@ -88,8 +88,12 @@ def tmdb_to_canonical(
             return full
         key += "|noart"
     payload, fresh = cache.get(key) or (None, False)
-    if fresh or cache_only:  # a stale art-bearing entry still beats nothing
+    if fresh:
         return payload or full or {}
+    # Both stale: the art entry, which the metadata serve renews with TMDb multiart on
+    # (off, it renews |noart, so an older art entry wins until that one is fresh)
+    if cache_only:
+        return full or payload or {}
 
     try:
         raw = fetch_tmdb_fields(

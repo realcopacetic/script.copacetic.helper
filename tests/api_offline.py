@@ -600,6 +600,14 @@ class TmdbTest(Base):
         self.assertNotIn("include_image_language", url)
         self.assertTrue(self.tmdb_row("tmdb:tvshow:1399:en-US|noart")[0])
 
+    def test_cache_only_prefers_a_stale_art_entry(self):
+        self.cache.put("tmdb:tvshow:1399:en-US|noart", {"Title": "older"}, DAY)
+        self.cache.put("tmdb:tvshow:1399:en-US", {"Title": "renewed"}, DAY)
+        self.tick(2 * DAY)
+        no_art = dict(append_artwork=False, cache_only=True)
+        item = transform.tmdb_to_canonical("tvshow", 1399, **no_art)
+        self.assertEqual(item, {"Title": "renewed"})
+
     def test_no_art_falls_back_to_a_stale_art_entry(self):
         self.net.answers = [TMDB_TV, TimeoutError()]
         item = transform.tmdb_to_canonical("tvshow", 1399)
