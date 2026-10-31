@@ -454,11 +454,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             # Management buttons — Add works on empty lists; up/down/delete need a selection
             if a_id == ACTION_SELECT_ITEM and self._mgmt_buttons:
                 entry = next(
-                    (
-                        e
-                        for e in self._mgmt_map.values()
-                        if e["btn"] and e["id"] == current_focus
-                    ),
+                    (e for e in self._mgmt_map.values() if e["id"] == current_focus),
                     None,
                 )
                 if entry and (not entry["needs_selection"] or has_valid_selection):
