@@ -609,6 +609,7 @@ def split_random(
     rng: random.Random,
     separator: str = "/",
     aliases: Iterable[tuple[str, str]] = (),
+    parts: bool = True,
     **kwargs: object,
 ) -> tuple[str, str]:
     """
@@ -619,11 +620,12 @@ def split_random(
     :param rng: Random source; a seeded one repeats its pick.
     :param separator: Delimiter used to split top-level genres (default: "/").
     :param aliases: (substring, replacement) pairs for the whole pick, in order.
+    :param parts: Keep one " & " part; False keeps a name such as "Drum & Bass".
     :return: (whole pick, as in the library; cleaned pick).
     """
     whole = rng.choice(string.split(separator)).strip()
     primary = next((name for key, name in aliases if key in whole), whole)
-    picked = rng.choice([s.strip() for s in primary.split(" & ")])
+    picked = rng.choice([s.strip() for s in primary.split(" & ")]) if parts else primary
     return whole, return_label(picked)
 
 

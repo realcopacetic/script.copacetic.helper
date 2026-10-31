@@ -63,8 +63,10 @@ The helper keeps a random seed for the session in the Home window property
 `session_salt`. Don't set or clear it from the skin.
 
 With `random_pick=true`, a compound genre such as `Action & Adventure` is split on
-` & ` (spaced, so `R&B` stays whole) and one part is kept for `ListItem.Genre`;
-`genre_aliases` and full stops (which become spaces) apply there too.
+` & ` (spaced, so `R&B` stays whole) and one part is kept for `ListItem.Genre`. Music
+types (`album`, `artist`, `song`, `musicvideo`) are not split: their genres are single
+names (`Drum & Bass`). `genre_aliases` and full stops (which become spaces) apply to
+`ListItem.Genre` for every type.
 `Property(genre_query)` keeps the whole pick.
 
 With `enrich_with_tmdb=true`, the TMDb fields listed under

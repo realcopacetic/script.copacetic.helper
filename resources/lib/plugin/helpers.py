@@ -30,6 +30,9 @@ from resources.lib.shared.utilities import (
     topmost_window_id,
 )
 
+# Music genres are single names ("Drum & Bass"); " & " joins TMDb's video ones
+_WHOLE_GENRES = frozenset({"album", "artist", "song", "musicvideo"})
+
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
 _CLAMP_VERSION = "4"
 
@@ -210,7 +213,10 @@ class DataHandler:
             rng = random.Random(f"{session_salt()}:{self.dbtype}:{self.dbid}:{label}")
             directors, _ = split_random(directors, rng=rng)
             properties["genre_query"], genres = split_random(
-                genres, rng=rng, aliases=genre_aliases
+                genres,
+                rng=rng,
+                aliases=genre_aliases,
+                parts=self.dbtype not in _WHOLE_GENRES,
             )
         return {
             "file": plugin_path("metadata"),
