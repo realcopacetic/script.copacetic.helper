@@ -613,7 +613,7 @@ def split_random(
 ) -> tuple[str, str]:
     """
     Randomly picks one value of a compound string, whole and cleaned: the clean
-    pick takes an alias ("Hip-Hop" → "Hip Hop"), one "&" part, no full stops.
+    pick takes an alias ("Hip-Hop" → "Hip Hop"), one " & " part, no full stops.
 
     :param string: Genre string (e.g., "Action / Hip-Hop & R&B").
     :param rng: Random source; a seeded one repeats its pick.
@@ -623,7 +623,7 @@ def split_random(
     """
     whole = rng.choice(string.split(separator)).strip()
     primary = next((name for key, name in aliases if key in whole), whole)
-    picked = rng.choice([s.strip() for s in primary.split("&")])
+    picked = rng.choice([s.strip() for s in primary.split(" & ")])
     return whole, return_label(picked)
 
 

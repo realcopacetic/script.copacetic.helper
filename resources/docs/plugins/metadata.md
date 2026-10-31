@@ -61,8 +61,9 @@ The helper keeps a random seed for the session in the Home window property
 `session_salt`. Don't set or clear it from the skin.
 
 With `random_pick=true`, a compound genre such as `Action & Adventure` is split on
-`&` and one part is kept for `ListItem.Genre`; `genre_aliases` and full stops (which
-become spaces) apply there too. `Property(genre_query)` keeps the whole pick.
+` & ` (spaced, so `R&B` stays whole) and one part is kept for `ListItem.Genre`;
+`genre_aliases` and full stops (which become spaces) apply there too.
+`Property(genre_query)` keeps the whole pick.
 
 With `enrich_with_tmdb=true`, the TMDb fields listed under
 [`tmdb_details`](#tmdb_details) are added too (artwork is not).
