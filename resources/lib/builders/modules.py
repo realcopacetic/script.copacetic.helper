@@ -83,10 +83,8 @@ class BaseBuilder:
         template_range_data = element_data.get("range")
 
         if mode == "dynamic":
-            runtime_items = (
-                self.runtime_manager.runtime_state.get(self.mapping_name) or []
-            )
-            if not runtime_items:
+            runtime_rows = self.runtime_manager.live_rows(self.mapping_name)
+            if not runtime_rows:
                 log.debug(
                     f"{self.__class__.__name__} → No runtime state for "
                     f"'{self.mapping_name}' — dynamic template '{element_name}' "
@@ -95,7 +93,7 @@ class BaseBuilder:
             index_list = expand_index(template_index_data)
             index_start = int(index_list[0]) if index_list else 1
             substitutions = self.generate_runtimejson_substitutions(
-                runtime_items, index_start
+                runtime_rows, index_start
             )
         else:
             substitutions = enumerate_mapping_subs(self.mapping_values)
@@ -193,20 +191,21 @@ class BaseBuilder:
                 return f"[{value}]"
         return value
 
-    def generate_runtimejson_substitutions(self, runtime_items, index_start: int):
+    def generate_runtimejson_substitutions(
+        self, runtime_rows: list[tuple[int, dict]], index_start: int
+    ):
         """
         Layer each entry's scalar (string) fields over per-item metadata; non-string
         runtime values (e.g. xsp dicts) come from metadata only. Gated xsp specs
         compose here, where entry values are known; config defaults resolve lazily.
 
-        :param runtime_items: List of runtime state items for this mapping.
+        :param runtime_rows: (state index, entry) pairs from ``live_rows``.
         :param index_start: Starting index value (default 1).
         :return: List of substitution dictionaries for template expansion.
         """
-        key_placeholder = self.placeholders.get("key")
         return [
             self._runtimejson_substitution(index, item, index_start)
-            for index, item in enumerate(runtime_items)
+            for index, item in runtime_rows
         ]
 
     def _runtimejson_substitution(

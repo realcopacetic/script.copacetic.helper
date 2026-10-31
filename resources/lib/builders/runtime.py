@@ -364,6 +364,20 @@ class RuntimeStateManager:
             )
         )
 
+    def live_rows(self, mapping_key: str) -> list[tuple[int, dict]]:
+        """
+        A mapping's rows with their state-list index, skipping a fixed list's
+        orphans (rows kept for a saved choice after their item left ``items``).
+
+        :param mapping_key: Mapping group key.
+        :return: (index, entry) pairs in state order.
+        """
+        rows = list(enumerate(self.runtime_state.get(mapping_key, [])))
+        if not self._is_fixed_list(mapping_key):
+            return rows
+        items = set(self.mappings[mapping_key]["items"])
+        return [(i, entry) for i, entry in rows if entry["mapping_item"] in items]
+
     def _resolve_parent_refs(self, state: dict) -> None:
         """
         Resolve string ``parent`` refs against each mapping's declared
@@ -460,7 +474,7 @@ class RuntimeStateManager:
             base[key_placeholder] = item
         base["mapping"] = mapping_key
         base["index"] = index
-        for i in range(len(self.runtime_state.get(mapping_key, []))):
+        for i, _ in self.live_rows(mapping_key):
             if i == index:
                 continue
             for k, v in (self.resolved_entry(mapping_key, i) or {}).items():

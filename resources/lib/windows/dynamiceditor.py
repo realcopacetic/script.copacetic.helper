@@ -249,9 +249,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.listitems = {
             entry["runtime_id"]: {**tpl, **entry, "runtime_index": source_idx}
             for tpl in self._runtime_tpls.values()
-            for source_idx, entry in enumerate(
-                self.runtime_manager.runtime_state.get(tpl["mapping"], [])
-            )
+            for source_idx, entry in self.runtime_manager.live_rows(tpl["mapping"])
             if not self.parent_filter or entry.get("parent") == self.parent_filter
         }
 
