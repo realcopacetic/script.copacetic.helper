@@ -10,6 +10,7 @@ themselves live in resolver.py; loading lives in templates.py.
 from xbmc import executebuiltin
 
 import uuid
+from itertools import count
 
 from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
 from resources.lib.builders.substitution import TokenError, render
@@ -121,9 +122,13 @@ class RuntimeStateManager:
         if handler.exists and not isinstance(
             next(iter(handler.data.values()), None), dict
         ):
-            # The file is there but holds no object: keep it rather than overwrite it.
+            # The file is there but holds no object: keep it rather than overwrite it,
+            # beside any earlier backup (.bak, .bak1, …).
+            backups = (handler.path.with_suffix(f".json.bak{n or ''}") for n in count())
             try:
-                backup = handler.path.replace(handler.path.with_suffix(".json.bak"))
+                backup = handler.path.replace(
+                    next(p for p in backups if not p.exists())
+                )
             except OSError as e:
                 log.error(
                     f"{self.__class__.__name__} → unreadable state left as is: {e}"
