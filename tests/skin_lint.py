@@ -45,9 +45,10 @@ MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow
     *("MyPrograms.xml", "MyPVRChannels.xml", "MyPVRGuide.xml", "MyPVRRecordings.xml"),
     *("MyPVRSearch.xml", "MyPVRTimers.xml", "MyVideoNav.xml"),
 }
-FALSE_FIRST = re.compile(r"\s*(\[\s*)?(?:false|!true)(?(1)\s*\])\s*\+", re.I)
 CONSTANT = re.compile(r"(?:true|false|[\s!+|\[\]])*")  # lowercased; never changes
-PYTHON = str.maketrans({"!": " not ", "+": " and ", "|": " or ", "[": "(", "]": ")"})
+OPAQUE = re.compile(r"\$\w+\[[^\[\]]*\]")  # $INFO[…], $VAR[…]: one unknown operand
+TOKEN = re.compile(r"[!+|\[\]]|[^!+|\[\]\s]+")  # InfoExpression::GetOperator's split
+BINARY = (("|", max), ("+", min))  # loosest first; Kleene logic over 0, 0.5, 1
 MEDIA_INFO = re.compile(  # label forms with no id; Row/Column/Position(n) are bools
     r"(?<![\w.])Container(?:\(\s*0?\s*\))?\."
     r"(?:NumItems|CurrentItem|NumPages|CurrentPage|NumAllItems|NumNonFolderItems"
@@ -169,19 +170,44 @@ def exclusive(a: tuple, b: tuple) -> bool:
     return a[: len(b)] != b[: len(a)]
 
 
+def fold(condition: str) -> bool | None:
+    """
+    Constant value of a bool ``condition``, or ``None`` when an info decides it:
+    ``!`` binds tightest, then ``+``, then ``|``, and ``[]`` group, as Kodi parses.
+
+    :param condition: Bool expression; ``$INFO[…]``-style references are unknown.
+    :return: ``True`` or ``False`` when constant, else ``None``.
+    """
+    text = condition.lower()
+    while (opaque := OPAQUE.sub("?", text)) != text:
+        text = opaque
+    tokens = TOKEN.findall(text)[::-1]
+
+    def parse(level: int = 0) -> float:
+        if level == len(BINARY):
+            token = tokens.pop() if tokens else ""
+            if token == "!":
+                return 1 - parse(level)
+            if token != "[":
+                return {"true": 1, "false": 0}.get(token, 0.5)
+            value = parse()
+            if tokens[-1:] == ["]"]:
+                tokens.pop()
+            return value
+        op, join = BINARY[level]
+        value = parse(level + 1)
+        while tokens[-1:] == [op]:
+            tokens.pop()
+            value = join(value, parse(level + 1))
+        return value
+
+    value = parse()
+    return None if tokens or value == 0.5 else bool(value)
+
+
 def dead(condition: str) -> bool:
-    """
-    True when ``condition`` starts ``false +`` or ``[false] +`` with no ``|`` outside
-    brackets: ``+`` binds tighter than ``|``, so ``false + a | b`` is still live.
-    """
-    if not FALSE_FIRST.match(condition):
-        return False
-    depth = 0
-    for char in condition:
-        depth += (char in "[(") - (char in "])")
-        if char == "|" and not depth:
-            return False
-    return True
+    """True when ``condition`` is false whatever its infos, e.g. ``[false] + a``."""
+    return fold(condition) is False
 
 
 def timer_reads(root: Node) -> Iterator[tuple[Node, str, str]]:
@@ -428,16 +454,13 @@ class Skin:
 
     def never(self, condition: str) -> bool:
         """
-        True when ``condition`` is constant and false once flattened, ``+`` before
-        ``|`` as Kodi parses it, so ``ResolveIncludes`` always skips the call.
+        True when ``condition`` is false once flattened, whatever its infos, so
+        ``ResolveIncludes`` always skips the call.
 
         :param condition: Include condition after param substitution.
         :return: Whether Kodi never loads the include.
         """
-        text = self.flatten(condition).strip().lower()
-        if not text or not CONSTANT.fullmatch(text):
-            return False
-        return not eval(text.title().translate(PYTHON))
+        return fold(self.flatten(condition)) is False
 
     def set_defaults(self, control: Node) -> list[Node]:
         """
