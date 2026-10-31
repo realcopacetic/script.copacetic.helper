@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 import time
+from functools import cached_property
 from typing import Any, Callable, Collection, Iterable, Mapping
 
 from xbmc import Monitor
@@ -199,7 +200,8 @@ class DataHandler:
         """
         label = self.infolabels["Label"]
         directors, genres = self.infolabels["Director"], self.infolabels["Genre"]
-        properties = self._albumartist() | {"dbid": self.dbid}  # whose metadata
+        # dbid: whose metadata
+        properties = self._albumartist() | self._set_years() | {"dbid": self.dbid}
         if random_pick:
             # One pick per item and Kodi session, so a refire (closing info, back
             # from a rail) keeps the rails it fed. The director pick stays whole for
@@ -256,29 +258,43 @@ class DataHandler:
         :return: Studio string or empty string.
         """
         if self.dbtype == "set":
-            return self._first_movie_studio()
+            movies = self._set_movies
+            return next(iter(movies[0]["studio"]), "") if movies else ""
         return split(self.infolabels["Studio"])
 
-    def _first_movie_studio(self) -> str:
+    def _set_years(self) -> dict[str, str]:
         """
-        First studio of the set's earliest movie.
+        A set's first and last film years, for its span; the last only when it
+        differs. Kodi's ListItem(-1) reads relative to the set rail's cursor.
 
-        :return: Studio name, or "" for an empty set.
+        :return: set_first_year and set_last_year, or {} for other types.
+        """
+        if self.dbtype != "set" or not (
+            years := [m["year"] for m in self._set_movies if m["year"]]
+        ):
+            return {}
+        last = "" if years[-1] == years[0] else str(years[-1])
+        return {"set_first_year": str(years[0]), "set_last_year": last}
+
+    @cached_property
+    def _set_movies(self) -> list[dict[str, Any]]:
+        """
+        The set's movies by year, with their studios and years (one call for both).
+
+        :return: Movie rows, earliest first; [] for an empty set.
         """
         details = json_call(
             "VideoLibrary.GetMovieSetDetails",
             params={
                 "setid": to_int(self.dbid),
                 "movies": {
-                    "properties": ["studio"],
+                    "properties": ["studio", "year"],
                     "sort": {"method": "year"},
-                    "limits": {"end": 1},
                 },
             },
             parent=self.__class__.__name__,
         )
-        movies = details.get("result", {}).get("setdetails", {}).get("movies", [])
-        return next(iter(movies[0]["studio"]), "") if movies else ""
+        return details.get("result", {}).get("setdetails", {}).get("movies", [])
 
 
 def hours_minutes(minutes: int) -> str:

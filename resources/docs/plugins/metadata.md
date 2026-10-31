@@ -30,7 +30,7 @@ and so on.
 |---|---|---|---|
 | `target` | container id, or `item` | — | Container whose focused item is read. Omit to use `Container` (the current container); `item` reads the window's own item (an info dialog's). |
 | `type` | `movie`, `tvshow`, `season`, `episode`, `set`, … | — | The item's `DBType`. Used for TMDb lookups and for sets (see Studio below). |
-| `id` | number | — | The item's `DBID`. Used for TMDb lookups, for album artists and set studios (see below), and to keep the `random_pick` choice. |
+| `id` | number | — | The item's `DBID`. Used for TMDb lookups, for album artists and set studios and years (see below), and to keep the `random_pick` choice. |
 | `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. The same item gets the same pick until Kodi restarts. |
 | `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
 | `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the plot, tagline and trailer, which TMDb only fills when the library has none (a season takes TMDb's plot where it has one: Kodi gives seasons their show's). See [TMDb lookups](#tmdb-lookups). |
@@ -49,6 +49,7 @@ and so on.
 | `ListItem.Genre` | All genres, or one at random with `random_pick=true`, cleaned for display (below). |
 | `ListItem.Property(genre_query)` | With `random_pick=true`: the same pick, whole, as the library names it (`Action & Adventure`, `R&B`). Pass this, not `ListItem.Genre`, to [`genre_credits`](library.md). |
 | `ListItem.Studio` | The first studio, as the library names it (`Disney+`). Kodi sets have no studio: with `type=set` it is the first studio of the set's earliest movie, in a list and in the set's own info dialog alike. |
+| `ListItem.Property(set_first_year)`, `ListItem.Property(set_last_year)` | With `type=set` and `id`: the years of the set's earliest and latest movies (those with a year), for a year span; `set_last_year` is empty when both are the same year. Empty for other types. Reading `Container(id).ListItem(0)` and `ListItem(-1)` of a set's movies instead gives the years around the list's cursor, not the span. |
 | `ListItem.Writer` | The first writer. |
 | `ListItem.Plot`, `ListItem.PlotOutline`, `ListItem.TagLine` | As on the focused item. With TMDb, the TMDb plot and tagline are used only when the library has none; a season takes the TMDb season overview where it has one, as Kodi gives seasons their show's plot. |
 | `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used only when the library has none. |
