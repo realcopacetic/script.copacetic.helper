@@ -243,12 +243,13 @@ class RuntimeStateManager:
 
     def _fill_defaults(self, mapping_key: str, entry: dict) -> dict:
         """
-        Resolve a full entry: metadata base, stored entry over it, then
-        config-field defaults filling any field still absent.
+        Resolve a full entry: metadata base, stored entry over it, then config
+        fields: a stored value the config's rules allow is kept, an absent or
+        excluded one takes the metadata value or the default, in dependency order.
 
         :param mapping_key: Mapping group key.
         :param entry: Raw entry dict.
-        :return: New dict; metadata + entry + resolved config defaults.
+        :return: New dict; metadata + entry + resolved config fields.
         """
         item = entry.get("mapping_item")
         if not item:
@@ -259,13 +260,15 @@ class RuntimeStateManager:
         base = {**metadata_strings, **entry}
 
         seed_fields = self._seed_fields_for(mapping_key, item)
-        pending = {f: t for f, t in seed_fields.items() if f not in base}
+        pending = {f: t for f, t in seed_fields.items() if f in entry or f not in base}
         if not pending:
             return base
 
         placeholders = self.mappings[mapping_key].get("placeholders", {})
         base_subs = {placeholders.get("key", ""): item}
-        base_subs.update({k: v for k, v in base.items() if isinstance(v, str)})
+        base_subs.update(
+            {k: v for k, v in base.items() if isinstance(v, str) and k not in pending}
+        )
         resolved = {}
 
         while pending:
@@ -281,9 +284,16 @@ class RuntimeStateManager:
                     render(template, sub, mode="name", registry=self.mappings)
                 except TokenError:
                     continue
-                resolved[field] = self.configs.resolve_default(
+                if field in entry and entry[field] in self.configs.resolve(
                     mapping_key, template, sub
-                )
+                ).get("items", ()):
+                    resolved[field] = entry[field]
+                elif field in metadata_strings:
+                    resolved[field] = metadata_strings[field]
+                else:
+                    resolved[field] = self.configs.resolve_default(
+                        mapping_key, template, sub
+                    )
                 del pending[field]
                 progressed = True
             if not progressed:
