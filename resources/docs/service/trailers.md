@@ -34,7 +34,10 @@ A trailer session moves through these states, stored in
    It then plays as normal, sets the [player properties](player.md), and the session
    is cleared. A trailer from an older request that starts after a newer one replaced
    `trailer_request` counts as the user's media too: it plays full screen and the
-   newer request is dropped.
+   newer request is dropped. The one exception is the last request the session was
+   cleared on (stopped, reaped or dropped): if its resolve finishes anyway and it
+   starts windowed within 30 seconds, nothing would show it, so the service stops it
+   at once (only the first such start).
    - `cancelled`: the trailer is stopped at once.
    - `pending`: the service stores the trailer's path in `trailer_file`, then checks
      that it is still wanted (see [Stale trailers](#stale-trailers)):

@@ -44,6 +44,7 @@ class PlayerMonitor(Player):
         self.zoom = TrailerZoomController()
         self._published = set()
         self._dial_queue = None
+        self._dropped = (None, 0.0)  # last cleared request's path, and when
         SpeedDial().publish()
         if self.isPlaying():
             self.onAVStarted()
@@ -64,10 +65,21 @@ class PlayerMonitor(Player):
 
     def onAVStarted(self) -> None:
         """Handle playback start events for video and audio."""
+        path = infolabel("Player.Filenameandpath")
+        request = infolabel("Window(home).Property(trailer_request)")
+        dropped, since = self._dropped
+        if (
+            path == dropped != request
+            and time.time() - since < 30  # a resolve's lifetime
+            and not condition("Window.IsActive(fullscreenvideo)")
+        ):
+            # A cleared request's resolve finished anyway: windowed, hidden, heard
+            self._dropped = (None, 0.0)
+            log.execute("PlayerControl(Stop)")
+            return
         state = infolabel("Window(home).Property(trailer_state)")
         if state in ("pending", "cancelled"):
-            path = infolabel("Player.Filenameandpath")
-            if path == infolabel("Window(home).Property(trailer_request)"):
+            if path == request:
                 if state == "cancelled":  # requested in a window since left
                     log.execute("PlayerControl(Stop)")
                     return
@@ -247,7 +259,12 @@ class PlayerMonitor(Player):
         window_property("trailer_state", value="orphaned")
 
     def _clear_trailer_props(self) -> None:
-        """Reset the trailer session to idle."""
+        """
+        Reset the trailer session to idle. Its request's path is kept for 30 s,
+        so onAVStarted can stop, once, a resolve that finishes after the clear.
+        """
+        if request := infolabel("Window(home).Property(trailer_request)"):
+            self._dropped = (request, time.time())
         for key in (
             "trailer_state",
             "trailer_request",
