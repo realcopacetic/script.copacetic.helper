@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import sqlite3
 import sys
 import time
 
@@ -43,6 +44,7 @@ class Monitor(xbmc.Monitor):
         self.idle = False
         self.skin = None, None
         self.reload_due = False
+        self.prune_due = 0.0  # wall-clock time of the next API cache prune
         self.player_monitor = None
         self.slideshow = None
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
@@ -91,13 +93,11 @@ class Monitor(xbmc.Monitor):
     def _activate(self) -> None:
         """
         Entering an opted-in skin: check the builder outputs (reloading if any
-        changed), prune the API cache, start the player monitor and slideshow, then
-        show the context items.
+        changed), start the player monitor and slideshow, then show the context items.
         """
         path, version = self.skin
         log.info(f"{self.__class__.__name__} → Active in {path}, version {version}")
         self._builder_elements()
-        ApiCacheHandler().prune()
         self.player_monitor = PlayerMonitor()
         self.slideshow = Slideshow()
         window_property(ACTIVE_PROPERTY, value="true")
@@ -215,8 +215,16 @@ class Monitor(xbmc.Monitor):
     def poller(self) -> None:
         """
         Polling loop: trailer session watchdog, global slideshow and held
-        speed dial refreshes, plus per-window tasks.
+        speed dial refreshes, plus a daily API cache prune.
         """
+        if (now := time.time()) >= self.prune_due:  # runs on through suspend
+            try:
+                ApiCacheHandler().prune()
+            except sqlite3.OperationalError as e:  # locked past its timeout
+                log.warning(f"{self.__class__.__name__} → API cache prune: {e}")
+                self.prune_due = now + 3600
+            else:
+                self.prune_due = now + 86400
         self.player_monitor.watch_trailer_session()
         self.slideshow.tick()
         release_refresh()
