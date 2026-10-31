@@ -128,6 +128,10 @@ CASES = (
         lambda: DIALOG.contextmenu([f"Option {n}" for n in range(1, 9)]),
     ),
     (
+        "Context menu · 25 options (past 20: the plain list)",
+        lambda: DIALOG.contextmenu([f"Option {n}" for n in range(1, 26)]),
+    ),
+    (
         "FileBrowser · folder",
         lambda: DIALOG.browseSingle(0, "FileBrowser · folder", "files"),
     ),
