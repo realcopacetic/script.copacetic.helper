@@ -84,15 +84,19 @@ class RuntimeStateManager:
     @property
     def runtime_state(self) -> dict:
         """
-        Load and return the current runtime state. Cached in memory; cache
-        is invalidated after writes.
+        Load and return the current runtime state, ``{}`` when the file holds no
+        object; a mapping whose value isn't a list reads as absent. Cached in
+        memory; cache is invalidated after writes.
 
         :return: Dict of mapping_key → list of state entries.
         """
         if self._runtime_state_cache is None:
             self._runtime_state_handler.reload()
-            self._runtime_state_cache = next(
-                iter(self._runtime_state_handler.data.values()), {}
+            loaded = next(iter(self._runtime_state_handler.data.values()), None)
+            self._runtime_state_cache = (
+                {k: v for k, v in loaded.items() if isinstance(v, list)}
+                if isinstance(loaded, dict)
+                else {}
             )
         return self._runtime_state_cache
 
@@ -114,8 +118,10 @@ class RuntimeStateManager:
         """
         handler = self._runtime_state_handler
         held = None
-        if handler.exists and not handler.data:
-            # The file is there but didn't parse: keep it rather than overwrite it.
+        if handler.exists and not isinstance(
+            next(iter(handler.data.values()), None), dict
+        ):
+            # The file is there but holds no object: keep it rather than overwrite it.
             try:
                 backup = handler.path.replace(handler.path.with_suffix(".json.bak"))
             except OSError as e:
