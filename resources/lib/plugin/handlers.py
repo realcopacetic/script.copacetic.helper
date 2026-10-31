@@ -922,7 +922,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         new = dbtype == "tvshow" and aired >= self._new_since("firstaired")
         return {
             "next_episode": (
-                "S{season:02d}E{episode:02d}".format_map(first) if first else ""
+                "{season}x{episode:02d}".format_map(first) if first else ""
             ),
             # JSON-RPC's runtime: seconds, 0 when the library has none. To the nearest
             # minute: a runtime, not time left
@@ -996,7 +996,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return {
             "next_air": month.join(day.strftime(part) for part in fmt.split("%b")),
             "next_air_episode": (
-                f"S{int(props['tmdb_next_air_season']):02d}E{int(episode):02d}"
+                f"{int(props['tmdb_next_air_season'])}x{int(episode):02d}"
                 if episode
                 else ""
             ),

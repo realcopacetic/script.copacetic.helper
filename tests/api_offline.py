@@ -642,7 +642,7 @@ class TmdbTest(Base):
             transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
             self.tick(8 * DAY)  # stale, still served
             when = f"{day:%d} #{50 + day.month}"  # Kodi's short month: 51 is Jan
-            shown = {"next_air": when, "next_air_episode": "S03E01"}
+            shown = {"next_air": when, "next_air_episode": "3x01"}
             self.assertEqual(handler._next_air(), shown)
         self.assertEqual(len(self.net.requests), 1)
 
@@ -1153,20 +1153,18 @@ class ProgressbarTest(unittest.TestCase):
         show = {"DBType": "tvshow", "DBID": "7", "Season": "4"}  # a show's Season: 4
         show["Property(UnwatchedEpisodes)"] = "4"
         show["Property(WatchedEpisodes)"] = "9"
-        self.assertEqual(self.prop("next_episode", **show), "S02E10")
+        self.assertEqual(self.prop("next_episode", **show), "2x10")
         self.assertNotIn("season", self.calls.pop())
         show["Property(WatchedEpisodes)"] = "0"  # unwatched: its first episode too
-        self.assertEqual(self.prop("next_episode", **show), "S02E10")
+        self.assertEqual(self.prop("next_episode", **show), "2x10")
         self.assertNotIn("season", self.calls.pop())
         unwatched_season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "3"}
         properties = self.prop_all(**unwatched_season)  # not started: its next too
-        self.assertEqual(
-            (properties["next_episode"], properties["new"]), ("S03E01", "")
-        )
+        self.assertEqual((properties["next_episode"], properties["new"]), ("3x01", ""))
         self.assertEqual(self.calls.pop()["season"], 3)
         favourite = unwatched_season | {"DBID": "40", "TvShowDBID": ""}
         favourite["Property(tvshowid)"] = "7"
-        self.assertEqual(self.prop("next_episode", **favourite), "S03E01")
+        self.assertEqual(self.prop("next_episode", **favourite), "3x01")
         self.assertEqual(self.calls.pop()["tvshowid"], 7)  # a helper season's show id
         for empty in (
             {"Season": "0"},
@@ -1177,18 +1175,16 @@ class ProgressbarTest(unittest.TestCase):
             self.assertEqual(self.prop("next_episode", **favourite | empty), "")
         self.assertEqual(self.calls, [])  # Specials, none left or no show id: no query
         show["Property(InProgressEpisodes)"] = "1"  # its first episode, part-watched
-        self.assertEqual(self.prop("next_episode", **show), "S02E10")
+        self.assertEqual(self.prop("next_episode", **show), "2x10")
         self.calls.clear()
-        self.assertEqual(self.prop("next_episode", **show, TvShowDBID=""), "S02E10")
+        self.assertEqual(self.prop("next_episode", **show, TvShowDBID=""), "2x10")
         self.assertEqual(self.calls.pop()["tvshowid"], 7)
         for empty in ({"Property(UnwatchedEpisodes)": "0"}, {"DBID": ""}):
             self.assertEqual(self.prop("next_episode", **show | empty), "")
         self.assertEqual(self.calls, [])  # watched, or a plugin's show: no query
 
         season = show | {"DBType": "season", "DBID": "40", "TvShowDBID": "7"}
-        self.assertEqual(
-            self.prop("next_episode", **season | {"Season": "2"}), "S02E10"
-        )
+        self.assertEqual(self.prop("next_episode", **season | {"Season": "2"}), "2x10")
         call = self.calls.pop()
         self.assertEqual((call["tvshowid"], call["season"]), (7, 2))
         self.prop("next_episode", **season | {"Season": ""})  # * All seasons
@@ -1202,10 +1198,10 @@ class ProgressbarTest(unittest.TestCase):
     def test_next_runtime(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
         show["Property(WatchedEpisodes)"] = "9"
-        self.assertEqual(self.prop("next_runtime", **show), "43m")  # S02E10, 43:01
+        self.assertEqual(self.prop("next_runtime", **show), "43m")  # 2x10, 43:01
         self.assertIn("runtime", self.calls.pop()["properties"])
         season = show | {"DBType": "season", "TvShowDBID": "7", "Season": "3"}
-        self.assertEqual(self.prop("next_runtime", **season), "1h 2m")  # S03E01
+        self.assertEqual(self.prop("next_runtime", **season), "1h 2m")  # 3x01
         episodes = self.episodes
         for runtime, shown in ((2610, "44m"), (3590, "1h")):  # half up; a round hour
             self.episodes = [ep | {"runtime": runtime} for ep in episodes]
@@ -1220,7 +1216,7 @@ class ProgressbarTest(unittest.TestCase):
     def test_new(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
         show["Property(WatchedEpisodes)"] = "9"
-        self.assertEqual(self.prop("new", **show), "true")  # S03E01, aired 10 days ago
+        self.assertEqual(self.prop("new", **show), "true")  # 3x01, aired 10 days ago
         self.assertIn("firstaired", self.calls.pop()["properties"])
         self.handler.params["new_days"] = "10"  # on the cutoff date: still new
         self.assertEqual(self.prop("new", **show), "true")
@@ -1255,12 +1251,12 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("new", **show), "")
         self.episodes[2] = episodes[2] | {"firstaired": aired(-7)}  # a pre-release
         self.assertEqual(self.prop("new", **show), "true")
-        # Only a special aired lately: new, and its next is still S02E10
+        # Only a special aired lately: new, and its next is still 2x10
         self.episodes = [ep | {"firstaired": aired(400)} for ep in episodes]
         self.episodes[0] = episodes[0]
         properties = self.prop_all(**show)
         self.assertEqual(
-            (properties["next_episode"], properties["new"]), ("S02E10", "true")
+            (properties["next_episode"], properties["new"]), ("2x10", "true")
         )
         self.assertEqual((len(self.calls), self.shows), (5, []))
 
@@ -1275,7 +1271,7 @@ class ProgressbarTest(unittest.TestCase):
         show |= {"Property(WatchedEpisodes)": "95", "Property(InProgressEpisodes)": "1"}
         properties = self.prop_all(**show)
         self.assertEqual(
-            (properties["next_episode"], properties["new"]), ("S06E01", "true")
+            (properties["next_episode"], properties["new"]), ("6x01", "true")
         )
         started = {"DBType": "episode", "DBID": "601", "PercentPlayed": "40"}
         self.assertNotIn("new", self.prop_all(**started | {"Duration(secs)": "1320"}))
@@ -1387,7 +1383,7 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("next_air_episode", **show), "")
         numbers = {"tmdb_next_air_episode": "1", "tmdb_next_air_season": "3"}
         cached["item"]["properties"] |= numbers
-        self.assertEqual(self.prop("next_air_episode", **show), "S03E01")
+        self.assertEqual(self.prop("next_air_episode", **show), "3x01")
         cached["item"]["properties"]["tmdb_next_air_date"] = "2000-01-01"
         self.assertEqual(self.prop_all(**show)["next_air_episode"], "")  # past
         for labels in (
