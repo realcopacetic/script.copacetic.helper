@@ -985,12 +985,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # An entry cached before the numbers were kept (7-day TTL) has the date alone
         episode = props.get("tmdb_next_air_episode")
         # strftime's %b is the C locale's (English): Kodi's own (51-62) follow its
-        # language, as its dates' "mmm" does
+        # language, as its dates' "mmm" does. Joined outside strftime, which on
+        # Windows encodes its format with the locale codec
         month = getLocalizedString(50 + day.month)
+        fmt = self.params.get("date_format", "%d %b")
         return {
-            "next_air": day.strftime(
-                self.params.get("date_format", "%d %b").replace("%b", month)
-            ),
+            "next_air": month.join(day.strftime(part) for part in fmt.split("%b")),
             "next_air_episode": (
                 f"S{int(props['tmdb_next_air_season']):02d}E{int(episode):02d}"
                 if episode
