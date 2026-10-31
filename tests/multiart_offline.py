@@ -14,8 +14,7 @@ from build_offline import HELPER, install_stubs
 
 STAGE = Path(tempfile.mkdtemp())
 install_stubs(HELPER, STAGE, STAGE, verbose=False)
-for name in ("xbmc", "xbmcgui"):  # multiart imports Monitor and Window
-    sys.modules[name].__getattr__ = lambda attr: type(attr, (), {})
+sys.modules["xbmc"].Monitor = None  # imported by multiart; share_out never calls it
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.art.multiart import share_out  # noqa: E402

@@ -25,8 +25,14 @@ from build_offline import HELPER, install_stubs
 
 STAGE = Path(tempfile.mkdtemp())
 LOG = install_stubs(HELPER, STAGE, STAGE, verbose=False)
-for name in ("xbmc", "xbmcgui", "xbmcplugin"):  # handlers need more than builders
-    sys.modules[name].__getattr__ = lambda attr: type(attr, (), {})
+vars(sys.modules["xbmc"]).update(  # imported names; a test that calls one patches it
+    Monitor=None,
+    getLocalizedString=None,
+    AudioStreamDetail=None,
+    SubtitleStreamDetail=None,
+    VideoStreamDetail=None,
+)
+sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
 sys.modules["xbmcvfs"].mkdirs = lambda path: Path(path).mkdir(exist_ok=True) or 1
 sys.path.insert(0, str(HELPER))
 
