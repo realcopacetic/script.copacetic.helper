@@ -228,11 +228,8 @@ class ArtworkCacheManager:
             return
 
         new_path = meta.get(policy.ART_FIELD_PROCESSED)
-        variant = {
-            k: v
-            for k, v in meta.items()
-            if k in policy.ART_FIELDS_INPUT.get(process, ())
-        }
+        # Every input field, unused ones as None: a row that set more is another variant
+        variant = {k: meta.get(k) for k in policy.ART_FIELDS_INPUT.get(process, ())}
         for row in self.sqlite.find_variants(source_url, process, variant):
             stale_key = row.get(policy.ART_FIELD_CACHE_KEY)
             if stale_key == cache_key:
