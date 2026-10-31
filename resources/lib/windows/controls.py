@@ -88,12 +88,12 @@ class BaseControlHandler:
     @property
     def current_listitem(self) -> str | None:
         """Selected listitem id, read from the parent editor."""
-        return self.parent.current_listitem if self.parent else None
+        return self.parent.current_listitem
 
     @property
     def source_index(self) -> int:
         """Source index of the selected entry, read from the parent editor."""
-        return self.parent._source_index if self.parent else -1
+        return self.parent._source_index
 
     @property
     def focus_ids(self) -> set[int]:
@@ -920,7 +920,7 @@ class SliderExHandler(SliderHandler):
         """
         super().update_visibility(focused_control_id)
         slider_focused = focused_control_id == self.instance.getId()
-        colors = self.parent._colors if self.parent else {}
+        colors = self.parent._colors
         self.set_instance_labels(
             instance=self.button_instance,
             label_color=colors.get("focused") if slider_focused else None,
