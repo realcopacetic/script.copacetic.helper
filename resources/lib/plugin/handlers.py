@@ -765,9 +765,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 append_artwork=parse_bool(self.params.get("tmdb_art"))
             )
             if tmdb_item:
-                # Library trailer outranks TMDb's YouTube URL: local file,
-                # no plugin dependency. Library plot and tagline keep their language.
-                fill_only = ("Plot", "TagLine", "Trailer")
+                # Library trailer outranks TMDb's YouTube URL: local file, no plugin
+                # dependency. Library plot, title and tagline keep their language.
+                fill_only = ("Plot", "Title", "TagLine", "Trailer")
                 if self.dbtype == "season":  # Kodi gives seasons their show's plot
                     fill_only = fill_only[1:]
                 data = merge_metadata(

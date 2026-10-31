@@ -181,6 +181,7 @@ class DataHandler:
                 "Plot",
                 "PlotOutline",
                 "Tagline",
+                "Title",
                 "Trailer",
             ],
         )
@@ -222,6 +223,7 @@ class DataHandler:
             "Plot": self.infolabels["Plot"],
             "PlotOutline": self.infolabels["PlotOutline"],
             "TagLine": self.infolabels["Tagline"],
+            "Title": self.infolabels["Title"],
             "Trailer": self.infolabels["Trailer"],
             "properties": properties,
         }

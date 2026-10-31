@@ -44,6 +44,7 @@ and so on.
 | Infolabel | Value |
 |---|---|
 | `ListItem.Label`, `ListItem.Label2` | The focused item's `Label`. |
+| `ListItem.Title` | The focused item's `Title`, which a list's label may not be (a search node, Files with library titles off): use it where a library title is compared, such as the `exclude_value` of [`genre_credits`](library.md). With TMDb, the TMDb title is used only when the item has none. |
 | `ListItem.Property(dbid)` | The `id` it was read for. With `Label`, it tells a skin whose metadata the container holds while the next item's is still loading. |
 | `ListItem.Director` | All directors, or one at random with `random_pick=true`, whole, as the library names them. |
 | `ListItem.Genre` | All genres, or one at random with `random_pick=true`, cleaned for display (below). |
@@ -67,7 +68,8 @@ With `random_pick=true`, a compound genre such as `Action & Adventure` is split 
 `Property(genre_query)` keeps the whole pick.
 
 With `enrich_with_tmdb=true`, the TMDb fields listed under
-[`tmdb_details`](#tmdb_details) are added too (artwork is not).
+[`tmdb_details`](#tmdb_details) are added too (artwork is not); the item's own title,
+plot, tagline and trailer are kept where it has them.
 
 The guard is checked before reading, after the TMDb lookup and before the item is
 returned.
