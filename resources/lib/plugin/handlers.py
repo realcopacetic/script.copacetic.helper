@@ -540,12 +540,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # so 9300's blur is 9400's blur of slide 0.
         if source := self.params.get("multiart_target"):
             multiart_item = f"Container({source}).ListItem"
-            multiart_dict = self._multiart_dict(multiart_item, multiart_type)
             # The target read as another item (it hadn't landed, or Python read a
             # modal dialog's container): hold rather than seed or clear from it.
             key = self.params.get("multiart_target_key")
             if key is not None and self._item_key(multiart_item) != key:
                 return self._artwork_held()
+            multiart_dict = self._multiart_dict(multiart_item, multiart_type)
             if len(multiart_dict) > 1:  # seed_multiart seeds only then
                 params = params | {"background_url": multiart_dict["multiart"]}
         art_opts = {
