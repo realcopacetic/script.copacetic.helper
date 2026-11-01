@@ -334,11 +334,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         *,
         append_artwork: bool,
         cache_only: bool = False,
+        target: str | None = None,
     ) -> dict[str, Any] | None:
         """Resolve TMDb canonical item for the current listitem.
 
         :param append_artwork: Whether to include TMDb artwork fields.
         :param cache_only: Read the TMDb cache only; never fetch.
+        :param target: Infolabel prefix of the item; the serve's target item if None.
         :return: canonical item dict or None.
         """
         from resources.lib.apis.tmdb.client import tmdb_token
@@ -348,8 +350,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not tmdb_token():  # off: skip resolve_tmdb_context's uniqueid lookup
             return
 
-        target = self.target_item
-        ctx = resolve_tmdb_context(self.params, target=target)
+        ctx = resolve_tmdb_context(self.params, target=target or self.target_item)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
 
         item = tmdb_to_canonical(
@@ -530,14 +531,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return self._artwork_held()
 
         multiart_type = self.params.get("multiart")
+        # multiart_target: the family's own item when the focused one only stands
+        # for it (a favourite's library item, 9040); identity stays the focused one.
+        multiart_item = (
+            f"Container({source}).ListItem"
+            if (source := self.params.get("multiart_target"))
+            else self.target_item
+        )
         # Cache only: no network wait before the seed; another serve fills it.
         tmdb_item = (
-            self._get_tmdb_item(append_artwork=True, cache_only=True)
+            self._get_tmdb_item(
+                append_artwork=True, cache_only=True, target=multiart_item
+            )
             if multiart_type and parse_bool(self.params.get("get_extra_multiart"))
             else None
         )
         multiart_dict = build_multiart_dict(
-            target=self.target_item,
+            target=multiart_item,
             multiart_type=multiart_type,
             max_items=self.params.get("multiart_max"),
             tmdb_art=(tmdb_item or {}).get("art", {}),
