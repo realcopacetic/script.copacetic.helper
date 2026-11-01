@@ -8,7 +8,7 @@ One condition language, used everywhere: config rules, expression rules, templat
 
 ### Literals
 
-`"true"` and `"false"`. Useful as catch-all rules.
+`"true"` and `"false"`. Useful as catch-all rules. `"not true"` and `"not false"` work too, so a token filled into `not {flag}` gives the answer you expect.
 
 ### Comparisons
 
