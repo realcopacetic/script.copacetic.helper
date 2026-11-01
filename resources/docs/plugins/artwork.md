@@ -143,7 +143,7 @@ show; with no rectangles that is the part of the image the frame shows.
 |---|---|---|---|
 | `multiart` | an art type, e.g. `fanart`, `poster`, `keyart`, `tvshow.fanart` | — | The family to collect. |
 | `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for (`fanart1` … `fanart15`). |
-| `multiart_target` | container id | — | Read the family, and its TMDb item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
+| `multiart_target` | container id | — | Read the family, and its TMDb item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. Its first image is also the background, so each slide's blur continues the base's. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
 | `get_extra_multiart` | `true`, `false` | `false` | Add TMDb artwork of the same type, after the library artwork. See [Multiart](#multiart). |
 | `language` | TMDb language, e.g. `en-US` | add-on setting | Language of the TMDb artwork to add. |
 | `type`, `id`, `tmdb_id`, `tvshowid` | | | With `get_extra_multiart`: how the TMDb item is found. See [TMDb lookups](metadata.md#tmdb-lookups). |
@@ -300,8 +300,8 @@ the logo's hue only when `Integer.IsLessOrEqual(…palette_logo_darken,…backgr
 
 Kodi stores extra artwork as numbered keys: `fanart`, `fanart1`, `fanart2` …
 Multiart reads `Art(<type>)` and `Art(<type>1)` to `Art(<type><multiart_max>)` from
-the focused item (or `multiart_target`'s), skips the empty ones, and returns them as `multiart`, `multiart1`,
-`multiart2` … with no gaps.
+the focused item (or `multiart_target`'s), skips the empty ones, and returns them as
+`multiart`, `multiart1`, `multiart2` … with no gaps.
 
 Because the keys are always the same, your layouts can read `multiart*` and switch
 the family with one variable:
