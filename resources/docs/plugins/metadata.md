@@ -33,7 +33,7 @@ and so on.
 | `id` | number | — | The item's `DBID`. Used for TMDb lookups, for album artists and set studios and years (see below), and to keep the `random_pick` choice. |
 | `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. The same item gets the same pick until Kodi restarts. |
 | `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
-| `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the plot, tagline and trailer, which TMDb only fills when the library has none (a season takes TMDb's plot where it has one: Kodi gives seasons their show's). See [TMDb lookups](#tmdb-lookups). |
+| `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the plot, title, tagline and trailer, which TMDb only fills when the item has none (a season takes TMDb's plot where it has one: Kodi gives seasons their show's). See [TMDb lookups](#tmdb-lookups). |
 | `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDb's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDb artwork. |
 | `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDb lookup inputs. See [TMDb lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
