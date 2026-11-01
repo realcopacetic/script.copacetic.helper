@@ -290,14 +290,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         return topmost_window_id() if self.dialog else getCurrentWindowId()
 
-    def _item_key(self) -> str:
+    def _item_key(self, item: str | None = None) -> str:
         """
-        The art source's library identity, dbtype:dbid.
+        An item's library identity, dbtype:dbid; the art source's by default.
         """
-        return (
-            f"{infolabel(f'{self.target_item}.DBType')}:"
-            f"{infolabel(f'{self.target_item}.DBID')}"
-        )
+        item = item or self.target_item
+        return f"{infolabel(f'{item}.DBType')}:{infolabel(f'{item}.DBID')}"
 
     def _visit_superseded(self) -> bool:
         """
@@ -529,6 +527,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             max_items=self.params.get("multiart_max"),
             tmdb_art=(tmdb_item or {}).get("art", {}),
         )
+        # The target read as another item (it hadn't landed, or Python read a modal
+        # dialog's container): hold rather than seed or clear from it.
+        if source and self._item_key(multiart_item) != self.params.get(
+            "multiart_target_key"
+        ):
+            return self._artwork_held()
         # A stand-in's backdrop is its first slide, as 9400's blur of the slide is.
         params = (
             self.params | {"background_url": multiart_dict["multiart"]}
