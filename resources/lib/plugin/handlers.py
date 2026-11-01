@@ -292,7 +292,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _item_key(self, item: str | None = None) -> str:
         """
-        An item's library identity, dbtype:dbid; the art source's by default.
+        An item's library identity, dbtype:dbid.
+
+        :param item: Infolabel prefix of the item; the art source's if None.
+        :return: The identity, "dbtype:dbid".
         """
         item = item or self.target_item
         return f"{infolabel(f'{item}.DBType')}:{infolabel(f'{item}.DBID')}"
@@ -459,6 +462,30 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             ]
         )
 
+    def _multiart_dict(self, item: str, multiart_type: str | None) -> dict[str, str]:
+        """
+        The multiart family of an item, extended by TMDb's cached art of the same
+        type when the URL asks for it (get_extra_multiart).
+
+        :param item: Infolabel prefix of the item.
+        :param multiart_type: Base art type; None for no family.
+        :return: The family as "multiart", "multiart1" … keys.
+        """
+        from resources.lib.art.multiart import build_multiart_dict
+
+        # Cache only: no network wait before the seed; another serve fills it.
+        tmdb_item = (
+            self._get_tmdb_item(append_artwork=True, cache_only=True, target=item)
+            if multiart_type and parse_bool(self.params.get("get_extra_multiart"))
+            else None
+        )
+        return build_multiart_dict(
+            target=item,
+            multiart_type=multiart_type,
+            max_items=self.params.get("multiart_max"),
+            tmdb_art=(tmdb_item or {}).get("art", {}),
+        )
+
     @log.duration
     def artwork(self) -> list[DirectoryItem] | None:
         """
@@ -474,7 +501,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         focus = focused_control_id(self.window_id)
 
         from resources.lib.art.editor import ImageEditor
-        from resources.lib.art.multiart import build_multiart_dict, seed_multiart
+        from resources.lib.art.multiart import seed_multiart
         from resources.lib.art.policy import ART_PROCESS_MAP
         from resources.lib.plugin.opts import ArtOpts
 
@@ -506,39 +533,21 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 focused_control_id(self.window_id)
             )
         multiart_type = self.params.get("multiart")
+        params = self.params
         # multiart_target: the family's own item when the focused one only stands
         # for it (a favourite's library item, 9040); identity stays the focused one.
-        multiart_item = (
-            f"Container({source}).ListItem"
-            if (source := self.params.get("multiart_target"))
-            else self.target_item
-        )
-        # Cache only: no network wait before the seed; another serve fills it.
-        tmdb_item = (
-            self._get_tmdb_item(
-                append_artwork=True, cache_only=True, target=multiart_item
-            )
-            if multiart_type and parse_bool(self.params.get("get_extra_multiart"))
-            else None
-        )
-        multiart_dict = build_multiart_dict(
-            target=multiart_item,
-            multiart_type=multiart_type,
-            max_items=self.params.get("multiart_max"),
-            tmdb_art=(tmdb_item or {}).get("art", {}),
-        )
-        # The target read as another item (it hadn't landed, or Python read a modal
-        # dialog's container): hold rather than seed or clear from it.
-        if source and self._item_key(multiart_item) != self.params.get(
-            "multiart_target_key"
-        ):
-            return self._artwork_held()
-        # A stand-in's backdrop is its first slide, as 9400's blur of the slide is.
-        params = (
-            self.params | {"background_url": multiart_dict["multiart"]}
-            if source and multiart_dict
-            else self.params
-        )
+        # Read before the image jobs: a seeded family's first slide is the backdrop,
+        # so 9300's blur is 9400's blur of slide 0.
+        if source := self.params.get("multiart_target"):
+            multiart_item = f"Container({source}).ListItem"
+            multiart_dict = self._multiart_dict(multiart_item, multiart_type)
+            # The target read as another item (it hadn't landed, or Python read a
+            # modal dialog's container): hold rather than seed or clear from it.
+            key = self.params.get("multiart_target_key")
+            if key is not None and self._item_key(multiart_item) != key:
+                return self._artwork_held()
+            if len(multiart_dict) > 1:  # seed_multiart seeds only then
+                params = params | {"background_url": multiart_dict["multiart"]}
         art_opts = {
             art_type: ArtOpts.from_params(params, art_type)
             for art_type in ("clearlogo", "background", "icon")
@@ -562,8 +571,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return self._artwork_held()
 
+        if not source:
+            multiart_dict = self._multiart_dict(self.target_item, multiart_type)
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
+        if not guard.alive():
+            return self._artwork_held()
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
         dbid = infolabel(f"{self.identity_item}.DBID")

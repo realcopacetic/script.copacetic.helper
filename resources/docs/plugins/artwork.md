@@ -143,8 +143,8 @@ show; with no rectangles that is the part of the image the frame shows.
 |---|---|---|---|
 | `multiart` | an art type, e.g. `fanart`, `poster`, `keyart`, `tvshow.fanart` | — | The family to collect. |
 | `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for (`fanart1` … `fanart15`). |
-| `multiart_target` | container id | — | Read the family, and its TMDb item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. Its first image is also the background, so each slide's blur continues the base's. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
-| `multiart_target_key` | `dbtype:dbid` | — | With `multiart_target`: the item the call is for. If the target reads as another item (it hasn't landed yet, or a modal dialog is up), the call returns the held item instead of seeding or clearing. |
+| `multiart_target` | container id | — | Read the family, and its TMDb item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. When the family has more than one image (so the FadeLabel rotates), its first image is also the background, so each slide's blur continues the base's. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
+| `multiart_target_key` | `dbtype:dbid` | — | With `multiart_target`: the item the call is for. If given and the target reads as another item (it hasn't landed yet, or a modal dialog is up), the call returns the held item instead of seeding or clearing. Not given: no check. |
 | `get_extra_multiart` | `true`, `false` | `false` | Add TMDb artwork of the same type, after the library artwork. See [Multiart](#multiart). |
 | `language` | TMDb language, e.g. `en-US` | add-on setting | Language of the TMDb artwork to add. |
 | `type`, `id`, `tmdb_id`, `tvshowid` | | | With `get_extra_multiart`: how the TMDb item is found. See [TMDb lookups](metadata.md#tmdb-lookups). |
