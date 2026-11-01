@@ -101,7 +101,10 @@ once a second. Each pass it:
 2. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
 3. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
    focus is no longer on a speed dial item (see
-   [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list)).
+   [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list));
+4. once a day, starting with the first pass, deletes saved TMDb and ListenBrainz
+   answers in the add-on's `_lookup.db` that expired more than 30 days ago. If the
+   database is busy, it tries again an hour later.
 
 When the screensaver starts, the loop pauses; when it stops, the loop resumes. While
 paused, or while the skin doesn't opt in, the service checks again every 2 seconds.
@@ -128,7 +131,7 @@ next play, speed dial change or slide.
 | Property | Set when | Value | Cleared when | Page |
 |---|---|---|---|---|
 | `helper_active` | A skin that opts in becomes active | `true` | The active skin changes, or the service stops | [Opting in](#opting-in) |
-| `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Never | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
+| `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Cleared once the last number has landed, just before the `ReloadSkin()`; left set if the wait gives up after a minute | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
 | `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
 | `trailer_return` | A trailer requested with `fullscreen` starts and goes full screen | The `info_current` key at that moment | By the `trailer_return` action | [Trailers](trailers.md#full-screen) |
