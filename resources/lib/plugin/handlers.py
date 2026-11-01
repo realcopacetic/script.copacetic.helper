@@ -507,29 +507,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope or str(
                 focused_control_id(self.window_id)
             )
-        art_opts = {
-            art_type: ArtOpts.from_params(self.params, art_type)
-            for art_type in ("clearlogo", "background", "icon")
-        }
-        jobs = {
-            art_type: [p for p in processes if opts.enabled(p)]
-            for art_type, processes in ART_PROCESS_MAP.items()
-            if (opts := art_opts.get(art_type)) and opts.url
-        }
-        if not jobs:
-            log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
-            # A dialog item with no art still lands, so the page isn't held back.
-            return set_items([{"file": plugin_path("artwork")}]) if self.item else None
-
-        image_processor = ImageEditor().image_processor
-        art = image_processor(
-            jobs=jobs,
-            art_opts=art_opts,
-            source=self.target_item,
-        )
-        if not guard.alive():
-            return self._artwork_held()
-
         multiart_type = self.params.get("multiart")
         # multiart_target: the family's own item when the focused one only stands
         # for it (a favourite's library item, 9040); identity stays the focused one.
@@ -552,10 +529,37 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             max_items=self.params.get("multiart_max"),
             tmdb_art=(tmdb_item or {}).get("art", {}),
         )
-        art |= multiart_dict
-        log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
+        # A stand-in's backdrop is its first slide, as 9400's blur of the slide is.
+        params = (
+            self.params | {"background_url": multiart_dict["multiart"]}
+            if source and multiart_dict
+            else self.params
+        )
+        art_opts = {
+            art_type: ArtOpts.from_params(params, art_type)
+            for art_type in ("clearlogo", "background", "icon")
+        }
+        jobs = {
+            art_type: [p for p in processes if opts.enabled(p)]
+            for art_type, processes in ART_PROCESS_MAP.items()
+            if (opts := art_opts.get(art_type)) and opts.url
+        }
+        if not jobs:
+            log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
+            # A dialog item with no art still lands, so the page isn't held back.
+            return set_items([{"file": plugin_path("artwork")}]) if self.item else None
+
+        image_processor = ImageEditor().image_processor
+        art = image_processor(
+            jobs=jobs,
+            art_opts=art_opts,
+            source=self.target_item,
+        )
         if not guard.alive():
             return self._artwork_held()
+
+        art |= multiart_dict
+        log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
         dbid = infolabel(f"{self.identity_item}.DBID")
