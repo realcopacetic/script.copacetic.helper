@@ -534,16 +534,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
         multiart_type = self.params.get("multiart")
         params = self.params
+        alive = guard.alive
         # multiart_target: the family's own item when the focused one only stands
         # for it (a favourite's library item, 9040); identity stays the focused one.
         # Read before the image jobs: a seeded family's first slide is the backdrop,
         # so 9300's blur is 9400's blur of slide 0.
         if source := self.params.get("multiart_target"):
             multiart_item = f"Container({source}).ListItem"
-            # The target read as another item (it hadn't landed, or Python read a
-            # modal dialog's container): hold rather than seed or clear from it.
+            # The target reading as another item (it hadn't landed, or a modal dialog
+            # opened, whose containers Python reads) holds: no seed or clear from it.
             key = self.params.get("multiart_target_key")
-            if key is not None and self._item_key(multiart_item) != key:
+            alive = lambda: guard.alive() and (
+                key is None or self._item_key(multiart_item) == key
+            )
+            if not alive():
                 return self._artwork_held()
             multiart_dict = self._multiart_dict(multiart_item, multiart_type)
             if len(multiart_dict) > 1:  # seed_multiart seeds only then
@@ -568,14 +572,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             art_opts=art_opts,
             source=self.target_item,
         )
-        if not guard.alive():
+        if not alive():
             return self._artwork_held()
 
         if not source:
             multiart_dict = self._multiart_dict(self.target_item, multiart_type)
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
-        if not guard.alive():
+        if not alive():
             return self._artwork_held()
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
@@ -586,7 +590,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             art=art,
             seed_scope=f"{stamp_scope}@{folder}",
             seed_item=f"{current_position}/{dbid}/{self.params.get('visit', '')}",
-            alive=guard.alive,
+            alive=alive,
         )
         if art is None:
             return self._artwork_held()
@@ -595,7 +599,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # A cancelled job still runs: size only while the URL's item is still shown.
         if (
             (fit := self.params.get("clearlogo_fit"))
-            and guard.alive()
+            and alive()
             and not self._visit_superseded()
             and (
                 self.item
@@ -644,7 +648,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         if (
             stamped
-            and guard.alive()
+            and alive()
             and infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
             == cursor_snapshot
         ):
