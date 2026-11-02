@@ -57,6 +57,16 @@ def action(fn):
     return fn
 
 
+def _reload_skin() -> None:
+    """
+    ReloadSkin, raising Window(home).Property(helper_reloading) a few frames
+    first so the skin can cover the reload's freeze; the skin clears it.
+    """
+    window_property("helper_reloading", value="1")
+    if not xbmc.Monitor().waitForAbort(0.1):
+        log.execute("ReloadSkin()")
+
+
 @action
 def clear_cache(**kwargs: str) -> None:
     """Action: clear processed artwork cache."""
@@ -115,7 +125,7 @@ def delete_orphans(**kwargs: str) -> None:
             from resources.lib.builders.build_elements import BuildElements
 
             BuildElements().run()
-            log.execute("ReloadSkin()")
+            _reload_skin()
 
 
 @action
@@ -227,7 +237,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
     # Posted after the restores: the reload re-inits the host, whose onload
     # starts the next session.
     if rebuilt:
-        log.execute("ReloadSkin()")
+        _reload_skin()
 
 
 @action
@@ -1011,7 +1021,7 @@ def rebuild(**kwargs: str) -> None:
 
     BuildElements().run()
 
-    log.execute("ReloadSkin()")
+    _reload_skin()
     xbmcgui.Dialog().notification(
         ADDON.getLocalizedString(32000),
         ADDON.getLocalizedString(32207 if reset else 32211),
