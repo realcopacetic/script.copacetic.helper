@@ -155,6 +155,18 @@ def dialog_yesno(heading: str, message: str, **kwargs: str) -> None:
 
 
 @action
+def dialog_textviewer(heading: str, label: str, **kwargs: str) -> None:
+    """
+    Opens Kodi's text viewer on an infolabel's text, read here so the skin passes
+    no text through RunScript's arguments (an add-on's changelog has commas).
+
+    :param heading: Dialog heading.
+    :param label: InfoLabel whose text the viewer shows, e.g. ListItem.AddonNews.
+    """
+    xbmcgui.Dialog().textviewer(heading, infolabel(label))
+
+
+@action
 def dynamic_settings_window(**kwargs: str) -> None:
     """
     Opens a dynamic settings window as a modal dialog and collects
