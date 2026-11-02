@@ -816,6 +816,15 @@ class TmdbTest(Base):
         cut = fit_lines(font, text, 10, 2, sentences=False)
         self.assertEqual(cut, ["Stop! Or", "my..."])
 
+    def test_fit_lines_spaceless_line(self):
+        font = mock.Mock(getlength=len)
+        text = "abcdefghijklmnopqrstuvwxyz"  # cut at a character: no space to back to
+        self.assertEqual(fit_lines(font, text, 10, 2), ["abcdefghij", "klmnopq..."])
+        self.assertEqual(
+            fit_lines(font, "one two three four five six", 10, 2),
+            ["one two", "three..."],
+        )
+
 
 def album(albumid, title, year, mbid=""):
     """A library album row as AudioLibrary.GetAlbums returns it (fields used here)."""
