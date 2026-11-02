@@ -195,7 +195,7 @@ The helper also sets these on the home window. With `prop_key`, each name ends i
 | `background_blur` | Path of the blurred background. Cleared when there is none. |
 | `background_darken` | The background darken value, % black. Cleared when there is none or it is `0`. |
 | `icon_darken` | The icon darken value, % black. Cleared when there is none or it is `0`. |
-| `artwork_scope` | The scope the values above were written for: the `target`, or the cursor's or focused control's id. |
+| `artwork_scope` | The scope the values above were written for: `item` for an info dialog's own item, the `target`, or the cursor's or focused control's id. |
 
 Use them when something outside the helper container's window needs the values, or
 to keep the last background on screen while the next one is processed.
