@@ -386,16 +386,23 @@ def skin_uses_builder() -> bool:
 def url_decode_path(path: str) -> str:
     """
     The path Kodi caches and opens an image by: a plain image:// wrapper unwraps to
-    its file; a typed one (music@, video@) is kept whole, in CURL::Encode's encoding.
+    its file; a typed one (music@, video@) or a transform (a picture's thumb) is kept
+    whole, in CURL::Encode's encoding.
 
     :param path: Image path, encoded or (as a plugin param arrives) decoded once.
-    :return: Decoded file path, or the typed wrapper as Kodi stores it.
+    :return: Decoded file path, or the wrapper as Kodi stores it.
     """
-    kind, at, file = path.removeprefix("image://").removesuffix("/").partition("@")
-    if path.startswith("image://") and at and kind.isidentifier():
+    body, transform, options = (
+        path.removeprefix("image://").removesuffix("/").partition("/transform?")
+    )
+    kind, at, file = body.partition("@")
+    if not (at and kind.isidentifier()):
+        kind, file = "", body
+    if path.startswith("image://") and (kind or transform):
         raw = file.encode() if "/" in file else urllib.unquote_to_bytes(file)
         encoded = "".join(chr(b) if b in URL_SAFE else f"%{b:02x}" for b in raw)
-        return f"image://{kind}@{encoded}/"
+        tail = transform and f"transform?{options}"
+        return f"image://{kind and kind + '@'}{encoded}/{tail}"
     return urllib.unquote(path.replace("image://", "").rstrip("/"))
 
 
