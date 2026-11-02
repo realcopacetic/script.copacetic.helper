@@ -277,6 +277,7 @@ def fit_lines(
     tracking: float = 0.0,
     ellipsis: str = DEFAULT_ELLIPSIS,
     abbrev: set[str] | None = None,
+    sentences: bool = True,
 ) -> list[str]:
     """Wrap to lines; on overflow cap at the last sentence, else ellipsise.
 
@@ -287,6 +288,7 @@ def fit_lines(
     :param tracking: Extra pixels inserted between adjacent glyphs.
     :param ellipsis: Suffix appended when a hard cut is required.
     :param abbrev: Lowercased abbreviations that don't end a sentence.
+    :param sentences: Cap at a sentence end; False always ellipsises (a title).
     :return: At most ``max_lines`` wrapped lines.
     """
     lines = wrap_text(font, text, max_width, tracking)
@@ -299,7 +301,7 @@ def fit_lines(
     for line in lines[:max_lines]:
         end = words.index(line, end) + len(line)
     visible = words[:end]
-    if capped := sentence_cap(visible, abbrev):
+    if sentences and (capped := sentence_cap(visible, abbrev)):
         return wrap_text(font, capped, max_width, tracking)[:max_lines]
 
     lines = lines[:max_lines]
