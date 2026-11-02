@@ -744,10 +744,15 @@ class TmdbTest(Base):
         with mock.patch.object(handlers, "infolabel", probe), mock.patch.object(
             handlers, "clamp_text", clamp
         ):
+            probed = handler._probe_text("truncate_label_id")
             for use_probe, expected in ((True, "Probe"), (False, "Merged")):
                 data = {}
                 handler._apply_truncated_label(
-                    data, target="ListItem", default_text="Merged", probe=use_probe
+                    data,
+                    target="ListItem",
+                    default_text="Merged",
+                    probe=use_probe,
+                    probed=probed,
                 )
                 self.assertEqual(data["properties"]["truncated_label"], expected)
 
@@ -775,6 +780,10 @@ class TmdbTest(Base):
         self.assertEqual(handler._probe_text("truncate_title_id"), "")
         handler._apply_truncated_title(data, "")
         self.assertEqual(data, {})
+        for width in ("0", None):  # width 0 or absent turns it off, a title or not
+            handler.params = {"truncate_title_width": width} if width else {}
+            handler._apply_truncated_title(data, "Stop! A title far too long")
+            self.assertEqual(data, {})
 
     def test_metadata_reads_probes_before_tmdb(self):
         handler = object.__new__(handlers.PluginHandlers)
@@ -808,6 +817,30 @@ class TmdbTest(Base):
             (item,) = handler.metadata()
         self.assertEqual(item["properties"]["truncated_label"], "This plot...")
         self.assertEqual(item["properties"]["truncated_title"], "This title...")
+
+    def test_tmdb_details_reads_probe_before_tmdb(self):
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {
+            "truncate_font": "description_l",
+            "truncate_label_id": "6009",
+            "truncate_width": "20",
+        }
+        handler.target_item = "Container(50).ListItem"
+        handler._guard = lambda: mock.Mock(alive=lambda: True)
+        shown = {"6009": "This plot"}
+
+        def follow_rail(**kwargs):
+            shown["6009"] = "Rail plot"
+            return {"Plot": "TMDb plot"}
+
+        handler._get_tmdb_item = follow_rail
+        probe = lambda path: shown.get(path[17:21], "")
+        clamp = lambda text, **kwargs: f"{text}..."
+        with mock.patch.object(handlers, "infolabel", probe), mock.patch.object(
+            handlers, "clamp_text", clamp
+        ), mock.patch.object(handlers, "set_items", lambda items, **kwargs: items):
+            (item,) = handler.tmdb_details()
+        self.assertEqual(item["properties"]["truncated_label"], "This plot...")
 
     def test_fit_lines_sentences(self):
         font = mock.Mock(getlength=len)

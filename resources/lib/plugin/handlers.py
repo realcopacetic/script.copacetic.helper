@@ -387,7 +387,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         target: str,
         default_text: str | None = None,
         probe: bool = True,
-        probed: str | None = None,
+        probed: str = "",
     ) -> None:
         """Attach a truncated label to a metadata dict.
         Text precedence: truncate_label, truncate_label_id probe, default_text, Plot.
@@ -397,7 +397,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param target: ListItem infolabel prefix for plot fallback.
         :param default_text: Optional plot to use before infolabel fallback.
         :param probe: Whether to use the truncate_label_id probe.
-        :param probed: The probe's text, read earlier; None reads it now.
+        :param probed: The truncate_label_id probe's text, read before any wait.
         """
         truncate_width = to_int(self.params.get("truncate_width", 0))
         truncate_font = self.params.get("truncate_font", "")
@@ -410,8 +410,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             return
 
-        if probed is None:
-            probed = self._probe_text("truncate_label_id")
         truncate_label = (
             self.params.get("truncate_label")
             or (probed if probe else "")
@@ -438,12 +436,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param data: Metadata dict to update in place.
         :param title: The truncate_title_id probe's text; empty does nothing.
         """
-        if not title:
+        width = to_int(self.params.get("truncate_title_width", 0))
+        if not (title and width):
             return
         truncated = clamp_text(
             text=title,
             font=self.params["truncate_title_font"],
-            max_width=to_int(self.params["truncate_title_width"]),
+            max_width=width,
             max_lines=to_int(self.params.get("truncate_title_lines"), 3),
             sentences=False,
         )
@@ -1130,6 +1129,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
+        # Read now: during the TMDb wait the probe can follow a rail to another item
+        caption = self._probe_text("truncate_label_id")
         target = self.target_item
         multiart_enabled = parse_bool(self.params.get("multiart", "false"))
         item = self._get_tmdb_item(append_artwork=multiart_enabled)
@@ -1144,6 +1145,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             item,
             target=target,
             default_text=item.get("Plot"),
+            probed=caption,
         )
 
         return set_items(
