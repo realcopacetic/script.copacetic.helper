@@ -56,6 +56,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
 | [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
 | [`delete_orphans`](#delete_orphans) | Removes builder entries whose parent entry is gone |
+| [`dialog_textviewer`](#dialog_textviewer) | Shows an infolabel's text in Kodi's text viewer |
 | [`dialog_yesno`](#dialog_yesno) | Asks a yes/no question and runs builtins for the answer |
 | [`dynamic_settings_window`](#dynamic_settings_window) | Opens a builder settings window |
 | [`focus`](#focus) | Sets focus reliably, optionally selecting an item first |
@@ -206,6 +207,24 @@ Outside a settings window:
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=delete_orphans,child_mapping=widgets)</onclick>
+```
+
+---
+
+## dialog_textviewer
+
+Opens Kodi's text viewer (`DialogTextViewer.xml`) on the text of an infolabel. The
+helper reads the label itself, so long text with commas, quotes or `[CR]` never passes
+through `RunScript`'s arguments. A bare `ListItem` reads the topmost dialog's own item
+(an info dialog's), as the skin would.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `heading` | text | required | Dialog heading |
+| `label` | an infolabel, without `$INFO[]` | required | The text to show |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=dialog_textviewer,"heading=$LOCALIZE[24054]",label=ListItem.AddonNews)</onclick>
 ```
 
 ---
