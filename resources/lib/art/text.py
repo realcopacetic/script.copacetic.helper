@@ -9,7 +9,7 @@ from resources.lib.art.policy import ColorConfig
 from resources.lib.art.io import write_image
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
-from resources.lib.shared.text import fit_lines
+from resources.lib.shared.text import fit_lines, plain_text
 from resources.lib.shared.utilities import TEXTS, create_dir, validate_path
 
 # Bump when the render logic changes so stale cached PNGs are superseded.
@@ -42,7 +42,7 @@ class TextRenderer:
         """
         Rasterise text and return a cached PNG path (cache-first, content-keyed).
 
-        :param text: Already-localised string to render.
+        :param text: Already-localised string to render; Kodi's formatting tags drop.
         :param font_path: special:// or absolute path to a .ttf/.otf font.
         :param font_size: Target font size in final (non-supersampled) pixels.
         :param box_width: Wrap/output width in final pixels.
@@ -52,7 +52,7 @@ class TextRenderer:
         :param supersample: Draw scale for antialiasing (2 = 2x then downscale).
         :return: (PNG path, pixel height) tuple, or None if nothing rendered.
         """
-        if not text:
+        if not (text := plain_text(text)):
             return None
 
         path = self._cache_path(
