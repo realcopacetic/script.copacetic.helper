@@ -22,6 +22,12 @@ if TYPE_CHECKING:
 # Kodi wraps at U+0020 only; tabs and newlines fold into a break as before
 _WORDS = re.compile(r"[^ \t\n\r\f\v]+")
 
+# Kodi's label formatting (CGUITextLayout::ParseText): breaks, then styles
+_KODI_BREAKS = re.compile(r"\[CR\]|\[TABS\][^\[]*\[/TABS\]")
+_KODI_STYLES = re.compile(
+    r"\[/?(?:B|I|LIGHT|UPPERCASE|LOWERCASE|CAPITALIZE)\]|\[COLOR[^\]]*\]|\[/COLOR\]"
+)
+
 # Rendered pixels Kodi's last-glyph ink extent can add past its advance.
 _INK_OVERHANG = 2
 
@@ -190,6 +196,15 @@ class KodiMetric:
                 ) >> 6
             total += advance
         return total / self.scale_x
+
+
+def plain_text(text: str) -> str:
+    """Label text without Kodi's formatting tags; a [CR] or [TABS] becomes a space.
+
+    :param text: Text as an infolabel returns it.
+    :return: The text the tags format.
+    """
+    return _KODI_STYLES.sub("", _KODI_BREAKS.sub(" ", text))
 
 
 def sentence_cap(text: str, abbrev: set[str] | None = None) -> str | None:
