@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 # Kodi wraps at U+0020 only; tabs and newlines fold into a break as before
 _WORDS = re.compile(r"[^ \t\n\r\f\v]+")
 
-# Kodi's label formatting (CGUITextLayout::ParseText): breaks, then styles
-_KODI_BREAKS = re.compile(r"\[CR\]|\[TABS\][^\[]*\[/TABS\]")
+# Kodi's label formatting (CGUITextLayout::ParseText): a [CR] is a newline, tabs a space
+_KODI_TABS = re.compile(r"\[TABS\][^\[]*\[/TABS\]")
 _KODI_STYLES = re.compile(
     r"\[/?(?:B|I|LIGHT|UPPERCASE|LOWERCASE|CAPITALIZE)\]|\[COLOR[^\]]*\]|\[/COLOR\]"
 )
@@ -199,12 +199,14 @@ class KodiMetric:
 
 
 def plain_text(text: str) -> str:
-    """Label text without Kodi's formatting tags; a [CR] or [TABS] becomes a space.
+    """Label text without Kodi's formatting tags: a [CR] becomes a newline, as Kodi
+    draws it, and [TABS] a space.
 
     :param text: Text as an infolabel returns it.
     :return: The text the tags format.
     """
-    return _KODI_STYLES.sub("", _KODI_BREAKS.sub(" ", text))
+    text = _KODI_TABS.sub(" ", text).replace("[CR]", "\n")
+    return _KODI_STYLES.sub("", text)
 
 
 def sentence_cap(text: str, abbrev: set[str] | None = None) -> str | None:
@@ -325,4 +327,35 @@ def fit_lines(
         last = last.rsplit(" ", 1)[0] if " " in last else last[:-1]
     last = last.rstrip(".,;:!?…-–—").rstrip("\"')]}»”’")
     lines[-1] = f"{last}{ellipsis}"
+    return lines
+
+
+def fit_paragraphs(
+    font, text: str, max_width: int, max_lines: int, tracking: float = 0.0
+) -> list[str]:
+    """Wrap each line of text alone, as CGUITextLayout::LineBreakText breaks at a
+    newline (an empty line stays blank). The paragraph that overflows ends at its last
+    sentence; with none, the text ends before it, or ellipsises if it is the first.
+
+    :param font: FreeType font object exposing ``getlength``.
+    :param text: Text whose newlines are line breaks.
+    :param max_width: Line width ceiling in pixels.
+    :param max_lines: Maximum lines to keep.
+    :param tracking: Extra pixels inserted between adjacent glyphs.
+    :return: At most ``max_lines`` lines, with no blank line at either end.
+    """
+    lines = []
+    for paragraph in text.strip().splitlines():
+        room = max_lines - len(lines)
+        wrapped = wrap_text(font, paragraph, max_width, tracking) or [""]
+        if len(wrapped) <= room:
+            lines += wrapped
+            continue
+        if room:
+            part = fit_lines(font, paragraph, max_width, room, tracking)
+            if not lines or not part[-1].endswith(DEFAULT_ELLIPSIS):
+                lines += part
+        break
+    while lines and not lines[-1]:
+        lines.pop()
     return lines

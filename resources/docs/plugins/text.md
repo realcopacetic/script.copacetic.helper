@@ -30,7 +30,7 @@ straight away.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `text` | any text | — | The text to draw. Kodi's formatting tags (`[B]`, `[COLOR …]`, `[CR]` and the rest) are dropped, a `[CR]` or `[TABS]` as a space. Nothing is returned when empty. |
+| `text` | any text | — | The text to draw. Kodi's formatting tags (`[B]`, `[COLOR …]` and the rest) are dropped. A `[CR]` or a newline starts a new line, as Kodi draws it, so `[CR][CR]` leaves a blank line between paragraphs; `[TABS]` is a space. When the text doesn't fit, the paragraph that overflows ends at its last full sentence, else the text ends with the paragraph before it. Nothing is returned when empty. |
 | `text_font` | font file path (`special://` or absolute) | — | The `.ttf` or `.otf` font to draw with. |
 | `text_size` | whole number (pixels) | `42` | Font size. |
 | `text_width` | whole number (pixels) | `1280` | Wrap width, and the width of the image. Lines break where Kodi breaks them: at plain spaces (a no-break space holds), with a word wider than this cut after the last letter that fits. |
