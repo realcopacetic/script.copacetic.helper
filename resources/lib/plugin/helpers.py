@@ -533,6 +533,7 @@ def clamp_text(
     font: str,
     max_width: int,
     max_lines: int,
+    sentences: bool = True,
 ) -> str:
     """Clamp text to max_lines when wrapped at max_width in a Font.xml font.
     Lines are pinned with [CR] so Kodi renders the measured breaks verbatim.
@@ -541,6 +542,7 @@ def clamp_text(
     :param font: Kodi font name, e.g. "description_l".
     :param max_width: Wrap width in skin-coordinate pixels.
     :param max_lines: Maximum rendered lines to keep.
+    :param sentences: Cap at a sentence end; False always ellipsises (a title).
     :return: Clamped lines joined with [CR].
     """
     from resources.lib.shared.hash import HashManager
@@ -558,6 +560,7 @@ def clamp_text(
                 f"{scale_y:.4f}",
                 str(max_width),
                 str(max_lines),
+                str(sentences),
                 text,
             )
         ),
@@ -569,7 +572,8 @@ def clamp_text(
     if (spec := skin_font(font)) is None or (face := load_font(spec[0])) is None:
         return text
     metric = KodiMetric(face, spec[1], scale_x, scale_y)
-    result = "[CR]".join(fit_lines(metric, text, max_width, max_lines))
+    lines = fit_lines(metric, text, max_width, max_lines, sentences=sentences)
+    result = "[CR]".join(lines)
     cache.upsert_entry(key, result)
     return result
 

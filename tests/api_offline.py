@@ -52,6 +52,7 @@ from resources.lib.plugin.setter import apply_musicinfotag  # noqa: E402
 from resources.lib.script import actions  # noqa: E402
 from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
+from resources.lib.shared.text import fit_lines  # noqa: E402
 
 FIXTURES = HELPER / "tests" / "fixtures"
 FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
@@ -749,6 +750,39 @@ class TmdbTest(Base):
                     data, target="ListItem", default_text="Merged", probe=use_probe
                 )
                 self.assertEqual(data["properties"]["truncated_label"], expected)
+
+    def test_truncated_title(self):
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {
+            "truncate_title_font": "title_identity",
+            "truncate_title_id": "6036",
+            "truncate_title_width": "20",
+        }
+        lines = {"Fits on one": ["Fits on one"], "Two. Long": ["Two.", "Long"]}
+        clamp = lambda text, **kwargs: "[CR]".join(lines.get(text, ["Cut..."]))
+        for title, expected in (
+            ("Fits on one", None),
+            ("Two. Long", None),
+            ("Stop! A title far too long", "Cut..."),
+        ):
+            data = {}
+            with mock.patch.object(
+                handlers, "infolabel", lambda path: title
+            ), mock.patch.object(handlers, "clamp_text", clamp):
+                handler._apply_truncated_title(data)
+            self.assertEqual(
+                data.get("properties", {}).get("truncated_title"), expected
+            )
+        data, handler.params = {}, {}  # a view with no title params: no read
+        handler._apply_truncated_title(data)
+        self.assertEqual(data, {})
+
+    def test_fit_lines_sentences(self):
+        font = mock.Mock(getlength=len)
+        text = "Stop! Or my mother will shoot at the whole town"
+        self.assertEqual(fit_lines(font, text, 10, 2), ["Stop!"])
+        cut = fit_lines(font, text, 10, 2, sentences=False)
+        self.assertEqual(cut, ["Stop! Or", "my..."])
 
 
 def album(albumid, title, year, mbid=""):

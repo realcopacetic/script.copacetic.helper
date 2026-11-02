@@ -56,6 +56,7 @@ and so on.
 | `ListItem.Plot`, `ListItem.PlotOutline`, `ListItem.TagLine` | As on the focused item. With TMDb, the TMDb plot and tagline are used only when the library has none; a season takes the TMDb season overview where it has one, as Kodi gives seasons their show's plot. |
 | `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used only when the library has none. |
 | `ListItem.Property(truncated_label)` | The cut-down text, when `truncate_width` is passed. |
+| `ListItem.Property(truncated_title)` | The cut-down title, when `truncate_title_width` is passed and the title overflows; empty when it fits. |
 | `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits). Empty for other types. |
 
 The random pick is fixed per item (`type`, `id` and label) for the Kodi session, so a
@@ -224,3 +225,14 @@ plot is cut rather than the skin's fallback caption.
 ```xml
 <content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=font_plot</content>
 ```
+
+A title is cut the same way, separately, from these params. It always ends in an
+ellipsis, never at a sentence, and `truncated_title` is set only when the title
+overflows, so a title that fits stays the skin's own label and doesn't change.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `truncate_title_width` | whole number (skin pixels) | `0` | Width of the title. `0` turns it off. |
+| `truncate_title_font` | a font name from your `Font.xml` | — | Font of the title. Required with `truncate_title_width`. |
+| `truncate_title_lines` | whole number | `3` | Most lines to keep. |
+| `truncate_title_id` | control id | — | The label control to read the title from. Required with `truncate_title_width`. |

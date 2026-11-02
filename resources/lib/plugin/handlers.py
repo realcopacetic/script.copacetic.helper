@@ -419,6 +419,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         props = data.setdefault("properties", {})
         props["truncated_label"] = truncated
 
+    def _apply_truncated_title(self, data: dict[str, Any]) -> None:
+        """Attach the truncate_title_id label cut with an ellipsis, only if it overflows:
+        a title that fits sets nothing, so the skin's live text never changes.
+
+        :param data: Metadata dict to update in place.
+        """
+        if not (width := to_int(self.params.get("truncate_title_width", 0))):
+            return
+        title = infolabel(f"Control.GetLabel({self.params['truncate_title_id']})")
+        truncated = clamp_text(
+            text=title,
+            font=self.params["truncate_title_font"],
+            max_width=width,
+            max_lines=to_int(self.params.get("truncate_title_lines"), 3),
+            sentences=False,
+        )
+        if truncated.replace("[CR]", " ") != title:
+            data.setdefault("properties", {})["truncated_title"] = truncated
+
     def _require(self, *names: str) -> bool:
         """
         Warn and return False when any named URL param is absent.
@@ -829,6 +848,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             and (skip != "false" or self.dbtype in MUSIC_TYPES)
             and (bool(own_plot) or not data.get("Plot")),
         )
+        self._apply_truncated_title(data)
 
         return set_items([data], tag_applier=apply_videoinfotag)
 
