@@ -34,7 +34,7 @@ from resources.lib.shared.utilities import (
 _WHOLE_GENRES = frozenset({"album", "artist", "song", "musicvideo"})
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
-_CLAMP_VERSION = "4"
+_CLAMP_VERSION = "5"
 
 # Skin authoring resolution; Kodi rasterises fonts at size * ScreenHeight / height.
 _SKIN_WIDTH = 1920

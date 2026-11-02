@@ -306,8 +306,8 @@ def fit_lines(
 
     lines = lines[:max_lines]
     last = lines[-1]
-    while " " in last and text_width(font, f"{last}{ellipsis}", tracking) > max_width:
-        last = last.rsplit(" ", 1)[0]
+    while last and text_width(font, f"{last}{ellipsis}", tracking) > max_width:
+        last = last.rsplit(" ", 1)[0] if " " in last else last[:-1]
     last = last.rstrip(".,;:!?…-–—").rstrip("\"')]}»”’")
     lines[-1] = f"{last}{ellipsis}"
     return lines
