@@ -203,7 +203,7 @@ for the type. The container's content is `artists`, `albums` or `songs`.
 ## `top_songs`
 
 One library artist's songs in the order of its most listened recordings on
-[ListenBrainz](https://listenbrainz.org) (the free popularity API,
+[ListenBrainz](https://listenbrainz.org) (MetaBrainz's free popularity API,
 `/1/popularity/top-recordings-for-artist/<artist MBID>`), then the artist's other
 played songs, most played first.
 
