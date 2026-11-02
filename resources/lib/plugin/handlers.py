@@ -371,6 +371,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         return item
 
+    def _probe_text(self, param: str) -> str:
+        """The label of the probe control a URL param names; empty if it names none.
+
+        :param param: URL param holding the control id.
+        :return: The control's label.
+        """
+        label_id = to_int(self.params.get(param, 0))
+        return infolabel(f"Control.GetLabel({label_id})") if label_id else ""
+
     def _apply_truncated_label(
         self,
         data: dict[str, Any],
@@ -378,6 +387,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         target: str,
         default_text: str | None = None,
         probe: bool = True,
+        probed: str | None = None,
     ) -> None:
         """Attach a truncated label to a metadata dict.
         Text precedence: truncate_label, truncate_label_id probe, default_text, Plot.
@@ -386,7 +396,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param data: Metadata dict to update in place.
         :param target: ListItem infolabel prefix for plot fallback.
         :param default_text: Optional plot to use before infolabel fallback.
-        :param probe: Whether to read the truncate_label_id probe.
+        :param probe: Whether to use the truncate_label_id probe.
+        :param probed: The probe's text, read earlier; None reads it now.
         """
         truncate_width = to_int(self.params.get("truncate_width", 0))
         truncate_font = self.params.get("truncate_font", "")
@@ -399,10 +410,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             return
 
-        label_id = to_int(self.params.get("truncate_label_id", 0)) if probe else 0
+        if probed is None:
+            probed = self._probe_text("truncate_label_id")
         truncate_label = (
             self.params.get("truncate_label")
-            or (infolabel(f"Control.GetLabel({label_id})") if label_id else "")
+            or (probed if probe else "")
             or default_text
             or infolabel(f"{target}.Plot")
         )
@@ -419,19 +431,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         props = data.setdefault("properties", {})
         props["truncated_label"] = truncated
 
-    def _apply_truncated_title(self, data: dict[str, Any]) -> None:
-        """Attach the truncate_title_id label cut with an ellipsis, only if it overflows:
-        a title that fits sets nothing, so the skin's live text never changes.
+    def _apply_truncated_title(self, data: dict[str, Any], title: str) -> None:
+        """Attach the title cut with an ellipsis, only if it overflows: a title that
+        fits sets nothing, so the skin's live text never changes.
 
         :param data: Metadata dict to update in place.
+        :param title: The truncate_title_id probe's text; empty does nothing.
         """
-        if not (width := to_int(self.params.get("truncate_title_width", 0))):
+        if not title:
             return
-        title = infolabel(f"Control.GetLabel({self.params['truncate_title_id']})")
         truncated = clamp_text(
             text=title,
             font=self.params["truncate_title_font"],
-            max_width=width,
+            max_width=to_int(self.params["truncate_title_width"]),
             max_lines=to_int(self.params.get("truncate_title_lines"), 3),
             sentences=False,
         )
@@ -807,6 +819,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
 
+        # Read now: during the TMDb wait the probes can follow a rail to another item
+        caption = self._probe_text("truncate_label_id")
+        title = self._probe_text("truncate_title_id")
         target = self.target_item
         aliases = self.params.get("genre_aliases", "")
         data = DataHandler(
@@ -858,8 +873,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             probe=skip != self.dbtype
             and (skip != "false" or self.dbtype in MUSIC_TYPES)
             and (bool(own_plot) or not data.get("Plot")),
+            probed=caption,
         )
-        self._apply_truncated_title(data)
+        self._apply_truncated_title(data, title)
 
         return set_items([data], tag_applier=apply_videoinfotag)
 

@@ -766,16 +766,48 @@ class TmdbTest(Base):
             ("Stop! A title far too long", "Cut..."),
         ):
             data = {}
-            with mock.patch.object(
-                handlers, "infolabel", lambda path: title
-            ), mock.patch.object(handlers, "clamp_text", clamp):
-                handler._apply_truncated_title(data)
+            with mock.patch.object(handlers, "clamp_text", clamp):
+                handler._apply_truncated_title(data, title)
             self.assertEqual(
                 data.get("properties", {}).get("truncated_title"), expected
             )
         data, handler.params = {}, {}  # a view with no title params: no read
-        handler._apply_truncated_title(data)
+        self.assertEqual(handler._probe_text("truncate_title_id"), "")
+        handler._apply_truncated_title(data, "")
         self.assertEqual(data, {})
+
+    def test_metadata_reads_probes_before_tmdb(self):
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {
+            "enrich_with_tmdb": "true",
+            "truncate_font": "description_l",
+            "truncate_label_id": "6009",
+            "truncate_title_font": "title_identity",
+            "truncate_title_id": "6036",
+            "truncate_title_width": "20",
+            "truncate_width": "20",
+        }
+        handler.item, handler.dbtype, handler.dbid = False, "movie", "7"
+        handler.target_item = "Container(50).ListItem"
+        handler._guard = lambda: mock.Mock(alive=lambda: True)
+        shown = {"6009": "This plot", "6036": "This title"}
+
+        def follow_rail(**kwargs):
+            shown.update({"6009": "Rail plot", "6036": "Rail title"})
+
+        handler._get_tmdb_item = follow_rail
+        probe = lambda path: shown.get(path[17:21], "")
+        clamp = lambda text, **kwargs: f"{text}..."
+        fetched = mock.Mock()
+        fetched.return_value.fetch_data.return_value = {"Plot": "This plot"}
+        with mock.patch.object(handlers, "infolabel", probe), mock.patch.object(
+            handlers, "clamp_text", clamp
+        ), mock.patch.object(handlers, "DataHandler", fetched), mock.patch.object(
+            handlers, "set_items", lambda items, **kwargs: items
+        ):
+            (item,) = handler.metadata()
+        self.assertEqual(item["properties"]["truncated_label"], "This plot...")
+        self.assertEqual(item["properties"]["truncated_title"], "This title...")
 
     def test_fit_lines_sentences(self):
         font = mock.Mock(getlength=len)
