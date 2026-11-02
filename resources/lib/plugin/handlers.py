@@ -442,11 +442,21 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             ("icon_darken", f"icon_darken{suffix}"),
         ]
 
+    @property
+    def _scope_prop(self) -> str:
+        """
+        The window property naming the scope the bridge properties were written for.
+        """
+        suffix = f"_{key}" if (key := self.params.get("prop_key")) else ""
+        return f"artwork_scope{suffix}"
+
     def _artwork_held(self) -> list[DirectoryItem]:
         """
         An aborted serve re-serves the last blur and darkens this list wrote, under
-        an identity no cursor matches, so the list never empties between serves.
+        an identity no cursor matches and the scope they belong to, so the list never
+        empties between serves.
         """
+        scope = infolabel(f"Window(home).Property({self._scope_prop})")
         return set_items(
             [
                 {
@@ -456,7 +466,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         for field, prop in self._bridge_props()
                     },
                     "properties": {
-                        "current": f"held/{self.params.get('prop_key', '')}"
+                        "current": f"held/{scope}/{self.params.get('prop_key', '')}"
                     },
                 }
             ]
@@ -622,6 +632,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         for field, prop in self._bridge_props():
             window_property(prop, art.get(field, ""))
+        window_property(self._scope_prop, stamp_scope)
 
         total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 

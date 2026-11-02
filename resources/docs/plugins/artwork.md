@@ -195,6 +195,7 @@ The helper also sets these on the home window. With `prop_key`, each name ends i
 | `background_blur` | Path of the blurred background. Cleared when there is none. |
 | `background_darken` | The background darken value, % black. Cleared when there is none or it is `0`. |
 | `icon_darken` | The icon darken value, % black. Cleared when there is none or it is `0`. |
+| `artwork_scope` | The scope the values above were written for: the `target`, or the cursor's or focused control's id. |
 
 Use them when something outside the helper container's window needs the values, or
 to keep the last background on screen while the next one is processed.
@@ -202,8 +203,8 @@ to keep the last background on screen while the next one is processed.
 **Aborted calls hold the last values.** A call that stops early (its `visit` is no
 longer live, or the focus guard fails) returns one item whose `background`,
 `background_darken` and `icon_darken` art are these three properties as they stand,
-with `ListItem.Property(current)` = `held/<prop_key>`. Kodi replaces a container's
-items with whatever a listing returns, so returning nothing would empty the list; the
+with `ListItem.Property(current)` = `held/<artwork_scope>/<prop_key>`. Kodi replaces a
+container's items with whatever a listing returns, so returning nothing would empty the list; the
 held item keeps its picture and darken until the next call lands. Its `current`
 never equals a cursor value, so currency checks stay false, and it carries no
 `previous`, `next` or position properties. These two checks come first, so a stale
