@@ -345,7 +345,7 @@ def fit_paragraphs(
     :return: At most ``max_lines`` lines, with no blank line at either end.
     """
     lines = []
-    for paragraph in text.strip().splitlines():
+    for paragraph in text.strip().split("\n"):
         room = max_lines - len(lines)
         wrapped = wrap_text(font, paragraph, max_width, tracking) or [""]
         if len(wrapped) <= room:
