@@ -57,14 +57,21 @@ def action(fn):
     return fn
 
 
+def _rebuild() -> None:
+    """
+    Rebuild builder outputs under Window(home).Property(helper_reloading)=rebuild,
+    so the skin can cover the rebuild and the reload after it; the skin clears it.
+    """
+    from resources.lib.builders.build_elements import BuildElements
+
+    window_property("helper_reloading", value="rebuild")
+    BuildElements().run()
+
+
 def _reload_skin() -> None:
-    """
-    ReloadSkin, raising Window(home).Property(helper_reloading) a few frames
-    first so the skin can cover the reload's freeze; the skin clears it.
-    """
-    window_property("helper_reloading", value="1")
-    if not xbmc.Monitor().waitForAbort(0.1):
-        log.execute("ReloadSkin()")
+    """ReloadSkin, with helper_reloading moved on to reload."""
+    window_property("helper_reloading", value="reload")
+    log.execute("ReloadSkin()")
 
 
 @action
@@ -122,9 +129,7 @@ def delete_orphans(**kwargs: str) -> None:
             # deletions and rebuilds once — a reload here lands under the modal.
             log.info("delete_orphans: editor session live — rebuild deferred")
         else:
-            from resources.lib.builders.build_elements import BuildElements
-
-            BuildElements().run()
+            _rebuild()
             _reload_skin()
 
 
@@ -220,9 +225,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
                 myWindow.runtime_manager.runtime_state
                 != myWindow._runtime_state_snapshot
             ):
-                from resources.lib.builders.build_elements import BuildElements
-
-                BuildElements().run()
+                _rebuild()
                 rebuilt = True
     finally:
         # Always restore properties — a stuck active_editor_name makes every
@@ -1012,15 +1015,12 @@ def rebuild(**kwargs: str) -> None:
 
     :param reset: 'true' to delete runtime state and outputs, then rebuild fresh.
     """
-    from resources.lib.builders.build_elements import BuildElements
-
     reset = kwargs.get("reset") == "true"
     if reset:
         reset_dev_state()
         ADDON.setSettingBool("dev_reset", False)
 
-    BuildElements().run()
-
+    _rebuild()
     _reload_skin()
     xbmcgui.Dialog().notification(
         ADDON.getLocalizedString(32000),
