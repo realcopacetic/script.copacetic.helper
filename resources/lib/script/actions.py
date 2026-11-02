@@ -134,6 +134,20 @@ def delete_orphans(**kwargs: str) -> None:
 
 
 @action
+def dialog_textviewer(heading: str, label: str, **kwargs: str) -> None:
+    """
+    Opens Kodi's text viewer on an infolabel's text, read here so the skin passes
+    no text through RunScript's arguments (an add-on's changelog has commas).
+
+    :param heading: Dialog heading.
+    :param label: InfoLabel whose text the viewer shows, e.g. ListItem.AddonNews.
+    """
+    # empty once the dialog has closed: the viewer would keep its last text
+    if text := infolabel(label):
+        xbmcgui.Dialog().textviewer(heading, text)
+
+
+@action
 def dialog_yesno(heading: str, message: str, **kwargs: str) -> None:
     """
     Opens a yes/no dialog and runs a set of Kodi actions based on the result.
@@ -152,18 +166,6 @@ def dialog_yesno(heading: str, message: str, **kwargs: str) -> None:
     else:
         for action in no_actions:
             log.execute(action)
-
-
-@action
-def dialog_textviewer(heading: str, label: str, **kwargs: str) -> None:
-    """
-    Opens Kodi's text viewer on an infolabel's text, read here so the skin passes
-    no text through RunScript's arguments (an add-on's changelog has commas).
-
-    :param heading: Dialog heading.
-    :param label: InfoLabel whose text the viewer shows, e.g. ListItem.AddonNews.
-    """
-    xbmcgui.Dialog().textviewer(heading, infolabel(label))
 
 
 @action

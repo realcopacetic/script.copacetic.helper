@@ -215,8 +215,8 @@ Outside a settings window:
 
 Opens Kodi's text viewer (`DialogTextViewer.xml`) on the text of an infolabel. The
 helper reads the label itself, so long text with commas, quotes or `[CR]` never passes
-through `RunScript`'s arguments. A bare `ListItem` reads the topmost dialog's own item
-(an info dialog's), as the skin would.
+through `RunScript`'s arguments. A bare `ListItem` reads the topmost modal dialog's item
+(an info dialog's), else the active window's. Nothing opens when the text is empty.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
