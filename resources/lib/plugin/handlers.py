@@ -849,7 +849,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # truncate_probe=<dbtype>: that type skips the skin's probe (a season's reads
         # its show's plot); =false: every video type does (a favourite's reads its
         # action text). Music keeps it: an album's or artist's caption is its
-        # description. A plot only TMDb has skips it too: the caption is the meta line
+        # description. A plot only TMDb has skips it too: such an item's probe is empty
         skip = self.params.get("truncate_probe", "true")
         self._apply_truncated_label(
             data,
