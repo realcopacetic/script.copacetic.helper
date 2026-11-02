@@ -135,7 +135,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32110"
-msgid "Adds details from TMDB (The Movie Database) that Kodi's library lacks: a TV show's creators, TV show trailers, a plot or tagline in the TMDB language (a season takes TMDB's plot where it has one, as Kodi gives seasons their show's) and, where the skin asks for it, extra artwork. Paste your own TMDB v3 API key or v4 API read access token; either works. Sends the focused movie's or show's TMDB ID to api.themoviedb.org. Empty: TMDB is off and nothing is sent. This product uses the TMDB API but is not endorsed or certified by TMDB."
+msgid "Adds TV creators, trailers, missing plots and taglines, and extra art. Paste your own v3 API key or v4 read access token from themoviedb.org. Sends the item's TMDB ID to TMDB. Empty: nothing sent."
 msgstr ""
 
 #: /resources/settings.xml
@@ -180,7 +180,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32121"
-msgid "Adds ListenBrainz popularity to music info: a Top songs rail for artists, listener counts for artists, albums and songs, and the Discography popularity order. Paste the user token from your free ListenBrainz account (listenbrainz.org/settings). Sends the item's MusicBrainz ID and your token to api.listenbrainz.org (MetaBrainz). Empty: ListenBrainz is off, nothing is sent and these are hidden."
+msgid "Adds Top songs, listener counts and Discography popularity order. Paste the token from listenbrainz.org/settings. Sends the item's MusicBrainz ID and token to ListenBrainz. Empty: nothing sent."
 msgstr ""
 
 #: /resources/settings.xml

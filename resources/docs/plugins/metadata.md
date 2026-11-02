@@ -186,6 +186,8 @@ Without it, nothing is fetched or read from the cache, nothing is logged above d
 and `tmdb_details` returns no item. **Test TMDB access** checks the token.
 **TMDB language** (`tmdb_language`) sets the default `language`.
 
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
 ---
 
 ## Cutting the plot to fit
