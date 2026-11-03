@@ -121,8 +121,8 @@ values mean.
 | `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo`, each with an optional `:ratio`; comma-separated, one per rectangle | `fff0efef` | Colour of the element in each rectangle, in rectangle order; the last carries on for the rest. `clearlogo` uses the clearlogo's colour (it needs `clearlogo_url` in the same call, else the default is used). `:ratio` gives that rectangle its own contrast target in place of `_ratio`: `clearlogo:1.5,fff0efef` asks less of a logo than of the text under it; with no logo, that rectangle falls back to the default colour at `_ratio`. |
 | `<prefix>_darken_surface` | `art`, `blur` | `art` | The image you draw the darken over: the image itself or its blur. The helper measures that one. With `blur` on an image that is not blurred, it measures the image itself. |
 | `<prefix>_darken_max` | whole number | none | A cap on the darken: the value returned is never higher. Bright art may then fall short of the ratio. The value is not checked, so keep it between `0` and `100`. |
-| `<prefix>_darken_label`, `<prefix>_darken_label1`, `<prefix>_darken_label2` | any text | — | The text in the first, second and third rectangle. Pass the label's whole text box as its rectangle: the helper wraps the label at the box's width as Kodi does (at plain spaces; a no-break space holds) and shrinks the rectangle to the widest line, left edge kept, never widened. Needs `<prefix>_darken_label_font`; without it the rectangles are used as passed. With no `<prefix>_darken_rects`, the first label's box is the whole frame. |
-| `<prefix>_darken_label_font` | a font name from your `Font.xml`, e.g. `description_l` | — | The font the labels are drawn in. The helper reads its file and size from the first fontset in `16x9/Font.xml`, and measures at your skin's own size (frame pixels are skin pixels). `<style>` (e.g. uppercase) is not applied. A name that is not in `Font.xml`, or a font file that can't be read, logs a warning and the rectangles are used as passed. Measurements are cached by the font's name: after changing the font in `Font.xml`, run [`clear_cache`](../script/actions.md#clear_cache). |
+| `<prefix>_darken_label` | any text | — | The text in the first rectangle; other rectangles are used as passed. Pass the label's whole text box as its rectangle: the helper wraps the label at the box's width as Kodi does (at plain spaces; a no-break space holds) and shrinks the rectangle to the widest line, left edge kept, never widened. Needs `<prefix>_darken_label_font`; without it the rectangles are used as passed. With no `<prefix>_darken_rects`, the label's box is the whole frame. |
+| `<prefix>_darken_label_font` | a font name from your `Font.xml`, e.g. `description_l` | — | The font the label is drawn in. The helper reads its file and size from the first fontset in `16x9/Font.xml`, and measures at your skin's own size (frame pixels are skin pixels). `<style>` (e.g. uppercase) is not applied. A name that is not in `Font.xml`, or a font file that can't be read, logs a warning and the rectangles are used as passed. Measurements are cached by the font's name: after changing the font in `Font.xml`, run [`clear_cache`](../script/actions.md#clear_cache). |
 | `<prefix>_darken_label_pitch` | whole number, signed | — | The label's line pitch in frame pixels. The rectangle also shrinks to whole lines of this from the side the sign names: negative for text that hangs from the bottom of its box and wraps upward (`-37`), positive for text that starts at the top. At most the box's height in lines. Without it the rectangle keeps its height. |
 
 ### Element on art and palette (background and icon)
@@ -133,7 +133,7 @@ values mean.
 | `<prefix>_band_feather` | whole number | `120` | How far the band fades out around its rectangles, in frame pixels. |
 | `<prefix>_palette` | `true`, `false` | `false` | Return the image's [palette](#palette). |
 
-The rectangles, frame and labels in the darken table set where these are measured;
+The rectangles, frame and label in the darken table set where these are measured;
 `<prefix>_darken` itself need not be on. The palette's colours come from the smallest
 box that holds every rectangle, so they are the colours of the part of the image you
 show; with no rectangles that is the part of the image the frame shows.
@@ -281,7 +281,7 @@ and needs no mask of its own.
 
 `_element_color` is the winning candidate. The band is a file of its own beside the
 blur, so the image control sees a new path; it is cached with the blur and replaced
-when the ratio, the candidates, the rectangles, the frame, the labels, their font or
+when the ratio, the candidates, the rectangles, the frame, the label, its font or
 pitch, the feather or the blur change.
 
 ## Palette

@@ -1,7 +1,6 @@
 # author: realcopacetic
 
 from functools import reduce
-from itertools import zip_longest
 from math import ceil
 from operator import mul
 from typing import Any
@@ -149,7 +148,7 @@ class ColorDarken:
 
         :param raw: Art flattened on the matte, cover-scaled to the blur's width.
         :param blur: The blur as drawn, or None when the art isn't blurred.
-        :param opts: Darken options carrying rects, frame and labels.
+        :param opts: Darken options carrying rects, frame and label.
         :return: {"zones": [{"art": [lo, hi], "blur": [lo, hi]}], "band"}.
         """
         rects = self._clamp_rects_to_labels(opts)
@@ -177,7 +176,7 @@ class ColorDarken:
         the label's lines, its alpha falling to 0 over the feather; clear elsewhere.
 
         :param blur: The band's blur, RGB.
-        :param opts: ArtOpts carrying rects, frame, labels, ratio and feather.
+        :param opts: ArtOpts carrying rects, frame, label, ratio and feather.
         :param tints: Tint (hex) per candidate element colour (hex); empty at step 2.
         :return: (chosen element colour, None without tints; the RGBA band).
         """
@@ -342,15 +341,15 @@ class ColorDarken:
 
     def _clamp_rects_to_labels(self, opts: DarkenOpts) -> list[Rect]:
         """
-        Shrink each rect to its parallel label in the label font, measured at GUI
-        scale 1 (frame px are skin px). Rects without a label, or with no known or
-        readable font, pass through.
+        Shrink the first rect to the label in the label font, measured at GUI scale 1
+        (frame px are skin px). Other rects, or all with no label or no readable font,
+        pass through.
 
-        :param opts: Darken options carrying rects, labels, font and pitch.
+        :param opts: Darken options carrying rects, label, font and pitch.
         :return: Clamped rects, one per rect.
         """
         rects = self.rects(opts)
-        if not (opts.label_font and any(opts.labels)):
+        if not (opts.label_font and opts.label):
             return rects
 
         if (spec := skin_font(opts.label_font)) is None or (
@@ -358,14 +357,8 @@ class ColorDarken:
         ) is None:
             return rects
         metric = KodiMetric(face, spec[1], 1.0, 1.0)
-        return [
-            (
-                self.clamp_rect_to_label(rect, label, metric, opts.label_pitch)
-                if label
-                else rect
-            )
-            for rect, label in zip_longest(rects, opts.labels[: len(rects)])
-        ]
+        first = self.clamp_rect_to_label(rects[0], opts.label, metric, opts.label_pitch)
+        return [first, *rects[1:]]
 
     @staticmethod
     def parse_overlay_rects(param: str) -> list[Rect]:
