@@ -342,7 +342,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         cache_only: bool = False,
         target: str | None = None,
     ) -> dict[str, Any] | None:
-        """Resolve TMDb canonical item for the current listitem.
+        """Resolve TMDb canonical item for the current listitem; sets _tmdb_key to its
+        kind:tmdb_id once resolved.
 
         :param append_artwork: Whether to include TMDb artwork fields.
         :param cache_only: Read the TMDb cache only; never fetch.
@@ -353,11 +354,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.apis.tmdb.context import resolve_tmdb_context
         from resources.lib.apis.tmdb.transform import tmdb_to_canonical
 
+        self._tmdb_key = ""  # kind:tmdb_id once resolved, for tmdb_art_missed
         if not tmdb_token():  # off: skip resolve_tmdb_context's uniqueid lookup
             return
 
         ctx = resolve_tmdb_context(self.params, target=target or self.target_item)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
+        self._tmdb_key = f"{ctx.get('kind') or self.dbtype}:{tmdb_id}"
 
         item = tmdb_to_canonical(
             kind=ctx.get("kind") or self.dbtype,
@@ -510,7 +513,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _multiart_dict(self, item: str, multiart_type: str | None) -> dict[str, str]:
         """
         The multiart family of an item, extended by TMDb's cached art of the same
-        type when the URL asks for it (get_extra_multiart).
+        type when the URL asks for it (get_extra_multiart); keeps a miss of that art
+        in _tmdb_missed for artwork() to note in tmdb_art_missed.
 
         :param item: Infolabel prefix of the item.
         :param multiart_type: Base art type; None for no family.
@@ -519,17 +523,29 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.art.multiart import build_multiart_dict
 
         # Cache only: no network wait before the seed; another serve fills it.
+        extra = multiart_type and parse_bool(self.params.get("get_extra_multiart"))
         tmdb_item = (
             self._get_tmdb_item(append_artwork=True, cache_only=True, target=item)
-            if multiart_type and parse_bool(self.params.get("get_extra_multiart"))
+            if extra
             else None
         )
-        return build_multiart_dict(
+        family = build_multiart_dict(
             target=item,
             multiart_type=multiart_type,
             max_items=self.params.get("multiart_max"),
             tmdb_art=(tmdb_item or {}).get("art", {}),
         )
+        # None: no extras asked for; "": none missed, so a stale marker clears
+        self._tmdb_missed = (
+            (
+                f"{self._tmdb_key}|{multiart_type.removeprefix('tvshow.')}"
+                if family and not tmdb_item and self._tmdb_key
+                else ""
+            )
+            if extra
+            else None
+        )
+        return family
 
     @log.duration
     def artwork(self) -> list[DirectoryItem] | None:
@@ -626,6 +642,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
         if not alive():
             return self._artwork_held()
+        # After the image jobs: a stamp before them makes Kodi discard this serve
+        if self._tmdb_missed is not None:
+            window_property("tmdb_art_missed", self._tmdb_missed)
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
         dbid = infolabel(f"{self.identity_item}.DBID")
@@ -842,12 +861,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         own_plot = data["Plot"]
         enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb", "false"))
+        tmdb_art = enrich_with_tmdb and parse_bool(self.params.get("tmdb_art"))
         if enrich_with_tmdb:
             # tmdb_art: the one request also caches the art-bearing entry (a superset)
             # that the artwork serve's get_extra_multiart reads.
-            tmdb_item = self._get_tmdb_item(
-                append_artwork=parse_bool(self.params.get("tmdb_art"))
-            )
+            tmdb_item = self._get_tmdb_item(append_artwork=tmdb_art)
             if tmdb_item:
                 trailers = tmdb_item["properties"].pop("tmdb_trailers", "")
                 if trailers and parse_bool(self.params.get("random_trailer")):
@@ -875,8 +893,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     ignore_keys=("art", "file"),
                 )
 
+        # The artwork serve's miss of this item's TMDb extras, now cached: cleared even
+        # if focus moved on, so no later visit finds it stale
+        missed, _, art_type = infolabel(
+            "Window(home).Property(tmdb_art_missed)"
+        ).partition("|")
+        if own_miss := tmdb_art and tmdb_item and missed == self._tmdb_key:
+            window_property("tmdb_art_missed")
         if not guard.alive():
             return
+        # Rerun it, if TMDb adds art of its type; not under a dialog, where the rerun
+        # would read the dialog's items
+        if (
+            own_miss
+            and f"{art_type}1" in tmdb_item.get("art", {})
+            and topmost_window_id() == self.window_id
+        ):
+            window_property("tmdb_art_ready", missed)
 
         # truncate_probe=<dbtype>: that type skips the skin's probe (a season's reads
         # its show's plot); =false: every video type does (a favourite's reads its
