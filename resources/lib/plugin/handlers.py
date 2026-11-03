@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import random
 from collections import Counter
 from datetime import date, datetime, timedelta
 from functools import partial
@@ -75,6 +76,7 @@ from resources.lib.shared.utilities import (
     json_call,
     parse_bool,
     plugin_path,
+    session_salt,
     set_plugincontent,
     to_float,
     to_int,
@@ -847,6 +849,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 append_artwork=parse_bool(self.params.get("tmdb_art"))
             )
             if tmdb_item:
+                trailers = tmdb_item["properties"].pop("tmdb_trailers", "")
+                if trailers and parse_bool(self.params.get("random_trailer")):
+                    # One pick per item and Kodi session, seeded by its own list
+                    rng = random.Random(f"{session_salt()}:{trailers}")
+                    tmdb_item["Trailer"] = rng.choice(trailers.split(" | "))
                 # Library plot, title and tagline keep their language. A library
                 # trailer outranks TMDb's pick, unless prefer_tmdb_trailer and it is
                 # online (the scraper's): a trailer file always plays first.

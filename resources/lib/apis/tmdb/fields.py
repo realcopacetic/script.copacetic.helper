@@ -23,6 +23,7 @@ TMDB_PROPERTIES = {
             ("images_logos", ("images", "logos")),
             ("images_posters", ("images", "posters")),
             ("videos_results", ("videos", "results")),
+            ("videos_top", ("videos", "results")),
         ],
     },
     "tvshow": {
@@ -44,6 +45,7 @@ TMDB_PROPERTIES = {
             ("images_logos", ("images", "logos")),
             ("images_posters", ("images", "posters")),
             ("videos_results", ("videos", "results")),
+            ("videos_top", ("videos", "results")),
         ],
     },
     "season": {
@@ -161,6 +163,11 @@ TMDB_FIELD_MAP = {
         "label": "Trailer",
         "transform": "pick_best_trailer",
     },
+    "videos_top": {
+        "target": "property",
+        "label": "tmdb_trailers",
+        "transform": "list_top_trailers",
+    },
 }
 
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
@@ -169,6 +176,7 @@ TMDB_TRANSFORMS = (
     "year_from_date",
     "first_runtime_from_list",
     "pick_best_trailer",
+    "list_top_trailers",
     "extract_creator_names",
 )
 
@@ -259,41 +267,50 @@ def first_runtime_from_list(value: Any) -> int:
         return 0
 
 
+def _top_trailers(value: Any) -> list[str]:
+    """
+    YouTube URLs of TMDb's best-ranked videos, newest first: trailers over other
+    types, then official over unofficial; everything below that rank is dropped.
+
+    :param value: List of TMDb video dicts (videos.results).
+    :return: Plugin URLs of the top rank, or an empty list.
+    """
+
+    def rank(video: Mapping[str, Any]) -> tuple[bool, bool]:
+        trailer = str(video.get("type", "")).lower() == "trailer"
+        return trailer, bool(video.get("official"))
+
+    videos = [
+        v
+        for v in _iter_mappings(value)
+        if str(v.get("site", "")).lower() == "youtube" and v.get("key")
+    ]
+    if not videos:
+        return []
+    best = max(map(rank, videos))
+    top = (v for v in videos if rank(v) == best)
+    newest = sorted(top, key=lambda v: str(v.get("published_at", "")), reverse=True)
+    return [f"{YOUTUBE_PLUGIN_BASE}{v['key']}" for v in newest]
+
+
 def pick_best_trailer(value: Any) -> str:
     """
-    Select the best trailer URL from a TMDb videos.results list.
+    The newest of TMDb's best-ranked trailers (see _top_trailers).
 
     :param value: List of TMDb video dicts (videos.results).
     :return: YouTube plugin URL, or empty string if none.
     """
-    if not isinstance(value, list) or not value:
-        return ""
+    return next(iter(_top_trailers(value)), "")
 
-    def score(item: Mapping[str, Any]) -> tuple[int, int, int, str]:
-        site = str(item.get("site", "")).lower()
-        type_ = str(item.get("type", "")).lower()
-        official = bool(item.get("official", False))
-        published = str(item.get("published_at", ""))
 
-        is_youtube = 1 if site == "youtube" else 0
-        is_trailer = 1 if type_ == "trailer" else 0
-        is_official = 1 if official else 0
+def list_top_trailers(value: Any) -> str:
+    """
+    All of TMDb's best-ranked trailers, for a random pick (see _top_trailers).
 
-        return (is_youtube, is_trailer, is_official, published)
-
-    best = max(value, key=score)
-
-    key = best.get("key")
-    site = str(best.get("site", "")).lower()
-    if not key or not isinstance(key, str):
-        return ""
-
-    if site == "youtube":
-        return f"{YOUTUBE_PLUGIN_BASE}{key}"
-
-    # Non-YouTube sources have no plugin handler; skip them.
-    log.debug(f"pick_best_trailer → skipping non-YouTube source: {site}")
-    return ""
+    :param value: List of TMDb video dicts (videos.results).
+    :return: YouTube plugin URLs joined by " | ", or empty string if none.
+    """
+    return " | ".join(_top_trailers(value))
 
 
 def build_tmdb_image_url(path: str | None, size: str = "original") -> str:
