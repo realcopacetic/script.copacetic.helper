@@ -358,7 +358,8 @@ Before closing anything, the helper looks up video items and songs in the librar
 Albums and artists are opened by their `musicdb://` path without a lookup.
 
 - **The item is the one the dialog shows** (its key is `info_current`): nothing is
-  reopened. Focus moves to the `focus` control, and `info_hop` is cleared.
+  reopened or focused, and `info_hop` is cleared. Handle this case in the skin, for
+  example by focusing the tab row, and don't call the action.
 - **The item can't be opened** (another type, or a video item or song not in the
   library): nothing is closed, and `info_hop` is cleared.
 - **Kodi doesn't open the item** (it declines it, or the user cancels the busy dialog
@@ -370,16 +371,16 @@ Albums and artists are opened by their `musicdb://` path without a lookup.
 |---|---|---|---|
 | `dbtype` | `movie`, `tvshow`, `episode`, `musicvideo`, `set`, `artist`, `album`, `song` | required | The item's `ListItem.DBType`. Any other value can't be opened. |
 | `dbid` | database id | required | The item's `ListItem.DBID` |
-| `focus` | control id | required | Where focus goes when the item is the one the dialog already shows, for example your tab row. Without it, the action fails and nothing happens. |
 
 Seasons can't be opened this way (Python can't set a season's show and season ids),
 so browse to a season instead.
 
-In this example, `3200` is a list in the info dialog and `4611` is its tab row.
+In this example, `3200` is a list in the info dialog. A `focus` param from an older
+skin is ignored.
 
 ```xml
 <onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">SetProperty(info_hop,forward,home)</onclick>
-<onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">RunScript(script.copacetic.helper,action=info,"dbtype=$INFO[ListItem.DBType]","dbid=$INFO[ListItem.DBID]",focus=4611)</onclick>
+<onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">RunScript(script.copacetic.helper,action=info,"dbtype=$INFO[ListItem.DBType]","dbid=$INFO[ListItem.DBID]")</onclick>
 ```
 
 ### The trail
