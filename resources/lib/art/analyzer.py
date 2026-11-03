@@ -60,35 +60,31 @@ class ColorAnalyzer:
         if palette is None:
             return (0, 0, 0)
         swatches, counts = palette
-        try:
-            total = sum(c for c, _ in counts) or 1
-            filtered = []
-            for c, idx in counts:
-                r, g, b = swatches[idx]
-                near_white = (
-                    r > self.cfg.near_white
-                    and g > self.cfg.near_white
-                    and b > self.cfg.near_white
-                )
-                near_black = (
-                    r < self.cfg.near_black
-                    and g < self.cfg.near_black
-                    and b < self.cfg.near_black
-                )
-                if (self.cfg.skip_whites and near_white) or (
-                    self.cfg.skip_blacks and near_black
-                ):
-                    if (
-                        c / total >= self.cfg.dominance_allow_threshold
-                    ):  # allow if truly dominant
-                        filtered.append((c, idx))
-                    continue
-                filtered.append((c, idx))
-            _, idx = max(filtered or counts, key=lambda t: t[0])
-            return swatches[idx]
-        except Exception:
-            log.exception(f"{self.__class__.__name__} → dominant colour failed")
-            return (0, 0, 0)
+        total = sum(c for c, _ in counts) or 1
+        filtered = []
+        for c, idx in counts:
+            r, g, b = swatches[idx]
+            near_white = (
+                r > self.cfg.near_white
+                and g > self.cfg.near_white
+                and b > self.cfg.near_white
+            )
+            near_black = (
+                r < self.cfg.near_black
+                and g < self.cfg.near_black
+                and b < self.cfg.near_black
+            )
+            if (self.cfg.skip_whites and near_white) or (
+                self.cfg.skip_blacks and near_black
+            ):
+                if (
+                    c / total >= self.cfg.dominance_allow_threshold
+                ):  # allow if truly dominant
+                    filtered.append((c, idx))
+                continue
+            filtered.append((c, idx))
+        _, idx = max(filtered or counts, key=lambda t: t[0])
+        return swatches[idx]
 
     @log.duration
     def extract_accent_color(
@@ -139,14 +135,10 @@ class ColorAnalyzer:
             d = self._rgb_dist(rgb, dominant_rgb) / 255.0
             return w["freq"] * f + w["sat"] * s + w["dist"] * d
 
-        try:
-            candidates = [
-                c for c in count_map if self._rgb_dist(c, dominant_rgb) > min_dist
-            ]
-            return max(candidates or [dominant_rgb], key=score)
-        except Exception:
-            log.exception(f"{self.__class__.__name__} → accent scoring failed")
-            return dominant_rgb
+        candidates = [
+            c for c in count_map if self._rgb_dist(c, dominant_rgb) > min_dist
+        ]
+        return max(candidates or [dominant_rgb], key=score)
 
     # ---------- private helper methods ----------
     def _sample_image(self, im: Image.Image) -> Image.Image:
