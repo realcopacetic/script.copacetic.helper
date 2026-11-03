@@ -34,7 +34,6 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `artwork` | Crops clearlogos, blurs backgrounds, works out darken values, element colours and palettes, collects multiart and can fill a FadeLabel with it. | [Artwork](artwork.md) |
 | `multiart_tiles` | Fills several FadeLabels in an info dialog with the item's artwork, so they change one at a time. | [Artwork](artwork.md#multiart_tiles) |
 | `metadata` | Returns tidied details of the focused item, with optional TMDb details. | [Metadata](metadata.md) |
-| `tmdb_details` | Returns the focused item's details and artwork from TMDb. | [Metadata](metadata.md#tmdb_details) |
 | `progressbar` | Works out watched progress and context labels (time left, next episode, new, next air date) and places a progress bar. | [Progress Bar](progressbar.md) |
 | `typewriter` | Types a label into a textbox one character at a time. | [Typewriter](typewriter.md) |
 | `text` | Draws text into a PNG image. | [Text Image](text.md) |
@@ -209,7 +208,6 @@ Guarded handlers don't check once at startup — they re-check before every stag
 
 - **`artwork`** checks at the start, after image processing, after multiart resolution, and immediately **before filling the multiart FadeLabel** — so a stale invocation can never refill a FadeLabel the skin has just cleared. A guard that still passes at the end also lets the helper write `artwork_cursor_<cursor_key>` itself when the property does not match the item it ran for (see [Is this result for the focused item?](artwork.md#is-this-result-for-the-focused-item)).
 - **`metadata`** checks before reading the item, after the TMDb lookup, and before returning the item.
-- **`tmdb_details`** checks before and after the TMDb lookup.
 - **`text`** checks before and after drawing the image.
 - **`typewriter`** receives the guard's `alive` callable and checks it **after every 25 ms wait** (once before the textbox shows, then after each character), alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating, before moving UI controls, and after moving them (the progress value is still returned; what remains, the UI update or the context values, is skipped).

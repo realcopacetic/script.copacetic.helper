@@ -1184,41 +1184,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
 
     @log.duration
-    def tmdb_details(self) -> list[DirectoryItem] | None:
-        """
-        Fetch TMDb details for the focused item and build a canonical result list.
-
-        :return: List of (file, xbmcgui.ListItem, isFolder) tuples or None.
-        """
-        guard = self._guard()
-        if not guard.alive():
-            return
-
-        # Read now: during the TMDb wait the probe can follow a rail to another item
-        caption = self._probe_text("truncate_label_id")
-        target = self.target_item
-        multiart_enabled = parse_bool(self.params.get("multiart", "false"))
-        item = self._get_tmdb_item(append_artwork=multiart_enabled)
-
-        if not item:
-            return
-
-        if not guard.alive():
-            return
-
-        self._apply_truncated_label(
-            item,
-            target=target,
-            default_text=item.get("Plot"),
-            probed=caption,
-        )
-
-        return set_items(
-            [item],
-            tag_applier=apply_videoinfotag,
-        )
-
-    @log.duration
     def text(self) -> list | None:
         """
         Rasterise a string to a cached white PNG mask and return its path; with
