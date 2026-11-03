@@ -801,11 +801,11 @@ class VariablesBuilder(BaseBuilder):
         for output_key, name_template in outputs.items():
             projected = self._project_cluster_output(blocks, output_key)
 
-            # Constant-named outputs still emit with zero subs, as do names the
-            # mapping's tokens or the template's items fill in without a row.
-            if substitutions or "{" not in name_template:
+            # With zero subs a name still emits if it needs no row (constant, or
+            # filled by mapping tokens and template items), with token-free rows only.
+            if substitutions:
                 grouped = defaultdict(list)
-                for sub in substitutions or [{}]:
+                for sub in substitutions:
                     grouped[self.substitute(name_template, sub)].append(sub)
             else:
                 grouped = {

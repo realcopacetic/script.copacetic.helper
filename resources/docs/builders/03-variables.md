@@ -164,7 +164,7 @@ This emits two variables — `label_breadcrumb_left_videos` and `texture_breadcr
 
 Details:
 
-- **The template name isn't a variable.** Only the `outputs` names are emitted. An output name with no placeholders is always written, even when every pass is filtered out; so is one that only `{item}` from the template's `items` and the mapping's plain-text `tokens` fill, with one empty `<value/>`. An unknown placeholder in an output name becomes an empty string rather than stopping the build, so check the names in the output file. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
+- **The template name isn't a variable.** Only the `outputs` names are emitted. An output name with no placeholders is always written, even when every pass is filtered out; so is one that only `{item}` from the template's `items` and the mapping's plain-text `tokens` fill. It keeps its token-free rows, or gets one empty `<value/>` if it has none. An unknown placeholder in an output name becomes an empty string rather than stopping the build, so check the names in the output file. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
 - **Loop controls work here too.** `index`, `items`, `items_from`, `templates_from` and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. In Copacetic, `_{texture_prefix}_base_cluster` in `variables_slots.json` borrows regions, widgets and search *and* loops `items: [poster, fanart, square]` — every container gets a main/fallback pair per art type from one cascade.
 - **Sparse rows.** A row can feed some outputs and skip others — just leave the key off. That output's cascade simply doesn't have that row. Useful when one output's chain is a subset of another's.
 - **Blocks apply.** `rows` groups with `[...]` the same way `values` does, and a row's `filter` works the same way too ([Row filters](#row-filters)).
@@ -240,7 +240,7 @@ A row can carry its own `filter`, with the same language and the same rule: **fi
 
 Give each mapping that stamps the template the tokens it reads. A token can hold a rule as well as `true` or `false`. For example, a mapping for containers that can show any item sets `video_filter` and `music_filter` to `true`, so it keeps every row. A mapping for containers that show only video or only music items sets them to `equals({target}, videos)` and `equals({target}, music)` (here `target` is a `metadata` key on each item, `videos` or `music`), so a music container drops the movie rows and a video container drops the album rows. A row for neither (add-ons, pictures) uses `"{video_filter} + {music_filter}"` (`+` is AND), so only the containers that keep everything keep it.
 
-- A filter with a placeholder makes its row's block repeat per loop pass, like any other placeholder.
+- A filter with a placeholder makes its row's block repeat per loop pass, like any other placeholder. With no pass left, the block goes without its filter being tested.
 - The filter is never written to the XML. A row without one always stays.
 - Unknown placeholders stop the build, as in a template `filter`. So every mapping that stamps the template needs the token, even if it's only `true`.
 - Rows dropped this way never reach the duplicate check ([Rows Kodi never reads](#rows-kodi-never-reads-are-dropped)), so the first unconditioned row that remains still ends the variable.
