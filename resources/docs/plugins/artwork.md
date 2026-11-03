@@ -339,8 +339,7 @@ library artwork:
   cached earlier keeps its lists until it is next fetched from TMDb; *Clear addon
   cache* applies the rule at once.
 - From the TMDb cache only, which [`metadata`](metadata.md#metadata) with
-  `tmdb_art=true` or [`tmdb_details`](metadata.md#tmdb_details) with `multiart=true`
-  fills for the same item and language. An item not cached yet gets its library
+  `tmdb_art=true` fills for the same item and language. An item not cached yet gets its library
   artwork only, and this serve notes the miss in the Home window property
   `tmdb_art_missed`. When `metadata` then caches TMDb art of that type for the same
   item, with the item still focused and no dialog open, it sets the Home window property

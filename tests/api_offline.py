@@ -847,30 +847,6 @@ class TmdbTest(Base):
         self.assertEqual(item["properties"]["truncated_label"], "This plot...")
         self.assertEqual(item["properties"]["truncated_title"], "This title...")
 
-    def test_tmdb_details_reads_probe_before_tmdb(self):
-        handler = object.__new__(handlers.PluginHandlers)
-        handler.params = {
-            "truncate_font": "description_l",
-            "truncate_label_id": "6009",
-            "truncate_width": "20",
-        }
-        handler.target_item = "Container(50).ListItem"
-        handler._guard = lambda: mock.Mock(alive=lambda: True)
-        shown = {"6009": "This plot"}
-
-        def follow_rail(**kwargs):
-            shown["6009"] = "Rail plot"
-            return {"Plot": "TMDb plot"}
-
-        handler._get_tmdb_item = follow_rail
-        probe = lambda path: shown.get(path[17:21], "")
-        clamp = lambda text, **kwargs: f"{text}..."
-        with mock.patch.object(handlers, "infolabel", probe), mock.patch.object(
-            handlers, "clamp_text", clamp
-        ), mock.patch.object(handlers, "set_items", lambda items, **kwargs: items):
-            (item,) = handler.tmdb_details()
-        self.assertEqual(item["properties"]["truncated_label"], "This plot...")
-
     def test_fit_lines_sentences(self):
         font = mock.Mock(getlength=len)
         text = "Stop! Or my mother will shoot at the whole town"

@@ -1,13 +1,8 @@
 # Metadata Helpers
 
-Two plugin paths return a cleaned-up copy of the focused item's details on a single
-list item:
-
-- `metadata` — reads the focused item's infolabels, tidies them, and can add details
-  from TMDb.
-- `tmdb_details` — fetches the item's details and artwork from TMDb only.
-
-Both can also cut a long plot to fit a set number of lines.
+The `metadata` plugin path returns a cleaned-up copy of the focused item's details on a
+single list item. It reads the item's infolabels, tidies them, can add details from
+TMDb, and can cut a long plot to fit a set number of lines.
 
 ---
 
@@ -74,8 +69,7 @@ names (`Drum & Bass`). `genre_aliases` and full stops (which become spaces) appl
 `ListItem.Genre` for every type.
 `Property(genre_query)` keeps the whole pick.
 
-With `enrich_with_tmdb=true`, the TMDb fields listed under
-[`tmdb_details`](#tmdb_details) are added too (artwork is not); the item's own title,
+With `enrich_with_tmdb=true`, the [TMDb fields](#tmdb-fields) are added too (artwork is not); the item's own title,
 plot, tagline and trailer are kept where it has them (the trailer only if it is a file,
 with `prefer_tmdb_trailer=true`).
 
@@ -107,29 +101,27 @@ never see this.
 
 ---
 
-## `tmdb_details`
+## TMDb lookups
 
-Returns the item's details from TMDb. It needs a TMDb token in the add-on settings.
+`metadata` finds the TMDb id like this. Each value comes from the parameter when
+passed, else from the focused item.
 
-```xml
-<control type="list" id="9150"><!-- hidden helper container; id is an example -->
-  <itemlayout />
-  <focusedlayout />
-  <content>plugin://script.copacetic.helper/?info=tmdb_details&amp;target=50&amp;focus_guard=$INFO[Container(50).CurrentItem]&amp;multiart=true</content>
-</control>
-```
+| Param | Falls back to | Notes |
+|---|---|---|
+| `type` | `ListItem.DBType` | |
+| `id` | `ListItem.DBID` | |
+| `tmdb_id` | `ListItem.UniqueID(tmdb)` | Used directly when set. Otherwise looked up from the library with `id`. |
+| `tvshowid` | `ListItem.TvShowDBID`, then `ListItem.Property(tvshowid)` | For seasons and episodes: the show to look up. |
+| `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped. |
+| `language` | add-on setting **TMDB language**, else `en-US` | TMDb language, for example `de-DE`. |
 
-### Parameters
+Episodes look up their show, as TMDb has no episode lookup here, and take only what
+fits an episode: the show's trailer, artwork and `tmdb_*` properties. The episode's
+own title, plot and year are kept.
 
-| Param | Accepted values | Default | What it does |
-|---|---|---|---|
-| `target` | container id, or `item` | — | Container whose focused item is looked up; `item` is the window's own item. |
-| `multiart` | `true`, `false` | `false` | Also fetch TMDb's image lists (see below). |
-| `type`, `id`, `tmdb_id`, `tvshowid`, `season`, `language` | | | See [TMDb lookups](#tmdb-lookups). |
-| `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
-| `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. |
+### TMDb fields
 
-### What you get back
+With `enrich_with_tmdb=true`, these come from TMDb:
 
 | Infolabel | Movies | TV shows (and episodes) | Seasons |
 |---|---|---|---|
@@ -146,57 +138,28 @@ Returns the item's details from TMDb. It needs a TMDb token in the add-on settin
 | `ListItem.Property(tmdb_revenue)` | revenue | — | — |
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |
 | `ListItem.Property(tmdb_next_air_season)`, `ListItem.Property(tmdb_next_air_episode)` | — | next episode's season and episode number | — |
-| `ListItem.Art(poster)`, `ListItem.Art(fanart)` | main poster and backdrop | same | — |
 
-`ListItem.Label` is empty; use `ListItem.Title`.
-
-With `multiart=true`, TMDb's image lists are added as numbered art keys:
+With `tmdb_art=true`, TMDb's image lists are cached with these numbered art keys:
 
 | Art keys | Source | Most |
 |---|---|---|
-| `poster`, `poster1…` | posters in your language | 10 |
+| `poster1…` | posters in your language | 10 |
 | `keyart`, `keyart1…` | posters with no language | 10 |
-| `fanart`, `fanart1…` | backdrops with no language | 10 |
+| `fanart1…` | backdrops with no language | 10 |
 | `landscape`, `landscape1…` | backdrops in your language | 10 |
 | `clearlogo`, `clearlogo1…` | logos in your language, else logos with no language | 5 |
-
-Backdrops must be exactly 16:9 at 1920×1080 or larger and posters exactly 2:3 at
-1000×1500 or larger; others are left out. TMDb's main poster and backdrop follow the
-same rule when they are in the lists, and stay first when they aren't (so `poster` or
-`fanart` can then lead 10 more).
 
 Results are cached for 7 days, an id TMDb doesn't know for a day, a "too many
 requests" answer for as long as TMDb asks, and any other failed request (offline,
 timeout, server error, a refused token) for 5 minutes; until the retry, the last
-details fetched are still returned. *Clear addon cache* empties it. A `multiart=true` call, or `metadata` with `tmdb_art=true`, also
-makes the art available to the artwork helper's `get_extra_multiart` (see
-[Artwork](artwork.md#multiart)).
-
----
-
-## TMDb lookups
-
-Both paths find the TMDb id like this. Each value comes from the parameter when
-passed, else from the focused item.
-
-| Param | Falls back to | Notes |
-|---|---|---|
-| `type` | `ListItem.DBType` | |
-| `id` | `ListItem.DBID` | |
-| `tmdb_id` | `ListItem.UniqueID(tmdb)` | Used directly when set. Otherwise looked up from the library with `id`. |
-| `tvshowid` | `ListItem.TvShowDBID`, then `ListItem.Property(tvshowid)` | For seasons and episodes: the show to look up. |
-| `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped. |
-| `language` | add-on setting **TMDB language**, else `en-US` | TMDb language, for example `de-DE`. |
-
-Episodes look up their show, as TMDb has no episode lookup here, and take only what
-fits an episode: the show's trailer, artwork and `tmdb_*` properties. The episode's
-own title, plot and year are kept.
+details fetched are still returned. *Clear addon cache* empties it. The art is then available to the artwork helper's
+`get_extra_multiart` (see [Artwork](artwork.md#multiart)).
 
 **Add-on settings needed:** the user pastes their own TMDb v3 API key or v4 API read
 access token into **TMDB access token** (setting id `tmdb_access_token`, empty by
 default). There is no separate on/off setting: the token is the user's consent.
 Without it, nothing is fetched or read from the cache, nothing is logged above debug,
-and `tmdb_details` returns no item. **Test TMDB access** checks the token.
+and `metadata` adds nothing from TMDb. **Test TMDB access** checks the token.
 **TMDB language** (`tmdb_language`) sets the default `language`.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
@@ -205,7 +168,7 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Cutting the plot to fit
 
-Both paths can return a version of a text cut to fit a number of lines in a given
+`metadata` can return a version of a text cut to fit a number of lines in a given
 width and font. It is cut at the end of the last full sentence that fits. If no
 sentence fits, the last word that fits gets an ellipsis. The text is returned in
 `ListItem.Property(truncated_label)`, with a `[CR]` at the end of each line, so Kodi
