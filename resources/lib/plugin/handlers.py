@@ -847,11 +847,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 append_artwork=parse_bool(self.params.get("tmdb_art"))
             )
             if tmdb_item:
-                # Library trailer outranks TMDb's YouTube URL: local file, no plugin
-                # dependency. Library plot, title and tagline keep their language.
+                # Library plot, title and tagline keep their language. A library
+                # trailer outranks TMDb's pick, unless prefer_tmdb_trailer and it is
+                # online (the scraper's): a trailer file always plays first.
                 fill_only = ("Plot", "Title", "TagLine", "Trailer")
                 if self.dbtype == "season":  # Kodi gives seasons their show's plot
                     fill_only = fill_only[1:]
+                online = data["Trailer"].startswith(
+                    ("plugin://", "http://", "https://")
+                )
+                if online and parse_bool(self.params.get("prefer_tmdb_trailer")):
+                    fill_only = fill_only[:-1]
                 data = merge_metadata(
                     base=data,
                     incoming=tmdb_item,
