@@ -48,7 +48,7 @@ named after it:
 |---|---|---|
 | Clearlogo | `clearlogo_` | crop; its colour is always measured, for `clearlogo` sources and the palette |
 | Background | `background_` | blur, darken, element on art, palette |
-| Icon | `icon_` | blur, darken, element on art, palette |
+| Icon | `icon_` | blur, darken, element on art, palette, shape |
 
 An image is only processed when you pass its URL (`clearlogo_url`, `background_url`,
 `icon_url`). With no URL at all, the call returns nothing, not even multiart (with
@@ -95,6 +95,7 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 | `clearlogo_fit_key` | `<DBType>:<DBID>` of the call's item, e.g. `$INFO[ListItem.DBType]:$INFO[ListItem.DBID]` | — | Size only if the item (`target`'s, or the window's own with `target=item`) still has this key when the call ends. A `target=item` call has no focus guard, so this is its only item check. Items with no DBType or DBID (keyed `:`) are not told apart. |
 | `clearlogo_fit_ids` | control id, or ids separated by commas | — | The controls `clearlogo_fit` sizes, on the topmost dialog when one is open, else on the current window. |
 | `background_blur`, `icon_blur` | `true`, `false` | `false` | Blur the image. |
+| `icon_shape` | `true`, `false` | `false` | Measure the icon so the skin can choose its frame: its size and whether its corners are opaque. Measured once per image, then read from the cache. |
 | `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled down (never up) to cover 480×270, in pixels of that 480×270 box: smaller art blurs in proportion, so it looks the same once Kodi zooms it. Or, when `<prefix>_darken_frame` is passed, scaled to cover that frame and cropped to it (centred). |
 | `background_edge_trim`, `icon_edge_trim` | decimal (percent) | `0` | Cut this percentage from each side before blurring. Hides black bars and dark edges. |
 | `background_ratio`, `icon_ratio` | decimal | `3` | Contrast ratio the darken, the element on art and the palette aim for (WCAG: 3 for large text and graphics, 4.5 for body text). |
@@ -170,6 +171,7 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 |---|---|---|
 | `clearlogo` | `clearlogo_crop=true` | Path to the cropped PNG. |
 | `clearlogo_width`, `clearlogo_height` | `clearlogo_crop=true` | Size of the cropped logo in pixels. The logo is first scaled down to fit 1600×620. |
+| `icon_width`, `icon_height`, `icon_opaque` | `icon_shape=true` | The icon's size in pixels, read from Kodi's texture-cache copy when it has one (Kodi scales that to `imageres`, 720 by default, so a larger image can read smaller), and `1` when all four corner pixels are fully opaque, else `0`. |
 | `background`, `icon` | `<prefix>_blur=true` | Path to the blurred JPEG. |
 | `background_blur_radius`, `icon_blur_radius` | `<prefix>_blur=true` | The radius used. |
 | `<prefix>_darken` | `<prefix>_darken=true` | How much to darken the image: the exact % black, `0`–`100`. |

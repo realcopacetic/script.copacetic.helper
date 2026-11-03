@@ -95,6 +95,32 @@ class ImageProcessor:
             return None
 
     @log.duration
+    def shape(self, image: Image.Image, **_: Any) -> dict[str, Any] | None:
+        """
+        Measure art for a skin choosing its frame: its size, and whether all four
+        corners are fully opaque (a rounded or cut-out icon's are not).
+
+        :param image: Input PIL Image.
+        :return: Dict with "metadata" or None on failure.
+        """
+        try:
+            right, bottom = image.width - 1, image.height - 1
+            corners = (0, 0), (right, 0), (0, bottom), (right, bottom)
+            alpha = self._ensure_mode(image, "RGBA").getchannel("A")
+            return {
+                "metadata": {
+                    policy.ART_FIELD_WIDTH: image.width,
+                    policy.ART_FIELD_HEIGHT: image.height,
+                    policy.ART_FIELD_OPAQUE: int(
+                        min(map(alpha.getpixel, corners)) == 255
+                    ),
+                }
+            }
+        except Exception as exc:
+            log.error(f"{self.__class__.__name__} → Unable to measure image → {exc}")
+            return None
+
+    @log.duration
     def blur(
         self, image: Image.Image, opts: ArtOpts, **_: Any
     ) -> dict[str, Any] | None:

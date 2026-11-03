@@ -49,6 +49,7 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
         "match": policy.ART_FIELDS_INPUT["darken"],
         "require": policy.ART_FIELDS_RESULT["darken"],
     },
+    "shape": {"folder": None, "require": policy.ART_FIELDS_RESULT["shape"]},
     "band": {  # the blur (step 2) or its tinted copy (step 3) with alpha, by compose
         "folder": BLURS,
         "suffix": ".png",

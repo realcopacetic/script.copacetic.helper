@@ -38,6 +38,14 @@ STRIP = {
 }
 
 
+SHAPES = (  # file, size, mode, one corner cut out, (width, height, opaque)
+    ("full.png", (512, 512), "RGBA", False, (512, 512, 1)),
+    ("rounded.png", (512, 512), "RGBA", True, (512, 512, 0)),
+    ("plain.jpg", (640, 512), "RGB", False, (640, 512, 1)),
+    ("press.jpg", (256, 256), "CMYK", False, (256, 256, 1)),
+)
+
+
 def noise(img: Image.Image, _: ImageDraw.ImageDraw) -> None:
     """Fill the poster with random colour noise: busy, mid-grey once blurred."""
     rng = random.Random(1)
@@ -201,6 +209,17 @@ def main() -> None:
     ok = solid(image, label[0]) and clear(image, label[0], 60)
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} feather 60: clear 60 px past the label's lines")
+    for name, size, mode, cut, want in SHAPES:
+        img = Image.new(mode, size, "white")
+        if cut:
+            img.putpixel((size[0] - 1, size[1] - 1), (255, 255, 255, 0))
+        img.save(path := str(tmp / name))
+        params = {"icon_url": path, "icon_shape": "true"}
+        art = serve(params)[0]
+        got = art["icon_width"], art["icon_height"], art["icon_opaque"]
+        ok = got == want and serve(params)[0] == art  # the second serve is the cache's
+        failures += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} shape {name:12} {got}")
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
 
