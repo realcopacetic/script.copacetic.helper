@@ -351,14 +351,17 @@ class BaseBuilder:
             pairs = [{key_name: item} for item in roster]
         return [{**sub, **pair} for sub in substitutions for pair in pairs]
 
-    def _group_substitutions(self, template_name: str, substitutions):
+    def _group_substitutions(
+        self, template_name: str, substitutions, items: list | None = None
+    ):
         """
         Group substitutions by their expanded template name. When all were filtered
-        out, a name with no per-item placeholder (literal or mapping tokens) still
-        yields one empty group, so a hand-referenced element is emitted regardless.
+        out, a name that fills in without a row (literal, mapping tokens, the
+        template's ``items``) still yields empty groups, so a reader finds it.
 
         :param template_name: Template name, possibly with placeholders.
         :param substitutions: List of substitution dicts (may be empty).
+        :param items: The template's ``items``, if it has any.
         :return: Mapping of expanded name → list of substitutions.
         """
         grouped = defaultdict(list)
@@ -366,23 +369,31 @@ class BaseBuilder:
             key = self.substitute_loud(template_name, sub, f"name '{template_name}'")
             grouped[key].append(sub)
             self.group_map[key] = sub
-        if not grouped and (name := self._token_only_name(template_name)):
-            grouped[name] = []
+        if not grouped:
+            for name in self._token_only_names(template_name, items):
+                grouped[name] = []
         return grouped
 
-    def _token_only_name(self, template_name: str) -> str | None:
+    def _token_only_names(self, template_name: str, items: list | None) -> list[str]:
         """
-        Render a name against mapping-level tokens alone.
+        Render a name per template item against mapping-level tokens alone.
 
         :param template_name: Template name, possibly with placeholders.
-        :return: Fully resolved name, or None if item placeholders remain.
+        :param items: The template's ``items``, if it has any.
+        :return: Fully resolved names, none if per-row placeholders remain.
         """
         tokens = self.mapping_values.get("tokens") or {}
         constant = {k: v for k, v in tokens.items() if "{" not in v}
+        passes = [{"item": str(item)} for item in items] if items else [{}]
         try:
-            return self.substitute_loud(template_name, constant, "a token-only name")
+            return [
+                self.substitute_loud(
+                    template_name, {**constant, **loop}, "a token-only name"
+                )
+                for loop in passes
+            ]
         except TokenError:
-            return None
+            return []
 
     def substitute(self, template: str, substitutions: dict[str, str]) -> str:
         """
@@ -496,7 +507,9 @@ class ExpressionsBuilder(BaseBuilder):
         :param substitutions: List of substitution dicts.
         :return: Dictionary of {expression_key: expression_value}.
         """
-        grouped = self._group_substitutions(template_name, substitutions)
+        grouped = self._group_substitutions(
+            template_name, substitutions, data.get("items")
+        )
         return {
             key: " | ".join(resolved) if resolved else None
             for key, subs in grouped.items()
@@ -621,12 +634,14 @@ class IncludesBuilder(BaseBuilder):
         :param substitutions: List of substitution dictionaries.
         :return: Dictionary of {include_name: expanded include element}.
         """
-        grouped = self._group_substitutions(template_name, substitutions)
+        grouped = self._group_substitutions(
+            template_name, substitutions, data.get("items")
+        )
         return {
             key: (
                 self.resolve_values(subs, data["include"])
                 if subs
-                else {"include": self._empty_include_shell(data["include"])}
+                else {"include": self._empty_include_shell(data["include"], key)}
             )
             for key, subs in grouped.items()
         }
@@ -712,16 +727,18 @@ class IncludesBuilder(BaseBuilder):
         return data
 
     @staticmethod
-    def _empty_include_shell(include_element: dict) -> dict:
+    def _empty_include_shell(include_element: dict, name: str) -> dict:
         """
         Reduce an include element to its attributes only — a named include
         with an empty body. Emitted when every loop value was filtered out,
         so an include hardcoded-referenced in skin XML still resolves.
 
         :param include_element: Include element dict from the template.
+        :param name: The include's expanded name.
         :return: Dict with only the element's ``@``-prefixed attribute keys.
         """
         shell = {k: v for k, v in include_element.items() if k.startswith("@")}
+        shell["@name"] = name
         shell["description"] = "placeholder"
         return shell
 
@@ -751,7 +768,9 @@ class VariablesBuilder(BaseBuilder):
         if "outputs" in data:
             return self._expand_cluster(data, substitutions)
 
-        grouped = self._group_substitutions(template_name, substitutions)
+        grouped = self._group_substitutions(
+            template_name, substitutions, data.get("items")
+        )
         return {
             variable["name"]: variable["values"]
             for name, subs in grouped.items()
@@ -779,18 +798,17 @@ class VariablesBuilder(BaseBuilder):
         for output_key, name_template in outputs.items():
             projected = self._project_cluster_output(blocks, output_key)
 
-            # Constant-named outputs still emit with zero subs; a placeholder
-            # name with no subs has nothing to resolve a name from.
-            if substitutions:
-                subs = substitutions
-            elif "{" not in name_template:
-                subs = [{}]
+            # Constant-named outputs still emit with zero subs, as do names the
+            # mapping's tokens or the template's items fill in without a row.
+            if substitutions or "{" not in name_template:
+                grouped = defaultdict(list)
+                for sub in substitutions or [{}]:
+                    grouped[self.substitute(name_template, sub)].append(sub)
             else:
-                continue
-
-            grouped = defaultdict(list)
-            for sub in subs:
-                grouped[self.substitute(name_template, sub)].append(sub)
+                grouped = {
+                    name: []
+                    for name in self._token_only_names(name_template, data.get("items"))
+                }
 
             for name, group_subs in grouped.items():
                 result[name] = self._ensure_nonempty(

@@ -122,7 +122,7 @@ A row with `"value": ""` becomes a self-closing `<value condition="..."/>`. Kodi
 
 A `<variable>` with no `<value>` rows is undefined in Kodi (`$VAR[...] is not defined` in the log). The builder never lets that happen: if everything expanded away, it emits a single empty `<value/>` so the variable exists and resolves to nothing. And token-free rows survive every filter — so a plain-named template with a token-free fallback always produces its variable, and your `$VAR[...]` references stay safe even when the user has nothing configured.
 
-When no pass is left (the filter removes them all, or a dynamic mapping has no entries), the name must fill in without a pass. That works when it has no placeholders, or only placeholders the mapping's `tokens` fill with plain text (a token whose value holds a placeholder of its own doesn't count). Any other placeholder leaves nothing to name the variable with, so none is written.
+When no pass is left (the filter removes them all, or a dynamic mapping has no entries), the name must fill in without a pass. That works when it has no placeholders, or only `{item}` from the template's `items` and placeholders the mapping's `tokens` fill with plain text (a token whose value holds a placeholder of its own doesn't count). Any other placeholder leaves nothing to name the variable with, so none is written.
 
 ---
 
@@ -164,7 +164,7 @@ This emits two variables — `label_breadcrumb_left_videos` and `texture_breadcr
 
 Details:
 
-- **The template name isn't a variable.** Only the `outputs` names are emitted. An output name with no placeholders is always written, even when every pass is filtered out. An unknown placeholder in an output name becomes an empty string rather than stopping the build, so check the names in the output file. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
+- **The template name isn't a variable.** Only the `outputs` names are emitted. An output name with no placeholders is always written, even when every pass is filtered out; so is one that only `{item}` from the template's `items` and the mapping's plain-text `tokens` fill, with one empty `<value/>`. An unknown placeholder in an output name becomes an empty string rather than stopping the build, so check the names in the output file. The leading underscore (`_breadcrumb_left_videos_cluster`) is the convention for "internal — don't reference this".
 - **Loop controls work here too.** `index`, `items`, `items_from`, `templates_from` and `filter` behave exactly as on ordinary templates; the `outputs` names and `rows` expand per pass. In Copacetic, `_{texture_prefix}_base_cluster` in `variables_slots.json` borrows regions, widgets and search *and* loops `items: [poster, fanart, square]` — every container gets a main/fallback pair per art type from one cascade.
 - **Sparse rows.** A row can feed some outputs and skip others — just leave the key off. That output's cascade simply doesn't have that row. Useful when one output's chain is a subset of another's.
 - **Blocks apply.** `rows` groups with `[...]` the same way `values` does, and a row's `filter` works the same way too ([Row filters](#row-filters)).
