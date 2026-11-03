@@ -204,7 +204,7 @@ Highlight Movies, press the button, and the widget editor opens showing *only* t
 
 - **Adds inherit the parent.** A new entry arrives with `parent` already set to this parent's id and is inserted next to its siblings in the file — you never see, or set, the link by hand.
 - **Everything stays inside the parent.** Move up/down reorders within this parent's entries; Delete and Reset touch only them. Other parents' widgets are invisible and untouchable. Reset recreates the `default_order` items whose metadata `parent` names this parent.
-- **The link is maintained for you.** Delete the menu item later and its widgets go with it; reset the menu and surviving links are re-pointed at the fresh entries — see [Runtime State → Parent links](09-runtime-state.md#parent-links).
+- **The link is maintained for you.** Delete the menu item later and its widgets go with it; reset the menu and surviving links are re-pointed at the fresh entries, while widgets of a menu item that isn't a default any more move to their own metadata `parent` — see [Runtime State → Parent links](09-runtime-state.md#parent-links).
 
 Tag in metadata, handshake in the templates, limit in the dialog. Same recipe wherever one editable list should own another — menu → widgets is just the built-in example.
 
