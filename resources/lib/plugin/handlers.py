@@ -854,6 +854,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     # One pick per item and Kodi session, seeded by its own list
                     rng = random.Random(f"{session_salt()}:{trailers}")
                     tmdb_item["Trailer"] = rng.choice(trailers.split(" | "))
+                if parse_bool(self.params.get("tmdb_trailer_only")):
+                    tmdb_item = {"Trailer": tmdb_item.get("Trailer")}
                 # Library plot, title and tagline keep their language. A library
                 # trailer outranks TMDb's pick, unless prefer_tmdb_trailer and it is
                 # online (the scraper's): a trailer file always plays first.
