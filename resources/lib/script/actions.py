@@ -518,20 +518,19 @@ def _show_info(item: xbmcgui.ListItem | None, key: str = "") -> None:
 
 
 @action
-def info(dbtype: str, dbid: str, focus: str, **kwargs: str) -> None:
+def info(dbtype: str, dbid: str, **kwargs: str) -> None:
     """
     Replace the open info dialog with a library item's info (an infoscreen hop).
-    The skin focuses the tab row for the dialog's own item; a call for it anyway,
-    or for an item that can't be opened, clears info_hop and leaves the dialog open.
+    The skin handles the dialog's own item; a call for it anyway, or for an item
+    that can't be opened, clears info_hop and leaves the dialog open.
 
     :param dbtype: Library media type (not season).
     :param dbid: Library id.
-    :param focus: Control focused if the key is the dialog's own item (the tab row).
     """
     key = f"{dbtype}:{dbid}"
-    if key == infolabel("Window(home).Property(info_current)"):
-        log.execute(f"SetFocus({focus})", wait=True)
-    elif item := _info_item(key):
+    if key != infolabel("Window(home).Property(info_current)") and (
+        item := _info_item(key)
+    ):
         _show_info(item, key)
         return
     window_property("info_hop")
