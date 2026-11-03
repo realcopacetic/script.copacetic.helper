@@ -36,6 +36,7 @@ and so on.
 | `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the plot, title, tagline and trailer, which TMDb only fills when the item has none (a season takes TMDb's plot where it has one: Kodi gives seasons their show's). See [TMDb lookups](#tmdb-lookups). |
 | `prefer_tmdb_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: TMDb's trailer replaces a library trailer that is a link (`plugin://`, `http://`, `https://`), such as the one Kodi's TMDb scraper saves. A library trailer that is a file always stays. |
 | `random_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: when TMDb's trailer is used, pick one at random from its best-ranked trailers instead of the newest. The same item gets the same pick until Kodi restarts. |
+| `tmdb_trailer_only` | `true`, `false` | `false` | With `enrich_with_tmdb`: take only the trailer from TMDb, by the rules above; every other field stays the library's. For a view that wants TMDb's trailer without TMDb's plot, title or details. |
 | `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDb's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDb artwork. |
 | `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDb lookup inputs. See [TMDb lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
