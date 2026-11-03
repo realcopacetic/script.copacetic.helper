@@ -138,7 +138,7 @@ Returns the item's details from TMDb. It needs a TMDb token in the add-on settin
 | `ListItem.Year` | release year | first air year | — |
 | `ListItem.Duration` | runtime | — | — |
 | `ListItem.Writer` | — | creators | — |
-| `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path: trailers over other video types, then official over unofficial, then the newest | same | — |
+| `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path: trailers, then teasers, then other video types; official over unofficial; then the newest | same | — |
 | `ListItem.Property(tmdb_trailers)` | every trailer of that best rank, newest first, joined by ` \| ` | same | — |
 | `ListItem.Property(tmdb_budget)` | budget | — | — |
 | `ListItem.Property(tmdb_revenue)` | revenue | — | — |
