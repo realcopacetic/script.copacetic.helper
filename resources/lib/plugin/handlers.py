@@ -734,6 +734,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                             "current_pos": str(current_position),
                             "previous_pos": str(prev_item.pos),
                             "next_pos": str(next_item.pos),
+                            # The miss whose rerun keeps this art, so the skin holds
+                            # its fades; a favourite's family backdrop needs two images,
+                            # and a key already stamped reruns nothing
+                            "tmdb_pending": (
+                                self._tmdb_key
+                                if self._tmdb_missed
+                                and (not source or len(multiart_dict) > 1)
+                                and infolabel("Window(home).Property(tmdb_art_ready)")
+                                != self._tmdb_key
+                                else ""
+                            ),
                         }
                         if current_position is not None
                         else {}
@@ -846,6 +857,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         caption = self._probe_text("truncate_label_id")
         title = self._probe_text("truncate_title_id")
         target = self.target_item
+        path = infolabel(f"{target}.FileNameAndPath")
         aliases = self.params.get("genre_aliases", "")
         data = DataHandler(
             target=target,
@@ -902,12 +914,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_property("tmdb_art_missed")
         if not guard.alive():
             return
-        # Rerun it, if TMDb adds art of its type; not under a dialog, where the rerun
-        # would read the dialog's items
+        # Rerun it, if TMDb adds art of its type and the item wasn't replaced in place
+        # (a filter keeps the position); not under a dialog, whose items it would read
         if (
             own_miss
             and art_type in tmdb_item.get("art", {})
             and topmost_window_id() == self.window_id
+            and infolabel(f"{target}.FileNameAndPath") == path
         ):
             window_property("tmdb_art_ready", missed)
 
