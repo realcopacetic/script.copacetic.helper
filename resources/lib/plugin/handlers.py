@@ -906,7 +906,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # would read the dialog's items
         if (
             own_miss
-            and f"{art_type}1" in tmdb_item.get("art", {})
+            and art_type in tmdb_item.get("art", {})
             and topmost_window_id() == self.window_id
         ):
             window_property("tmdb_art_ready", missed)
