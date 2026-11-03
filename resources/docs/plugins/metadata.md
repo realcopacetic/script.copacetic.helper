@@ -34,6 +34,7 @@ and so on.
 | `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. The same item gets the same pick until Kodi restarts. |
 | `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
 | `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the plot, title, tagline and trailer, which TMDb only fills when the item has none (a season takes TMDb's plot where it has one: Kodi gives seasons their show's). See [TMDb lookups](#tmdb-lookups). |
+| `prefer_tmdb_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: TMDb's trailer replaces a library trailer that is a link (`plugin://`, `http://`, `https://`), such as the one Kodi's TMDb scraper saves. A library trailer that is a file always stays. |
 | `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDb's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDb artwork. |
 | `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDb lookup inputs. See [TMDb lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
@@ -54,7 +55,7 @@ and so on.
 | `ListItem.Property(set_first_year)`, `ListItem.Property(set_last_year)` | With `type=set` and `id`: the years of the set's earliest and latest movies (those with a year), for a year span; `set_last_year` is empty when both are the same year. Empty for other types. Reading `Container(id).ListItem(0)` and `ListItem(-1)` of a set's movies instead gives the years around the list's cursor, not the span. |
 | `ListItem.Writer` | The first writer. |
 | `ListItem.Plot`, `ListItem.PlotOutline`, `ListItem.TagLine` | As on the focused item. With TMDb, the TMDb plot and tagline are used only when the library has none; a season takes the TMDb season overview where it has one, as Kodi gives seasons their show's plot. |
-| `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used only when the library has none. |
+| `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used when the library has none, or with `prefer_tmdb_trailer=true` when the library's is a link. |
 | `ListItem.Property(truncated_label)` | The cut-down text, when `truncate_width` is passed. |
 | `ListItem.Property(truncated_title)` | The cut-down title, when `truncate_title_width` is passed and the title overflows; empty when it fits. |
 | `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits). Empty for other types. |
@@ -73,7 +74,8 @@ names (`Drum & Bass`). `genre_aliases` and full stops (which become spaces) appl
 
 With `enrich_with_tmdb=true`, the TMDb fields listed under
 [`tmdb_details`](#tmdb_details) are added too (artwork is not); the item's own title,
-plot, tagline and trailer are kept where it has them.
+plot, tagline and trailer are kept where it has them (the trailer only if it is a file,
+with `prefer_tmdb_trailer=true`).
 
 The guard is checked before reading, after the TMDb lookup and before the item is
 returned.
