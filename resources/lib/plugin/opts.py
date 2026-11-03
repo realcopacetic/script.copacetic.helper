@@ -16,8 +16,8 @@ class DarkenOpts:
     :param enabled: Return the darken for this art.
     :param rects: Rect string for sampling in frame coordinates.
     :param frame: Frame size "w,h" as a raw string.
-    :param labels: Label text per rect, shrinking each rect to the label as drawn.
-    :param label_font: Kodi font name (Font.xml) the labels are drawn in.
+    :param label: Label text, shrinking the first rect to the label as drawn.
+    :param label_font: Kodi font name (Font.xml) the label is drawn in.
     :param label_pitch: Line pitch in frame px; negative: text hangs from the bottom.
     :param sources: Per rect, element colour (hex or "clearlogo")[:ratio]; last repeats.
     :param surface: The image the skin darkens: "art" or "blur".
@@ -27,7 +27,7 @@ class DarkenOpts:
     enabled: bool
     rects: str | None
     frame: str | None
-    labels: tuple[str | None, ...]
+    label: str | None
     label_font: str | None
     label_pitch: int | None
     sources: tuple[str, ...]
@@ -44,9 +44,9 @@ class DarkenOpts:
             for k, v in {
                 policy.ART_FIELD_DARKEN_RECTS: self.rects,
                 policy.ART_FIELD_DARKEN_FRAME: self.frame,
+                policy.ART_FIELD_DARKEN_LABEL: self.label,
                 policy.ART_FIELD_DARKEN_LABEL_FONT: self.label_font,
                 policy.ART_FIELD_DARKEN_LABEL_PITCH: self.label_pitch,
-                **dict(zip(policy.ART_FIELDS_DARKEN_LABEL, self.labels)),
             }.items()
             if v is not None
         }
@@ -64,10 +64,7 @@ class DarkenOpts:
             enabled=parse_bool(params.get(f"{prefix}_darken", "false")),
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
-            labels=tuple(
-                params.get(f"{prefix}_{f}", "").strip() or None
-                for f in policy.ART_FIELDS_DARKEN_LABEL
-            ),
+            label=params.get(f"{prefix}_darken_label", "").strip() or None,
             label_font=params.get(f"{prefix}_darken_label_font"),
             label_pitch=to_int(params.get(f"{prefix}_darken_label_pitch"), None),
             sources=tuple(
