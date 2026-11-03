@@ -269,16 +269,16 @@ def first_runtime_from_list(value: Any) -> int:
 
 def _top_trailers(value: Any) -> list[str]:
     """
-    YouTube URLs of TMDb's best-ranked videos, newest first: trailers over other
-    types, then official over unofficial; everything below that rank is dropped.
+    YouTube URLs of TMDb's best-ranked videos, newest first: trailers, then teasers,
+    then other types, official over unofficial; everything below that rank is dropped.
 
     :param value: List of TMDb video dicts (videos.results).
     :return: Plugin URLs of the top rank, or an empty list.
     """
 
-    def rank(video: Mapping[str, Any]) -> tuple[bool, bool]:
-        trailer = str(video.get("type", "")).lower() == "trailer"
-        return trailer, bool(video.get("official"))
+    def rank(video: Mapping[str, Any]) -> tuple[bool, bool, bool]:
+        kind = str(video.get("type", "")).lower()
+        return kind == "trailer", kind == "teaser", bool(video.get("official"))
 
     videos = [
         v
