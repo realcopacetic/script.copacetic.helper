@@ -96,6 +96,7 @@ class ArtOpts:
     :param element_colors: Candidate colours (hex) of an element drawn on the art.
     :param band_feather: The band's fade outside its rects, frame px.
     :param palette: Return the palette for this art.
+    :param shape: Return the art's size and whether its corners are opaque.
     """
 
     url: str | None
@@ -108,13 +109,14 @@ class ArtOpts:
     element_colors: tuple[str, ...]
     band_feather: int
     palette: bool
+    shape: bool
 
     def enabled(self, process: str) -> bool:
         """
         Return True if the given process is enabled for this artwork. The darken
         process measures for compose; a clearlogo (no darken opts) always is.
 
-        :param process: Process name (crop, blur, darken).
+        :param process: Process name (crop, blur, darken, shape).
         :return: True if enabled.
         """
         return (
@@ -167,4 +169,5 @@ class ArtOpts:
                 params.get(f"{art_type}_band_feather"), policy.ColorConfig.band_feather
             ),
             palette=parse_bool(params.get(f"{art_type}_palette", "false")),
+            shape=parse_bool(params.get(f"{art_type}_shape", "false")),
         )

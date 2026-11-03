@@ -10,6 +10,7 @@ ART_FIELD_HASH = "cached_file_hash"
 ART_FIELD_PROCESSED = "processed_path"
 ART_FIELD_WIDTH = "width"
 ART_FIELD_HEIGHT = "height"
+ART_FIELD_OPAQUE = "opaque"
 ART_FIELD_BLUR_RADIUS = "blur_radius"
 ART_FIELD_EDGE_TRIM = "edge_trim"
 ART_FIELD_DARKEN = "darken"
@@ -53,6 +54,7 @@ ART_DB_SCHEMA = (
     (ART_FIELD_HASH, "TEXT"),
     (ART_FIELD_WIDTH, "INTEGER"),
     (ART_FIELD_HEIGHT, "INTEGER"),
+    (ART_FIELD_OPAQUE, "INTEGER"),
     (ART_FIELD_BLUR_RADIUS, "INTEGER"),
     (ART_FIELD_EDGE_TRIM, "REAL"),
     (ART_FIELD_DARKEN_FRAME, "TEXT"),
@@ -90,12 +92,14 @@ ART_FIELDS_RESULT = {
     "crop": (ART_FIELD_PROCESSED, ART_FIELD_WIDTH, ART_FIELD_HEIGHT),
     "blur": (ART_FIELD_PROCESSED, ART_FIELD_BLUR_RADIUS),
     "darken": (ART_FIELD_MEASURE,),
+    "shape": (ART_FIELD_WIDTH, ART_FIELD_HEIGHT, ART_FIELD_OPAQUE),
 }
 
 ART_LISTITEM_KEYS = (
     ART_FIELD_PROCESSED,
     ART_FIELD_WIDTH,
     ART_FIELD_HEIGHT,
+    ART_FIELD_OPAQUE,
     ART_FIELD_BLUR_RADIUS,
     ART_FIELD_DARKEN,
     ART_FIELD_ELEMENT_COLOR,
@@ -111,7 +115,7 @@ ART_SOURCE_KEYS = {
 ART_PROCESS_MAP = {
     "clearlogo": ("crop", "darken"),
     "background": ("blur", "darken"),
-    "icon": ("blur", "darken"),
+    "icon": ("blur", "darken", "shape"),
 }
 
 
