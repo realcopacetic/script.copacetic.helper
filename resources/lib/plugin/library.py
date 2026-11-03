@@ -4,6 +4,7 @@ import json
 import random
 from functools import partial, wraps
 from hashlib import blake2b
+from operator import itemgetter
 from typing import Any, Callable, Iterable
 
 from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
@@ -71,6 +72,25 @@ def fetch_raw(
     return q.get("result", {}).get(f"{media_type}s", []) or []
 
 
+def seeded_sort(
+    items: Iterable[Any], seed: str, *pool: Any, key: Callable[[Any], Any] = str
+) -> list[Any]:
+    """
+    Items ranked by a hash of seed, pool and key(item): one fixed order per seed
+    and pool, in which an item added or removed moves no other.
+
+    :param items: Items to rank.
+    :param seed: Order seed; empty for a fresh order.
+    :param pool: What chose the items, so each pool gets its own order.
+    :param key: An item's stable identity.
+    :return: The items in the seeded order.
+    """
+    salt = json.dumps([seed or random.getrandbits(64), *pool], sort_keys=True)
+    return sorted(
+        items, key=lambda item: blake2b(f"{salt}:{key(item)}".encode()).digest()
+    )
+
+
 def random_rows(
     fetch: Callable[..., list[dict[str, Any]]],
     filters: list[dict[str, Any]],
@@ -93,10 +113,8 @@ def random_rows(
     :return: Rows in the seeded order.
     """
     id_key, name_field = keys
-    salt = json.dumps([seed or random.getrandbits(64), keys, filters], sort_keys=True)
-    pool = sorted(
-        fetch(filters, properties=[]),
-        key=lambda row: blake2b(f"{salt}:{row[id_key]}".encode()).digest(),
+    pool = seeded_sort(
+        fetch(filters, properties=[]), seed, keys, filters, key=itemgetter(id_key)
     )
     if not (picked := pool[:limit]):
         return []

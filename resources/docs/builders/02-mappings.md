@@ -58,7 +58,7 @@ Each pass gets `{widget_preset}` set to the item name.
 
 Each pass gets both `{window}` and `{content_type}`, and the metadata of both the outer and the inner item. For dynamic mappings, use a flat list and put the grouping in metadata: entries are created from the item names, and a dynamic pass only fills the `key` placeholder. Copacetic's `content_types` mapping tags each type with its `window` this way.
 
-Every pass also gets `{count}`, `{is_first}`, `{is_last}` — see [Overview → Placeholders](01-overview.md#placeholders).
+Every pass also gets `{count}`, `{is_first}`, `{is_last}`, `{instance}` — see [Overview → Placeholders](01-overview.md#placeholders).
 
 ---
 

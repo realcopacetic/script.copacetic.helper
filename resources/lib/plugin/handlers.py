@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections import Counter
 from datetime import date, datetime, timedelta
 from functools import partial
 from operator import itemgetter
@@ -39,6 +40,7 @@ from resources.lib.plugin.library import (
     fetch_raw,
     random_rows,
     role_endpoint,
+    seeded_sort,
     title_filter,
 )
 from resources.lib.plugin.music import (
@@ -88,6 +90,7 @@ _VIDEO_METHODS = {
     "musicvideo": "MusicVideo",
     "set": "MovieSet",
 }  # VideoLibrary.Get{…}s / Get{…}Details per library type
+_MUSIC_NAMES = {"album": "album", "artist": "artist", "song": "title"}  # name field
 
 
 def _video_details(
@@ -1405,7 +1408,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             method="VideoLibrary.GetMovies",
             media_type="movie",
             content="movies",
-            category=32605,
+            category=ADDON.getLocalizedString(32605),
             parent="random_movies",
             filters=[played] if days else [],
         )
@@ -1417,7 +1420,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             method="VideoLibrary.GetTVShows",
             media_type="tvshow",
             content="tvshows",
-            category=32606,
+            category=ADDON.getLocalizedString(32606),
             parent="random_tvshows",
             filters=[],
         )
@@ -1425,22 +1428,89 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def random_albums(self) -> list[DirectoryItem] | None:
         """Build a seed-stable randomised container of library albums."""
-        set_plugincontent(content="albums", category=ADDON.getLocalizedString(32610))
+        return self._random_music(
+            "album", [], ADDON.getLocalizedString(32610), "random_albums"
+        )
+
+    @log.duration
+    def random_genre(self) -> list[DirectoryItem] | None:
+        """
+        Build a seed-stable randomised container from one genre of type=: the
+        slot=-th, in seeded order, of the genres holding min_items= or more.
+        Items carry the genre and seed as ListItem.Property(genre_pick/genre_seed).
+        """
+        video = self.dbtype in ("movie", "tvshow")
+        if not (
+            self._require("type") and (video or self.dbtype in ("album", "artist"))
+        ):
+            return
+        least = to_int(self.params.get("min_items"), 10)
+        slot = to_int(self.params.get("slot"), 0)
+        method = f"VideoLibrary.Get{_VIDEO_METHODS[self.dbtype]}s" if video else ""
+        # One read sizes every genre, from the tables Kodi's genre rule reads: video
+        # genre links, and the genres of a music item's songs (songgenres)
+        if video:
+            rows = fetch_raw(
+                method, self.dbtype, [], None, "random_genre", properties=["genre"]
+            )
+            sizes = Counter(genre for row in rows for genre in row["genre"])
+        else:
+            rows = library_rows(
+                self.dbtype, None, None, None, "random_genre", ["songgenres"]
+            )
+            listed = json_call("AudioLibrary.GetGenres", parent="random_genre")
+            labels = {
+                row["genreid"]: row["label"]
+                for row in listed.get("result", {}).get("genres", [])
+            }  # songgenres titles swap commas for hyphens: the rule needs the label
+            sizes = Counter(
+                labels[genre["genreid"]] for row in rows for genre in row["songgenres"]
+            )
+        genres = seeded_sort(
+            (genre for genre, size in sizes.items() if size >= least),
+            self.randomise,
+            self.dbtype,
+        )
+        if not genres:
+            return
+        genre = genres[slot % len(genres)]  # fewer genres than slots: wrap round
+        rule = [{"field": "genre", "operator": "is", "value": genre}]
+        items = (
+            self._random_video(
+                method=method,
+                media_type=self.dbtype,
+                content=f"{self.dbtype}s",
+                category=genre,
+                parent="random_genre",
+                filters=rule,
+            )
+            if video
+            else self._random_music(self.dbtype, rule, genre, "random_genre")
+        )
+        for _, li, _ in items or ():
+            li.setProperties({"genre_pick": genre, "genre_seed": self.randomise})
+        return items
+
+    def _random_music(
+        self, media_type: str, filters: list[dict[str, Any]], category: str, parent: str
+    ) -> list[DirectoryItem] | None:
+        """Seed-stable random container of library albums, artists or songs."""
+        set_plugincontent(content=f"{media_type}s", category=category)
         rows = random_rows(
             lambda filters, properties: library_rows(
-                "album",
+                media_type,
                 {"and": filters} if filters else None,  # "and" needs 1+ rules
                 None,
                 None,
-                "random_albums",
+                parent,
                 properties,
             ),
-            [],
-            ("albumid", "album"),
+            filters,
+            (f"{media_type}id", _MUSIC_NAMES[media_type]),
             self.randomise,
             self.limit,
         )
-        return [library_item(row, "album") for row in rows] or None
+        return [library_item(row, media_type) for row in rows] or None
 
     def _random_video(
         self,
@@ -1448,7 +1518,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         method: str,
         media_type: str,
         content: str,
-        category: int,
+        category: str,
         parent: str,
         filters: list[dict[str, Any]],
     ) -> list[DirectoryItem] | None:
@@ -1456,7 +1526,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Seed-stable random container in two queries: an id+label pool fetch,
         then one title-filtered details fetch for the seeded slice.
         """
-        set_plugincontent(content=content, category=ADDON.getLocalizedString(category))
+        set_plugincontent(content=content, category=category)
         rows = random_rows(
             partial(fetch_raw, method, media_type, sort=None, parent=parent),
             filters,
@@ -1550,7 +1620,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         if not (self._require("type") and self.dbtype in MUSIC_TYPES):
             return
-        name = {"artist": "artist", "album": "album"}.get(self.dbtype, "title")
         genres = {*self.label.split(" / ")}  # a list value matches any of them
         if self.dbid:  # a scraped artist genre may tag none of the library's songs
             albums = library_rows(
@@ -1562,20 +1631,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 ["genre"],
             )
             genres.update(*(row["genre"] for row in albums))
-        set_plugincontent(content=f"{self.dbtype}s", category=self.label)
-        rows = random_rows(
-            lambda filters, properties: library_rows(
-                self.dbtype, {"and": filters}, None, None, "genre_music", properties
-            ),
+        return self._random_music(
+            self.dbtype,
             [
                 {"field": "genre", "operator": "is", "value": sorted(genres)},
-                {"field": name, "operator": "isnot", "value": self.exclude_value},
+                {
+                    "field": _MUSIC_NAMES[self.dbtype],
+                    "operator": "isnot",
+                    "value": self.exclude_value,
+                },
             ],
-            (f"{self.dbtype}id", name),
-            self.randomise,
-            self.limit,
+            self.label,
+            "genre_music",
         )
-        return [library_item(row, self.dbtype) for row in rows] or None
 
     @log.duration
     def top_songs(self) -> list[DirectoryItem] | None:

@@ -1,7 +1,7 @@
 # Library Listings
 
 These plugin paths fill a container with items from your video library (`random_albums`,
-`genre_music`, `top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
+`genre_music`, `random_genre` with a music type, `top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
 library infolabels and artwork, so your existing layouts work with them.
 
 | `info=` | What it lists |
@@ -11,6 +11,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `random_movies` | Movies in random order. |
 | `random_tvshows` | TV shows in random order. |
 | `random_albums` | Music library albums in random order. |
+| `random_genre` | Movies, TV shows, albums or artists from one genre, the genre itself picked at random. |
 | `actor_credits` | Movies and TV shows with a given actor. |
 | `director_credits` | Movies and music videos by a given director. |
 | `writer_credits` | Movies and episodes by a given writer. |
@@ -44,7 +45,7 @@ library infolabels and artwork, so your existing layouts work with them.
 - TV shows carry the episode counts Kodi's own library items have:
   `ListItem.Property(TotalSeasons)`, `TotalEpisodes`, `WatchedEpisodes`,
   `UnWatchedEpisodes` and `WatchedEpisodePercent`.
-- `in_progress`, `next_up`, `random_movies` and `random_tvshows` leave out stream
+- `in_progress`, `next_up`, `random_movies`, `random_tvshows` and `random_genre` leave out stream
   details, directors and writers to keep them fast. So `ListItem.Director`,
   `ListItem.Writer` and the `ListItem.VideoResolution` family are empty on those
   lists.
@@ -132,6 +133,42 @@ as `musicdb://` folders. The container's content is `albums`.
 
 `sortby="userpreference"` keeps the helper's order, as for
 [`genre_music`](#genre_music).
+
+## `random_genre`
+
+One genre's movies, TV shows, albums or artists in random order, with the genre itself
+picked at random by the same seed. So one seed gives one genre and one order: a refetch
+(a trailer ending, a library update) keeps both, and a new seed picks again. Only
+genres with at least `min_items` items are picked. Albums and artists are counted by
+their songs' genres, which Kodi's genre rule then lists (never fewer), not by an
+album's own genre text.
+
+Every item carries the genre as `ListItem.Property(genre_pick)`, so the list can name
+itself: `$INFO[Container(5000).ListItem.Property(genre_pick)]`. Items also carry the
+seed that picked it as `ListItem.Property(genre_seed)`, so a skin can tell the last
+visit's items, still showing while the new seed's list loads, from the new ones. The
+container's plugin category is the genre too, but Kodi only shows that in a media window
+(`Container.PluginCategory`).
+
+The items are as in [`random_movies`](#random_movies) and
+[`random_tvshows`](#random_tvshows) for video, and as in [`genre_music`](#genre_music)
+for music. The container's content is `movies`, `tvshows`, `albums` or `artists`.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `movie`, `tvshow`, `album`, `artist` | required | What to list |
+| `limit` | whole number | all | Most items, picked at random |
+| `min_items` | whole number | `10` | Fewest items a genre must hold to be picked |
+| `slot` | whole number | `0` | Which pick to take: `0` the first genre in the seeded order, `1` the second, and so on. Give lists of the same type slots `0`, `1`, `2` … and they show different genres, as long as that many genres qualify; past that, it counts round again from the first. |
+| `randomise` | any text | — | A seed. The same seed gives the same genre and the same order. A different `type` gets its own genre order from the same seed. Without it, the genre and order change on every call. |
+
+```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=random_genre&amp;type=movie&amp;limit=20&amp;slot=0&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=random_genre&amp;type=movie&amp;limit=20&amp;slot=1&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
+```
+
+Picking the genre costs one query that reads every item's genres (and one for the genre
+names, for music), then the two queries [`random_movies`](#random_movies) makes.
 
 ## `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`
 
