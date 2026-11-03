@@ -341,7 +341,12 @@ library artwork:
 - From the TMDb cache only, which [`metadata`](metadata.md#metadata) with
   `tmdb_art=true` or [`tmdb_details`](metadata.md#tmdb_details) with `multiart=true`
   fills for the same item and language. An item not cached yet gets its library
-  artwork only.
+  artwork only, and this serve notes the miss in the Home window property
+  `tmdb_art_missed`. When `metadata` then caches TMDb art of that type for the same
+  item, with the item still focused and no dialog open, it sets the Home window property
+  `tmdb_art_ready` (`<kind>:<tmdb_id>`). Put that in the URL,
+  `$INFO[Window(home).Property(tmdb_art_ready),&tmdb_ready=]`, and Kodi reruns the serve
+  once, which then adds the extras.
 - For movies and TV shows with a TMDb id. Episodes use their show's artwork.
 - A `tvshow.` type adds TMDb artwork of the plain type: `tvshow.fanart` adds TMDb
   `fanart`.
