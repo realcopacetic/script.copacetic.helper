@@ -35,6 +35,7 @@ and so on.
 | `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
 | `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the plot, title, tagline and trailer, which TMDb only fills when the item has none (a season takes TMDb's plot where it has one: Kodi gives seasons their show's). See [TMDb lookups](#tmdb-lookups). |
 | `prefer_tmdb_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: TMDb's trailer replaces a library trailer that is a link (`plugin://`, `http://`, `https://`), such as the one Kodi's TMDb scraper saves. A library trailer that is a file always stays. |
+| `random_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: when TMDb's trailer is used, pick one at random from its best-ranked trailers instead of the newest. The same item gets the same pick until Kodi restarts. |
 | `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDb's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDb artwork. |
 | `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDb lookup inputs. See [TMDb lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
@@ -136,7 +137,8 @@ Returns the item's details from TMDb. It needs a TMDb token in the add-on settin
 | `ListItem.Year` | release year | first air year | — |
 | `ListItem.Duration` | runtime | — | — |
 | `ListItem.Writer` | — | creators | — |
-| `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path | same | — |
+| `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path: trailers over other video types, then official over unofficial, then the newest | same | — |
+| `ListItem.Property(tmdb_trailers)` | every trailer of that best rank, newest first, joined by ` \| ` | same | — |
 | `ListItem.Property(tmdb_budget)` | budget | — | — |
 | `ListItem.Property(tmdb_revenue)` | revenue | — | — |
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |
