@@ -39,6 +39,7 @@ sys.path.insert(0, str(HELPER))
 from resources.lib.apis import http, listenbrainz  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
+from resources.lib.apis.tmdb.fields import filter_tmdb_images_by_size  # noqa: E402
 from resources.lib.plugin import handlers, helpers  # noqa: E402
 from resources.lib.plugin.music import (  # noqa: E402
     ALBUM_RANK_PROPERTIES,
@@ -514,6 +515,34 @@ class TmdbTest(Base):
         self.tick(6 * DAY)
         self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), item)
         self.assertEqual(len(self.net.requests), 1)
+
+    def test_small_and_odd_images_left_out(self):
+        self.net.answers = [TMDB_TV]
+        art = transform.tmdb_to_canonical("tvshow", 1399)["art"]
+        self.assertTrue(art["landscape"].endswith("/b2.jpg"))
+        self.assertTrue(art["keyart"].endswith("/p2.jpg"))
+        # The main backdrop and poster are list images too small to keep (b3, p3), so
+        # b1 and p1 lead; the 1280x720, 1920x1088 and 680x1000 uploads are out
+        self.assertTrue(art["fanart"].endswith("/b1.jpg"))
+        self.assertTrue(art["poster"].endswith("/p1.jpg"))
+        self.assertNotIn("fanart1", art)
+        self.assertNotIn("keyart1", art)  # 680x1000 dropped
+        # A main poster outside the lists (a third language) stays first
+        tv = json.loads(TMDB_TV)
+        tv["id"], tv["poster_path"] = 1400, "/ko_poster.jpg"
+        self.net.answers = [json.dumps(tv).encode()]
+        art = transform.tmdb_to_canonical("tvshow", 1400)["art"]
+        self.assertTrue(art["poster"].endswith("/ko_poster.jpg"))
+        self.assertTrue(art["poster1"].endswith("/p1.jpg"))
+        sizes = [(3840, 2160), (2560, 1440), (3200, 1800), (1920, 1088), (1280, 720)]
+        images = [{"width": w, "height": h} for w, h in sizes] + [{"file_path": "/x"}]
+        self.assertEqual(
+            [
+                (i["width"], i["height"])
+                for i in filter_tmdb_images_by_size(images, (1920, 1080))
+            ],
+            sizes[:3],
+        )
 
     def test_v4_token_in_header(self):
         self.settings["tmdb_access_token"] = "eyJ.token"

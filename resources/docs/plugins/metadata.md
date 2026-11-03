@@ -152,11 +152,16 @@ With `multiart=true`, TMDb's image lists are added as numbered art keys:
 
 | Art keys | Source | Most |
 |---|---|---|
-| `poster1…` | posters in your language | 10 |
+| `poster`, `poster1…` | posters in your language | 10 |
 | `keyart`, `keyart1…` | posters with no language | 10 |
-| `fanart1…` | backdrops with no language | 10 |
+| `fanart`, `fanart1…` | backdrops with no language | 10 |
 | `landscape`, `landscape1…` | backdrops in your language | 10 |
 | `clearlogo`, `clearlogo1…` | logos in your language, else logos with no language | 5 |
+
+Backdrops must be exactly 16:9 at 1920×1080 or larger and posters exactly 2:3 at
+1000×1500 or larger; others are left out. TMDb's main poster and backdrop follow the
+same rule when they are in the lists, and stay first when they aren't (so `poster` or
+`fanart` can then lead 10 more).
 
 Results are cached for 7 days, an id TMDb doesn't know for a day, a "too many
 requests" answer for as long as TMDb asks, and any other failed request (offline,
