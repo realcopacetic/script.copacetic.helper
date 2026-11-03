@@ -2,7 +2,7 @@
 
 import json
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import Any
 from urllib.parse import quote
 
@@ -454,22 +454,25 @@ class BaseBuilder:
             return {k: self.substitute_strict(v, tokens) for k, v in template.items()}
         return template
 
-    @staticmethod
-    def _add_loop_position_flags(substitutions: list[dict[str, str]]) -> None:
+    def _add_loop_position_flags(self, substitutions: list[dict[str, str]]) -> None:
         """
         Inject loop-position strings into every substitution dict in place: ``count``
         (the total), ``is_first`` and ``is_last`` ('true' on the first/last entry only),
-        so they substitute directly into Kodi boolean conditions.
+        and ``instance``, how many earlier entries share its mapping item ('0' first).
 
         :param substitutions: List of substitution dictionaries to annotate.
         """
         total = len(substitutions)
         last = total - 1
         count_str = str(total)
+        key = self.placeholders.get("key")
+        seen = Counter()
         for i, sub in enumerate(substitutions):
             sub["count"] = count_str
             sub["is_first"] = "true" if i == 0 else "false"
             sub["is_last"] = "true" if i == last else "false"
+            sub["instance"] = str(seen[sub.get(key)])
+            seen[sub.get(key)] += 1
 
 
 class ExpressionsBuilder(BaseBuilder):

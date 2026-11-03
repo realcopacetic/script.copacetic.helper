@@ -119,6 +119,7 @@ Templates use `{curly_brace}` tokens. The builder fills them in, once per loop p
 - `{index}` — on a `dynamic` mapping always (counting from 1, or from the template's `index` start); on a static mapping only when the template declares `index`
 - `{range}` when the template declares `range`, `{item}` when it declares `items`, and the borrowed mapping's own names when it declares `items_from`
 - `{count}`, `{is_first}`, `{is_last}` — total loop size and position after filtering, as strings (`"true"`/`"false"` for the last two) you can drop straight into Kodi conditions
+- `{instance}` — how many earlier passes, after filtering, share this pass's mapping item: `0` for the first widget of a preset, `1` for the second, and so on
 - Simple maths on whole numbers: `{index+2002}`, `{index*10}`, `{min(count*100, 800)}`. Operators: `+ - * / // %`, brackets and a leading minus; functions: `min`, `max`, `ceil`, `sqrt`. Every name in the sum must hold a whole number.
 - The mapping's `tokens` — see [Mappings → tokens](02-mappings.md#tokens--shared-snippets-for-borrowing-templates)
 - `{@mapping:item.field}` — reach into *any* mapping's metadata directly, no loop required: `{@windows:{window}.window_is}` reads the `window_is` field from the windows item named by `{window}` (inner tokens fill first). The field must be a string.
