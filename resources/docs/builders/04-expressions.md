@@ -48,7 +48,7 @@ JSON files in `extras/templates/expressions/`:
 
 The expansion order is the same as for [variables](03-variables.md#ordinary-templates). Whether the template loops settings-file entries is decided by the mapping's `mode`; a `mode` key on the template is ignored. In this example (Copacetic's `content_types`) the mapping is dynamic, so `{layout}` is each entry's stored value (or its default) at build time.
 
-The template name is filled in for every pass, and passes that give the same name build one expression together. When no pass is left (the filter removes them all, or a dynamic mapping has no entries), the expression is still written, as `false`, if its name has no placeholders or only ones the mapping's `tokens` fill with plain text. Otherwise nothing is written.
+The template name is filled in for every pass, and passes that give the same name build one expression together. When no pass is left (the filter removes them all, or a dynamic mapping has no entries), the expression is still written, as `false`, if its name has no placeholders, or only `{item}` from the template's `items` and ones the mapping's `tokens` fill with plain text. Otherwise nothing is written.
 
 Note the split: a rule's `condition` is checked **by the builder at build time** ([Rule Engine](08-rule-engine.md)); the rule's `value` is a **Kodi condition** written into the output for Kodi to check at runtime. The builder never evaluates the value.
 

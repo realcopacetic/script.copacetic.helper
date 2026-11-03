@@ -86,7 +86,7 @@ One `<item>` per menu entry, straight into a container's content block. Attribut
 
 A param, attribute, or element whose value fills in to nothing is dropped from that copy — so your include's `$PARAM` defaults take over, and `<onclick>{update}</onclick>` simply isn't there for entries with no update action.
 
-The exception is the outer include itself: if a filter removes *every* pass (or a dynamic mapping has no entries), the named include is still written, holding only a `<description>placeholder</description>` element. Your skin XML can reference `<include>widget_containers</include>` unconditionally without breaking when the user has nothing configured. This only works when the outer name fills in without a pass: it has no placeholders, or only placeholders the mapping's `tokens` fill with plain text. With any other placeholder in the name, nothing is written.
+The exception is the outer include itself: if a filter removes *every* pass (or a dynamic mapping has no entries), the named include is still written, holding only a `<description>placeholder</description>` element. Your skin XML can reference `<include>widget_containers</include>` unconditionally without breaking when the user has nothing configured. This only works when the outer name fills in without a pass: it has no placeholders, or only `{item}` from the template's `items` and placeholders the mapping's `tokens` fill with plain text. With any other placeholder in the name, nothing is written.
 
 ---
 
