@@ -375,8 +375,8 @@ Albums and artists are opened by their `musicdb://` path without a lookup.
 Seasons can't be opened this way (Python can't set a season's show and season ids),
 so browse to a season instead.
 
-In this example, `3200` is a list in the info dialog. A `focus` param from an older
-skin is ignored.
+In this example, `3200` is a list in the info dialog, and the skin has already handled
+the dialog's own item. A `focus` param from an older skin is ignored.
 
 ```xml
 <onclick condition="Integer.IsGreater(Container(3200).ListItem.DBID,0) + String.IsEmpty(Window(home).Property(info_hop))">SetProperty(info_hop,forward,home)</onclick>
