@@ -335,6 +335,25 @@ def build_tmdb_image_url_list(
     return urls
 
 
+def filter_tmdb_images_by_size(
+    items: Any, minimum: tuple[int, int]
+) -> list[Mapping[str, Any]]:
+    """
+    Keep TMDb image dicts at least minimum's width, at exactly its aspect ratio.
+
+    :param items: List of TMDb image dicts with width and height.
+    :param minimum: Smallest (width, height) kept; its ratio is the only one kept.
+    :return: The image dicts that pass, in order.
+    """
+    min_w, min_h = minimum
+    return [
+        item
+        for item in _iter_mappings(items)
+        if (w := item.get("width") or 0) >= min_w
+        and w * min_h == (item.get("height") or 0) * min_w
+    ]
+
+
 def split_tmdb_images_by_language(
     items: Any,
     preferred_iso: str | None,
@@ -370,7 +389,8 @@ def assign_image_list_to_art(
     urls: Iterable[str],
 ) -> None:
     """
-    Assign image URLs into an art dict using label, label1, label2, etc.
+    Assign image URLs into an art dict using label, label1, label2, etc. A label
+    already set (a main image the list doesn't hold) stays first, the list after it.
 
     :param art: Mutable art dictionary to update in place.
     :param label: Base artwork key name (for example, "fanart").
@@ -381,7 +401,6 @@ def assign_image_list_to_art(
         return
 
     if label not in art:
-        art[label] = urls_list[0]
-
-    for index, url in enumerate(urls_list[1:], start=1):
+        art[label], *urls_list = urls_list
+    for index, url in enumerate(urls_list, start=1):
         art[f"{label}{index}"] = url

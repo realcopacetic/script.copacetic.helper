@@ -332,6 +332,12 @@ library artwork:
 - Backdrops (`fanart`, `landscape`) at width 1280 and posters (`poster`, `keyart`) at
   width 780, not TMDb's original size, as each new image downloads the first time it
   shows.
+- Only TMDb backdrops of exactly 16:9 at 1920×1080 or larger, and posters of exactly
+  2:3 at 1000×1500 or larger: smaller or odd-sized uploads are left out. TMDb's main
+  backdrop or poster (`backdrop_path`, `poster_path`) follows the same rule when it is
+  in those lists, and stays first when it isn't (a poster in a third language). An item
+  cached earlier keeps its lists until it is next fetched from TMDb; *Clear addon
+  cache* applies the rule at once.
 - From the TMDb cache only, which [`metadata`](metadata.md#metadata) with
   `tmdb_art=true` or [`tmdb_details`](metadata.md#tmdb_details) with `multiart=true`
   fills for the same item and language. An item not cached yet gets its library

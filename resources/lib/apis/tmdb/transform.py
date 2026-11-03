@@ -16,6 +16,7 @@ from resources.lib.apis.tmdb.fields import (
     assign_image_list_to_art,
     build_tmdb_image_url,
     build_tmdb_image_url_list,
+    filter_tmdb_images_by_size,
     split_tmdb_images_by_language,
 )
 from resources.lib.shared import logger as log
@@ -38,6 +39,12 @@ IMAGE_LIST_ROLES = {
     "images_logos": [
         ("clearlogo", "lang_or_none"),
     ],
+}
+# Smallest image kept per list, at exactly its shape: TMDb's small or odd-sized
+# uploads are mostly poor (Ash, 3 Nov 2026). Logos come in every shape.
+IMAGE_LIST_MIN_SIZES = {
+    "images_backdrops": (1920, 1080),
+    "images_posters": (1000, 1500),
 }
 
 
@@ -275,7 +282,9 @@ def _handle_image_list_art(
     limit: int | None = None,
 ) -> None:
     """
-    Handle TMDb image lists with language-aware shaping.
+    Handle TMDb image lists with language-aware shaping, keeping backdrops and
+    posters of IMAGE_LIST_MIN_SIZES' shape and size; a backdrop_path or poster_path
+    image in the unfiltered list is left to it, any other stays first.
 
     :param logical_name: Logical TMDb field name (e.g. 'images_posters').
     :param label: Default Kodi art label for fallback behaviour.
@@ -285,10 +294,16 @@ def _handle_image_list_art(
     :param limit: Optional maximum URL count.
     """
     roles = IMAGE_LIST_ROLES.get(logical_name)
+    listed = set(build_tmdb_image_url_list(value))
+    if minimum := IMAGE_LIST_MIN_SIZES.get(logical_name):
+        value = filter_tmdb_images_by_size(value, minimum)
 
     if roles:
         lang_items, none_items = split_tmdb_images_by_language(value, preferred_iso)
         for art_label, bucket in roles:
+            # backdrop_path or poster_path in the list: the filtered list decides
+            if minimum and art.get(art_label) in listed:
+                art.pop(art_label)
             items = _select_bucket_items(bucket, value, lang_items, none_items)
             urls = build_tmdb_image_url_list(items, limit=limit)
             assign_image_list_to_art(art, art_label, urls)

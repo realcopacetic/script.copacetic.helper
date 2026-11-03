@@ -7,12 +7,12 @@
   "first_air_date": "2011-04-17",
   "created_by": [{"id": 9813, "name": "David Benioff"}, {"id": 228068, "name": "D. B. Weiss"}],
   "next_episode_to_air": null,
-  "backdrop_path": "/backdrop.jpg",
-  "poster_path": "/poster.jpg",
+  "backdrop_path": "/b3.jpg",
+  "poster_path": "/p3.jpg",
   "images": {
-    "backdrops": [{"file_path": "/b1.jpg", "iso_639_1": null}, {"file_path": "/b2.jpg", "iso_639_1": "en"}],
+    "backdrops": [{"file_path": "/b1.jpg", "iso_639_1": null, "width": 3840, "height": 2160}, {"file_path": "/b2.jpg", "iso_639_1": "en", "width": 1920, "height": 1080}, {"file_path": "/b3.jpg", "iso_639_1": null, "width": 1280, "height": 720}, {"file_path": "/b4.jpg", "iso_639_1": null, "width": 1920, "height": 1088}],
     "logos": [{"file_path": "/l1.png", "iso_639_1": "en"}],
-    "posters": [{"file_path": "/p1.jpg", "iso_639_1": "en"}, {"file_path": "/p2.jpg", "iso_639_1": null}]
+    "posters": [{"file_path": "/p1.jpg", "iso_639_1": "en", "width": 2000, "height": 3000}, {"file_path": "/p2.jpg", "iso_639_1": null, "width": 1000, "height": 1500}, {"file_path": "/p3.jpg", "iso_639_1": null, "width": 680, "height": 1000}]
   },
   "videos": {
     "results": [
