@@ -10,6 +10,7 @@ themselves live in resolver.py; loading lives in templates.py.
 from xbmc import executebuiltin
 
 import uuid
+from collections import Counter
 from itertools import count
 
 from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
@@ -201,7 +202,7 @@ class RuntimeStateManager:
             log.debug(f"skin_mirror: {name} → {text}")
 
     def _build_default_entry(
-        self, mapping_key: str, item: str, deterministic: bool = False
+        self, mapping_key: str, item: str, deterministic: bool = False, repeat: int = 0
     ) -> dict:
         """
         Build the default entry for a single mapping_item: identity plus the
@@ -211,11 +212,13 @@ class RuntimeStateManager:
         :param mapping_key: Mapping group key.
         :param item: Mapping_item identifier.
         :param deterministic: Stable uuid5 id (seed/reset paths) vs random uuid4.
+        :param repeat: Earlier rows of this item in the seed; 0 keeps the plain id.
         :return: Dict of identity fields (runtime_id, mapping_item, parent).
         """
         metadata = self.mappings[mapping_key].get("metadata", {}).get(item, {})
         if deterministic:
-            runtime_id = str(uuid.uuid5(RUNTIME_ID_NAMESPACE, f"{mapping_key}/{item}"))
+            name = f"{mapping_key}/{item}" + (f"/{repeat}" if repeat else "")
+            runtime_id = str(uuid.uuid5(RUNTIME_ID_NAMESPACE, name))
         else:
             runtime_id = str(uuid.uuid4())
 
@@ -224,6 +227,26 @@ class RuntimeStateManager:
             "mapping_item": item,
             **({"parent": metadata["parent"]} if "parent" in metadata else {}),
         }
+
+    def _default_entries(self, mapping_key: str, items: list[str]) -> list[dict]:
+        """
+        Deterministic default entries for items in order. An item listed again (two
+        rows of one preset) gets its repeat count in the id seed, so ids stay unique.
+
+        :param mapping_key: Mapping group key.
+        :param items: Mapping_items in order, repeats allowed.
+        :return: One default entry per item.
+        """
+        repeats = Counter()
+        entries = []
+        for item in items:
+            entries.append(
+                self._build_default_entry(
+                    mapping_key, item, deterministic=True, repeat=repeats[item]
+                )
+            )
+            repeats[item] += 1
+        return entries
 
     def resolved_entry(self, mapping_key: str, index: int) -> dict:
         """
@@ -341,10 +364,7 @@ class RuntimeStateManager:
                 items = [item for item in order if item not in present]
             else:
                 continue
-            rows = kept + [
-                self._build_default_entry(mapping_key, item, deterministic=True)
-                for item in items
-            ]
+            rows = kept + self._default_entries(mapping_key, items)
             if order:
                 # Users can't reorder a fixed list: rows follow items, orphans last.
                 rows.sort(
@@ -738,7 +758,8 @@ class RuntimeStateManager:
     def reset_runtime_state_for(self, mapping_key: str) -> None:
         """
         Reset the runtime state for a single mapping group, remapping
-        surviving parent refs across child mappings.
+        surviving parent refs across child mappings. A child whose parent left the
+        defaults moves to its own item's metadata parent, or is dropped without one.
 
         :param mapping_key: Group key to reset (e.g. 'widgets').
         """
@@ -751,10 +772,7 @@ class RuntimeStateManager:
         old_ids = {e["runtime_id"]: e["mapping_item"] for e in old_entries}
 
         default_order = mapping.get("default_order") or mapping.get("items", [])
-        state[mapping_key] = [
-            self._build_default_entry(mapping_key, item, deterministic=True)
-            for item in default_order
-        ]
+        state[mapping_key] = self._default_entries(mapping_key, default_order)
 
         new_by_item = {e["mapping_item"]: e["runtime_id"] for e in state[mapping_key]}
         remap = {
@@ -766,11 +784,23 @@ class RuntimeStateManager:
         for key, entries in state.items():
             if key == mapping_key or not isinstance(entries, list):
                 continue
-            state[key] = [
-                {**e, "parent": remap[e["parent"]]} if e.get("parent") in remap else e
-                for e in entries
-                if e.get("parent") not in old_ids or e.get("parent") in remap
-            ]
+            child = self.mappings.get(key, {})
+            # Metadata parents name parent_mapping items: only those children fall back
+            metadata = (
+                child.get("metadata", {})
+                if child.get("parent_mapping") == mapping_key
+                else {}
+            )
+            kept = []
+            for e in entries:
+                if (parent := e.get("parent")) in old_ids:
+                    # A parent no longer in the defaults hands over to the item's own
+                    own = metadata.get(e["mapping_item"], {}).get("parent")
+                    if not (parent := remap.get(parent) or new_by_item.get(own)):
+                        continue
+                    e = {**e, "parent": parent}
+                kept.append(e)
+            state[key] = kept
 
         self._resolve_parent_refs(state)
         self._write_and_invalidate(state)

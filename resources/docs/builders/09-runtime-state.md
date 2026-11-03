@@ -34,7 +34,7 @@ Each entry stores only its identity — `runtime_id`, `mapping_item` and, if the
 
 **Settings appear when changed.** An untouched setting isn't stored; it reads its config default live, every time. Two consequences worth knowing: changing a default in your templates instantly reaches every entry the user never overrode, and an entry in the file tells you exactly what the user has deliberately set — nothing more. A stored value that the setting's config doesn't offer for that entry (after a hand edit, a downgrade, or a rule that now removes it) is read as if unset: the item's metadata value if it has one, else the config default. The file itself is left as it is; the settings window corrects it when it opens.
 
-**Ids are stable where it counts.** Automatic entries (first creation, and every reset) get the *same* id every time — derived from the mapping and item name, not random. Reset the list and the ids come back identical, so baked XML references and parent links keep working. Entries the *user* adds get random ids, because there's nothing stable to derive them from.
+**Ids are stable where it counts.** Automatic entries (first creation, and every reset) get the *same* id every time — derived from the mapping and item name, not random. An item that `default_order` lists again also counts its repeat (the first listing keeps the plain id), so two rows of one preset get two ids. Reset the list and the ids come back identical, so baked XML references and parent links keep working. Entries the *user* adds get random ids, because there's nothing stable to derive them from.
 
 ### Parent links
 
@@ -42,7 +42,7 @@ A child item's metadata names its parent by item name (`"parent": "movies"`). Wh
 
 Two maintenance behaviours keep links sane:
 
-- **Reset remaps.** Resetting the *parent* mapping recreates its entries with the same ids — and any children pointing at a surviving parent are re-linked to the fresh entry. Children whose parent didn't survive the reset are removed.
+- **Reset remaps.** Resetting the *parent* mapping recreates its entries with the same ids — and any children pointing at a surviving parent are re-linked to the fresh entry. Children whose parent didn't survive move to their own item's metadata `parent` among the new defaults; they are removed only when that isn't one of them.
 - **Deletes prune orphans.** Deleting an entry also removes any children in other mappings that pointed at it, so no widget lingers attached to a menu item that's gone.
 
 ### Reset vs rebuild

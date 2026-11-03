@@ -186,7 +186,7 @@ The value is read *resolved* — the stored value, or the config default when th
 
 ## `default_order`
 
-Which items get entries when the settings file is first created (or the mapping is first added to it, or reset), and in what order. Entries store only their identity at that point — every setting shows its config default until the user changes it. Which means: change a default in your templates, and every entry the user never touched picks it up.
+Which items get entries when the settings file is first created (or the mapping is first added to it, or reset), and in what order. Entries store only their identity at that point — every setting shows its config default until the user changes it. Which means: change a default in your templates, and every entry the user never touched picks it up. An item may be listed more than once, for two rows of one preset; each gets its own entry and id.
 
 ---
 
