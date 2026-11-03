@@ -222,7 +222,8 @@ season overview when there is one) is cut; `false` for a favourite read with `ta
 whose caption may be its action text, so the returned plot (the library's, else TMDb's)
 is cut. Music keeps the label: an album's or artist's caption is its description.
 An item with no plot of its own skips the label whenever TMDb returned one, so TMDb's
-plot is cut directly; Copacetic's label is empty for such an item.
+plot is cut directly; Copacetic's label is empty for such an item, or reads the last
+served plot, which can be another item's when neither has a DBID and their labels match.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=font_plot</content>
