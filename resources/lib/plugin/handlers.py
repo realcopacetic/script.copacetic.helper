@@ -197,9 +197,8 @@ class _FocusGuard:
         if not self.expected_identity:
             return True
 
-        # Every identity label empty: a modal on top answers them, not another item
         current_identity = self.identity_getter()
-        if current_identity.strip(",") and current_identity != self.expected_identity:
+        if current_identity and current_identity != self.expected_identity:
             log.debug(
                 f"{LOG_TAG} → {self.caller_name}: ABORTED → "
                 f"'{self.expected_identity}' lost focus to '{current_identity}'"
