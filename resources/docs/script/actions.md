@@ -187,7 +187,8 @@ Example from Copacetic, for each info dialog rail at open:
 Removes entries from a builder mapping whose parent entry no longer exists (see
 [Runtime State → Parent links](../builders/09-runtime-state.md#parent-links)). If
 anything was removed, it rebuilds the builder output and reloads the skin. While a
-settings window is open, the rebuild waits until the window closes.
+settings window is open, the rebuild waits until the window closes. The rebuild sets
+[`helper_reloading`](#dynamic_settings_window), so the skin can cover it.
 
 Mappings without a `parent_mapping` are left alone.
 
@@ -662,7 +663,8 @@ Example: like and unlike the playing song from a button in the music OSD:
 
 Rebuilds all builder output (includes, variables, expressions), adds entries for any
 new mappings, refreshes the resolver cache and reloads the skin. User settings are
-kept unless you ask for a reset. A notification confirms it. See [Runtime State →
+kept unless you ask for a reset. A notification confirms it. The rebuild sets
+[`helper_reloading`](#dynamic_settings_window), so the skin can cover it. See [Runtime State →
 Reset vs rebuild](../builders/09-runtime-state.md#reset-vs-rebuild).
 
 | Param | Accepted values | Default | What it does |
