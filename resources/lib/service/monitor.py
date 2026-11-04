@@ -111,6 +111,13 @@ class Monitor(xbmc.Monitor):
         log.info(f"{self.__class__.__name__} → Inactive, skin left")
 
     def _builder_elements(self) -> None:
+        """Check the outputs; a failed build is logged and the old XML stays."""
+        try:
+            self._check_outputs()
+        except Exception:
+            log.exception(f"{self.__class__.__name__} → Build failed, keeping old XML")
+
+    def _check_outputs(self) -> None:
         """
         Build, then reload if an output changed. Production: missing outputs, or all
         when ids are fresh or the resolver cache is missing or stale (other skin, new

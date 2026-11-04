@@ -72,6 +72,9 @@ interrupted. In order:
 
    Dev mode (`dev_mode`) and *Reset on next start* (`dev_reset`) are settings of the
    helper add-on, in its *Developers* category.
+
+   If the build raises an exception, the service logs the traceback at error level,
+   doesn't reload, and carries on with the steps below on the XML already there.
 2. The service attaches the player monitor, which handles playback from now on (see
    [Player properties](player.md) and [Play next](playnext.md)). It sets the
    [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties and,
