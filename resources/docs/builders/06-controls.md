@@ -27,7 +27,7 @@ The file's `mapping` names the mapping these controls edit. Each key under `cont
 
 | Field | Required | What it does |
 |---|---|---|
-| `control_type` | Yes | `listitem`, `button`, `sliderex`, `slider`, `radiobutton`, `edit`, `cycle`. Anything else is skipped. |
+| `control_type` | Yes | `listitem`, `button`, `sliderex`, `slider`, `radiobutton`, `edit`, `cycle`, `label`. Anything else is skipped. |
 | `id` | Yes* | The control's ID in your window XML (*not for listitems). A control without one is skipped. |
 | `field` | No | Which setting this control edits |
 | `role` | No | `"item_picker"` or `"add_action"` — makes this the Add control, see below |
@@ -112,6 +112,19 @@ Shows as selected when the stored value is `true`. Selecting it writes the first
   "control_type": "radiobutton",
   "visible": "In({content_type}, [movies, sets, tvshows, artists])",
   "label": "$LOCALIZE[31443]"
+}
+```
+
+### `label` — a title among the rows
+
+Text that can't take focus, for naming a group of rows. It has no `field` or `onclick`: the helper sets its `label` and shows or hides it by `visible`, so give it the same rule as the rows it heads. A grouplist's up and down moves pass through it, as long as the XML control has an ID.
+
+```json
+"title_trailers": {
+  "id": 231,
+  "control_type": "label",
+  "visible": "equals({settings_category}, player)",
+  "label": "$LOCALIZE[31803]"
 }
 ```
 

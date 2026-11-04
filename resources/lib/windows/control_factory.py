@@ -24,6 +24,7 @@ CONTROL_REGISTRY = {
     "button": (ButtonHandler, (xbmcgui.ControlButton,)),
     "cycle": (CycleHandler, (xbmcgui.ControlButton,)),  # cycle is a button variant
     "edit": (EditHandler, (xbmcgui.ControlEdit,)),
+    "label": (BaseControlHandler, (xbmcgui.ControlLabel,)),  # text and visibility
     "radiobutton": (RadioButtonHandler, (xbmcgui.ControlRadioButton,)),
     "slider": (SliderHandler, (xbmcgui.ControlSlider,)),
     "sliderex": (SliderExHandler, (xbmcgui.ControlSlider, xbmcgui.ControlButton)),
