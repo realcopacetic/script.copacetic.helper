@@ -28,6 +28,10 @@ _KODI_STYLES = re.compile(
     r"\[/?(?:B|I|LIGHT|UPPERCASE|LOWERCASE|CAPITALIZE)\]|\[COLOR[^\]]*\]|\[/COLOR\]"
 )
 
+# Markdown's headings ("## v7.4.4", closing #s dropped) and "-" list lines
+_MD_HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)[ \t#]*$", re.MULTILINE)
+_MD_BULLET = re.compile(r"^([ \t]*)-[ \t]+", re.MULTILINE)
+
 # Rendered pixels Kodi's last-glyph ink extent can add past its advance.
 _INK_OVERHANG = 2
 
@@ -207,6 +211,18 @@ def plain_text(text: str) -> str:
     """
     text = _KODI_TABS.sub(" ", text).replace("[CR]", "\n")
     return _KODI_STYLES.sub("", text)
+
+
+def markdown_label(text: str) -> str:
+    """Markdown as a Kodi label: headings bold, "-" list lines "•", lines joined by
+    [CR]. Inline markdown stays as written.
+
+    :param text: Text as an infolabel returns it, e.g. ListItem.AddonNews.
+    :return: The label, with no blank line at either end.
+    """
+    text = "\n".join(text.replace("[CR]", "\n").splitlines())
+    text = _MD_BULLET.sub(r"\1• ", _MD_HEADING.sub(r"[B]\1[/B]", text))
+    return text.strip().replace("\n", "[CR]")
 
 
 def sentence_cap(text: str, abbrev: set[str] | None = None) -> str | None:
