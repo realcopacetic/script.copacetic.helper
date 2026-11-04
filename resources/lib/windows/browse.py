@@ -371,6 +371,13 @@ _SUPPRESS_ITEMS = {
     "library://music/files.xml/",
 }
 
+# Menu mode offers these nodes as targets, opened at the folder they point to.
+# Kodi's window adds its New playlist items there; JSON-RPC listings don't have them.
+_PLAYLIST_NODES = {
+    "library://video/playlists.xml/": "special://videoplaylists/",
+    "library://music/playlists.xml/": "special://musicplaylists/",
+}
+
 # library:// node paths (by suffix) whose contents are always flat media items.
 _FLAT_XML_SUFFIXES = {
     "titles.xml/",
@@ -396,6 +403,8 @@ _PATH_TYPE_PREFIXES = [
     ("library://video/", "video"),
     ("musicdb://", "music"),
     ("library://music/", "music"),
+    ("special://videoplaylists/", "video"),
+    ("special://musicplaylists/", "music"),
     ("addons://sources/video", "video"),
     ("addons://sources/audio", "music"),
     ("addons://sources/executable", "programs"),
@@ -740,6 +749,11 @@ def _browse_level(path: str, heading: str, mode: str = "widget"):
 
         if _is_flat_content(items):
             return path, heading
+
+        if mode == "menu":
+            for item in items:
+                if target := _PLAYLIST_NODES.get(item["file"]):
+                    item.update(file=target, filetype="file")
 
         items = [item for item in items if item["file"] not in _SUPPRESS_ITEMS]
 
