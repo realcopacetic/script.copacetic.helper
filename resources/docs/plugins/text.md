@@ -30,11 +30,11 @@ straight away.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `text` | any text | — | The text to draw. Kodi's formatting tags (`[B]`, `[COLOR …]` and the rest) are dropped. A `[CR]` or a newline starts a new line, as Kodi draws it, so `[CR][CR]` leaves a blank line between paragraphs; `[TABS]` is a space. When the text doesn't fit, the paragraph that overflows ends at its last full sentence, else the text ends with the paragraph before it. Nothing is returned when empty. |
+| `text` | any text | — | The text to draw. Kodi's formatting tags (`[B]`, `[COLOR …]` and the rest) are dropped. A `[CR]` or a newline starts a new line, as Kodi draws it, so `[CR][CR]` leaves a blank line between paragraphs; `[TABS]` is a space. When the text doesn't fit, the paragraph that overflows ends at its last full sentence. With no full sentence, the text ends with the paragraph before it, or an ellipsis if it is the first paragraph. Nothing is returned when empty. |
 | `text_font` | font file path (`special://` or absolute) | — | The `.ttf` or `.otf` font to draw with. |
 | `text_size` | whole number (pixels) | `42` | Font size. |
 | `text_width` | whole number (pixels) | `1280` | Wrap width, and the width of the image. Lines break where Kodi breaks them: at plain spaces (a no-break space holds), with a word wider than this cut after the last letter that fits. |
-| `text_height` | whole number (pixels) | `720` | Most height allowed. Text that does not fit is cut at a whole line: at the last full sentence that fits, else with an ellipsis. |
+| `text_height` | whole number (pixels) | `720` | Most height allowed. Text that does not fit is cut at a whole line, as `text` describes. |
 | `text_line_height` | decimal | `1.3` | Line spacing, as a multiple of the font size. |
 | `text_letter_spacing` | decimal | `0.0` | Extra space between letters, as a percentage of the font size. Negative values pull letters closer. |
 | `target_id` | control id | — | A control to size to the text: its height is set to the image's before the item returns. The control is looked up in the window the call started in: the topmost dialog with `dialog=true` or `target=item`, else the current window. A dialog opened on top since then does not change this. |
