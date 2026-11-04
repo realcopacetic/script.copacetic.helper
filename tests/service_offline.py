@@ -25,6 +25,7 @@ _module("resources.lib.art.slideshow", Slideshow=Mock)
 _module("resources.lib.service.player", PlayerMonitor=Mock)
 sys.path.insert(0, str(HELPER))
 
+from resources.lib.builders.runtime import RuntimeStateManager  # noqa: E402
 from resources.lib.builders.substitution import TokenError  # noqa: E402
 from resources.lib.service import monitor  # noqa: E402
 from resources.lib.shared.utilities import (  # noqa: E402
@@ -101,7 +102,7 @@ class BuildBoundary(unittest.TestCase):
         return run.call_count
 
     def seed(self):
-        """Saved state and a current cache, then lose the state: the next start seeds."""
+        """Saved state and current cache, then drop the state: next start seeds."""
         STATE.unlink(missing_ok=True)
         CACHE.unlink(missing_ok=True)
         self.assertEqual(self.builds_on_start(), 1)
@@ -119,6 +120,29 @@ class BuildBoundary(unittest.TestCase):
         self.assertEqual(self.builds_on_start(), 1)
         self.assertTrue(CACHE.exists())
         self.assertEqual(self.builds_on_start(), 0)
+
+    def test_seeded_then_mirrors_raise_retries_next_start(self):
+        self.seed()
+        self.start()
+        raises = TokenError("unknown token")
+        with patch.object(
+            RuntimeStateManager, "reconcile_skin_mirrors", side_effect=raises
+        ):
+            self.follow(REAL)
+        self.assertEqual(COUNTS["ERROR"], self.errors + 1)
+        self.assertTrue(STATE.exists())
+        self.assertFalse(CACHE.exists())
+        self.assertEqual(self.builds_on_start(), 1)
+
+    def test_run_seeding_for_itself_retries_next_start(self):
+        self.seed()
+        raises = TokenError("unknown token")
+        with patch.object(REAL, "_process_builders", side_effect=raises):
+            with self.assertRaises(TokenError):
+                REAL().run()
+        self.assertTrue(STATE.exists())
+        self.assertFalse(CACHE.exists())
+        self.assertEqual(self.builds_on_start(), 1)
 
     def test_seeded_good_build_needs_no_extra_build(self):
         self.seed()

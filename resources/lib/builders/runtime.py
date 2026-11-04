@@ -7,6 +7,7 @@ holds references to ConfigsResolver and ControlsResolver. The resolvers
 themselves live in resolver.py; loading lives in templates.py.
 """
 
+import xbmcvfs
 from xbmc import executebuiltin
 
 import uuid
@@ -19,6 +20,7 @@ from resources.lib.builders.templates import load_template_data
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
+    RESOLVER_CACHE,
     RUNTIME_STATE,
     TEMPLATES,
     condition,
@@ -376,6 +378,9 @@ class RuntimeStateManager:
         if changed or not self.exists:
             merged = {**state, **changed}
             self._resolve_parent_refs(merged)
+            # This state won't seed again: with the cache gone, a build that fails
+            # after this point retries next start.
+            xbmcvfs.delete(RESOLVER_CACHE)
             self._write_and_invalidate(merged)
             seeded = True
         self.reconcile_skin_mirrors()

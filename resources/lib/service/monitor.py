@@ -5,7 +5,6 @@ import sys
 import time
 
 import xbmc
-import xbmcvfs
 
 from resources.lib.art.slideshow import Slideshow
 from resources.lib.builders.build_elements import BuildElements
@@ -17,7 +16,6 @@ from resources.lib.shared.speed_dial import release_refresh
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
-    RESOLVER_CACHE,
     condition,
     infolabel,
     reset_dev_state,
@@ -113,13 +111,11 @@ class Monitor(xbmc.Monitor):
         log.info(f"{self.__class__.__name__} → Inactive, skin left")
 
     def _builder_elements(self) -> None:
-        """Check the outputs; a failed build is logged and leaves them as they were."""
+        """Check the outputs; a failed build is logged and skips the reload."""
         try:
             self._check_outputs()
         except Exception:
-            log.exception(
-                f"{self.__class__.__name__} → Build failed, outputs unchanged"
-            )
+            log.exception(f"{self.__class__.__name__} → Build failed, no reload")
 
     def _check_outputs(self) -> None:
         """
@@ -145,10 +141,6 @@ class Monitor(xbmc.Monitor):
 
         build = BuildElements()
         seeded = build.runtime_manager.initialize_runtime_state()
-        if seeded:
-            # The state is saved now and won't seed again: a failed build retries
-            # next start only if the cache no longer reads as current.
-            xbmcvfs.delete(RESOLVER_CACHE)
         builders = [
             builder
             for builder, config in BUILDER_CONFIG.items()
