@@ -203,13 +203,13 @@ Use them when something outside the helper container's window needs the values, 
 to keep the last background on screen while the next one is processed.
 
 **Aborted calls hold the last values.** A call that stops early (its `visit` is no
-longer live, or the focus guard fails) returns one item whose `background`,
+longer live, the focus guard fails, or `multiart_target_key` no longer matches) returns one item whose `background`,
 `background_darken` and `icon_darken` art are these three properties as they stand,
 with `ListItem.Property(current)` = `held/<artwork_scope>/<prop_key>`. Kodi replaces a
 container's items with whatever a listing returns, so returning nothing would empty the list; the
 held item keeps its picture and darken until the next call lands. Its `current`
 never equals a cursor value, so currency checks stay false, and it carries no
-`previous`, `next` or position properties. These two checks come first, so a stale
+`previous`, `next` or position properties. The `visit` and focus guard checks come first, so a stale
 call returns the held item even with no image URL. A live call with no image URL
 still returns nothing.
 
