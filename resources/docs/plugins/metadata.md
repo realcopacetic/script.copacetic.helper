@@ -79,6 +79,8 @@ With `enrich_with_tmdb=true`, the TMDb fields listed under
 plot, tagline and trailer are kept where it has them (the trailer only if it is a file,
 with `prefer_tmdb_trailer=true`).
 
+`ListItem.Property(tmdb_trailers)` is the one TMDb field `metadata` doesn't return.
+
 The guard is checked before reading, after the TMDb lookup and before the item is
 returned.
 
@@ -221,7 +223,7 @@ letter that fits. Results are cached by the font's name, so after changing the f
 | `truncate_font` | a font name from your `Font.xml`, e.g. `description_l` | — | Font of the label. The helper reads its file and size from the first fontset in `16x9/Font.xml`. Required with `truncate_width`. A name that is not in `Font.xml` logs a warning and the text is returned uncut. |
 | `truncate_lines` | whole number | `3` | Most lines to keep. |
 | `truncate_label` | any text | — | Text to cut. |
-| `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). |
+| `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). It is read when the call starts, before any TMDb wait, so a label that follows the focus still gives this item's text. |
 | `truncate_probe` | `true`, `false`, a `DBType` such as `season` | `true` | `false`: every type but `album`, `artist` and `song` ignores `truncate_label_id` (below); a `DBType`: items of that type ignore it. |
 
 The text used is the first that is not empty: `truncate_label`, the label of
@@ -232,8 +234,8 @@ season overview when there is one) is cut; `false` for a favourite read with `ta
 whose caption may be its action text, so the returned plot (the library's, else TMDb's)
 is cut. Music keeps the label: an album's or artist's caption is its description.
 An item with no plot of its own skips the label whenever TMDb returned one, so TMDb's
-plot is cut directly; Copacetic's label is empty for such an item, or reads the last
-served plot, which can be another item's when neither has a DBID and their labels match.
+plot is cut directly. This matters when your label falls back to the last returned
+plot, which can be another item's.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=font_plot</content>
@@ -248,4 +250,4 @@ overflows, so a title that fits stays the skin's own label and doesn't change.
 | `truncate_title_width` | whole number (skin pixels) | `0` | Width of the title. `0` turns it off. |
 | `truncate_title_font` | a font name from your `Font.xml` | — | Font of the title. Required with `truncate_title_width`. |
 | `truncate_title_lines` | whole number | `3` | Most lines to keep. |
-| `truncate_title_id` | control id | — | The label control to read the title from. Required with `truncate_title_width`. |
+| `truncate_title_id` | control id | — | The label control to read the title from, when the call starts. Required with `truncate_title_width`. |
