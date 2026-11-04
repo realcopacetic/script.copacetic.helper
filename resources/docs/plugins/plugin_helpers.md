@@ -189,7 +189,7 @@ At every checkpoint, the helper verifies that at least one control in `focus_ids
 
 #### Custom identities — `identity_labels`
 
-When `CurrentItem` of one container isn't discriminating enough, declare the identity explicitly. `identity_labels` takes literal infolabel paths (no `$INFO[...]` wrapper — they must reach the helper unresolved); the helper reads each live and joins the values with `,`. The matching snapshot is built by joining the corresponding `$INFO[...]` expressions with `,` in `focus_guard`. The two sides never need parsing — they only need to be constructed the same way.
+When `CurrentItem` of one container isn't discriminating enough, declare the identity explicitly. `identity_labels` takes literal infolabel paths (no `$INFO[...]` wrapper — they must reach the helper unresolved); the helper reads each live and joins the values with `,`. The matching snapshot is built by joining the corresponding `$INFO[...]` expressions with `,` in `focus_guard`. The two sides never need parsing — they only need to be constructed the same way. If every label reads empty (a modal dialog on top answers for them), the identity check passes.
 
 #### Recipe: treating two containers as one
 

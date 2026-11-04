@@ -29,7 +29,7 @@ _KODI_STYLES = re.compile(
 )
 
 # Markdown's headings ("## v7.4.4", closing #s dropped) and "-" list lines
-_MD_HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)[ \t#]*$", re.MULTILINE)
+_MD_HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$", re.MULTILINE)
 _MD_BULLET = re.compile(r"^([ \t]*)-[ \t]+", re.MULTILINE)
 
 # Rendered pixels Kodi's last-glyph ink extent can add past its advance.
