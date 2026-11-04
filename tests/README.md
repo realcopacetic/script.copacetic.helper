@@ -24,6 +24,10 @@ python tests/soundtracks_offline.py
 # Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,
 # unless a tile has no other image free
 python tests/multiart_offline.py
+
+# Service build boundary (service/monitor.py): a build that raises is logged, and
+# the player monitor, slideshow and helper_active still start
+python tests/service_offline.py
 ```
 
 - `build_offline` stubs only the `xbmc*` calls the builders make; a new Kodi call fails loudly — add it to `install_stubs`. Any ERROR log line fails the build.
