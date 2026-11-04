@@ -68,6 +68,7 @@ from resources.lib.plugin.soundtracks import (
 )
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
+from resources.lib.shared.text import markdown_label
 from resources.lib.shared.utilities import (
     ADDON,
     condition,
@@ -570,6 +571,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return self._artwork_held()
 
+        # Read here, not passed in the URL: a "|" in the text would end Kodi's options
+        cleaned = (
+            {"clean_label": markdown_label(infolabel(label))}
+            if (label := self.params.get("clean_label"))
+            else {}
+        )
         # The window's own item has no position: no cursor stamp, no neighbours.
         current_position = (
             None
@@ -625,7 +632,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not jobs:
             log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
             # A dialog item with no art still lands, so the page isn't held back.
-            return set_items([{"file": plugin_path("artwork")}]) if self.item else None
+            return (
+                set_items([{"file": plugin_path("artwork"), "properties": cleaned}])
+                if self.item
+                else None
+            )
 
         image_processor = ImageEditor().image_processor
         art = image_processor(
@@ -748,7 +759,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         }
                         if current_position is not None
                         else {}
-                    ),
+                    )
+                    | cleaned,
                 }
             ]
         )
