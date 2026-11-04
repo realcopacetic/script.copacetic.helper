@@ -74,7 +74,9 @@ interrupted. In order:
    helper add-on, in its *Developers* category.
 
    If the build raises an exception, the service logs the traceback at error level,
-   doesn't reload, and carries on with the steps below on the XML already there.
+   doesn't reload, and carries on with the steps below on whatever XML is there. That
+   may be none after a first install or a skin update, which leaves the skin degraded
+   until a build succeeds. The next start tries again.
 2. The service attaches the player monitor, which handles playback from now on (see
    [Player properties](player.md) and [Play next](playnext.md)). It sets the
    [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties and,

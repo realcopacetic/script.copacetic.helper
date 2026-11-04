@@ -111,7 +111,11 @@ def install_stubs(
         getCurrentWindowDialogId=lambda: 9999,
         getCurrentWindowId=lambda: 10000,
     )
-    _module("xbmcvfs", translatePath=translate_path)
+    _module(
+        "xbmcvfs",
+        delete=lambda path: Path(path).unlink(missing_ok=True),
+        translatePath=translate_path,
+    )
     _module(
         "xbmcplugin",
         addSortMethod=None,
