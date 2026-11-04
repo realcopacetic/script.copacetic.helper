@@ -25,8 +25,9 @@ python tests/soundtracks_offline.py
 # unless a tile has no other image free
 python tests/multiart_offline.py
 
-# Service build boundary (service/monitor.py): a build that raises is logged, and
-# the player monitor, slideshow and helper_active still start
+# Service build boundary (service/monitor.py): a build that raises is logged, the
+# player monitor, slideshow and helper_active still start, and a failure after a
+# seed (builders/runtime.py) is retried next start
 python tests/service_offline.py
 ```
 
