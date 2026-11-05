@@ -61,8 +61,9 @@ interrupted. In order:
      otherwise get the reload inside the next *Keep this skin?* dialog, which a reload
      answers no. The wait gives up after a minute. If the user switched skin since
      the check began, the reload is dropped; if the skin started updating, it waits
-     for the next check. If nothing was written, the skin is not reloaded. The
-     output files are generated, not for editing: a hand edit lasts until the next
+     for the next check. A reload for a skin update first sets `helper_reloading` to
+     `reload`, so the skin can cover it; a start's reload is left to the skin's start-up
+     cover. If nothing was written, the skin is not reloaded. The output files are generated, not for editing: a hand edit lasts until the next
      full rebuild. Reinstalling the same version brings back the zip's factory
      files, and they stay until `action=rebuild` or a settings change rebuilds.
    - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`,

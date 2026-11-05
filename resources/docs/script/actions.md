@@ -291,7 +291,7 @@ editable lists and hosting — is in
 | `current_mapping` | The `mapping`. With `parent`, the name becomes `current_mapping_<parent>`. Cleared on close. |
 | `editor_label` | The window's `System.CurrentWindow` label when it opened. Set back to its earlier value on close. |
 | `host_exit_target` | You set this (to a window name) to leave a hosted window. The helper clears it. |
-| `helper_reloading` | `rebuild` while the builder outputs rebuild on close, then `reload` as the skin reload is sent (also in `rebuild` and `delete_orphans`), so the skin can cover both, for example with its splash. The skin clears it, once its window is ready after the reload; the helper clears it only when a failed rebuild means no reload follows. |
+| `helper_reloading` | `rebuild` while the builder outputs rebuild on close, then `reload` as the skin reload is sent (also in `rebuild` and `delete_orphans`, and `reload` alone when the service reloads for a skin update), so the skin can cover both, for example with its splash. The skin clears it, once its window is ready after the reload; the helper clears it only when a failed rebuild means no reload follows. |
 
 If the list is empty and it is an editable list, the Add dialog opens straight away.
 Cancel it and the window closes.
