@@ -145,8 +145,8 @@ class BuildElements:
     def run(self) -> bool:
         """
         Execute the build pipeline. Seeds missing runtime state mappings, runs
-        the selected builders, writes the outputs whose bytes changed, and
-        always refreshes the template cache.
+        the selected builders, writes the outputs whose bytes changed, then
+        refreshes the template cache. A failed write raises, leaving the cache.
 
         :return: True when any output file was written.
         """

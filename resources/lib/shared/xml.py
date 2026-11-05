@@ -96,14 +96,10 @@ class XMLHandler:
 
         :param data_dict: Dictionary to convert into XML elements.
         :param kwargs: Configuration arguments, including `transform_func`, `root_tag`, etc.
-        :return: True when the file was written, False when unchanged or failed.
+        :return: True when the file was written, False when unchanged.
         """
-        try:
-            tree = ET.ElementTree(kwargs["transform_func"](data_dict, **kwargs))
-            return self._save_xml(tree)
-        except Exception as e:
-            log.error(f"{self.__class__.__name__} → Unable to write XML --> {e}")
-            return False
+        tree = ET.ElementTree(kwargs["transform_func"](data_dict, **kwargs))
+        return self._save_xml(tree)
 
     def _read_xml(self):
         """
@@ -163,12 +159,8 @@ class XMLHandler:
             log.debug(f"{self.__class__.__name__} → XML file '{self.path}' unchanged")
             return False
         tmp_path = self.path.with_name(self.path.name + ".tmp")
-        try:
-            tmp_path.write_bytes(data)
-            os.replace(tmp_path, self.path)
-        except IOError as e:
-            log.error(f"{self.__class__.__name__} → Error updating XML file --> {e}")
-            return False
+        tmp_path.write_bytes(data)
+        os.replace(tmp_path, self.path)
         log.debug(
             f"{self.__class__.__name__} → XML file '{self.path}' updated successfully."
         )
