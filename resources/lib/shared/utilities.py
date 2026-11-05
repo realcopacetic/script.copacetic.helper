@@ -71,7 +71,10 @@ def reset_dev_state() -> None:
 
 
 def notify_build_failed() -> None:
-    """Show a failed build's toast, 8 s to outlast the start's splash (6 s, over it)."""
+    """
+    Show a failed build's toast, 8 s to outlast the start's splash (6 s, drawn over
+    toasts).
+    """
     Dialog().notification(
         ADDON.getLocalizedString(32000), ADDON.getLocalizedString(32215), time=8000
     )
