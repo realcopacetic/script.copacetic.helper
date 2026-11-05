@@ -61,9 +61,8 @@ def action(fn):
 def _rebuild() -> None:
     """
     Rebuild builder outputs under Window(home).Property(helper_reloading)=rebuild,
-    so the skin can cover the rebuild and the reload after it; the skin clears it
-    after the reload. A failed build clears it, as no reload follows, shows a toast
-    and raises.
+    so the skin can cover the rebuild and the reload after it, then clear it. No reload
+    follows a failed build, which clears it itself, shows a toast and raises.
     """
     from resources.lib.builders.build_elements import BuildElements
 

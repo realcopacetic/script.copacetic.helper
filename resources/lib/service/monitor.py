@@ -31,6 +31,8 @@ from resources.lib.shared.utilities import (
 ACTIVE_PROPERTY = "helper_active"
 # Token _settle posts through Kodi's builtin queue to see when the queue has run.
 SETTLE_PROPERTY = "helper_settle"
+# Time for the skin to draw helper_reloading's dots before ReloadSkin freezes the frame.
+RELOAD_COVER_SECS = 0.2
 
 
 class Monitor(xbmc.Monitor):
@@ -112,7 +114,7 @@ class Monitor(xbmc.Monitor):
         log.info(f"{self.__class__.__name__} → Inactive, skin left")
 
     def _builder_elements(self) -> None:
-        """Check the outputs; a failed build is logged and shown, and skips the reload."""
+        """Check the outputs; a failed build is logged, shown and skips the reload."""
         try:
             self._check_outputs()
         except Exception:
@@ -166,7 +168,7 @@ class Monitor(xbmc.Monitor):
         """
         Once Kodi has settled, ReloadSkin unless the skin switched since the check
         began (dropped) or started updating (deferred: reloading an unregistered skin
-        resets Kodi to the default one).
+        resets Kodi to the default one). A skin update raises the splash's dots first.
         """
         if not self._settle():
             return
@@ -178,8 +180,14 @@ class Monitor(xbmc.Monitor):
         self.reload_due = skin_version(path) != version
         if self.reload_due:
             log.info(f"{self.__class__.__name__} → Reload deferred, skin updating")
-        else:
-            xbmc.executebuiltin("ReloadSkin()")
+            return
+        # No monitors yet: a start, already under Startup.xml's splash and its blur.
+        # Otherwise the dots need a frame drawn, as ReloadSkin holds the last one.
+        if self.player_monitor:
+            window_property("helper_reloading", value="reload")
+            if self.waitForAbort(RELOAD_COVER_SECS):
+                return
+        xbmc.executebuiltin("ReloadSkin()")
 
     def _settle(self) -> bool:
         """

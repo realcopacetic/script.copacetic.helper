@@ -236,6 +236,54 @@ class BuildBoundary(unittest.TestCase):
         self.assertEqual(self.builds_on_start(), 1)
 
 
+class ServiceReload(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(window_property, "helper_reloading")
+        self.service = monitor.Monitor()
+        self.service.skin = "skin", "1"
+        self.service._settle = Mock(return_value=True)
+        self.service.waitForAbort = Mock(return_value=False)
+        for patcher in (
+            patch.object(monitor, "skin_path", lambda: "skin"),
+            patch.object(monitor, "skin_version", lambda path: "1"),
+            patch.object(monitor.xbmc, "executebuiltin"),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def reloading(self):
+        return sys.modules["xbmcgui"].Window().getProperty("helper_reloading")
+
+    def test_skin_update_raises_the_dots_and_waits_before_reloading(self):
+        self.service.player_monitor = Mock()
+        seen = []
+        monitor.xbmc.executebuiltin.side_effect = lambda action: seen.append(
+            (action, self.reloading(), self.service.waitForAbort.call_count)
+        )
+        self.service._reload()
+        self.assertEqual(seen, [("ReloadSkin()", "reload", 1)])
+
+    def test_start_leaves_the_property_to_the_start_splash(self):
+        self.service._reload()
+        self.assertEqual(self.reloading(), "")
+        self.service.waitForAbort.assert_not_called()
+        monitor.xbmc.executebuiltin.assert_called_once_with("ReloadSkin()")
+
+    def test_deferred_reload_raises_nothing(self):
+        self.service.player_monitor = Mock()
+        self.service.skin = "skin", "0"
+        self.service._reload()
+        self.assertTrue(self.service.reload_due)
+        self.assertEqual(self.reloading(), "")
+        monitor.xbmc.executebuiltin.assert_not_called()
+
+    def test_kodi_exiting_during_the_wait_sends_no_reload(self):
+        self.service.player_monitor = Mock()
+        self.service.waitForAbort.return_value = True
+        self.service._reload()
+        monitor.xbmc.executebuiltin.assert_not_called()
+
+
 class RebuildSplash(unittest.TestCase):
     def reloading(self):
         return sys.modules["xbmcgui"].Window().getProperty("helper_reloading")
