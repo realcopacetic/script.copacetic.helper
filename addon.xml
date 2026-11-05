@@ -50,7 +50,7 @@
       <icon>resources/icon.png</icon>
       <fanart>resources/fanart.jpg</fanart>
     </assets>
-    <summary lang="en_GB">Extend the power of Copacetic</summary>
-    <description lang="en_GB">Helper script for the skin Copacetic.[CR][CR]This product uses the TMDB API but is not endorsed or certified by TMDB (https://www.themoviedb.org).</description>
+    <summary lang="en_GB">The engine behind the Copacetic 2 skin.</summary>
+    <description lang="en_GB">Copacetic Helper powers the Copacetic 2 skin. It builds the skin's layouts from your settings, prepares artwork such as blurred backgrounds, adds extra library listings, and looks after trailers, play next and the background slideshow.[CR][CR]Add your own TMDB and ListenBrainz tokens in the settings for extra art, trailers, top songs and more. Leave them empty and the helper makes no calls to either service.[CR][CR]Skin developers can use it in their own skins: guides are in the add-on's resources/docs folder.[CR][CR]This product uses the TMDB API but is not endorsed or certified by TMDB (https://www.themoviedb.org).</description>
   </extension>
 </addon>
