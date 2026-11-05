@@ -22,7 +22,7 @@ The editor looks up each control by its `id` in your window XML. If the XML cont
 
 Check, in order: the template names a known `control_type` (missing or unknown → the control is skipped); the `id` matches between template and XML; the `control_type` matches the XML control type; for a `sliderex`, the companion button exists at the slider id + a trailing `0` (202 → 2020).
 
-Edited a controls file and the window still shows the old shape? The editor reads templates from the resolver cache, refreshed by every build — run `action=rebuild` (dev mode does this on every start).
+Edited a controls file and the window still shows the old shape? The editor reads templates from the resolver cache, refreshed by every successful build — run `action=rebuild` (dev mode does this on every start).
 
 If the control exists but is *hidden*, its `visible` condition is false for the highlighted row — check its tokens against that entry's actual settings.
 
