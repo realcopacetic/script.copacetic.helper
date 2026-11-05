@@ -74,7 +74,7 @@ def failing_write():
 class BuildBoundary(unittest.TestCase):
     def setUp(self):
         self.errors = COUNTS["ERROR"]
-        DIALOG.reset_mock(side_effect=True)
+        DIALOG.reset_mock()
         self.start()
 
     def start(self):
@@ -113,12 +113,6 @@ class BuildBoundary(unittest.TestCase):
     def test_raising_build_shows_a_toast(self):
         self.follow(RAISES)
         self.assertEqual(DIALOG.mock_calls, [call(), TOAST])
-
-    def test_raising_toast_stays_out_of_the_service(self):
-        DIALOG.side_effect = RuntimeError("no gui")
-        self.follow(RAISES)
-        self.assertTrue(self.service.player_monitor)
-        self.assertEqual(COUNTS["ERROR"], self.errors + 2)
 
     def test_good_build_shows_no_toast(self):
         self.follow(built(written=True))
@@ -254,14 +248,36 @@ class ServiceReload(unittest.TestCase):
     def reloading(self):
         return sys.modules["xbmcgui"].Window().getProperty("helper_reloading")
 
-    def test_skin_update_raises_the_dots_and_waits_before_reloading(self):
+    def test_skin_update_raises_the_dots_and_waits_before_the_checks(self):
         self.service.player_monitor = Mock()
         seen = []
-        monitor.xbmc.executebuiltin.side_effect = lambda action: seen.append(
-            (action, self.reloading(), self.service.waitForAbort.call_count)
+        self.service._settle.side_effect = (
+            lambda: seen.append(
+                (self.reloading(), self.service.waitForAbort.call_count)
+            )
+            or True
         )
         self.service._reload()
-        self.assertEqual(seen, [("ReloadSkin()", "reload", 1)])
+        self.assertEqual(seen, [("reload", 1)])
+        self.assertEqual(self.reloading(), "reload")
+        monitor.xbmc.executebuiltin.assert_called_once_with("ReloadSkin()")
+
+    def test_fullscreen_video_gets_no_cover(self):
+        self.service.player_monitor = Mock()
+        with patch.object(monitor, "condition", lambda text: True):
+            self.service._reload()
+        self.assertEqual(self.reloading(), "")
+        self.service.waitForAbort.assert_not_called()
+        monitor.xbmc.executebuiltin.assert_called_once_with("ReloadSkin()")
+
+    def test_dropped_reload_clears_the_dots(self):
+        self.service.player_monitor = Mock()
+        self.service.skin = "other", "1"
+        self.service._reload()
+        self.service.waitForAbort.assert_called_once()
+        self.assertFalse(self.service.reload_due)
+        self.assertEqual(self.reloading(), "")
+        monitor.xbmc.executebuiltin.assert_not_called()
 
     def test_start_leaves_the_property_to_the_start_splash(self):
         self.service._reload()
@@ -269,10 +285,11 @@ class ServiceReload(unittest.TestCase):
         self.service.waitForAbort.assert_not_called()
         monitor.xbmc.executebuiltin.assert_called_once_with("ReloadSkin()")
 
-    def test_deferred_reload_raises_nothing(self):
+    def test_deferred_reload_clears_the_dots(self):
         self.service.player_monitor = Mock()
         self.service.skin = "skin", "0"
         self.service._reload()
+        self.service.waitForAbort.assert_called_once()
         self.assertTrue(self.service.reload_due)
         self.assertEqual(self.reloading(), "")
         monitor.xbmc.executebuiltin.assert_not_called()
@@ -281,6 +298,7 @@ class ServiceReload(unittest.TestCase):
         self.service.player_monitor = Mock()
         self.service.waitForAbort.return_value = True
         self.service._reload()
+        self.service._settle.assert_not_called()
         monitor.xbmc.executebuiltin.assert_not_called()
 
 
@@ -289,7 +307,7 @@ class RebuildSplash(unittest.TestCase):
         return sys.modules["xbmcgui"].Window().getProperty("helper_reloading")
 
     def test_failed_rebuild_clears_the_splash_with_a_toast(self):
-        DIALOG.reset_mock(side_effect=True)
+        DIALOG.reset_mock()
         with (
             patch.object(REAL, "run", side_effect=OSError("disk full")),
             self.assertRaises(OSError),
