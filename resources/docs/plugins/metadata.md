@@ -73,8 +73,6 @@ With `enrich_with_tmdb=true`, the [TMDb fields](#tmdb-fields) are added too (art
 plot, tagline and trailer are kept where it has them (the trailer only if it is a file,
 with `prefer_tmdb_trailer=true`).
 
-`ListItem.Property(tmdb_trailers)` is the one TMDb field `metadata` doesn't return.
-
 The guard is checked before reading, after the TMDb lookup and before the item is
 returned.
 
@@ -133,7 +131,6 @@ With `enrich_with_tmdb=true`, these come from TMDb:
 | `ListItem.Duration` | runtime | — | — |
 | `ListItem.Writer` | — | creators | — |
 | `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path: trailers, then teasers, then other video types; official over unofficial; then the newest | same | — |
-| `ListItem.Property(tmdb_trailers)` | every trailer of that best rank, newest first, joined by ` \| ` | same | — |
 | `ListItem.Property(tmdb_budget)` | budget | — | — |
 | `ListItem.Property(tmdb_revenue)` | revenue | — | — |
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |
@@ -143,11 +140,16 @@ With `tmdb_art=true`, TMDb's image lists are cached with these numbered art keys
 
 | Art keys | Source | Most |
 |---|---|---|
-| `poster1…` | posters in your language | 10 |
+| `poster`, `poster1…` | posters in your language | 10 |
 | `keyart`, `keyart1…` | posters with no language | 10 |
-| `fanart1…` | backdrops with no language | 10 |
+| `fanart`, `fanart1…` | backdrops with no language | 10 |
 | `landscape`, `landscape1…` | backdrops in your language | 10 |
 | `clearlogo`, `clearlogo1…` | logos in your language, else logos with no language | 5 |
+
+Backdrops must be exactly 16:9 at 1920×1080 or larger and posters exactly 2:3 at
+1000×1500 or larger; others are left out. TMDb's main poster and backdrop follow the
+same rule when they are in the lists, and stay first when they aren't (so `poster` or
+`fanart` can then lead 10 more).
 
 Results are cached for 7 days, an id TMDb doesn't know for a day, a "too many
 requests" answer for as long as TMDb asks, and any other failed request (offline,
