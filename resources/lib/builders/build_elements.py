@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import xbmcvfs
+
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.runtime import RuntimeStateManager
 from resources.lib.builders.templates import (
@@ -12,6 +14,7 @@ from resources.lib.builders.templates import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import (
+    RESOLVER_CACHE,
     TEMPLATES,
     RUNTIME_STATE,
     skin_path,
@@ -144,12 +147,13 @@ class BuildElements:
     @log.duration
     def run(self) -> bool:
         """
-        Execute the build pipeline. Seeds missing runtime state mappings, runs
-        the selected builders, writes the outputs whose bytes changed, then
-        refreshes the template cache. A failed write raises, leaving the cache.
+        Execute the build pipeline. Drops the template cache, so a failed build
+        retries next start; seeds missing state mappings, runs the selected builders,
+        writes the outputs whose bytes changed, then writes the cache back.
 
         :return: True when any output file was written.
         """
+        xbmcvfs.delete(RESOLVER_CACHE)
         self.runtime_manager.initialize_runtime_state()
         values_to_write = self._process_builders()
 
