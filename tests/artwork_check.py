@@ -18,6 +18,7 @@ import tempfile
 import time
 import zlib
 from pathlib import Path
+from typing import Any, Callable
 
 from build_offline import HELPER, install_stubs
 from PIL import Image, ImageChops, ImageDraw, ImageFont
@@ -220,8 +221,57 @@ def main() -> None:
         ok = got == want and serve(params)[0] == art  # the second serve is the cache's
         failures += not ok
         print(f"{'ok  ' if ok else 'FAIL'} shape {name:12} {got}")
+    failures += check_rekey(tmp, serve, ImageEditor())
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
+
+
+def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
+    """
+    An opaque .png Kodi caches as .jpg: rows keyed by URL rekey once to the copy's
+    hash, old rows and files go, and an updated copy re-measures.
+
+    :param tmp: Scratch root for the source.
+    :param serve: Runs a serve from its params; returns (art, ms).
+    :param editor: ImageEditor, for the cache's rows and the copy's path.
+    :return: True when a check failed.
+    """
+    img = Image.new("RGB", (480, 720))
+    noise(img, None)
+    img.save(path := str(tmp / "opaque.png"))
+    params = {"icon_url": path, "icon_shape": "true", **STRIP}
+    manager = editor.cache_manager
+    copy = manager.prepare(path, ".jpg").cached_image_path
+
+    def rows_keyed_by(prefix: str, processes: tuple[str, ...]) -> bool:
+        """One row per process, its key starting with prefix."""
+        rows = [editor.sqlite.find_variants(path, p) for p in processes]
+        return all(
+            len(found) == 1 and found[0]["cache_key"].startswith(prefix)
+            for found in rows
+        )
+
+    processes = "blur", "darken", "shape", "band"
+    old = serve(params)[0]
+    ok = rows_keyed_by(path, processes)
+
+    copy.parent.mkdir(parents=True, exist_ok=True)
+    img.save(copy, quality=95)
+    ctx = manager.prepare(path, ".png")
+    ok &= ctx.cached_image_path == copy and ctx.cached_thumb == copy.name
+    new = serve(params)[0]
+    ok &= rows_keyed_by(ctx.cached_file_hash, processes)
+    for art in ("icon", "icon_band"):
+        ok &= new[art] != old[art] and not os.path.exists(old[art])
+        ok &= os.path.exists(new[art])
+
+    img.resize((240, 360)).save(copy, quality=95)
+    updated = serve(params)[0]
+    ctx = manager.prepare(path, ".png")
+    ok &= (updated["icon_width"], updated["icon_opaque"]) == (240, 1)
+    ok &= rows_keyed_by(ctx.cached_file_hash, processes[:3])
+    print(f"{'ok  ' if ok else 'FAIL'} rekey: URL rows to the .jpg copy's hash, once")
+    return not ok
 
 
 def solid(band: Image.Image, rect: tuple[int, int, int, int]) -> bool:
