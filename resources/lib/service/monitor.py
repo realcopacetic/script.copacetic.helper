@@ -18,6 +18,7 @@ from resources.lib.shared.utilities import (
     ADDON,
     condition,
     infolabel,
+    notify_build_failed,
     reset_dev_state,
     skin_path,
     skin_uses_builder,
@@ -111,11 +112,12 @@ class Monitor(xbmc.Monitor):
         log.info(f"{self.__class__.__name__} → Inactive, skin left")
 
     def _builder_elements(self) -> None:
-        """Check the outputs; a failed build is logged and skips the reload."""
+        """Check the outputs; a failed build is logged and shown, and skips the reload."""
         try:
             self._check_outputs()
         except Exception:
             log.exception(f"{self.__class__.__name__} → Build failed, no reload")
+            notify_build_failed()
 
     def _check_outputs(self) -> None:
         """

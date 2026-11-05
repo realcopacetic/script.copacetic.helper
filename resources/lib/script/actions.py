@@ -27,6 +27,7 @@ from resources.lib.shared.utilities import (
     container_position,
     infolabel,
     json_call,
+    notify_build_failed,
     play_files,
     reset_dev_state,
     skin_path,
@@ -61,7 +62,8 @@ def _rebuild() -> None:
     """
     Rebuild builder outputs under Window(home).Property(helper_reloading)=rebuild,
     so the skin can cover the rebuild and the reload after it; the skin clears it
-    after the reload. A failed build raises with it cleared, as no reload follows.
+    after the reload. A failed build clears it, as no reload follows, shows a toast
+    and raises.
     """
     from resources.lib.builders.build_elements import BuildElements
 
@@ -70,6 +72,7 @@ def _rebuild() -> None:
         BuildElements().run()
     except Exception:
         window_property("helper_reloading")
+        notify_build_failed()
         raise
 
 

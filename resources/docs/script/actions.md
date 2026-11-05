@@ -663,7 +663,8 @@ Example: like and unlike the playing song from a button in the music OSD:
 
 Rebuilds all builder output (includes, variables, expressions), adds entries for any
 new mappings, refreshes the resolver cache and reloads the skin. User settings are
-kept unless you ask for a reset. A notification confirms it. The rebuild sets
+kept unless you ask for a reset. A notification confirms it, or says the build failed,
+with no reload; the next start tries again. The rebuild sets
 [`helper_reloading`](#dynamic_settings_window), so the skin can cover it. See [Runtime State →
 Reset vs rebuild](../builders/09-runtime-state.md#reset-vs-rebuild).
 

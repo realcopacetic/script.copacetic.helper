@@ -70,6 +70,19 @@ def reset_dev_state() -> None:
     log.info(f"reset_dev_state → outputs and runtime_state cleared")
 
 
+def notify_build_failed() -> None:
+    """
+    Show a failed build's toast, 8 s to outlast the start's splash (6 s at most, drawn
+    over toasts). Its caller is already handling the failure, so this never raises.
+    """
+    try:
+        Dialog().notification(
+            ADDON.getLocalizedString(32000), ADDON.getLocalizedString(32215), time=8000
+        )
+    except Exception:
+        log.exception("notify_build_failed: toast not shown")
+
+
 """KODI UTILS"""
 
 
