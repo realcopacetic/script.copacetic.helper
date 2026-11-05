@@ -213,15 +213,19 @@ def plain_text(text: str) -> str:
     return _KODI_STYLES.sub("", text)
 
 
-def markdown_label(text: str) -> str:
+def markdown_label(text: str, heading_color: str | None = None) -> str:
     """Markdown as a Kodi label: headings bold, "-" list lines "•", lines joined by
     [CR]. Inline markdown stays as written.
 
     :param text: Text as an infolabel returns it, e.g. ListItem.AddonNews.
+    :param heading_color: Kodi colour for headings, by name or hex.
     :return: The label, with no blank line at either end.
     """
+    heading = r"[B]\1[/B]"
+    if heading_color:
+        heading = rf"[COLOR {heading_color}]{heading}[/COLOR]"
     text = "\n".join(text.replace("[CR]", "\n").splitlines())
-    text = _MD_BULLET.sub(r"\1• ", _MD_HEADING.sub(r"[B]\1[/B]", text))
+    text = _MD_BULLET.sub(r"\1• ", _MD_HEADING.sub(heading, text))
     return text.strip().replace("\n", "[CR]")
 
 

@@ -573,7 +573,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         # Read here, not passed in the URL: a "|" in the text would end Kodi's options
         cleaned = (
-            {"clean_label": markdown_label(infolabel(label))}
+            {
+                "clean_label": markdown_label(
+                    infolabel(label), self.params.get("clean_label_color")
+                )
+            }
             if (label := self.params.get("clean_label"))
             else {}
         )
