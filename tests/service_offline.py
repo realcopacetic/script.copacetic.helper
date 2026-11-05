@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from build_offline import HELPER, _module, install_stubs
 
@@ -23,6 +23,7 @@ MAPPINGS.mkdir(parents=True)
     '{"test": {"mode": "dynamic", "items": ["row"]}}'
 )
 sys.modules["xbmc"].Monitor = type("Monitor", (), {"abortRequested": lambda self: True})
+DIALOG = sys.modules["xbmcgui"].Dialog = Mock()
 _module("resources.lib.art.slideshow", Slideshow=Mock)
 _module("resources.lib.service.player", PlayerMonitor=Mock)
 sys.path.insert(0, str(HELPER))
@@ -41,6 +42,8 @@ from resources.lib.shared.xml import XMLHandler  # noqa: E402
 CACHE, STATE = Path(RESOLVER_CACHE), Path(RUNTIME_STATE)
 RAISES = Mock(side_effect=TokenError("unknown token"))
 REAL = monitor.BuildElements
+monitor.ADDON.getLocalizedString = str
+TOAST = call().notification("32000", "32215", time=8000)
 
 
 def built(written: bool) -> Mock:
@@ -71,6 +74,7 @@ def failing_write():
 class BuildBoundary(unittest.TestCase):
     def setUp(self):
         self.errors = COUNTS["ERROR"]
+        DIALOG.reset_mock(side_effect=True)
         self.start()
 
     def start(self):
@@ -105,6 +109,20 @@ class BuildBoundary(unittest.TestCase):
         self.assertIs(self.service.player_monitor, player_monitor)
         self.assertEqual(COUNTS["ERROR"], self.errors + 1)
         self.service._reload.assert_not_called()
+
+    def test_raising_build_shows_a_toast(self):
+        self.follow(RAISES)
+        self.assertEqual(DIALOG.mock_calls, [call(), TOAST])
+
+    def test_raising_toast_stays_out_of_the_service(self):
+        DIALOG.side_effect = RuntimeError("no gui")
+        self.follow(RAISES)
+        self.assertTrue(self.service.player_monitor)
+        self.assertEqual(COUNTS["ERROR"], self.errors + 2)
+
+    def test_good_build_shows_no_toast(self):
+        self.follow(built(written=True))
+        DIALOG.assert_not_called()
 
     def test_kodi_stop_is_not_caught(self):
         with self.assertRaises(SystemExit):
@@ -222,13 +240,15 @@ class RebuildSplash(unittest.TestCase):
     def reloading(self):
         return sys.modules["xbmcgui"].Window().getProperty("helper_reloading")
 
-    def test_failed_rebuild_clears_the_splash(self):
+    def test_failed_rebuild_clears_the_splash_with_a_toast(self):
+        DIALOG.reset_mock(side_effect=True)
         with (
             patch.object(REAL, "run", side_effect=OSError("disk full")),
             self.assertRaises(OSError),
         ):
             actions._rebuild()
         self.assertEqual(self.reloading(), "")
+        self.assertEqual(DIALOG.mock_calls, [call(), TOAST])
 
     def test_good_rebuild_keeps_the_splash(self):
         self.addCleanup(window_property, "helper_reloading")

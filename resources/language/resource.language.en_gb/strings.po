@@ -287,6 +287,11 @@ msgctxt "#32214"
 msgid "ListenBrainz test failed — check token and network"
 msgstr ""
 
+#: /resources/lib/shared/utilities.py
+msgctxt "#32215"
+msgid "Skin build failed — check the log"
+msgstr ""
+
 
 
 
