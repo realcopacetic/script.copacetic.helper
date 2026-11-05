@@ -61,10 +61,12 @@ interrupted. In order:
      otherwise get the reload inside the next *Keep this skin?* dialog, which a reload
      answers no. The wait gives up after a minute. If the user switched skin since
      the check began, the reload is dropped; if the skin started updating, it waits
-     for the next check. A reload for a skin update first sets `helper_reloading` to
-     `reload`, so the skin can cover it; a start's reload is left to the skin's start-up
-     cover. If nothing was written, the skin is not reloaded. The output files are generated, not for editing: a hand edit lasts until the next
-     full rebuild. Reinstalling the same version brings back the zip's factory
+     for the next check. For a skin update it first sets `helper_reloading` to
+     `reload`, so the skin can cover the reload, and clears it if the reload is dropped
+     or postponed. It doesn't set it during fullscreen video, or on a start, a switch
+     into the skin or a helper restart. If nothing was written, the skin is not
+     reloaded. The output files are generated, not for editing: a hand edit lasts until
+     the next full rebuild. Reinstalling the same version brings back the zip's factory
      files, and they stay until `action=rebuild` or a settings change rebuilds.
    - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`,
      waiting, dropped or postponed as above. If *Reset on next start* is also on, it
@@ -75,9 +77,9 @@ interrupted. In order:
    helper add-on, in its *Developers* category.
 
    If the build raises an exception, the service logs the traceback at error level,
-   shows a notification, doesn't reload, and carries on with the steps below on whatever XML is there. That
-   may be none after a first install or a skin update, which leaves the skin degraded
-   until a build succeeds. The next start tries again.
+   shows a notification, doesn't reload, and carries on with the steps below on
+   whatever XML is there. That may be none after a first install or a skin update,
+   which leaves the skin degraded until a build succeeds. The next start tries again.
 2. The service attaches the player monitor, which handles playback from now on (see
    [Player properties](player.md) and [Play next](playnext.md)). It sets the
    [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties and,

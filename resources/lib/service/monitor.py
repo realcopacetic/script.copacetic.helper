@@ -170,24 +170,30 @@ class Monitor(xbmc.Monitor):
         began (dropped) or started updating (deferred: reloading an unregistered skin
         resets Kodi to the default one). A skin update raises the splash's dots first.
         """
+        # No monitors: a start, a switch in or a helper restart, each left as it was.
+        # Nor over a film. The dots need a frame drawn: ReloadSkin holds the last one.
+        covered = self.player_monitor and not condition(
+            "Window.IsActive(fullscreenvideo)"
+        )
+        if covered:
+            window_property("helper_reloading", value="reload")
+            if self.waitForAbort(RELOAD_COVER_SECS):
+                return
         if not self._settle():
             return
         path, version = self.skin
         if skin_path() != path:
             self.reload_due = False
             log.info(f"{self.__class__.__name__} → Reload dropped, skin switched")
-            return
-        self.reload_due = skin_version(path) != version
-        if self.reload_due:
+        elif skin_version(path) != version:
+            self.reload_due = True
             log.info(f"{self.__class__.__name__} → Reload deferred, skin updating")
+        else:
+            self.reload_due = False
+            xbmc.executebuiltin("ReloadSkin()")
             return
-        # No monitors yet: a start, already under Startup.xml's splash and its blur.
-        # Otherwise the dots need a frame drawn, as ReloadSkin holds the last one.
-        if self.player_monitor:
-            window_property("helper_reloading", value="reload")
-            if self.waitForAbort(RELOAD_COVER_SECS):
-                return
-        xbmc.executebuiltin("ReloadSkin()")
+        if covered:
+            window_property("helper_reloading")
 
     def _settle(self) -> bool:
         """
