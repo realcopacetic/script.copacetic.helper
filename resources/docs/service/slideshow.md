@@ -32,9 +32,17 @@ have no visible effect.
 | `slideshow_darken` | Darken percentage, `0`–`100` | Cleared when the slide has no darken value. Only set when `slideshow_artwork_params` has `background_darken=true` (see [Processing options](#processing-options)). |
 | `slideshow_clearlogo` | Path to the cropped clearlogo (PNG) | Cleared when the item has no clearlogo. Uses `clearlogo-billboard` art first, then `clearlogo`. |
 | `slideshow_title` | The item's label | Cleared when the item has no label. |
+| `slideshow_clearlogo_a`, `slideshow_clearlogo_b` | As `slideshow_clearlogo`, in alternating slots | Each slide writes one slot and leaves the other holding the slide before. |
+| `slideshow_title_a`, `slideshow_title_b` | As `slideshow_title`, in alternating slots | As above. |
+| `slideshow_slot` | `a` or `b`: the slot the current slide wrote | Written last, after the slot. |
 
-All five are written together for each slide. If the source returns nothing, no new
+All of them are written together for each slide. If the source returns nothing, no new
 slide is published and the last slide stays.
+
+The slots are for a skin that animates the logo out and the next one in: a property a
+skin reads can't keep its old value, so the outgoing logo needs its own. Show each
+slot while `slideshow_slot` names it, and its `Visible` and `Hidden` animations play
+on every slide, with no other trigger (see [Showing the slideshow](#showing-the-slideshow)).
 
 ## Skin settings read
 
@@ -156,6 +164,28 @@ The sharp fanart, with a clearlogo on top:
   <aspectratio aligny="bottom">keep</aspectratio>
   <texture background="true">$INFO[Window(home).Property(slideshow_clearlogo)]</texture>
   <fadetime>900</fadetime>
+</control>
+```
+
+A clearlogo that animates out as the next one comes in, one group per slot (the
+other slot is the same with `b`):
+
+```xml
+<control type="group">
+  <visible>String.IsEqual(Window(home).Property(slideshow_slot),a)</visible>
+  <animation effect="fade" end="0" time="300">Hidden</animation>
+  <animation type="Visible">
+    <effect type="fade" start="0" end="100" time="600" delay="300" />
+    <effect type="slide" start="0,-10" end="0,0" time="225" delay="375" />
+  </animation>
+  <left>120</left>
+  <top>860</top>
+  <control type="image">
+    <width>600</width>
+    <height>160</height>
+    <aspectratio aligny="bottom">keep</aspectratio>
+    <texture>$INFO[Window(home).Property(slideshow_clearlogo_a)]</texture>
+  </control>
 </control>
 ```
 

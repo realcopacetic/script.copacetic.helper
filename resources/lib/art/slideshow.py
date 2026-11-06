@@ -22,6 +22,11 @@ PROPS = (
     "slideshow_clearlogo",
     "slideshow_title",
     "slideshow_darken",
+    "slideshow_slot",
+    "slideshow_clearlogo_a",
+    "slideshow_title_a",
+    "slideshow_clearlogo_b",
+    "slideshow_title_b",
 )
 
 
@@ -29,7 +34,8 @@ class Slideshow:
     """
     Global background slideshow. Publishes one canonical prop set per slide
     (sharp fanart, blurred fanart, cropped clearlogo, title) on a fixed
-    interval; all transition presentation is owned by the skin.
+    interval, plus the clearlogo and title in alternating slots; all
+    transition presentation is owned by the skin.
     """
 
     BATCH_SIZE = 20
@@ -49,6 +55,7 @@ class Slideshow:
         self.seen = set()
         self.profile = None
         self.next_slide_at = 0.0
+        self.slot = "b"
 
     def tick(self) -> None:
         """Publish the next slide on interval lapse or profile change."""
@@ -275,13 +282,15 @@ class Slideshow:
 
     def _publish(self, slide: dict) -> None:
         """
-        Write the slide to window props. clearlogo may be None, which
-        clears the prop via window_property's falsy handling.
+        Write the slide to window props, then its clearlogo and title to the idle
+        slot and flip slideshow_slot to it last, so the skin still holds the
+        outgoing pair. Falsy values clear their prop.
 
         :param slide: Slide dict from _process().
         """
-        window_property("slideshow_fanart", value=slide["fanart"])
-        window_property("slideshow_blur", value=slide["blur"])
-        window_property("slideshow_darken", value=slide["darken"])
-        window_property("slideshow_clearlogo", value=slide["clearlogo"])
-        window_property("slideshow_title", value=slide["title"])
+        self.slot = "a" if self.slot == "b" else "b"
+        for key in ("fanart", "blur", "darken", "clearlogo", "title"):
+            window_property(f"slideshow_{key}", value=slide[key])
+        for key in ("clearlogo", "title"):
+            window_property(f"slideshow_{key}_{self.slot}", value=slide[key])
+        window_property("slideshow_slot", value=self.slot)
