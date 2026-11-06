@@ -1471,16 +1471,16 @@ class ProgressbarTest(unittest.TestCase):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
         show["Property(WatchedEpisodes)"] = "9"
         moved = mock.Mock()
-        for checks in (
-            [True, False],  # before the move
-            [True, True, False],  # after it
+        bare = {"unwatchedepisodes": "4"}  # a show: time_left ""
+        for checks, expected in (
+            ([True, False], bare),  # before the move: no identity, values may be B's
+            ([True, True, False], bare | {"dbid": "7", "dbtype": "tvshow"}),  # after
         ):
             self.alive = iter(checks).__next__
             with mock.patch.object(helpers.ProgressBarManager, "update", moved):
                 properties = self.prop_all(**show)
             shown = {key: value for key, value in properties.items() if value}
-            bare = {"dbid": "7", "dbtype": "tvshow", "unwatchedepisodes": "4"}
-            self.assertEqual(shown, bare)  # a show: time_left ""
+            self.assertEqual(shown, expected)
             self.assertEqual(self.calls, [])
         self.alive = iter([True, True, True]).__next__  # no check after the move's
         self.assertEqual(self.prop("new", **show), "true")

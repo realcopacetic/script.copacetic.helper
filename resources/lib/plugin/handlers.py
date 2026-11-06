@@ -993,17 +993,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 if secs
                 else {"position": resume, "total": 100}
             ),
-            # The measured item, so a skin keeps this one while the next serve loads;
-            # as properties: an info tag DBID would make Kodi load its library art
-            "properties": {
-                "dbid": pb.infolabels["DBID"],
-                "dbtype": pb.infolabels["DBType"],
-                "unwatchedepisodes": str(unwatched),
-            },
+            "properties": {"unwatchedepisodes": str(unwatched)},
         }
 
         if not guard.alive():
             return set_items([item], tag_applier=apply_videoinfotag)
+        # Focus held while the values were read: name the item, so a skin keeps it
+        # while the next serve loads. Properties: an info tag DBID loads library art
+        item["properties"] |= {
+            "dbid": pb.infolabels["DBID"],
+            "dbtype": pb.infolabels["DBType"],
+        }
 
         pb.update(
             percent=resume,
