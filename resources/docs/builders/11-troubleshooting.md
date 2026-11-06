@@ -46,6 +46,14 @@ The config resolved to one value or none. Usual causes:
 
 ---
 
+## "A notification says the skin build failed"
+
+*Skin build failed — check the log* means a build raised an exception: a template error (see the sections below), or an output file that can't be written. The skin isn't reloaded, and it keeps whatever generated files are there. The traceback is in `kodi.log`.
+
+Fix the cause, then run `action=rebuild`. Otherwise the next start tries again and rebuilds everything, because a failed build leaves no resolver cache.
+
+---
+
 ## "The build stops with a config error"
 
 `include-mode config '…' matched no items … add a 'true' catch-all rule` — include mode keeps *only* what rules match, and for at least one item no rule matched. Add a last rule with `"condition": "true"` listing the values that should survive otherwise.

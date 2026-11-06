@@ -90,6 +90,8 @@ Include each one once from your skin. The addon also keeps two files in its own 
 
 "Everything" means all three output files and the resolver cache. The start-up check runs each time your skin becomes active.
 
+If a build fails, no `ReloadSkin()` follows and a notification appears. See [Troubleshooting](11-troubleshooting.md#a-notification-says-the-skin-build-failed).
+
 ---
 
 ## Working on your skin
