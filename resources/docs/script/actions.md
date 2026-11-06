@@ -535,7 +535,7 @@ Clears the playlists and plays an album from the music library, in order.
 Clears the playlists, queues the song's whole album in disc and track order, and
 starts playing at that song. Kodi's shuffle is turned off, so the album plays in
 order. If the song is not in the library, nothing changes: what was playing carries
-on.
+on. The album is added to the [speed dial](../plugins/speed_dial.md) recent list.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

@@ -41,9 +41,10 @@ Entries whose album, artist or song is no longer in the library are left out.
   and once when the user switches to a skin that opts in while a song is playing
   (see [Player properties](../service/player.md#speed-dial)). It works out what the
   user started:
-  - [`shuffle`](../script/actions.md#shuffle) and
-    [`start_mix`](../script/actions.md#start_mix) say what they played. A genre or
-    year adds nothing.
+  - [`shuffle`](../script/actions.md#shuffle),
+    [`start_mix`](../script/actions.md#start_mix) and
+    [`play_album_from_track`](../script/actions.md#play_album_from_track) (the
+    album) say what they played. A genre or year adds nothing.
   - Otherwise, when a new queue starts: the music playlist open in the Music window,
     else the album every queued song shares, else an artist every queued song
     shares, else the song itself.

@@ -305,6 +305,7 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
         query_filter={"albumid": song["albumid"]},
         parent="play_album_from_track",
     )["result"].get("songs", [])
+    mark_source(dial_entry("album", song["albumid"]))
     play_files(songs, position=[s["songid"] for s in songs].index(songid))
 
 
