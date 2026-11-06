@@ -907,7 +907,7 @@ def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) 
     """
     Switches to preferred subtitle stream or toggles through them.
 
-    :param lang: Preferred language (e.g., "en").
+    :param lang: Preferred language as Kodi reports it (e.g., "eng").
     :param user_trigger: True (or "true") also toggles subtitles on/off; see parse_bool.
     """
     user_trigger = parse_bool(user_trigger)
