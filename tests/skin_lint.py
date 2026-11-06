@@ -2,8 +2,9 @@
 Lint a skin's ``16x9/*.xml`` together with freshly generated helper outputs.
 
 Mirrors Omega's ``CGUIIncludes`` load and resolve rules. By default only what
-the migrated (C2) windows load is checked; ``--all`` checks everything. Also checks
-that ``media`` textures store white under fully transparent pixels. Errors exit 1.
+the migrated (C2) windows load is checked; ``--all``, or a skin with none (C1),
+checks everything. Also checks that ``media`` textures store white under fully
+transparent pixels. Errors exit 1.
 """
 
 import argparse
@@ -34,6 +35,7 @@ KINDS = {"VAR": "variable", "EXP": "expression"}
 DEFINITIONS = ("include", "expression", "variable")
 LAYOUTS = {"itemlayout", "focusedlayout"}
 NUMBER = re.compile(r"\s*[-+]?\.?\d")  # the prefix sscanf's %f needs
+BUDGET = 1_000_000  # include expansions per window; C1 master's Home.xml took ~580,000
 GENERATED = "script-copacetic-helper_"
 UNMIGRATED = ("_addonbrowser", "_pictures")  # pre-built for windows not yet migrated
 C2_SHELLS = (
@@ -371,7 +373,7 @@ class Skin:
         :param root: Parsed window.
         """
         root = clone(root)
-        self.expand(root, budget=[100_000])
+        self.expand(root, budget=[BUDGET])
         seen = defaultdict(list)
         for control, branch in controls(root):
             seen[control.get("id")].append((control.src, branch))
@@ -548,7 +550,7 @@ class Skin:
         :return: One summary line.
         """
         root = clone(self.roots[name])
-        self.expand(root, budget=[100_000], keep=True)
+        self.expand(root, budget=[BUDGET], keep=True)
         nodes = [e for e in root.iter() if isinstance(e.tag, str)]
         dead = [
             e
@@ -584,7 +586,7 @@ class Skin:
         """
         root = clone(self.roots[name])
         self.check_calls(root)
-        self.expand(root, budget=[100_000])
+        self.expand(root, budget=[BUDGET])
         live = name not in MEDIA_WINDOWS
         queue, reached = [(root, live)], {}
         for branch in {b for node in root.iter() for b in getattr(node, "branch", ())}:
@@ -758,9 +760,11 @@ def media_families(skin: Path) -> tuple[str, ...]:
     windows: the ``mappings_windows.json`` windows with ``mode`` ``media``.
 
     :param skin: Skin root directory.
-    :return: Suffixes such as ``_videos``.
+    :return: Suffixes such as ``_videos``; none if the skin has no mappings (C1).
     """
     path = skin / "extras/templates/mappings/mappings_windows.json"
+    if not path.exists():
+        return ()
     metadata = json.loads(path.read_text())["windows"]["metadata"]
     return tuple(f"_{w}" for w, meta in metadata.items() if meta["mode"] == "media")
 
@@ -797,7 +801,7 @@ def main() -> None:
         files = {p.name: p for p in sorted((args.skin / "16x9").glob("*.xml"))}
         files |= {p.name: p for p in sorted((generated / "16x9").glob("*.xml"))}
         skin = Skin(list(files.values()), media_families(args.skin))
-        windows = None if args.all else sorted({*skin.migrated(), *args.window})
+        windows = None if args.all else sorted({*skin.migrated(), *args.window}) or None
         if windows:
             print(f"windows: {', '.join(windows)}")
         findings = skin.lint(windows) | set(check_textures(args.skin))

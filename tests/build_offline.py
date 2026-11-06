@@ -132,7 +132,7 @@ def build(
     Build every output for ``skin`` into ``out``: ``16x9/*.xml`` plus
     ``runtime_state.json`` and ``resolver_cache.json``.
 
-    :param skin: Skin root containing ``extras/templates``.
+    :param skin: Skin root; its ``extras/templates`` may be missing (C1).
     :param out: Output directory; previous outputs in it are replaced.
     :param state: Runtime state to start from; None seeds defaults.
     :param helper: Helper add-on root to import the builders from.
@@ -152,7 +152,8 @@ def build(
     with tempfile.TemporaryDirectory() as tmp:
         stage = Path(tmp)
         templates = Path("extras") / "templates"
-        shutil.copytree(skin / templates, stage / templates)
+        if (skin / templates).is_dir():  # C1 has none yet
+            shutil.copytree(skin / templates, stage / templates)
         shutil.copy(skin / "addon.xml", stage)  # cache_stamp reads the skin's id
         (stage / "16x9").mkdir()
         counts = install_stubs(helper, stage, out, verbose)
