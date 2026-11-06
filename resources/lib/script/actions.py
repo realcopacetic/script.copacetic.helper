@@ -28,6 +28,7 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     notify_build_failed,
+    parse_bool,
     play_files,
     reset_dev_state,
     skin_path,
@@ -907,8 +908,9 @@ def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) 
     Switches to preferred subtitle stream or toggles through them.
 
     :param lang: Preferred language (e.g., "en").
-    :param user_trigger: If True, toggles on/off if already active.
+    :param user_trigger: True (or "true") also toggles subtitles on/off; see parse_bool.
     """
+    user_trigger = parse_bool(user_trigger)
     if condition("VideoPlayer.HasSubtitles"):
         player = xbmc.Player()
         subtitles = []
