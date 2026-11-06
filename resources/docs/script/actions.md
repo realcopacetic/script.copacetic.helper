@@ -908,12 +908,21 @@ Does nothing if the playing video has no subtitles.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `lang` | a subtitle language as Kodi reports it, for example `eng` | required | The preferred language |
-| `user_trigger` | empty | on | When on, the action also turns subtitles on if they are hidden, and off if they are showing in the preferred language. Pass it empty (`user_trigger=`) to only switch streams. Any non-empty value, including `false`, counts as on. |
+| `user_trigger` | `false` | on | When on, the action also turns subtitles on if they are hidden, and off if they are showing in the preferred language. `false` only switches to the preferred stream, for a call that runs without a button press. `true`, `1`, `yes` and `on` count as on; any other value, empty included, as off. |
 
 Example from Copacetic, in the video OSD:
 
 ```xml
 <onclick condition="Skin.String(Subtitle_Limiter)">RunScript(script.copacetic.helper,action=subtitle_limiter,lang=$INFO[Skin.String(Subtitle_Limiter)])</onclick>
+```
+
+To switch to the preferred language when a video starts with subtitles on, use
+`user_trigger=false`, so subtitles already in that language are left as they are. A
+video without that language still steps to the next stream, and Kodi shows its
+subtitle notification:
+
+```xml
+<onload condition="Skin.String(Subtitle_Limiter) + VideoPlayer.SubtitlesEnabled">RunScript(script.copacetic.helper,action=subtitle_limiter,lang=$INFO[Skin.String(Subtitle_Limiter)],user_trigger=false)</onload>
 ```
 
 ---
