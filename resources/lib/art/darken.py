@@ -47,7 +47,9 @@ def ramp(size: tuple[int, int], box: Box, margin: int, inset: int = 0) -> Image.
     w, h = size
     x0, y0, x1, y1 = box
     end, tall, half = x1 + margin - x0, y1 - y0 + margin, margin / 2
-    right = max(x0, x1 - inset)  # the right-hand fade starts here, ends where it did
+    right = max(
+        x0 + 1, x1 - inset
+    )  # where the right-hand fade starts; it ends as before
     cols, rows = (ceil(v / RAMP_STEP) for v in size)  # sampled: the fade is smooth
 
     def centres(v: int, k: int) -> list[float]:  # where each sample lands at full size
@@ -206,9 +208,10 @@ class ColorDarken:
         k, _, _ = self._cover(blur.size, frame)
         m = max(1, round(opts.band_feather / k))  # ramp divides by it
         bands = self.boxes(blur.size, self._clamp_rects_to_labels(opts.darken), frame)
-        x0, y0 = (max(0, min(b[i] for b in bands) - m) for i in (0, 1))
-        x1 = min(blur.width, max(b[2] for b in bands) + m)
-        y1 = min(blur.height, max(b[3] for b in bands) + m)
+        pad = m + RAMP_STEP  # the fade and one clear sample: ramp's edge rows are 0
+        x0, y0 = (max(0, min(b[i] for b in bands) - pad) for i in (0, 1))
+        x1 = min(blur.width, max(b[2] for b in bands) + pad)
+        y1 = min(blur.height, max(b[3] for b in bands) + pad)
         area = blur.crop((x0, y0, x1, y1))  # the band and its fade: all it touches
 
         def local(boxes: list[Box]) -> list[Box]:
