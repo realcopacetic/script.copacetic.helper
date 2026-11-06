@@ -1,7 +1,7 @@
 # author: realcopacetic
 
-from functools import lru_cache, reduce
-from math import ceil, sqrt
+from functools import reduce
+from math import ceil, hypot, sqrt
 from operator import mul
 from typing import Any
 
@@ -16,6 +16,7 @@ Box = tuple[int, int, int, int]
 
 LIN = [round(255 * linear(v / 255)) for v in range(256)]
 SHOWN = [0] + [255] * 255  # alpha to a paste mask: any alpha shows
+RAMP_STEP = 4  # ramp's sampling step, px
 EASE = bytes(  # smoothstep of 1 - r, by r squared in 1024 steps
     round(255 * t * t * (3 - 2 * t)) for t in (1 - sqrt(i / 1023) for i in range(1024))
 )
@@ -34,8 +35,8 @@ def luminance_image(image: Image.Image) -> Image.Image:
 def ramp(size: tuple[int, int], box: Box, margin: int, inset: int = 0) -> Image.Image:
     """
     Smoothstep mask: full inside the box, falling to 0 over `margin` px outside it.
-    Above the box the fade shortens along a quarter oval, to half at the right; `inset`
-    starts the right-hand fade that far inside the box, so it is gentler, not longer.
+    Above the box the fade shortens along a quarter oval towards the right, to half at
+    most; `inset` starts the right-hand fade that far inside the box, so it is gentler.
 
     :param size: Mask size (w, h).
     :param box: Box (x0, y0, x1, y1) at full strength.
@@ -45,32 +46,29 @@ def ramp(size: tuple[int, int], box: Box, margin: int, inset: int = 0) -> Image.
     """
     w, h = size
     x0, y0, x1, y1 = box
-    end, tall, right = x1 + margin - x0, y1 - y0 + margin, x1 - inset
+    end, tall, half = x1 + margin - x0, y1 - y0 + margin, margin / 2
+    right = max(x0, x1 - inset)  # the right-hand fade starts here, ends where it did
+    cols, rows = (ceil(v / RAMP_STEP) for v in size)  # sampled: the fade is smooth
 
-    @lru_cache(maxsize=None)
-    def downs(above: int) -> list[float]:  # squared distance from the box, per row
-        return [
-            min(1.0, ((y0 - y) / above if y < y0 else max(0, y - y1 + 1) / margin) ** 2)
-            for y in range(h)
-        ]
+    def centres(v: int, k: int) -> list[float]:  # where each sample lands at full size
+        return [(i + 0.5) * v / k - 0.5 for i in range(k)]
 
-    @lru_cache(maxsize=None)
-    def column(across: float, above: int) -> bytes:
-        a = across * across
-        return bytes(EASE[min(1023, int(1023 * (a + d)))] for d in downs(above))
+    ys = centres(h, rows)
 
-    def oval(x: int) -> int:  # the fade's height above the box at x
+    def column(x: float) -> bytes:
         u = min(1.0, max(0.0, (x - x0) / end))
-        return ceil(min(margin, max(margin / 2, tall * sqrt(1 - u * u) - y1 + y0)))
-
-    columns = (
-        column(
-            (x0 - x) / margin if x < x0 else max(0, x - right + 1) / (margin + inset),
-            oval(x),
+        f = tall * sqrt(1 - u * u) - y1 + y0  # the oval's height above the box at x
+        above = min(margin, (f + half + hypot(f - half, half / 2)) / 2)  # soft floor
+        a = (x0 - x) / margin if x < x0 else max(0, x - right + 1) / (end + x0 - right)
+        downs = (
+            (y0 - y) / above if y < y0 else max(0, y - y1 + 1) / margin for y in ys
         )
-        for x in range(w)
-    )
-    return Image.frombytes("L", (h, w), b"".join(columns)).transpose(Image.TRANSPOSE)
+        return bytes(EASE[min(1023, int(1023 * (a * a + d * d)))] for d in downs)
+
+    small = Image.frombytes("L", (rows, cols), b"".join(map(column, centres(w, cols))))
+    mask = small.transpose(Image.TRANSPOSE).resize(size, Image.BILINEAR)
+    mask.paste(255, (x0, y0, right, y1))  # solid to the fade's start, however sampled
+    return mask
 
 
 def pull_table(text: str, tint: str, ratio: float, margin: float) -> list[int]:

@@ -279,8 +279,9 @@ step 1 and returns the candidate that reads best, even if it falls short of the 
 **The band's shape.** At steps 2 and 3 `_band` is a PNG the size of the blur. Its
 alpha is solid over each rectangle as the label shrinks it (its widest line, at its
 lines), falls smoothly to 0 over `_band_feather` frame pixels around it, and is clear
-everywhere else. Above the rectangle the fade is a quarter oval: the full feather at its
-left, shortening towards its right to half the feather, then rounding off past its end. Draw it in a
+everywhere else. Above the rectangle the fade is a quarter oval: the full feather at
+its left, shortening towards its right (to half the feather at most) and rounding off
+past its end. Draw it in a
 control with the art's own size, position and `<aspectratio>`, through the art's own
 diffuse: it then lines up with the art at any screen shape and takes the art's corners,
 and needs no mask of its own.
