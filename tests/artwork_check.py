@@ -244,7 +244,13 @@ def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
     copy = manager.prepare(path, ".jpg").cached_image_path
 
     def rows_keyed_by(prefix: str, processes: tuple[str, ...]) -> bool:
-        """One row per process, its key starting with prefix."""
+        """
+        One row per process, its key starting with prefix.
+
+        :param prefix: Start every row's cache key must have.
+        :param processes: Art processes to look up.
+        :return: True when each process has exactly one such row.
+        """
         rows = [editor.sqlite.find_variants(path, p) for p in processes]
         return all(
             len(found) == 1 and found[0]["cache_key"].startswith(prefix)
