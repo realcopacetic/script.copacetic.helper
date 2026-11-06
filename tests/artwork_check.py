@@ -147,7 +147,7 @@ def main() -> None:
     install(tmp, Path(sys.argv[1]).resolve())
     from resources.lib.art.analyzer import ColorAnalyzer
     from resources.lib.art.color import contrast, from_hex, luminance
-    from resources.lib.art.darken import ColorDarken
+    from resources.lib.art.darken import ColorDarken, ramp
     from resources.lib.art.editor import ImageEditor
     from resources.lib.art.policy import ART_PROCESS_MAP, ColorConfig
     from resources.lib.plugin.opts import ArtOpts
@@ -222,6 +222,11 @@ def main() -> None:
     ok = alpha is None and rgb is not None
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} inset 60: a new band, same alpha, change moved")
+    mask = ramp((200, 100), (40, 40, 60, 60), 40, 60)  # an inset wider than the label
+    row = [mask.getpixel((x, 50)) for x in range(38, 43)]
+    ok = max(abs(a - b) for a, b in zip(row, row[1:])) <= 3
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} inset wider than the label: no step {row}")
     for name, size, mode, cut, want in SHAPES:
         img = Image.new(mode, size, "white")
         if cut:
