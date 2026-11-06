@@ -552,7 +552,9 @@ on.
 Clears the playlists, queues every item in a container and starts playing.
 
 - With `type=music`, every item is queued by its path (`ListItem.FileNameAndPath`) in
-  the music playlist. Items with no path are left out.
+  the music playlist. Items with no path are left out. A library song
+  (`ListItem.DBType` `song`) also carries its `ListItem.DBID`, so a
+  [`rate_song`](#rate_song) on it while it plays shows straight away.
 - Otherwise the items go in the video playlist. Library movies, episodes and music
   videos are queued by database id. Other items are queued by their path.
 
@@ -634,6 +636,10 @@ titles and paths can contain commas:
 
 Sets a song's user rating in the music library. If that song is playing,
 `MusicPlayer.UserRating` shows the new rating straight away; Kodi updates it itself.
+That includes songs the helper queues by file path ([`start_mix`](#start_mix),
+[`shuffle`](#shuffle) a year, [`play_album_from_track`](#play_album_from_track),
+[`play_items`](#play_items) `type=music`): each one carries its song id, which is how
+Kodi matches the playing song to the update.
 
 The context menu's **Like** and **Unlike** items run this action (see
 [Items the helper adds to the context menu](#items-the-helper-adds-to-the-context-menu)).

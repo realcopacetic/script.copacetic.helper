@@ -15,7 +15,13 @@ from typing import Any, Iterable, Mapping
 
 import xbmc
 import xbmcvfs
-from xbmcgui import Dialog, Window, getCurrentWindowDialogId, getCurrentWindowId
+from xbmcgui import (
+    Dialog,
+    ListItem,
+    Window,
+    getCurrentWindowDialogId,
+    getCurrentWindowId,
+)
 from xbmcplugin import addSortMethod, setContent, setPluginCategory
 
 from resources.lib.shared import logger as log
@@ -114,21 +120,24 @@ def clear_playlists() -> None:
         )
 
 
-def play_files(files: list[str], position: int = 0, shuffled: bool = False) -> None:
+def play_files(songs: list[dict], position: int = 0, shuffled: bool = False) -> None:
     """
-    Replaces both playlists with these music files and plays from position.
-    Real paths, not songid: a songid item's musicdb:// path is refused by
-    CFile::Open while a filtered songs listing sits in Kodi's directory cache.
+    Replaces both playlists with these songs by real path (CFile::Open refuses a
+    songid's musicdb:// one while a filtered songs listing is cached) and plays from
+    position. A songid tags its item, so a library update reaches it while it plays.
 
-    :param files: Real file paths, in play order.
-    :param position: Index of the file to start from.
+    :param songs: Song dicts with file, in play order, and songid for library songs.
+    :param position: Index of the song to start from.
     :param shuffled: Shuffle the playlist before playing.
     """
     xbmc.PlayList(xbmc.PLAYLIST_VIDEO).clear()
     playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
     playlist.clear()  # keeps a previous shuffle's flag: set it explicitly below
-    for file in files:
-        playlist.add(file)
+    for song in songs:
+        item = ListItem(song["file"], offscreen=True)  # a bare add's label
+        if "songid" in song:
+            item.getMusicInfoTag().setDbId(song["songid"], "song")
+        playlist.add(song["file"], item)
     if shuffled:
         playlist.shuffle()
     else:
