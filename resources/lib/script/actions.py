@@ -327,8 +327,10 @@ def play_items(id: str, **kwargs: str) -> None:
         for i in indices:
             if url := infolabel(f"{prefix}({i}).FileNameAndPath"):
                 song = {"file": url}
-                if infolabel(f"{prefix}({i}).DBType") == "song":
-                    song["songid"] = to_int(infolabel(f"{prefix}({i}).DBID"))
+                if infolabel(f"{prefix}({i}).DBType") == "song" and (
+                    (songid := to_int(infolabel(f"{prefix}({i}).DBID"))) > 0
+                ):
+                    song["songid"] = songid
                 songs.append(song)
         play_files(songs, shuffled=method == "shuffle")
         return
