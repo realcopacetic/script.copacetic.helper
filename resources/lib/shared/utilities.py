@@ -573,27 +573,16 @@ def expand_index(index_obj: dict[str, Any]) -> list[str]:
         return []
 
 
-def return_label(
-    label: str | None,
-    *,
-    find: str = ".",
-    replace: str = " ",
-    **kwargs: object,
-) -> str:
+def return_label(label: str, *, find: str = ".", replace: str = " ") -> str:
     """
-    Replaces a specific character in a label with another character.
+    Replaces each character of find in a label with replace.
 
-    :param label: Input string (defaults to ListItem.Label if None).
-    :param find: Character to replace.
-    :param replace: Replacement character.
+    :param label: Input string.
+    :param find: Characters to replace.
+    :param replace: Text each of them becomes.
     :return: Cleaned-up label.
     """
-    if label is None:
-        label = infolabel("ListItem.Label")
-
-    find = urllib.unquote(find)
-    replace = urllib.unquote(replace)
-    return label.replace(find, replace, label.count(find))
+    return label.translate(str.maketrans(dict.fromkeys(find, replace)))
 
 
 def split(

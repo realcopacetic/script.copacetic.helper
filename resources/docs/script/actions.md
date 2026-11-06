@@ -73,6 +73,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`play_trailer`](#play_trailer) | Plays a trailer in a window, with clean-up when focus moves on |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
+| [`replace_label`](#replace_label) | Copies an infolabel's text into a window property, with characters replaced |
 | [`roll_seed`](#roll_seed) | Writes a fresh random number to a window property |
 | [`search_backspace`](#search_backspace) | Rewrites `search_query` from the on-screen keys' log, deletes included |
 | [`seed_keyboard_layout`](#seed_keyboard_layout) | Fills the `keyboard` mapping from a Kodi keyboard layout |
@@ -675,6 +676,32 @@ Reset vs rebuild](../builders/09-runtime-state.md#reset-vs-rebuild).
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=rebuild)</onclick>
 <onclick>RunScript(script.copacetic.helper,action=rebuild,reset=true)</onclick>
+```
+
+---
+
+## replace_label
+
+Copies the text of an infolabel into a Home window property, with some characters
+replaced, for example a file name's full stops and underscores turned into spaces.
+Spaces at the start and end are removed. Empty text clears the property. The helper
+reads the label itself, so titles with commas or quotes never pass through
+`RunScript`'s arguments.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `label` | an infolabel, without `$INFO[]` | required | The text to copy |
+| `prop` | property name | required | The Home window property to write |
+| `find` | characters | `._` | Each of these characters is replaced |
+| `replace` | text | a space | What each of them becomes. Write a space as `%20`: Kodi drops spaces at the ends of a parameter. |
+| `extension` | `true` | off | Keeps a file extension as it is (`.mkv` in `My.Film.mkv`) while Kodi shows file extensions (*Settings → Media → General → Show file extensions*) |
+
+For example, a file's label on the focused item, and the playing file's title when the
+full-screen video window opens:
+
+```xml
+<onfocus>RunScript(script.copacetic.helper,action=replace_label,label=ListItem.Label,prop=Return_Label,extension=true)</onfocus>
+<onload>RunScript(script.copacetic.helper,action=replace_label,label=VideoPlayer.Title,prop=Return_Label,extension=true)</onload>
 ```
 
 ---
