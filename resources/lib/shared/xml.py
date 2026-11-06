@@ -43,10 +43,6 @@ def xml_functions(func):
         sub_element_tag = kwargs.get("sub_element_tag")
         transform_func = kwargs.get("transform_func")
 
-        if not transform_func:
-            log.warning(f"{self.__class__.__name__} → No transform function provided!")
-            return False
-
         # Inject the retrieved parameters into kwargs before calling the original function
         kwargs.update(
             {
