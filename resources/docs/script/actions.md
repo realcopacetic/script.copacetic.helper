@@ -694,14 +694,17 @@ reads the label itself, so titles with commas or quotes never pass through
 | `prop` | property name | required | The Home window property to write |
 | `find` | characters | `._` | Each of these characters is replaced |
 | `replace` | text | a space | What each of them becomes. Write a space as `%20`: Kodi drops spaces at the ends of a parameter. |
-| `extension` | `true` | off | Keeps a file extension as it is (`.mkv` in `My.Film.mkv`) while Kodi shows file extensions (*Settings → Media → General → Show file extensions*) |
+| `extension` | `true` | off | Keeps the last full stop, the one before a file extension (`My.Film_v2.mkv` → `My Film v2.mkv`), while Kodi shows file extensions (*Settings → Media → General → Show file extensions*). Everything else is still cleaned. Folder names count too: `Show.Name.S01_Extras` → `Show Name.S01 Extras`. |
 
-For example, a file's label on the focused item, and the playing file's title when the
-full-screen video window opens:
+The action runs once per call and reads the label as it is at that moment. To follow
+something that changes per file, such as the playing video's title, call it from a
+trigger that fires for each file. Give each use its own property, so one never shows
+the other's text.
+
+For example, the label of the focused item in a file list:
 
 ```xml
 <onfocus>RunScript(script.copacetic.helper,action=replace_label,label=ListItem.Label,prop=Return_Label,extension=true)</onfocus>
-<onload>RunScript(script.copacetic.helper,action=replace_label,label=VideoPlayer.Title,prop=Return_Label,extension=true)</onload>
 ```
 
 ---

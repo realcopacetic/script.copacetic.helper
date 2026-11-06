@@ -1,7 +1,6 @@
 # author: realcopacetic
 
 import json
-import os
 import random
 import time
 from functools import reduce
@@ -610,19 +609,20 @@ def replace_label(
 ) -> None:
     """
     Writes an infolabel's text to a Home window property with each character of
-    find replaced, ends stripped (empty clears it). With extension, the file
-    extension a label has while Kodi shows extensions is kept as it is.
+    find replaced, ends stripped (empty clears it). With extension, the last full
+    stop, before the extension a label has while Kodi shows extensions, is kept.
 
-    :param label: InfoLabel to read, without $INFO[], e.g. VideoPlayer.Title.
+    :param label: InfoLabel to read, without $INFO[], e.g. ListItem.Label.
     :param prop: Window property to write.
     :param find: Characters to replace (default: full stop and underscore).
     :param replace: Text each of them becomes (default: a space).
-    :param extension: "true" keeps the extension when filelists.showextensions is on.
+    :param extension: "true" keeps the last "." when filelists.showextensions is on.
     """
-    root, ext = infolabel(label), ""
+    root, dot, ext = infolabel(label), "", ""
     if parse_bool(extension) and condition("System.GetBool(filelists.showextensions)"):
-        root, ext = os.path.splitext(root)
-    text = return_label(root, find=find, replace=replace) + ext
+        root, dot, ext = root.rpartition(".")
+    text = return_label(root, find=find, replace=replace) + dot
+    text += return_label(ext, find=find, replace=replace)
     window_property(prop, value=text.strip())
 
 
