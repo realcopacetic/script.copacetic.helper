@@ -1460,6 +1460,13 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.episode_ids, [301] * 9)
         self.assertEqual((self.films, self.calls, self.shows), ([], [], []))
 
+    def test_identity(self):
+        # The measured item, which a skin matches against its focused one
+        properties = self.prop_all(DBType="set", DBID="12")
+        self.assertEqual((properties["dbtype"], properties["dbid"]), ("set", "12"))
+        properties = self.prop_all()  # no library id: both empty
+        self.assertEqual((properties["dbtype"], properties["dbid"]), ("", ""))
+
     def test_focus_lost(self):
         show = {"DBType": "tvshow", "DBID": "7", "Property(UnwatchedEpisodes)": "4"}
         show["Property(WatchedEpisodes)"] = "9"
@@ -1472,7 +1479,8 @@ class ProgressbarTest(unittest.TestCase):
             with mock.patch.object(helpers.ProgressBarManager, "update", moved):
                 properties = self.prop_all(**show)
             shown = {key: value for key, value in properties.items() if value}
-            self.assertEqual(shown, {"unwatchedepisodes": "4"})  # a show: time_left ""
+            bare = {"dbid": "7", "dbtype": "tvshow", "unwatchedepisodes": "4"}
+            self.assertEqual(shown, bare)  # a show: time_left ""
             self.assertEqual(self.calls, [])
         self.alive = iter([True, True, True]).__next__  # no check after the move's
         self.assertEqual(self.prop("new", **show), "true")

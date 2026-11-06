@@ -76,6 +76,7 @@ One list item in the helper container:
 | `ListItem.PercentPlayed` | The value above, 0–100, set as the resume point: in seconds for a part-watched movie or episode with a runtime (see below), otherwise out of 100. |
 | `ListItem.Duration`, `ListItem.EndTimeResume` | A part-watched movie or episode with a runtime: its runtime, and the time it would end if resumed now, e.g. `22:30` (Kodi's own label, kept current). Empty or meaningless for anything else, so test `time_left` first. |
 | `ListItem.Property(unwatchedepisodes)` | `ListItem.Property(UnwatchedEpisodes)` of the focused item. For a set, the number of unwatched movies. Empty when the item is watched. |
+| `ListItem.Property(dbtype)`, `ListItem.Property(dbid)` | The measured item's `ListItem.DBType` and `ListItem.DBID`, e.g. `set` and `12`: which item this one belongs to (see [Keeping the bar during a refetch](#keeping-the-bar-during-a-refetch)). Empty for an item with none (a plugin's). Set even when focus has moved on. |
 | `ListItem.Property(time_left)` | A part-watched movie or episode: the runtime left, rounded up to the minute, e.g. `1h 23m`, `1h` or `48m`. |
 | `ListItem.Property(next_episode)` | A TV show or season with unwatched episodes, started or not: the lowest unwatched episode outside the specials, e.g. `2x10` (`1x01` for a show not yet begun, `3x01` for a Season 3 not yet begun). |
 | `ListItem.Property(next_runtime)` | That episode's library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
@@ -155,6 +156,25 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its
   default id) costs one `VideoLibrary.GetTVShowDetails` call to find its TMDb id, as
   the metadata plugin does.
+
+## Keeping the bar during a refetch
+
+Kodi keeps a `<content>` list's items until the new listing arrives, and keeps them
+when its URL turns empty (it fetches nothing then, until a library update or a
+playback start or stop refetches, which empties the list). So while the next serve loads, or after the skin emptied the URL (its condition
+for a bar turned false), the helper container still holds the last item it got:
+another item's, or the same item's from an earlier serve. Hiding the bar while `Container(id).IsUpdating` makes it blink at every
+refetch, even of the item it already shows (after a dialog closes, or on a return to
+the item). Match the returned item to the focused one instead:
+
+```xml
+<visible>String.IsEqual(Container(9500).ListItem.Property(dbid),Container(50).ListItem.DBID) + String.IsEqual(Container(9500).ListItem.Property(dbtype),Container(50).ListItem.DBType)</visible>
+```
+
+The bar then keeps the item's last values until the new ones arrive, and hides at once
+for another item. A skin that serves one type only (sets, say) can leave out the
+`dbtype` test; with several, a set and a film can share a number. Items with no DBID
+(a plugin's) all match, so for them keep the `IsUpdating` test.
 
 ## Focus guard
 

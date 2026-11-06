@@ -993,7 +993,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 if secs
                 else {"position": resume, "total": 100}
             ),
-            "properties": {"unwatchedepisodes": str(unwatched)},
+            # The measured item, so a skin keeps this one while the next serve loads;
+            # as properties: an info tag DBID would make Kodi load its library art
+            "properties": {
+                "dbid": pb.infolabels["DBID"],
+                "dbtype": pb.infolabels["DBType"],
+                "unwatchedepisodes": str(unwatched),
+            },
         }
 
         if not guard.alive():
