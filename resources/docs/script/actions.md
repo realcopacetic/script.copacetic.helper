@@ -639,7 +639,9 @@ Sets a song's user rating in the music library. If that song is playing,
 That includes songs the helper queues by file path ([`start_mix`](#start_mix),
 [`shuffle`](#shuffle) a year, [`play_album_from_track`](#play_album_from_track),
 [`play_items`](#play_items) `type=music`): each one carries its song id, which is how
-Kodi matches the playing song to the update.
+Kodi matches the playing song to the update. Kodi also copies the update over the
+song's queue entry and resets its place in the play order, so turning shuffle on or
+off after a like can lose the queue's place (a Kodi bug, for any library song).
 
 The context menu's **Like** and **Unlike** items run this action (see
 [Items the helper adds to the context menu](#items-the-helper-adds-to-the-context-menu)).
