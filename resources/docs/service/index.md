@@ -69,7 +69,7 @@ interrupted. In order:
      the next full rebuild. Reinstalling the same version brings back the zip's factory
      files, and they stay until `action=rebuild` or a settings change rebuilds.
    - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`,
-     waiting, dropped or postponed as above. If *Reset on next start* is also on, it
+     waiting, dropped or postponed as above, with the same `helper_reloading`. If *Reset on next start* is also on, it
      first deletes all outputs, the runtime state and the resolver cache, then turns
      that setting off again.
 
@@ -139,6 +139,7 @@ next play, speed dial change or slide.
 | Property | Set when | Value | Cleared when | Page |
 |---|---|---|---|---|
 | `helper_active` | A skin that opts in becomes active | `true` | The active skin changes, or the service stops | [Opting in](#opting-in) |
+| `helper_reloading` | Just before the service reloads the skin after an in-place update, except during fullscreen video. Not on a start, a switch into the skin or a helper restart | `reload` | Your skin clears it once its window is ready after the reload; the service clears it if the reload is dropped or postponed | [Script actions](../script/actions.md#dynamic_settings_window) |
 | `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Cleared once the last number has landed, just before the `ReloadSkin()`; left set if the wait gives up after a minute | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
 | `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
