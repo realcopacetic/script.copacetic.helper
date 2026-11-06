@@ -155,8 +155,12 @@ class XMLHandler:
             log.debug(f"{self.__class__.__name__} → XML file '{self.path}' unchanged")
             return False
         tmp_path = self.path.with_name(self.path.name + ".tmp")
-        tmp_path.write_bytes(data)
-        os.replace(tmp_path, self.path)
+        try:
+            tmp_path.write_bytes(data)
+            os.replace(tmp_path, self.path)
+        except OSError:
+            tmp_path.unlink(missing_ok=True)
+            raise
         log.debug(
             f"{self.__class__.__name__} → XML file '{self.path}' updated successfully."
         )
