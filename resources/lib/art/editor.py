@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
     from resources.lib.art.processor import ImageProcessor
 
-BAND_VERSION = 3  # in the band's cache token: raise it when the band's output changes
+BAND_VERSION = 4  # in the band's cache token: raise it when the band's output changes
 
 PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
     "crop": {
@@ -301,7 +301,7 @@ class ImageEditor:
     ) -> tuple[str, str]:
         """
         Steps 2 and 3: the band as a PNG of its own (Kodi won't reread a rewritten
-        path), cached by the blur's key plus ratio, candidates and feather.
+        path), cached by the blur's key plus ratio, candidates, feather and inset.
 
         :param attrs: The art's prepared attributes (the blur's processed_path).
         :param opts: Parsed ArtOpts for this art_type.
@@ -315,6 +315,7 @@ class ImageEditor:
         expected = {
             **(self._expected_from_spec(spec, opts=opts) or {}),
             "feather": opts.band_feather,
+            "inset": opts.band_inset,
             "version": BAND_VERSION,
         }
         ctx = self.cache_manager.with_process_variant(

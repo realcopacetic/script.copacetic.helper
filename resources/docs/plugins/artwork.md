@@ -131,6 +131,7 @@ values mean.
 |---|---|---|---|
 | `<prefix>_element_colors` | ARGB or RGB hex, comma-separated, e.g. `fff0efef,ff312124` | none | Candidate colours for an element drawn on the image (a label). Turns on [Element on art](#element-on-art). |
 | `<prefix>_band_feather` | whole number | `120` | How far the band fades out around its rectangles, in frame pixels. |
+| `<prefix>_band_inset` | whole number | `0` | How far inside the label's end the tinted band's change starts to fade, in frame pixels. The fade still ends where the feather does, so it is gentler, not longer; the last characters read a little under the ratio. |
 | `<prefix>_palette` | `true`, `false` | `false` | Return the image's [palette](#palette). |
 
 The rectangles, frame and label in the darken table set where these are measured;
@@ -269,15 +270,17 @@ rectangle (its worst ratio), and the first step that works wins:
    rectangle down. The candidate that changes the rectangles least wins, decided from
    their brightness histogram before any image is made. `_band` is a copy of the blur
    with only the clashing pixels moved: full strength inside the rectangles (narrowed
-   to the label), fading out over `_band_feather` frame pixels around them.
+   to the label), fading out over `_band_feather` frame pixels around them, in the
+   band's shape below; `_band_inset` starts the fade that far inside the label's end.
 
 Steps 2 and 3 need the blur. If the image is not blurred, the helper always stops at
 step 1 and returns the candidate that reads best, even if it falls short of the ratio.
 
 **The band's shape.** At steps 2 and 3 `_band` is a PNG the size of the blur. Its
-alpha is solid over each rectangle as you pass it, at the label's lines (the height a
-label rectangle shrinks to; its width stays yours), falls smoothly to 0 over
-`_band_feather` frame pixels around it, and is clear everywhere else. Draw it in a
+alpha is solid over each rectangle as the label shrinks it (its widest line, at its
+lines), falls smoothly to 0 over `_band_feather` frame pixels around it, and is clear
+everywhere else. Above the rectangle the fade is a quarter oval: the full feather at its
+left, shortening towards its right to half the feather, then rounding off past its end. Draw it in a
 control with the art's own size, position and `<aspectratio>`, through the art's own
 diffuse: it then lines up with the art at any screen shape and takes the art's corners,
 and needs no mask of its own.
@@ -285,7 +288,7 @@ and needs no mask of its own.
 `_element_color` is the winning candidate. The band is a file of its own beside the
 blur, so the image control sees a new path; it is cached with the blur and replaced
 when the ratio, the candidates, the rectangles, the frame, the label, its font or
-pitch, the feather or the blur change.
+pitch, the feather, the inset or the blur change.
 
 ## Palette
 

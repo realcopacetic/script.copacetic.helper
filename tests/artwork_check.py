@@ -210,6 +210,18 @@ def main() -> None:
     ok = solid(image, label[0]) and clear(image, label[0], 60)
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} feather 60: clear 60 px past the label's lines")
+    straddle = {"icon_url": str(tmp / "straddle.jpg"), **STRIP}  # pulled to its end
+    one, two = (  # copied at once: a new band replaces the old file
+        Image.open(serve({**straddle, **extra})[0]["icon_band"]).copy()
+        for extra in ({}, {"icon_band_inset": "60"})
+    )
+    alpha, rgb = (  # getbbox on RGBA reads the alpha only
+        ImageChops.difference(*(get(i) for i in (one, two))).getbbox()
+        for get in (lambda i: i.getchannel("A"), lambda i: i.convert("RGB"))
+    )
+    ok = alpha is None and rgb is not None
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} inset 60: a new band, same alpha, change moved")
     for name, size, mode, cut, want in SHAPES:
         img = Image.new(mode, size, "white")
         if cut:
@@ -282,30 +294,31 @@ def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
 
 def solid(band: Image.Image, rect: tuple[int, int, int, int]) -> bool:
     """
-    The band's alpha is full over the label's lines across the whole text box
-    (frame px are blur px).
+    The band's alpha is full over the label's measured rect (frame px are blur px).
 
     :param band: The band, RGBA.
     :param rect: The label's measured rect.
     :return: True when every pixel there is opaque.
     """
-    bx, _, bw, _ = map(int, STRIP["icon_darken_rects"].split(","))
-    box = (bx, rect[1], bx + bw, rect[1] + rect[3])
-    return band.getchannel("A").crop(box).getextrema() == (255, 255)
+    x, y, w, h = rect
+    return band.getchannel("A").crop((x, y, x + w, y + h)).getextrema() == (255, 255)
 
 
 def clear(band: Image.Image, rect: tuple[int, int, int, int], feather: int) -> bool:
     """
-    The band's alpha is 0 a feather above the label's lines, and so above it.
+    The band's alpha is 0 a feather above the label's lines and a feather past its
+    end, and so beyond: the band is the label's width, not the text box's.
 
     :param band: The band, RGBA.
     :param rect: The label's measured rect.
     :param feather: The band's feather, frame px.
-    :return: True when the rows from there up are clear.
+    :return: True when the rows from there up and the columns from there on are clear.
     """
-    return (
-        band.getchannel("A").crop((0, 0, 480, rect[1] - feather + 1)).getbbox() is None
-    )
+    x, y, w, _ = rect
+    alpha = band.getchannel("A")
+    above = alpha.crop((0, 0, 480, y - feather + 1))
+    past = alpha.crop((min(480, x + w + feather - 1), 0, 480, 720))
+    return above.getbbox() is None and past.getbbox() is None
 
 
 if __name__ == "__main__":
