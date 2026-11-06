@@ -133,8 +133,11 @@ def queue_source(songid: int) -> dict:
         parent="speed_dial",
     )["result"].get("items", [])
     if len(songs) > 1:
-        if len({s["albumid"] for s in songs}) == 1:
-            return entry("album", songs[0]["albumid"])
+        # albumid is -1 in a tag Kodi hasn't loaded (songs play_files queues) and
+        # missing with no tag at all: neither names an album
+        album, *others = {s.get("albumid", -1) for s in songs}
+        if not others and album > 0:
+            return entry("album", album)
         if shared := set.intersection(*(set(s.get("artistid", [])) for s in songs)):
             return entry("artist", min(shared))
     return entry("song", songid)
