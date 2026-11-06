@@ -165,6 +165,8 @@ next play, speed dial change or slide.
 | `slideshow_darken` | Each slide | Darken percentage, `0`–`100` | The slide has no darken value | [Slideshow](slideshow.md) |
 | `slideshow_clearlogo` | Each slide | Path to the cropped clearlogo | The slide has no clearlogo | [Slideshow](slideshow.md) |
 | `slideshow_title` | Each slide | Item label | The slide has no title | [Slideshow](slideshow.md) |
+| `slideshow_clearlogo_a`, `slideshow_clearlogo_b`, `slideshow_title_a`, `slideshow_title_b` | Each slide, one slot at a time | As `slideshow_clearlogo` and `slideshow_title` | As those | [Slideshow](slideshow.md) |
+| `slideshow_slot` | Each slide | `a` or `b`, the slot just written | Only when the active skin changes or the service stops | [Slideshow](slideshow.md) |
 
 The service also clears the trailer request properties that `action=play_trailer`
 sets (`trailer_request`, `trailer_item`, `trailer_source`, `trailer_focus_ids`,
