@@ -32,10 +32,9 @@ PROPS = (
 
 class Slideshow:
     """
-    Global background slideshow. Publishes one canonical prop set per slide
-    (sharp fanart, blurred fanart, cropped clearlogo, title) on a fixed
-    interval, plus the clearlogo and title in alternating slots; all
-    transition presentation is owned by the skin.
+    Global background slideshow. Publishes one prop set per slide (fanart, blur,
+    cropped clearlogo, title; logo and title again in alternating slots) on a
+    fixed interval; all transition presentation is owned by the skin.
     """
 
     BATCH_SIZE = 20
@@ -55,7 +54,7 @@ class Slideshow:
         self.seen = set()
         self.profile = None
         self.next_slide_at = 0.0
-        self.slot = "b"
+        self.slot = infolabel("Window(home).Property(slideshow_slot)") or "b"
 
     def tick(self) -> None:
         """Publish the next slide on interval lapse or profile change."""
