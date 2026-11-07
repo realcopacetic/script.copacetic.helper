@@ -81,6 +81,7 @@ class BuildBoundary(unittest.TestCase):
     def start(self):
         """A fresh service, as after a Kodi restart."""
         window_property(monitor.ACTIVE_PROPERTY)
+        window_property(monitor.SPEED_DIAL_PROPERTY)
         self.service = monitor.Monitor()
         self.service._reload = Mock()
 
