@@ -55,16 +55,16 @@ class ArtworkCacheManager:
         self.hash_manager = hash_manager
         self.temp_folder = TEMPS
 
-    def prepare(self, url: str, suffix: str) -> CacheContext:
+    def prepare(self, url: str) -> CacheContext:
         """
-        Resolve Kodi texture-cache paths and compute source hash. Kodi picks its
-        copy's suffix by alpha, not the URL's, so the guess may hash as the other.
+        Resolve Kodi texture-cache paths and compute source hash. The suffix is
+        guessed from the decoded URL, but Kodi picks its copy's by alpha: try both.
 
         :param url: Original artwork URL.
-        :param suffix: Guessed file extension, ".jpg" or ".png".
         :return: CacheContext for the resolved source.
         """
         decoded_url = url_decode_path(url)
+        suffix = ".png" if decoded_url.lower().endswith(".png") else ".jpg"
         cached_thumb = self.get_cached_thumb(decoded_url, suffix)
         cached_image_path = Path(THUMB_DB) / cached_thumb[0] / cached_thumb
         file_hash = self.hash_manager.compute_hash(cached_image_path)

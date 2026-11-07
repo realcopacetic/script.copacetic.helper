@@ -25,7 +25,6 @@ from resources.lib.shared.utilities import (
     create_dir,
     infolabel,
     to_float,
-    url_decode_path,
 )
 
 if TYPE_CHECKING:
@@ -178,13 +177,11 @@ class ImageEditor:
             return None
 
         resolved_url = next(iter(art.values()))
-        png = url_decode_path(resolved_url).lower().endswith(".png")  # unwrapped
-        ext = ".png" if png else ".jpg"
 
         base_ctx = shared["contexts"][art_type] = next(  # one hash per source per serve
             (c for c in shared["contexts"].values() if c.source_url == resolved_url),
             None,
-        ) or self.cache_manager.prepare(resolved_url, ext)
+        ) or self.cache_manager.prepare(resolved_url)
         attrs = shared["results"][art_type] = {
             "cached_file_hash": base_ctx.cached_file_hash
         }
