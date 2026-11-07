@@ -93,7 +93,7 @@ class Slideshow:
         """
         Refill the batch on exhaustion or profile change, then publish one random
         slide and schedule the next. A slide that fails within RETRY_WITHIN tries
-        another item next tick, until the batch runs out.
+        another item next tick, until the batch runs out; a slower one waits after.
 
         :param now: Monotonic timestamp from tick().
         """
@@ -101,7 +101,8 @@ class Slideshow:
         if profile != self.profile or not self.art:
             self.profile = profile
             self._fetch_batch()
-        self.next_slide_at = now + self._interval()
+        interval = self._interval()
+        self.next_slide_at = now + interval
         if not self.art:
             return
         item = self.art.pop(random.randrange(len(self.art)))
@@ -110,7 +111,9 @@ class Slideshow:
         with log.muted():
             if slide := self._process(item):
                 self._publish(slide)
-            elif self.art and time.monotonic() - start < self.RETRY_WITHIN:
+            elif (end := time.monotonic()) - start >= self.RETRY_WITHIN:
+                self.next_slide_at = end + interval  # rest a whole interval after it
+            elif self.art:
                 self.next_slide_at = now
 
     def _config(self) -> tuple[str, str]:

@@ -40,9 +40,10 @@ If a slide fails (its fanart can't be opened, or the blur gives nothing), nothin
 published for it and the service tries another fetched item a second later, one item a
 second, instead of waiting for the interval. When the last fetched item fails, it waits
 for the interval before it fetches again, so a source whose items all fail is tried at
-most 20 items per interval. A slide that took a second or more to fail waits for the
-interval too: a network share that doesn't answer holds each try for Kodi's network
-timeout (30 seconds by default), and the service does nothing else meanwhile.
+most 20 items per interval. A slide that took a second or more to fail waits a whole
+interval from when it failed: a network share that doesn't answer holds each try for
+Kodi's network timeout (30 seconds by default), and the service does nothing else
+meanwhile.
 
 ## Skin settings read
 
