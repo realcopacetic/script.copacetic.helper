@@ -5,9 +5,9 @@ Checks the label's measured rect (lines, widest line), the element-on-art step, 
 winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
 away) and, at step 3, that the tinted band reads at the ratio, then that a palette
 PNG's transparent colour is no colour, that a row measured before the measure version
-is measured again and that an RGB PNG with tRNS measures as its RGBA copy; prints
-each serve's time. Needs Pillow and the skin (its
-Font.xml and fonts measure the label); no network.
+is measured again, that an RGB PNG with tRNS measures as its RGBA copy and that one
+URL as clearlogo and icon is measured for each; prints each serve's time. Needs
+Pillow and the skin (its Font.xml and fonts measure the label); no network.
 
     python tests/artwork_check.py ../skin.copacetic2
 """
@@ -259,6 +259,12 @@ def main() -> None:
     ok = got[0] == got[1]
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} RGB PNG with tRNS measures as its RGBA {got[0]}")
+    params = {"clearlogo_url": path, "icon_url": path, "icon_palette": "true"}
+    art = serve(params)[0]
+    ok = len(sqlite.find_variants(path, "darken")) == 2  # main: one, shared, and lost
+    ok &= "icon_palette_primary" in art and serve(params)[0] == art
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} one URL as clearlogo and icon: a measure each")
     failures += check_rekey(tmp, serve, ImageEditor())
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
