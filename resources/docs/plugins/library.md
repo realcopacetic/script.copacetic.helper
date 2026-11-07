@@ -12,6 +12,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `random_tvshows` | TV shows in random order. |
 | `random_albums` | Music library albums in random order. |
 | `random_genre` | Movies, TV shows, albums or artists from one genre, the genre itself picked at random. |
+| `cast` | A library movie's, TV show's or episode's cast, in billing order. |
 | `actor_credits` | Movies and TV shows with a given actor. |
 | `director_credits` | Movies and music videos by a given director. |
 | `writer_credits` | Movies and episodes by a given writer. |
@@ -172,6 +173,28 @@ for music. The container's content is `movies`, `tvshows`, `albums` or `artists`
 
 Picking the genre costs one query that reads every item's genres (and one for the genre
 names, for music), then the two queries [`random_movies`](#random_movies) makes.
+
+## `cast`
+
+The cast of one library item, as Kodi's own info dialog lists it (an episode's guest
+stars, then its show's cast). Each item's label is the actor's name, `Label2` the role,
+`Art(thumb)` the actor's picture (empty without one) and `Art(icon)` `DefaultActor.png`.
+Items are not library items (no `DBType`) and their path is a placeholder, so give
+the list its own `<onclick>`. Pass a focused actor's
+`ListItem.Label` on to [`actor_credits`](#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits).
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `movie`, `tvshow`, `episode` | — | The library type of the item. |
+| `id` | a library id | — | The item's `DBID`. |
+| `limit` | whole number | all | Most actors, from the top of the billing. |
+
+```xml
+<!-- the playing film's cast, in a video OSD -->
+<content>plugin://script.copacetic.helper/?info=cast&amp;type=movie&amp;id=$INFO[VideoPlayer.DBID]&amp;limit=25</content>
+```
+
+One JSON-RPC call (`VideoLibrary.Get…Details` with `cast`).
 
 ## `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`
 
