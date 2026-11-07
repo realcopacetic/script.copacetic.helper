@@ -55,7 +55,7 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
         "folder": BLURS,
         "suffix": ".png",
         "match": (
-            *policy.ART_FIELDS_MEASURE,
+            *policy.ART_FIELDS_INPUT["darken"],
             policy.ART_FIELD_RATIO,
             policy.ART_FIELD_ELEMENT_COLORS,
         ),
@@ -181,7 +181,7 @@ class ImageEditor:
             spec = PROCESS_SPEC[process]
             require = spec.get("require")
             folder = spec.get("folder")
-            expected = self._expected_from_spec(spec, opts=opts, art_type=art_type)
+            expected = self._expected_from_spec(spec, opts=opts)
             ctx = self.cache_manager.with_process_variant(
                 base_ctx,
                 process=process,
@@ -395,21 +395,17 @@ class ImageEditor:
         )
 
     def _expected_from_spec(
-        self, spec: dict[str, Any], *, opts: ArtOpts, art_type: str | None = None
+        self, spec: dict[str, Any], *, opts: ArtOpts
     ) -> dict[str, object] | None:
         """
-        The spec's match fields, picked from ArtOpts.match_fields() and the art
-        type, and its version; None values are left out of the key.
+        The spec's match fields, picked from ArtOpts.match_fields(), and its
+        version; None values are left out of the key.
 
         :param spec: Process spec dict (may contain 'match' and 'version').
         :param opts: Parsed ArtOpts for the current art_type.
-        :param art_type: Artwork type key, for a spec that matches on it.
         :return: Expected cache-field values, or None if no matches apply.
         """
-        fields = opts.match_fields() | {
-            policy.ART_FIELD_ART_TYPE: art_type,
-            "version": spec.get("version"),
-        }
+        fields = opts.match_fields() | {"version": spec.get("version")}
         return {
             key: value
             for key in (*spec.get("match", ()), "version")

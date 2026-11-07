@@ -6,7 +6,6 @@ from typing import Any, Iterable, Mapping
 ART_FIELD_CACHE_KEY = "cache_key"
 ART_FIELD_SOURCE_URL = "source_url"
 ART_FIELD_PROCESS = "process"
-ART_FIELD_ART_TYPE = "art_type"
 ART_FIELD_HASH = "cached_file_hash"
 ART_FIELD_PROCESSED = "processed_path"
 ART_FIELD_WIDTH = "width"
@@ -59,7 +58,6 @@ ART_DB_SCHEMA = (
     (ART_FIELD_RATIO, "REAL"),
     (ART_FIELD_ELEMENT_COLORS, "TEXT"),
     (ART_FIELD_ELEMENT_COLOR, "TEXT"),
-    (ART_FIELD_ART_TYPE, "TEXT"),
 )
 ART_DB_UNIQUE = (ART_FIELD_CACHE_KEY,)
 
@@ -67,21 +65,18 @@ ART_DB_INDEXES = (("idx_source_url", (ART_FIELD_SOURCE_URL,)),)
 
 ART_DB_FIELDS = tuple(name for name, _ in ART_DB_SCHEMA)
 
-ART_FIELDS_MEASURE = (  # the opts a measure reads; the band's key matches them too
-    ART_FIELD_DARKEN_RECTS,
-    ART_FIELD_DARKEN_LABEL,
-    ART_FIELD_DARKEN_LABEL_FONT,
-    ART_FIELD_DARKEN_LABEL_PITCH,
-    ART_FIELD_DARKEN_FRAME,
-    ART_FIELD_BLUR_RADIUS,
-    ART_FIELD_EDGE_TRIM,
-)
-
 ART_FIELDS_INPUT = {
     "crop": (),
     "blur": (ART_FIELD_BLUR_RADIUS,),
-    # per art type too: one URL as clearlogo and icon is measured for each
-    "darken": (ART_FIELD_ART_TYPE, *ART_FIELDS_MEASURE),
+    "darken": (
+        ART_FIELD_DARKEN_RECTS,
+        ART_FIELD_DARKEN_LABEL,
+        ART_FIELD_DARKEN_LABEL_FONT,
+        ART_FIELD_DARKEN_LABEL_PITCH,
+        ART_FIELD_DARKEN_FRAME,
+        ART_FIELD_BLUR_RADIUS,
+        ART_FIELD_EDGE_TRIM,
+    ),
     "band": (ART_FIELD_DARKEN_LABEL,),  # per art and label: a rewrite evicts its own
 }
 
