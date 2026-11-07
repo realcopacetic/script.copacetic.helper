@@ -952,6 +952,16 @@ def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> N
 
 
 @action
+def player_stream_refresh(**kwargs: str) -> None:
+    """
+    Re-reads the playing video's subtitle into player_subtitle_kind: Kodi raises
+    no event when its dialogs or keys change it, so the skin calls this.
+    """
+    stream = player_streams("subtitle")[1]
+    window_property("player_subtitle_kind", value=subtitle_kind(stream))
+
+
+@action
 def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) -> None:
     """
     Switches to preferred subtitle stream or toggles through them.

@@ -27,8 +27,38 @@ Trailers started with `action=play_trailer` do not set these properties. See
 | `player_season` | Season number | An episode starts |
 | `player_tvshowid` | TV show database id | A library episode starts and its show is found |
 | `player_setid` | Movie set database id | A library movie starts and it belongs to a set |
+| `player_subtitle_kind` | The subtitle showing: `forced`, `full` or `impaired` (hearing impaired); empty while subtitles are off | A video starts; `player_stream` and `player_stream_refresh` update it |
+| `player_chapter_1`, `player_chapter_2`, … | Chapter n's tick for a `ranges` control: the pair from `Player.Chapters` that ends where chapter n starts | A video with chapters starts |
 
 When a library episode starts, the service also runs [Play next](playnext.md).
+
+### Subtitle type
+
+`player_subtitle_kind` reads the subtitle's flags, then its name, as
+[`player_stream`](../script/actions.md#player_stream) does, which sets it straight away.
+Kodi sends no event when a subtitle changes in its own subtitle settings dialog or from
+a key, so the service doesn't follow those changes: call
+[`player_stream_refresh`](../script/actions.md#player_stream_refresh) before the
+property is shown, for example from the video OSD's `<onload>` and the subtitle and
+audio settings dialogs' `<onunload>`.
+
+### Chapter ticks
+
+`Player.Chapters` lists one pair of start and end percentages per chapter, for a
+`ranges` control. `player_chapter_<n>` holds the single pair whose end is chapter n's
+start, so a `ranges` control with only a right texture draws chapter n's tick alone, for
+example to light the tick of the chapter focused in the bookmarks dialog
+(`ListItem.Property(chapter)` there is the same n). A first chapter that starts at 0 has
+no pair, so its property is empty. A `ranges` control reads one fixed infolabel, so use
+one control per chapter:
+
+```xml
+<control type="ranges">
+  <info>Window(home).Property(player_chapter_2)</info>
+  <righttexture>osd/tick.png</righttexture>
+  <visible>String.IsEqual(Container(11).ListItem.Property(chapter),2)</visible>
+</control>
+```
 
 ## Music
 

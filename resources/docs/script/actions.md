@@ -72,6 +72,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`play_radio`](#play_radio) | Old name for `start_mix` |
 | [`play_trailer`](#play_trailer) | Plays a trailer in a window, with clean-up when focus moves on |
 | [`player_stream`](#player_stream) | Steps the playing video's subtitle, audio or video stream, with no notification |
+| [`player_stream_refresh`](#player_stream_refresh) | Updates `player_subtitle_kind` after Kodi changed the subtitle itself |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
 | [`roll_seed`](#roll_seed) | Writes a fresh random number to a window property |
@@ -680,14 +681,40 @@ hearing impaired file needs `sdh`, `cc` or `hi` in its name (`Film.en.sdh.srt`).
 |---|---|
 | `player_subtitle_kind` | `forced`, `full` or `impaired` for the stream turned on; empty when subtitles go off |
 
-The service keeps this property right while a video plays, however the subtitle
-changes (see [Player properties](../service/player.md#video)).
+The service also sets it when a video starts. When the subtitle changes some other way
+(Kodi's subtitle settings dialog, a remote key), call
+[`player_stream_refresh`](#player_stream_refresh).
 
 For example, in the video OSD, with the preferred language and type in skin strings:
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=player_stream,type=subtitle,lang=$INFO[Skin.String(subtitle_language)],kind=$INFO[Skin.String(subtitle_kind)])</onclick>
 <onclick>RunScript(script.copacetic.helper,action=player_stream,type=audio)</onclick>
+```
+
+---
+
+## player_stream_refresh
+
+Reads the playing video's subtitle again and updates `player_subtitle_kind`. Kodi sends
+no event when the subtitle changes in its own subtitle settings dialog or from a remote
+key (and changing the audio stream can swap a forced subtitle), so call this where the
+property is about to be shown: when the video OSD opens, and when the subtitle or audio
+settings dialog closes.
+
+No parameters.
+
+**Sets:**
+
+| Property | Value |
+|---|---|
+| `player_subtitle_kind` | `forced`, `full` or `impaired` for the subtitle showing; empty while subtitles are off |
+
+```xml
+<!-- VideoOSD.xml -->
+<onload>RunScript(script.copacetic.helper,action=player_stream_refresh)</onload>
+<!-- DialogSettings.xml, which Kodi also uses for the subtitle and audio settings -->
+<onunload condition="Window.IsVisible(videoosd)">RunScript(script.copacetic.helper,action=player_stream_refresh)</onunload>
 ```
 
 ---
