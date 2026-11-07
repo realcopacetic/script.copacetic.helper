@@ -62,8 +62,9 @@ album's `ListItem.Art(thumb)` gives it when the cover is in its songs). Pass it
 straight from the infolabel. The helper uses Kodi's cached copy when there is one,
 and otherwise reads the image from the file. A JPEG or WebP photo with an EXIF
 orientation (a phone picture taken upright) is turned the way Kodi turns it, so the blur
-matches the image; Kodi doesn't turn other formats by their tag, so neither does the
-helper.
+matches the image. Kodi doesn't turn other formats by their tag, and the helper leaves
+them as stored too, except a TIFF: Pillow turns that itself as it reads it, so its blur
+comes out turned where Kodi draws it as stored.
 
 If the background can't be read (a dead remote URL), the helper tries once more with
 the item's own fanart, when that is a different image. That is its `fanart`, else its
