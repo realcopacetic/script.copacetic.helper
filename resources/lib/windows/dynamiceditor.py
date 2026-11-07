@@ -246,8 +246,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         Rebuild listitem entries from runtime state, optionally filtered by parent.
         """
+        # The template wins: a stored label or icon reaches the row through its
+        # {token}, never as a template of its own.
         self.listitems = {
-            entry["runtime_id"]: {**tpl, **entry, "runtime_index": source_idx}
+            entry["runtime_id"]: {**entry, **tpl, "runtime_index": source_idx}
             for tpl in self._runtime_tpls.values()
             for source_idx, entry in self.runtime_manager.live_rows(tpl["mapping"])
             if not self.parent_filter or entry.get("parent") == self.parent_filter

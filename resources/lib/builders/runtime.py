@@ -562,6 +562,18 @@ class RuntimeStateManager:
             else formatted
         )
 
+    @staticmethod
+    def literal(text: str) -> str:
+        """
+        Escape text, such as a stored value, so ``format_metadata`` gives it back
+        as written. It formats only text with a ``{``, so only there are braces
+        doubled.
+
+        :param text: Text to show as it is.
+        :return: Escaped text.
+        """
+        return text.replace("{", "{{").replace("}", "}}") if "{" in text else text
+
     def field_template(
         self, mapping_key: str, item: str | None, field: str
     ) -> str | None:
