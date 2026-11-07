@@ -525,7 +525,7 @@ class ImageEditor:
 
         try:
             image = Image.open(xbmcvfs.translatePath(url))
-            with suppress(SyntaxError):  # Pillow's error for unreadable EXIF: as stored
+            with suppress(SyntaxError, TypeError):  # Pillow's for bad EXIF: as stored
                 if (
                     image.format in ORIENTED
                     and image.getexif().get(ORIENTATION, 1) != 1  # transpose copies
