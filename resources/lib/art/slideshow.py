@@ -92,7 +92,7 @@ class Slideshow:
     def _advance(self, now: float) -> None:
         """
         Refill the batch on exhaustion or profile change, then publish one random
-        slide and schedule the next. A tick that fails within RETRY_WITHIN tries
+        slide and schedule the next. A slide that fails within RETRY_WITHIN tries
         another item next tick, until the batch runs out.
 
         :param now: Monotonic timestamp from tick().
@@ -106,10 +106,11 @@ class Slideshow:
             return
         item = self.art.pop(random.randrange(len(self.art)))
         self.seen.add(item["fanart"])
+        start = time.monotonic()  # after the fetch: only the slide's own time counts
         with log.muted():
             if slide := self._process(item):
                 self._publish(slide)
-            elif self.art and time.monotonic() - now < self.RETRY_WITHIN:
+            elif self.art and time.monotonic() - start < self.RETRY_WITHIN:
                 self.next_slide_at = now
 
     def _config(self) -> tuple[str, str]:
