@@ -59,7 +59,7 @@ def reposition_control(
     :param y: New top in px, or None to leave unchanged.
     :param w: New width in px, or None to leave unchanged.
     :param h: New height in px, or None to leave unchanged.
-    :return: False when the window has no such control, so nothing was set.
+    :return: False when the window has no such control or it is disabled.
     """
     window_id = topmost_window_id()
     # Probe first: a getControl miss logs an engine error even when caught.

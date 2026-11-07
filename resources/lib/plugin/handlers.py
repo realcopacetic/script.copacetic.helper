@@ -560,7 +560,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if self._visit_superseded():
             return self._artwork_held()
         # A serve with no focus_ids (the primary view) is unguarded on focus moves.
-        focus = focused_control_id(self.window_id)
+        window_id = self.window_id
+        focus = focused_control_id(window_id)
 
         from resources.lib.art.editor import ImageEditor
         from resources.lib.art.multiart import seed_multiart
@@ -675,18 +676,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return self._artwork_held()
 
         # Sized before the list lands; the old items stay up until then (no blank).
-        # A cancelled job still runs: size only while the URL's item is still shown.
-        # The height is returned only if a control took it, so the skin can tell.
+        # A cancelled job still runs: size only while the URL's item is still shown,
+        # in the window it started in (views share control ids across windows).
         fitted = {}
         if (
             (fit := self.params.get("clearlogo_fit"))
             and alive()
             and not self._visit_superseded()
-            and (
-                self.item
-                or self.focus_ids
-                or focused_control_id(self.window_id) == focus
-            )
+            and self.window_id == window_id
+            and (self.item or self.focus_ids or focused_control_id(window_id) == focus)
             and self.params.get("clearlogo_fit_key") in (None, self._item_key())
             and (
                 h := fit_height(
@@ -696,11 +694,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
             )
         ):
-            for control_id in filter(
-                None, self.params.get("clearlogo_fit_ids", "").split(",")
-            ):
-                if reposition_control(int(control_id), h=h):
-                    fitted = {"clearlogo_fit": str(h)}
+            # Each control that took the height says so, keyed by its own id
+            fitted = {
+                f"clearlogo_fit_{control_id}": str(h)
+                for control_id in self.params.get("clearlogo_fit_ids", "").split(",")
+                if control_id and reposition_control(int(control_id), h=h)
+            }
 
         for field, prop in self._bridge_props():
             window_property(prop, art.get(field, ""))
