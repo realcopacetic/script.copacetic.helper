@@ -48,7 +48,7 @@ def reposition_control(
     y: int | None = None,
     w: int | None = None,
     h: int | None = None,
-) -> bool:
+) -> None:
     """
     Set any provided geometry on a control; unset axes are left untouched.
     Setters only (no getWidth/getX), so it never reads a control that may be
@@ -59,7 +59,6 @@ def reposition_control(
     :param y: New top in px, or None to leave unchanged.
     :param w: New width in px, or None to leave unchanged.
     :param h: New height in px, or None to leave unchanged.
-    :return: False when the window has no such control or it is disabled.
     """
     window_id = topmost_window_id()
     # Probe first: a getControl miss logs an engine error even when caught.
@@ -69,7 +68,7 @@ def reposition_control(
             f"reposition_control: control {control_id} not found "
             f"in window {window_id}"
         )
-        return False
+        return
     window = Window(window_id)  # keep: the window holds the control's only native ref
     ctrl = window.getControl(control_id)
 
@@ -84,7 +83,6 @@ def reposition_control(
         ctrl.setHeight(h)
     if x is not None and y is not None:
         ctrl.setPosition(x, y)
-    return True
 
 
 def fit_height(fit: str, src_w: int, src_h: int) -> int | None:
