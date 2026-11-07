@@ -1614,7 +1614,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             {
                 "file": plugin_path("cast"),
                 "label": actor["name"],
-                "label2": actor.get("role", ""),
+                "label2": actor["role"],
                 "art": {
                     "icon": "DefaultActor.png",
                     "thumb": actor.get("thumbnail", ""),
