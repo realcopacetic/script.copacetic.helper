@@ -24,12 +24,15 @@ XSP_LITERAL_PATTERN = re.compile(r"\$(?:ESC)?(?:INFO|VAR)\[[^\]]*\]")
 # so the JSON string quotes around them must be stripped post-encoding.
 XSP_ESC_QUOTES_PATTERN = re.compile(r"%22(\$ESC(?:INFO|VAR)\[[^\]]*\])%22")
 
-_TRUE_LEAD = re.compile(r"(^|\[)true \+ ")
+# A ``true`` conjunct opening a term or closing one.
+_TRUE_TERM = re.compile(
+    r"(?:^|(?<=\[)|(?<=\| )|(?<= \+ ))true \+ | \+ true(?=$|\]| \|)"
+)
 
 
 def elide_true(condition: str) -> str:
     """Strip identity ``true`` conjuncts from a rendered Kodi condition."""
-    stripped = _TRUE_LEAD.sub(r"\1", condition)
+    stripped = _TRUE_TERM.sub("", condition)
     return "" if stripped == "true" else stripped
 
 
