@@ -27,7 +27,7 @@ Trailers started with `action=play_trailer` do not set these properties. See
 | `player_season` | Season number | An episode starts |
 | `player_tvshowid` | TV show database id | A library episode starts and its show is found |
 | `player_setid` | Movie set database id | A library movie starts and it belongs to a set |
-| `player_subtitle_kind` | The subtitle showing: `forced`, `full` or `impaired` (hearing impaired); empty while subtitles are off | A video starts; `player_stream` and `player_stream_refresh` update it |
+| `player_subtitle_kind` | The subtitle showing: `forced`, `full` or `impaired` (hearing impaired). While off: `missing` when the actions were given a language with no preferred stream, otherwise empty | A video starts; `player_stream` and `player_stream_refresh` update it |
 | `player_chapter_1`, `player_chapter_2`, … | Chapter n's tick for a `ranges` control: the pair from `Player.Chapters` that ends where chapter n starts | A video with chapters starts |
 
 When a library episode starts, the service also runs [Play next](playnext.md).
@@ -41,6 +41,9 @@ a key, so the service doesn't follow those changes: call
 [`player_stream_refresh`](../script/actions.md#player_stream_refresh) before the
 property is shown, for example from the video OSD's `<onload>` and the subtitle and
 audio settings dialogs' `<onunload>`.
+
+The service knows nothing of the skin's preferred language, so at video start the value
+is never `missing`; pass `lang` and `kind` to `player_stream_refresh` and it is.
 
 ### Chapter ticks
 

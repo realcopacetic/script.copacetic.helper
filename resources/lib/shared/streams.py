@@ -12,6 +12,12 @@ _STREAMS = {
 }
 # Words in a subtitle's name that mark it for the hearing impaired
 _IMPAIRED_WORDS = frozenset({"cc", "hi", "sdh"})
+# Subtitle types looked for, in order, for each preferred type
+_FALLBACKS = {
+    "forced": ("forced",),
+    "full": ("full", "impaired"),
+    "impaired": ("impaired", "full"),
+}
 
 
 def player_streams(type: str) -> tuple[list[dict], dict | None]:
@@ -46,3 +52,31 @@ def subtitle_kind(stream: dict | None) -> str:
     if stream["isimpaired"] or words & _IMPAIRED_WORDS:
         return "impaired"
     return "full"
+
+
+def preferred_subtitle(streams: list[dict], lang: str, kind: str) -> dict | None:
+    """
+    The first lang stream of kind (empty: full), else of its fallback: full and
+    impaired stand in for each other, forced has none. None without one.
+    """
+    return next(
+        (
+            stream
+            for wanted in _FALLBACKS[kind or "full"]
+            for stream in streams
+            if stream["language"] == lang and subtitle_kind(stream) == wanted
+        ),
+        None,
+    )
+
+
+def subtitle_status(
+    streams: list[dict], current: dict | None, lang: str = "", kind: str = ""
+) -> str:
+    """
+    player_subtitle_kind's value: the showing stream's type; while off, "missing"
+    when lang is set and has no preferred stream, else "".
+    """
+    if current:
+        return subtitle_kind(current)
+    return "missing" if lang and not preferred_subtitle(streams, lang, kind) else ""

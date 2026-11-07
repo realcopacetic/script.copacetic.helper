@@ -652,8 +652,9 @@ OSD. It sets the stream directly, so Kodi shows no notification, as its own
 - **Subtitles with `lang`:** turns the preferred stream on, or off if it is already
   showing. If another stream is showing, it switches to the preferred one. The
   preferred stream is the first in that language of the type `kind` asks for. When
-  there is none, it takes the other type below; when there is none of either, nothing
-  changes.
+  there is none, it takes the other type below. When there is none of either, it
+  turns subtitles off (if they are showing) and sets `player_subtitle_kind` to
+  `missing`, so the skin can say there are no preferred subtitles.
 
   | `kind` | Looks for, in order |
   |---|---|
@@ -679,11 +680,12 @@ hearing impaired file needs `sdh`, `cc` or `hi` in its name (`Film.en.sdh.srt`).
 
 | Property | Value |
 |---|---|
-| `player_subtitle_kind` | `forced`, `full` or `impaired` for the stream turned on; empty when subtitles go off |
+| `player_subtitle_kind` | `forced`, `full` or `impaired` for the stream turned on. While off: `missing` when `lang` is set and has no preferred stream (with the fallback), otherwise empty |
 
-The service also sets it when a video starts. When the subtitle changes some other way
-(Kodi's subtitle settings dialog, a remote key), call
-[`player_stream_refresh`](#player_stream_refresh).
+The service also sets it when a video starts, without a language, so never `missing`
+there. When the subtitle changes some other way (Kodi's subtitle settings dialog, a
+remote key), or to show `missing` before the first press, call
+[`player_stream_refresh`](#player_stream_refresh) with the same `lang` and `kind`.
 
 For example, in the video OSD, with the preferred language and type in skin strings:
 
@@ -700,21 +702,25 @@ Reads the playing video's subtitle again and updates `player_subtitle_kind`. Kod
 no event when the subtitle changes in its own subtitle settings dialog or from a remote
 key (and changing the audio stream can swap a forced subtitle), so call this where the
 property is about to be shown: when the video OSD opens, and when the subtitle or audio
-settings dialog closes.
+settings dialog closes. Pass the same `lang` and `kind` as the Subtitles button, so
+`missing` shows before the first press.
 
-No parameters.
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `lang` | as [`player_stream`](#player_stream) | none | With subtitles off, `missing` when this language has no preferred stream |
+| `kind` | as [`player_stream`](#player_stream) | `full` | The preferred type, with `lang` |
 
 **Sets:**
 
 | Property | Value |
 |---|---|
-| `player_subtitle_kind` | `forced`, `full` or `impaired` for the subtitle showing; empty while subtitles are off |
+| `player_subtitle_kind` | As [`player_stream`](#player_stream): the type of the subtitle showing; `missing` or empty while off |
 
 ```xml
 <!-- VideoOSD.xml -->
-<onload>RunScript(script.copacetic.helper,action=player_stream_refresh)</onload>
+<onload>RunScript(script.copacetic.helper,action=player_stream_refresh,lang=$INFO[Skin.String(subtitle_language)],kind=$INFO[Skin.String(subtitle_kind)])</onload>
 <!-- DialogSettings.xml, which Kodi also uses for the subtitle and audio settings -->
-<onunload condition="Window.IsVisible(videoosd)">RunScript(script.copacetic.helper,action=player_stream_refresh)</onunload>
+<onunload condition="Window.IsVisible(videoosd)">RunScript(script.copacetic.helper,action=player_stream_refresh,lang=$INFO[Skin.String(subtitle_language)],kind=$INFO[Skin.String(subtitle_kind)])</onunload>
 ```
 
 ---
