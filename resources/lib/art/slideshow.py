@@ -256,7 +256,7 @@ class Slideshow:
 
     def _process(self, item: dict) -> dict | None:
         """
-        Blur and darken the fanart and crop the clearlogo through the
+        Blur and darken the fanart and crop and measure the clearlogo through the
         shared cache. Background opts come from skin-declared params prop.
 
         :param item: Art dict from the fetch batch.
@@ -279,7 +279,7 @@ class Slideshow:
                 {"clearlogo_url": clearlogo, "clearlogo_crop": "true"},
                 "clearlogo",
             )
-            jobs["clearlogo"] = ("crop",)
+            jobs["clearlogo"] = ("crop", "darken")  # its colour, for clearlogo sources
         processed = self.image_processor(jobs=jobs, art_opts=art_opts)
         if not (blur := processed.get("background")):
             return None
