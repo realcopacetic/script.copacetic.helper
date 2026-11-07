@@ -16,7 +16,7 @@ def has_alpha(image: Image.Image) -> bool:
     (a PNG's tRNS chunk, a GIF's transparent index) that Pillow makes alpha.
 
     :param image: Input PIL image (any mode).
-    :return: True if its RGBA copy can hold transparency (8-bit RGB or grey keys).
+    :return: True for an alpha band or any transparency entry.
     """
     return "A" in image.getbands() or "transparency" in image.info
 
