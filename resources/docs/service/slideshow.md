@@ -18,6 +18,8 @@ All properties on this page are on the Home window (`10000`).
   is cleared. If the new skin opts in, its first slide follows at once.
 - When the source settings change, the next slide is published at once from the new
   source.
+- When `slideshow_artwork_params` changes, the current slide's darken is published
+  again at once (see [Processing options](#processing-options)).
 - The slideshow pauses while `fullscreenvideo` or `visualisation` is visible.
 
 There is no setting to turn it off. If your skin doesn't show the properties, they
@@ -29,7 +31,7 @@ have no visible effect.
 |---|---|---|
 | `slideshow_fanart` | Path to the original fanart; a typed wrapper (`image://music@…/`, `image://video_…@…/`) stays wrapped | Replaced by each slide. |
 | `slideshow_blur` | Path to the blurred fanart (JPEG) | Replaced by each slide. |
-| `slideshow_darken` | Darken percentage, `0`–`100` | Cleared when the slide has no darken value. Only set when `slideshow_artwork_params` has `background_darken=true` (see [Processing options](#processing-options)). |
+| `slideshow_darken` | Darken percentage, `0`–`100` | Cleared when the slide has no darken value. Written again on its own when `slideshow_artwork_params` changes. Only set when `slideshow_artwork_params` has `background_darken=true` (see [Processing options](#processing-options)). |
 | `slideshow_clearlogo` | Path to the cropped clearlogo (PNG) | Cleared when the item has no clearlogo. Uses `clearlogo-billboard` art first, then `clearlogo`. |
 | `slideshow_title` | The item's label | Cleared when the item has no label. |
 | `slideshow_clearlogo_a`, `slideshow_clearlogo_b` | As `slideshow_clearlogo`, in alternating slots | Each slide writes one slot and leaves the other holding the slide before. |
@@ -109,6 +111,13 @@ Your skin chooses how the fanart is processed by setting the window property
 `slideshow_artwork_params` on the Home window. It is a query string of `background_*`
 parameters, the same ones the [artwork plugin](../plugins/artwork.md) takes. It is read
 before each slide, so you can change it at any time.
+
+The service also checks it every second. When it has changed, the current slide's
+`slideshow_darken` is worked out again by the new params and written on its own,
+without waiting for the interval. The fanart, blur, clearlogo, title and
+`slideshow_slot` stay as they are, so a slot's animations don't play. Copacetic uses
+this to measure for its menu while the menu shows and for the slide's clearlogo in
+its idle mode.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

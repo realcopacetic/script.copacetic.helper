@@ -75,15 +75,22 @@ class Slideshow:
         self.profile = None
         self.next_slide_at = 0.0
         self.slot = infolabel("Window(home).Property(slideshow_slot)") or "b"
+        self.shown = None  # the current slide's (item, fanart)
+        self.query = ""  # the params its darken was measured by
 
     def tick(self) -> None:
-        """Publish the next slide on interval lapse or profile change."""
-        now = time.monotonic()
-        if (
-            now < self.next_slide_at and self._config() == self.profile
-        ) or self._paused():
+        """
+        Publish the next slide on interval lapse or profile change; when only the
+        skin's params change, republish the current slide's darken.
+        """
+        due = time.monotonic() >= self.next_slide_at or self._config() != self.profile
+        query = infolabel("Window(home).Property(slideshow_artwork_params)")
+        if not (due or (self.shown and query != self.query)) or self._paused():
             return
-        self._advance()
+        if due:
+            self._advance(query)
+        else:
+            self._redarken(query)
 
     def clear(self) -> None:
         """Clear all published slideshow props."""
@@ -96,11 +103,13 @@ class Slideshow:
             "Window.IsVisible(fullscreenvideo) | Window.IsVisible(visualisation)"
         )
 
-    def _advance(self) -> None:
+    def _advance(self, query: str) -> None:
         """
         Refill the batch on exhaustion or profile change, then publish one random
         slide and schedule the next from after the fetch. A slide that fails within
         RETRY_WITHIN tries another item next tick; a slower one waits after it.
+
+        :param query: The skin's slideshow_artwork_params.
         """
         profile = self._config()
         if profile != self.profile or not self.art:
@@ -113,9 +122,11 @@ class Slideshow:
             return
         item = self.art.pop(random.randrange(len(self.art)))
         self.seen.add(item["fanart"])
+        fanart = self._fanart_url(item)
         with log.muted():
-            if slide := self._process(item):
+            if slide := self._process(item, fanart, query):
                 self._publish(slide)
+                self.shown, self.query = (item, fanart), query
             elif (end := time.monotonic()) - start >= self.RETRY_WITHIN:
                 self.next_slide_at = end + interval  # rest a whole interval after it
             elif self.art:
@@ -254,21 +265,20 @@ class Slideshow:
                     {"title": result.get("label", ""), **art, "fanart": fanart}
                 )
 
-    def _process(self, item: dict) -> dict | None:
+    def _process(self, item: dict, fanart: str | None, query: str) -> dict | None:
         """
         Blur and darken the fanart and crop and measure the clearlogo through the
-        shared cache. Background opts come from skin-declared params prop.
+        shared cache. Background opts come from the skin-declared params.
 
         :param item: Art dict from the fetch batch.
+        :param fanart: Fanart URL picked from the item's art set.
+        :param query: The skin's slideshow_artwork_params.
         :return: Slide dict with fanart/blur/darken/clearlogo/title, or None.
         """
-        fanart = self._fanart_url(item)
         if not fanart:
             return None
         clearlogo = item.get("clearlogo-billboard") or item.get("clearlogo")
-        params = dict(
-            parse_qsl(infolabel("Window(home).Property(slideshow_artwork_params)"))
-        )
+        params = dict(parse_qsl(query))
         params["background_url"] = fanart
         if "background_blur" not in params:  # declaration absent: plain blur
             params["background_blur"] = "true"
@@ -305,6 +315,18 @@ class Slideshow:
         if not fanarts:
             return None
         return random.choice(fanarts).removesuffix("transform?size=thumb")
+
+    def _redarken(self, query: str) -> None:
+        """
+        Republish the current slide's darken by new params, through the same cached
+        serve; its fanart, blur, logo, title and slot stay as published.
+
+        :param query: The skin's slideshow_artwork_params.
+        """
+        self.query = query
+        with log.muted():
+            if slide := self._process(*self.shown, query):
+                window_property("slideshow_darken", value=slide["darken"])
 
     def _publish(self, slide: dict) -> None:
         """
