@@ -277,7 +277,7 @@ editable lists and hosting — is in
 | `parent` | an entry's `runtime_id` | none | Show only the children of this entry; new entries get it as their parent |
 | `focus_item` | a mapping item name | first entry | Select the first entry of this mapping item when the window opens |
 | `host` | window name | none | The real window this editor stands in for. See [Hosting](../builders/09-runtime-state.md#hosting--binding-an-editor-to-a-real-window). |
-| `host_focus` | control id | the list (100) | Control that gets focus when the window opens |
+| `host_focus` | control id | the list (100) | Control that gets focus when the window opens, with or without `host`. Back on it closes the window. |
 
 ### What your window XML must have
 
