@@ -154,15 +154,13 @@ class ColorAnalyzer:
     # ---------- private helper methods ----------
     def _sample_image(self, im: Image.Image) -> Image.Image:
         """
-        Downsample image for fast palette and accent analysis; its transparency
-        (has_alpha) stays alpha.
+        Downsample image for fast palette and accent analysis.
 
         :param im: Input PIL image (any mode).
         :return: Downsampled image in RGB/RGBA mode.
         """
-        mode = "RGBA" if has_alpha(im) else "RGB"
-        if im.mode != mode:
-            im = im.convert(mode)
+        if im.mode not in ("RGB", "RGBA"):
+            im = im.convert("RGBA" if "A" in im.getbands() else "RGB")
         return im.resize((self.cfg.sample_size, self.cfg.sample_size), Image.BOX)
 
     def _opaque_rgb(self, im_small: Image.Image) -> Image.Image | None:
