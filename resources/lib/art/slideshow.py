@@ -33,6 +33,7 @@ class Slideshow:
     """
 
     BATCH_SIZE = 20
+    CUSTOM_WINDOW = 200  # a listing's limit comes before the art test: sample from more
     DEFAULT_INTERVAL = 5
     RETRY_WITHIN = 1  # seconds: a slower failed slide (a dead share) waits the interval
 
@@ -229,7 +230,7 @@ class Slideshow:
             "Files.GetDirectory",
             params={"directory": path, "properties": ["art"]},
             sort={"method": "random"},
-            limit=self.BATCH_SIZE,
+            limit=self.CUSTOM_WINDOW,
             parent="slideshow_fetch",
         )
         for result in query.get("result", {}).get("files", []):
