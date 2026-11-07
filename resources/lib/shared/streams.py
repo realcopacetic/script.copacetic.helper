@@ -12,6 +12,8 @@ _STREAMS = {
 }
 # Words in a subtitle's name that mark it for the hearing impaired
 _IMPAIRED_WORDS = frozenset({"cc", "hi", "sdh"})
+# Words that undo "forced" in a subtitle's name (Non-Forced, Not forced)
+_NEGATIONS = frozenset({"non", "not"})
 # Subtitle types looked for, in order, for each preferred type
 _FALLBACKS = {
     "forced": ("forced",),
@@ -39,15 +41,16 @@ def player_streams(type: str) -> tuple[list[dict], dict | None]:
     return result.get(listed, []), in_use or None  # {} when no stream is in use
 
 
-def subtitle_kind(stream: dict | None) -> str:
+def subtitle_kind(stream: dict) -> str:
     """
-    A subtitle stream's type: forced, impaired or full, from its flags, then
-    words in its name (external files carry only forced); "" for None.
+    A subtitle stream's type, from its flags, then words in its name (external
+    files carry only forced); "Non-Forced" and "Not forced" are not forced.
+
+    :param stream: A JSON-RPC subtitle stream.
+    :return: forced, impaired or full.
     """
-    if not stream:
-        return ""
     words = set(re.findall(r"[a-z]+", stream["name"].lower()))
-    if stream["isforced"] or "forced" in words:
+    if stream["isforced"] or "forced" in words and not words & _NEGATIONS:
         return "forced"
     if stream["isimpaired"] or words & _IMPAIRED_WORDS:
         return "impaired"
@@ -56,8 +59,13 @@ def subtitle_kind(stream: dict | None) -> str:
 
 def preferred_subtitle(streams: list[dict], lang: str, kind: str) -> dict | None:
     """
-    The first lang stream of kind (empty: full), else of its fallback: full and
-    impaired stand in for each other, forced has none. None without one.
+    The first lang stream of kind, else of its fallback: full and impaired
+    stand in for each other, forced has none.
+
+    :param streams: The JSON-RPC subtitle streams.
+    :param lang: ISO 639-2/B language code, as streams carry it.
+    :param kind: forced, full or impaired; empty counts as full.
+    :return: The preferred stream, or None without one.
     """
     return next(
         (
@@ -76,6 +84,12 @@ def subtitle_status(
     """
     player_subtitle_kind's value: the showing stream's type; while off, "missing"
     when lang is set and has no preferred stream, else "".
+
+    :param streams: The JSON-RPC subtitle streams.
+    :param current: The stream showing, None while off.
+    :param lang: Preferred ISO 639-2/B language code; empty for none.
+    :param kind: Preferred type, as for preferred_subtitle.
+    :return: forced, full, impaired, missing or "".
     """
     if current:
         return subtitle_kind(current)
