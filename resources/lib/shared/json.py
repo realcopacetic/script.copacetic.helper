@@ -1,10 +1,10 @@
 # author: realcopacetic
 
 import json
-import os
 from pathlib import Path
 
 from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import replace_file
 
 
 class JSONHandler:
@@ -85,16 +85,13 @@ class JSONHandler:
 
     def write_json(self, content) -> None:
         """
-        Writes a JSON-serializable dictionary to disk atomically (temp file
-        + os.replace), so a crash mid-write cannot truncate the target.
+        Writes a JSON-serializable dictionary to disk atomically (replace_file),
+        so a crash mid-write cannot truncate the target.
 
         :param content: Data to be written to the current path.
         """
-        tmp_path = self.path.with_name(self.path.name + ".tmp")
         try:
-            with open(tmp_path, "w", encoding="utf-8") as file:
-                json.dump(content, file, indent=4)
-            os.replace(tmp_path, self.path)
+            replace_file(self.path, json.dumps(content, indent=4).encode())
         except (IOError, TypeError, ValueError) as e:
             log.error(
                 f"{self.__class__.__name__} → Error updating JSON file '{self.path}' --> {e}",

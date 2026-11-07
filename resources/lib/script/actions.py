@@ -28,6 +28,7 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     notify_build_failed,
+    parse_bool,
     play_files,
     reset_dev_state,
     skin_path,
@@ -305,10 +306,8 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
         query_filter={"albumid": song["albumid"]},
         parent="play_album_from_track",
     )["result"].get("songs", [])
-    play_files(
-        [s["file"] for s in songs],
-        position=[s["songid"] for s in songs].index(songid),
-    )
+    mark_source(dial_entry("album", song["albumid"]))
+    play_files(songs, position=[s["songid"] for s in songs].index(songid))
 
 
 @action
@@ -326,14 +325,16 @@ def play_items(id: str, **kwargs: str) -> None:
     indices = range(to_int(infolabel(f"Container({id}).NumItems")))
 
     if kwargs.get("type", "") == "music":
-        play_files(
-            [
-                url
-                for i in indices
-                if (url := infolabel(f"{prefix}({i}).FileNameAndPath"))
-            ],
-            shuffled=method == "shuffle",
-        )
+        songs = []
+        for i in indices:
+            if url := infolabel(f"{prefix}({i}).FileNameAndPath"):
+                song = {"file": url}
+                if infolabel(f"{prefix}({i}).DBType") == "song" and (
+                    (songid := to_int(infolabel(f"{prefix}({i}).DBID"))) > 0
+                ):
+                    song["songid"] = songid
+                songs.append(song)
+        play_files(songs, shuffled=method == "shuffle")
         return
 
     clear_playlists()
@@ -753,16 +754,6 @@ def _random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
     )["result"].get("songs", [])
 
 
-def _play_songs(songs: list[dict]) -> None:
-    """
-    Replaces whatever is playing: queues the songs in order and plays from the
-    first. Call it once the songs are fetched.
-
-    :param songs: Song dicts with file.
-    """
-    play_files([s["file"] for s in songs])
-
-
 def _mix_seed(type: str, dbid: int) -> dict | None:
     """
     The song a mix starts from: the song itself, or one of the five most
@@ -845,7 +836,7 @@ def shuffle(id: str = "", type: str = "artist", path: str = "", **kwargs: str) -
     """
     mark_source(None if type in ("genre", "year") else dial_entry(type, id, path))
     if type == "year":
-        _play_songs(_random_songs(_year_rule(id)))
+        play_files(_random_songs(_year_rule(id)))
         return
     clear_playlists()
     item = (
@@ -879,7 +870,7 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     if type in ("genre", "year"):
         mark_source(None)
         rule = {"genreid": to_int(id)} if type == "genre" else _year_rule(id)
-        _play_songs(_random_songs(rule, MIX_SIZE))
+        play_files(_random_songs(rule, MIX_SIZE))
         return
     dbid = to_int(id or infolabel("ListItem.DBID"))
     if not (seed := _mix_seed(type, dbid)):
@@ -905,7 +896,7 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
         if genres
         else []
     )
-    _play_songs([seed, *_spread(own, others)])
+    play_files([seed, *_spread(own, others)])
 
 
 REGISTRY["play_radio"] = start_mix  # former name, kept for skins that call it
@@ -916,9 +907,10 @@ def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) 
     """
     Switches to preferred subtitle stream or toggles through them.
 
-    :param lang: Preferred language (e.g., "en").
-    :param user_trigger: If True, toggles on/off if already active.
+    :param lang: Preferred language as Kodi reports it (e.g., "eng").
+    :param user_trigger: True (or "true") also toggles subtitles on/off; see parse_bool.
     """
+    user_trigger = parse_bool(user_trigger)
     if condition("VideoPlayer.HasSubtitles"):
         player = xbmc.Player()
         subtitles = []

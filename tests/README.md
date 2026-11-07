@@ -12,7 +12,7 @@ python tests/snapshot_diff.py ../skin.copacetic2 [--base REF] [--head REF] [--he
 # Lint what the migrated (C2) windows load, plus a fresh build (exit 1 on errors)
 python tests/skin_lint.py ../skin.copacetic2 [--window MyPics.xml ...] [--all] [--generated /tmp/c2-build] [--exclude 'GLOB' ...] [--count]
 
-# Artwork prepare + compose on synthetic posters: label rects, element step, colour, band alpha and ratio, timings (needs Pillow; reads the skin's fonts)
+# Artwork prepare + compose on synthetic posters: label rects, element step, colour, band alpha and ratio, palette PNG transparency, measure version, RGB PNG tRNS resize, timings (needs Pillow; reads the skin's fonts)
 python tests/artwork_check.py ../skin.copacetic2
 
 # Web API layer (http, api_cache, ListenBrainz, top_songs, TMDb) against recorded answers, no network
@@ -26,8 +26,9 @@ python tests/soundtracks_offline.py
 python tests/multiart_offline.py
 
 # Service build boundary (service/monitor.py): a build that raises is logged, the
-# player monitor, slideshow and helper_active still start, and a failure after a
-# seed (builders/runtime.py) is retried next start
+# player monitor, slideshow and helper_active still start, helper_speed_dial follows
+# the skin naming info=speed_dial, and a failure after a seed (builders/runtime.py)
+# is retried next start
 python tests/service_offline.py
 ```
 

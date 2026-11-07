@@ -92,6 +92,7 @@ class ArtOpts:
     :param ratio: Contrast target for compose.
     :param element_colors: Candidate colours (hex) of an element drawn on the art.
     :param band_feather: The band's fade outside its rects, frame px.
+    :param band_inset: The change's right fade starts this far inside, frame px.
     :param palette: Return the palette for this art.
     :param shape: Return the art's size and whether its corners are opaque.
     """
@@ -105,6 +106,7 @@ class ArtOpts:
     ratio: float
     element_colors: tuple[str, ...]
     band_feather: int
+    band_inset: int
     palette: bool
     shape: bool
 
@@ -164,6 +166,9 @@ class ArtOpts:
             ),
             band_feather=to_int(
                 params.get(f"{art_type}_band_feather"), policy.ColorConfig.band_feather
+            ),
+            band_inset=to_int(
+                params.get(f"{art_type}_band_inset"), policy.ColorConfig.band_inset
             ),
             palette=parse_bool(params.get(f"{art_type}_palette", "false")),
             shape=parse_bool(params.get(f"{art_type}_shape", "false")),

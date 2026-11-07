@@ -7,9 +7,12 @@ from pathlib import Path
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
     ADDONDATA,
+    SKINXML,
+    TEMPLATES,
     condition,
     infolabel,
     json_call,
+    skin_path,
     window_property,
 )
 
@@ -105,6 +108,21 @@ def clear_properties() -> None:
         window_property(key)
 
 
+def skin_uses_speed_dial() -> bool:
+    """
+    True when the active skin's builder templates or XML name the speed dial
+    plugin path (info=speed_dial). Templates first: a builder skin names it there.
+
+    :return: Whether any of its JSON or XML files does.
+    """
+    return any(
+        b"info=speed_dial" in file.read_bytes()
+        for folder in (TEMPLATES, SKINXML)
+        for file in Path(skin_path(folder)).rglob("*")
+        if file.suffix in (".json", ".xml")
+    )
+
+
 def queue_source(songid: int) -> dict:
     """
     Infers what a playback was started from: a playlist open in the music
@@ -133,8 +151,11 @@ def queue_source(songid: int) -> dict:
         parent="speed_dial",
     )["result"].get("items", [])
     if len(songs) > 1:
-        if len({s["albumid"] for s in songs}) == 1:
-            return entry("album", songs[0]["albumid"])
+        # albumid is -1 in a tag Kodi hasn't loaded (songs play_files queues) and
+        # missing with no tag at all: neither names an album
+        album, *others = {s.get("albumid", -1) for s in songs}
+        if not others and album > 0:
+            return entry("album", album)
         if shared := set.intersection(*(set(s.get("artistid", [])) for s in songs)):
             return entry("artist", min(shared))
     return entry("song", songid)

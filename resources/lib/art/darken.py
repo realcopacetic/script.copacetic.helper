@@ -1,7 +1,7 @@
 # author: realcopacetic
 
 from functools import reduce
-from math import ceil
+from math import ceil, hypot, sqrt
 from operator import mul
 from typing import Any
 
@@ -16,6 +16,10 @@ Box = tuple[int, int, int, int]
 
 LIN = [round(255 * linear(v / 255)) for v in range(256)]
 SHOWN = [0] + [255] * 255  # alpha to a paste mask: any alpha shows
+RAMP_STEP = 4  # ramp's sampling step, px
+EASE = bytes(  # smoothstep of 1 - r, by r squared in 1024 steps
+    round(255 * t * t * (3 - 2 * t)) for t in (1 - sqrt(i / 1023) for i in range(1024))
+)
 
 
 def luminance_image(image: Image.Image) -> Image.Image:
@@ -28,25 +32,45 @@ def luminance_image(image: Image.Image) -> Image.Image:
     return image.point(LIN * 3).convert("L", (*W, 0))
 
 
-def ramp(size: tuple[int, int], box: Box, margin: int) -> Image.Image:
+def ramp(size: tuple[int, int], box: Box, margin: int, inset: int = 0) -> Image.Image:
     """
-    Smoothstep mask: full inside the box, falling to 0 over `margin` px outside it,
-    with no step at the box's edge.
+    Smoothstep mask: full inside the box, falling to 0 over `margin` px outside it.
+    Above the box the fade shortens along a quarter oval towards the right, to half at
+    most; `inset` starts the right-hand fade that far inside the box, so it is gentler.
 
     :param size: Mask size (w, h).
     :param box: Box (x0, y0, x1, y1) at full strength.
     :param margin: Fade length outside the box, px.
+    :param inset: How far inside the box the right-hand fade starts, px.
     :return: Mode "L" mask.
     """
-
-    def axis(n: int, a: int, b: int) -> bytes:
-        ts = (max(0.0, 1 - max(a - x, x - (b - 1), 0) / margin) for x in range(n))
-        return bytes(round(255 * t * t * (3 - 2 * t)) for t in ts)
-
     w, h = size
-    rx = Image.frombytes("L", (w, 1), axis(w, box[0], box[2]))
-    ry = Image.frombytes("L", (1, h), axis(h, box[1], box[3]))
-    return ImageChops.multiply(*(s.resize(size, Image.NEAREST) for s in (rx, ry)))
+    x0, y0, x1, y1 = box
+    end, tall, half = x1 + margin - x0, y1 - y0 + margin, margin / 2
+    right = max(
+        x0 + 1, x1 - inset
+    )  # where the right-hand fade starts; it ends as before
+    cols, rows = (ceil(v / RAMP_STEP) for v in size)  # sampled: the fade is smooth
+
+    def centres(v: int, k: int) -> list[float]:  # where each sample lands at full size
+        return [(i + 0.5) * v / k - 0.5 for i in range(k)]
+
+    ys = centres(h, rows)
+
+    def column(x: float) -> bytes:
+        u = min(1.0, max(0.0, (x - x0) / end))
+        f = tall * sqrt(1 - u * u) - y1 + y0  # the oval's height above the box at x
+        above = min(margin, (f + half + hypot(f - half, half / 2)) / 2)  # soft floor
+        a = (x0 - x) / margin if x < x0 else max(0, x - right + 1) / (end + x0 - right)
+        downs = (
+            (y0 - y) / above if y < y0 else max(0, y - y1 + 1) / margin for y in ys
+        )
+        return bytes(EASE[min(1023, int(1023 * (a * a + d * d)))] for d in downs)
+
+    small = Image.frombytes("L", (rows, cols), b"".join(map(column, centres(w, cols))))
+    mask = small.transpose(Image.TRANSPOSE).resize(size, Image.BILINEAR)
+    mask.paste(255, (x0, y0, right, y1))  # solid to the fade's start, however sampled
+    return mask
 
 
 def pull_table(text: str, tint: str, ratio: float, margin: float) -> list[int]:
@@ -172,35 +196,31 @@ class ColorDarken:
     ) -> tuple[str | None, Image.Image]:
         """
         The band behind the element, the blur's size: the blur (step 2) or its
-        changed copy (step 3, with tints) over the rects as the skin passes them at
-        the label's lines, its alpha falling to 0 over the feather; clear elsewhere.
+        changed copy (step 3, with tints) over the label-clamped rects, its alpha
+        falling to 0 over the feather; clear elsewhere.
 
         :param blur: The band's blur, RGB.
-        :param opts: ArtOpts carrying rects, frame, label, ratio and feather.
+        :param opts: ArtOpts carrying rects, frame, label, ratio, feather and inset.
         :param tints: Tint (hex) per candidate element colour (hex); empty at step 2.
         :return: (chosen element colour, None without tints; the RGBA band).
         """
-        clamped = self._clamp_rects_to_labels(opts.darken)
-        shown = [  # full width as passed, at the label's lines
-            (x, cy, w, ch)
-            for (x, _, w, _), (_, cy, _, ch) in zip(self.rects(opts.darken), clamped)
-        ]
         frame = opts.darken.frame
         k, _, _ = self._cover(blur.size, frame)
         m = max(1, round(opts.band_feather / k))  # ramp divides by it
-        bands = self.boxes(blur.size, shown, frame)
-        x0, y0 = (max(0, min(b[i] for b in bands) - m) for i in (0, 1))
-        x1 = min(blur.width, max(b[2] for b in bands) + m)
-        y1 = min(blur.height, max(b[3] for b in bands) + m)
+        bands = self.boxes(blur.size, self._clamp_rects_to_labels(opts.darken), frame)
+        pad = m + RAMP_STEP  # the fade and one clear sample: ramp's edge rows are 0
+        x0, y0 = (max(0, min(b[i] for b in bands) - pad) for i in (0, 1))
+        x1 = min(blur.width, max(b[2] for b in bands) + pad)
+        y1 = min(blur.height, max(b[3] for b in bands) + pad)
         area = blur.crop((x0, y0, x1, y1))  # the band and its fade: all it touches
 
         def local(boxes: list[Box]) -> list[Box]:
             return [(a - x0, b - y0, c - x0, d - y0) for a, b, c, d in boxes]
 
         text = None
-        if tints:  # the change stays label-width: no art changes behind no text
-            boxes = local(self.boxes(blur.size, clamped, frame))
-            text, area = self._change(area, boxes, m, opts.ratio, tints)
+        if tints:  # the change's fade starts inside the label's end: gentler there
+            inset = round(opts.band_inset / k)
+            text, area = self._change(area, local(bands), m, inset, opts.ratio, tints)
         alpha = reduce(
             ImageChops.lighter, (ramp(area.size, b, m) for b in local(bands))
         )
@@ -214,6 +234,7 @@ class ColorDarken:
         area: Image.Image,
         boxes: list[Box],
         margin: int,
+        inset: int,
         ratio: float,
         tints: dict[str, str],
     ) -> tuple[str, Image.Image]:
@@ -225,6 +246,7 @@ class ColorDarken:
         :param area: The blur under the band, RGB.
         :param boxes: The label-clamped rects, in the area's pixels.
         :param margin: Fade length outside the boxes, px.
+        :param inset: How far inside the boxes the right-hand fade starts, px.
         :param ratio: Contrast target.
         :param tints: Tint (hex) per candidate element colour (hex).
         :return: (chosen element colour, changed copy of the area).
@@ -240,7 +262,7 @@ class ColorDarken:
         text = min(tables, key=lambda c: sum(map(mul, hist, tables[c][2])))
         lifts, table, _ = tables[text]
         fade = reduce(
-            ImageChops.lighter, (ramp(area.size, box, margin) for box in boxes)
+            ImageChops.lighter, (ramp(area.size, box, margin, inset) for box in boxes)
         )
 
         def need(image: Image.Image) -> Image.Image:

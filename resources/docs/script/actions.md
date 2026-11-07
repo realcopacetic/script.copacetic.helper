@@ -117,6 +117,13 @@ folders under `musicdb://`.
 **Like** and **Unlike** need your skin to set `Skin.String(like_threshold)` to a
 rating from `1` to `10`. While it is empty or `0`, neither shows.
 
+**Pin to speed dial** and **Unpin** show only in a skin that uses speed dial: one
+whose builder templates (`extras/templates/`) or `16x9/` XML name
+`info=speed_dial`, for example in a widget's content path. The service checks when
+the skin becomes active and again when it is updated, and sets
+`Window(home).Property(helper_speed_dial)` for it. A skin that opts in without speed
+dial gets the other four items only.
+
 **Pin to speed dial** and **Unpin** tell a pinned item by the speed dial window
 properties (see [Is this item pinned?](../plugins/speed_dial.md#is-this-item-pinned)),
 so they show the right way round in any list, not only in speed dial.
@@ -535,7 +542,7 @@ Clears the playlists and plays an album from the music library, in order.
 Clears the playlists, queues the song's whole album in disc and track order, and
 starts playing at that song. Kodi's shuffle is turned off, so the album plays in
 order. If the song is not in the library, nothing changes: what was playing carries
-on.
+on. The album is added to the [speed dial](../plugins/speed_dial.md) recent list.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -552,7 +559,9 @@ on.
 Clears the playlists, queues every item in a container and starts playing.
 
 - With `type=music`, every item is queued by its path (`ListItem.FileNameAndPath`) in
-  the music playlist. Items with no path are left out.
+  the music playlist. Items with no path are left out. A library song
+  (`ListItem.DBType` `song`) also carries its `ListItem.DBID`, so a
+  [`rate_song`](#rate_song) on it while it plays shows straight away.
 - Otherwise the items go in the video playlist. Library movies, episodes and music
   videos are queued by database id. Other items are queued by their path.
 
@@ -634,6 +643,12 @@ titles and paths can contain commas:
 
 Sets a song's user rating in the music library. If that song is playing,
 `MusicPlayer.UserRating` shows the new rating straight away; Kodi updates it itself.
+That includes songs the helper queues by file path ([`start_mix`](#start_mix),
+[`shuffle`](#shuffle) a year, [`play_album_from_track`](#play_album_from_track),
+[`play_items`](#play_items) `type=music`): each one carries its song id, which is how
+Kodi matches the playing song to the update. Kodi also copies the update over the
+song's queue entry and resets its place in the play order, so turning shuffle on or
+off after a like can lose the queue's place (a Kodi bug, for any library song).
 
 The context menu's **Like** and **Unlike** items run this action (see
 [Items the helper adds to the context menu](#items-the-helper-adds-to-the-context-menu)).
@@ -908,7 +923,17 @@ Does nothing if the playing video has no subtitles.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `lang` | a subtitle language as Kodi reports it, for example `eng` | required | The preferred language |
-| `user_trigger` | empty | on | When on, the action also turns subtitles on if they are hidden, and off if they are showing in the preferred language. Pass it empty (`user_trigger=`) to only switch streams. Any non-empty value, including `false`, counts as on. |
+| `user_trigger` | `false` | on | When on, a stream already in the preferred language is turned on if hidden, and off if showing. `false` leaves a stream already in that language as it is, shown or hidden. `true`, `1`, `yes` and `on` count as on; any other value, empty included, as off. |
+
+What `false` does not change: when the current stream is in another language, the
+action still switches, and switching to the preferred stream always makes subtitles
+visible. When no stream is in that language, `Action(NextSubtitle)` still runs: Kodi
+shows its subtitle notification, turns hidden subtitles on, and after the last stream
+turns them off.
+
+The current stream counts as the preferred language when its language contains `lang`;
+a stream to switch to must match it exactly, so pass the language as Kodi reports it
+(`eng`, not `en`).
 
 Example from Copacetic, in the video OSD:
 

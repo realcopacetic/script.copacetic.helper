@@ -3,13 +3,17 @@ Run the artwork pipeline (prepare, then compose) on synthetic posters outside Ko
 
 Checks the label's measured rect (lines, widest line), the element-on-art step, its
 winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
-away) and, at step 3, that the tinted band reads at the ratio; prints each serve's
-time. Needs Pillow and the skin (its Font.xml and fonts measure the label); no network.
+away) and, at step 3, that the tinted band reads at the ratio, then that a palette
+PNG's transparent colour is no colour, that a row measured before the measure version
+is measured again and that an RGB PNG with tRNS measures as its RGBA copy; prints
+each serve's time. Needs Pillow and the skin (its Font.xml and fonts measure the
+label); no network.
 
     python tests/artwork_check.py ../skin.copacetic2
 """
 
 import io
+import json
 import os
 import random
 import shutil
@@ -147,7 +151,7 @@ def main() -> None:
     install(tmp, Path(sys.argv[1]).resolve())
     from resources.lib.art.analyzer import ColorAnalyzer
     from resources.lib.art.color import contrast, from_hex, luminance
-    from resources.lib.art.darken import ColorDarken
+    from resources.lib.art.darken import ColorDarken, ramp
     from resources.lib.art.editor import ImageEditor
     from resources.lib.art.policy import ART_PROCESS_MAP, ColorConfig
     from resources.lib.plugin.opts import ArtOpts
@@ -210,6 +214,23 @@ def main() -> None:
     ok = solid(image, label[0]) and clear(image, label[0], 60)
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} feather 60: clear 60 px past the label's lines")
+    straddle = {"icon_url": str(tmp / "straddle.jpg"), **STRIP}  # pulled to its end
+    one, two = (  # copied at once: a new band replaces the old file
+        Image.open(serve({**straddle, **extra})[0]["icon_band"]).copy()
+        for extra in ({}, {"icon_band_inset": "60"})
+    )
+    alpha, rgb = (  # getbbox on RGBA reads the alpha only
+        ImageChops.difference(*(get(i) for i in (one, two))).getbbox()
+        for get in (lambda i: i.getchannel("A"), lambda i: i.convert("RGB"))
+    )
+    ok = alpha is None and rgb is not None
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} inset 60: a new band, same alpha, change moved")
+    mask = ramp((200, 100), (40, 40, 60, 60), 40, 60)  # an inset wider than the label
+    row = [mask.getpixel((x, 50)) for x in range(38, 43)]
+    ok = max(abs(a - b) for a, b in zip(row, row[1:])) <= 3
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} inset wider than the label: no step {row}")
     for name, size, mode, cut, want in SHAPES:
         img = Image.new(mode, size, "white")
         if cut:
@@ -221,6 +242,40 @@ def main() -> None:
         ok = got == want and serve(params)[0] == art  # the second serve is the cache's
         failures += not ok
         print(f"{'ok  ' if ok else 'FAIL'} shape {name:12} {got}")
+    keyed = Image.new("P", (800, 310))  # palette PNG: index 0, green, is transparent
+    keyed.putpalette([0, 255, 0, 200, 16, 46])
+    ImageDraw.Draw(keyed).rectangle((60, 80, 740, 230), 1)
+    keyed.save(path := str(tmp / "keyed.png"), transparency=0)
+    serve({"clearlogo_url": path})
+    sqlite = ImageEditor().sqlite
+    (row,) = sqlite.find_variants(path, "darken")
+    got = json.loads(row["measure"])["dominant"]
+    ok = got == "ffc8102e"
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} palette PNG: transparency is not colour {got}")
+    key = row["cache_key"]  # as a row measured before the version: no token, green
+    old = key.rpartition("&version=")[0]
+    sqlite.delete_entry(key)
+    sqlite.add_entry({**row, "cache_key": old, "measure": '{"dominant":"ff00ff00"}'})
+    serve({"clearlogo_url": path})
+    (new,) = sqlite.find_variants(path, "darken")
+    ok = bool(old) and new["cache_key"] == key and new["measure"] == row["measure"]
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} measure version: an older row is measured again")
+    keyed = Image.new("RGB", (800, 310), "white")  # white is transparent: thin strokes
+    draw = ImageDraw.Draw(keyed)
+    for x in range(40, 760, 24):
+        draw.rectangle((x, 60, x + 4, 250), "#0028a0")
+    for y in range(60, 250, 30):
+        draw.rectangle((40, y, 760, y + 2), "#0028a0")
+    keyed.save(path := str(tmp / "keyed-rgb.png"), transparency=(255, 255, 255))
+    Image.open(path).convert("RGBA").save(rgba := str(tmp / "keyed-rgba.png"))
+    for p in (path, rgba):
+        serve({"clearlogo_url": p})
+    got = [sqlite.find_variants(p, "darken")[0]["measure"] for p in (path, rgba)]
+    ok = got[0] == got[1]
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} RGB PNG with tRNS measures as its RGBA {got[0]}")
     failures += check_rekey(tmp, serve, ImageEditor())
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
@@ -282,30 +337,31 @@ def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
 
 def solid(band: Image.Image, rect: tuple[int, int, int, int]) -> bool:
     """
-    The band's alpha is full over the label's lines across the whole text box
-    (frame px are blur px).
+    The band's alpha is full over the label's measured rect (frame px are blur px).
 
     :param band: The band, RGBA.
     :param rect: The label's measured rect.
     :return: True when every pixel there is opaque.
     """
-    bx, _, bw, _ = map(int, STRIP["icon_darken_rects"].split(","))
-    box = (bx, rect[1], bx + bw, rect[1] + rect[3])
-    return band.getchannel("A").crop(box).getextrema() == (255, 255)
+    x, y, w, h = rect
+    return band.getchannel("A").crop((x, y, x + w, y + h)).getextrema() == (255, 255)
 
 
 def clear(band: Image.Image, rect: tuple[int, int, int, int], feather: int) -> bool:
     """
-    The band's alpha is 0 a feather above the label's lines, and so above it.
+    The band's alpha is 0 a feather above the label's lines and a feather past its
+    end, and so beyond: the band is the label's width, not the text box's.
 
     :param band: The band, RGBA.
     :param rect: The label's measured rect.
     :param feather: The band's feather, frame px.
-    :return: True when the rows from there up are clear.
+    :return: True when the rows from there up and the columns from there on are clear.
     """
-    return (
-        band.getchannel("A").crop((0, 0, 480, rect[1] - feather + 1)).getbbox() is None
-    )
+    x, y, w, _ = rect
+    alpha = band.getchannel("A")
+    above = alpha.crop((0, 0, 480, y - feather + 1))
+    past = alpha.crop((min(480, x + w + feather - 1), 0, 480, 720))
+    return above.getbbox() is None and past.getbbox() is None
 
 
 if __name__ == "__main__":

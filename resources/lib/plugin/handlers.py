@@ -560,7 +560,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if self._visit_superseded():
             return self._artwork_held()
         # A serve with no focus_ids (the primary view) is unguarded on focus moves.
-        focus = focused_control_id(self.window_id)
+        window_id = self.window_id
+        focus = focused_control_id(window_id)
 
         from resources.lib.art.editor import ImageEditor
         from resources.lib.art.multiart import seed_multiart
@@ -602,7 +603,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         else:
             # A cleared cursor (back from an info dialog) scopes to the focused view.
             stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope or str(
-                focused_control_id(self.window_id)
+                focused_control_id(window_id)
             )
         multiart_type = self.params.get("multiart")
         params = self.params
@@ -674,17 +675,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if art is None:
             return self._artwork_held()
 
-        # Sized before the list lands; the old items stay up until then (no blank).
-        # A cancelled job still runs: size only while the URL's item is still shown.
+        # Sized before the list lands (no blank). A cancelled job still runs: size only
+        # for the URL's item, in its window, still topmost (windows share control ids).
         if (
             (fit := self.params.get("clearlogo_fit"))
             and alive()
             and not self._visit_superseded()
-            and (
-                self.item
-                or self.focus_ids
-                or focused_control_id(self.window_id) == focus
-            )
+            and topmost_window_id() == window_id
+            and (self.item or self.focus_ids or focused_control_id(window_id) == focus)
             and self.params.get("clearlogo_fit_key") in (None, self._item_key())
             and (
                 h := fit_height(

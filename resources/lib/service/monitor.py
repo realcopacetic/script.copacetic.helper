@@ -12,7 +12,7 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.templates import cache_is_current
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.shared import logger as log
-from resources.lib.shared.speed_dial import release_refresh
+from resources.lib.shared.speed_dial import release_refresh, skin_uses_speed_dial
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
@@ -29,6 +29,8 @@ from resources.lib.shared.utilities import (
 
 # Set while an opted-in skin is active; addon.xml's context items test it.
 ACTIVE_PROPERTY = "helper_active"
+# Set with it while that skin names speed dial; addon.xml's Pin/Unpin test it instead.
+SPEED_DIAL_PROPERTY = "helper_speed_dial"
 # Token _settle posts through Kodi's builtin queue to see when the queue has run.
 SETTLE_PROPERTY = "helper_settle"
 # Time for the skin to draw helper_reloading's dots before ReloadSkin freezes the frame.
@@ -90,6 +92,8 @@ class Monitor(xbmc.Monitor):
         if self.player_monitor:
             log.info(f"{self.__class__.__name__} → Skin updated to version {version}")
             self._builder_elements()
+            # An update may add or drop speed dial.
+            window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
         elif version and skin_uses_builder():
             self._activate()
 
@@ -103,11 +107,13 @@ class Monitor(xbmc.Monitor):
         self._builder_elements()
         self.player_monitor = PlayerMonitor()
         self.slideshow = Slideshow()
+        window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
         window_property(ACTIVE_PROPERTY, value="true")
 
     def _deactivate(self) -> None:
         """Leaving the skin: hide the context items, release the monitors."""
         window_property(ACTIVE_PROPERTY)
+        window_property(SPEED_DIAL_PROPERTY)
         self.player_monitor.release()
         self.slideshow.clear()
         self.player_monitor = self.slideshow = None

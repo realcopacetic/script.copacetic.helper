@@ -10,6 +10,17 @@ RGB = tuple[int, int, int]
 Palette = tuple[list[RGB], list[tuple[int, int]]]
 
 
+def has_alpha(image: Image.Image) -> bool:
+    """
+    Whether the image has transparency: an alpha band, or a transparency entry
+    (a PNG's tRNS chunk, a GIF's transparent index) that Pillow makes alpha.
+
+    :param image: Input PIL image (any mode).
+    :return: True for an alpha band or any transparency entry.
+    """
+    return "A" in image.getbands() or "transparency" in image.info
+
+
 class ColorAnalyzer:
     """
     Extracts an image's dominant and accent colours and its palette's extremes.

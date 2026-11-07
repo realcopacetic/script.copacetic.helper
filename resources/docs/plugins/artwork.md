@@ -14,11 +14,13 @@ single list item. It can:
 
 The helper works in two passes. **Prepare** crops, blurs and measures each image (its
 colours, and how dark and bright it is where your elements sit); this is cached, and
-when the source image changes it is processed again. **Compose** then works out the
-darken, the element colour and band, and the palette from those measurements, once per
-call and never cached, so changing a compose parameter (the ratio, the colours, the
-surface) costs nothing. The one exception is a band (steps 2 and 3 of
-[Element on art](#element-on-art)): it is a new image, so it is made again.
+when the source image changes it is processed again. After a helper update that
+measures differently, each image is measured again the next time it is asked for.
+**Compose** then works out the darken, the element colour and band, and the palette
+from those measurements, once per call and never cached, so changing a compose
+parameter (the ratio, the colours, the surface) costs nothing. The one exception is a
+band (steps 2 and 3 of [Element on art](#element-on-art)): it is a new image, so it is
+made again.
 
 ---
 
@@ -95,9 +97,9 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 |---|---|---|---|
 | `<prefix>_url` | image path or URL | — | The image to process. Required for anything to happen to this image. |
 | `clearlogo_crop` | `true`, `false` | `false` | Crop the clearlogo to its visible (non-transparent) area. |
-| `clearlogo_fit` | `W,H` | — | The box the cropped logo is drawn in. Sets the height of the `clearlogo_fit_ids` controls to the logo's height in that box, as [reposition](reposition.md)'s `fit`: `round(W × clearlogo_height ÷ clearlogo_width)`, never more than `H`; the width is not changed. It is set before the result is returned, while the container still shows its old items: a logo that blanks while the container updates (`Container(id).IsUpdating`) never draws in the wrong box, but one that keeps the last result's logo draws it in the new box until the call lands. Needs `clearlogo_crop=true`. A superseded call still runs to the end, so nothing is sized when the call aborts, has no crop, or at its end fails the focus guard, has a `visit` that is no longer live, or (with no `focus_ids` and no `target=item`) has focus on another control than when it started. See also `clearlogo_fit_key`. |
+| `clearlogo_fit` | `W,H` | — | The box the cropped logo is drawn in. Sets the height of the `clearlogo_fit_ids` controls to the logo's height in that box, as [reposition](reposition.md)'s `fit`: `round(W × clearlogo_height ÷ clearlogo_width)`, never more than `H`; the width is not changed. It is set before the result is returned, while the container still shows its old items: a logo that blanks while the container updates (`Container(id).IsUpdating`) never draws in the wrong box, but one that keeps the last result's logo draws it in the new box until the call lands. Needs `clearlogo_crop=true`. A superseded call still runs to the end, so nothing is sized when the call aborts, has no crop, or at its end fails the focus guard, has a `visit` that is no longer live, or (with no `focus_ids` and no `target=item`) has focus on another control than when it started, or the window it started in (the active window; the topmost dialog with `target=item` or `dialog=true`) is not topmost when the call ends: another window took over, or a modal dialog is over it, whenever it opened (the busy spinner and a closing dialog included). See also `clearlogo_fit_key`. |
 | `clearlogo_fit_key` | `<DBType>:<DBID>` of the call's item, e.g. `$INFO[ListItem.DBType]:$INFO[ListItem.DBID]` | — | Size only if the item (`target`'s, or the window's own with `target=item`) still has this key when the call ends. A `target=item` call has no focus guard, so this is its only item check. Items with no DBType or DBID (keyed `:`) are not told apart. |
-| `clearlogo_fit_ids` | control id, or ids separated by commas | — | The controls `clearlogo_fit` sizes, on the topmost dialog when one is open, else on the current window. |
+| `clearlogo_fit_ids` | control id, or ids separated by commas | — | The controls `clearlogo_fit` sizes, on the window the call started in (see `clearlogo_fit`). |
 | `background_blur`, `icon_blur` | `true`, `false` | `false` | Blur the image. |
 | `icon_shape` | `true`, `false` | `false` | Measure the icon so the skin can choose its frame: its size and whether its corners are opaque. Measured once per image, then read from the cache. |
 | `background_blur_radius`, `icon_blur_radius` | whole number | `50` | Blur strength. Applied after the image is scaled down (never up) to cover 480×270, in pixels of that 480×270 box: smaller art blurs in proportion, so it looks the same once Kodi zooms it. Or, when `<prefix>_darken_frame` is passed, scaled to cover that frame and cropped to it (centred). |
@@ -107,7 +109,10 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 Booleans accept `true`, `1`, `yes` or `on` (any case). Anything else is false.
 Transparent art is composited on `ff121217` (Copacetic's `squidink`) before it is
 blurred or its darkness is measured. Its colours, for the palette and the clearlogo
-colour, come from its opaque pixels only.
+colour, come from its opaque pixels only. Transparent means an alpha channel or, in an
+image without one, a transparent colour the file declares: a PNG's `tRNS` chunk (alpha
+per palette entry, or one RGB or grey value, which Pillow matches against 8-bit pixels
+by its low byte) or a GIF's transparent index.
 
 A blurred image is cached by its source and radius only. Changing `_edge_trim` or
 `_darken_frame` later does not replace a blur that is already cached.
@@ -135,6 +140,7 @@ values mean.
 |---|---|---|---|
 | `<prefix>_element_colors` | ARGB or RGB hex, comma-separated, e.g. `fff0efef,ff312124` | none | Candidate colours for an element drawn on the image (a label). Turns on [Element on art](#element-on-art). |
 | `<prefix>_band_feather` | whole number | `120` | How far the band fades out around its rectangles, in frame pixels. |
+| `<prefix>_band_inset` | whole number | `0` | How far inside the label's end the tinted band's change starts to fade, in frame pixels. The fade still ends where the feather does, so it is gentler, not longer; the last characters read a little under the ratio. |
 | `<prefix>_palette` | `true`, `false` | `false` | Return the image's [palette](#palette). |
 
 The rectangles, frame and label in the darken table set where these are measured;
@@ -273,15 +279,18 @@ rectangle (its worst ratio), and the first step that works wins:
    rectangle down. The candidate that changes the rectangles least wins, decided from
    their brightness histogram before any image is made. `_band` is a copy of the blur
    with only the clashing pixels moved: full strength inside the rectangles (narrowed
-   to the label), fading out over `_band_feather` frame pixels around them.
+   to the label), fading out over `_band_feather` frame pixels around them, in the
+   band's shape below; `_band_inset` starts the fade that far inside the label's end.
 
 Steps 2 and 3 need the blur. If the image is not blurred, the helper always stops at
 step 1 and returns the candidate that reads best, even if it falls short of the ratio.
 
 **The band's shape.** At steps 2 and 3 `_band` is a PNG the size of the blur. Its
-alpha is solid over each rectangle as you pass it, at the label's lines (the height a
-label rectangle shrinks to; its width stays yours), falls smoothly to 0 over
-`_band_feather` frame pixels around it, and is clear everywhere else. Draw it in a
+alpha is solid over each rectangle as the label shrinks it (its widest line, at its
+lines), falls smoothly to 0 over `_band_feather` frame pixels around it, and is clear
+everywhere else. Above the rectangle the fade is a quarter oval: the full feather at
+its left, shortening towards its right (to half the feather at most) and rounding off
+past its end. Draw it in a
 control with the art's own size, position and `<aspectratio>`, through the art's own
 diffuse: it then lines up with the art at any screen shape and takes the art's corners,
 and needs no mask of its own.
@@ -289,7 +298,7 @@ and needs no mask of its own.
 `_element_color` is the winning candidate. The band is a file of its own beside the
 blur, so the image control sees a new path; it is cached with the blur and replaced
 when the ratio, the candidates, the rectangles, the frame, the label, its font or
-pitch, the feather or the blur change.
+pitch, the feather, the inset or the blur change.
 
 ## Palette
 
