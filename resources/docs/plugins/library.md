@@ -81,7 +81,10 @@ them. A show with only unwatched specials left is skipped. The list offers Kodi'
 "last played" sort method.
 
 The episodes carry the **show's** artwork, as `ListItem.Art(tvshow.poster)`,
-`ListItem.Art(tvshow.fanart)` and so on. The episode's own artwork is not included.
+`ListItem.Art(tvshow.fanart)` and so on. Kodi adds the episode's own library artwork
+when it loads the item, so `ListItem.Art(thumb)` is the episode's thumbnail
+(`DefaultTVShows.png` if it has none). `ListItem.Art(fanart)` is empty unless the
+episode has fanart of its own: use `tvshow.fanart`.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
