@@ -43,7 +43,9 @@ for the interval before it fetches again, so a source whose items all fail is tr
 most 20 items per interval. A slide that took a second or more to fail waits a whole
 interval from when it failed: a network share that doesn't answer holds each try for
 Kodi's network timeout (30 seconds by default), and the service does nothing else
-meanwhile.
+meanwhile. The interval also counts from when a fetch of new items ends, so a slow
+fetch doesn't shorten the slide, and a fetch that finds nothing is tried again an
+interval after it, not at once.
 
 ## Skin settings read
 

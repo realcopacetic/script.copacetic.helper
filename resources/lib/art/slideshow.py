@@ -77,7 +77,7 @@ class Slideshow:
             now < self.next_slide_at and self._config() == self.profile
         ) or self._paused():
             return
-        self._advance(now)
+        self._advance()
 
     def clear(self) -> None:
         """Clear all published slideshow props."""
@@ -90,32 +90,30 @@ class Slideshow:
             "Window.IsVisible(fullscreenvideo) | Window.IsVisible(visualisation)"
         )
 
-    def _advance(self, now: float) -> None:
+    def _advance(self) -> None:
         """
         Refill the batch on exhaustion or profile change, then publish one random
-        slide and schedule the next. A slide that fails within RETRY_WITHIN tries
-        another item next tick, until the batch runs out; a slower one waits after.
-
-        :param now: Monotonic timestamp from tick().
+        slide and schedule the next from after the fetch. A slide that fails within
+        RETRY_WITHIN tries another item next tick; a slower one waits after it.
         """
         profile = self._config()
         if profile != self.profile or not self.art:
             self.profile = profile
             self._fetch_batch()
         interval = self._interval()
-        self.next_slide_at = now + interval
+        start = time.monotonic()  # after the fetch: a slow source eats no interval
+        self.next_slide_at = start + interval
         if not self.art:
             return
         item = self.art.pop(random.randrange(len(self.art)))
         self.seen.add(item["fanart"])
-        start = time.monotonic()  # after the fetch: only the slide's own time counts
         with log.muted():
             if slide := self._process(item):
                 self._publish(slide)
             elif (end := time.monotonic()) - start >= self.RETRY_WITHIN:
                 self.next_slide_at = end + interval  # rest a whole interval after it
             elif self.art:
-                self.next_slide_at = now
+                self.next_slide_at = start
 
     def _config(self) -> tuple[str, str]:
         """
