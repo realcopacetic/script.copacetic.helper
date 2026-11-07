@@ -4,6 +4,7 @@ import random
 import time
 from urllib.parse import parse_qsl, quote
 
+from resources.lib.art import policy
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
@@ -283,13 +284,13 @@ class Slideshow:
         if "background_blur" not in params:  # declaration absent: plain blur
             params["background_blur"] = "true"
         art_opts = {"background": ArtOpts.from_params(params, "background")}
-        jobs = {"background": ("blur", "darken")}
+        jobs = {"background": policy.ART_PROCESS_MAP["background"]}
         if clearlogo:
             art_opts["clearlogo"] = ArtOpts.from_params(
                 {"clearlogo_url": clearlogo, "clearlogo_crop": "true"},
                 "clearlogo",
             )
-            jobs["clearlogo"] = ("crop", "darken")  # its colour, for clearlogo sources
+            jobs["clearlogo"] = policy.ART_PROCESS_MAP["clearlogo"]  # crop and colour
         processed = self.image_processor(jobs=jobs, art_opts=art_opts)
         if not (blur := processed.get("background")):
             return None
