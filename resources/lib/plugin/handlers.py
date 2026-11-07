@@ -678,7 +678,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # Sized before the list lands; the old items stay up until then (no blank).
         # A cancelled job still runs: size only while the URL's item is still shown,
         # in the window it started in (views share control ids across windows).
-        fitted = {}
         if (
             (fit := self.params.get("clearlogo_fit"))
             and alive()
@@ -694,12 +693,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
             )
         ):
-            # Each control that took the height says so, keyed by its own id
-            fitted = {
-                f"clearlogo_fit_{control_id}": str(h)
-                for control_id in self.params.get("clearlogo_fit_ids", "").split(",")
-                if control_id and reposition_control(int(control_id), h=h)
-            }
+            for control_id in filter(
+                None, self.params.get("clearlogo_fit_ids", "").split(",")
+            ):
+                reposition_control(int(control_id), h=h)
 
         for field, prop in self._bridge_props():
             window_property(prop, art.get(field, ""))
@@ -766,8 +763,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         if current_position is not None
                         else {}
                     )
-                    | cleaned
-                    | fitted,
+                    | cleaned,
                 }
             ]
         )
