@@ -34,6 +34,7 @@ class Slideshow:
 
     BATCH_SIZE = 20
     DEFAULT_INTERVAL = 5
+    RETRY_WITHIN = 1  # seconds: a slower failed slide (a dead share) waits the interval
 
     LIBRARY_MAP = {"movies": "movies", "tvshows": "tvshows", "music": "artists"}
     TYPE_MAP = {
@@ -90,8 +91,8 @@ class Slideshow:
     def _advance(self, now: float) -> None:
         """
         Refill the batch on exhaustion or profile change, then publish one random
-        slide and schedule the next. A failed slide tries another item next tick,
-        until the batch runs out.
+        slide and schedule the next. A tick that fails within RETRY_WITHIN tries
+        another item next tick, until the batch runs out.
 
         :param now: Monotonic timestamp from tick().
         """
@@ -107,7 +108,7 @@ class Slideshow:
         with log.muted():
             if slide := self._process(item):
                 self._publish(slide)
-            elif self.art:
+            elif self.art and time.monotonic() - now < self.RETRY_WITHIN:
                 self.next_slide_at = now
 
     def _config(self) -> tuple[str, str]:
