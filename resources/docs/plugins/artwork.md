@@ -14,11 +14,13 @@ single list item. It can:
 
 The helper works in two passes. **Prepare** crops, blurs and measures each image (its
 colours, and how dark and bright it is where your elements sit); this is cached, and
-when the source image changes it is processed again. **Compose** then works out the
-darken, the element colour and band, and the palette from those measurements, once per
-call and never cached, so changing a compose parameter (the ratio, the colours, the
-surface) costs nothing. The one exception is a band (steps 2 and 3 of
-[Element on art](#element-on-art)): it is a new image, so it is made again.
+when the source image changes it is processed again. After a helper update that
+measures differently, each image is measured again the next time it is asked for.
+**Compose** then works out the darken, the element colour and band, and the palette
+from those measurements, once per call and never cached, so changing a compose
+parameter (the ratio, the colours, the surface) costs nothing. The one exception is a
+band (steps 2 and 3 of [Element on art](#element-on-art)): it is a new image, so it is
+made again.
 
 ---
 

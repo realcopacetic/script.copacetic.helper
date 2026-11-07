@@ -48,6 +48,7 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
         "folder": None,
         "match": policy.ART_FIELDS_INPUT["darken"],
         "require": policy.ART_FIELDS_RESULT["darken"],
+        "version": 1,  # in the row's key: raise it when the measure changes
     },
     "shape": {"folder": None, "require": policy.ART_FIELDS_RESULT["shape"]},
     "band": {  # the blur (step 2) or its tinted copy (step 3) with alpha, by compose
@@ -396,17 +397,17 @@ class ImageEditor:
         self, spec: dict[str, Any], *, opts: ArtOpts
     ) -> dict[str, object] | None:
         """
-        The spec's match fields, picked from ArtOpts.match_fields(); None values
-        are left out of the key.
+        The spec's match fields, picked from ArtOpts.match_fields(), and its
+        version; None values are left out of the key.
 
-        :param spec: Process spec dict (may contain 'match').
+        :param spec: Process spec dict (may contain 'match' and 'version').
         :param opts: Parsed ArtOpts for the current art_type.
         :return: Expected cache-field values, or None if no matches apply.
         """
-        fields = opts.match_fields()
+        fields = opts.match_fields() | {"version": spec.get("version")}
         return {
             key: value
-            for key in spec.get("match") or ()
+            for key in (*spec.get("match", ()), "version")
             if (value := fields.get(key)) is not None
         } or None
 

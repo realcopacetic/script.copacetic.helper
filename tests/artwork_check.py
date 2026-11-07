@@ -4,8 +4,9 @@ Run the artwork pipeline (prepare, then compose) on synthetic posters outside Ko
 Checks the label's measured rect (lines, widest line), the element-on-art step, its
 winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
 away) and, at step 3, that the tinted band reads at the ratio, then that a palette
-PNG's transparent colour is no colour; prints each serve's time. Needs Pillow and the
-skin (its Font.xml and fonts measure the label); no network.
+PNG's transparent colour is no colour and that a row measured before the measure
+version is measured again; prints each serve's time. Needs Pillow and the skin (its
+Font.xml and fonts measure the label); no network.
 
     python tests/artwork_check.py ../skin.copacetic2
 """
@@ -228,11 +229,21 @@ def main() -> None:
     ImageDraw.Draw(keyed).rectangle((60, 80, 740, 230), 1)
     keyed.save(path := str(tmp / "keyed.png"), transparency=0)
     serve({"clearlogo_url": path})
-    (row,) = ImageEditor().sqlite.find_variants(path, "darken")
+    sqlite = ImageEditor().sqlite
+    (row,) = sqlite.find_variants(path, "darken")
     got = json.loads(row["measure"])["dominant"]
     ok = got == "ffc8102e"
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} palette PNG: transparency is not colour {got}")
+    key = row["cache_key"]  # as a row measured before the version: no token, green
+    old = key.rpartition("&version=")[0]
+    sqlite.delete_entry(key)
+    sqlite.add_entry({**row, "cache_key": old, "measure": '{"dominant":"ff00ff00"}'})
+    serve({"clearlogo_url": path})
+    (new,) = sqlite.find_variants(path, "darken")
+    ok = bool(old) and new["cache_key"] == key and new["measure"] == row["measure"]
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} measure version: an older row is measured again")
     failures += check_rekey(tmp, serve, ImageEditor())
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
