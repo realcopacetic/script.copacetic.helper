@@ -1592,6 +1592,38 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             items = pool.map(lambda pair: dial_item(*pair), SpeedDial().items())
         return [item for item in items if item][: self.limit] or None
 
+    @log.duration
+    def cast(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of library video ``self.dbid``'s (type=) cast in Kodi's
+        billing order: the name as label, the role as label2, the actor's thumb.
+
+        :return: List of directory items for Kodi, or None if empty.
+        """
+        if not self._require("type", "id"):
+            return
+        details = json_call(
+            f"VideoLibrary.Get{_VIDEO_METHODS[self.dbtype]}Details",
+            properties=["cast"],
+            params={f"{self.dbtype}id": int(self.dbid)},
+            parent="cast",
+        )
+        item = details.get("result", {}).get(f"{self.dbtype}details", {})
+        set_plugincontent(content="actors")
+        actors = [
+            {
+                "file": plugin_path("cast"),
+                "label": actor["name"],
+                "label2": actor.get("role", ""),
+                "art": {
+                    "icon": "DefaultActor.png",
+                    "thumb": actor.get("thumbnail", ""),
+                },
+            }
+            for actor in item.get("cast", [])[: self.limit]
+        ]
+        return set_items(actors) or None
+
     @role_endpoint(
         field="actor",
         category_id=32603,
