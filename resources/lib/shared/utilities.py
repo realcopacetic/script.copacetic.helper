@@ -4,10 +4,12 @@ import ast
 import json
 import math
 import operator
+import os
 import random
 import re
 import string
 import sys
+import tempfile
 import urllib.parse as urllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -327,6 +329,24 @@ def get_total_size(path: str | Path) -> int:
     elif path.is_dir():
         return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
     return 0
+
+
+def replace_file(path: Path, data: bytes) -> None:
+    """
+    Write bytes through a temp file of this writer's own, then os.replace it in,
+    so readers and other writers never see a torn file. A failure removes the temp.
+
+    :param path: Destination file.
+    :param data: Bytes to write.
+    """
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f"{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as file:
+            file.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        os.unlink(tmp)
+        raise
 
 
 def plugin_path(role: str) -> str:
