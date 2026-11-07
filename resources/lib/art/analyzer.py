@@ -48,29 +48,6 @@ class ColorAnalyzer:
         accent = self.extract_accent_color(im_small, palette, dominant_rgb=dominant)
         return {"dominant": to_hex(dominant), "accent": to_hex(accent)}
 
-    def commonest(self, image: Image.Image) -> str:
-        """
-        Copacetic 1's logo colour: the visible area thumbnailed down logo_color_steps,
-        then the commonest swatch of the opaque pixels (alpha too), none skipped.
-
-        :param image: Input PIL image (any mode).
-        :return: ARGB hex; "ff000000" when no pixel is opaque.
-        """
-        rgba = image.convert("RGBA")
-        small = rgba.crop(rgba.getchannel("A").getbbox())
-        for size in self.cfg.logo_color_steps:
-            small.thumbnail(size)
-        opaque = [p for p in small.getdata() if p[3] >= self.cfg.logo_alpha_min]
-        if not opaque:
-            return "ff000000"
-        strip = Image.new("RGBA", (len(opaque), 1))
-        strip.putdata(opaque)
-        pal = strip.convert(
-            "P", palette=Image.ADAPTIVE, colors=self.cfg.logo_palette_size
-        )
-        _, idx = max(pal.getcolors())
-        return to_hex(tuple(pal.getpalette()[idx * 3 : idx * 3 + 3]))
-
     def extremes(self, image: Image.Image) -> list[str]:
         """
         Darkest and lightest colour of the image's adaptive palette.
