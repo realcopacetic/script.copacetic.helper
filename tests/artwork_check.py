@@ -4,8 +4,9 @@ Run the artwork pipeline (prepare, then compose) on synthetic posters outside Ko
 Checks the label's measured rect (lines, widest line), the element-on-art step, its
 winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
 away) and, at step 3, that the tinted band reads at the ratio, then that a palette
-PNG's transparent colour is no colour and that a row measured before the measure
-version is measured again; prints each serve's time. Needs Pillow and the skin (its
+PNG's transparent colour is no colour, that a row measured before the measure version
+is measured again and that an RGB PNG with tRNS measures as its RGBA copy; prints
+each serve's time. Needs Pillow and the skin (its
 Font.xml and fonts measure the label); no network.
 
     python tests/artwork_check.py ../skin.copacetic2
@@ -261,6 +262,20 @@ def main() -> None:
     ok = bool(old) and new["cache_key"] == key and new["measure"] == row["measure"]
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} measure version: an older row is measured again")
+    keyed = Image.new("RGB", (800, 310), "white")  # white is transparent: thin strokes
+    draw = ImageDraw.Draw(keyed)
+    for x in range(40, 760, 24):
+        draw.rectangle((x, 60, x + 4, 250), "#0028a0")
+    for y in range(60, 250, 30):
+        draw.rectangle((40, y, 760, y + 2), "#0028a0")
+    keyed.save(path := str(tmp / "keyed-rgb.png"), transparency=(255, 255, 255))
+    Image.open(path).convert("RGBA").save(rgba := str(tmp / "keyed-rgba.png"))
+    for p in (path, rgba):
+        serve({"clearlogo_url": p})
+    got = [sqlite.find_variants(p, "darken")[0]["measure"] for p in (path, rgba)]
+    ok = got[0] == got[1]
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} RGB PNG with tRNS measures as its RGBA {got[0]}")
     failures += check_rekey(tmp, serve, ImageEditor())
     shutil.rmtree(tmp)
     sys.exit(bool(failures))

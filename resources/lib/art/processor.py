@@ -173,6 +173,8 @@ class ImageProcessor:
         :return: Dict with "metadata" or None on failure.
         """
         try:
+            if has_alpha(image):  # resized as RGBA: no key colour at its edges
+                image = self._ensure_mode(image, "RGBA")
             cover = self._cover(image, self.cfg.blur_target_size)
             seen = cover
             if opts.darken:  # colours from where the rects sit: the part the skin shows
