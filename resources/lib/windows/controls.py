@@ -773,7 +773,8 @@ class EditHandler(BaseControlHandler):
             if raw
             else ""
         )
-        if display == f"{{{self.field}}}":
+        # An unresolved fallback comes back as its own token: show nothing
+        if not current and display == raw:
             display = ""
         self._cached_text = display
         self.instance.setText(display)
