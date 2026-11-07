@@ -18,7 +18,7 @@ from resources.lib.shared.speed_dial import (
     queue_source,
     take_source,
 )
-from resources.lib.shared.streams import player_streams, subtitle_kind
+from resources.lib.shared.streams import player_streams, subtitle_status
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -142,8 +142,9 @@ class PlayerMonitor(Player):
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
         media_type = tag.getMediaType()
-        # Always published, empty while off, so stop clears what actions write later
-        props = {"player_subtitle_kind": subtitle_kind(player_streams("subtitle")[1])}
+        # Always published, so stop clears what actions write later; with no lang
+        # here it is never missing until the skin's player_stream_refresh passes one
+        props = {"player_subtitle_kind": subtitle_status(*player_streams("subtitle"))}
         props |= self._chapter_ranges()
 
         if media_type == "episode":
