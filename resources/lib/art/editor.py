@@ -63,6 +63,7 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
     },
 }
 ORIENTATION = 0x0112  # EXIF tag Kodi turns a picture upright by, to draw and cache it
+ORIENTED = ("JPEG", "MPO", "WEBP")  # the formats whose tag Kodi's decoder reads
 
 
 class ImageEditor:
@@ -525,7 +526,10 @@ class ImageEditor:
         try:
             image = Image.open(xbmcvfs.translatePath(url))
             with suppress(SyntaxError):  # Pillow's error for unreadable EXIF: as stored
-                if image.getexif().get(ORIENTATION, 1) != 1:  # transpose copies
+                if (
+                    image.format in ORIENTED
+                    and image.getexif().get(ORIENTATION, 1) != 1  # transpose copies
+                ):
                     return ImageOps.exif_transpose(image)
             return image
 
