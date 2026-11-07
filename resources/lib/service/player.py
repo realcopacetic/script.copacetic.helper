@@ -3,7 +3,7 @@
 import random
 import time
 
-from xbmc import PLAYLIST_MUSIC, Player, PlayList
+from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
 
 from resources.lib.service import playnext
@@ -189,18 +189,26 @@ class PlayerMonitor(Player):
         return {f"player_chapter_{n}": pair for n, pair in enumerate(pairs, first)}
 
     @staticmethod
-    def _picks(tag) -> dict[str, str]:
+    def _picks(tag: InfoTagVideo) -> dict[str, str]:
         """
         player_genre_query (as the library names it), player_genre (cleaned) and
         player_director: one of each, picked once per video and Kodi session.
+
+        :param tag: The playing video's info tag.
+        :return: The picks, by property name; none for a missing field.
         """
+        media_type = tag.getMediaType()
         rng = random.Random(
-            f"{session_salt()}:{tag.getMediaType()}:{tag.getDbId()}:{tag.getTitle()}"
+            f"{session_salt()}:{media_type}:{tag.getDbId()}:{tag.getTitle()}"
         )
         props = {}
         if genres := tag.getGenres():
+            # Kodi split them on its item separator: a "/" inside one stays whole
             props["player_genre_query"], props["player_genre"] = split_random(
-                " / ".join(genres), rng=rng
+                " / ".join(genres),
+                rng=rng,
+                separator=" / ",
+                parts=media_type != "musicvideo",
             )
         if directors := tag.getDirectors():
             props["player_director"] = rng.choice(directors)
