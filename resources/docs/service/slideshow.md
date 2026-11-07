@@ -116,7 +116,7 @@ before each slide, so you can change it at any time.
 | `background_blur_radius` | Whole number of pixels | `50` | Blur strength, in pixels of a 480×270 cover (see the artwork plugin). |
 | `background_edge_trim` | Percent per side | `0` | Border to cut away before blurring, to drop black bars. |
 | `background_darken` | `true` / `false` | `false` | Work out a darken value. |
-| `background_darken_source` | ARGB hex, e.g. `fff0efef`, one per rectangle | `fff0efef` | Colour of the text that sits on the fanart. |
+| `background_darken_source` | ARGB hex, e.g. `fff0efef`, or `clearlogo`, one per rectangle | `fff0efef` | Colour of the text that sits on the fanart. |
 | `background_darken_rects` | One or more `x,y,w,h` rectangles | the whole frame | Areas where text sits. |
 | `background_darken_surface` | `art` / `blur` | `art` | Which image the darken is measured on: the fanart or its blur. |
 | `background_ratio` | decimal | `3` | Contrast ratio the darken aims for. |
@@ -128,8 +128,9 @@ Only the blur and the darken value are published, so `background_element_colors`
 `background_palette` have no effect here.
 
 `background_url` is always set by the service and can't be overridden. The clearlogo
-is always cropped; `clearlogo_*` parameters are ignored. `background_darken_source`
-can't be `clearlogo` here: use an ARGB colour.
+is always cropped and measured; `clearlogo_*` parameters are ignored. A
+`background_darken_source` of `clearlogo` uses the colour of the slide's clearlogo;
+when the slide has none, that rectangle uses `fff0efef` at `background_ratio`.
 
 Example (from Copacetic, in the Home window):
 
