@@ -29,8 +29,20 @@ Trailers started with `action=play_trailer` do not set these properties. See
 | `player_setid` | Movie set database id | A library movie starts and it belongs to a set |
 | `player_subtitle_kind` | The subtitle showing: `forced`, `full` or `impaired` (hearing impaired). While off: `missing` when the actions were given a language with no preferred stream, otherwise empty | A video starts; `player_stream` and `player_stream_refresh` update it |
 | `player_chapter_1`, `player_chapter_2`, … | Chapter n's tick for a `ranges` control: the pair from `Player.Chapters` that ends where chapter n starts | A video with chapters starts |
+| `player_genre_query` | One of the video's genres, as the library names it (`Action & Adventure`) | A video with a genre starts (an episode has its show's) |
+| `player_genre` | The same pick, cleaned for a label (`Adventure`), as `metadata` does | As above |
+| `player_director` | One of the video's directors | A video with a director starts |
 
 When a library episode starts, the service also runs [Play next](playnext.md).
+
+### Genre and director picks
+
+`player_genre_query` and `player_director` hold one name each, so they can be passed as
+`label` to [`genre_credits` and `director_credits`](../plugins/library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits)
+for "more like this" rails under the playing video; `player_genre` names the pick in the
+rail's heading. Each is picked at random once per video and Kodi session, so a replay
+keeps its rails, as the [`metadata`](../plugins/metadata.md#metadata) path's
+`random_pick` does.
 
 ### Subtitle type
 

@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import random
 import time
 
 from xbmc import PLAYLIST_MUSIC, Player, PlayList
@@ -23,6 +24,8 @@ from resources.lib.shared.utilities import (
     condition,
     infolabel,
     json_call,
+    session_salt,
+    split_random,
     to_float,
     window_property,
 )
@@ -137,7 +140,8 @@ class PlayerMonitor(Player):
     def _handle_video_start(self) -> None:
         """
         Publish video-related window properties on playback start: parent ids
-        (tvshowid, setid) via JSON-RPC where needed, subtitle type, chapter ranges.
+        (tvshowid, setid) via JSON-RPC where needed, subtitle type, chapter ranges,
+        genre and director picks.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
@@ -145,7 +149,7 @@ class PlayerMonitor(Player):
         # Always published, so stop clears what actions write later; with no lang
         # here it is never missing until the skin's player_stream_refresh passes one
         props = {"player_subtitle_kind": subtitle_status(*player_streams("subtitle"))}
-        props |= self._chapter_ranges()
+        props |= self._chapter_ranges() | self._picks(tag)
 
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
@@ -183,6 +187,24 @@ class PlayerMonitor(Player):
         pairs = [f"{start},{end}" for start, end in zip(values, values)]
         first = int(infolabel("Player.ChapterCount")) - len(pairs) + 1
         return {f"player_chapter_{n}": pair for n, pair in enumerate(pairs, first)}
+
+    @staticmethod
+    def _picks(tag) -> dict[str, str]:
+        """
+        player_genre_query (as the library names it), player_genre (cleaned) and
+        player_director: one of each, picked once per video and Kodi session.
+        """
+        rng = random.Random(
+            f"{session_salt()}:{tag.getMediaType()}:{tag.getDbId()}:{tag.getTitle()}"
+        )
+        props = {}
+        if genres := tag.getGenres():
+            props["player_genre_query"], props["player_genre"] = split_random(
+                " / ".join(genres), rng=rng
+            )
+        if directors := tag.getDirectors():
+            props["player_director"] = rng.choice(directors)
+        return props
 
     def _handle_audio_start(self) -> None:
         """
