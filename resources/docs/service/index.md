@@ -156,6 +156,8 @@ back with the next play, speed dial change or slide.
 | `player_season` | An episode starts | Season number | As above | [Player properties](player.md) |
 | `player_tvshowid` | A library episode starts | TV show database id | As above | [Player properties](player.md) |
 | `player_setid` | A library movie in a set starts | Movie set database id | As above | [Player properties](player.md) |
+| `player_subtitle_kind` | A video starts; the `player_stream` and `player_stream_refresh` actions update it | `forced`, `full` or `impaired`; empty while subtitles are off | As above | [Player properties](player.md#subtitle-type) |
+| `player_chapter_1` … | A video with chapters starts | Chapter n's tick: the `Player.Chapters` pair ending at its start | As above | [Player properties](player.md#chapter-ticks) |
 | `player_artist` | A song starts | Artist (all artists in one string) | As above | [Player properties](player.md) |
 | `player_artist_1` … `player_artist_3` | A song starts | First, second and third artist | As above | [Player properties](player.md) |
 | `player_artistid_1` … `player_artistid_3` | A library song starts | First, second and third artist's database id | As above | [Player properties](player.md) |

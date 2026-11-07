@@ -18,6 +18,7 @@ from resources.lib.shared.speed_dial import (
     queue_source,
     take_source,
 )
+from resources.lib.shared.streams import player_streams, subtitle_kind
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -135,13 +136,15 @@ class PlayerMonitor(Player):
 
     def _handle_video_start(self) -> None:
         """
-        Publish video-related window properties on playback start.
-        Resolves parent identifiers (tvshowid, setid) via JSON-RPC where needed.
+        Publish video-related window properties on playback start: parent ids
+        (tvshowid, setid) via JSON-RPC where needed, subtitle type, chapter ranges.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
         media_type = tag.getMediaType()
-        props = {}
+        # Always published, empty while off, so stop clears what actions write later
+        props = {"player_subtitle_kind": subtitle_kind(player_streams("subtitle")[1])}
+        props |= self._chapter_ranges()
 
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
@@ -167,6 +170,18 @@ class PlayerMonitor(Player):
             if setid := details.get("setid"):
                 props["player_setid"] = str(setid)
         self._publish(props)
+
+    @staticmethod
+    def _chapter_ranges() -> dict[str, str]:
+        """
+        player_chapter_<n>: the Player.Chapters csv pair (percentages) ending at
+        chapter n's start. Kodi drops the pair of a chapter at 0, so the pairs
+        belong to the last chapters.
+        """
+        values = iter(infolabel("Player.Chapters").split(","))
+        pairs = [f"{start},{end}" for start, end in zip(values, values)]
+        first = int(infolabel("Player.ChapterCount")) - len(pairs) + 1
+        return {f"player_chapter_{n}": pair for n, pair in enumerate(pairs, first)}
 
     def _handle_audio_start(self) -> None:
         """
