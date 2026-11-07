@@ -26,8 +26,9 @@ python tests/soundtracks_offline.py
 python tests/multiart_offline.py
 
 # Service build boundary (service/monitor.py): a build that raises is logged, the
-# player monitor, slideshow and helper_active still start, and a failure after a
-# seed (builders/runtime.py) is retried next start
+# player monitor, slideshow and helper_active still start, helper_speed_dial follows
+# the skin naming info=speed_dial, and a failure after a seed (builders/runtime.py)
+# is retried next start
 python tests/service_offline.py
 ```
 

@@ -1,7 +1,8 @@
 """
 Offline checks for the service's build boundary (resources/lib/service/monitor.py):
 a build that raises is logged, and the player monitor, slideshow and helper_active
-still start. Run from the helper root: python tests/service_offline.py
+still start; helper_speed_dial follows the skin naming info=speed_dial.
+Run from the helper root: python tests/service_offline.py
 """
 
 import json
@@ -101,6 +102,18 @@ class BuildBoundary(unittest.TestCase):
         )
         self.assertEqual(COUNTS["ERROR"], self.errors + 1)
         self.service._reload.assert_not_called()
+
+    def test_pin_items_show_only_while_the_skin_names_speed_dial(self):
+        window = sys.modules["xbmcgui"].Window()
+        self.follow(built(written=False))
+        self.assertEqual(window.getProperty(monitor.SPEED_DIAL_PROPERTY), "")
+        widgets = MAPPINGS / "mappings_widgets.json"
+        widgets.write_text('{"w": {"content": "plugin://x/?info=speed_dial&v=1"}}')
+        self.addCleanup(widgets.unlink)
+        self.follow(built(written=False), version="2")
+        self.assertEqual(window.getProperty(monitor.SPEED_DIAL_PROPERTY), "True")
+        self.service._deactivate()
+        self.assertEqual(window.getProperty(monitor.SPEED_DIAL_PROPERTY), "")
 
     def test_raising_build_on_skin_update_keeps_monitors(self):
         self.follow(built(written=False))

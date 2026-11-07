@@ -85,7 +85,10 @@ interrupted. In order:
    [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties and,
    if something is already playing, that file's player properties.
 3. It sets `helper_active`, which shows the helper's
-   [context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu).
+   [context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu),
+   and, if the skin's templates or `16x9/` XML name `info=speed_dial`,
+   `helper_speed_dial`, which shows Pin to speed dial and Unpin among them. A skin
+   update checks for `info=speed_dial` again.
 4. The poll loop starts, and with it the slideshow.
 
 ### When the active skin changes, or the service stops
@@ -93,9 +96,10 @@ interrupted. In order:
 Whenever the active skin changes (to any skin, even another that opts in, or one whose
 `addon.xml` the helper can't read, which then stays inactive), and when
 the service stops (Kodi exits, the profile changes, the helper is updated or
-disabled), the service releases what it set. It clears `helper_active`, so the
-context menu items hide. It stops the trailer it started, whether it is playing,
-paused or full screen (rewound first, so nothing is marked watched), clears the trailer,
+disabled), the service releases what it set. It clears `helper_active` and
+`helper_speed_dial`, so the context menu items hide. It stops the trailer it started,
+whether it is playing, paused or full screen (rewound first, so nothing is marked
+watched), clears the trailer,
 player, speed dial and slideshow properties, and detaches the player monitor. If the
 new skin opts in, everything [starts again](#when-a-skin-that-opts-in-becomes-active)
 for it; otherwise nothing else runs until a skin that opts in is active.
@@ -130,15 +134,17 @@ All window properties are on the Home window (`10000`). In XML, read them with
 ### Window properties the service sets
 
 Whenever the active skin changes, and when the service stops, the service also clears
-`helper_active` and the trailer session, `player_*`, `speed_dial_*` and `slideshow_*`
-properties below; `trailer_return`, `info_hop` and `trailer_played_item` are left. If
-the new skin opts in, `helper_active`, the pinned-item properties and, if something is
-playing, the `player_*` properties are set again at once. The others come back with the
-next play, speed dial change or slide.
+`helper_active`, `helper_speed_dial` and the trailer session, `player_*`, `speed_dial_*`
+and `slideshow_*` properties below; `trailer_return`, `info_hop` and
+`trailer_played_item` are left. If the new skin opts in, `helper_active`,
+`helper_speed_dial` (if it uses speed dial), the pinned-item properties and, if
+something is playing, the `player_*` properties are set again at once. The others come
+back with the next play, speed dial change or slide.
 
 | Property | Set when | Value | Cleared when | Page |
 |---|---|---|---|---|
 | `helper_active` | A skin that opts in becomes active | `true` | The active skin changes, or the service stops | [Opting in](#opting-in) |
+| `helper_speed_dial` | As `helper_active`, when the skin's templates or `16x9/` XML name `info=speed_dial`; checked again on a skin update | `True` | As `helper_active`; a skin update that drops `info=speed_dial` | [Context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu) |
 | `helper_reloading` | Just before the service reloads the skin after an in-place update, except during fullscreen video. Not on a start, a switch into the skin or a helper restart | `reload` | Your skin clears it once its window is ready after the reload; the service clears it if the reload is dropped or postponed | [Script actions](../script/actions.md#dynamic_settings_window) |
 | `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Cleared once the last number has landed, just before the `ReloadSkin()`; left set if the wait gives up after a minute | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
 | `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request | [Trailers](trailers.md) |

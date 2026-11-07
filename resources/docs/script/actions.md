@@ -117,6 +117,13 @@ folders under `musicdb://`.
 **Like** and **Unlike** need your skin to set `Skin.String(like_threshold)` to a
 rating from `1` to `10`. While it is empty or `0`, neither shows.
 
+**Pin to speed dial** and **Unpin** show only in a skin that uses speed dial: one
+whose builder templates (`extras/templates/`) or `16x9/` XML name
+`info=speed_dial`, for example in a widget's content path. The service checks when
+the skin becomes active and again when it is updated, and sets
+`Window(home).Property(helper_speed_dial)` for it. A skin that opts in without speed
+dial gets the other four items only.
+
 **Pin to speed dial** and **Unpin** tell a pinned item by the speed dial window
 properties (see [Is this item pinned?](../plugins/speed_dial.md#is-this-item-pinned)),
 so they show the right way round in any list, not only in speed dial.
