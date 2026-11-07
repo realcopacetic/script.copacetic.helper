@@ -2,7 +2,7 @@
 
 import random
 import time
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, quote
 
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.opts import ArtOpts
@@ -38,7 +38,10 @@ class Slideshow:
     """
 
     BATCH_SIZE = 20
+    CUSTOM_WINDOW = 200  # a listing's limit comes before the art test: sample from more
     DEFAULT_INTERVAL = 5
+    LIBRARY_PATHS = ("videodb://", "musicdb://", "library://")  # or .xsp: art per item
+    RETRY_WITHIN = 1  # seconds: a slower failed slide (a dead share) waits the interval
 
     LIBRARY_MAP = {"movies": "movies", "tvshows": "tvshows", "music": "artists"}
     TYPE_MAP = {
@@ -46,6 +49,23 @@ class Slideshow:
         "videos": ("movies", "tvshows"),
         "artists": ("music",),
     }
+    # Kodi's own picture extensions, less the archive and feed types
+    PICTURE_EXTENSIONS = (
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".bmp",
+        ".gif",
+        ".ico",
+        ".tif",
+        ".tiff",
+        ".tga",
+        ".pcx",
+        ".webp",
+        ".jp2",
+        ".apng",
+        ".avif",
+    )
 
     def __init__(self) -> None:
         """Initialise processing pipeline and scheduling state."""
@@ -63,7 +83,7 @@ class Slideshow:
             now < self.next_slide_at and self._config() == self.profile
         ) or self._paused():
             return
-        self._advance(now)
+        self._advance()
 
     def clear(self) -> None:
         """Clear all published slideshow props."""
@@ -76,18 +96,19 @@ class Slideshow:
             "Window.IsVisible(fullscreenvideo) | Window.IsVisible(visualisation)"
         )
 
-    def _advance(self, now: float) -> None:
+    def _advance(self) -> None:
         """
-        Refill the batch on exhaustion or profile change, then publish
-        one random slide and schedule the next.
-
-        :param now: Monotonic timestamp from tick().
+        Refill the batch on exhaustion or profile change, then publish one random
+        slide and schedule the next from after the fetch. A slide that fails within
+        RETRY_WITHIN tries another item next tick; a slower one waits after it.
         """
         profile = self._config()
         if profile != self.profile or not self.art:
             self.profile = profile
             self._fetch_batch()
-        self.next_slide_at = now + self._interval()
+        interval = self._interval()
+        start = time.monotonic()  # after the fetch: a slow source eats no interval
+        self.next_slide_at = start + interval
         if not self.art:
             return
         item = self.art.pop(random.randrange(len(self.art)))
@@ -95,6 +116,10 @@ class Slideshow:
         with log.muted():
             if slide := self._process(item):
                 self._publish(slide)
+            elif (end := time.monotonic()) - start >= self.RETRY_WITHIN:
+                self.next_slide_at = end + interval  # rest a whole interval after it
+            elif self.art:
+                self.next_slide_at = start
 
     def _config(self) -> tuple[str, str]:
         """
@@ -205,21 +230,26 @@ class Slideshow:
 
     def _fetch_custom(self, path: str) -> None:
         """
-        Fetch art from a user path (library node, xsp, plugin, folder)
-        in a single directory listing with art properties.
+        Fetch art from a user path (library node, xsp, plugin, folder) in a
+        single directory listing. A picture file with no art is its own fanart.
+        Outside the library, more entries are listed than a batch needs.
 
         :param path: Custom source path from skin settings.
         """
+        library = path.startswith(self.LIBRARY_PATHS) or path.lower().endswith(".xsp")
         query = json_call(
             "Files.GetDirectory",
             params={"directory": path, "properties": ["art"]},
             sort={"method": "random"},
-            limit=self.BATCH_SIZE,
+            limit=self.BATCH_SIZE if library else self.CUSTOM_WINDOW,
             parent="slideshow_fetch",
         )
         for result in query.get("result", {}).get("files", []):
-            art = result.get("art", {})
-            if fanart := art.get("fanart") or art.get("thumb"):
+            art, file = result.get("art", {}), result["file"]
+            picture = file.lower().endswith(self.PICTURE_EXTENSIONS) and (
+                f"image://{quote(file, safe='')}/"  # wrapped like Kodi's own art
+            )
+            if fanart := art.get("fanart") or art.get("thumb") or picture:
                 self.art.append(
                     {"title": result.get("label", ""), **art, "fanart": fanart}
                 )
@@ -246,7 +276,7 @@ class Slideshow:
         jobs = {"background": ("blur", "darken")}
         if clearlogo:
             art_opts["clearlogo"] = ArtOpts.from_params(
-                {"clearlogo_url": url_decode_path(clearlogo), "clearlogo_crop": "true"},
+                {"clearlogo_url": clearlogo, "clearlogo_crop": "true"},
                 "clearlogo",
             )
             jobs["clearlogo"] = ("crop",)
@@ -255,7 +285,7 @@ class Slideshow:
             return None
         darken = processed.get("background_darken")
         return {
-            "fanart": fanart,
+            "fanart": url_decode_path(fanart),  # a multiimage needs the plain path
             "blur": blur,
             "clearlogo": processed.get("clearlogo"),
             "darken": str(darken) if darken is not None else None,
@@ -265,19 +295,16 @@ class Slideshow:
     @staticmethod
     def _fanart_url(item: dict) -> str | None:
         """
-        Pick a random fanart from the item's art set (multiart included)
-        and normalise the URL.
+        Pick a random fanart from the item's art set (multiart included), the
+        whole picture for a picture's thumb. Left wrapped: the cache decodes it once.
 
         :param item: Art dict from the fetch batch.
-        :return: Decoded fanart path, or None.
+        :return: Fanart URL as JSON-RPC wraps art, or None.
         """
         fanarts = [value for key, value in item.items() if "fanart" in key]
         if not fanarts:
             return None
-        fanart = random.choice(fanarts)
-        if "transform?size=thumb" in fanart:
-            fanart = fanart[:-21]
-        return url_decode_path(fanart)
+        return random.choice(fanarts).removesuffix("transform?size=thumb")
 
     def _publish(self, slide: dict) -> None:
         """

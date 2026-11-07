@@ -27,7 +27,7 @@ have no visible effect.
 
 | Property | Value | Notes |
 |---|---|---|
-| `slideshow_fanart` | Path to the original fanart | Replaced by each slide. |
+| `slideshow_fanart` | Path to the original fanart; a typed wrapper (`image://music@…/`, `image://video_…@…/`) stays wrapped | Replaced by each slide. |
 | `slideshow_blur` | Path to the blurred fanart (JPEG) | Replaced by each slide. |
 | `slideshow_darken` | Darken percentage, `0`–`100` | Cleared when the slide has no darken value. Only set when `slideshow_artwork_params` has `background_darken=true` (see [Processing options](#processing-options)). |
 | `slideshow_clearlogo` | Path to the cropped clearlogo (PNG) | Cleared when the item has no clearlogo. Uses `clearlogo-billboard` art first, then `clearlogo`. |
@@ -38,6 +38,17 @@ have no visible effect.
 
 All of them are written together for each slide. If the source returns nothing, no new
 slide is published and the last slide stays.
+
+If a slide fails (its fanart can't be opened, or the blur gives nothing), nothing is
+published for it and the service tries another fetched item a second later, one item a
+second, instead of waiting for the interval. When the last fetched item fails, it waits
+for the interval before it fetches again, so a source whose items all fail is tried at
+most 20 items per interval. A slide that took a second or more to fail waits a whole
+interval from when it failed: a network share that doesn't answer holds each try for
+Kodi's network timeout (30 seconds by default), and the service does nothing else
+meanwhile. The interval also counts from when a fetch of new items ends, so a slow
+fetch doesn't shorten the slide, and a fetch that finds nothing is tried again an
+interval after it, not at once.
 
 The slots are for a skin that animates the logo out and the next one in: a property a
 skin reads can't keep its old value, so the outgoing logo needs its own. Show each
@@ -73,10 +84,18 @@ Only the hour of `slideshow_start` and `slideshow2_start` is used.
 Library sources skip any library that has no content. Items without fanart are
 skipped. An item's fanart is picked at random from all its fanart art types, so
 extra fanart (`fanart1`, `fanart2` …) is included. For `custom`, an item's `thumb`
-is used when it has no fanart.
+is used when it has no fanart, and a picture file with no art at all, such as one in a
+plain folder of pictures, is shown itself. A picture file is one whose name ends in one
+of Kodi's picture extensions, less its archive and feed types: `.png`, `.jpg`, `.jpeg`,
+`.bmp`, `.gif`, `.ico`, `.tif`, `.tiff`, `.tga`, `.pcx`, `.webp`, `.jp2`, `.apng`,
+`.avif`. Pictures in subfolders aren't included.
 
 The service fetches up to 20 random items at a time and doesn't repeat a fanart until
-every fetched item has been shown.
+every fetched item has been shown. For a `custom` folder or plugin, it lists 200 random
+entries of the path and picks 20 of those that have art, so a folder that also holds
+videos, subfolders or other files still fills a batch. A library path (`videodb://`,
+`musicdb://`, `library://` or a `.xsp` smart playlist) lists 20, as Kodi looks up each
+listed item's art in the library.
 
 ### Two schedules
 

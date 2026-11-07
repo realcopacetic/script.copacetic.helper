@@ -296,7 +296,7 @@ def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
     img.save(path := str(tmp / "opaque.png"))
     params = {"icon_url": path, "icon_shape": "true", **STRIP}
     manager = editor.cache_manager
-    copy = manager.prepare(path, ".jpg").cached_image_path
+    copy = manager.prepare(path).cached_image_path.with_suffix(".jpg")
 
     def rows_keyed_by(prefix: str, processes: tuple[str, ...]) -> bool:
         """
@@ -318,7 +318,7 @@ def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
 
     copy.parent.mkdir(parents=True, exist_ok=True)
     img.save(copy, quality=95)
-    ctx = manager.prepare(path, ".png")
+    ctx = manager.prepare(path)
     ok &= ctx.cached_image_path == copy and ctx.cached_thumb == copy.name
     new = serve(params)[0]
     ok &= rows_keyed_by(ctx.cached_file_hash, processes)
@@ -328,7 +328,7 @@ def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
 
     img.resize((240, 360)).save(copy, quality=95)
     updated = serve(params)[0]
-    ctx = manager.prepare(path, ".png")
+    ctx = manager.prepare(path)
     ok &= (updated["icon_width"], updated["icon_opaque"]) == (240, 1)
     ok &= rows_keyed_by(ctx.cached_file_hash, processes[:3])
     print(f"{'ok  ' if ok else 'FAIL'} rekey: URL rows to the .jpg copy's hash, once")

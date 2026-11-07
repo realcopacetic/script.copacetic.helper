@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import struct
 import time
+from contextlib import suppress
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
@@ -61,6 +63,17 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
         ),
         "require": (policy.ART_FIELD_PROCESSED, policy.ART_FIELD_ELEMENT_COLOR),
     },
+}
+ORIENTATION = 0x0112  # EXIF tag Kodi turns a picture upright by, to draw and cache it
+ORIENTED = ("JPEG", "MPO", "WEBP")  # the formats whose tag Kodi's decoder reads
+UPRIGHT = {  # orientation: its Image.transpose method, as Pillow's exif_transpose
+    2: 0,  # FLIP_LEFT_RIGHT
+    3: 3,  # ROTATE_180
+    4: 1,  # FLIP_TOP_BOTTOM
+    5: 5,  # TRANSPOSE
+    6: 4,  # ROTATE_270
+    7: 6,  # TRANSVERSE
+    8: 2,  # ROTATE_90
 }
 
 
@@ -165,12 +178,11 @@ class ImageEditor:
             return None
 
         resolved_url = next(iter(art.values()))
-        ext = ".png" if resolved_url.lower().endswith(".png") else ".jpg"
 
         base_ctx = shared["contexts"][art_type] = next(  # one hash per source per serve
             (c for c in shared["contexts"].values() if c.source_url == resolved_url),
             None,
-        ) or self.cache_manager.prepare(resolved_url, ext)
+        ) or self.cache_manager.prepare(resolved_url)
         attrs = shared["results"][art_type] = {
             "cached_file_hash": base_ctx.cached_file_hash
         }
@@ -510,7 +522,7 @@ class ImageEditor:
 
     def _image_open(self, url: str) -> Image.Image | None:
         """
-        Open an image from Kodi VFS via Pillow.
+        Open an image from Kodi VFS via Pillow, turned upright as Kodi draws it.
         Skips unsupported formats and returns None on failure.
 
         :param url: Kodi VFS or translated path to the image resource.
@@ -523,7 +535,12 @@ class ImageEditor:
         from PIL import Image
 
         try:
-            return Image.open(xbmcvfs.translatePath(url))
+            image = Image.open(xbmcvfs.translatePath(url))
+            turn = None
+            with suppress(SyntaxError, struct.error):  # a bad EXIF header: as stored
+                if image.format in ORIENTED:
+                    turn = UPRIGHT.get(image.getexif().get(ORIENTATION))
+            return image if turn is None else image.transpose(turn)
 
         except (FileNotFoundError, OSError) as error:
             log.error(
