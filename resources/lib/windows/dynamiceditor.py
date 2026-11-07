@@ -212,9 +212,12 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 return
 
         if self.listitems:
-            # Host sessions land on skin-declared host_focus; standalone on the list.
+            # Focus lands on the skin-declared host_focus, else on the list.
             if self.host_focus:
                 log.execute(f"SetFocus({self.host_focus})")
+                # onAction runs after Kodi has handled the key, so it acts on the
+                # focus the last action left: the first press must find it here.
+                self._prev_focus_id = int(self.host_focus)
             else:
                 log.execute(f"SetFocus({self._list_container.getId()})")
             self._refresh_ui(update_row=False)
