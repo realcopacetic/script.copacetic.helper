@@ -152,16 +152,6 @@ _COMMON_SHORTCUTS = [
         "DefaultTVShows.png",
     ),  # TV Shows
     (
-        xbmc.getLocalizedString(19020),
-        "ActivateWindow(TVChannels)",
-        "DefaultTVShows.png",
-    ),  # Live TV
-    (
-        xbmc.getLocalizedString(19021),
-        "ActivateWindow(RadioChannels)",
-        "DefaultAudio.png",
-    ),  # Radio
-    (
         xbmc.getLocalizedString(2),
         "ActivateWindow(Music,musicdb://,return)",
         "DefaultMusicAlbums.png",
