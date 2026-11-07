@@ -12,8 +12,8 @@ _STREAMS = {
 }
 # Words in a subtitle's name that mark it for the hearing impaired
 _IMPAIRED_WORDS = frozenset({"cc", "hi", "sdh"})
-# Words that undo "forced" in a subtitle's name (Non-Forced, Not forced)
-_NEGATIONS = frozenset({"non", "not"})
+# "forced" negated in a subtitle's name: Non-Forced, Not forced (not "non-English")
+_NOT_FORCED = re.compile(r"\bno[nt][\s-]*forced\b")
 # Subtitle types looked for, in order, for each preferred type
 _FALLBACKS = {
     "forced": ("forced",),
@@ -49,8 +49,9 @@ def subtitle_kind(stream: dict) -> str:
     :param stream: A JSON-RPC subtitle stream.
     :return: forced, impaired or full.
     """
-    words = set(re.findall(r"[a-z]+", stream["name"].lower()))
-    if stream["isforced"] or "forced" in words and not words & _NEGATIONS:
+    name = stream["name"].lower()
+    words = set(re.findall(r"[a-z]+", name))
+    if stream["isforced"] or "forced" in words and not _NOT_FORCED.search(name):
         return "forced"
     if stream["isimpaired"] or words & _IMPAIRED_WORDS:
         return "impaired"

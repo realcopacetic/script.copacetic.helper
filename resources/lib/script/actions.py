@@ -909,13 +909,14 @@ REGISTRY["play_radio"] = start_mix  # former name, kept for skins that call it
 
 def _iso639_2(lang: str) -> str:
     """
-    A language code or English name as the ISO 639-2/B code streams carry; a
-    language Kodi doesn't know stays as given, so it reads missing, not empty.
+    A language code or English name as the ISO 639-2/B code streams carry, via
+    639-1 as Kodi does, so 639-2/T "deu" gives "ger"; unknown ones stay as given.
 
     :param lang: Language as the skin passes it (e.g. "en", "deu", "English").
     :return: Its ISO 639-2/B code (e.g. "eng", "ger").
     """
-    return xbmc.convertLanguage(lang, xbmc.ISO_639_2) or lang
+    two = xbmc.convertLanguage(lang, xbmc.ISO_639_1) or lang
+    return xbmc.convertLanguage(two, xbmc.ISO_639_2) or lang
 
 
 def _publish_subtitle(lang: str, kind: str) -> None:
@@ -950,15 +951,11 @@ def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> N
     if type != "subtitle":
         if len(streams) < 2:  # Kodi reopens and seeks even for the same stream
             return
-        forced = type == "audio" and (
-            subtitle_status(*player_streams("subtitle")) == "forced"
-        )
         step = player.setAudioStream if type == "audio" else player.setVideoStream
         step((on + 1) % len(streams))
-        if forced:
-            # Kodi swaps a forced subtitle to the new audio language unseen, and
-            # caches the subtitle index for 1 s
-            xbmc.Monitor().waitForAbort(1.1)
+        # A selected forced subtitle, shown or hidden, follows the new audio language
+        # unseen (and may show); Kodi caches the subtitle index for 1 s
+        if type == "audio" and not xbmc.Monitor().waitForAbort(1.1):
             _publish_subtitle(lang, kind)
         return
     if lang:

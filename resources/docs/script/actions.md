@@ -648,11 +648,12 @@ OSD. It sets the stream directly, so Kodi shows no notification, as its own
 `NextSubtitle`, `AudioNextLanguage` and `VideoNextStream` actions do.
 
 - **Audio or video:** steps to the next stream, and from the last back to the first.
-  With one stream, nothing happens. If a forced subtitle is showing, Kodi swaps it for
-  the new audio language's forced subtitle (or hides it) without telling anyone, so
-  after an audio step the action waits about a second and updates
-  `player_subtitle_kind`. Pass the Subtitles button's `lang` and `kind` on the Audio
-  button too, so the update can read `missing`.
+  With one stream, nothing happens. When the selected subtitle is forced, shown or
+  hidden, Kodi swaps it for the new audio language's forced subtitle and shows or hides
+  it without telling anyone, so after every audio step the action waits about a second
+  and updates `player_subtitle_kind` (not if Kodi is shutting down meanwhile). Pass the
+  Subtitles button's `lang` and `kind` on the Audio button too, so the update can read
+  `missing`.
 - **Subtitles with `lang`:** turns the preferred stream on, or off if it is already
   showing. If another stream is showing, it switches to the preferred one. The
   preferred stream is the first in that language of the type `kind` asks for. When
@@ -670,8 +671,8 @@ OSD. It sets the stream directly, so Kodi shows no notification, as its own
   the first stream.
 
 A subtitle's type comes from its flags (`isforced`, `isimpaired` in JSON-RPC), then from
-words in its name: `forced` is forced, unless the name also says `non` or `not`
-(`Non-Forced`); `SDH`, `CC` or `HI` is hearing impaired. Anything else is full.
+words in its name: `forced` is forced, unless `non` or `not` comes straight before it
+(`Non-Forced`, `Not forced`; `Forced (non-English parts)` stays forced); `SDH`, `CC` or `HI` is hearing impaired. Anything else is full.
 
 A subtitle file next to the video carries only the forced flag, so name a hearing
 impaired file with `sdh` or `cc` (`Film.en.sdh.srt`). Avoid `hi` there: it is also
@@ -681,10 +682,10 @@ Hindi subtitle. `hi` works only before the language (`Film.hi.en.srt`).
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `type` | `subtitle`, `audio`, `video` | required | The stream to change |
-| `lang` | a language code or English name: `eng`, `en`, `deu`, `English` | none | The preferred subtitle language, read as the ISO 639-2/B code streams carry (`xbmc.convertLanguage`). A language Kodi doesn't know is kept as given, so it finds nothing. Empty cycles every stream. With `type=audio`, used for the update after the step. |
+| `lang` | a language code or English name: `eng`, `en`, `deu`, `English` | none | The preferred subtitle language, read as the ISO 639-2/B code streams carry: `xbmc.convertLanguage` to ISO 639-1, then to 639-2, as Kodi compares languages, so `deu`, `fra` and `zho` read as `ger`, `fre` and `chi`. A language Kodi doesn't know is kept as given, so it finds nothing. Empty cycles every stream. With `type=audio`, used for the update after the step. |
 | `kind` | `forced`, `full`, `impaired` | `full` | The preferred subtitle type, with `lang`. Empty counts as `full`. |
 
-**Sets** (for `type=subtitle`, and for `type=audio` when a forced subtitle was showing):
+**Sets** (for `type=subtitle`, and about a second after a `type=audio` step):
 
 | Property | Value |
 |---|---|
