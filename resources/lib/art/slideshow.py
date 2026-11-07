@@ -230,7 +230,7 @@ class Slideshow:
 
         :param path: Custom source path from skin settings.
         """
-        library = path.startswith(self.LIBRARY_PATHS) or path.endswith(".xsp")
+        library = path.startswith(self.LIBRARY_PATHS) or path.lower().endswith(".xsp")
         query = json_call(
             "Files.GetDirectory",
             params={"directory": path, "properties": ["art"]},
