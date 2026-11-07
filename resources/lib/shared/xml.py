@@ -1,11 +1,11 @@
 # author: realcopacetic
 
-import os
 import xml.etree.ElementTree as ET
 from functools import wraps
 from pathlib import Path
 
 from resources.lib.shared import logger as log
+from resources.lib.shared.utilities import replace_file
 
 
 def sort_outer_keys(func):
@@ -143,8 +143,8 @@ class XMLHandler:
 
     def _save_xml(self, tree: ET.ElementTree) -> bool:
         """
-        Saves an indented, UTF-8 ElementTree to disk atomically (temp file +
-        os.replace), skipping the write when the file already holds those bytes.
+        Saves an indented, UTF-8 ElementTree to disk atomically (replace_file),
+        skipping the write when the file already holds those bytes.
 
         :param tree: XML ElementTree to write.
         :return: True when the file was written.
@@ -154,13 +154,7 @@ class XMLHandler:
         if self.path.is_file() and self.path.read_bytes() == data:
             log.debug(f"{self.__class__.__name__} → XML file '{self.path}' unchanged")
             return False
-        tmp_path = self.path.with_name(self.path.name + ".tmp")
-        try:
-            tmp_path.write_bytes(data)
-            os.replace(tmp_path, self.path)
-        except OSError:
-            tmp_path.unlink(missing_ok=True)
-            raise
+        replace_file(self.path, data)
         log.debug(
             f"{self.__class__.__name__} → XML file '{self.path}' updated successfully."
         )
