@@ -12,6 +12,7 @@ import sys
 import tempfile
 import urllib.parse as urllib
 import xml.etree.ElementTree as ET
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -345,7 +346,8 @@ def replace_file(path: Path, data: bytes) -> None:
             file.write(data)
         os.replace(tmp, path)
     except BaseException:
-        os.unlink(tmp)
+        with suppress(OSError):
+            os.unlink(tmp)
         raise
 
 
