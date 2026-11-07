@@ -146,7 +146,7 @@ def include_name(call: Node) -> str:
 
 
 def clone(node: Node) -> Node:
-    """Deep copy keeping ``src`` and ``stack`` (``copy.deepcopy`` drops the subclass)."""
+    """Deep copy keeping ``src`` and ``stack`` (``deepcopy`` drops the subclass)."""
     if not isinstance(node.tag, str):
         return ET.Comment(node.text)
     new = Node(node.tag, dict(node.attrib))
@@ -440,10 +440,10 @@ class Skin:
                 element.stack = outer  # the caller's, not the include's
             condition = call.get("condition")
             branch = call.branch + ((f"{call.src} {condition}",) if condition else ())
-            inserted, resolve = [], []
+            inserted, resolve, inner = [], [], (*outer, key)
             for child in elements(self.body(name)):
                 new = clone(child)
-                new.stack = (*outer, key)
+                new.stack = inner
                 if new.tag == "nested":
                     inserted += map(clone, payload)
                 elif (nested := new.find("nested")) is not None:
