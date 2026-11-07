@@ -36,6 +36,7 @@ The file's `mapping` names the mapping these controls edit. Each key under `cont
 | `icon` | No | Row icon (listitems only) |
 | `visible` | No | Show/hide condition, re-checked as the user moves and edits |
 | `onclick` | No | What a button does — see [Onclick](#onclick) |
+| `templates_from` | No | Mappings this control is filed under, in place of the file's `mapping` (a name or a list) — as for [configs](05-configs.md#one-definition-several-mappings). Copacetic's `widget_size` and `widget_rows` serve widgets and search. |
 
 The allowed values for a `field` come from the mapping's `config_fields` — the control just names the field. (See [One setting, four names](00-quickstart.md#one-setting-four-names) if that chain is fuzzy.)
 

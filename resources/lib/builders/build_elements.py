@@ -8,6 +8,7 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.runtime import RuntimeStateManager
 from resources.lib.builders.templates import (
     cache_stamp,
+    effective_mappings,
     load_template_data_from_source,
     write_template_cache,
 )
@@ -120,9 +121,7 @@ class BuildElements:
         """
         grouped = {}
         for name, data in elements.items():
-            declared = data.get("templates_from") or default_mapping
-            targets = [declared] if isinstance(declared, str) else declared
-            for mapping in targets:
+            for mapping in effective_mappings(default_mapping, data):
                 grouped.setdefault(mapping, {})[name] = data
         return grouped
 

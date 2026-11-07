@@ -42,6 +42,7 @@ JSON files in `extras/templates/configs/`. The file's `mapping` must be the mapp
 | `default_key` | the mapping's `key` placeholder | Which token picks the row in `defaults` |
 | `defaults` | — | Default per group, `"*"` as wildcard. Without it, the first surviving value is the default. |
 | `dependent_fields` | `[]` | Other settings this config's rules read — see below |
+| `templates_from` | the file's `mapping` | Mappings this config serves — see [One definition, several mappings](#one-definition-several-mappings) |
 
 Each rule is `{"condition": "...", "value": [...]}`. `condition` is required; `value` defaults to an empty list.
 
@@ -99,6 +100,21 @@ A config name containing the mapping's token — `{widget_preset}_layout` — re
 A plain name — `sortorder` — is one definition shared by every item that points at it. It is still resolved for each entry, against that entry's values, so its rules can use the loop token and its `defaults` can be keyed by item like any other.
 
 **Overriding one item.** The config name in `config_fields` is filled in first, and a config with that exact name wins. With `"art": "{content_type}_art"`, a config named `albums_art` is used for albums and `{content_type}_art` for everyone else.
+
+### One definition, several mappings
+
+`templates_from` files one config under each mapping it lists, in place of the file's own `mapping` (a name or a list; list the file's mapping too if it should keep the config). Each listed mapping looks the config up by the same name, so it suits plain names (`grid_top`), not names built from one mapping's token (`{widget_preset}_rows`). Its rules and defaults resolve against each mapping's entries as usual:
+
+```json
+"marquee_top": {
+  "templates_from": [ "widgets", "search" ],
+  "dependent_fields": [ "rows" ],
+  "items": [ "780", "680", "580" ],
+  ...
+}
+```
+
+In Copacetic, `configs_widgets.json` serves Search's rail geometry (`grid_*`, `marquee_*`), `texture_item`, `vue_art` and `widget` this way, and `sortorder` to the widget group tabs. The same key works on [controls](06-controls.md#input) and, at build time, on [variables](03-variables.md#templates_from--one-template-several-mappings), expressions and includes.
 
 ---
 
