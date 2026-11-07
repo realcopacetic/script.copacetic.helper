@@ -3,11 +3,12 @@ Run the artwork pipeline (prepare, then compose) on synthetic posters outside Ko
 
 Checks the label's measured rect (lines, widest line), the element-on-art step, its
 winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
-away) and, at step 3, that the tinted band reads at the ratio, then that a palette
-PNG's transparent colour is no colour, that a row measured before the measure version
-is measured again, that an RGB PNG with tRNS measures as its RGBA copy and that one
-URL as clearlogo and icon is measured for each; prints each serve's time. Needs
-Pillow and the skin (its Font.xml and fonts measure the label); no network.
+away) and, at step 3, that the tinted band reads at the ratio, then the clearlogo
+colour and luminance of an anti-aliased logo and a palette PNG (whose transparent
+colour is no colour), that a row measured before the measure version is measured
+again, that an RGB PNG with tRNS measures as its RGBA copy and that one URL as
+clearlogo and icon is measured for each; prints each serve's time. Needs Pillow and
+the skin (its Font.xml and fonts measure the label); no network.
 
     python tests/artwork_check.py ../skin.copacetic2
 """
@@ -225,15 +226,27 @@ def main() -> None:
         ok = got == want and serve(params)[0] == art  # the second serve is the cache's
         failures += not ok
         print(f"{'ok  ' if ok else 'FAIL'} shape {name:12} {got}")
+    big = Image.new("RGBA", (3200, 1240))  # drawn at 4x, scaled down: anti-aliased
+    draw = ImageDraw.Draw(big)
+    draw.rounded_rectangle((200, 310, 3000, 930), 155, "white")
+    draw.ellipse((200, 310, 1460, 930), "#c8102e")
+    big.resize((800, 310), Image.LANCZOS).save(path := str(tmp / "logo.png"))
+    params = {"clearlogo_url": path, "clearlogo_crop": "true"}
+    art = serve(params)[0]
+    got = art["clearlogo_color"], art["clearlogo_luminance"]
+    ok = got == ("ffffffff", 1000) and serve(params)[0] == art  # not fefefe, as 480x270
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} clearlogo colour, anti-aliased {got}")
     keyed = Image.new("P", (800, 310))  # palette PNG: index 0, green, is transparent
     keyed.putpalette([0, 255, 0, 200, 16, 46])
     ImageDraw.Draw(keyed).rectangle((60, 80, 740, 230), 1)
     keyed.save(path := str(tmp / "keyed.png"), transparency=0)
-    serve({"clearlogo_url": path})
+    art = serve({"clearlogo_url": path})[0]
     sqlite = ImageEditor().sqlite
     (row,) = sqlite.find_variants(path, "darken")
-    got = json.loads(row["measure"])["dominant"]
-    ok = got == "ffc8102e"
+    dominant = json.loads(row["measure"])["dominant"]
+    got = dominant, art["clearlogo_color"], art["clearlogo_luminance"]
+    ok = got == ("ffc8102e", "ffc8102e", 128)
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} palette PNG: transparency is not colour {got}")
     key = row["cache_key"]  # as a row measured before the version: no token, green
@@ -262,7 +275,8 @@ def main() -> None:
     params = {"clearlogo_url": path, "icon_url": path, "icon_palette": "true"}
     art = serve(params)[0]
     ok = len(sqlite.find_variants(path, "darken")) == 2  # main: one, shared, and lost
-    ok &= "icon_palette_primary" in art and serve(params)[0] == art
+    ok &= {"clearlogo_color", "icon_palette_primary"} <= art.keys()
+    ok &= serve(params)[0] == art
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} one URL as clearlogo and icon: a measure each")
     failures += check_rekey(tmp, serve, ImageEditor())

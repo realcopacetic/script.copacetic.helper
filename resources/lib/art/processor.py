@@ -164,8 +164,8 @@ class ImageProcessor:
     ) -> dict[str, Any] | None:
         """
         Measure the art for compose: colours from the area the rects cover (a
-        clearlogo's whole image); with darken opts, each rect's extremes on the art
-        and on its blur, and the band palette.
+        clearlogo's whole image, and Copacetic 1's pick from its source); with darken
+        opts, each rect's extremes on the art and on its blur, and the band palette.
 
         :param image: Input PIL image.
         :param opts: Parsed ArtOpts for this art_type.
@@ -194,6 +194,8 @@ class ImageProcessor:
                     Image.open(blur).convert("RGB") if blur else None,
                     opts.darken,
                 )
+            else:  # a clearlogo: Copacetic 1's colour, from the source as it took it
+                measure["commonest"] = self.color_analyzer.commonest(image)
             return {
                 "metadata": {
                     policy.ART_FIELD_MEASURE: json.dumps(

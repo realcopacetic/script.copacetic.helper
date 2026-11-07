@@ -30,6 +30,8 @@ ART_FIELD_PALETTE_SECONDARY = "palette_secondary"
 ART_FIELD_PALETTE_LOGO = "palette_logo"
 ART_FIELD_PALETTE_DARKEN = "palette_darken"
 ART_FIELD_PALETTE_LOGO_DARKEN = "palette_logo_darken"
+ART_FIELD_COLOR = "color"  # the clearlogo's colour as Copacetic 1 picked it, ARGB
+ART_FIELD_LUMINANCE = "luminance"  # its relative luminance ×1000, a whole number
 
 ART_FIELDS_PALETTE = (
     ART_FIELD_PALETTE_PRIMARY,
@@ -101,6 +103,8 @@ ART_LISTITEM_KEYS = (
     ART_FIELD_DARKEN,
     ART_FIELD_ELEMENT_COLOR,
     ART_FIELD_BAND,
+    ART_FIELD_COLOR,
+    ART_FIELD_LUMINANCE,
     *ART_FIELDS_PALETTE,
 )
 
@@ -200,6 +204,11 @@ class ColorConfig:
     sample_size: int = 64  # Downsampled square size for palette extraction
     avg_downsample: int = 32  # Downsampled square size for luminance/mean sampling
     bg_sampling_topk: float = 0.10  # Fraction of brightest pixels used for background L
+    # Copacetic 1's logo colour, pinned to its old helper's chain (1600x620 is that
+    # helper's crop, not crop_target_size): the visible area thumbnailed down these...
+    logo_color_steps: tuple[tuple[int, int], ...] = ((1600, 620), (600, 240), (25, 10))
+    logo_alpha_min: int = 65  # ...the pixels this opaque (its "> 64")...
+    logo_palette_size: int = 16  # ...and the commonest of this many swatches wins
 
     # --- Color Filtering ---
     alpha_opaque_min: int = 65  # Alpha channel threshold to consider a pixel opaque
