@@ -16,6 +16,11 @@ the path changes and Kodi fetches the list again. Without it, the list only upda
 when Kodi reloads the container for some other reason. See
 [Window properties](#window-properties) for when it changes.
 
+Naming `info=speed_dial` in your builder templates or `16x9/` XML, as this path does,
+is also what shows the helper's **Pin to speed dial** and **Unpin** context menu items
+in your skin (see
+[Items the helper adds to the context menu](../script/actions.md#items-the-helper-adds-to-the-context-menu)).
+
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | all | Most items to return |

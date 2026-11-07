@@ -7,9 +7,12 @@ from pathlib import Path
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
     ADDONDATA,
+    SKINXML,
+    TEMPLATES,
     condition,
     infolabel,
     json_call,
+    skin_path,
     window_property,
 )
 
@@ -103,6 +106,21 @@ def clear_properties() -> None:
         HELD_PROPERTY,
     ):
         window_property(key)
+
+
+def skin_uses_speed_dial() -> bool:
+    """
+    True when the active skin's builder templates or XML name the speed dial
+    plugin path (info=speed_dial). Templates first: a builder skin names it there.
+
+    :return: Whether any of its JSON or XML files does.
+    """
+    return any(
+        b"info=speed_dial" in file.read_bytes()
+        for folder in (TEMPLATES, SKINXML)
+        for file in Path(skin_path(folder)).rglob("*")
+        if file.suffix in (".json", ".xml")
+    )
 
 
 def queue_source(songid: int) -> dict:
