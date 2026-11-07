@@ -46,6 +46,8 @@ The allowed values for a `field` come from the mapping's `config_fields` — the
 
 `label`, `label2`, `description`, `icon`, `visible`, an onclick `action` and the `confirm` texts fill their `{tokens}` from the highlighted entry when the window draws them. Available: the entry's resolved fields (stored values, config defaults, string metadata), the mapping's `key` placeholder, all of the item's metadata, `{mapping}` (the mapping name) and `{index}` — here the entry's 0-based position in the settings file, not the build-time `{index}`. A field missing from the highlighted entry falls back to the first other entry in the mapping that has it.
 
+A stored value is text, never a template: a folder named `Films {2020}` shows as it is, through a `{token}`, as a control's label2 or in an `edit` control. The one exception is the label2 of a field with a config: its value is one of the config's items, which can carry `{tokens}`, and those are filled. A `listitem`'s `label`, `icon` and `description` always come from the template, so a stored `label` field reaches the row through `{label}`.
+
 Before the tokens are filled, each `$LOCALIZE[id]` in `label`, `label2`, `description`, `icon` and the `confirm` texts is replaced with its string. So a translated string can carry `{tokens}` of its own, for example a skin string `Delete {label}?`. After the tokens are filled, a value that starts with `$` is resolved by Kodi.
 
 Editor tokens are plain `{name}` lookups. Maths, `{@mapping:item.field}` and nested tokens don't work here. If any token in a string is unknown, the whole string is used unchanged.

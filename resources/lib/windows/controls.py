@@ -275,9 +275,16 @@ class BaseControlHandler:
             .get("metadata", {})
             .get(self._preset_key(), {})
         )
+        # A config's items are the skin's and may carry {tokens}; any other value
+        # is the user's text, shown as it is: a folder can be named {2020}.
+        value = (
+            current
+            if link.get("linked_config") or not current
+            else self.runtime_manager.literal(current)
+        )
         raw_label2 = (
             cfg_labels.get(current)
-            or (current if self.field else None)
+            or (value if self.field else None)
             or meta.get(self.field or "label")
             or current
             or ""
@@ -755,7 +762,10 @@ class EditHandler(BaseControlHandler):
         """Reflect the effective value: stored, else the metadata fallback."""
         super().update_value()
         current = self._get_setting_value()
-        raw = current or (f"{{{self.field}}}" if self.field else "")
+        if current:
+            raw = self.runtime_manager.literal(current)
+        else:
+            raw = f"{{{self.field}}}" if self.field else ""
         display = (
             self.runtime_manager.format_metadata(
                 self.mapping_key, self.source_index, raw, localize=True
