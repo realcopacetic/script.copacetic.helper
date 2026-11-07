@@ -12,6 +12,7 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     to_int,
+    url_decode_path,
     window_property,
 )
 
@@ -273,7 +274,7 @@ class Slideshow:
             return None
         darken = processed.get("background_darken")
         return {
-            "fanart": fanart,
+            "fanart": url_decode_path(fanart),  # a multiimage needs the plain path
             "blur": blur,
             "clearlogo": processed.get("clearlogo"),
             "darken": str(darken) if darken is not None else None,
