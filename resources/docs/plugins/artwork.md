@@ -91,7 +91,7 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 |---|---|---|---|
 | `<prefix>_url` | image path or URL | — | The image to process. Required for anything to happen to this image. |
 | `clearlogo_crop` | `true`, `false` | `false` | Crop the clearlogo to its visible (non-transparent) area. |
-| `clearlogo_fit` | `W,H` | — | The box the cropped logo is drawn in. Sets the height of the `clearlogo_fit_ids` controls to the logo's height in that box, as [reposition](reposition.md)'s `fit`: `round(W × clearlogo_height ÷ clearlogo_width)`, never more than `H`; the width is not changed. It is set before the result is returned, while the container still shows its old items: a logo that blanks while the container updates (`Container(id).IsUpdating`) never draws in the wrong box, but one that keeps the last result's logo draws it in the new box until the call lands. Needs `clearlogo_crop=true`. A superseded call still runs to the end, so nothing is sized when the call aborts, has no crop, or at its end fails the focus guard, has a `visit` that is no longer live, or (with no `focus_ids` and no `target=item`) has focus on another control than when it started. See also `clearlogo_fit_key`. |
+| `clearlogo_fit` | `W,H` | — | The box the cropped logo is drawn in. Sets the height of the `clearlogo_fit_ids` controls to the logo's height in that box, as [reposition](reposition.md)'s `fit`: `round(W × clearlogo_height ÷ clearlogo_width)`, never more than `H`; the width is not changed. It is set before the result is returned, while the container still shows its old items: a logo that blanks while the container updates (`Container(id).IsUpdating`) never draws in the wrong box, but one that keeps the last result's logo draws it in the new box until the call lands. Needs `clearlogo_crop=true`. A superseded call still runs to the end, so nothing is sized when the call aborts, has no crop, or at its end fails the focus guard, has a `visit` that is no longer live, or (with no `focus_ids` and no `target=item`) has focus on another control than when it started. The result carries the height as `ListItem.Property(clearlogo_fit)` only when at least one control took it: a call that sizes nothing for any of those reasons, or finds none of the controls where it looks (a modal dialog opened, or the window closed, while it ran), still returns its crop, without that property. Show a crop in a sized control only when it is there. See also `clearlogo_fit_key`. |
 | `clearlogo_fit_key` | `<DBType>:<DBID>` of the call's item, e.g. `$INFO[ListItem.DBType]:$INFO[ListItem.DBID]` | — | Size only if the item (`target`'s, or the window's own with `target=item`) still has this key when the call ends. A `target=item` call has no focus guard, so this is its only item check. Items with no DBType or DBID (keyed `:`) are not told apart. |
 | `clearlogo_fit_ids` | control id, or ids separated by commas | — | The controls `clearlogo_fit` sizes, on the topmost dialog when one is open, else on the current window. |
 | `background_blur`, `icon_blur` | `true`, `false` | `false` | Blur the image. |
@@ -187,8 +187,9 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `multiart`, `multiart1`, `multiart2` … | `multiart` is passed | The collected family, numbered without gaps. |
 
 The list item also carries some properties; see
-[Is this result for the focused item?](#is-this-result-for-the-focused-item), and
-`clean_label` when that param is passed.
+[Is this result for the focused item?](#is-this-result-for-the-focused-item),
+`clean_label` when that param is passed, and `clearlogo_fit` when the call sized the
+`clearlogo_fit_ids` controls.
 
 ## Window properties
 
