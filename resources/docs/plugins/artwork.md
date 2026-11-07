@@ -3,7 +3,7 @@
 The artwork helper prepares artwork for the focused item and returns the results on a
 single list item. It can:
 
-- **crop** a clearlogo to its visible area and report its size;
+- **crop** a clearlogo to its visible area and report its size and colour;
 - **blur** a background image (and a second image, the icon);
 - work out how much to **darken** an image so that text on top stays readable;
 - make an **element on art** readable (a label over a poster): pick its colour, and
@@ -48,7 +48,7 @@ named after it:
 
 | Image | Prefix | What it can do |
 |---|---|---|
-| Clearlogo | `clearlogo_` | crop; its colour is always measured, for `clearlogo` sources and the palette |
+| Clearlogo | `clearlogo_` | crop; its colour is always measured and returned, and used by `clearlogo` sources and the palette |
 | Background | `background_` | blur, darken, element on art, palette |
 | Icon | `icon_` | blur, darken, element on art, palette, shape |
 
@@ -179,6 +179,8 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 |---|---|---|
 | `clearlogo` | `clearlogo_crop=true` | Path to the cropped PNG. |
 | `clearlogo_width`, `clearlogo_height` | `clearlogo_crop=true` | Size of the cropped logo in pixels. The logo is first scaled down to fit 1600×620. |
+| `clearlogo_color` | `clearlogo_url` is passed | The logo's colour as Copacetic 1's helper picked it, ARGB hex (`ffrrggbb`, lower case): its visible area is scaled down to fit 1600×620, then 600×240, then 25×10 (aspect kept), and the commonest colour in a 16-colour palette of the pixels left with alpha 65 or more wins. No colour is skipped, so a mostly white logo returns white. (The logo colour that `clearlogo` darken sources and `_palette_logo` use is another: it passes over near-white and near-black unless they cover 70% of the logo.) `ff000000` when no pixel is that opaque. Nothing comes back when the logo can't be read, or, with `clearlogo_crop=true`, when it has no visible pixel (the crop fails). |
+| `clearlogo_luminance` | as `clearlogo_color` | That colour's relative luminance (WCAG) × 1000, rounded down: `0`–`1000`, for `Integer.IsLessOrEqual` and `Integer.IsGreaterOrEqual`. |
 | `icon_width`, `icon_height`, `icon_opaque` | `icon_shape=true` | The icon's size in pixels, read from Kodi's texture-cache copy when it has one (Kodi scales that to `imageres`, 720 by default, so a larger image can read smaller), and `1` when all four corner pixels are fully opaque, else `0`. |
 | `background`, `icon` | `<prefix>_blur=true` | Path to the blurred JPEG. |
 | `background_blur_radius`, `icon_blur_radius` | `<prefix>_blur=true` | The radius used. |

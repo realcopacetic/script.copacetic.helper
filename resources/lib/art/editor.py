@@ -13,6 +13,7 @@ import xbmcvfs
 
 from resources.lib.art import compose, policy
 from resources.lib.art.cache import ArtworkCacheManager, CacheContext
+from resources.lib.art.color import from_hex, luminance
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.hash import HashManager
@@ -48,7 +49,7 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
         "folder": None,
         "match": policy.ART_FIELDS_INPUT["darken"],
         "require": policy.ART_FIELDS_RESULT["darken"],
-        "version": 1,  # in the row's key: raise it when the measure changes
+        "version": 2,  # in the row's key: raise it when the measure changes
     },
     "shape": {"folder": None, "require": policy.ART_FIELDS_RESULT["shape"]},
     "band": {  # the blur (step 2) or its tinted copy (step 3) with alpha, by compose
@@ -243,8 +244,8 @@ class ImageEditor:
         contexts: Mapping[str, CacheContext],
     ) -> None:
         """
-        Second pass, once every art is prepared: each art's darken, element step
-        and palette from its measurement, into its record. Never cached.
+        Second pass, once every art is prepared: the clearlogo's colour, and each
+        art's darken, element step and palette from its measurement. Never cached.
 
         :param records: Prepared attributes per art_type, updated in place.
         :param art_opts: Parsed ArtOpts per art_type.
@@ -255,7 +256,13 @@ class ImageEditor:
             for art_type, attrs in records.items()
             if policy.ART_FIELD_MEASURE in attrs
         }
-        logo = measures.get("clearlogo", {}).get("dominant")
+        if clearlogo := measures.get("clearlogo"):
+            pick = clearlogo["commonest"]
+            records["clearlogo"] |= {
+                policy.ART_FIELD_COLOR: pick,
+                policy.ART_FIELD_LUMINANCE: int(luminance(from_hex(pick)) * 1000),
+            }
+        logo = clearlogo and clearlogo["dominant"]
         overlay = self.cfg.element_overlay_color
         for art_type, attrs in records.items():
             opts = art_opts[art_type]
