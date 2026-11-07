@@ -907,6 +907,31 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
 REGISTRY["play_radio"] = start_mix  # former name, kept for skins that call it
 
 
+def _iso639_2(lang: str) -> str:
+    """
+    A language code or English name as the ISO 639-2/B code streams carry; a
+    language Kodi doesn't know stays as given, so it reads missing, not empty.
+
+    :param lang: Language as the skin passes it (e.g. "en", "deu", "English").
+    :return: Its ISO 639-2/B code (e.g. "eng", "ger").
+    """
+    return xbmc.convertLanguage(lang, xbmc.ISO_639_2) or lang
+
+
+def _publish_subtitle(lang: str, kind: str) -> None:
+    """
+    Writes player_subtitle_kind from the playing video's subtitle; empty with no
+    video (a refresh while playback stops).
+
+    :param lang: Preferred ISO 639-2/B language code; empty for none.
+    :param kind: Preferred subtitle type.
+    """
+    status = condition("Player.HasVideo") and subtitle_status(
+        *player_streams("subtitle"), lang, kind
+    )
+    window_property("player_subtitle_kind", value=status)
+
+
 @action
 def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> None:
     """
@@ -915,17 +940,27 @@ def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> N
     turn, then off. Sets streams directly, so Kodi shows no toast.
 
     :param type: audio, subtitle or video.
-    :param lang: Preferred subtitle language as Kodi reports it (e.g. "eng").
+    :param lang: Preferred subtitle language: a code or English name (e.g. "en").
     :param kind: Preferred subtitle type: forced, full (default) or impaired.
     """
     player = xbmc.Player()
+    lang = _iso639_2(lang)
     streams, current = player_streams(type)
-    if type != "subtitle":
-        if len(streams) > 1:  # Kodi reopens and seeks even for the same stream
-            step = player.setAudioStream if type == "audio" else player.setVideoStream
-            step((current["index"] + 1) % len(streams))
-        return
     on = current["index"] if current else -1
+    if type != "subtitle":
+        if len(streams) < 2:  # Kodi reopens and seeks even for the same stream
+            return
+        forced = type == "audio" and (
+            subtitle_status(*player_streams("subtitle")) == "forced"
+        )
+        step = player.setAudioStream if type == "audio" else player.setVideoStream
+        step((on + 1) % len(streams))
+        if forced:
+            # Kodi swaps a forced subtitle to the new audio language unseen, and
+            # caches the subtitle index for 1 s
+            xbmc.Monitor().waitForAbort(1.1)
+            _publish_subtitle(lang, kind)
+        return
     if lang:
         target = preferred_subtitle(streams, lang, kind)
         if target and target["index"] == on:
@@ -944,10 +979,12 @@ def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> N
 def player_stream_refresh(lang: str = "", kind: str = "", **kwargs: str) -> None:
     """
     Re-reads the playing video's subtitle into player_subtitle_kind, as Kodi
-    raises no event when its dialogs or keys change it; lang and kind as above.
+    raises no event when its dialogs or keys change it; empty with no video.
+
+    :param lang: Preferred subtitle language, as for player_stream.
+    :param kind: Preferred subtitle type, as for player_stream.
     """
-    status = subtitle_status(*player_streams("subtitle"), lang, kind)
-    window_property("player_subtitle_kind", value=status)
+    _publish_subtitle(_iso639_2(lang), kind)
 
 
 @action

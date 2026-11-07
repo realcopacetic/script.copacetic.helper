@@ -648,7 +648,11 @@ OSD. It sets the stream directly, so Kodi shows no notification, as its own
 `NextSubtitle`, `AudioNextLanguage` and `VideoNextStream` actions do.
 
 - **Audio or video:** steps to the next stream, and from the last back to the first.
-  With one stream, nothing happens.
+  With one stream, nothing happens. If a forced subtitle is showing, Kodi swaps it for
+  the new audio language's forced subtitle (or hides it) without telling anyone, so
+  after an audio step the action waits about a second and updates
+  `player_subtitle_kind`. Pass the Subtitles button's `lang` and `kind` on the Audio
+  button too, so the update can read `missing`.
 - **Subtitles with `lang`:** turns the preferred stream on, or off if it is already
   showing. If another stream is showing, it switches to the preferred one. The
   preferred stream is the first in that language of the type `kind` asks for. When
@@ -666,17 +670,21 @@ OSD. It sets the stream directly, so Kodi shows no notification, as its own
   the first stream.
 
 A subtitle's type comes from its flags (`isforced`, `isimpaired` in JSON-RPC), then from
-words in its name: `forced` is forced; `SDH`, `CC` or `HI` is hearing impaired. Anything
-else is full. A subtitle file next to the video carries only the forced flag, so a
-hearing impaired file needs `sdh`, `cc` or `hi` in its name (`Film.en.sdh.srt`).
+words in its name: `forced` is forced, unless the name also says `non` or `not`
+(`Non-Forced`); `SDH`, `CC` or `HI` is hearing impaired. Anything else is full.
+
+A subtitle file next to the video carries only the forced flag, so name a hearing
+impaired file with `sdh` or `cc` (`Film.en.sdh.srt`). Avoid `hi` there: it is also
+Hindi's language code, and Kodi reads the words from the end, so `Film.en.hi.srt` is a
+Hindi subtitle. `hi` works only before the language (`Film.hi.en.srt`).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `type` | `subtitle`, `audio`, `video` | required | The stream to change |
-| `lang` | a subtitle language as Kodi reports it, for example `eng` | none | The preferred subtitle language. Empty cycles every stream. |
+| `lang` | a language code or English name: `eng`, `en`, `deu`, `English` | none | The preferred subtitle language, read as the ISO 639-2/B code streams carry (`xbmc.convertLanguage`). A language Kodi doesn't know is kept as given, so it finds nothing. Empty cycles every stream. With `type=audio`, used for the update after the step. |
 | `kind` | `forced`, `full`, `impaired` | `full` | The preferred subtitle type, with `lang`. Empty counts as `full`. |
 
-**Sets** (for `type=subtitle`):
+**Sets** (for `type=subtitle`, and for `type=audio` when a forced subtitle was showing):
 
 | Property | Value |
 |---|---|
@@ -691,7 +699,7 @@ For example, in the video OSD, with the preferred language and type in skin stri
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=player_stream,type=subtitle,lang=$INFO[Skin.String(subtitle_language)],kind=$INFO[Skin.String(subtitle_kind)])</onclick>
-<onclick>RunScript(script.copacetic.helper,action=player_stream,type=audio)</onclick>
+<onclick>RunScript(script.copacetic.helper,action=player_stream,type=audio,lang=$INFO[Skin.String(subtitle_language)],kind=$INFO[Skin.String(subtitle_kind)])</onclick>
 ```
 
 ---
@@ -703,7 +711,8 @@ no event when the subtitle changes in its own subtitle settings dialog or from a
 key (and changing the audio stream can swap a forced subtitle), so call this where the
 property is about to be shown: when the video OSD opens, and when the subtitle or audio
 settings dialog closes. Pass the same `lang` and `kind` as the Subtitles button, so
-`missing` shows before the first press.
+`missing` shows before the first press. With no video playing (a dialog closing as
+playback stops), it empties the property.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -714,7 +723,7 @@ settings dialog closes. Pass the same `lang` and `kind` as the Subtitles button,
 
 | Property | Value |
 |---|---|
-| `player_subtitle_kind` | As [`player_stream`](#player_stream): the type of the subtitle showing; `missing` or empty while off |
+| `player_subtitle_kind` | As [`player_stream`](#player_stream): the type of the subtitle showing; `missing` or empty while off; empty with no video |
 
 ```xml
 <!-- VideoOSD.xml -->

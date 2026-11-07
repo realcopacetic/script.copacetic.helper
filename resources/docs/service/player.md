@@ -35,7 +35,8 @@ When a library episode starts, the service also runs [Play next](playnext.md).
 ### Subtitle type
 
 `player_subtitle_kind` reads the subtitle's flags, then its name, as
-[`player_stream`](../script/actions.md#player_stream) does, which sets it straight away.
+[`player_stream`](../script/actions.md#player_stream) does, which sets it straight away
+(and, after an audio step that swaps a forced subtitle, a second later).
 Kodi sends no event when a subtitle changes in its own subtitle settings dialog or from
 a key, so the service doesn't follow those changes: call
 [`player_stream_refresh`](../script/actions.md#player_stream_refresh) before the
