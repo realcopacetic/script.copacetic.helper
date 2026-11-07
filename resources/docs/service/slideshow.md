@@ -81,9 +81,11 @@ of Kodi's picture extensions, less its archive and feed types: `.png`, `.jpg`, `
 `.avif`. Pictures in subfolders aren't included.
 
 The service fetches up to 20 random items at a time and doesn't repeat a fanart until
-every fetched item has been shown. For `custom`, it lists 200 random entries of the
-path and picks 20 of those that have art, so a folder that also holds videos,
-subfolders or other files still fills a batch.
+every fetched item has been shown. For a `custom` folder or plugin, it lists 200 random
+entries of the path and picks 20 of those that have art, so a folder that also holds
+videos, subfolders or other files still fills a batch. A library path (`videodb://`,
+`musicdb://`, `library://` or a `.xsp` smart playlist) lists 20, as Kodi looks up each
+listed item's art in the library.
 
 ### Two schedules
 

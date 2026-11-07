@@ -35,6 +35,7 @@ class Slideshow:
     BATCH_SIZE = 20
     CUSTOM_WINDOW = 200  # a listing's limit comes before the art test: sample from more
     DEFAULT_INTERVAL = 5
+    LIBRARY_PATHS = ("videodb://", "musicdb://", "library://")  # or .xsp: art per item
     RETRY_WITHIN = 1  # seconds: a slower failed slide (a dead share) waits the interval
 
     LIBRARY_MAP = {"movies": "movies", "tvshows": "tvshows", "music": "artists"}
@@ -227,14 +228,16 @@ class Slideshow:
         """
         Fetch art from a user path (library node, xsp, plugin, folder) in a
         single directory listing. A picture file with no art is its own fanart.
+        Outside the library, more entries are listed than a batch needs.
 
         :param path: Custom source path from skin settings.
         """
+        library = path.startswith(self.LIBRARY_PATHS) or path.endswith(".xsp")
         query = json_call(
             "Files.GetDirectory",
             params={"directory": path, "properties": ["art"]},
             sort={"method": "random"},
-            limit=self.CUSTOM_WINDOW,
+            limit=self.BATCH_SIZE if library else self.CUSTOM_WINDOW,
             parent="slideshow_fetch",
         )
         for result in query.get("result", {}).get("files", []):
