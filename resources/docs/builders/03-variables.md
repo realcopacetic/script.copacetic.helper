@@ -208,7 +208,7 @@ Each pass carries `{grid_layout}` (the grid mapping's declared key) alongside th
 
 One row set; two families out — `art_clearlogo_widgets` per widget, `art_clearlogo_search` per search rail — each speaking its mapping's focus grammar via `{focus}`, each pruned by its own `{scope_filter}`.
 
-`templates_from` *replaces* the file's `mapping` as the loop source. If the file's own mapping should expand too, list it: `expressions_regions.json` declares `"mapping": "regions"` and `"templates_from": ["regions", "widgets", "search", "views"]`. A file that only borrows can say `"mapping": "none"`.
+`templates_from` *replaces* the file's `mapping` as the loop source. If the file's own mapping should expand too, list it: `expressions_regions.json` declares `"mapping": "regions"` and `"templates_from": ["regions", "widgets", "search", "views"]`. A file that only borrows can say `"mapping": "none"`. Configs and controls take the same key, filing one definition under each listed mapping ([Configs → One definition, several mappings](05-configs.md#one-definition-several-mappings)).
 
 When to reach for it: several mappings need *the same cascade* and differ only in a handful of snippets. Put the snippets in each mapping's `tokens`, write the cascade once. If the cascades differ in *structure* — different rows, not different snippets — they're different templates; don't force it. And when the deltas vary by **item** rather than by mapping, use a static mapping whose `metadata` carries them instead — the shared-cascade pattern, [use case 4](10-use-cases.md#4-shared-cascades--one-template-per-item-differences).
 

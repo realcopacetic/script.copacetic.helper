@@ -17,7 +17,20 @@ from resources.lib.shared.utilities import (
     skin_version,
 )
 
-_CACHE_VERSION = "1"
+_CACHE_VERSION = "2"
+
+
+def effective_mappings(default_mapping: str, template: dict) -> list[str]:
+    """
+    Mappings a template serves: its ``templates_from`` (a name or a list), else
+    its file's mapping.
+
+    :param default_mapping: The input file's declared mapping.
+    :param template: Template data.
+    :return: Mapping names in declared order.
+    """
+    declared = template.get("templates_from") or default_mapping
+    return [declared] if isinstance(declared, str) else declared
 
 
 def cache_stamp() -> str:
@@ -25,7 +38,7 @@ def cache_stamp() -> str:
     Identity of the cache: schema version, the loaded skin's id and version (from
     its folder: lookandfeel.skin changes first on a switch), and the running helper's.
 
-    :return: Stamp string, e.g. ``1/skin.copacetic2/2.0.1/1.1.13``.
+    :return: Stamp string, e.g. ``2/skin.copacetic2/2.0.1/1.1.13``.
     """
     skin = skin_path()
     helper = ADDON.getAddonInfo("version")
@@ -89,22 +102,29 @@ def load_template_data_from_source(base_folder: str) -> tuple[dict, dict, dict]:
         base_folder=base_folder, subfolders=[MAPPINGS_FOLDER], grouping_key=None
     )
     mappings = dict(mappings_merger.yield_merged_data())
-
-    configs_data = {}
-    configs_merger = JSONMerger(
-        base_folder=base_folder, subfolders=[CONFIGS_FOLDER], grouping_key="mapping"
-    )
-    for mapping_name, content in configs_merger.yield_merged_data():
-        configs_data.setdefault(mapping_name, {}).update(content.get("configs") or {})
-
-    controls_data = {}
-    controls_merger = JSONMerger(
-        base_folder=base_folder, subfolders=[CONTROLS_FOLDER], grouping_key="mapping"
-    )
-    for mapping_name, content in controls_merger.yield_merged_data():
-        controls_data.setdefault(mapping_name, {}).update(content.get("controls") or {})
-
+    configs_data = _templates_by_mapping(base_folder, CONFIGS_FOLDER)
+    controls_data = _templates_by_mapping(base_folder, CONTROLS_FOLDER)
     return mappings, configs_data, controls_data
+
+
+def _templates_by_mapping(base_folder: str, folder: str) -> dict:
+    """
+    Merge a resolver folder's templates (each file's section named as the folder),
+    filing each template under every mapping in ``effective_mappings``.
+
+    :param base_folder: Skin extras builders folder root.
+    :param folder: Subfolder and section name, ``configs`` or ``controls``.
+    :return: {mapping_name: {tpl_name: tpl_data}}.
+    """
+    data = {}
+    merger = JSONMerger(
+        base_folder=base_folder, subfolders=[folder], grouping_key="mapping"
+    )
+    for mapping_name, content in merger.yield_merged_data():
+        for name, template in (content.get(folder) or {}).items():
+            for mapping in effective_mappings(mapping_name, template):
+                data.setdefault(mapping, {})[name] = template
+    return data
 
 
 def write_template_cache(
