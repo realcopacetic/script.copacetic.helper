@@ -675,10 +675,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if art is None:
             return self._artwork_held()
 
-        # Sized before the list lands; the old items stay up until then (no blank).
-        # A cancelled job still runs: size only while the URL's item is still shown,
-        # in the window it started in, still topmost (reposition_control sizes the
-        # topmost window's control; views share control ids across windows).
+        # Sized before the list lands (no blank). A cancelled job still runs: size only
+        # for the URL's item, in its window, still topmost (windows share control ids).
         if (
             (fit := self.params.get("clearlogo_fit"))
             and alive()
