@@ -103,7 +103,9 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 Booleans accept `true`, `1`, `yes` or `on` (any case). Anything else is false.
 Transparent art is composited on `ff121217` (Copacetic's `squidink`) before it is
 blurred or its darkness is measured. Its colours, for the palette and the clearlogo
-colour, come from its opaque pixels only.
+colour, come from its opaque pixels only. Transparent means an alpha channel or, in an
+image without one, a transparent colour the file declares: a PNG's `tRNS` chunk (alpha
+per palette entry, or one RGB or grey value) or a GIF's transparent index.
 
 A blurred image is cached by its source and radius only. Changing `_edge_trim` or
 `_darken_frame` later does not replace a blur that is already cached.

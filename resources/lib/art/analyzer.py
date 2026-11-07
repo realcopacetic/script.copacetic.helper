@@ -10,6 +10,17 @@ RGB = tuple[int, int, int]
 Palette = tuple[list[RGB], list[tuple[int, int]]]
 
 
+def has_alpha(image: Image.Image) -> bool:
+    """
+    Whether the image has transparency: an alpha band, or a transparency entry
+    (a PNG's tRNS chunk, a GIF's transparent index) that Pillow makes alpha.
+
+    :param image: Input PIL image (any mode).
+    :return: True when its RGBA conversion can hold a transparent pixel.
+    """
+    return "A" in image.getbands() or "transparency" in image.info
+
+
 class ColorAnalyzer:
     """
     Extracts an image's dominant and accent colours and its palette's extremes.
@@ -143,13 +154,15 @@ class ColorAnalyzer:
     # ---------- private helper methods ----------
     def _sample_image(self, im: Image.Image) -> Image.Image:
         """
-        Downsample image for fast palette and accent analysis.
+        Downsample image for fast palette and accent analysis; its transparency
+        (has_alpha) stays alpha.
 
         :param im: Input PIL image (any mode).
         :return: Downsampled image in RGB/RGBA mode.
         """
-        if im.mode not in ("RGB", "RGBA"):
-            im = im.convert("RGBA" if "A" in im.getbands() else "RGB")
+        mode = "RGBA" if has_alpha(im) else "RGB"
+        if im.mode != mode:
+            im = im.convert(mode)
         return im.resize((self.cfg.sample_size, self.cfg.sample_size), Image.BOX)
 
     def _opaque_rgb(self, im_small: Image.Image) -> Image.Image | None:

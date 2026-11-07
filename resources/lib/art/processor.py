@@ -6,7 +6,7 @@ from typing import Any
 from PIL import Image, ImageFilter
 
 from resources.lib.art import policy
-from resources.lib.art.analyzer import ColorAnalyzer
+from resources.lib.art.analyzer import ColorAnalyzer, has_alpha
 from resources.lib.art.darken import ColorDarken
 from resources.lib.art.policy import ColorConfig
 from resources.lib.plugin.opts import ArtOpts
@@ -39,7 +39,7 @@ class ImageProcessor:
         :param image: Input PIL Image.
         :return: RGB image.
         """
-        if "A" not in image.getbands() and "transparency" not in image.info:
+        if not has_alpha(image):
             return self._ensure_mode(image, "RGB")
         rgba = image.convert("RGBA")
         matte = Image.new("RGBA", rgba.size, "#" + self.cfg.matte[2:])

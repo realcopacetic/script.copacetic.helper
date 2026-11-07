@@ -3,13 +3,15 @@ Run the artwork pipeline (prepare, then compose) on synthetic posters outside Ko
 
 Checks the label's measured rect (lines, widest line), the element-on-art step, its
 winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
-away) and, at step 3, that the tinted band reads at the ratio; prints each serve's
-time. Needs Pillow and the skin (its Font.xml and fonts measure the label); no network.
+away) and, at step 3, that the tinted band reads at the ratio, then that a palette
+PNG's transparent colour is no colour; prints each serve's time. Needs Pillow and the
+skin (its Font.xml and fonts measure the label); no network.
 
     python tests/artwork_check.py ../skin.copacetic2
 """
 
 import io
+import json
 import os
 import random
 import shutil
@@ -221,6 +223,16 @@ def main() -> None:
         ok = got == want and serve(params)[0] == art  # the second serve is the cache's
         failures += not ok
         print(f"{'ok  ' if ok else 'FAIL'} shape {name:12} {got}")
+    keyed = Image.new("P", (800, 310))  # palette PNG: index 0, green, is transparent
+    keyed.putpalette([0, 255, 0, 200, 16, 46])
+    ImageDraw.Draw(keyed).rectangle((60, 80, 740, 230), 1)
+    keyed.save(path := str(tmp / "keyed.png"), transparency=0)
+    serve({"clearlogo_url": path})
+    (row,) = ImageEditor().sqlite.find_variants(path, "darken")
+    got = json.loads(row["measure"])["dominant"]
+    ok = got == "ffc8102e"
+    failures += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} palette PNG: transparency is not colour {got}")
     failures += check_rekey(tmp, serve, ImageEditor())
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
