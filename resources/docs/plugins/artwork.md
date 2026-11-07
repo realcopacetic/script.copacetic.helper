@@ -56,8 +56,7 @@ An image is only processed when you pass its URL (`clearlogo_url`, `background_u
 `icon_url`). With no URL at all, the call returns nothing, not even multiart (with
 `target=item` it returns one empty list item, so you can tell it has run). Processes are off unless
 you turn them on. Compose runs once every image is prepared, so the background and
-icon can use the clearlogo's colour whatever order they come in. One URL can be
-passed as more than one image: each is measured for its own use.
+icon can use the clearlogo's colour whatever order they come in.
 
 A URL can be any image Kodi can draw: a library or local path, a web URL, or art
 embedded in a music or video file (`image://music@…/`, `image://video@…/`, as an

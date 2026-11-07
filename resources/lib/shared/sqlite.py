@@ -158,13 +158,12 @@ class ArtworkCacheHandler(SQLiteHandler):
     def _initialize_database(self) -> None:
         """
         Create artwork cache table and indexes, adding any columns an older
-        cache lacks so writes of every ART_DB_FIELDS column succeed; only that
-        migration takes the write lock, so racing openers run it once.
+        cache lacks so writes of every ART_DB_FIELDS column succeed.
         """
         cols_sql = ",\n".join(f"{name} {decl}" for name, decl in policy.ART_DB_SCHEMA)
         unique_sql = ", ".join(policy.ART_DB_UNIQUE)
 
-        with self._conn as conn:  # commits a migration's transaction
+        with self._conn as conn:
             conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,20 +172,19 @@ class ArtworkCacheHandler(SQLiteHandler):
                 )
                 """)
 
-            if self._missing_columns():  # an older cache: the lock, then read again
-                conn.execute("BEGIN IMMEDIATE")  # a racing opener may have migrated
-                missing = self._missing_columns()
-                for name, decl in missing:
-                    conn.execute(
-                        f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN {name} {decl}"
-                    )
-                if missing:  # drop its measures from before art_type, once
-                    conn.execute(
-                        f"DELETE FROM {self.TABLE_NAME}"
-                        f" WHERE {policy.ART_FIELD_PROCESS} = 'analyze'"
-                        f" OR ({policy.ART_FIELD_PROCESS} = 'darken'"
-                        f" AND {policy.ART_FIELD_ART_TYPE} IS NULL)"
-                    )
+            have = {
+                row[1] for row in conn.execute(f"PRAGMA table_info({self.TABLE_NAME})")
+            }
+            missing = [(n, d) for n, d in policy.ART_DB_SCHEMA if n not in have]
+            for name, decl in missing:
+                conn.execute(f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN {name} {decl}")
+            if missing:  # an older cache: drop its pre two-pass rows, once
+                conn.execute(
+                    f"DELETE FROM {self.TABLE_NAME}"
+                    f" WHERE {policy.ART_FIELD_PROCESS} = 'analyze'"
+                    f" OR ({policy.ART_FIELD_PROCESS} = 'darken'"
+                    f" AND {policy.ART_FIELD_MEASURE} IS NULL)"
+                )
 
             for idx_name, cols in policy.ART_DB_INDEXES:
                 idx_cols_sql = ", ".join(cols)
@@ -194,16 +192,6 @@ class ArtworkCacheHandler(SQLiteHandler):
                     CREATE INDEX IF NOT EXISTS {idx_name}
                     ON {self.TABLE_NAME}({idx_cols_sql})
                     """)
-
-    def _missing_columns(self) -> list[tuple[str, str]]:
-        """
-        The ART_DB_SCHEMA columns the table lacks.
-
-        :return: (name, declaration) pairs, in schema order.
-        """
-        cursor = self._conn.execute(f"PRAGMA table_info({self.TABLE_NAME})")
-        have = {row[1] for row in cursor}
-        return [(n, d) for n, d in policy.ART_DB_SCHEMA if n not in have]
 
     def add_entry(self, attributes: dict[str, Any]) -> None:
         """
