@@ -2,7 +2,7 @@
 
 import random
 import time
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, quote
 
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.opts import ArtOpts
@@ -12,7 +12,6 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     to_int,
-    url_decode_path,
     window_property,
 )
 
@@ -235,7 +234,9 @@ class Slideshow:
         )
         for result in query.get("result", {}).get("files", []):
             art, file = result.get("art", {}), result["file"]
-            picture = file.lower().endswith(self.PICTURE_EXTENSIONS) and file
+            picture = file.lower().endswith(self.PICTURE_EXTENSIONS) and (
+                f"image://{quote(file, safe='')}/"  # wrapped like Kodi's own art
+            )
             if fanart := art.get("fanart") or art.get("thumb") or picture:
                 self.art.append(
                     {"title": result.get("label", ""), **art, "fanart": fanart}
@@ -263,7 +264,7 @@ class Slideshow:
         jobs = {"background": ("blur", "darken")}
         if clearlogo:
             art_opts["clearlogo"] = ArtOpts.from_params(
-                {"clearlogo_url": url_decode_path(clearlogo), "clearlogo_crop": "true"},
+                {"clearlogo_url": clearlogo, "clearlogo_crop": "true"},
                 "clearlogo",
             )
             jobs["clearlogo"] = ("crop",)
@@ -282,19 +283,16 @@ class Slideshow:
     @staticmethod
     def _fanart_url(item: dict) -> str | None:
         """
-        Pick a random fanart from the item's art set (multiart included)
-        and normalise the URL.
+        Pick a random fanart from the item's art set (multiart included), the
+        whole picture for a picture's thumb. Left wrapped: the cache decodes it once.
 
         :param item: Art dict from the fetch batch.
-        :return: Decoded fanart path, or None.
+        :return: Fanart URL as JSON-RPC wraps art, or None.
         """
         fanarts = [value for key, value in item.items() if "fanart" in key]
         if not fanarts:
             return None
-        fanart = random.choice(fanarts)
-        if "transform?size=thumb" in fanart:
-            fanart = fanart[:-21]
-        return url_decode_path(fanart)
+        return random.choice(fanarts).removesuffix("transform?size=thumb")
 
     def _publish(self, slide: dict) -> None:
         """

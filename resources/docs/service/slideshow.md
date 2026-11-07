@@ -27,7 +27,7 @@ have no visible effect.
 
 | Property | Value | Notes |
 |---|---|---|
-| `slideshow_fanart` | Path to the original fanart | Replaced by each slide. |
+| `slideshow_fanart` | The original fanart, wrapped as Kodi gives art (`image://…/`) | Replaced by each slide. |
 | `slideshow_blur` | Path to the blurred fanart (JPEG) | Replaced by each slide. |
 | `slideshow_darken` | Darken percentage, `0`–`100` | Cleared when the slide has no darken value. Only set when `slideshow_artwork_params` has `background_darken=true` (see [Processing options](#processing-options)). |
 | `slideshow_clearlogo` | Path to the cropped clearlogo (PNG) | Cleared when the item has no clearlogo. Uses `clearlogo-billboard` art first, then `clearlogo`. |
