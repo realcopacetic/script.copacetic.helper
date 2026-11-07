@@ -89,8 +89,9 @@ class Slideshow:
 
     def _advance(self, now: float) -> None:
         """
-        Refill the batch on exhaustion or profile change, then publish
-        one random slide and schedule the next.
+        Refill the batch on exhaustion or profile change, then publish one random
+        slide and schedule the next. A failed slide tries another item next tick,
+        until the batch runs out.
 
         :param now: Monotonic timestamp from tick().
         """
@@ -106,6 +107,8 @@ class Slideshow:
         with log.muted():
             if slide := self._process(item):
                 self._publish(slide)
+            elif self.art:
+                self.next_slide_at = now
 
     def _config(self) -> tuple[str, str]:
         """

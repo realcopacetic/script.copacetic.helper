@@ -36,6 +36,12 @@ have no visible effect.
 All five are written together for each slide. If the source returns nothing, no new
 slide is published and the last slide stays.
 
+If a slide fails (its fanart can't be opened, or the blur gives nothing), nothing is
+published for it and the service tries another fetched item a second later, one item a
+second, instead of waiting for the interval. When the last fetched item fails, it waits
+for the interval before it fetches again, so a source whose items all fail is tried at
+most 20 items per interval.
+
 ## Skin settings read
 
 | Name | Kind | Accepted values | Default | What it does |
