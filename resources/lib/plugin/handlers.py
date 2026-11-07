@@ -603,7 +603,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         else:
             # A cleared cursor (back from an info dialog) scopes to the focused view.
             stamp_scope = ArtworkIdentity.parse(cursor_snapshot).scope or str(
-                focused_control_id(self.window_id)
+                focused_control_id(window_id)
             )
         multiart_type = self.params.get("multiart")
         params = self.params
