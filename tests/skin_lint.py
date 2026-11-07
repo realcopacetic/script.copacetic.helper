@@ -73,10 +73,14 @@ ERRORS = {
 
 
 class Node(ET.Element):
-    """Element that remembers where it was parsed and which conditions load it."""
+    """
+    Element that remembers where it was parsed, which conditions load it and,
+    once inserted, the include calls expanded above it.
+    """
 
     src = "?:0"
     branch = ()
+    stack = None
 
 
 class Finding(NamedTuple):
@@ -142,11 +146,11 @@ def include_name(call: Node) -> str:
 
 
 def clone(node: Node) -> Node:
-    """Deep copy keeping ``src`` (``copy.deepcopy`` drops the subclass)."""
+    """Deep copy keeping ``src`` and ``stack`` (``copy.deepcopy`` drops the subclass)."""
     if not isinstance(node.tag, str):
         return ET.Comment(node.text)
     new = Node(node.tag, dict(node.attrib))
-    new.text, new.tail, new.src = node.text, node.tail, node.src
+    new.text, new.tail, new.src, new.stack = node.text, node.tail, node.src, node.stack
     new.extend(map(clone, node))
     return new
 
@@ -390,15 +394,18 @@ class Skin:
             if clashing:
                 self.duplicates[cid, tuple(clashing)].append(window)
 
-    def expand(self, node: Node, budget: list[int], keep: bool = False) -> None:
+    def expand(
+        self, node: Node, budget: list[int], keep: bool = False, path: tuple = ()
+    ) -> None:
         """
         Resolve includes under ``node`` in place like ``ResolveIncludes``:
         ``<nested/>`` filled, params substituted, constant-false conditions
         skipped, other conditions recorded, not evaluated.
 
         :param node: Element whose include children are replaced.
-        :param budget: Remaining expansions, shared to stop include recursion.
+        :param budget: Remaining expansions, shared to stop include blow-up.
         :param keep: Keep skipped calls, as Kodi does, skipping all constant-false ones.
+        :param path: Include calls (name, params) above ``node``; a repeat recurses.
         """
         skipped = self.never if keep else self.constant_false
         index = 0
@@ -417,17 +424,26 @@ class Skin:
                 index += 1
                 continue
             self.record_call(call, name)
+            params = self.defaults[name] | params_of(call, "value")
+            key = name, frozenset(params.items())  # same call again: never ends
+            outer = path if call.stack is None else call.stack
+            if key in outer:
+                self.report("include-recursion", call.src, name)
+                del node[index]
+                continue
             budget[0] -= 1
             if budget[0] < 0:
                 self.report("include-recursion", call.src, name)
                 return
-            params = self.defaults[name] | params_of(call, "value")
             payload = [c for c in elements(call) if c.tag != "param"]
+            for element in payload:
+                element.stack = outer  # the caller's, not the include's
             condition = call.get("condition")
             branch = call.branch + ((f"{call.src} {condition}",) if condition else ())
             inserted, resolve = [], []
             for child in elements(self.body(name)):
                 new = clone(child)
+                new.stack = (*outer, key)
                 if new.tag == "nested":
                     inserted += map(clone, payload)
                 elif (nested := new.find("nested")) is not None:
@@ -441,7 +457,9 @@ class Skin:
             for new in resolve:
                 self.resolve_params(new, params, node)
         for child in elements(node):
-            self.expand(child, budget, keep)
+            self.expand(
+                child, budget, keep, path if child.stack is None else child.stack
+            )
 
     def constant_false(self, condition: str) -> bool:
         """
