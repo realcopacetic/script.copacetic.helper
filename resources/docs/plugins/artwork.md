@@ -60,7 +60,8 @@ A URL can be any image Kodi can draw: a library or local path, a web URL, or art
 embedded in a music or video file (`image://music@…/`, `image://video@…/`, as an
 album's `ListItem.Art(thumb)` gives it when the cover is in its songs). Pass it
 straight from the infolabel. The helper uses Kodi's cached copy when there is one,
-and otherwise reads the image from the file.
+and otherwise reads the image from the file. A photo with an EXIF orientation (a phone
+picture taken upright) is turned the way Kodi turns it, so the blur matches the image.
 
 If the background can't be read (a dead remote URL), the helper tries once more with
 the item's own fanart, when that is a different image. That is its `fanart`, else its

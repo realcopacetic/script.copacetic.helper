@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import time
+from contextlib import suppress
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Mapping
@@ -61,6 +62,7 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
         "require": (policy.ART_FIELD_PROCESSED, policy.ART_FIELD_ELEMENT_COLOR),
     },
 }
+ORIENTATION = 0x0112  # EXIF tag Kodi turns a picture upright by, to draw and cache it
 
 
 class ImageEditor:
@@ -508,7 +510,7 @@ class ImageEditor:
 
     def _image_open(self, url: str) -> Image.Image | None:
         """
-        Open an image from Kodi VFS via Pillow.
+        Open an image from Kodi VFS via Pillow, turned upright as Kodi draws it.
         Skips unsupported formats and returns None on failure.
 
         :param url: Kodi VFS or translated path to the image resource.
@@ -518,10 +520,14 @@ class ImageEditor:
             log.debug(f"{self.__class__.__name__} → Skipping unsupported SVG → {url}")
             return None
 
-        from PIL import Image
+        from PIL import Image, ImageOps
 
         try:
-            return Image.open(xbmcvfs.translatePath(url))
+            image = Image.open(xbmcvfs.translatePath(url))
+            with suppress(SyntaxError):  # Pillow's error for unreadable EXIF: as stored
+                if image.getexif().get(ORIENTATION, 1) != 1:  # transpose copies
+                    return ImageOps.exif_transpose(image)
+            return image
 
         except (FileNotFoundError, OSError) as error:
             log.error(
