@@ -71,6 +71,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`play_items`](#play_items) | Plays every item in a container |
 | [`play_radio`](#play_radio) | Old name for `start_mix` |
 | [`play_trailer`](#play_trailer) | Plays a trailer in a window, with clean-up when focus moves on |
+| [`player_stream`](#player_stream) | Steps the playing video's subtitle, audio or video stream, with no notification |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
 | [`roll_seed`](#roll_seed) | Writes a fresh random number to a window property |
@@ -639,6 +640,58 @@ titles and paths can contain commas:
 
 ---
 
+## player_stream
+
+Changes the playing video's subtitle, audio or video stream, for buttons in the video
+OSD. It sets the stream directly, so Kodi shows no notification, as its own
+`NextSubtitle`, `AudioNextLanguage` and `VideoNextStream` actions do.
+
+- **Audio or video:** steps to the next stream, and from the last back to the first.
+  With one stream, nothing happens.
+- **Subtitles with `lang`:** turns the preferred stream on, or off if it is already
+  showing. If another stream is showing, it switches to the preferred one. The
+  preferred stream is the first in that language of the type `kind` asks for. When
+  there is none, it takes the other type below; when there is none of either, nothing
+  changes.
+
+  | `kind` | Looks for, in order |
+  |---|---|
+  | `full` | full, then hearing impaired |
+  | `impaired` | hearing impaired, then full |
+  | `forced` | forced only |
+
+- **Subtitles without `lang`:** each stream in turn, then off. From off, it starts at
+  the first stream.
+
+A subtitle's type comes from its flags (`isforced`, `isimpaired` in JSON-RPC), then from
+words in its name: `forced` is forced; `SDH`, `CC` or `HI` is hearing impaired. Anything
+else is full. A subtitle file next to the video carries only the forced flag, so a
+hearing impaired file needs `sdh`, `cc` or `hi` in its name (`Film.en.sdh.srt`).
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `subtitle`, `audio`, `video` | required | The stream to change |
+| `lang` | a subtitle language as Kodi reports it, for example `eng` | none | The preferred subtitle language. Empty cycles every stream. |
+| `kind` | `forced`, `full`, `impaired` | `full` | The preferred subtitle type, with `lang`. Empty counts as `full`. |
+
+**Sets** (for `type=subtitle`):
+
+| Property | Value |
+|---|---|
+| `player_subtitle_kind` | `forced`, `full` or `impaired` for the stream turned on; empty when subtitles go off |
+
+The service keeps this property right while a video plays, however the subtitle
+changes (see [Player properties](../service/player.md#video)).
+
+For example, in the video OSD, with the preferred language and type in skin strings:
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=player_stream,type=subtitle,lang=$INFO[Skin.String(subtitle_language)],kind=$INFO[Skin.String(subtitle_kind)])</onclick>
+<onclick>RunScript(script.copacetic.helper,action=player_stream,type=audio)</onclick>
+```
+
+---
+
 ## rate_song
 
 Sets a song's user rating in the music library. If that song is playing,
@@ -912,6 +965,9 @@ A mix from a song, album or artist adds that item to the
 ---
 
 ## subtitle_limiter
+
+[`player_stream`](#player_stream) replaces this action: it also picks a subtitle type
+and shows no notification. This one stays for skins that call it.
 
 Turns on subtitles in a preferred language, so one button skips the other subtitle
 streams. If that language is not available, it steps to the next subtitle stream

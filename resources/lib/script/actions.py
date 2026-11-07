@@ -19,6 +19,7 @@ from resources.lib.shared.utilities import (
 from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.speed_dial import entry as dial_entry
 from resources.lib.shared.speed_dial import mark_source
+from resources.lib.shared.streams import player_streams, subtitle_kind
 from resources.lib.shared.utilities import clear_cache as _clear_cache_util
 from resources.lib.shared.utilities import clear_label as _clear_label_util
 from resources.lib.shared.utilities import (
@@ -51,6 +52,12 @@ _INFO_DETAILS = {
 }
 MIX_SIZE = 50
 MIX_ARTIST_SHARE = 0.15
+# Subtitle types player_stream looks for, in order, for each preferred type
+_SUBTITLE_FALLBACKS = {
+    "forced": ("forced",),
+    "full": ("full", "impaired"),
+    "impaired": ("impaired", "full"),
+}
 
 
 def action(fn):
@@ -900,6 +907,48 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
 
 
 REGISTRY["play_radio"] = start_mix  # former name, kept for skins that call it
+
+
+@action
+def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> None:
+    """
+    Steps the playing video's audio or video stream, wrapping, or its subtitles:
+    lang's stream of kind on and off, else each stream in turn, then off. Sets
+    streams directly, so Kodi shows no toast; publishes player_subtitle_kind.
+
+    :param type: audio, subtitle or video.
+    :param lang: Preferred subtitle language as Kodi reports it (e.g. "eng").
+    :param kind: Preferred subtitle type: forced, full (default) or impaired.
+    """
+    player = xbmc.Player()
+    streams, current = player_streams(type)
+    if type != "subtitle":
+        if len(streams) > 1:  # Kodi reopens and seeks even for the same stream
+            step = player.setAudioStream if type == "audio" else player.setVideoStream
+            step((current["index"] + 1) % len(streams))
+        return
+    on = current["index"] if current else -1
+    if lang:
+        target = next(
+            (
+                stream
+                for wanted in _SUBTITLE_FALLBACKS[kind or "full"]
+                for stream in streams
+                if stream["language"] == lang and subtitle_kind(stream) == wanted
+            ),
+            None,
+        )
+        if not target:
+            return  # none in that language and type: nothing changes
+        if target["index"] == on:
+            target = None
+    else:
+        target = streams[on + 1] if on + 1 < len(streams) else None
+    if target:
+        player.setSubtitleStream(target["index"])  # also shows subtitles
+    else:
+        player.showSubtitles(False)
+    window_property("player_subtitle_kind", value=subtitle_kind(target))
 
 
 @action
