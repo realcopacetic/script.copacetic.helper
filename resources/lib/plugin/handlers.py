@@ -677,12 +677,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         # Sized before the list lands; the old items stay up until then (no blank).
         # A cancelled job still runs: size only while the URL's item is still shown,
-        # in the window it started in (views share control ids across windows).
+        # in the window it started in, still topmost (reposition_control sizes the
+        # topmost window's control; views share control ids across windows).
         if (
             (fit := self.params.get("clearlogo_fit"))
             and alive()
             and not self._visit_superseded()
-            and self.window_id == window_id
+            and topmost_window_id() == window_id
             and (self.item or self.focus_ids or focused_control_id(window_id) == focus)
             and self.params.get("clearlogo_fit_key") in (None, self._item_key())
             and (
