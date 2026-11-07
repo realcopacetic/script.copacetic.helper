@@ -41,6 +41,23 @@ class Slideshow:
         "videos": ("movies", "tvshows"),
         "artists": ("music",),
     }
+    # Kodi's own picture extensions, less the archive and feed types
+    PICTURE_EXTENSIONS = (
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".bmp",
+        ".gif",
+        ".ico",
+        ".tif",
+        ".tiff",
+        ".tga",
+        ".pcx",
+        ".webp",
+        ".jp2",
+        ".apng",
+        ".avif",
+    )
 
     def __init__(self) -> None:
         """Initialise processing pipeline and scheduling state."""
@@ -199,8 +216,8 @@ class Slideshow:
 
     def _fetch_custom(self, path: str) -> None:
         """
-        Fetch art from a user path (library node, xsp, plugin, folder)
-        in a single directory listing with art properties.
+        Fetch art from a user path (library node, xsp, plugin, folder) in a
+        single directory listing. A picture file with no art is its own fanart.
 
         :param path: Custom source path from skin settings.
         """
@@ -212,8 +229,9 @@ class Slideshow:
             parent="slideshow_fetch",
         )
         for result in query.get("result", {}).get("files", []):
-            art = result.get("art", {})
-            if fanart := art.get("fanart") or art.get("thumb"):
+            art, file = result.get("art", {}), result["file"]
+            picture = file.lower().endswith(self.PICTURE_EXTENSIONS) and file
+            if fanart := art.get("fanart") or art.get("thumb") or picture:
                 self.art.append(
                     {"title": result.get("label", ""), **art, "fanart": fanart}
                 )

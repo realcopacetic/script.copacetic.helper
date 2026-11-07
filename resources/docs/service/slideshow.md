@@ -65,7 +65,11 @@ Only the hour of `slideshow_start` and `slideshow2_start` is used.
 Library sources skip any library that has no content. Items without fanart are
 skipped. An item's fanart is picked at random from all its fanart art types, so
 extra fanart (`fanart1`, `fanart2` …) is included. For `custom`, an item's `thumb`
-is used when it has no fanart.
+is used when it has no fanart, and a picture file with no art at all, such as one in a
+plain folder of pictures, is shown itself. A picture file is one whose name ends in one
+of Kodi's picture extensions, less its archive and feed types: `.png`, `.jpg`, `.jpeg`,
+`.bmp`, `.gif`, `.ico`, `.tif`, `.tiff`, `.tga`, `.pcx`, `.webp`, `.jp2`, `.apng`,
+`.avif`. Pictures in subfolders aren't included.
 
 The service fetches up to 20 random items at a time and doesn't repeat a fanart until
 every fetched item has been shown.
