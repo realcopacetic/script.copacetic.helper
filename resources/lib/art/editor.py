@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import struct
 import time
 from contextlib import suppress
 from functools import cached_property
@@ -65,6 +66,15 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
 }
 ORIENTATION = 0x0112  # EXIF tag Kodi turns a picture upright by, to draw and cache it
 ORIENTED = ("JPEG", "MPO", "WEBP")  # the formats whose tag Kodi's decoder reads
+UPRIGHT = {  # orientation: its Image.transpose method, as Pillow's exif_transpose
+    2: 0,  # FLIP_LEFT_RIGHT
+    3: 3,  # ROTATE_180
+    4: 1,  # FLIP_TOP_BOTTOM
+    5: 5,  # TRANSPOSE
+    6: 4,  # ROTATE_270
+    7: 6,  # TRANSVERSE
+    8: 2,  # ROTATE_90
+}
 
 
 class ImageEditor:
@@ -523,17 +533,15 @@ class ImageEditor:
             log.debug(f"{self.__class__.__name__} → Skipping unsupported SVG → {url}")
             return None
 
-        from PIL import Image, ImageOps
+        from PIL import Image
 
         try:
             image = Image.open(xbmcvfs.translatePath(url))
-            with suppress(SyntaxError, TypeError):  # Pillow's for bad EXIF: as stored
-                if (
-                    image.format in ORIENTED
-                    and image.getexif().get(ORIENTATION, 1) != 1  # transpose copies
-                ):
-                    return ImageOps.exif_transpose(image)
-            return image
+            turn = None
+            with suppress(SyntaxError, struct.error):  # a bad EXIF header: as stored
+                if image.format in ORIENTED:
+                    turn = UPRIGHT.get(image.getexif().get(ORIENTATION))
+            return image if turn is None else image.transpose(turn)
 
         except (FileNotFoundError, OSError) as error:
             log.error(
