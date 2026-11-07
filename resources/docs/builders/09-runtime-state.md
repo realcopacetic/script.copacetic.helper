@@ -72,7 +72,7 @@ RunScript(script.copacetic.helper,action=dynamic_settings_window,name=widgetsett
 | `parent` | An entry's `runtime_id` | — | Show only that parent's entries — see below |
 | `controls_from` | Comma-separated mapping names | — | Also load these mappings' controls — see below |
 | `host` | A window name | — | Bind the session to a real window — see [Hosting](#hosting--binding-an-editor-to-a-real-window) |
-| `host_focus` | A control id | — | Where focus lands when the window opens, with or without `host`; Back on it closes the window. Without it, focus goes to the list. |
+| `host_focus` | A control id | — | Where focus lands when the window opens, with or without `host`; Back on it closes the window. It must be visible and able to take focus when the window opens, as the first action is handled as pressed on it. Without it, focus goes to the list. |
 | `focus_item` | A mapping item name | first row | Highlight the first entry of that item when the window opens |
 
 **`parent=<runtime_id>`** — limit the session to one parent: only that parent's entries appear, adds arrive with `parent` already set and slot in next to their siblings, and moves, deletes, and Reset stay inside that parent. The full walkthrough — why, the template handshake, and the resolved output — is in [Includes → Parent and child lists](07-includes.md#parent-and-child-lists).
