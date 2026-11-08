@@ -28,8 +28,9 @@ python tests/multiart_offline.py
 # Service build boundary (service/monitor.py): a build that raises is logged, the
 # player monitor, slideshow and helper_active still start, helper_speed_dial follows
 # the skin naming info=speed_dial, a failure after a seed (builders/runtime.py)
-# is retried next start, and each skin keeps its own runtime state (Copacetic 2
-# adopts the old shared files only while it has none; a dev reset clears one skin)
+# is retried next start, each skin keeps its own runtime state (Copacetic 2 adopts
+# the old shared files only while it has none; a dev reset clears one skin), an
+# output another profile wrote is rebuilt, and a deleted one is built alone
 python tests/service_offline.py
 ```
 

@@ -81,7 +81,7 @@ Include each one once from your skin. The addon also keeps two files per skin in
 
 | When | What runs |
 |---|---|
-| Kodi starts, or the user switches to your skin (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or was built for another skin or another version of the skin or helper, everything is rebuilt. Otherwise only output files that are missing are built. A file is written only when its content changed, and `ReloadSkin()` follows only if one was. |
+| Kodi starts, or the user switches to your skin (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or was built for another skin or another version of the skin or helper, or an output file isn't the one that build wrote (another Kodi profile wrote it: profiles share your skin's folder but keep their own settings file and cache), everything is rebuilt. Otherwise only output files that are missing are built. A file is written only when its content changed, and `ReloadSkin()` follows only if one was. |
 | The skin is updated in place (same folder, new version) | The same check as at start-up. |
 | Kodi starts, the user switches to your skin, or it is updated in place (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
 | User closes a settings window with changes | Everything is rebuilt, then `ReloadSkin()` |
@@ -96,7 +96,7 @@ If a build fails, no `ReloadSkin()` follows and a notification appears. See [Tro
 
 ## Working on your skin
 
-**Production (default):** the service only builds what is missing, as above. Fast starts for users: the skin reloads only on a start that changed an output file. The output files are generated, not for editing: a hand edit lasts until the next full rebuild.
+**Production (default):** the service only builds what is missing, as above. Fast starts for users: the skin reloads only on a start that changed an output file. The output files are generated, not for editing: a hand edit lasts until the next check (a start, a switch to your skin or an update) or rebuild.
 
 **Dev mode** (Addon Settings → Developers): rebuild everything each time your skin becomes active (Kodi start, switching to it, or an in-place update), then reload the skin.
 

@@ -13,6 +13,7 @@ from resources.lib.builders.templates import (
     write_template_cache,
 )
 from resources.lib.shared import logger as log
+from resources.lib.shared.hash import HashManager
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import (
     TEMPLATES,
@@ -21,6 +22,20 @@ from resources.lib.shared.utilities import (
     skin_path,
 )
 from resources.lib.shared.xml import XMLDictConverter, XMLMerger
+
+
+def output_digests() -> dict[str, str]:
+    """
+    Digest of each builder output in the active skin's folder, which every Kodi
+    profile shares (each has its own state and cache); a missing output is absent.
+
+    :return: {builder name: SHA-256 hex digest of the file}.
+    """
+    return {
+        builder: digest
+        for builder, config in BUILDER_CONFIG.items()
+        if (digest := HashManager.compute_hash(skin_path(config["write_path"])))
+    }
 
 
 class BuildElements:
@@ -148,7 +163,7 @@ class BuildElements:
         """
         Execute the build pipeline. Drops the template cache, so a failed build
         retries next start; seeds missing state mappings, runs the selected builders,
-        writes the outputs whose bytes changed, then writes the cache back.
+        writes the outputs whose bytes changed, then the cache with their digests.
 
         :return: True when any output file was written.
         """
@@ -165,7 +180,11 @@ class BuildElements:
             written |= self._write_file(builder_data, builder)
 
         write_template_cache(
-            self.all_mappings, self.configs_data, self.controls_data, self.stamp
+            self.all_mappings,
+            self.configs_data,
+            self.controls_data,
+            self.stamp,
+            output_digests(),
         )
         return written
 

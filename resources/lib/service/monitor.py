@@ -7,7 +7,7 @@ import time
 import xbmc
 
 from resources.lib.art.slideshow import Slideshow
-from resources.lib.builders.build_elements import BuildElements
+from resources.lib.builders.build_elements import BuildElements, output_digests
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.templates import cache_is_current
 from resources.lib.service.player import PlayerMonitor
@@ -132,7 +132,8 @@ class Monitor(xbmc.Monitor):
         """
         Build, then reload if an output changed. Production: missing outputs, or all
         when ids are fresh or the resolver cache is missing or stale (other skin, new
-        skin or helper version). Dev: clear state if requested, rebuild, reload.
+        skin or helper version, an output another profile wrote). Dev: clear state if
+        requested, rebuild, reload.
         """
         adopt_shared_state()  # first, so a dev reset clears what it adopts
         dev_mode = ADDON.getSettingBool("dev_mode")
@@ -159,7 +160,7 @@ class Monitor(xbmc.Monitor):
             if (write_path := config.get("write_path"))
             and not validate_path(skin_path(write_path))
         ]
-        if seeded or not cache_is_current(build.stamp):
+        if seeded or not cache_is_current(build.stamp, output_digests()):
             # Fresh ids, or a resolver cache that is missing or stale: full
             # rebuild so every output bakes the same state generation.
             written = build.run()

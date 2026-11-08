@@ -45,18 +45,21 @@ def cache_stamp() -> str:
     return "/".join((_CACHE_VERSION, skin_id(skin), skin_version(skin), helper))
 
 
-def cache_is_current(stamp: str) -> bool:
+def cache_is_current(stamp: str, outputs: dict[str, str]) -> bool:
     """
-    True when the resolver cache exists and matches ``stamp``.
+    True when the resolver cache exists, matches ``stamp``, and its build wrote every
+    output now on disk: Kodi profiles share the skin's outputs but not the cache.
 
     :param stamp: The check's cache_stamp(), read once so compare and write agree.
-    :return: True when the stored stamp equals ``stamp``.
+    :param outputs: output_digests() of the outputs on disk; missing ones are absent.
+    :return: True when the stamp matches and no output changed since the build.
     """
     handler = JSONHandler(resolver_cache_path())
     if not handler.exists:
         return False
     cache = next(iter(handler.data.values()), {})
-    return cache.get("stamp") == stamp
+    built = cache.get("outputs", {})  # none before outputs were recorded
+    return cache.get("stamp") == stamp and outputs.items() <= built.items()
 
 
 def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
@@ -128,7 +131,11 @@ def _templates_by_mapping(base_folder: str, folder: str) -> dict:
 
 
 def write_template_cache(
-    mappings: dict, configs_data: dict, controls_data: dict, stamp: str
+    mappings: dict,
+    configs_data: dict,
+    controls_data: dict,
+    stamp: str,
+    outputs: dict[str, str],
 ) -> None:
     """
     Write the consolidated template cache to disk for fast editor startup.
@@ -137,11 +144,13 @@ def write_template_cache(
     :param configs_data: {mapping_name: {tpl_name: tpl_data}}.
     :param controls_data: {mapping_name: {tpl_name: tpl_data}}.
     :param stamp: The build's cache_stamp().
+    :param outputs: output_digests() after the build.
     """
     handler = JSONHandler(resolver_cache_path())
     handler.write_json(
         {
             "stamp": stamp,
+            "outputs": outputs,
             "mappings": mappings,
             "configs": configs_data,
             "controls": controls_data,

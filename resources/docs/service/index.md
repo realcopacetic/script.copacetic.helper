@@ -56,7 +56,10 @@ interrupted. In order:
    - **Dev mode off (default):** the service seeds the runtime state if needed. It
      rebuilds every output if the runtime state was just seeded, or the resolver
      cache is missing or was built for another skin or another version of the skin
-     or helper. Otherwise it only builds outputs that are missing. A file is written
+     or helper, or an output on disk isn't the one its build wrote: Kodi profiles
+     share the skin's folder, but each keeps its own runtime state and cache, so a
+     switch to a profile whose choices differ rebuilds. Otherwise it only builds
+     outputs that are missing. A file is written
      only when its content changed; if one was, it then runs `ReloadSkin()`, so the
      skin loads the new files at once. The reload first waits until Kodi has run the
      commands already queued, and repeats that until no yes/no dialog showed
@@ -69,8 +72,9 @@ interrupted. In order:
      or postponed. It doesn't set it during fullscreen video, or on a start, a switch
      into the skin or a helper restart. If nothing was written, the skin is not
      reloaded. The output files are generated, not for editing: a hand edit lasts until
-     the next full rebuild. Reinstalling the same version brings back the zip's factory
-     files, and they stay until `action=rebuild` or a settings change rebuilds.
+     the next check or rebuild. Reinstalling the same version brings back the zip's
+     factory files, and they stay until the next start, a switch back into the skin,
+     `action=rebuild` or a settings change.
    - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`,
      waiting, dropped or postponed as above, with the same `helper_reloading`. If *Reset on next start* is also on, it
      first deletes the skin's outputs, runtime state and resolver cache, then turns

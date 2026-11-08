@@ -242,6 +242,44 @@ class BuildBoundary(unittest.TestCase):
         self.assertEqual(run.call_args.args[0].selected, ["expressions"])
         self.assertEqual(CACHE.read_bytes(), before)
 
+    def test_an_output_another_profile_wrote_is_rebuilt(self):
+        self.current_cache()
+        output = STAGE / monitor.BUILDER_CONFIG["expressions"]["write_path"]
+        output.parent.mkdir(exist_ok=True)
+        self.addCleanup(output.unlink)
+        built = {"expressions": {"a": "b"}}
+        with patch.object(REAL, "_process_builders", return_value=built):
+            REAL().run()
+            ours = output.read_bytes()
+            self.assertEqual(self.builds_on_start(), 0)
+            output.write_bytes(ours.replace(b">b<", b">c<"))  # profile B's state
+            self.assertEqual(self.builds_on_start(), 1)
+            self.assertEqual(output.read_bytes(), ours)
+            self.assertEqual(self.builds_on_start(), 0)
+
+    def test_a_deleted_output_is_built_alone(self):
+        self.current_cache()
+        built = {"expressions": {"a": "b"}, "variables": {"v": "w"}}
+        includes, kept, deleted = (
+            STAGE / monitor.BUILDER_CONFIG[b]["write_path"]
+            for b in ("includes", *built)
+        )
+        includes.parent.mkdir(exist_ok=True)
+        includes.write_text("<includes />")  # the build keeps what it doesn't make
+        for path in (includes, kept, deleted):
+            self.addCleanup(path.unlink, missing_ok=True)
+        with patch.object(REAL, "_process_builders", return_value=built):
+            REAL().run()
+            before = CACHE.read_bytes()
+            deleted.unlink()
+            self.start()
+            with patch.object(REAL, "run", autospec=True, side_effect=REAL.run) as run:
+                self.follow(REAL, output_exists=lambda path: Path(path).exists())
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0].selected, ["variables"])
+        self.assertTrue(deleted.exists())
+        self.assertEqual(CACHE.read_bytes(), before)
+
     def test_failed_partial_build_is_a_full_build_next_start(self):
         self.current_cache()
         self.start()
