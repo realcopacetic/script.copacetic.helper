@@ -1228,7 +1228,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         path, height = result
         if target_id := to_int(self.params.get("target_id"), None):
             window = Window(guard.window_id)  # keep: holds the control's native ref
-            window.getControl(target_id).setHeight(height)
+            try:
+                window.getControl(target_id).setHeight(height)
+            except RuntimeError:  # the window was replaced (a rail opened another item)
+                log.debug(f"text: control {target_id} gone from {guard.window_id}")
+                return
         return set_items(
             [
                 {
