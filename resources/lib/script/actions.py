@@ -311,8 +311,9 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
         query_filter={"albumid": song["albumid"]},
         parent="play_album_from_track",
     )["result"].get("songs", [])
+    position = [s["songid"] for s in songs].index(songid)  # raises before the mark
     mark_source(dial_entry("album", song["albumid"]))
-    play_files(songs, position=[s["songid"] for s in songs].index(songid))
+    play_files(songs, position=position)
 
 
 @action
@@ -839,10 +840,12 @@ def shuffle(id: str = "", type: str = "artist", path: str = "", **kwargs: str) -
     :param type: artist, album, genre or year; anything else plays path.
     :param path: Playlist path, for types without a library ID.
     """
-    mark_source(None if type in ("genre", "year") else dial_entry(type, id, path))
     if type == "year":
-        play_files(_random_songs(_year_rule(id)))
+        if songs := _random_songs(_year_rule(id)):  # none: Kodi starts nothing
+            mark_source(None)
+            play_files(songs)
         return
+    mark_source(None if type == "genre" else dial_entry(type, id, path))
     clear_playlists()
     item = (
         {_LIBRARY_ITEMS[type]: to_int(id)}
@@ -877,9 +880,10 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     :param type: song, album, artist, genre or year.
     """
     if type in ("genre", "year"):
-        mark_source(None)
         rule = {"genreid": to_int(id)} if type == "genre" else _year_rule(id)
-        play_files(_random_songs(rule, MIX_SIZE))
+        if songs := _random_songs(rule, MIX_SIZE):  # none: Kodi starts nothing
+            mark_source(None)
+            play_files(songs)
         return
     dbid = to_int(id or infolabel("ListItem.DBID"))
     if not (seed := _mix_seed(type, dbid)):
