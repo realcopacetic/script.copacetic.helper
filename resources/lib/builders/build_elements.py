@@ -15,9 +15,9 @@ from resources.lib.builders.templates import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONMerger
 from resources.lib.shared.utilities import (
-    RESOLVER_CACHE,
     TEMPLATES,
-    RUNTIME_STATE,
+    resolver_cache_path,
+    runtime_state_path,
     skin_path,
 )
 from resources.lib.shared.xml import XMLDictConverter, XMLMerger
@@ -51,7 +51,7 @@ class BuildElements:
             mappings=self.all_mappings,
             configs_data=self.configs_data,
             controls_data=self.controls_data,
-            runtime_state_path=RUNTIME_STATE,
+            state_path=runtime_state_path(),
         )
 
     def _merged_inputs(self):
@@ -152,7 +152,7 @@ class BuildElements:
 
         :return: True when any output file was written.
         """
-        xbmcvfs.delete(RESOLVER_CACHE)
+        xbmcvfs.delete(resolver_cache_path())
         self.runtime_manager.initialize_runtime_state()
         values_to_write = self._process_builders()
 

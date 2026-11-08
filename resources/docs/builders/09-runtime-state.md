@@ -1,6 +1,6 @@
 # Runtime State & Dynamic Editor
 
-Two halves: the **settings file** (`runtime_state.json`) where every user choice lives, and the **editor windows** that write it. The file first — it exists and matters even if you never open a window.
+Two halves: the **settings file** (`runtime_state_<skin id>.json`) where every user choice lives, and the **editor windows** that write it. The file first — it exists and matters even if you never open a window.
 
 ---
 
@@ -28,7 +28,9 @@ One list of entries per dynamic mapping:
 
 ### Life of the file
 
-**Created** on first run: every dynamic mapping gets entries from its `default_order` (or full `items`). A dynamic mapping added to your skin later gets its entries the same way on the next start. A [fixed list](#fixed-vs-editable) with no `default_order` also gains rows for items added to its `items` later, so a new content type shows up without a reset, and loses the rows of items removed from it that hold no saved choice, so a dropped category doesn't linger as a blank row (a row with saved choices is kept, last, until its item returns; meanwhile it isn't built and doesn't show in the settings window). Its rows are kept in `items` order on every start, so a returning or reordered item takes its own slot. Editable lists do none of this, because a missing row there may be one the user deleted. If `runtime_state.json` can't be read (broken JSON, or anything but an object), the next write moves it aside as `runtime_state.json.bak` (or `.bak1`, `.bak2` … if that name is taken) and logs an error, then starts from the defaults, so the old choices can be repaired by hand. If it can't be moved, it stays, and the new state is held in memory instead of written.
+**One per skin.** The file lives in the helper's profile folder (`special://profile/addon_data/script.copacetic.helper/`), named after the active skin's add-on id, e.g. `runtime_state_skin.copacetic2.json`, beside that skin's resolver cache (`resolver_cache_skin.copacetic2.json`). Each skin that opts in keeps its own pair, so two skins with the same mapping names never show or rewrite each other's choices, and switching back to a skin whose outputs are current needs no rebuild. Each Kodi profile has its own folder, so its own files too. Older helpers kept one `runtime_state.json` and `resolver_cache.json` for every skin: Copacetic 2 (`skin.copacetic2`), their one user, takes them over by name the first time it starts on a newer helper, as long as it has no settings file of its own yet (so a shared file an older helper writes later never replaces its choices); any other skin starts from its own defaults.
+
+**Created** on first run: every dynamic mapping gets entries from its `default_order` (or full `items`). A dynamic mapping added to your skin later gets its entries the same way on the next start. A [fixed list](#fixed-vs-editable) with no `default_order` also gains rows for items added to its `items` later, so a new content type shows up without a reset, and loses the rows of items removed from it that hold no saved choice, so a dropped category doesn't linger as a blank row (a row with saved choices is kept, last, until its item returns; meanwhile it isn't built and doesn't show in the settings window). Its rows are kept in `items` order on every start, so a returning or reordered item takes its own slot. Editable lists do none of this, because a missing row there may be one the user deleted. If the file can't be read (broken JSON, or anything but an object), the next write moves it aside with `.bak` added to its name (or `.bak1`, `.bak2` … if that name is taken) and logs an error, then starts from the defaults, so the old choices can be repaired by hand. If it can't be moved, it stays, and the new state is held in memory instead of written.
 
 Each entry stores only its identity — `runtime_id`, `mapping_item` and, if the item's metadata has one, `parent`. Metadata is read from the mapping live, not copied.
 
@@ -52,7 +54,7 @@ They're different operations and the difference matters:
 | | Keeps user choices? | Regenerates output XML? |
 |---|---|---|
 | **Rebuild** (`action=rebuild`, editor close, dev-mode start) | Yes | Yes |
-| **Reset** (`reset=true`, dev-mode "Reset on next start") | No — the whole file goes back to defaults | Yes |
+| **Reset** (`reset=true`, dev-mode "Reset on next start") | No — the active skin's whole file goes back to defaults | Yes |
 | The editor's **Reset** button | No — for that mapping only (or one parent's entries) | Yes, when the window closes |
 
 Removed or reordered `items`, changed `default_order` or an item's `parent`, and want the *list itself* regenerated? That's a reset for an editable list. A fixed list follows `items` on its own: new rows, order, and dropping removed items' rows that hold no saved choices. Other metadata and `config_fields` changes are read live, so a rebuild is enough.

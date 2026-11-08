@@ -16,6 +16,7 @@ from resources.lib.shared.speed_dial import release_refresh, skin_uses_speed_dia
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
+    adopt_shared_state,
     condition,
     infolabel,
     notify_build_failed,
@@ -133,6 +134,7 @@ class Monitor(xbmc.Monitor):
         when ids are fresh or the resolver cache is missing or stale (other skin, new
         skin or helper version). Dev: clear state if requested, rebuild, reload.
         """
+        adopt_shared_state()  # first, so a dev reset clears what it adopts
         dev_mode = ADDON.getSettingBool("dev_mode")
         dev_reset = ADDON.getSettingBool("dev_reset")
 

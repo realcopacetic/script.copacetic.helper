@@ -7,7 +7,7 @@ The pieces:
 - **Mappings** — the lists you loop over, and what each item knows about itself.
 - **Configs and controls** — the settings UI: what options exist, what the user can change.
 - **Variables, expressions, includes** — templates that turn into skin XML.
-- **The settings file** (`runtime_state.json`) — where every user choice is stored. The editor writes it; the builders read it.
+- **The settings file** (`runtime_state_<skin id>.json`) — where every user choice is stored. The editor writes it; the builders read it.
 
 ---
 
@@ -73,7 +73,7 @@ The builder writes three files into your skin's `16x9/` folder:
 | `script-copacetic-helper_expressions.xml` | `$EXP[name]` |
 | `script-copacetic-helper_includes.xml` | `<include>name</include>` |
 
-Include each one once from your skin. The addon also keeps two files in its own profile folder (`special://profile/addon_data/script.copacetic.helper/`): `runtime_state.json` (the settings file) and `resolver_cache.json` (a copy of your mappings, configs and controls that the settings windows read).
+Include each one once from your skin. The addon also keeps two files per skin in its own profile folder (`special://profile/addon_data/script.copacetic.helper/`), named after your skin's add-on id: `runtime_state_<skin id>.json` (the settings file) and `resolver_cache_<skin id>.json` (a copy of your mappings, configs and controls that the settings windows read).
 
 ---
 

@@ -49,7 +49,10 @@ in-place update (same folder, new version, once Kodi has registered it) only ste
 runs again: the player monitor and slideshow keep running, so playback isn't
 interrupted. In order:
 
-1. The build check runs:
+1. The build check runs on the skin's own runtime state and resolver cache
+   ([one pair per skin](../builders/09-runtime-state.md#life-of-the-file); in
+   Copacetic 2 it first takes over the pair older helpers shared, while it has no
+   runtime state of its own):
    - **Dev mode off (default):** the service seeds the runtime state if needed. It
      rebuilds every output if the runtime state was just seeded, or the resolver
      cache is missing or was built for another skin or another version of the skin
@@ -70,11 +73,13 @@ interrupted. In order:
      files, and they stay until `action=rebuild` or a settings change rebuilds.
    - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`,
      waiting, dropped or postponed as above, with the same `helper_reloading`. If *Reset on next start* is also on, it
-     first deletes all outputs, the runtime state and the resolver cache, then turns
+     first deletes the skin's outputs, runtime state and resolver cache, then turns
      that setting off again.
 
    Dev mode (`dev_mode`) and *Reset on next start* (`dev_reset`) are settings of the
-   helper add-on, in its *Developers* category.
+   helper add-on, in its *Developers* category: one pair for every skin in the
+   profile, so dev mode applies to whichever skin is active, and a reset to the skin
+   the service checks next; other skins' files stay.
 
    If the build raises an exception, the service logs the traceback at error level,
    shows a notification, doesn't reload, and carries on with the steps below on

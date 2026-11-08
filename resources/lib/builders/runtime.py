@@ -2,7 +2,7 @@
 """
 Runtime state management for dynamic editor windows.
 
-RuntimeStateManager owns the runtime_state.json read/write lifecycle and
+RuntimeStateManager owns the skin's runtime state read/write lifecycle and
 holds references to ConfigsResolver and ControlsResolver. The resolvers
 themselves live in resolver.py; loading lives in templates.py.
 """
@@ -20,12 +20,12 @@ from resources.lib.builders.templates import load_template_data
 from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler
 from resources.lib.shared.utilities import (
-    RESOLVER_CACHE,
-    RUNTIME_STATE,
     TEMPLATES,
     condition,
     expand_localize,
     infolabel,
+    resolver_cache_path,
+    runtime_state_path,
     skin_path,
 )
 
@@ -39,7 +39,7 @@ IDENTITY_FIELDS = frozenset({"runtime_id", "mapping_item", "parent"})
 
 class RuntimeStateManager:
     """
-    Manages runtime state in runtime_state.json plus configs and controls
+    Manages the skin's runtime state file plus configs and controls
     resolution. UUIDs provide stable, position-independent item identifiers.
     """
 
@@ -48,7 +48,7 @@ class RuntimeStateManager:
         mappings: dict,
         configs_data: dict,
         controls_data: dict,
-        runtime_state_path: str,
+        state_path: str,
     ) -> None:
         """
         Initialise resolvers and runtime state handler.
@@ -56,12 +56,12 @@ class RuntimeStateManager:
         :param mappings: Dictionary containing all mappings.
         :param configs_data: {mapping_name: {tpl_name: tpl_data}}.
         :param controls_data: {mapping_name: {tpl_name: tpl_data}}.
-        :param runtime_state_path: Path to runtime_state.json.
+        :param state_path: The skin's runtime state file, runtime_state_path().
         """
         self._mappings = mappings
         self.configs = ConfigsResolver(mappings, configs_data)
         self.controls = ControlsResolver(mappings, controls_data)
-        self._runtime_state_handler = JSONHandler(runtime_state_path)
+        self._runtime_state_handler = JSONHandler(state_path)
         self._runtime_state_cache = None
         self._resolved_cache = {}
         self.state_version = 0
@@ -70,10 +70,11 @@ class RuntimeStateManager:
     def from_templates(cls) -> "RuntimeStateManager":
         """
         Manager over the skin's templates (resolver cache first, else source)
-        and the add-on's runtime_state.json.
+        and its runtime state.
         """
         return cls(
-            *load_template_data(skin_path(TEMPLATES)), runtime_state_path=RUNTIME_STATE
+            *load_template_data(skin_path(TEMPLATES)),
+            state_path=runtime_state_path(),
         )
 
     @property
@@ -107,7 +108,7 @@ class RuntimeStateManager:
     @property
     def exists(self) -> bool:
         """
-        Check if runtime_state.json exists on disk.
+        Check if the runtime state file exists on disk.
 
         :return: True if file exists.
         """
@@ -335,7 +336,7 @@ class RuntimeStateManager:
 
     def initialize_runtime_state(self) -> bool:
         """
-        Create runtime_state.json from defaults if absent; in an existing file,
+        Create the runtime state from defaults if absent; in an existing file,
         add missing mappings; a fixed list gains rows for new items, drops bare rows
         (no saved choice) of removed ones, and keeps its rows in ``items`` order.
 
@@ -380,7 +381,7 @@ class RuntimeStateManager:
             self._resolve_parent_refs(merged)
             # This state won't seed again: with the cache gone, a build that fails
             # after this point retries next start.
-            xbmcvfs.delete(RESOLVER_CACHE)
+            xbmcvfs.delete(resolver_cache_path())
             self._write_and_invalidate(merged)
             seeded = True
         self.reconcile_skin_mirrors()

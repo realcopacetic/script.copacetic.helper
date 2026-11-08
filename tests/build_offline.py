@@ -130,7 +130,7 @@ def build(
 ) -> dict[str, int]:
     """
     Build every output for ``skin`` into ``out``: ``16x9/*.xml`` plus
-    ``runtime_state.json`` and ``resolver_cache.json``.
+    ``runtime_state.json`` and ``resolver_cache.json`` (the skin's own, by these names).
 
     :param skin: Skin root; its ``extras/templates`` may be missing (C1).
     :param out: Output directory; previous outputs in it are replaced.
@@ -144,24 +144,35 @@ def build(
         fail(f"refusing to write inside the skin: {out}")
     out.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(out / "16x9", ignore_errors=True)
-    for name in ("runtime_state.json", "resolver_cache.json"):
+    names = "runtime_state.json", "resolver_cache.json"
+    for name in names:
         (out / name).unlink(missing_ok=True)
-    if state:
-        shutil.copyfile(state, out / "runtime_state.json")
 
     with tempfile.TemporaryDirectory() as tmp:
-        stage = Path(tmp)
+        stage, profile = Path(tmp, "skin"), Path(tmp, "profile")
         templates = Path("extras") / "templates"
         if (skin / templates).is_dir():  # C1 has none yet
             shutil.copytree(skin / templates, stage / templates)
+        (stage / "16x9").mkdir(parents=True)
         shutil.copy(skin / "addon.xml", stage)  # cache_stamp reads the skin's id
-        (stage / "16x9").mkdir()
-        counts = install_stubs(helper, stage, out, verbose)
+        profile.mkdir()
+        counts = install_stubs(helper, stage, profile, verbose)
         sys.path.insert(0, str(helper))
         from resources.lib.builders.build_elements import BuildElements
+        from resources.lib.shared import utilities as u
 
+        # The skin's own pair; older helpers (--helper-base) share one for every skin.
+        files = (
+            (u.runtime_state_path(), u.resolver_cache_path())
+            if hasattr(u, "runtime_state_path")
+            else (u.RUNTIME_STATE, u.RESOLVER_CACHE)
+        )
+        if state:
+            shutil.copyfile(state, files[0])
         BuildElements().run()
         shutil.copytree(stage / "16x9", out / "16x9")
+        for path, name in zip(files, names):
+            shutil.copyfile(path, out / name)
     return counts
 
 
