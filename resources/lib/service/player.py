@@ -48,6 +48,7 @@ class PlayerMonitor(Player):
         self.zoom = TrailerZoomController()
         self._published = set()
         self._dial_queue = None
+        self._dial_source = False  # take_source() for the playback last started
         self._dropped = (None, 0.0)  # last cleared request's path, and when
         SpeedDial().publish()
         if self.isPlaying():
@@ -112,9 +113,11 @@ class PlayerMonitor(Player):
 
     def onPlayBackStarted(self) -> None:
         """
+        Take this start's speed dial mark, so a play that fails can't pass it on.
         Media other than the requested trailer started while it may still be
         resolving: drop the resolve, or Kodi plays the trailer in its place.
         """
+        self._dial_source = take_source()
         state = infolabel("Window(home).Property(trailer_state)")
         if state in ("pending", "cancelled") and infolabel(
             "Player.Filenameandpath"
@@ -249,7 +252,7 @@ class PlayerMonitor(Player):
 
         :param songid: Library ID of the playing song; 0 or less if none.
         """
-        source = take_source()
+        source = self._dial_source
         playlist = PlayList(PLAYLIST_MUSIC)
         queue = (playlist.size(), playlist[0].getPath()) if playlist.size() else songid
         if source is False:

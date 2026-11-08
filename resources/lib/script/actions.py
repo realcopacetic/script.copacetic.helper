@@ -18,7 +18,7 @@ from resources.lib.shared.utilities import (
 )
 from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.speed_dial import entry as dial_entry
-from resources.lib.shared.speed_dial import mark_source
+from resources.lib.shared.speed_dial import mark_source, take_source
 from resources.lib.shared.streams import (
     player_streams,
     preferred_subtitle,
@@ -849,7 +849,11 @@ def shuffle(id: str = "", type: str = "artist", path: str = "", **kwargs: str) -
         if type in _LIBRARY_ITEMS
         else {"directory": path, "media": "music"}
     )
-    json_call("Player.Open", item=item, options={"shuffled": True}, parent="shuffle")
+    opened = json_call(
+        "Player.Open", item=item, options={"shuffled": True}, parent="shuffle"
+    )
+    if "error" in opened:  # nothing to play, so no start takes the mark
+        take_source()
 
 
 @action
