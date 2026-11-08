@@ -395,7 +395,12 @@ class Skin:
                 self.duplicates[cid, tuple(clashing)].append(window)
 
     def expand(
-        self, node: Node, budget: list[int], keep: bool = False, path: tuple = ()
+        self,
+        node: Node,
+        budget: list[int],
+        keep: bool = False,
+        path: tuple = (),
+        depth: int = 0,
     ) -> None:
         """
         Resolve includes under ``node`` in place like ``ResolveIncludes``:
@@ -406,6 +411,7 @@ class Skin:
         :param budget: Remaining expansions, shared to stop include blow-up.
         :param keep: Keep skipped calls, as Kodi does, skipping all constant-false ones.
         :param path: Include calls (name, params) above ``node``; a repeat recurses.
+        :param depth: Elements above ``node``, capped below Python's recursion limit.
         """
         skipped = self.never if keep else self.constant_false
         index = 0
@@ -427,7 +433,8 @@ class Skin:
             params = self.defaults[name] | params_of(call, "value")
             key = name, frozenset(params.items())  # same call again: never ends
             outer = path if call.stack is None else call.stack
-            if key in outer or len(outer) > 200:  # or a param that grows each call
+            # or a param that grows each call: too many calls, or too deep to expand
+            if key in outer or len(outer) > 200 or depth > 400:
                 self.report("include-recursion", call.src, name)
                 del node[index]
                 continue
@@ -457,9 +464,8 @@ class Skin:
             for new in resolve:
                 self.resolve_params(new, params, node)
         for child in elements(node):
-            self.expand(
-                child, budget, keep, path if child.stack is None else child.stack
-            )
+            stack = path if child.stack is None else child.stack
+            self.expand(child, budget, keep, stack, depth + 1)
 
     def constant_false(self, condition: str) -> bool:
         """
