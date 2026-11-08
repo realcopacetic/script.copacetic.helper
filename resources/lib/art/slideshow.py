@@ -306,13 +306,18 @@ class Slideshow:
     @staticmethod
     def _fanart_url(item: dict) -> str | None:
         """
-        Pick a random fanart from the item's art set (multiart included), the
-        whole picture for a picture's thumb. Left wrapped: the cache decodes it once.
+        Pick a random fanart from the item's art (multiart and a parent show's or
+        artist's included, not its movie set's), the whole picture for a picture's
+        thumb. Left wrapped: the cache decodes it once.
 
         :param item: Art dict from the fetch batch.
         :return: Fanart URL as JSON-RPC wraps art, or None.
         """
-        fanarts = [value for key, value in item.items() if "fanart" in key]
+        fanarts = [
+            value
+            for key, value in item.items()
+            if "fanart" in key and not key.startswith("set.")
+        ]
         if not fanarts:
             return None
         return random.choice(fanarts).removesuffix("transform?size=thumb")
