@@ -147,13 +147,14 @@ Sets `player_chapter_focus` to the playing video's chapter tick for chapter `cha
 the pair from `Player.Chapters` whose end is where that chapter starts. A `ranges`
 control with only a right texture on that property draws the one tick, for example to
 light the chapter focused in Kodi's bookmarks dialog, whose chapter items carry their
-number as `ListItem.Property(chapter)` (1-based, the same n). Kodi lists no pair for a
-first chapter that starts at 0, so that chapter, a bookmark (no `chapter`) and no
-playing video all empty the property. Clear it yourself when the list closes.
+number as `ListItem.Property(chapter)` (1-based, the same n; bookmark items have none,
+so call it for chapter items only). Kodi lists no pair for a first chapter that starts
+at 0, so that chapter and no playing video empty the property. Clear it yourself when
+the list opens: a script still running as it closes can write after its unload.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `chapter` | whole number | none | Kodi's chapter number |
+| `chapter` | 1 to `Player.ChapterCount` | required | Kodi's chapter number |
 
 **Sets:**
 
@@ -163,11 +164,17 @@ playing video all empty the property. Clear it yourself when the list closes.
 | `player_chapter_focus_number` | The `chapter` it was set for (the script starts a moment after focus moves, so compare it with the focused item's to hide a tick that lags) |
 
 ```xml
-<!-- VideoOSDBookmarks.xml, a hidden button in list 11's focused layout -->
-<onfocus condition="!String.IsEmpty(ListItem.Property(chapter))">RunScript(script.copacetic.helper,action=chapter_focus,chapter=$INFO[ListItem.Property(chapter)])</onfocus>
-<!-- the tick -->
+<!-- VideoOSDBookmarks.xml: a hidden button in list 11's focused layout, focused on each
+     item; the Focus animation holds its onfocus until focus has stayed 150 ms. In an
+     onfocus condition a bare ListItem is the window's, so name the list -->
+<control type="button">
+  <visible allowhiddenfocus="true">false</visible>
+  <onfocus condition="!String.IsEmpty(Container(11).ListItem.Property(chapter))">RunScript(script.copacetic.helper,action=chapter_focus,chapter=$INFO[Container(11).ListItem.Property(chapter)])</onfocus>
+  <animation effect="slide" end="0,0" time="150" reversible="false">Focus</animation>
+</control>
+<!-- the tick, while the list has focus and the property is this chapter's -->
 <control type="ranges">
-  <visible>String.IsEqual(Window(home).Property(player_chapter_focus_number),Container(11).ListItem.Property(chapter))</visible>
+  <visible>Control.HasFocus(11) + String.IsEqual(Window(home).Property(player_chapter_focus_number),Container(11).ListItem.Property(chapter))</visible>
   <info>Window(home).Property(player_chapter_focus)</info>
   <righttexture>common/white.png</righttexture>
 </control>
