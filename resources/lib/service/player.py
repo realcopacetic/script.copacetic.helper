@@ -48,7 +48,7 @@ class PlayerMonitor(Player):
         self.zoom = TrailerZoomController()
         self._published = set()
         self._dial_queue = None
-        self._dial_source = False  # take_source() for the playback last started
+        self._dial_source = False  # a mark taken at a start, until AV records it
         self._dropped = (None, 0.0)  # last cleared request's path, and when
         SpeedDial().publish()
         if self.isPlaying():
@@ -113,11 +113,12 @@ class PlayerMonitor(Player):
 
     def onPlayBackStarted(self) -> None:
         """
-        Take this start's speed dial mark, so a play that fails can't pass it on.
+        Hold a new speed dial mark until an AV start records it or playback ends.
         Media other than the requested trailer started while it may still be
         resolving: drop the resolve, or Kodi plays the trailer in its place.
         """
-        self._dial_source = take_source()
+        if (source := take_source()) is not False:
+            self._dial_source = source
         state = infolabel("Window(home).Property(trailer_state)")
         if state in ("pending", "cancelled") and infolabel(
             "Player.Filenameandpath"
@@ -252,7 +253,7 @@ class PlayerMonitor(Player):
 
         :param songid: Library ID of the playing song; 0 or less if none.
         """
-        source = self._dial_source
+        source, self._dial_source = self._dial_source, False
         playlist = PlayList(PLAYLIST_MUSIC)
         queue = (playlist.size(), playlist[0].getPath()) if playlist.size() else songid
         if source is False:
@@ -417,11 +418,12 @@ class PlayerMonitor(Player):
 
     def _cleanup(self) -> None:
         """
-        Clear the player properties unless the next file already plays (its
-        onAVStarted replaces them), then the trailer session.
+        Clear the player properties and a held speed dial mark unless the next file
+        already plays (its onAVStarted replaces them), then the trailer session.
         """
         if not self.isPlaying():
             self._publish({})
+            self._dial_source = False
         # A pending state belongs to a newer request that superseded the
         # playback this stop event is for — leave its props intact.
         if condition("String.IsEqual(Window(home).Property(trailer_state),pending)"):
