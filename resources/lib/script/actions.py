@@ -942,7 +942,7 @@ def _publish_subtitle(lang: str, kind: str) -> None:
 
 
 @action
-def chapter_focus(chapter: str = "", **kwargs: str) -> None:
+def chapter_focus(chapter: str, **kwargs: str) -> None:
     """
     Sets player_chapter_focus to the Player.Chapters pair ending where chapter n
     starts, so a ranges control draws that chapter's tick (empty without one), and
@@ -954,6 +954,7 @@ def chapter_focus(chapter: str = "", **kwargs: str) -> None:
     values = iter(infolabel("Player.Chapters").split(","))
     pairs = [f"{start},{end}" for start, end in zip(values, values)]
     index = to_int(chapter) - to_int(infolabel("Player.ChapterCount")) + len(pairs) - 1
+    # The upper bound is for a stop while the script starts: no chapters, n stays
     window_property(
         "player_chapter_focus", value=pairs[index] if 0 <= index < len(pairs) else ""
     )
