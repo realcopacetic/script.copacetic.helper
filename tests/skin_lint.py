@@ -427,7 +427,7 @@ class Skin:
             params = self.defaults[name] | params_of(call, "value")
             key = name, frozenset(params.items())  # same call again: never ends
             outer = path if call.stack is None else call.stack
-            if key in outer:
+            if key in outer or len(outer) > 200:  # or a param that grows each call
                 self.report("include-recursion", call.src, name)
                 del node[index]
                 continue
