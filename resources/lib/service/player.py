@@ -34,6 +34,16 @@ from resources.lib.shared.utilities import (
 _NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
 
 
+def _queue_key(playlist: PlayList) -> tuple[int, str] | None:
+    """
+    Tells one music queue from another: its size and first path.
+
+    :param playlist: The music playlist.
+    :return: (size, first path), or None while it is empty.
+    """
+    return (playlist.size(), playlist[0].getPath()) if playlist.size() else None
+
+
 class PlayerMonitor(Player):
     """
     Player monitor for operations to be performed on playback start/stop.
@@ -48,7 +58,7 @@ class PlayerMonitor(Player):
         self.zoom = TrailerZoomController()
         self._published = set()
         self._dial_queue = None
-        self._dial_source = False  # a mark taken at a start, until AV records it
+        self._dial_source = False  # (queue key, mark) taken at a start, until AV
         self._dropped = (None, 0.0)  # last cleared request's path, and when
         SpeedDial().publish()
         if self.isPlaying():
@@ -113,12 +123,12 @@ class PlayerMonitor(Player):
 
     def onPlayBackStarted(self) -> None:
         """
-        Hold a new speed dial mark until an AV start records it or playback ends.
+        Hold a new speed dial mark with its queue, for that queue's AV start.
         Media other than the requested trailer started while it may still be
         resolving: drop the resolve, or Kodi plays the trailer in its place.
         """
         if (source := take_source()) is not False:
-            self._dial_source = source
+            self._dial_source = (_queue_key(PlayList(PLAYLIST_MUSIC)), source)
         state = infolabel("Window(home).Property(trailer_state)")
         if state in ("pending", "cancelled") and infolabel(
             "Player.Filenameandpath"
@@ -253,9 +263,11 @@ class PlayerMonitor(Player):
 
         :param songid: Library ID of the playing song; 0 or less if none.
         """
-        source, self._dial_source = self._dial_source, False
+        held, self._dial_source = self._dial_source, False
         playlist = PlayList(PLAYLIST_MUSIC)
-        queue = (playlist.size(), playlist[0].getPath()) if playlist.size() else songid
+        queue = _queue_key(playlist) or songid
+        # A held mark is for the queue its play started; another queue replaced it
+        source = held[1] if held and held[0] == queue else False
         if source is False:
             advanced = queue == self._dial_queue and playlist.getposition() > 0
             if advanced or songid <= 0:
@@ -418,12 +430,11 @@ class PlayerMonitor(Player):
 
     def _cleanup(self) -> None:
         """
-        Clear the player properties and a held speed dial mark unless the next file
-        already plays (its onAVStarted replaces them), then the trailer session.
+        Clear the player properties unless the next file already plays (its
+        onAVStarted replaces them), then the trailer session.
         """
         if not self.isPlaying():
             self._publish({})
-            self._dial_source = False
         # A pending state belongs to a newer request that superseded the
         # playback this stop event is for — leave its props intact.
         if condition("String.IsEqual(Window(home).Property(trailer_state),pending)"):
