@@ -39,8 +39,8 @@ TEXTS = str(Path(ADDONDATA) / "text")
 TEMPS = str(Path(ADDONDATA) / "temp")
 LOOKUPS = str(Path(ADDONDATA) / "_lookup.db")
 
-RUNTIME_STATE = str(Path(ADDONDATA) / "runtime_state.json")
-RESOLVER_CACHE = str(Path(ADDONDATA) / "resolver_cache.json")
+# The one user of the runtime state and resolver cache while every skin shared them.
+SHARED_STATE_OWNER = "skin.copacetic2"
 
 # Relative to the active skin: resolve with skin_path() when used, never at import.
 SKINXML = "16x9"
@@ -62,8 +62,8 @@ _JSON_RESPONSE_LIMIT = 5
 
 def reset_dev_state() -> None:
     """
-    Delete all builder outputs and runtime_state to force a clean rebuild
-    on next service boot. Intended for dev/skinner use.
+    Delete the active skin's builder outputs, runtime_state and resolver cache to
+    force a clean rebuild on next service boot. Intended for dev/skinner use.
     Imports BUILDER_CONFIG locally to avoid a circular dependency.
 
     :return: None.
@@ -74,9 +74,52 @@ def reset_dev_state() -> None:
         write_path = config.get("write_path")
         if write_path:
             xbmcvfs.delete(skin_path(write_path))
-    xbmcvfs.delete(RUNTIME_STATE)
-    xbmcvfs.delete(RESOLVER_CACHE)
+    xbmcvfs.delete(runtime_state_path())
+    xbmcvfs.delete(resolver_cache_path())
     log.info(f"reset_dev_state → outputs and runtime_state cleared")
+
+
+def runtime_state_path() -> str:
+    """
+    The active skin's runtime state: each skin keeps its own, so two skins with the
+    same mapping names never share choices. Resolved per call (see skin_path()).
+
+    :return: Absolute path, ``runtime_state_<skin id>.json`` in the add-on's profile.
+    """
+    return _skin_file("runtime_state")
+
+
+def resolver_cache_path() -> str:
+    """
+    The active skin's resolver cache, kept beside its runtime state.
+
+    :return: Absolute path, ``resolver_cache_<skin id>.json`` in the add-on's profile.
+    """
+    return _skin_file("resolver_cache")
+
+
+def _skin_file(name: str) -> str:
+    """
+    Path of the active skin's own copy of an add-on profile file.
+
+    :param name: File stem, e.g. ``runtime_state``.
+    :return: Absolute path, ``<name>_<skin id>.json``.
+    """
+    return str(Path(ADDONDATA, f"{name}_{skin_id(skin_path())}.json"))
+
+
+def adopt_shared_state() -> None:
+    """
+    Move the runtime state and resolver cache every skin once shared to Copacetic 2's
+    names while it is active with no state of its own: no other skin inherits them,
+    and a shared file an older helper writes later never replaces its choices.
+    """
+    own = Path(runtime_state_path())
+    if skin_id(skin_path()) == SHARED_STATE_OWNER and not own.exists():
+        for name in ("runtime_state", "resolver_cache"):
+            with suppress(FileNotFoundError):
+                os.replace(Path(ADDONDATA, f"{name}.json"), _skin_file(name))
+                log.info(f"adopt_shared_state → {name}.json moved")
 
 
 def notify_build_failed() -> None:

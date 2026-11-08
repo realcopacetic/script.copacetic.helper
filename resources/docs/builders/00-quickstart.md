@@ -152,7 +152,7 @@ The chain: control `id` finds the XML control → control `field` names the sett
 - The **mapping** listed the loop values and registered the new field.
 - A **config** said which values are allowed, per content type.
 - A **control** gave the user a radiobutton for it.
-- The user's choices are stored in the **settings file** (`runtime_state.json`), one entry per content type.
+- The user's choices are stored in the **settings file** (`runtime_state_<skin id>.json`), one entry per content type.
 - The **expressions builder** turned those entries into one expression per window.
 
 The view settings window is a **fixed list**: the rows are created automatically and the user can't add or remove them — only change each row's settings. The widget and menu editors are **editable lists**: same machinery, plus one control with a `role` that unlocks Add / Delete / Move buttons. See [Runtime State & Dynamic Editor](09-runtime-state.md) and [the widgets use case](10-use-cases.md#3-widgets--editable-lists).

@@ -11,7 +11,7 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.json import JSONHandler, JSONMerger
 from resources.lib.shared.utilities import (
     ADDON,
-    RESOLVER_CACHE,
+    resolver_cache_path,
     skin_id,
     skin_path,
     skin_version,
@@ -52,7 +52,7 @@ def cache_is_current(stamp: str) -> bool:
     :param stamp: The check's cache_stamp(), read once so compare and write agree.
     :return: True when the stored stamp equals ``stamp``.
     """
-    handler = JSONHandler(RESOLVER_CACHE)
+    handler = JSONHandler(resolver_cache_path())
     if not handler.exists:
         return False
     cache = next(iter(handler.data.values()), {})
@@ -68,7 +68,7 @@ def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
     :param base_folder: Skin extras builders folder root.
     :return: (mappings, configs_data, controls_data) as nested dicts.
     """
-    handler = JSONHandler(RESOLVER_CACHE)
+    handler = JSONHandler(resolver_cache_path())
     if handler.exists:
         cache = next(iter(handler.data.values()), {})
         if cache.get("stamp") != cache_stamp():
@@ -138,7 +138,8 @@ def write_template_cache(
     :param controls_data: {mapping_name: {tpl_name: tpl_data}}.
     :param stamp: The build's cache_stamp().
     """
-    JSONHandler(RESOLVER_CACHE).write_json(
+    handler = JSONHandler(resolver_cache_path())
+    handler.write_json(
         {
             "stamp": stamp,
             "mappings": mappings,
@@ -146,4 +147,4 @@ def write_template_cache(
             "controls": controls_data,
         }
     )
-    log.debug(f"write_template_cache: cache written to {RESOLVER_CACHE}")
+    log.debug(f"write_template_cache: cache written to {handler.path}")

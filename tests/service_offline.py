@@ -1,7 +1,8 @@
 """
 Offline checks for the service's build boundary (resources/lib/service/monitor.py):
 a build that raises is logged, and the player monitor, slideshow and helper_active
-still start; helper_speed_dial follows the skin naming info=speed_dial.
+still start; helper_speed_dial follows the skin naming info=speed_dial; each skin
+keeps its own runtime state.
 Run from the helper root: python tests/service_offline.py
 """
 
@@ -9,7 +10,7 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from unittest.mock import Mock, call, patch
 
@@ -33,14 +34,15 @@ from resources.lib.builders.runtime import RuntimeStateManager  # noqa: E402
 from resources.lib.builders.substitution import TokenError  # noqa: E402
 from resources.lib.script import actions  # noqa: E402
 from resources.lib.service import monitor  # noqa: E402
+from resources.lib.shared import utilities  # noqa: E402
 from resources.lib.shared.utilities import (  # noqa: E402
-    RESOLVER_CACHE,
-    RUNTIME_STATE,
+    resolver_cache_path,
+    runtime_state_path,
     window_property,
 )
 from resources.lib.shared.xml import XMLHandler  # noqa: E402
 
-CACHE, STATE = Path(RESOLVER_CACHE), Path(RUNTIME_STATE)
+CACHE, STATE = Path(resolver_cache_path()), Path(runtime_state_path())
 RAISES = Mock(side_effect=TokenError("unknown token"))
 REAL = monitor.BuildElements
 monitor.ADDON.getLocalizedString = str
@@ -53,6 +55,11 @@ def built(written: bool) -> Mock:
     build.return_value.runtime_manager.initialize_runtime_state.return_value = True
     build.return_value.run.return_value = written
     return build
+
+
+def as_skin(skin_id: str) -> AbstractContextManager:
+    """The active skin's id reads as ``skin_id`` (the cache stamp keeps skin.test)."""
+    return patch.object(utilities, "skin_id", lambda folder: skin_id)
 
 
 def not_expressions(path: str) -> bool:
@@ -242,6 +249,70 @@ class BuildBoundary(unittest.TestCase):
             self.follow(REAL, output_exists=not_expressions)
         self.assertFalse(CACHE.exists())
         self.assertEqual(self.builds_on_start(), 1)
+
+    def other_skin(self, skin_id: str) -> list[Path]:
+        """Files ``skin_id`` will keep, removed after the test."""
+        with as_skin(skin_id):
+            files = [Path(runtime_state_path()), Path(resolver_cache_path())]
+        for path in files:
+            self.addCleanup(path.unlink, missing_ok=True)
+        return files
+
+    def test_each_skin_keeps_its_own_state(self):
+        self.current_cache()
+        before = STATE.read_bytes()
+        other_state, other_cache = self.other_skin("skin.other")
+        with as_skin("skin.other"):
+            self.assertEqual(self.builds_on_start(), 1)
+        self.assertTrue(other_state.exists() and other_cache.exists())
+        self.assertEqual(STATE.read_bytes(), before)
+        self.assertEqual(self.builds_on_start(), 0)
+
+    def test_only_copacetic2_adopts_the_shared_state(self):
+        self.current_cache()
+        shared = [STAGE / "runtime_state.json", STAGE / "resolver_cache.json"]
+        for path, own in zip(shared, (STATE, CACHE)):
+            path.write_bytes(own.read_bytes())
+            self.addCleanup(path.unlink, missing_ok=True)
+        before = [path.read_bytes() for path in shared]
+        self.assertEqual(self.builds_on_start(), 0)
+        self.assertTrue(all(path.exists() for path in shared))
+        adopted = self.other_skin(utilities.SHARED_STATE_OWNER)
+        with as_skin(utilities.SHARED_STATE_OWNER):
+            self.assertEqual(self.builds_on_start(), 0)
+        self.assertFalse(any(path.exists() for path in shared))
+        self.assertEqual([path.read_bytes() for path in adopted], before)
+
+    def test_a_later_shared_file_never_replaces_copacetic2s_own(self):
+        self.current_cache()
+        own_state, _ = self.other_skin(utilities.SHARED_STATE_OWNER)
+        with as_skin(utilities.SHARED_STATE_OWNER):
+            self.builds_on_start()
+        before = own_state.read_bytes()
+        shared = STAGE / "runtime_state.json"  # a downgrade's fresh seed
+        shared.write_text('{"test": [], "shared": []}')
+        self.addCleanup(shared.unlink, missing_ok=True)
+        with as_skin(utilities.SHARED_STATE_OWNER):
+            self.assertEqual(self.builds_on_start(), 0)
+        self.assertTrue(shared.exists())
+        self.assertEqual(own_state.read_bytes(), before)
+
+    def test_dev_reset_clears_only_the_active_skin(self):
+        self.current_cache()
+        other_state, _ = self.other_skin("skin.other")
+        with as_skin("skin.other"):
+            self.builds_on_start()
+        for path in (STATE, other_state):
+            path.write_text('{"test": [], "kept": []}')
+        with (
+            patch.object(monitor.ADDON, "getSettingBool", lambda key: True),
+            patch.object(monitor.ADDON, "setSettingBool", create=True) as setting,
+        ):
+            self.start()
+            self.follow(REAL)
+        setting.assert_called_once_with("dev_reset", False)
+        self.assertNotIn("kept", json.loads(STATE.read_text()))
+        self.assertIn("kept", json.loads(other_state.read_text()))
 
 
 class ServiceReload(unittest.TestCase):
