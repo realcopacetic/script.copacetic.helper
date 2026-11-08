@@ -16,7 +16,12 @@ builder output, and so on. Put the call in any action list — `<onclick>`, `<on
 - Every other parameter is a `key=value` pair, separated by commas. Order does not
   matter. Parameters an action does not use are ignored.
 - **Every value arrives as text.** Each action converts what it needs. Where a table
-  says `true`, only the exact word `true` turns the option on; anything else is off.
+  says `true`, write `true`. Some options also take `True`, or `1`, `yes` and `on`,
+  and their row says so; anything else is off.
+- An empty infolabel still sends its key. `key=$ESCINFO[ListItem.Label]` (or `$INFO`)
+  on an item with no label reaches the action as `key` with an empty value, which is
+  not the same as leaving `key` out: `user_trigger=` is off, but no `user_trigger` is
+  on.
 - Values are URL-decoded, so `%2C` becomes a comma and `%26` becomes `&`. A literal
   `%` followed by two hex digits is decoded too.
 - Keys that start with `_` are dropped.
