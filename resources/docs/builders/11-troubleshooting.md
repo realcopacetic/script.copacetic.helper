@@ -6,7 +6,7 @@ Symptom → likely cause → fix. Grab the log first: enable debug logging in Ko
 
 ## "I changed a template and nothing happened"
 
-In production mode the service only builds files that are **missing** (or everything, when the settings file gains a new mapping or the resolver cache is stale) — it doesn't notice edits. Turn on dev mode, or run:
+In production mode the service only builds files that are **missing** (or everything, when the settings file gains a new mapping, the resolver cache is stale, or another profile rewrote an output) — it doesn't notice edits. Turn on dev mode, or run:
 
 ```
 RunScript(script.copacetic.helper,action=rebuild)
