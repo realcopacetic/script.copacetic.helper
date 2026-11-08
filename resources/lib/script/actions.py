@@ -999,7 +999,6 @@ def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) 
     user_trigger = parse_bool(user_trigger)
     if condition("VideoPlayer.HasSubtitles"):
         player = xbmc.Player()
-        subtitles = []
         current_subtitle = player.getSubtitles()
         subtitles = player.getAvailableSubtitleStreams()
         if lang not in current_subtitle or (
