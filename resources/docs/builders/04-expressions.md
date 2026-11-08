@@ -80,7 +80,7 @@ For each expression, the builder walks its passes in order and, for each pass, i
 
 True exactly when the screen shows a content type set to fanart — rebuilt automatically whenever the user changes a setting.
 
-A value that begins `true + ` (a `{guard}` token that rendered `true`, say) has that prefix stripped, so places with no guard emit clean conditions. Only a `true + ` at the start of the value, or straight after a `[`, is removed — put the guard first. A value that is just `true` stays `true`.
+A `true` joined to the rest of its term by ` + ` (a `{guard}` token that rendered `true`, say) is removed, wherever it sits in the value: `a + true + b` becomes `a + b`, and so does `true + a + b` or `a + b + true`. So places with no guard emit clean conditions. Write `+` and `|` with a space on each side for this to work. A `true` on its own between two `|` is kept, as removing it would change the condition, and a value that is just `true` stays `true`.
 
 **No `condition` at all** — the rule always fires. This is the shorthand pattern: no user setting involved, just a long Kodi condition getting a name. The whole `expressions_windows.json` file works this way:
 

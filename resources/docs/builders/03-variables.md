@@ -49,7 +49,7 @@ Whether the template loops the mapping's items or its settings-file entries is d
 
 **`index` numbers the passes; `range` and `items` multiply them.** Expansion order: the mapping's items (or entries) make the passes → `index` stamps each with a number → the mapping's `tokens` are filled in → `range` repeats every pass per value → `items_from` repeats every pass per borrowed item → `items` repeats every pass per value → `filter` prunes → `{count}`, `{is_first}`, `{is_last}` and `{instance}` are set on what's left. So `range` and `items` combine into every pairing, while `index` alone never adds passes — a template with `mapping: "none"` and only an `index` emits exactly one variable. In dynamic mode, `{index}` numbers the settings entries, and a declared `index` sets its starting value.
 
-Rows: `condition` is optional — leave it off for an unconditional row (a bare `<value>`). Kodi reads top to bottom and uses the first match, exactly like a hand-written variable. A condition that fills in as just `true` is dropped too, and a `true + ` at the start of a condition (or straight after a `[`) is removed — so a token that is `"true"` for some mappings leaves a clean condition.
+Rows: `condition` is optional — leave it off for an unconditional row (a bare `<value>`). Kodi reads top to bottom and uses the first match, exactly like a hand-written variable. A condition that fills in as just `true` is dropped too, and a `true` joined to the rest of its term by ` + ` is removed wherever it sits (`a + true + b` becomes `a + b`) — so a token that is `"true"` for some mappings leaves a clean condition. Write `+` and `|` with a space on each side for this to work. A `true` on its own between two `|` is kept, as removing it would change the condition.
 
 ---
 
