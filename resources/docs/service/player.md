@@ -28,7 +28,6 @@ Trailers started with `action=play_trailer` do not set these properties. See
 | `player_tvshowid` | TV show database id | A library episode starts and its show is found |
 | `player_setid` | Movie set database id | A library movie starts and it belongs to a set |
 | `player_subtitle_kind` | The subtitle showing: `forced`, `full` or `impaired` (hearing impaired). While off: `missing` when the actions were given a language with no preferred stream, otherwise empty | A video starts; `player_stream` and `player_stream_refresh` update it |
-| `player_chapter_1`, `player_chapter_2`, … | Chapter n's tick for a `ranges` control: the pair from `Player.Chapters` that ends where chapter n starts | A video with chapters starts |
 | `player_genre_query` | One of the video's genres, as the library names it (`Action & Adventure`) | A video with a genre starts (an episode has its show's) |
 | `player_genre` | The same pick, cleaned for a label (`Adventure`), as `metadata` does | As above |
 | `player_director` | One of the video's directors | A video with a director starts |
@@ -60,21 +59,10 @@ is never `missing`; pass `lang` and `kind` to `player_stream_refresh` and it is.
 
 ### Chapter ticks
 
-`Player.Chapters` lists one pair of start and end percentages per chapter, for a
-`ranges` control. `player_chapter_<n>` holds the single pair whose end is chapter n's
-start, so a `ranges` control with only a right texture draws chapter n's tick alone, for
-example to light the tick of the chapter focused in the bookmarks dialog
-(`ListItem.Property(chapter)` there is the same n). A first chapter that starts at 0 has
-no pair, so its property is empty. A `ranges` control reads one fixed infolabel, so use
-one control per chapter:
-
-```xml
-<control type="ranges">
-  <info>Window(home).Property(player_chapter_2)</info>
-  <righttexture>osd/tick.png</righttexture>
-  <visible>String.IsEqual(Container(11).ListItem.Property(chapter),2)</visible>
-</control>
-```
+The service publishes no chapter ticks. To light one chapter's tick (the chapter
+focused in the bookmarks dialog), call
+[`chapter_focus`](../script/actions.md#chapter_focus) as focus moves; it sets
+`player_chapter_focus` for a single `ranges` control.
 
 ## Music
 

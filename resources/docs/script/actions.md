@@ -57,6 +57,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 
 | Action | What it does |
 |---|---|
+| [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
 | [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
@@ -137,6 +138,40 @@ so they show the right way round in any list, not only in speed dial.
 
 Each item passes the clicked item's database id (the year itself for a year), its
 type and its path to the action.
+
+---
+
+## chapter_focus
+
+Sets `player_chapter_focus` to the playing video's chapter tick for chapter `chapter`:
+the pair from `Player.Chapters` whose end is where that chapter starts. A `ranges`
+control with only a right texture on that property draws the one tick, for example to
+light the chapter focused in Kodi's bookmarks dialog, whose chapter items carry their
+number as `ListItem.Property(chapter)` (1-based, the same n). Kodi lists no pair for a
+first chapter that starts at 0, so that chapter, a bookmark (no `chapter`) and no
+playing video all empty the property. Clear it yourself when the list closes.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `chapter` | whole number | none | Kodi's chapter number |
+
+**Sets:**
+
+| Property | Value |
+|---|---|
+| `player_chapter_focus` | `start,end` percentages ending at the chapter's start; empty without one |
+| `player_chapter_focus_number` | The `chapter` it was set for (the script starts a moment after focus moves, so compare it with the focused item's to hide a tick that lags) |
+
+```xml
+<!-- VideoOSDBookmarks.xml, a hidden button in list 11's focused layout -->
+<onfocus condition="!String.IsEmpty(ListItem.Property(chapter))">RunScript(script.copacetic.helper,action=chapter_focus,chapter=$INFO[ListItem.Property(chapter)])</onfocus>
+<!-- the tick -->
+<control type="ranges">
+  <visible>String.IsEqual(Window(home).Property(player_chapter_focus_number),Container(11).ListItem.Property(chapter))</visible>
+  <info>Window(home).Property(player_chapter_focus)</info>
+  <righttexture>common/white.png</righttexture>
+</control>
+```
 
 ---
 
