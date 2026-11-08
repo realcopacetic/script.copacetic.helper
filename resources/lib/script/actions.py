@@ -942,6 +942,25 @@ def _publish_subtitle(lang: str, kind: str) -> None:
 
 
 @action
+def chapter_focus(chapter: str = "", **kwargs: str) -> None:
+    """
+    Sets player_chapter_focus to the Player.Chapters pair ending where chapter n
+    starts, so a ranges control draws that chapter's tick (empty without one), and
+    player_chapter_focus_number to n, so the skin can hide a tick that lags focus.
+
+    :param chapter: Kodi's 1-based chapter number, e.g. ListItem.Property(chapter).
+    """
+    # Kodi drops the pair of a chapter at 0, so the pairs belong to the last chapters
+    values = iter(infolabel("Player.Chapters").split(","))
+    pairs = [f"{start},{end}" for start, end in zip(values, values)]
+    index = to_int(chapter) - to_int(infolabel("Player.ChapterCount")) + len(pairs) - 1
+    window_property(
+        "player_chapter_focus", value=pairs[index] if 0 <= index < len(pairs) else ""
+    )
+    window_property("player_chapter_focus_number", value=chapter)
+
+
+@action
 def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> None:
     """
     Steps the playing video's audio or video stream, wrapping, or its subtitles:

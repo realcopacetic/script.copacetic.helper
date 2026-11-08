@@ -154,8 +154,8 @@ class PlayerMonitor(Player):
     def _handle_video_start(self) -> None:
         """
         Publish video-related window properties on playback start: parent ids
-        (tvshowid, setid) via JSON-RPC where needed, subtitle type, chapter ranges,
-        genre and director picks.
+        (tvshowid, setid) via JSON-RPC where needed, subtitle type, genre and
+        director picks.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
@@ -163,7 +163,7 @@ class PlayerMonitor(Player):
         # Always published, so stop clears what actions write later; with no lang
         # here it is never missing until the skin's player_stream_refresh passes one
         props = {"player_subtitle_kind": subtitle_status(*player_streams("subtitle"))}
-        props |= self._chapter_ranges() | self._picks(tag)
+        props |= self._picks(tag)
 
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
@@ -189,18 +189,6 @@ class PlayerMonitor(Player):
             if setid := details.get("setid"):
                 props["player_setid"] = str(setid)
         self._publish(props)
-
-    @staticmethod
-    def _chapter_ranges() -> dict[str, str]:
-        """
-        player_chapter_<n>: the Player.Chapters csv pair (percentages) ending at
-        chapter n's start. Kodi drops the pair of a chapter at 0, so the pairs
-        belong to the last chapters.
-        """
-        values = iter(infolabel("Player.Chapters").split(","))
-        pairs = [f"{start},{end}" for start, end in zip(values, values)]
-        first = int(infolabel("Player.ChapterCount")) - len(pairs) + 1
-        return {f"player_chapter_{n}": pair for n, pair in enumerate(pairs, first)}
 
     @staticmethod
     def _picks(tag: InfoTagVideo) -> dict[str, str]:
