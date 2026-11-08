@@ -27,7 +27,8 @@ from typing import Any, Callable
 from build_offline import HELPER, install_stubs
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
-ImageFont.LAYOUT_BASIC = ImageFont.Layout.BASIC  # Kodi's Pillow (8.4, 9.0) name
+if hasattr(ImageFont, "Layout"):  # Pillow 9.1+; Kodi's (8.4, 9.0) has only the old name
+    ImageFont.LAYOUT_BASIC = ImageFont.Layout.BASIC
 
 GHOSTED, GUNMETAL = "fff0efef", "ff312124"
 STRIP = {
