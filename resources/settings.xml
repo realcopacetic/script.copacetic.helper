@@ -127,7 +127,7 @@
 		</category>
 		<category id="library" label="32024" help="">
 			<group id="1" label="">
-				<setting id="library_clear_artist_art" type="string" label="32025" help="32125">
+				<setting id="library_remove_broken_art" type="string" label="32027" help="32127">
 					<level>0</level>
 					<default />
 					<constraints>
@@ -135,7 +135,29 @@
 					</constraints>
 					<control type="button" format="action">
 						<close>true</close>
-						<data>RunScript(script.copacetic.helper,action=clear_artist_art)</data>
+						<data>RunScript(script.copacetic.helper,action=remove_broken_art)</data>
+					</control>
+				</setting>
+				<setting id="library_clear_art" type="string" label="32025" help="32125">
+					<level>0</level>
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="button" format="action">
+						<close>true</close>
+						<data>RunScript(script.copacetic.helper,action=clear_art)</data>
+					</control>
+				</setting>
+				<setting id="library_clean_image_cache" type="string" label="32028" help="32128">
+					<level>0</level>
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="button" format="action">
+						<close>true</close>
+						<data>RunScript(script.copacetic.helper,action=clean_image_cache)</data>
 					</control>
 				</setting>
 			</group>

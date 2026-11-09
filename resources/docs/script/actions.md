@@ -58,7 +58,8 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | Action | What it does |
 |---|---|
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
-| [`clear_artist_art`](#clear_artist_art) | Removes the current artwork of every artist in Kodi's Artists list, ready for a refresh |
+| [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
+| [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
 | [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
@@ -82,6 +83,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`player_stream_refresh`](#player_stream_refresh) | Updates `player_subtitle_kind` after Kodi changed the subtitle itself |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
+| [`remove_broken_art`](#remove_broken_art) | Removes artwork links that are gone (web images and files) from the library |
 | [`roll_seed`](#roll_seed) | Writes a fresh random number to a window property |
 | [`search_backspace`](#search_backspace) | Rewrites `search_query` from the on-screen keys' log, deletes included |
 | [`seed_keyboard_layout`](#seed_keyboard_layout) | Fills the `keyboard` mapping from a Kodi keyboard layout |
@@ -183,15 +185,36 @@ the list opens: a script still running as it closes can write after its unload.
 
 ---
 
-## clear_artist_art
+## clean_image_cache
 
-Asks first, then removes the current artwork (thumb, fanart and every other type) of
-every artist in Kodi's Artists list (song artists too when Kodi's "Show song and album
-artists" setting is on). Kodi's scan only fills art types an artist doesn't already
-have, so stale or dead artwork stays until it is removed. Afterwards refresh all
-artists (Artists, context menu, *Change information provider*, *Set for all artists
-shown*, then yes to refreshing them all): art comes back from the files in each
-artist's folder first, then from the information provider.
+Kodi keeps a cached copy of every image it shows (special://thumbnails), including
+artwork the library no longer uses. This action lists the cached images that no
+library item's own artwork points to (song artists and singles included) and that
+Kodi hasn't recorded showing for 30 days (it saves use counts in batches), says how
+many and how much space they take, and after a yes/no removes them
+(`Textures.RemoveTexture`). The cache belongs to the device, so run it on each Kodi; it
+doesn't touch the shared library. An image that is needed again is simply cached again
+when it next shows (cast photos and add-on images included). Also in the helper's
+settings, under *Library*.
+
+No parameters.
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=clean_image_cache)</onclick>
+```
+
+---
+
+## clear_art
+
+Asks first, then removes the current artwork (every art type of its own but covers
+embedded in the music files, which a refresh never extracts again; or only the web
+images) of every artist or album in Kodi's Artists or Albums list (song artists too when
+Kodi's "Show song and album artists" setting is on). Kodi's scan only fills art types an
+item doesn't already have, so stale or dead artwork stays until it is removed.
+Afterwards refresh them all (Artists or Albums, context menu, *Change information
+provider*, *Set for all … shown*, then yes to refreshing them all): art comes back from
+the files in each folder first, then from the information provider.
 
 Kodi's `AudioLibrary.SetArtistDetails` saves the whole artist, so each one also loses
 its discography and its songs' music video links and their thumbnails (Omega reads
@@ -200,10 +223,13 @@ them again. Each save also refreshes the open window and any music rows, so run 
 from a screen without music rows; a large library takes a while. Image files are
 not touched. Also in the helper's settings, under *Library*.
 
-No parameters.
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `artists`, `albums` | empty | Which list; empty asks |
+| `online_only` | `true`, `false` | empty | `true` removes only web artwork, so new files in the folders take its place on the refresh and only the remaining gaps are filled online; empty asks |
 
 ```xml
-<onclick>RunScript(script.copacetic.helper,action=clear_artist_art)</onclick>
+<onclick>RunScript(script.copacetic.helper,action=clear_art,type=artists)</onclick>
 ```
 
 ---
@@ -859,6 +885,46 @@ Reset vs rebuild](../builders/09-runtime-state.md#reset-vs-rebuild).
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=rebuild)</onclick>
 <onclick>RunScript(script.copacetic.helper,action=rebuild,reset=true)</onclick>
+```
+
+---
+
+## remove_broken_art
+
+Reads the artwork of every artist (song artists too), album (singles
+too), film, set, TV show and season, checks each link once (eight at a time), and lists
+the dead ones:
+
+- a web image that answers 404 or 410 to both a HEAD and a one-byte GET;
+- a file on an smb:// or nfs:// share that answers, which is missing and absent from its
+  folder's listing (or whose folder is absent from its parent's). A share that is asleep
+  or refuses this device checks nothing, and local paths are never checked: the library
+  is shared, and a path can exist on one device and not another;
+- a web server whose name doesn't exist, looked up again after the check. These are
+  listed by name in a second question, as a name only your network knows (`.local`,
+  a VPN) would look the same; `.local`, `.lan`, `.home`, `.internal`, `.arpa` and
+  single-word names are never offered.
+
+Anything uncertain (a timeout, a server refusing the check) counts as fine, a server
+that times out or refuses three times in a row has its other images skipped for the run, and images Kodi
+makes itself (embedded art, video thumbnails) are skipped; the log counts what was
+skipped. Run it on a device whose share login can read every art folder: a server that
+hides folders a login can't read makes them look missing. It needs a working
+internet connection before and after the check. After a yes/no it removes the dead
+links from the library and logs each item it changed.
+
+Artists and albums get new art from a refresh of them all (see [`clear_art`](#clear_art));
+an artist it changes also loses its discography and music video links until then, and a
+song-only artist comes back on the refresh-all only with Kodi's "Show song and album
+artists" setting on. A film or show shows its other art until you refresh it or choose
+art for it; a TV show is saved whole (Omega's `SetTVShowDetails` rewrites its details
+from the library's own copy). Each save refreshes the open window. Also in the helper's
+settings, under *Library*.
+
+No parameters.
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=remove_broken_art)</onclick>
 ```
 
 ---

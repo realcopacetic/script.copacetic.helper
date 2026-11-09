@@ -3,12 +3,14 @@
 import json
 import random
 import time
+from collections.abc import Iterable
 from functools import reduce
 from operator import itemgetter
 from urllib.parse import quote
 
 import xbmc
 import xbmcgui
+import xbmcvfs
 
 from resources.lib.service.trailer import TrailerZoomController, enter_fullscreen
 from resources.lib.shared import logger as log
@@ -39,6 +41,7 @@ from resources.lib.shared.utilities import (
     skin_path,
     to_int,
     topmost_window_id,
+    url_decode_path,
     window_property,
 )
 
@@ -88,36 +91,142 @@ def _reload_skin() -> None:
 
 
 @action
-def clear_artist_art(**kwargs: str) -> None:
+def clean_image_cache(**kwargs: str) -> None:
     """
-    After a yes/no, remove every artist's current art, so refreshing all artists
-    fills it again: Kodi's scan only fills art types an artist doesn't have.
+    After a yes/no on what was found, remove this device's cached images that no
+    library item uses and that haven't been shown for 30 days.
     """
-    heading = ADDON.getLocalizedString(32025)
-    if not xbmcgui.Dialog().yesno(heading, ADDON.getLocalizedString(32026)):
+    from datetime import datetime, timedelta, timezone
+
+    from resources.lib.script.library import EVERYTHING, LIBRARY, library_art
+
+    heading = ADDON.getLocalizedString(32028)
+    progress = xbmcgui.DialogProgress()
+    progress.create(heading, ADDON.getLocalizedString(32224))
+    used = {
+        url_decode_path(url)
+        for kind in LIBRARY
+        for _, _, art in library_art(kind, EVERYTHING.get(kind))
+        for url in art.values()
+    }
+    textures = json_call(
+        "Textures.GetTextures",
+        properties=["url", "cachedurl", "sizes"],
+        parent="clean_image_cache",
+    )["result"].get("textures", [])
+    # lastused is sqlite's CURRENT_TIMESTAMP: UTC, "YYYY-MM-DD HH:MM:SS"
+    cutoff = f"{datetime.now(timezone.utc) - timedelta(days=30):%Y-%m-%d %H:%M:%S}"
+    stale = [
+        texture
+        for texture in textures
+        if url_decode_path(texture["url"]) not in used
+        and max((size["lastused"] for size in texture["sizes"]), default="") < cutoff
+    ]
+    files = (f"special://thumbnails/{texture['cachedurl']}" for texture in stale)
+    size = sum(xbmcvfs.Stat(file).st_size() for file in files if xbmcvfs.exists(file))
+    progress.close()
+    if not stale:
+        xbmcgui.Dialog().notification(heading, ADDON.getLocalizedString(32226))
         return
-    # the artists Kodi's Artists node lists, which its refresh-all fills again
-    artists = json_call(
-        "AudioLibrary.GetArtists", properties=["art"], parent="clear_artist_art"
-    )["result"].get("artists", [])
-    with_art = [artist for artist in artists if artist["art"]]
+    message = ADDON.getLocalizedString(32222) % (len(stale), size / 1e6)
+    if not xbmcgui.Dialog().yesno(heading, message):
+        return
     progress = xbmcgui.DialogProgressBG()
     progress.create(heading)
-    for index, artist in enumerate(with_art):
-        progress.update(100 * index // len(with_art), message=artist["label"])
-        # null removes an art type (Omega AudioLibrary.cpp SetArtistDetails)
+    for index, texture in enumerate(stale):
+        progress.update(100 * index // len(stale))
         json_call(
-            "AudioLibrary.SetArtistDetails",
-            params={
-                "artistid": artist["artistid"],
-                "art": dict.fromkeys(artist["art"]),
-            },
-            parent="clear_artist_art",
+            "Textures.RemoveTexture",
+            params={"textureid": texture["textureid"]},
+            parent="clean_image_cache",
         )
     progress.close()
+    xbmcgui.Dialog().notification(heading, ADDON.getLocalizedString(32223) % len(stale))
+
+
+@action
+def clear_art(type: str = "", online_only: str = "", **kwargs: str) -> None:
+    """
+    After a yes/no, remove the current art of every artist or album in Kodi's list,
+    so refreshing them all fills it again: Kodi's scan only fills missing types.
+
+    :param type: artists or albums; asks when empty.
+    :param online_only: true to remove only web art, so local files take its place.
+    """
+    from resources.lib.script.library import library_art
+
+    kinds = {
+        "artists": xbmc.getLocalizedString(133),
+        "albums": xbmc.getLocalizedString(132),
+    }
+    heading = ADDON.getLocalizedString(32025)
+    if not type:
+        choice = xbmcgui.Dialog().select(heading, list(kinds.values()))
+        if choice < 0:
+            return
+        type = list(kinds)[choice]
+    if not online_only:
+        sources = [ADDON.getLocalizedString(32029), ADDON.getLocalizedString(32030)]
+        choice = xbmcgui.Dialog().select(heading, sources)
+        if choice < 0:
+            return
+        online_only = str(choice == 0)
+    online_only = parse_bool(online_only)
+    which = ADDON.getLocalizedString(32031 if online_only else 32032)
+    if not xbmcgui.Dialog().yesno(
+        heading, ADDON.getLocalizedString(32026) % (which, kinds[type])
+    ):
+        return
+    # the items Kodi's Artists or Albums node lists, which its refresh-all fills again
+    targets = [
+        (type, item_id, label, art_types)
+        for item_id, label, art in library_art(type)
+        if (
+            art_types := [
+                art_type
+                for art_type, url in art.items()
+                if _removable(url, online_only)
+            ]
+        )
+    ]
+    _remove_art(heading, targets)
     xbmcgui.Dialog().notification(
-        heading, ADDON.getLocalizedString(32216) % len(with_art)
+        heading, ADDON.getLocalizedString(32216) % len(targets)
     )
+
+
+def _removable(url: str, online_only: bool) -> bool:
+    """
+    Whether clear_art removes an art URL: web images, or with online_only off all
+    but embedded art (image://music@…), which a refresh never extracts again.
+
+    :param url: Art URL as Kodi returns it.
+    :param online_only: Only web images.
+    :return: True to remove it.
+    """
+    path = url_decode_path(url)
+    if online_only:
+        return path.startswith(("http://", "https://"))
+    return not path.startswith("image://")
+
+
+def _remove_art(
+    heading: str, targets: list[tuple[str, int, str, Iterable[str]]]
+) -> None:
+    """
+    Remove art from library items under a background progress bar.
+
+    :param heading: Progress heading.
+    :param targets: (kind, id, label, art types) per item.
+    """
+    from resources.lib.script.library import remove_art
+
+    progress = xbmcgui.DialogProgressBG()
+    progress.create(heading)
+    for index, (kind, item_id, label, art_types) in enumerate(targets):
+        progress.update(100 * index // len(targets), message=label)
+        remove_art(kind, item_id, art_types)
+    progress.close()
 
 
 @action
@@ -634,6 +743,83 @@ def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
         parent="rate_song",
     )
     window_property("liked_songs_version", value=str(time.time_ns()))
+
+
+@action
+def remove_broken_art(**kwargs: str) -> None:
+    """
+    Check every art link of artists, albums, films, sets, shows and seasons, then,
+    after a yes/no on what was found, remove the dead ones.
+    """
+    from resources.lib.script.library import CHECKED, broken_urls, library_art, online
+
+    heading = ADDON.getLocalizedString(32027)
+    if not online():
+        xbmcgui.Dialog().notification(heading, ADDON.getLocalizedString(32220))
+        return
+    progress = xbmcgui.DialogProgress()
+    progress.create(heading, ADDON.getLocalizedString(32224))
+    items = [
+        (kind, item_id, label, art)
+        # shows before seasons: a show's save rewrites its seasons' art as it was
+        for kind in ("artists", "albums", "movies", "sets", "tvshows", "seasons")
+        for item_id, label, art in library_art(kind, CHECKED.get(kind))
+    ]
+    urls = {url for *_, art in items for url in art.values()}
+    checking = ADDON.getLocalizedString(32225) % len(urls)
+
+    monitor = xbmc.Monitor()
+
+    def report(done: int) -> bool:
+        progress.update(100 * done // len(urls), checking)
+        return progress.iscanceled() or monitor.abortRequested()
+
+    result = broken_urls(urls, report)
+    cancelled = progress.iscanceled() or monitor.abortRequested()
+    progress.close()
+    if result is None:  # cancelled, or offline after the check
+        if not cancelled:
+            xbmcgui.Dialog().notification(heading, ADDON.getLocalizedString(32220))
+        return
+    broken, dead_hosts, skipped = result
+    if skipped:
+        log.info(
+            f"remove_broken_art: {skipped} links skipped, their server didn't answer"
+        )
+
+    def targets_for(wanted: set[str]) -> list[tuple[str, int, str, list[str]]]:
+        return [
+            (kind, item_id, label, [art for art, url in arts.items() if url in wanted])
+            for kind, item_id, label, arts in items
+            if not wanted.isdisjoint(arts.values())
+        ]
+
+    note = f" {ADDON.getLocalizedString(32228) % skipped}" if skipped else ""
+
+    def with_skipped(message: str) -> str:
+        return message + note
+
+    if dead_hosts:  # a name this device alone can't resolve isn't gone: ask
+        hosts = sorted(set(dead_hosts.values()))
+        named = ", ".join(hosts[:5]) + (" …" if len(hosts) > 5 else "")
+        slots = sum(len(art) for *_, art in targets_for(set(dead_hosts)))
+        if xbmcgui.Dialog().yesno(
+            heading, ADDON.getLocalizedString(32227) % (named, slots)
+        ):
+            broken.update(dead_hosts)
+    if not (targets := targets_for(broken)):  # 32229 after the servers were declined
+        message = with_skipped(ADDON.getLocalizedString(32229 if dead_hosts else 32219))
+        xbmcgui.Dialog().notification(heading, message)
+        return
+    count = sum(len(art_types) for *_, art_types in targets)
+    message = ADDON.getLocalizedString(32218) % (count, len(targets), note)
+    if not xbmcgui.Dialog().yesno(heading, message):
+        return
+    for kind, _, label, art_types in targets:
+        log.info(f"remove_broken_art: {kind} {label}: {', '.join(art_types)}")
+    _remove_art(heading, targets)
+    message = with_skipped(ADDON.getLocalizedString(32221) % count)
+    xbmcgui.Dialog().notification(heading, message)
 
 
 @action

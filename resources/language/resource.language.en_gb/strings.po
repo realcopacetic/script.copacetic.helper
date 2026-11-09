@@ -200,17 +200,57 @@ msgstr ""
 
 #: /resources/settings.xml, /resources/lib/script/actions.py
 msgctxt "#32025"
-msgid "Clear artist artwork"
+msgid "Clear artist or album artwork"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32125"
-msgid "Remove the current artwork of every artist in Kodi's Artists list, so refreshing all artists fills it again from the artist information folder and the information provider. Image files are not touched."
+msgid "Remove the current artwork of every artist or album in Kodi's list, so refreshing them all fills it again from the folders and the information provider. Image files are not touched."
 msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32026"
-msgid "Remove the artwork of every artist in Kodi's Artists list? Their discographies and music video links are cleared too until the artists are refreshed. Then refresh all artists: Change information provider → Set for all artists shown."
+msgid "Remove %s from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32029"
+msgid "Online artwork only (local files take its place)"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32030"
+msgid "All artwork"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32031"
+msgid "the online artwork"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32032"
+msgid "all the artwork (embedded covers stay)"
+msgstr ""
+
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32027"
+msgid "Remove broken artwork"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32127"
+msgid "Check every artwork link of artists, albums, films, sets, TV shows and seasons, then remove the ones that are gone (web images that no longer exist, files that were moved or deleted). Run it on a device whose share login can read every art folder. Asks before removing anything; an artist it changes loses its discography and music video links until refreshed."
+msgstr ""
+
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32028"
+msgid "Clean image cache"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32128"
+msgid "Remove this device's cached copies of images that no library item uses and that haven't been shown for 30 days. Asks first. Each Kodi device keeps its own cache."
 msgstr ""
 
 #: /resources/settings.xml
@@ -314,7 +354,67 @@ msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32216"
-msgid "Artwork cleared for %d artists"
+msgid "Artwork cleared for %d items"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32218"
+msgid "Found %d broken images on %d items%s. Remove them? An artist also loses its discography and music video links until refreshed (song-only artists need \"Show song and album artists\" on)."
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32219"
+msgid "No broken artwork found"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32220"
+msgid "No internet connection, nothing removed"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32221"
+msgid "Removed %d broken images"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32222"
+msgid "Found %d cached images (%.0f MB) that nothing has used for 30 days. Remove them?"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32223"
+msgid "Removed %d cached images"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32224"
+msgid "Reading the library…"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32225"
+msgid "Checking %d images…"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32226"
+msgid "Nothing to clean"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32227"
+msgid "No longer found by name: %s, for %d images. Include those images? Say no if any is a server only your network knows."
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32228"
+msgid "(%d skipped: their server didn't answer)"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32229"
+msgid "Nothing removed"
 msgstr ""
 
 
