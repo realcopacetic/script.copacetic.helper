@@ -387,6 +387,7 @@ def replace_file(path: Path, data: bytes) -> None:
     try:
         with os.fdopen(fd, "wb") as file:
             file.write(data)
+        os.chmod(tmp, 0o644)  # mkstemp creates 0600
         os.replace(tmp, path)
     except BaseException:
         with suppress(OSError):
