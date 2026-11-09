@@ -210,7 +210,7 @@ msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32026"
-msgid "Remove the artwork of every artist in the library? Their discography lists are cleared too until the artists are refreshed. Then refresh all artists: Change information provider → Set for all artists shown."
+msgid "Remove the artwork of every artist in the library? Their discographies and music video links are cleared too until the artists are refreshed. Then refresh all artists: Change information provider → Set for all artists shown."
 msgstr ""
 
 #: /resources/settings.xml
