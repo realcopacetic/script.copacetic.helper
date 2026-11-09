@@ -96,11 +96,9 @@ def clear_artist_art(**kwargs: str) -> None:
     heading = ADDON.getLocalizedString(32025)
     if not xbmcgui.Dialog().yesno(heading, ADDON.getLocalizedString(32026)):
         return
+    # the artists Kodi's Artists node lists, which its refresh-all fills again
     artists = json_call(
-        "AudioLibrary.GetArtists",
-        properties=["art"],
-        params={"albumartistsonly": False, "allroles": True},
-        parent="clear_artist_art",
+        "AudioLibrary.GetArtists", properties=["art"], parent="clear_artist_art"
     )["result"].get("artists", [])
     with_art = [artist for artist in artists if artist["art"]]
     progress = xbmcgui.DialogProgressBG()
