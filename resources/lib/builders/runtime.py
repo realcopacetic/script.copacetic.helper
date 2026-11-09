@@ -27,6 +27,7 @@ from resources.lib.shared.utilities import (
     resolver_cache_path,
     runtime_state_path,
     skin_path,
+    skin_string,
 )
 
 # Namespace for deterministic default-entry ids: clean reseeds reproduce
@@ -201,7 +202,7 @@ class RuntimeStateManager:
                 )
                 log.debug(f"skin_mirror: {name} → {text}")
         elif infolabel(f"Skin.String({name})") != text:
-            executebuiltin(f"Skin.SetString({name},{text})")
+            skin_string(name, text)
             log.debug(f"skin_mirror: {name} → {text}")
 
     def _build_default_entry(
