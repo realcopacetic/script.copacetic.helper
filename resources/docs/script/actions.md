@@ -58,7 +58,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | Action | What it does |
 |---|---|
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
-| [`clear_artist_art`](#clear_artist_art) | Removes every music artist's current artwork, ready for a refresh |
+| [`clear_artist_art`](#clear_artist_art) | Removes the current artwork of every artist in Kodi's Artists list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
 | [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
@@ -194,11 +194,11 @@ shown*, then yes to refreshing them all): art comes back from the files in each
 artist's folder first, then from the information provider.
 
 Kodi's `AudioLibrary.SetArtistDetails` saves the whole artist, so each one also loses
-its discography and its songs' music video links (Omega reads the artist without them
-before saving) and is marked as scraped; the refresh fills them again and clears the
-mark. Each save also refreshes the open window and any music rows, so run it from a
-screen without music rows; a large library takes a while. Image files are not
-touched. Also in the helper's settings, under *Library*.
+its discography and its songs' music video links and their thumbnails (Omega reads
+the artist without them before saving) and is marked as scraped; the refresh fills
+them again. Each save also refreshes the open window and any music rows, so run it
+from a screen without music rows; a large library takes a while. Image files are
+not touched. Also in the helper's settings, under *Library*.
 
 No parameters.
 
