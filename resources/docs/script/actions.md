@@ -186,15 +186,17 @@ the list opens: a script still running as it closes can write after its unload.
 ## clear_artist_art
 
 Asks first, then removes the current artwork (thumb, fanart and every other type) of
-every artist in the music library, song artists included. Kodi's scan only fills art
-types an artist doesn't already have, so stale or dead artwork stays until it is
-removed. Afterwards refresh all artists (Artists, context menu, *Change information
+every artist in the music library, song artists and other roles (composers,
+conductors …) included. Kodi's scan only fills art types an artist doesn't already
+have, so stale or dead artwork stays until it is removed. Afterwards refresh all artists (Artists, context menu, *Change information
 provider*, *Set for all artists shown*, then yes to refreshing them all): art comes back
 from the files in each artist's folder first, then from the information provider.
 
 Kodi's `AudioLibrary.SetArtistDetails` also clears the artist's discography and video
 links (Omega reads the artist without them before saving), which the refresh fills
-again. Image files are not touched. Also in the helper's settings, under *Library*.
+again. Each artist saved also refreshes the open window once, so a large library
+takes a while. Image files are not touched. Also in the helper's settings, under
+*Library*.
 
 No parameters.
 
