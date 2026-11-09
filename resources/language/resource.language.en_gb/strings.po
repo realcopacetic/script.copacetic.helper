@@ -205,12 +205,12 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32125"
-msgid "Remove the current artwork of every artist in the music library, so refreshing all artists fills it again from the artist information folder and the information provider. Image files are not touched."
+msgid "Remove the current artwork of every artist in Kodi's Artists list, so refreshing all artists fills it again from the artist information folder and the information provider. Image files are not touched."
 msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32026"
-msgid "Remove the artwork of every artist in the library? Their discographies and music video links are cleared too until the artists are refreshed. Then refresh all artists: Change information provider → Set for all artists shown."
+msgid "Remove the artwork of every artist in Kodi's Artists list? Their discographies and music video links are cleared too until the artists are refreshed. Then refresh all artists: Change information provider → Set for all artists shown."
 msgstr ""
 
 #: /resources/settings.xml
