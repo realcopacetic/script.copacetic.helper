@@ -88,6 +88,41 @@ def _reload_skin() -> None:
 
 
 @action
+def clear_artist_art(**kwargs: str) -> None:
+    """
+    After a yes/no, remove every artist's current art, so refreshing all artists
+    fills it again: Kodi's scan only fills art types an artist doesn't have.
+    """
+    heading = ADDON.getLocalizedString(32025)
+    if not xbmcgui.Dialog().yesno(heading, ADDON.getLocalizedString(32026)):
+        return
+    artists = json_call(
+        "AudioLibrary.GetArtists",
+        properties=["art"],
+        params={"albumartistsonly": False},
+        parent="clear_artist_art",
+    )["result"]["artists"]
+    with_art = [artist for artist in artists if artist["art"]]
+    progress = xbmcgui.DialogProgressBG()
+    progress.create(heading)
+    for index, artist in enumerate(with_art):
+        progress.update(100 * index // len(with_art), message=artist["label"])
+        # null removes an art type (Omega AudioLibrary.cpp SetArtistDetails)
+        json_call(
+            "AudioLibrary.SetArtistDetails",
+            params={
+                "artistid": artist["artistid"],
+                "art": dict.fromkeys(artist["art"]),
+            },
+            parent="clear_artist_art",
+        )
+    progress.close()
+    xbmcgui.Dialog().notification(
+        heading, ADDON.getLocalizedString(32216) % len(with_art)
+    )
+
+
+@action
 def clear_cache(**kwargs: str) -> None:
     """Action: clear processed artwork cache."""
     _clear_cache_util(**kwargs)

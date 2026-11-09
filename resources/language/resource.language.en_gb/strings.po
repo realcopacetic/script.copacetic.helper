@@ -194,6 +194,26 @@ msgid "Test ListenBrainz access"
 msgstr ""
 
 #: /resources/settings.xml
+msgctxt "#32024"
+msgid "Library"
+msgstr ""
+
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32025"
+msgid "Clear artist artwork"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32125"
+msgid "Remove the current artwork of every artist in the music library, so refreshing all artists fills it again from the artist information folder and the information provider. Image files are not touched."
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32026"
+msgid "Remove the artwork of every artist in the library? Their discography lists are cleared too until the artists are refreshed. Then refresh all artists: Change information provider → Set for all artists shown."
+msgstr ""
+
+#: /resources/settings.xml
 msgctxt "#32017"
 msgid "Cache"
 msgstr ""
@@ -290,6 +310,11 @@ msgstr ""
 #: /resources/lib/shared/utilities.py
 msgctxt "#32215"
 msgid "Skin build failed — check the log"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32216"
+msgid "Artwork cleared for %d artists"
 msgstr ""
 
 

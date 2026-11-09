@@ -125,6 +125,21 @@
 				</setting>
 			</group>
 		</category>
+		<category id="library" label="32024" help="">
+			<group id="1" label="">
+				<setting id="library_clear_artist_art" type="string" label="32025" help="32125">
+					<level>0</level>
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="button" format="action">
+						<close>true</close>
+						<data>RunScript(script.copacetic.helper,action=clear_artist_art)</data>
+					</control>
+				</setting>
+			</group>
+		</category>
 		<category id="cache" label="32017" help="">
 			<group id="1" label="">
 				<setting id="cache_clear" type="string" label="32019" help="32119">
