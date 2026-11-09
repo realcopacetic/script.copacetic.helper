@@ -58,6 +58,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | Action | What it does |
 |---|---|
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
+| [`clear_artist_art`](#clear_artist_art) | Removes every music artist's current artwork, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
 | [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
@@ -178,6 +179,27 @@ the list opens: a script still running as it closes can write after its unload.
   <info>Window(home).Property(player_chapter_focus)</info>
   <righttexture>common/white.png</righttexture>
 </control>
+```
+
+---
+
+## clear_artist_art
+
+Asks first, then removes the current artwork (thumb, fanart and every other type) of
+every artist in the music library, song artists included. Kodi's scan only fills art
+types an artist doesn't already have, so stale or dead artwork stays until it is
+removed. Afterwards refresh all artists (Artists, context menu, *Change information
+provider*, *Set for all artists shown*, then yes to refreshing them all): art comes back
+from the files in each artist's folder first, then from the information provider.
+
+Kodi's `AudioLibrary.SetArtistDetails` also clears the artist's discography and video
+links (Omega reads the artist without them before saving), which the refresh fills
+again. Image files are not touched. Also in the helper's settings, under *Library*.
+
+No parameters.
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=clear_artist_art)</onclick>
 ```
 
 ---
