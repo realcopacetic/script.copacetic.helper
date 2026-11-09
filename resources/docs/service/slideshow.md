@@ -85,7 +85,8 @@ Only the hour of `slideshow_start` and `slideshow2_start` is used.
 
 Library sources skip any library that has no content. Items without fanart are
 skipped. An item's fanart is picked at random from all its fanart art types, so
-extra fanart (`fanart1`, `fanart2` …) is included. For `custom`, an item's `thumb`
+extra fanart (`fanart1`, `fanart2` …) and a parent show's or artist's fanart are
+included. A movie's set fanart (`set.fanart`) is not. For `custom`, an item's `thumb`
 is used when it has no fanart, and a picture file with no art at all, such as one in a
 plain folder of pictures, is shown itself. A picture file is one whose name ends in one
 of Kodi's picture extensions, less its archive and feed types: `.png`, `.jpg`, `.jpeg`,
@@ -144,7 +145,7 @@ when the slide has none, that rectangle uses `fff0efef` at `background_ratio`.
 Example (from Copacetic, in the Home window):
 
 ```xml
-<onload>SetProperty(slideshow_artwork_params,"background_blur=true&amp;background_blur_radius=20&amp;background_edge_trim=2&amp;background_darken=true",home)</onload>
+<onload>SetProperty(slideshow_artwork_params,"background_blur=true&amp;background_blur_radius=20&amp;background_edge_trim=2&amp;background_darken=true&amp;background_darken_rects=0,480,1920,120&amp;background_ratio=5",home)</onload>
 ```
 
 Copacetic draws `slideshow_darken` on both the sharp fanart and its blur, so it leaves
