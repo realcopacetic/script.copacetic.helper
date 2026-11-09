@@ -99,9 +99,9 @@ def clear_artist_art(**kwargs: str) -> None:
     artists = json_call(
         "AudioLibrary.GetArtists",
         properties=["art"],
-        params={"albumartistsonly": False},
+        params={"albumartistsonly": False, "allroles": True},
         parent="clear_artist_art",
-    )["result"]["artists"]
+    )["result"].get("artists", [])
     with_art = [artist for artist in artists if artist["art"]]
     progress = xbmcgui.DialogProgressBG()
     progress.create(heading)
