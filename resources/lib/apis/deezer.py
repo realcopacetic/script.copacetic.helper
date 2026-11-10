@@ -85,7 +85,8 @@ def top_tracks(key: str, name: str, accept: Callable[[list], bool]) -> list[list
                 accepted[artist] = rows
                 return artist
 
-    if not (artist := cached(f"deezer:artist:{key}", find, (TTL_ARTIST, TTL_NO_ARTIST))):
+    artist = cached(f"deezer:artist:{key}", find, (TTL_ARTIST, TTL_NO_ARTIST))
+    if not artist:
         return []
     return (
         cached(
