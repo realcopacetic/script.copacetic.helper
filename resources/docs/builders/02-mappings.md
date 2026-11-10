@@ -180,6 +180,8 @@ The value is read *resolved* — the stored value, or the config default when th
 | `"true"` / `"false"` (or bool) | `Skin.SetBool` / `Skin.Reset` | `Skin.HasSetting(name)` |
 | anything else | `Skin.SetString` | `Skin.String(name,value)` / `Skin.String(name)` |
 
+A string is written whole, so commas, spaces, quotes and backslashes in it are kept (a path such as `special://profile/playlists/video/Fanart, mix.xsp` reads back as it is). An empty value clears the skin string.
+
 **One direction only.** The runtime value is the source of truth and the mirror is a projection of it. Never write the skin setting from XML — `Skin.ToggleSetting` on a mirrored name will be silently overwritten on the next sync. If the user should change the value, give them an editor control for the field; the mirror follows.
 
 ---
