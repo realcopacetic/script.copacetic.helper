@@ -24,6 +24,7 @@ import unittest
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest import mock
+from http.client import IncompleteRead
 from urllib.error import HTTPError, URLError
 
 from build_offline import HELPER, install_stubs
@@ -196,8 +197,9 @@ class HttpTest(Base):
             URLError("offline"),
             TimeoutError(),
             b"<html>",
+            IncompleteRead(b"{"),
         ]
-        for status, wait in ((429, 7), (None, 0), (None, 0), (None, 0)):
+        for status, wait in ((429, 7), (None, 0), (None, 0), (None, 0), (None, 0)):
             with self.assertRaises(http.HttpError) as caught:
                 http.get_json("https://example.org/x")
             self.assertEqual(
@@ -504,9 +506,7 @@ class TopSongsTest(Base):
     def test_offline_hides(self):
         self.net.answers = [URLError("offline")]
         self.assertIsNone(self.handler.top_songs())
-        self.assertEqual(
-            self.calls, ["AudioLibrary.GetArtistDetails", "AudioLibrary.GetSongs"]
-        )
+        self.assertEqual(self.calls, ["AudioLibrary.GetArtistDetails"])
 
 
 class TmdbTest(Base):

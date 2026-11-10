@@ -1777,14 +1777,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         artistid = int(self.dbid)
         name, mbid = artist_identity(artistid, "top_songs")
-        if not ((on_deezer or mbid) and (songs := self._artist_songs(artistid))):
-            return  # ListenBrainz alone needs an MBID; nothing to rank without songs
-        # Deezer first (ListenBrainz may queue); ListenBrainz first in the ranking,
-        # so an MBID match claims its title
+        listens = partial(listenbrainz.top_recordings, mbid)
+        if not (mbid and on_listenbrainz):
+            listens = list
+        # Deezer first when on (ListenBrainz may queue); else ListenBrainz before the
+        # songs, so an artist it doesn't know costs no song read
+        recordings = None if on_deezer else listens()
+        if not ((on_deezer or recordings) and (songs := self._artist_songs(artistid))):
+            return
         tracks = self._deezer_tracks(name, mbid, lambda: songs) if on_deezer else []
-        recordings = (
-            listenbrainz.top_recordings(mbid) if mbid and on_listenbrainz else []
-        )
+        if recordings is None:
+            recordings = listens()
+        # ListenBrainz first in the ranking, so an MBID match claims its title
         rankings = [(WEIGHTS["listenbrainz"], recordings), (WEIGHTS["deezer"], tracks)]
         set_plugincontent(content="songs")
         rows = rank_songs(rankings, songs)[: self.limit]

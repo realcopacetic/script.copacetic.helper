@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import json
+from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlsplit
@@ -64,6 +65,7 @@ def get_json(
         log.debug(f"get_json → {exc.code} {path}")
         wait = exc.headers.get("Retry-After") or exc.headers.get("X-RateLimit-Reset-In")
         raise HttpError(exc.code, to_int(wait)) from None
-    except (OSError, ValueError, RecursionError) as exc:  # URLError, timeout; bad JSON
+    except (OSError, ValueError, RecursionError, HTTPException) as exc:
+        # URLError, timeout; bad JSON; a body cut short (IncompleteRead)
         log.debug(f"get_json → {exc!r} {path}")
         raise HttpError(None) from None
