@@ -1831,7 +1831,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
             )
             if on_deezer and (tracks := self._deezer_tracks(name, mbid, songs)):
-                rankings.append((WEIGHTS["deezer"], albums_by_songs(tracks, songs())))
+                shown = {album["albumid"] for album in albums}  # no place for others
+                credited = albums_by_songs(tracks, songs())
+                rankings.append(
+                    (WEIGHTS["deezer"], [i for i in credited if i in shown])
+                )
             if mbid and on_listenbrainz:
                 groups = listenbrainz.top_release_groups(mbid)
                 rankings.append(

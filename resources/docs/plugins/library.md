@@ -347,8 +347,9 @@ add-on setting **Include json call/response logs** on, the payload follows it.
 
 ## `discography`
 
-One library artist's albums (the same albums as `musicdb://albums/?artistid=`), most
-popular first, then the albums no source ranks, newest first. The two sources and
+One library artist's albums (the same albums as the artist's folder: those it only
+features on as a song artist only with Kodi's *Show song and album artists* on),
+most popular first, then the albums no source ranks, newest first. The two sources and
 settings are `top_songs`':
 
 - ListenBrainz ranks release groups
