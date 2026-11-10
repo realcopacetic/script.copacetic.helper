@@ -325,20 +325,49 @@ class Skin:
         definition = node.find("definition")
         return node if definition is None else definition
 
-    def check_reference(self, token: str, name: str, src: str) -> None:
-        """Report a ``$VAR``/``$EXP`` with no definition; ``$PARAM`` names skip."""
+    def check_reference(
+        self, token: str, name: str, src: str, call: Node | None = None
+    ) -> None:
+        """
+        Report a ``$VAR``/``$EXP`` with no definition; ``$PARAM`` names skip,
+        as does a param value the expansion of include ``call`` drops.
+        """
         kind = KINDS[token]
         if kind == "variable":
             name = name.split(",")[0]
-        if "$" not in name and name not in self.defs[kind]:
-            self.report(f"undefined-{kind}", src, f"${token}[{name}]")
+        if (
+            "$" in name
+            or name in self.defs[kind]
+            or self.dropped(call, f"${token}[{name}")
+        ):
+            return
+        self.report(f"undefined-{kind}", src, f"${token}[{name}]")
 
     def check_references(self, root: Node) -> None:
         """Check every literal ``$VAR``/``$EXP``/``$ESCEXP`` token in ``root``."""
+        parents = {child: node for node in root.iter() for child in node}
         for node, value in values(root):
             self.check_escexp(node.src, value)
+            call = parents.get(node) if node.tag == "param" else None
             for token, name in REF.findall(value):
-                self.check_reference(token, name, node.src)
+                self.check_reference(token, name, node.src, call)
+
+    def dropped(self, call: Node | None, ref: str) -> bool:
+        """
+        True when expanding include ``call`` alone leaves ``ref`` nowhere: the param
+        reaches only includes Kodi skips (``provider`` false), so Kodi never reads it.
+        """
+        if call is None or call.tag != "include":
+            return False
+        holder = Node("holder")
+        holder.append(clone(call))
+        kept = self.findings, self.calls  # a trial expansion records nothing
+        self.findings, self.calls = set(), defaultdict(lambda: (set(), set()))
+        self.expand(holder, budget=[BUDGET])
+        self.findings, self.calls = kept
+        texts = [value for _, value in values(holder)]
+        texts += [b for node in holder.iter() for b in getattr(node, "branch", ())]
+        return not any(ref in text for text in texts)
 
     def check_calls(self, root: Node) -> None:
         """Report unknown includes and params their definition never mentions."""
