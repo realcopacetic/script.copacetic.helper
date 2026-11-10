@@ -32,15 +32,19 @@ A trailer session moves through these states, stored in
    each resolve and clears it only when playback starts, so a resolve cancelled as hung
    leaves it set, and the add-on then ends every later call early.
 2. When playback starts, the service checks whether it is the flight
-   (`Player.Filenameandpath` equals `trailer_flight`). If it is, `trailer_flight` is
-   cleared and `trailer_file` is set at once. Anything else is media the user started
-   inside the flight's wait: when it finishes, Kodi would play the trailer in its
+   (`Player.Filenameandpath` equals `trailer_flight`). If it is, `trailer_file` is set
+   at once; `trailer_flight` stays until its audio and video are up, so a request made
+   while its stream opens still waits. If the stream fails to open, the flight ends
+   there: a request that waited behind it is handed to Kodi while still wanted, else
+   the request is retired. Anything else is media the user started inside the flight's
+   wait: when it finishes, Kodi would play the trailer in its
    place, so the service sends `Action(Back,busydialog)` to drop the resolve. This is
    the one cancel left, and it stalls Kodi until the add-on's script stops (up to 5
    seconds). A video started that way inherits the request's windowed start, so it is
    taken full screen. It then plays as normal, sets the
    [player properties](player.md), and the session is cleared.
-   When the flight's audio and video are up, the service decides what to do with it:
+   When the flight's audio and video are up, `trailer_flight` is cleared and the
+   service decides what to do with it:
    - `trailer_state` isn't `pending` (the window was left, or the request was retired):
      the trailer is stopped at once.
    - Not wanted any more (see [Stale trailers](#stale-trailers)): the trailer is paused
@@ -57,8 +61,10 @@ A trailer session moves through these states, stored in
      when it lands. If an older paused trailer is still playing, it goes back to
      `orphaned`; otherwise the session is cleared.
    - The flight is 15 seconds old and hasn't started: the resolve is taken to be hung
-     and cancelled (`Action(Back,busydialog)`, the same stall as above), and a request
-     that waited behind it flies on the next poll if its item still has focus.
+     and cancelled (`Action(Back,busydialog)`, the same stall as above). On the next
+     poll, never in the same one, a request that waited behind it is handed to Kodi if
+     its item still has focus, else it is retired.
+   - Requesting the flight's own trailer again restarts its clock, for both ages.
    - `playing` and stale, or within 2 seconds of its end: the trailer is paused and
      becomes `orphaned`.
    - `fullscreen` and within 2 seconds of its end: the trailer is paused, rewound
@@ -197,8 +203,11 @@ The flight has two properties of its own:
 
 | Property | Value | Set when | Cleared when |
 |---|---|---|---|
-| `trailer_flight` | The trailer Kodi is resolving | A request is handed to Kodi | Its playback starts, other media starts during its resolve, it is cancelled as hung, or the active skin changes or the service stops |
-| `trailer_pending_since` | Time the flight was handed over (seconds since the epoch), restarted when its trailer is requested again | As `trailer_flight` | When the active skin changes or the service stops |
+| `trailer_flight` | The trailer Kodi is resolving or opening | A request is handed to Kodi | Its audio and video are up, its stream fails to open, other media starts during its resolve, or the poll after it is cancelled as hung |
+| `trailer_pending_since` | Time the flight was handed over (seconds since the epoch), restarted when its trailer is requested again | As `trailer_flight` | Never; read only while `trailer_flight` is set |
+
+Both outlive a change of skin or a service restart, so the next session can still stop
+a flight that lands late, or cancel it as hung.
 
 ### `trailer_played_item`
 
