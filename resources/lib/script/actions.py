@@ -535,6 +535,9 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     window_property("trailer_focus_ids", value=kwargs.get("focus_ids", ""))
     window_property("trailer_window", value=kwargs.get("window", ""))
     window_property("trailer_fullscreen", value=kwargs.get("fullscreen", ""))
+    # Kodi < 22: YouTube sets this before a resolve and our Back-cancel strands it;
+    # its next call then ends early "to avoid Kodi crash" and the trailer never plays
+    window_property("plugin.video.youtube-busy")
     log.execute(f'PlayMedia("{trailer}",1,noresume)')
 
 

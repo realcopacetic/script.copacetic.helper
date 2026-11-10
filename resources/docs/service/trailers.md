@@ -23,7 +23,10 @@ A trailer session moves through these states, stored in
 | `fullscreen` | `action=trailer_fullscreen`, or the service when a request made with `fullscreen` starts | The trailer left its window for full screen and keeps playing. The service only stops it near its end. |
 
 1. Your skin runs `action=play_trailer`. The action sets `trailer_state` to `pending`,
-   stores the request properties below, and plays the trailer.
+   stores the request properties below, and plays the trailer. It first clears the
+   YouTube add-on's `plugin.video.youtube-busy` flag: before Kodi 22 the add-on sets
+   it at each resolve and clears it only when playback starts, so a resolve the
+   service drops leaves it set, and the add-on then ends every later call early.
 2. When playback starts, the service checks that it is the trailer: its
    `Player.Filenameandpath` must equal `trailer_request`. Anything else is media the
    user started while the request was on its way. A plugin trailer resolves on Kodi's
