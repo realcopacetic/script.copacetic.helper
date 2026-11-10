@@ -116,6 +116,7 @@ class PlayerMonitor(Player):
         The trailer flight's own start is ours from its first frame; other media
         started inside its wait drops it, or Kodi plays the trailer in its place.
         """
+        window_property("player_seek_offset")  # Next or a new item sends no stop
         if (source := take_source()) is not False:
             self._dial_source = (_queue_key(PlayList(PLAYLIST_MUSIC)), source)
         if not (flight := infolabel("Window(home).Property(trailer_flight)")):
@@ -521,8 +522,8 @@ class PlayerMonitor(Player):
 
     def _cleanup(self) -> None:
         """
-        Clear the player properties unless the next file already plays (its
-        onAVStarted replaces them), then the trailer session.
+        Clear the last jump, the player properties unless the next file already
+        plays (its onAVStarted replaces them), then the trailer session.
         """
         window_property("player_seek_offset")  # the last file's jump
         if not self.isPlaying():
