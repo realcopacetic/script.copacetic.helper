@@ -6,7 +6,7 @@ import time
 from datetime import timedelta
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Collection, Mapping
 
 from resources.lib.art import policy
 from resources.lib.shared import logger as log
@@ -252,6 +252,21 @@ class ArtworkCacheHandler(SQLiteHandler):
             params=(cache_key,),
         )
 
+    def pop_sources(self, urls: Collection[str]) -> list[str]:
+        """
+        Delete every row made from these source URLs.
+
+        :param urls: Source URLs, as served (wrapped) or plain.
+        :return: The rows' processed file paths, for the caller to delete.
+        """
+        if not urls:
+            return []
+        where = f"{policy.ART_FIELD_SOURCE_URL} IN ({', '.join('?' * len(urls))})"
+        params = tuple(urls)
+        rows = self._get_many(where=where, params=params)
+        self._delete_where(where=where, params=params)
+        return [path for row in rows if (path := row.get(policy.ART_FIELD_PROCESSED))]
+
 
 class TruncateCacheHandler(SQLiteHandler):
     """Stores clamp_text results keyed by a hash of text and geometry."""
@@ -367,6 +382,15 @@ class ApiCacheHandler(SQLiteHandler):
             size = payload
         log.debug(f"api_cache → {event} ({size})")
         log_json(f"api_cache → {event}", payload)
+
+    def clear(self, *patterns: str) -> None:
+        """
+        Delete rows whose key matches any of the SQL LIKE patterns, e.g. "tmdb:%".
+
+        :param patterns: LIKE patterns.
+        """
+        if patterns:
+            self._delete_where(" OR ".join(["key LIKE ?"] * len(patterns)), patterns)
 
     def prune(self, grace: int = 86400 * 30) -> None:
         """

@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 import xbmcvfs
 
 from resources.lib.apis.http import USER_AGENT
-from resources.lib.shared.utilities import json_call, url_decode_path
+from resources.lib.shared.utilities import DETAILS, json_call, url_decode_path
 
 # kind: (list method, result key, id key, set method)
 LIBRARY = {
@@ -117,6 +117,99 @@ def remove_art(kind: str, item_id: int, art_types: Iterable[str]) -> None:
         params={id_key: item_id, "art": dict.fromkeys(art_types)},
         parent="remove_art",
     )
+
+
+def _details(type: str, dbid: int, *properties: str) -> dict:
+    """
+    One library item's details.
+
+    :param type: A DETAILS key.
+    :param dbid: The item's library id.
+    :param properties: Properties to fetch.
+    :return: The details object.
+    """
+    return json_call(
+        DETAILS[type],
+        properties=list(properties),
+        params={f"{type}id": dbid},
+        parent="refresh_cached",
+    )["result"][f"{type}details"]
+
+
+def api_patterns(type: str, dbid: int) -> list[str]:
+    """
+    LIKE patterns for an item's api_cache rows: a movie's TMDb rows, a show's and its
+    seasons' for a show, season or episode, and ListenBrainz's for a music item.
+
+    :param type: A DETAILS key.
+    :param dbid: The item's library id.
+    :return: Patterns, none when the item has no id the APIs know it by.
+    """
+    if type in ("artist", "album", "song"):
+        from resources.lib.apis.listenbrainz import musicbrainz_id
+
+        _, mbid = musicbrainz_id(type, dbid, "refresh_cached")
+        return [f"listenbrainz:%:{mbid}"] if mbid else []
+    if type in ("season", "episode"):
+        type, dbid = "tvshow", _details(type, dbid, "tvshowid")["tvshowid"]
+    if type not in ("movie", "tvshow"):
+        return []
+    if not (tmdb := _details(type, dbid, "uniqueid")["uniqueid"].get("tmdb")):
+        return []
+    kinds = ("movie",) if type == "movie" else ("tvshow", "season_%")
+    return [f"tmdb:{kind}:{tmdb}:%" for kind in kinds]
+
+
+def remove_textures(urls: Iterable[str]) -> int:
+    """
+    Remove this device's cached copies of these images, so the next view fetches
+    them again. Kodi unwraps a url filter's value (TextureDatabase.cpp).
+
+    :param urls: Image URLs, wrapped or plain.
+    :return: How many were removed.
+    """
+    if not (
+        rules := [{"field": "url", "operator": "is", "value": url} for url in urls]
+    ):
+        return 0
+    textures = json_call(
+        "Textures.GetTextures",
+        properties=["url"],
+        query_filter={"or": rules},
+        parent="remove_textures",
+    )["result"].get("textures", [])
+    for texture in textures:
+        json_call(
+            "Textures.RemoveTexture",
+            params={"textureid": texture["textureid"]},
+            parent="remove_textures",
+        )
+    return len(textures)
+
+
+def refresh_cached(type: str, dbid: int) -> None:
+    """
+    Forget what the helper and Kodi cached for one item: its API answers, its art's
+    processed copies and its art's textures, so each is fetched again when next shown.
+
+    :param type: A DETAILS key.
+    :param dbid: The item's library id.
+    """
+    from resources.lib.shared.sqlite import ApiCacheHandler, ArtworkCacheHandler
+
+    ApiCacheHandler().clear(*api_patterns(type, dbid))
+    art = _details(type, dbid, "art")["art"]
+    # the helper keys processed art by the URL as the skin passed it: either form
+    urls = {
+        form
+        for name, url in art.items()
+        if "." not in name
+        for form in (url, url_decode_path(url))
+    }
+    processed = ArtworkCacheHandler().pop_sources(urls)
+    for path in processed:
+        xbmcvfs.delete(path)
+    remove_textures([*urls, *processed])
 
 
 def online() -> bool:

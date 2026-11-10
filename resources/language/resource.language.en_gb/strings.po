@@ -268,6 +268,31 @@ msgctxt "#32119"
 msgid "Delete all processed artwork (blurred, cropped), reset the artwork lookup database and forget saved TMDB and ListenBrainz answers. Source artwork is unaffected."
 msgstr ""
 
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32033"
+msgid "Clear TMDb data"
+msgstr ""
+
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32034"
+msgid "Clear ListenBrainz data"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32133"
+msgid "Forget every saved TMDb answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32134"
+msgid "Forget every saved ListenBrainz answer (top songs, top albums, listener counts), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32035"
+msgid "Forget every saved %s answer? Each is fetched again when next shown."
+msgstr ""
+
 
 
 
@@ -415,6 +440,16 @@ msgstr ""
 #: /resources/lib/script/actions.py
 msgctxt "#32229"
 msgid "Nothing removed"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32230"
+msgid "Cleared"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32231"
+msgid "Fetched again when next shown"
 msgstr ""
 
 
@@ -625,4 +660,9 @@ msgstr ""
 
 msgctxt "#32834"
 msgid "This will reset all entries.\n\nAre you sure you want to continue?"
+msgstr ""
+
+#: /addon.xml, /resources/lib/script/actions.py — context menu item
+msgctxt "#32835"
+msgid "Refresh cached data"
 msgstr ""

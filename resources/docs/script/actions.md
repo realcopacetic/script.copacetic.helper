@@ -59,6 +59,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 |---|---|
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
 | [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
+| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb or from ListenBrainz |
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
@@ -83,6 +84,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`player_stream_refresh`](#player_stream_refresh) | Updates `player_subtitle_kind` after Kodi changed the subtitle itself |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
+| [`refresh_cached`](#refresh_cached) | Forgets one library item's saved web answers and cached images |
 | [`remove_broken_art`](#remove_broken_art) | Removes artwork links that are gone (web images and files) from the library |
 | [`roll_seed`](#roll_seed) | Writes a fresh random number to a window property |
 | [`search_backspace`](#search_backspace) | Rewrites `search_query` from the on-screen keys' log, deletes included |
@@ -104,7 +106,7 @@ action lets you choose another window.
 
 ## Items the helper adds to the context menu
 
-The helper adds music items to Kodi's context menu. They show only while a skin that
+The helper adds items to Kodi's context menu, all but the last for music. They show only while a skin that
 [opts in](../service/index.md#opting-in) is active (the service sets
 `Window(home).Property(helper_active)` for it), on the items below, and each one runs
 the action named. In any other skin they are hidden.
@@ -117,6 +119,7 @@ the action named. In any other skin they are hidden.
 | Unlike | Library songs rated at or above `Skin.String(like_threshold)` | [`rate_song`](#rate_song) with `rating=0` |
 | Pin to speed dial | Library songs, artists and albums, and music playlists, that are not pinned in [speed dial](../plugins/speed_dial.md) | [`pin`](#pin) |
 | Unpin | Library songs, artists and albums, and music playlists, that are pinned in speed dial | [`unpin`](#unpin) |
+| Refresh cached data | Library films, sets, TV shows, seasons, episodes, music videos, artists, albums and songs | [`refresh_cached`](#refresh_cached) |
 
 On [speed dial](../plugins/speed_dial.md) items, Shuffle, Start mix and Unpin come
 from the item's own context rows instead, at the top of the menu.
@@ -201,6 +204,22 @@ No parameters.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=clean_image_cache)</onclick>
+```
+
+---
+
+## clear_api_cache
+
+Asks first, then forgets every saved answer from one web service, so each is fetched
+again the next time it is needed. For one item instead, use
+[`refresh_cached`](#refresh_cached). Also in the helper's settings, under *Cache*.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `source` | `tmdb`, `listenbrainz` | required | Which service's answers |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=clear_api_cache,source=listenbrainz)</onclick>
 ```
 
 ---
@@ -885,6 +904,36 @@ Reset vs rebuild](../builders/09-runtime-state.md#reset-vs-rebuild).
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=rebuild)</onclick>
 <onclick>RunScript(script.copacetic.helper,action=rebuild,reset=true)</onclick>
+```
+
+---
+
+## refresh_cached
+
+Forgets what was saved for one library item, so it is fetched again when next shown,
+then refreshes the list. The context menu's **Refresh cached data** item runs it. It
+removes:
+
+- the item's saved web answers: a film's TMDb details; for a TV show, season or
+  episode, the show's and all its seasons'; for an artist, album or song, its
+  ListenBrainz answers (by its MusicBrainz id: an artist's top songs, top albums and
+  listener count);
+- the helper's processed copies of the item's own artwork (blurred, cropped);
+- this device's cached copies of that artwork (`Textures.RemoveTexture`), so an image
+  file replaced under the same name shows straight away rather than after Kodi's daily
+  check.
+
+It doesn't change the library: art links and information stay as they are (for
+those, Kodi's *Refresh* in the information dialog). Art a parent lends the item
+(`tvshow.poster` on an episode) is the parent's, so refresh the parent for that.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | database id | required | The item |
+| `type` | `movie`, `set`, `tvshow`, `season`, `episode`, `musicvideo`, `artist`, `album`, `song` | required | Its type (`ListItem.DBType`) |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=refresh_cached,id=$INFO[ListItem.DBID],type=$INFO[ListItem.DBType])</onclick>
 ```
 
 ---

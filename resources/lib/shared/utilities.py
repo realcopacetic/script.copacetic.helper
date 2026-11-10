@@ -39,6 +39,19 @@ TEXTS = str(Path(ADDONDATA) / "text")
 TEMPS = str(Path(ADDONDATA) / "temp")
 LOOKUPS = str(Path(ADDONDATA) / "_lookup.db")
 
+# DBType: details method; its id and result keys are f"{type}id", f"{type}details"
+DETAILS = {
+    "movie": "VideoLibrary.GetMovieDetails",
+    "set": "VideoLibrary.GetMovieSetDetails",
+    "tvshow": "VideoLibrary.GetTVShowDetails",
+    "season": "VideoLibrary.GetSeasonDetails",
+    "episode": "VideoLibrary.GetEpisodeDetails",
+    "musicvideo": "VideoLibrary.GetMusicVideoDetails",
+    "artist": "AudioLibrary.GetArtistDetails",
+    "album": "AudioLibrary.GetAlbumDetails",
+    "song": "AudioLibrary.GetSongDetails",
+}
+
 # The one user of the runtime state and resolver cache while every skin shared them.
 SHARED_STATE_OWNER = "skin.copacetic2"
 

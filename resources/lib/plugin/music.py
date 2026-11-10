@@ -43,11 +43,6 @@ _ICONS = {
     "playlist": "DefaultMusicPlaylists.png",
     "song": "DefaultMusicSongs.png",
 }
-_MBIDS = {  # MusicBrainz entity and AudioLibrary field per library type
-    "album": ("release-group", "musicbrainzreleasegroupid"),
-    "artist": ("artist", "musicbrainzartistid"),
-    "song": ("recording", "musicbrainztrackid"),
-}
 # Details Kodi's own musicdb items carry as {type}_{field} properties too
 _PROPERTIES = {"born", "description", "died", "disbanded", "formed", "yearsactive"}
 ALBUM_RANK_PROPERTIES = [*_DETAILS["album"][1], "art", "musicbrainzreleasegroupid"]
@@ -105,27 +100,6 @@ def details_item(
         .get(f"{type}details")
     )
     return library_item(details, type) if details else None
-
-
-def musicbrainz_id(type: str, dbid: int, parent: str) -> tuple[str, str]:
-    """
-    A library album, artist or song's MusicBrainz entity and id: its release group,
-    first artist id or recording (Picard's "MusicBrainz Track Id").
-
-    :param type: album, artist or song.
-    :param dbid: Library id.
-    :param parent: Caller name for logging.
-    :return: (entity, MBID), the MBID empty when untagged.
-    """
-    entity, field = _MBIDS[type]
-    mbid = json_call(
-        _DETAILS[type][0],
-        properties=[field],
-        params={f"{type}id": dbid},
-        parent=parent,
-    )["result"][f"{type}details"][field]
-    # An artist's is a one-id list, [""] when untagged
-    return entity, mbid[0] if type == "artist" else mbid
 
 
 def compact_count(count: int) -> str:
