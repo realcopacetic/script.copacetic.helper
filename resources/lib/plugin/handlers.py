@@ -1819,8 +1819,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # as the artist's folder: albums it only features on need Kodi's "Show song
         # and album artists" (JSON-RPC's artistid filter takes song artists too)
         if not condition("System.GetBool(musiclibrary.showcompilationartists)"):
-            # an artist that only features on songs keeps those (song info reaches it)
-            albums = [a for a in albums if artistid in a["artistid"]] or albums
+            albums = [album for album in albums if artistid in album["artistid"]]
         rankings = []
         on_deezer, on_listenbrainz = deezer.enabled(), listenbrainz.enabled()
         if albums and (on_deezer or on_listenbrainz):
