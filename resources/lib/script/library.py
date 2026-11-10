@@ -207,8 +207,8 @@ def remove_textures(urls: Iterable[str] = (), prefixes: Iterable[str] = ()) -> i
 
 def refresh_cached(type: str, dbid: int) -> int:
     """
-    Mark one item's API answers stale and forget its art's processed rows and this
-    device's copies of its art, so each is made again when next shown.
+    Mark one item's API answers stale, forget its art's processed rows keyed by URL
+    and this device's copies of its art, so each is made again when next shown.
 
     :param type: A DETAILS key.
     :param dbid: The item's library id.
@@ -232,7 +232,7 @@ def refresh_cached(type: str, dbid: int) -> int:
     # outputs of a source Kodi hadn't cached are named by its URL and rewritten in
     # place (art/cache.py with_process_variant): drop Kodi's copies of those
     stems = {
-        getCacheThumbName(url_decode_path(url)).removesuffix(".tbn") for url in art
+        getCacheThumbName(url_decode_path(form)).removesuffix(".tbn") for form in forms
     }
     prefixes = [str(Path(folder) / stem) for folder in (BLURS, CROPS) for stem in stems]
     # a source that can't be read now keeps its copy: it may be the only one left
@@ -256,8 +256,8 @@ def readable(urls: list[str]) -> list[str]:
 
 def _readable(url: str) -> bool:
     """
-    Whether an art URL's file exists, or its web image answers below 400 (HEAD,
-    then a one-byte GET); embedded art and transforms check the file they read.
+    Whether an art URL's file exists, or its web address answers with an image
+    (HEAD, then a one-byte GET); embedded art and transforms check the file they read.
 
     :param url: Art URL as Kodi returns it.
     :return: True when it can be read now.
@@ -272,8 +272,8 @@ def _readable(url: str) -> bool:
     for method, extra in (("HEAD", {}), ("GET", {"Range": "bytes=0-0"})):
         headers = {"User-Agent": USER_AGENT, **extra}
         try:
-            with urlopen(Request(url, method=method, headers=headers), timeout=5):
-                return True
+            with urlopen(Request(url, method=method, headers=headers), timeout=5) as r:
+                return r.headers.get_content_type().startswith("image/")
         except (OSError, ValueError, HTTPException):  # HTTPError and URLError too
             pass
     return False

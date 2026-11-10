@@ -255,15 +255,18 @@ class ArtworkCacheHandler(SQLiteHandler):
 
     def delete_sources(self, urls: Collection[str]) -> int:
         """
-        Delete every row made from these source URLs; their files stay, as an image
-        on screen may still show one, until clear_cache.
+        Delete the rows made from these sources before Kodi cached them, keyed by URL;
+        a row keyed by content misses once it changes, and its rewrite evicts the file.
 
         :param urls: Source URLs, in every form the skin may have passed.
         :return: How many rows were deleted.
         """
         if not urls:
             return 0
-        where = f"{policy.ART_FIELD_SOURCE_URL} IN ({', '.join('?' * len(urls))})"
+        where = (
+            f"{policy.ART_FIELD_HASH} IS NULL AND "
+            f"{policy.ART_FIELD_SOURCE_URL} IN ({', '.join('?' * len(urls))})"
+        )
         return self._delete_where(where=where, params=tuple(urls))
 
 
