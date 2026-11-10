@@ -163,14 +163,16 @@ class PlayerMonitor(Player):
         """
         window_property("player_seek_offset")
 
-    def expire_seek_offset(self, after: float = 4.0) -> None:
+    def expire_seek_offset(self) -> None:
         """
-        Poller hook: drop the last jump once its label has faded (3 s, then 1x), so
-        a later seek with no offset of its own (an EDL or scene skip) doesn't show it.
-
-        :param after: Seconds after the seek.
+        Poller hook: drop the last jump once its label has faded (Kodi's 3 s from the
+        seek's end, then 1x), so a later seek with no offset of its own doesn't show it.
         """
-        if self._seek_at is not None and time.monotonic() - self._seek_at > after:
+        if (
+            self._seek_at is not None
+            and time.monotonic() - self._seek_at > 4
+            and condition("!Player.HasPerformedSeek(4)")
+        ):
             self._seek_at = None
             window_property("player_seek_offset")
 
@@ -522,6 +524,7 @@ class PlayerMonitor(Player):
         Clear the player properties unless the next file already plays (its
         onAVStarted replaces them), then the trailer session.
         """
+        window_property("player_seek_offset")  # the last file's jump
         if not self.isPlaying():
             self._publish({})
             self._dropped_flight = False
