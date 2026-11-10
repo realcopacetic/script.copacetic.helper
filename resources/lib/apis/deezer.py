@@ -14,12 +14,12 @@ TTL_ARTIST, TTL_NO_ARTIST, TTL_TOP, TTL_NO_TOP = 90 * DAY, 7 * DAY, 7 * DAY, DAY
 CANDIDATES = 3  # same-named artists tried, most followed first
 # Deezer answers its errors with a 200 and a code: as the HTTP status meaning the same
 _STATUS = {
-    4: 429,
-    501: 400,
-    600: 400,
-    700: 503,
-    800: 404,
-}  # quota, bad query, busy, none
+    4: 429,  # quota
+    501: 400,  # parameter missing
+    600: 400,  # invalid query
+    700: 503,  # service busy
+    800: 404,  # no data
+}
 TITLE = 200  # characters kept of a title: Deezer's answer is not ours to trust
 
 
