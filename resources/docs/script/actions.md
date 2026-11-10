@@ -913,22 +913,24 @@ Reset vs rebuild](../builders/09-runtime-state.md#reset-vs-rebuild).
 Makes what was saved for one library item come again when next shown, and refreshes
 the list in a media window (on Home a widget fetches again when its content next
 loads). The context menu's **Refresh cached data** item runs it. A notification says
-whether anything was cached for the item.
+whether anything was cached for the item. Checking the sources takes up to six
+seconds.
 
 - **Web answers** are marked out of date rather than deleted: a film's TMDb details;
   for a TV show, season or episode, the show's and all its seasons'; for an artist,
   album or song, its ListenBrainz answers (by its MusicBrainz id: an artist's top
   songs, top albums and listener count). Each is fetched again when next needed, and
   the old answer still shows if that fetch fails (offline, service down).
-- **Processed artwork** (blurred, cropped) of the item's own artwork is forgotten, so
-  it is made again. The files stay until [`clear_cache`](#clear_cache), since an image
-  on screen may still show one.
+- **Processed artwork** (blurred, cropped) of the item's own artwork that was made
+  before Kodi had cached the image is forgotten, so it is made again. The rest is
+  keyed by the image's content, so it is made again by itself once the image changes.
 - **This device's cached copies** of that artwork (`Textures.RemoveTexture`) and of
   its processed images are removed, so an image file replaced under the same name is
   read again when next loaded rather than after Kodi's daily check. An image on screen
   at the time keeps its copy in memory until it leaves the screen. A source that can't
   be read right now keeps its copy, as it may be the only one left: a missing file, a
-  share or web image that doesn't answer within a few seconds, or a web error.
+  share or web address that doesn't answer within a few seconds, or one that answers
+  with anything but an image.
 
 It doesn't change the library: art links and information stay as they are (for
 those, Kodi's *Refresh* in the information dialog). Art a parent lends the item
