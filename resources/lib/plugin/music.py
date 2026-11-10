@@ -2,6 +2,7 @@
 
 import re
 from collections import Counter
+from functools import lru_cache
 from operator import itemgetter
 from pathlib import PurePosixPath
 from typing import Callable, Iterable, Iterator
@@ -121,6 +122,7 @@ def compact_count(count: int) -> str:
     return f"{count}"
 
 
+@lru_cache(maxsize=4096)
 def title_key(title: str) -> str:
     """
     A song title reduced for matching across sources: no trailing "(feat. …)",
@@ -185,33 +187,28 @@ def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
         key = title_key(title)
         return (
             by_mbid.get(mbid)
-            or (key and album and by_album.get((key, title_key(album))))
+            or (key and (album := title_key(album)) and by_album.get((key, album)))
             or by_title.get(key)
         )
 
     return find
 
 
-def deezer_match(songs: list[dict]) -> Callable[[list], bool]:
+def deezer_match(songs: list[dict], rows: list) -> bool:
     """
-    Whether a Deezer artist's top-track rows are this library artist's: an album
-    title in common, or OVERLAP song titles (all of them, for fewer).
+    Whether a Deezer artist's top-track rows are this library artist's: OVERLAP
+    song titles in common (all of them, for fewer), or one and an album title.
 
     :param songs: The library artist's songs with album and title.
-    :return: accept(rows) for deezer.top_tracks.
+    :param rows: ["", title, album title] rows.
+    :return: True for a match.
     """
-    albums = {title_key(song["album"]) for song in songs} - {""}
     titles = {title_key(song["title"]) for song in songs} - {""}
-    need = min(OVERLAP, len(titles)) or 1
-
-    def accept(rows: list) -> bool:
-        return (
-            not albums.isdisjoint(title_key(album) for *_, album in rows)
-            or len(titles.intersection(title_key(title) for _, title, _ in rows))
-            >= need
-        )
-
-    return accept
+    shared = len(titles.intersection(title_key(title) for _, title, _ in rows))
+    albums = {title_key(song["album"]) for song in songs} - {""}
+    if not albums.isdisjoint(title_key(album) for *_, album in rows):
+        return shared >= 1
+    return shared >= min(OVERLAP, len(titles)) > 0
 
 
 def rank_songs(rankings: list[tuple[float, list]], songs: list[dict]) -> list[dict]:
@@ -235,8 +232,8 @@ def rank_songs(rankings: list[tuple[float, list]], songs: list[dict]) -> list[di
     scores = fused((weight, keys(rows)) for weight, rows in rankings)
     if not scores:
         return []
-    played = filter(itemgetter("playcount"), songs)
-    for song in sorted(played, key=itemgetter("playcount"), reverse=True):
+    played = filter(itemgetter("playcount"), songs)  # most played; earliest release
+    for song in sorted(played, key=lambda s: (-s["playcount"], s["year"] or 9999)):
         shown.setdefault(title_key(song["title"]), song)
     return sorted(
         shown.values(),

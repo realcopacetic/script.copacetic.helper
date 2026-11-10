@@ -920,8 +920,9 @@ seconds.
   for a TV show, season or episode, the show's and all its seasons'; for an artist,
   album or song, its ListenBrainz answers (by its MusicBrainz id: an artist's top
   songs, top albums and listener count); for an artist, also its Deezer match and
-  top tracks, so the next open searches Deezer again. Each is fetched again when next needed, and
-  the old answer still shows if that fetch fails (offline, service down).
+  top tracks, so the next open searches Deezer again. Each is fetched again when
+  next needed, and the old answer still shows if that fetch fails (offline, service
+  down).
 - **Processed artwork** (blurred, cropped) of the item's own artwork that was made
   before Kodi had cached the image is forgotten, so it is made again. The rest is
   keyed by the image's content, so it is made again by itself once the image changes.
@@ -929,10 +930,10 @@ seconds.
   its processed images are removed, so an image file replaced under the same name is
   read again when next loaded rather than after Kodi's daily check. An image on screen
   at the time keeps its copy in memory: move focus off it for a few seconds (Kodi
-  frees a large image two seconds after it leaves the screen) and it reloads. A source that can't
-  be read right now keeps its copy, as it may be the only one left: a missing file, a
-  share or web address that doesn't answer within a few seconds, or one that answers
-  with anything but an image.
+  frees a large image two seconds after it leaves the screen) and it reloads. A
+  source that can't be read right now keeps its copy, as it may be the only one
+  left: a missing file, a share or web address that doesn't answer within a few
+  seconds, or one that answers with anything but an image.
 
 It doesn't change the library: art links and information stay as they are (for
 those, Kodi's *Refresh* in the information dialog). Art a parent lends the item

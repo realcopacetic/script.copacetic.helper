@@ -33,8 +33,9 @@ def cached(
     key: str, fetch: Callable[[], Any], ttl: tuple[int, int], queue: str = ""
 ) -> Any:
     """
-    The answer for key, fetched when stale and cached per answer kind; a failure
-    keeps a stale answer. With a queue, one request a second across plugin calls.
+    The answer for key, fetched when stale and cached per answer kind; a failure,
+    or an answer of another shape, keeps a stale answer. With a queue, one request
+    a second across plugin calls.
 
     :param key: api_cache key, "<source>:<kind>:<id>".
     :param fetch: Returns the shaped payload; raises HttpError.
@@ -60,9 +61,12 @@ def cached(
                 return payload
     try:
         payload = fetch()
-    except HttpError as exc:
+    except (HttpError, LookupError, TypeError, AttributeError, ValueError) as exc:
+        if not isinstance(exc, HttpError):  # an answer of another shape
+            log.warning(f"{source} → unexpected answer for {key}: {exc!r}")
+            exc = HttpError(None)
         if exc.status == 401:  # the one failure the user can fix
-            log.warning(f"{source} → the service refused the token (401)")
+            log.warning(f"{source} → refused the token (401)")
         wait = failure_ttl(exc)
         if exc.status == 429 and queue:
             home.setProperty(queue, f"{slot + wait}")
