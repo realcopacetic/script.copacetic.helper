@@ -143,15 +143,34 @@ class PlayerMonitor(Player):
         clock = ":".join(f"{p:02}" for p in (hours, minutes, seconds)[not hours :])
         sign = "-" if offset < 0 else "+"
         window_property("player_seek_offset", value=bool(offset) and sign + clock)
-        self._published.add("player_seek_offset")  # the next file or stop clears it
 
     def onPlayBackSeekChapter(self, chapter: int) -> None:
         """
-        A chapter jump keeps its Player.SeekOffset: drop the last seek's offset.
+        A chapter jump reports no offset: drop the last seek's.
 
         :param chapter: The chapter sought to.
         """
         window_property("player_seek_offset")
+
+    def onPlayBackSpeedChanged(self, speed: int) -> None:
+        """
+        A speed change counts as a seek with no jump: drop the last seek's offset.
+
+        :param speed: The new playback speed.
+        """
+        window_property("player_seek_offset")
+
+    @staticmethod
+    def expire_seek_offset() -> None:
+        """
+        Poller hook: drop the last jump once the seek bar's 3 s for it are over, so
+        a later seek with no offset of its own (an EDL skip, a stop) never shows it.
+        """
+        if condition(
+            "!String.IsEmpty(Window(home).Property(player_seek_offset))"
+            " + !Player.HasPerformedSeek(3)"
+        ):
+            window_property("player_seek_offset")
 
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
