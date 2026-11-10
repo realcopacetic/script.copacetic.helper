@@ -59,7 +59,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 |---|---|
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
 | [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
-| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb or from ListenBrainz |
+| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz or Deezer |
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
@@ -216,7 +216,7 @@ again the next time it is needed. For one item instead, use
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `source` | `tmdb`, `listenbrainz` | required | Which service's answers |
+| `source` | `tmdb`, `listenbrainz`, `deezer` | required | Which service's answers |
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=clear_api_cache,source=listenbrainz)</onclick>
@@ -919,7 +919,8 @@ seconds.
 - **Web answers** are marked out of date rather than deleted: a film's TMDb details;
   for a TV show, season or episode, the show's and all its seasons'; for an artist,
   album or song, its ListenBrainz answers (by its MusicBrainz id: an artist's top
-  songs, top albums and listener count). Each is fetched again when next needed, and
+  songs, top albums and listener count); for an artist, also its Deezer match and
+  top tracks, so the next open searches Deezer again. Each is fetched again when next needed, and
   the old answer still shows if that fetch fails (offline, service down).
 - **Processed artwork** (blurred, cropped) of the item's own artwork that was made
   before Kodi had cached the image is forgotten, so it is made again. The rest is

@@ -54,7 +54,11 @@ REGISTRY = {}
 
 _LIBRARY_ITEMS = {"album": "albumid", "artist": "artistid", "genre": "genreid"}
 _INFO_DIALOGS = ("songinformation", "musicinformation", "movieinformation")
-API_SOURCES = {"tmdb": ("TMDb", 32033), "listenbrainz": ("ListenBrainz", 32034)}
+API_SOURCES = {
+    "tmdb": ("TMDb", 32033),
+    "listenbrainz": ("ListenBrainz", 32034),
+    "deezer": ("Deezer", 32036),
+}
 MIX_SIZE = 50
 MIX_ARTIST_SHARE = 0.15
 
@@ -148,7 +152,7 @@ def clear_api_cache(source: str, **kwargs: str) -> None:
     After a yes/no, forget every saved answer from one web API, so each is fetched
     again when next needed.
 
-    :param source: tmdb or listenbrainz.
+    :param source: tmdb, listenbrainz or deezer.
     """
     from resources.lib.shared.sqlite import ApiCacheHandler
 

@@ -1,17 +1,17 @@
 # author: realcopacetic
 
 import re
-import unicodedata
-from itertools import chain
+from collections import Counter
 from operator import itemgetter
 from pathlib import PurePosixPath
+from typing import Callable, Iterable, Iterator
 
 from xbmc import getLocalizedString
 from xbmcgui import ListItem
 
 from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag, joined
-from resources.lib.shared.utilities import ADDON, json_call
+from resources.lib.shared.utilities import ADDON, fold, json_call
 
 _DETAILS = {
     "album": (
@@ -47,6 +47,10 @@ _ICONS = {
 _PROPERTIES = {"born", "description", "died", "disbanded", "formed", "yearsactive"}
 ALBUM_RANK_PROPERTIES = [*_DETAILS["album"][1], "art", "musicbrainzreleasegroupid"]
 SONG_RANK_PROPERTIES = [*_DETAILS["song"][1], "art", "musicbrainztrackid", "playcount"]
+ALBUM_SONG_PROPERTIES = ["album", "albumid", "musicbrainztrackid", "title", "year"]
+K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
+WEIGHTS = {"deezer": 1.0, "listenbrainz": 1.0}  # what's streamed now, all-time
+OVERLAP = 3  # song titles in common that identify an artist with no album in common
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
 _DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
@@ -125,63 +129,177 @@ def title_key(title: str) -> str:
     :param title: Song title.
     :return: Matching key.
     """
-    title = re.sub(r"(?<=\S)\s*[(\[].*|\s+-\s.*", "", title.casefold())
-    return "".join(c for c in unicodedata.normalize("NFKD", title) if c.isalnum())
+    return fold(re.sub(r"(?<=\S)\s*[(\[].*|\s+-\s.*", "", title.casefold()))
 
 
-def rank_songs(recordings: list[list[str]], songs: list[dict]) -> list[dict]:
+def artist_identity(dbid: int, parent: str) -> tuple[str, str]:
     """
-    Songs matching recordings (by recording MBID, else title) in their order, then
-    played songs, most played first; one per title, earliest release; [] if no match.
+    A library artist's name and MusicBrainz id.
 
-    :param recordings: [recording MBID, title] pairs, most popular first.
-    :param songs: Library songs with musicbrainztrackid, playcount, title and year.
+    :param dbid: Library artist id.
+    :param parent: Caller name for logging.
+    :return: (name, MBID), the MBID empty when untagged.
+    """
+    details = json_call(
+        "AudioLibrary.GetArtistDetails",
+        properties=["musicbrainzartistid"],
+        params={"artistid": dbid},
+        parent=parent,
+    )["result"]["artistdetails"]
+    return details["artist"], details["musicbrainzartistid"][0]
+
+
+def fused(rankings: Iterable[tuple[float, Iterable]]) -> Counter:
+    """
+    Each key's score over weighted rankings: weight / (K + place) in every ranking
+    that lists it, at its first place there (reciprocal rank fusion).
+
+    :param rankings: (weight, keys best first) pairs.
+    :return: Score per key; 0 for a key no ranking lists.
+    """
+    scores = Counter()
+    for weight, keys in rankings:
+        for place, key in enumerate(dict.fromkeys(keys), 1):
+            scores[key] += weight / (K + place)
+    return scores
+
+
+def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
+    """
+    A lookup from a ranking row to a library song: by recording MBID, else title and
+    album title, else title; the earliest release of several.
+
+    :param songs: Library songs with album, musicbrainztrackid, title and year.
+    :return: find(mbid, title, album="") giving the song or None.
+    """
+    by_mbid, by_album, by_title = {}, {}, {}
+    for song in sorted(songs, key=lambda song: song["year"] or 9999):  # undated last
+        key = title_key(song["title"])
+        by_mbid.setdefault(song["musicbrainztrackid"], song)
+        by_album.setdefault((key, title_key(song["album"])), song)
+        by_title.setdefault(key, song)
+    by_mbid.pop("", None)  # untagged songs
+    by_title.pop("", None)  # titles of symbols only
+
+    def find(mbid: str, title: str, album: str = "") -> dict | None:
+        key = title_key(title)
+        return (
+            by_mbid.get(mbid)
+            or (key and album and by_album.get((key, title_key(album))))
+            or by_title.get(key)
+        )
+
+    return find
+
+
+def deezer_match(songs: list[dict]) -> Callable[[list], bool]:
+    """
+    Whether a Deezer artist's top-track rows are this library artist's: an album
+    title in common, or OVERLAP song titles (all of them, for fewer).
+
+    :param songs: The library artist's songs with album and title.
+    :return: accept(rows) for deezer.top_tracks.
+    """
+    albums = {title_key(song["album"]) for song in songs} - {""}
+    titles = {title_key(song["title"]) for song in songs} - {""}
+    need = min(OVERLAP, len(titles)) or 1
+
+    def accept(rows: list) -> bool:
+        return (
+            not albums.isdisjoint(title_key(album) for *_, album in rows)
+            or len(titles.intersection(title_key(title) for _, title, _ in rows))
+            >= need
+        )
+
+    return accept
+
+
+def rank_songs(rankings: list[tuple[float, list]], songs: list[dict]) -> list[dict]:
+    """
+    Songs by their fused score over rankings, then played songs, most played first;
+    one per title, earliest release unless an MBID matched; [] if no ranking matches.
+
+    :param rankings: (weight, [recording MBID, title, …] rows best first) pairs.
+    :param songs: Library songs with SONG_RANK_PROPERTIES.
     :return: Ranked songs.
     """
-    songs = sorted(songs, key=lambda song: song["year"] or 9999)  # undated last
-    by_mbid, by_title = {}, {}
-    for song in songs:
-        by_mbid.setdefault(song["musicbrainztrackid"], song)
-        by_title.setdefault(title_key(song["title"]), song)
-    by_mbid.pop("", None)  # untagged songs
-    popular = [
-        song
-        for mbid, title in recordings
-        if (song := by_mbid.get(mbid) or by_title.get(title_key(title)))
-    ]
-    if not popular:
+    find, shown = song_finder(songs), {}
+
+    def keys(rows: list) -> Iterator[str]:
+        for mbid, title, *_ in rows:
+            if song := find(mbid, title):
+                key = title_key(song["title"])
+                shown.setdefault(key, song)
+                yield key
+
+    scores = fused((weight, keys(rows)) for weight, rows in rankings)
+    if not scores:
         return []
-    played = sorted(
-        filter(itemgetter("playcount"), songs),
-        key=itemgetter("playcount"),
+    played = filter(itemgetter("playcount"), songs)
+    for song in sorted(played, key=itemgetter("playcount"), reverse=True):
+        shown.setdefault(title_key(song["title"]), song)
+    return sorted(
+        shown.values(),
+        key=lambda song: (scores[title_key(song["title"])], song["playcount"]),
         reverse=True,
     )
-    ranked = {}
-    for song in chain(popular, played):
-        ranked.setdefault(title_key(song["title"]), song)
-    return [*ranked.values()]
 
 
-def rank_albums(groups: list[list[str]], albums: list[dict]) -> list[dict]:
+def albums_by_songs(rows: list[list[str]], songs: list[dict]) -> list[int]:
     """
-    Albums in the order of release groups they match (by release group MBID, else
-    title), then the unmatched; newest first within each.
+    Library album ids by the credit of their songs in rows: each matched song gives
+    its album 1 / (K + place) once, at its first place.
+
+    :param rows: ["", title, album title] rows, best first.
+    :param songs: Library songs with ALBUM_SONG_PROPERTIES.
+    :return: Album ids, most credited first.
+    """
+    find = song_finder(songs)
+    matched = dict.fromkeys(song["songid"] for row in rows if (song := find(*row)))
+    album = {song["songid"]: song["albumid"] for song in songs}
+    credit = Counter()
+    for place, songid in enumerate(matched, 1):
+        credit[album[songid]] += 1 / (K + place)
+    return sorted(credit, key=credit.get, reverse=True)
+
+
+def albums_by_groups(groups: list[list[str]], albums: list[dict]) -> list[int]:
+    """
+    Library album ids in the order of the release groups they match (by release
+    group MBID, else title); newest first among copies of one group.
 
     :param groups: [release group MBID, title] pairs, most popular first.
     :param albums: Library albums with musicbrainzreleasegroupid, title and year.
-    :return: Ranked albums.
+    :return: Matched album ids.
     """
     by_mbid, by_title = {}, {}
-    for rank, (mbid, title) in enumerate(groups):
-        by_mbid.setdefault(mbid, rank)
-        by_title.setdefault(title_key(title), rank)
-    unmatched = len(groups)
+    for place, (mbid, title) in enumerate(groups):
+        by_mbid.setdefault(mbid, place)
+        by_title.setdefault(title_key(title), place)
+    places = {}
+    for album in sorted(albums, key=itemgetter("year"), reverse=True):
+        place = by_mbid.get(
+            album["musicbrainzreleasegroupid"], by_title.get(title_key(album["title"]))
+        )
+        if place is not None:
+            places[album["albumid"]] = place
+    return sorted(places, key=places.get)
+
+
+def rank_albums(rankings: list[tuple[float, list[int]]], albums: list[dict]) -> list:
+    """
+    Albums by their fused score over rankings, then the unranked; newest first
+    among equals.
+
+    :param rankings: (weight, album ids best first) pairs.
+    :param albums: Library albums with albumid and year.
+    :return: Ranked albums, all of them.
+    """
+    scores = fused(rankings)
     return sorted(
         sorted(albums, key=itemgetter("year"), reverse=True),
-        key=lambda album: by_mbid.get(
-            album["musicbrainzreleasegroupid"],
-            by_title.get(title_key(album["title"]), unmatched),
-        ),
+        key=lambda album: scores[album["albumid"]],
+        reverse=True,
     )
 
 

@@ -150,13 +150,21 @@ def _details(type: str, dbid: int, *properties: str) -> dict:
 def api_patterns(type: str, dbid: int) -> list[str]:
     """
     LIKE patterns for an item's api_cache rows: a movie's TMDb rows, a show's and its
-    seasons' for a show, season or episode, and ListenBrainz's for a music item.
+    seasons' for a show, season or episode, ListenBrainz's for a music item and an
+    artist's Deezer match and top tracks.
 
     :param type: A DETAILS key.
     :param dbid: The item's library id.
     :return: Patterns, none when the item has no id the APIs know it by.
     """
-    if type in ("artist", "album", "song"):
+    if type == "artist":
+        from resources.lib.apis import deezer
+
+        artist = _details(type, dbid, "musicbrainzartistid")
+        mbid = artist["musicbrainzartistid"][0]  # [""] when untagged
+        key = deezer.artist_key(mbid, artist["artist"])
+        return [*([f"listenbrainz:%:{mbid}"] if mbid else []), *deezer.patterns(key)]
+    if type in ("album", "song"):
         from resources.lib.apis.listenbrainz import musicbrainz_id
 
         _, mbid = musicbrainz_id(type, dbid, "refresh_cached")
