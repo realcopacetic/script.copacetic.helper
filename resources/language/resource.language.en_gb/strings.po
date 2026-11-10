@@ -278,6 +278,11 @@ msgctxt "#32034"
 msgid "Clear ListenBrainz data"
 msgstr ""
 
+#: /resources/lib/script/actions.py
+msgctxt "#32035"
+msgid "Forget every saved %s answer? Each is fetched again when next shown."
+msgstr ""
+
 #: /resources/settings.xml
 msgctxt "#32133"
 msgid "Forget every saved TMDb answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
@@ -286,11 +291,6 @@ msgstr ""
 #: /resources/settings.xml
 msgctxt "#32134"
 msgid "Forget every saved ListenBrainz answer (top songs, top albums, listener counts), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
-msgstr ""
-
-#: /resources/lib/script/actions.py
-msgctxt "#32035"
-msgid "Forget every saved %s answer? Each is fetched again when next shown."
 msgstr ""
 
 
@@ -450,6 +450,11 @@ msgstr ""
 #: /resources/lib/script/actions.py
 msgctxt "#32231"
 msgid "Fetched again when next shown"
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32232"
+msgid "Nothing cached for this item"
 msgstr ""
 
 

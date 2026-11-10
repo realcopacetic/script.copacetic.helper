@@ -80,18 +80,19 @@ class SQLiteHandler:
                 values,
             )
 
-    def _delete_where(self, where: str, params: tuple[Any, ...]) -> None:
+    def _delete_where(self, where: str, params: tuple[Any, ...]) -> int:
         """
         Delete rows matching a WHERE clause.
 
         :param where: SQL WHERE clause (without the WHERE keyword).
         :param params: SQL parameters for the WHERE clause.
+        :return: How many rows were deleted.
         """
         with self._conn as conn:
-            conn.execute(
+            return conn.execute(
                 f"DELETE FROM {self.TABLE_NAME} WHERE {where}",
                 params,
-            )
+            ).rowcount
 
     def _get_one(
         self,
@@ -252,20 +253,18 @@ class ArtworkCacheHandler(SQLiteHandler):
             params=(cache_key,),
         )
 
-    def pop_sources(self, urls: Collection[str]) -> list[str]:
+    def delete_sources(self, urls: Collection[str]) -> int:
         """
-        Delete every row made from these source URLs.
+        Delete every row made from these source URLs; their files stay, as an image
+        on screen may still show one, until clear_cache.
 
-        :param urls: Source URLs, as served (wrapped) or plain.
-        :return: The rows' processed file paths, for the caller to delete.
+        :param urls: Source URLs, in every form the skin may have passed.
+        :return: How many rows were deleted.
         """
         if not urls:
-            return []
+            return 0
         where = f"{policy.ART_FIELD_SOURCE_URL} IN ({', '.join('?' * len(urls))})"
-        params = tuple(urls)
-        rows = self._get_many(where=where, params=params)
-        self._delete_where(where=where, params=params)
-        return [path for row in rows if (path := row.get(policy.ART_FIELD_PROCESSED))]
+        return self._delete_where(where=where, params=tuple(urls))
 
 
 class TruncateCacheHandler(SQLiteHandler):
@@ -391,6 +390,23 @@ class ApiCacheHandler(SQLiteHandler):
         """
         if patterns:
             self._delete_where(" OR ".join(["key LIKE ?"] * len(patterns)), patterns)
+
+    def expire(self, *patterns: str) -> int:
+        """
+        Mark rows whose key matches any LIKE pattern stale: refetched when next read,
+        still served if that fetch fails. A second past now, so prune keeps them.
+
+        :param patterns: LIKE patterns.
+        :return: How many rows were marked.
+        """
+        if not patterns:
+            return 0
+        where = " OR ".join(["key LIKE ?"] * len(patterns))
+        with self._conn as conn:
+            return conn.execute(
+                f"UPDATE {self.TABLE_NAME} SET expires_at = ? WHERE {where}",
+                (int(time.time()) - 1, *patterns),
+            ).rowcount
 
     def prune(self, grace: int = 86400 * 30) -> None:
         """

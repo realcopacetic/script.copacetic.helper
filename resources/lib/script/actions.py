@@ -762,18 +762,19 @@ def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
 @action
 def refresh_cached(id: str, type: str, **kwargs: str) -> None:
     """
-    Forget one library item's saved web answers, processed art and cached images,
-    then refresh the list, so its art and API data are fetched again.
+    Mark one library item's saved web answers stale and forget its processed art and
+    cached images, then refresh the list, so each is made again when next shown.
 
     :param id: The item's library id.
     :param type: Its DBType.
     """
     from resources.lib.script.library import refresh_cached as refresh
 
-    refresh(type, int(id))
+    changed = refresh(type, int(id))
     xbmc.executebuiltin("Container.Refresh")
     xbmcgui.Dialog().notification(
-        ADDON.getLocalizedString(32835), ADDON.getLocalizedString(32231)
+        ADDON.getLocalizedString(32835),
+        ADDON.getLocalizedString(32231 if changed else 32232),
     )
 
 

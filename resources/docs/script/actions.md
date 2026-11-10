@@ -84,7 +84,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`player_stream_refresh`](#player_stream_refresh) | Updates `player_subtitle_kind` after Kodi changed the subtitle itself |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
-| [`refresh_cached`](#refresh_cached) | Forgets one library item's saved web answers and cached images |
+| [`refresh_cached`](#refresh_cached) | Makes one library item's web answers and cached images come again |
 | [`remove_broken_art`](#remove_broken_art) | Removes artwork links that are gone (web images and files) from the library |
 | [`roll_seed`](#roll_seed) | Writes a fresh random number to a window property |
 | [`search_backspace`](#search_backspace) | Rewrites `search_query` from the on-screen keys' log, deletes included |
@@ -910,18 +910,25 @@ Reset vs rebuild](../builders/09-runtime-state.md#reset-vs-rebuild).
 
 ## refresh_cached
 
-Forgets what was saved for one library item, so it is fetched again when next shown,
-then refreshes the list. The context menu's **Refresh cached data** item runs it. It
-removes:
+Makes what was saved for one library item come again when next shown, and refreshes
+the list in a media window (on Home a widget fetches again when its content next
+loads). The context menu's **Refresh cached data** item runs it. A notification says
+whether anything was cached for the item.
 
-- the item's saved web answers: a film's TMDb details; for a TV show, season or
-  episode, the show's and all its seasons'; for an artist, album or song, its
-  ListenBrainz answers (by its MusicBrainz id: an artist's top songs, top albums and
-  listener count);
-- the helper's processed copies of the item's own artwork (blurred, cropped);
-- this device's cached copies of that artwork (`Textures.RemoveTexture`), so an image
-  file replaced under the same name shows straight away rather than after Kodi's daily
-  check.
+- **Web answers** are marked out of date rather than deleted: a film's TMDb details;
+  for a TV show, season or episode, the show's and all its seasons'; for an artist,
+  album or song, its ListenBrainz answers (by its MusicBrainz id: an artist's top
+  songs, top albums and listener count). Each is fetched again when next needed, and
+  the old answer still shows if that fetch fails (offline, service down).
+- **Processed artwork** (blurred, cropped) of the item's own artwork is forgotten, so
+  it is made again. The files stay until [`clear_cache`](#clear_cache), since an image
+  on screen may still show one.
+- **This device's cached copies** of that artwork (`Textures.RemoveTexture`) and of
+  its processed images are removed, so an image file replaced under the same name is
+  read again when next loaded rather than after Kodi's daily check. An image on screen
+  at the time keeps its copy in memory until it leaves the screen. A source that can't
+  be read right now (a dead web link, a share that doesn't answer) keeps its copy, as
+  it may be the only one left.
 
 It doesn't change the library: art links and information stay as they are (for
 those, Kodi's *Refresh* in the information dialog). Art a parent lends the item
