@@ -74,6 +74,7 @@ LOCAL_HOSTS = (".local", ".lan", ".home", ".internal", ".arpa")
 DEAD_STATUS = {404, 410}
 NO_HOST = {socket.EAI_NONAME, getattr(socket, "EAI_NODATA", socket.EAI_NONAME)}
 CHECK_WORKERS = 8
+READ_WITHIN = 6  # seconds refresh_cached waits for its sources to answer
 URL_SAFE = ":/?&=%#+@;,!$'()*[]~"
 # list params past the GUI's own filters: remove_broken_art checks song artists (the
 # refresh-all can list them) and singles; clean_image_cache keeps every role too
@@ -235,8 +236,47 @@ def refresh_cached(type: str, dbid: int) -> int:
     }
     prefixes = [str(Path(folder) / stem) for folder in (BLURS, CROPS) for stem in stems]
     # a source that can't be read now keeps its copy: it may be the only one left
-    readable = [url for url in art if check(url) is None]
-    return count + remove_textures(readable, prefixes)
+    return count + remove_textures(readable(art), prefixes)
+
+
+def readable(urls: list[str]) -> list[str]:
+    """
+    The art URLs whose source can be read now, checked at once; one that hasn't
+    answered within READ_WITHIN seconds counts as not.
+
+    :param urls: Art URLs as Kodi returns them.
+    :return: Those that can be read.
+    """
+    pool = ThreadPoolExecutor(CHECK_WORKERS)
+    futures = {pool.submit(_readable, url): url for url in urls}
+    done, _ = wait(futures, timeout=READ_WITHIN)
+    pool.shutdown(wait=False, cancel_futures=True)
+    return [futures[future] for future in done if future.result()]
+
+
+def _readable(url: str) -> bool:
+    """
+    Whether an art URL's file exists, or its web image answers below 400 (HEAD,
+    then a one-byte GET); embedded art and transforms check the file they read.
+
+    :param url: Art URL as Kodi returns it.
+    :return: True when it can be read now.
+    """
+    path = _path(url)
+    if path.startswith("image://"):  # music@, video@ or a transform: still wrapped
+        body = path.removeprefix("image://").partition("/transform?")[0].rstrip("/")
+        path = unquote(body.partition("@")[2] or body)
+    if not path.startswith(("http://", "https://")):
+        return xbmcvfs.exists(path)
+    url = quote(path, safe=URL_SAFE)
+    for method, extra in (("HEAD", {}), ("GET", {"Range": "bytes=0-0"})):
+        headers = {"User-Agent": USER_AGENT, **extra}
+        try:
+            with urlopen(Request(url, method=method, headers=headers), timeout=5):
+                return True
+        except (OSError, ValueError, HTTPException):  # HTTPError and URLError too
+            pass
+    return False
 
 
 def online() -> bool:
