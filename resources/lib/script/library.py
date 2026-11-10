@@ -9,7 +9,9 @@ from functools import cache
 from http.client import HTTPException
 from itertools import islice
 from pathlib import Path
-from threading import Lock
+from queue import Empty, SimpleQueue
+from threading import Lock, Thread
+from time import monotonic
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlsplit
 from urllib.request import Request, urlopen
@@ -241,17 +243,24 @@ def refresh_cached(type: str, dbid: int) -> int:
 
 def readable(urls: list[str]) -> list[str]:
     """
-    The art URLs whose source can be read now, checked at once; one that hasn't
-    answered within READ_WITHIN seconds counts as not.
+    The art URLs whose source can be read now, checked at once on daemon threads
+    (a hung share can't hold up Kodi's exit); unanswered within READ_WITHIN is not.
 
     :param urls: Art URLs as Kodi returns them.
     :return: Those that can be read.
     """
-    pool = ThreadPoolExecutor(CHECK_WORKERS)
-    futures = {pool.submit(_readable, url): url for url in urls}
-    done, _ = wait(futures, timeout=READ_WITHIN)
-    pool.shutdown(wait=False, cancel_futures=True)
-    return [futures[future] for future in done if future.result()]
+    answers = SimpleQueue()
+    for url in urls:
+        Thread(target=lambda u=url: answers.put((u, _readable(u))), daemon=True).start()
+    deadline, found = monotonic() + READ_WITHIN, []
+    for _ in urls:
+        try:
+            url, ok = answers.get(timeout=max(0, deadline - monotonic()))
+        except Empty:
+            break
+        if ok:
+            found.append(url)
+    return found
 
 
 def _readable(url: str) -> bool:
