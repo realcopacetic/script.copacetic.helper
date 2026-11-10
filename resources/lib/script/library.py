@@ -8,15 +8,23 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from functools import cache
 from http.client import HTTPException
 from itertools import islice
+from pathlib import Path
 from threading import Lock
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlsplit
 from urllib.request import Request, urlopen
 
 import xbmcvfs
+from xbmc import getCacheThumbName
 
 from resources.lib.apis.http import USER_AGENT
-from resources.lib.shared.utilities import DETAILS, json_call, url_decode_path
+from resources.lib.shared.utilities import (
+    BLURS,
+    CROPS,
+    DETAILS,
+    json_call,
+    url_decode_path,
+)
 
 # kind: (list method, result key, id key, set method)
 LIBRARY = {
@@ -160,24 +168,33 @@ def api_patterns(type: str, dbid: int) -> list[str]:
     return [f"tmdb:{kind}:{tmdb}:%" for kind in kinds]
 
 
-def remove_textures(urls: Iterable[str]) -> int:
+def remove_textures(urls: Iterable[str] = (), prefixes: Iterable[str] = ()) -> int:
     """
-    Remove this device's cached copies of these images, so the next view fetches
-    them again. Kodi unwraps a url filter's value (TextureDatabase.cpp).
+    Remove this device's cached copies of these images and of any under these path
+    prefixes, so their next load reads them again.
 
     :param urls: Image URLs, wrapped or plain.
+    :param prefixes: Plain path prefixes.
     :return: How many were removed.
     """
-    if not (
-        rules := [{"field": "url", "operator": "is", "value": url} for url in urls]
-    ):
+    exact, prefixes = {url_decode_path(url) for url in urls}, tuple(prefixes)
+    rules = [
+        *({"field": "url", "operator": "is", "value": url} for url in exact),
+        *({"field": "url", "operator": "startswith", "value": p} for p in prefixes),
+    ]
+    if not rules:
         return 0
-    textures = json_call(
-        "Textures.GetTextures",
-        properties=["url"],
-        query_filter={"or": rules},
-        parent="remove_textures",
-    )["result"].get("textures", [])
+    # Kodi makes both operators an unescaped LIKE (DatabaseQuery.cpp): match again
+    textures = [
+        texture
+        for texture in json_call(
+            "Textures.GetTextures",
+            properties=["url"],
+            query_filter={"or": rules},
+            parent="remove_textures",
+        )["result"].get("textures", [])
+        if (url := url_decode_path(texture["url"])) in exact or url.startswith(prefixes)
+    ]
     for texture in textures:
         json_call(
             "Textures.RemoveTexture",
@@ -187,29 +204,39 @@ def remove_textures(urls: Iterable[str]) -> int:
     return len(textures)
 
 
-def refresh_cached(type: str, dbid: int) -> None:
+def refresh_cached(type: str, dbid: int) -> int:
     """
-    Forget what the helper and Kodi cached for one item: its API answers, its art's
-    processed copies and its art's textures, so each is fetched again when next shown.
+    Mark one item's API answers stale and forget its art's processed rows and this
+    device's copies of its art, so each is made again when next shown.
 
     :param type: A DETAILS key.
     :param dbid: The item's library id.
+    :return: How many answers, rows and copies it changed.
     """
     from resources.lib.shared.sqlite import ApiCacheHandler, ArtworkCacheHandler
 
-    ApiCacheHandler().clear(*api_patterns(type, dbid))
-    art = _details(type, dbid, "art")["art"]
-    # the helper keys processed art by the URL as the skin passed it: either form
-    urls = {
-        form
-        for name, url in art.items()
+    count = ApiCacheHandler().expire(*api_patterns(type, dbid))
+    art = [
+        url
+        for name, url in _details(type, dbid, "art")["art"].items()
         if "." not in name
-        for form in (url, url_decode_path(url))
+    ]
+    # processed rows hold the URL as the skin passed it, which the plugin unquotes
+    # once: wrapped, plain or (embedded art) once-unquoted
+    forms = set()
+    for url in art:
+        decoded = url_decode_path(url)
+        forms |= {url, decoded, unquote(decoded)}
+    count += ArtworkCacheHandler().delete_sources(forms)
+    # outputs of a source Kodi hadn't cached are named by its URL and rewritten in
+    # place (art/cache.py with_process_variant): drop Kodi's copies of those
+    stems = {
+        getCacheThumbName(url_decode_path(url)).removesuffix(".tbn") for url in art
     }
-    processed = ArtworkCacheHandler().pop_sources(urls)
-    for path in processed:
-        xbmcvfs.delete(path)
-    remove_textures([*urls, *processed])
+    prefixes = [str(Path(folder) / stem) for folder in (BLURS, CROPS) for stem in stems]
+    # a source that can't be read now keeps its copy: it may be the only one left
+    readable = [url for url in art if check(url) is None]
+    return count + remove_textures(readable, prefixes)
 
 
 def online() -> bool:
