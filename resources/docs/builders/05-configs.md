@@ -114,7 +114,7 @@ A plain name — `sortorder` — is one definition shared by every item that poi
 }
 ```
 
-In Copacetic, `configs_widgets.json` serves Search's rail geometry (`grid_*`, `marquee_*`), `texture_item`, `vue_art` and `widget` this way, and `sortorder` to the widget group tabs. The same key works on [controls](06-controls.md#input) and, at build time, on [variables](03-variables.md#templates_from--one-template-several-mappings), expressions and includes.
+In Copacetic, `configs_widgets.json` serves Search's rail geometry (`grid_*`, `marquee_*`), `texture_item`, `vue_art` and `widget` this way, and `sortorder` to the widget group tabs. The same key works on [controls](06-controls.md#input) and, at build time, on [variables](03-variables.md#templates_from--one-template-several-mappings), expressions and includes. If two files give one mapping a config or control of the same name, the file whose name sorts last wins, even when the other is the mapping's own file.
 
 ---
 
