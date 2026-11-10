@@ -1269,7 +1269,7 @@ class DeezerTest(Base):
             ).encode(),
         ]
         self.assertEqual(
-            self.top(), [["", "Mono", "Perfecth"], ["", "x" * 200, "Perfecth"]]
+            self.top(), [["", "Mono", "Perfecth"], ["", "x" * 500, "Perfecth"]]
         )
 
     def test_busy_retried_soon(self):
@@ -1423,6 +1423,13 @@ class QotsaRailsTest(Base):
         featured = album(9, "Cracker Island", 2023, artistid=(7,))  # a guest spot
         patch(self, (handlers, "library_rows", lambda *a: [*QOTSA_ALBUMS, featured]))
         self.assertNotIn(9, self.handler.discography())  # setting off: hidden
+        self.settings["deezer"] = True  # a hidden album's credit takes no place
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        guest = qotsa(30, "The Way You Used to Do", "Cracker Island", 9, 2001)
+        songs = [guest, *QOTSA_SONGS]
+        patch(self, (handlers.PluginHandlers, "_artist_songs", lambda *a: songs))
+        ranked = self.handler.discography()
+        self.assertEqual(sorted(ranked), [1, 2, 3, 4, 5, 6, 7, 8])
         patch(self, (handlers, "condition", lambda condition: True))
         self.assertIn(9, self.handler.discography())
 

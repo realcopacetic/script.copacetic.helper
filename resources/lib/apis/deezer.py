@@ -20,7 +20,7 @@ _STATUS = {
     700: 503,  # service busy
     800: 404,  # no data
 }
-TITLE = 200  # characters kept of a title: Deezer's answer is not ours to trust
+TITLE = 500  # characters kept of a title: Deezer's answer is not ours to trust
 
 
 def enabled() -> bool:
