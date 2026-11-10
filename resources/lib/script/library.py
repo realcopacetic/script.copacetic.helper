@@ -273,7 +273,8 @@ def _readable(url: str) -> bool:
         headers = {"User-Agent": USER_AGENT, **extra}
         try:
             with urlopen(Request(url, method=method, headers=headers), timeout=5) as r:
-                return r.headers.get_content_type().startswith("image/")
+                if r.headers.get_content_type().startswith("image/"):
+                    return True
         except (OSError, ValueError, HTTPException):  # HTTPError and URLError too
             pass
     return False
