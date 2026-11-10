@@ -15,6 +15,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from fnmatch import fnmatch
+from itertools import chain
 from pathlib import Path
 from typing import Iterator, NamedTuple
 from xml.parsers import expat
@@ -345,19 +346,23 @@ class Skin:
 
     def check_references(self, root: Node) -> None:
         """Check every literal ``$VAR``/``$EXP``/``$ESCEXP`` token in ``root``."""
-        parents = {child: node for node in root.iter() for child in node}
+        calls = {
+            param: call
+            for call in root.iter("include")
+            if "content" in call.attrib
+            for param in call.iterfind("param")
+        }
         for node, value in values(root):
             self.check_escexp(node.src, value)
-            call = parents.get(node) if node.tag == "param" else None
             for token, name in REF.findall(value):
-                self.check_reference(token, name, node.src, call)
+                self.check_reference(token, name, node.src, calls.get(node))
 
     def dropped(self, call: Node | None, ref: str) -> bool:
         """
         True when expanding include ``call`` alone leaves ``ref`` nowhere: the param
-        reaches only includes Kodi skips (``provider`` false), so Kodi never reads it.
+        reaches only includes Kodi skips, so Kodi never reads it.
         """
-        if call is None or call.tag != "include":
+        if call is None:
             return False
         holder = Node("holder")
         holder.append(clone(call))
@@ -365,8 +370,8 @@ class Skin:
         self.findings, self.calls = set(), defaultdict(lambda: (set(), set()))
         self.expand(holder, budget=[BUDGET])
         self.findings, self.calls = kept
-        texts = [value for _, value in values(holder)]
-        texts += [b for node in holder.iter() for b in getattr(node, "branch", ())]
+        branches = (b for node in holder.iter() for b in getattr(node, "branch", ()))
+        texts = chain((value for _, value in values(holder)), branches)
         return not any(ref in text for text in texts)
 
     def check_calls(self, root: Node) -> None:
