@@ -1,5 +1,7 @@
 # author: realcopacetic
 
+import time
+
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     infolabel,
@@ -24,6 +26,24 @@ def enter_fullscreen() -> None:
         window_property("info_hop", value="fullscreen")
     TrailerZoomController().apply_zoom_if_needed(fullscreen=True)
     log.execute("Action(FullScreen)")
+
+
+def start_flight(trailer: str) -> None:
+    """
+    Hand a trailer to Kodi unless one is still resolving: Kodi resolves a plugin
+    path inside a main-thread wait, and a second PlayMedia would run inside it.
+
+    :param trailer: Player path or plugin URL to play.
+    """
+    if flight := infolabel("Window(home).Property(trailer_flight)"):
+        if flight == trailer:  # wanted again: its 5 s grace counts from now
+            window_property("trailer_pending_since", value=str(time.time()))
+        return  # the service starts the waiting request when that one lands
+    window_property("trailer_flight", value=trailer)
+    window_property("trailer_pending_since", value=str(time.time()))
+    # Kodi < 22: YouTube sets this before a resolve, and a cancelled one strands it
+    window_property("plugin.video.youtube-busy")
+    log.execute(f'PlayMedia("{trailer}",1,noresume)')
 
 
 def trailer_source() -> str:

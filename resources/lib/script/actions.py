@@ -12,7 +12,11 @@ import xbmc
 import xbmcgui
 import xbmcvfs
 
-from resources.lib.service.trailer import TrailerZoomController, enter_fullscreen
+from resources.lib.service.trailer import (
+    TrailerZoomController,
+    enter_fullscreen,
+    start_flight,
+)
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     ADDON,
@@ -523,8 +527,8 @@ def play_items(id: str, **kwargs: str) -> None:
 @action
 def play_trailer(trailer: str, **kwargs: str) -> None:
     """
-    Play a trailer, flagging it so PlayerMonitor applies trailer zoom and
-    stamping the requested item so stale starts can be cancelled.
+    Request a trailer, stamping the item it is for so a stale start is parked.
+    It plays at once, or when the trailer still resolving ahead of it lands.
 
     :param trailer: Player path or plugin URL to play.
     :param item: Item label captured skin-side, atomic with the trailer URL.
@@ -539,17 +543,13 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
 
     window_property("trailer_state", value="pending")
     window_property("trailer_request", value=trailer)
-    window_property("trailer_pending_since", value=str(time.time()))
     window_property("trailer_viewport", value=kwargs.get("viewport", ""))
     window_property("trailer_source", value=kwargs.get("source_prefix", ""))
     window_property("trailer_item", value=kwargs.get("item", ""))
     window_property("trailer_focus_ids", value=kwargs.get("focus_ids", ""))
     window_property("trailer_window", value=kwargs.get("window", ""))
     window_property("trailer_fullscreen", value=kwargs.get("fullscreen", ""))
-    # Kodi < 22: YouTube sets this before a resolve and our Back-cancel strands it;
-    # its next call then ends early "to avoid Kodi crash" and the trailer never plays
-    window_property("plugin.video.youtube-busy")
-    log.execute(f'PlayMedia("{trailer}",1,noresume)')
+    start_flight(trailer)
 
 
 @action

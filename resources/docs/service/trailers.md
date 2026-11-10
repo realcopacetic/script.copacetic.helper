@@ -22,39 +22,43 @@ A trailer session moves through these states, stored in
 | `orphaned` | Service | The trailer no longer belongs to the focused item. It is paused and waiting to be stopped. |
 | `fullscreen` | `action=trailer_fullscreen`, or the service when a request made with `fullscreen` starts | The trailer left its window for full screen and keeps playing. The service only stops it near its end. |
 
-1. Your skin runs `action=play_trailer`. The action sets `trailer_state` to `pending`,
-   stores the request properties below, and plays the trailer. It first clears the
-   YouTube add-on's `plugin.video.youtube-busy` flag: before Kodi 22 the add-on sets
-   it at each resolve and clears it only when playback starts, so a resolve the
-   service drops leaves it set, and the add-on then ends every later call early.
-2. When playback starts, the service checks that it is the trailer: its
-   `Player.Filenameandpath` must equal `trailer_request`. Anything else is media the
-   user started while the request was on its way. A plugin trailer resolves on Kodi's
-   main thread behind the busy dialog, and when it finishes Kodi plays it in place of
-   whatever started meanwhile, so the service sends `Action(Back,busydialog)` to drop
-   the resolve as soon as that media starts opening (`onPlayBackStarted`). A video
-   started that way inherits the request's windowed start, so it is taken full screen.
-   It then plays as normal, sets the [player properties](player.md), and the session
-   is cleared. A trailer from an older request that starts after a newer one replaced
-   `trailer_request` counts as the user's media too: it plays full screen and the
-   newer request is dropped. The one exception is the last request the session was
-   cleared on (stopped, reaped or dropped): if its resolve finishes anyway and it
-   starts windowed within 30 seconds, nothing would show it, so the service stops it
-   at once (only the first such start).
-   - `cancelled`: the trailer is stopped at once.
-   - `pending`: the service stores the trailer's path in `trailer_file`, then checks
-     that it is still wanted (see [Stale trailers](#stale-trailers)):
-     - Still wanted and `trailer_fullscreen` set: the trailer goes full screen (see
-       [Full screen](#full-screen)).
-     - Still wanted otherwise: `trailer_state` becomes `playing` and the zoom is
-       applied.
-     - Not wanted: the trailer is paused and `trailer_state` becomes `orphaned`.
+1. Your skin runs `action=play_trailer`. The action sets `trailer_state` to `pending`
+   and stores the request properties below. Then it hands the trailer to Kodi, unless
+   an earlier trailer is still resolving: Kodi resolves a plugin path on its main
+   thread, inside the busy dialog's wait, and a second `PlayMedia` would run inside
+   that wait. The trailer Kodi is resolving is `trailer_flight`; a newer request waits
+   until it lands, and only one ever flies. Handing one over also clears the YouTube
+   add-on's `plugin.video.youtube-busy` flag: before Kodi 22 the add-on sets it at
+   each resolve and clears it only when playback starts, so a resolve cancelled as hung
+   leaves it set, and the add-on then ends every later call early.
+2. When playback starts, the service checks whether it is the flight
+   (`Player.Filenameandpath` equals `trailer_flight`). If it is, `trailer_flight` is
+   cleared and `trailer_file` is set at once. Anything else is media the user started
+   inside the flight's wait: when it finishes, Kodi would play the trailer in its
+   place, so the service sends `Action(Back,busydialog)` to drop the resolve. This is
+   the one cancel left, and it stalls Kodi until the add-on's script stops (up to 5
+   seconds). A video started that way inherits the request's windowed start, so it is
+   taken full screen. It then plays as normal, sets the
+   [player properties](player.md), and the session is cleared.
+   When the flight's audio and video are up, the service decides what to do with it:
+   - `trailer_state` isn't `pending` (the window was left, or the request was retired):
+     the trailer is stopped at once.
+   - Not wanted any more (see [Stale trailers](#stale-trailers)): the trailer is paused
+     and `trailer_state` becomes `orphaned`.
+   - A newer request is waiting (`trailer_request` is another trailer): this one is
+     paused and the waiting one flies, replacing it in the same player.
+   - Still wanted and `trailer_fullscreen` set: the trailer goes full screen (see
+     [Full screen](#full-screen)).
+   - Still wanted otherwise: `trailer_state` becomes `playing` and the zoom is applied.
 3. Once a second, the poll loop checks the session:
-   - `pending` or `cancelled` for 5 seconds or more with nothing new playing: the
-     request is retired, and a plugin resolve still running is dropped
-     (`Action(Back,busydialog)`), so a trailer slower than 5 seconds never plays. If
-     an older paused trailer is still playing, it goes back to `orphaned`; otherwise
-     the session is cleared.
+   - The flight is 5 seconds old and hasn't started, and it is the request's own
+     trailer, still `pending` or `cancelled`: the request is retired, so a trailer
+     slower than 5 seconds doesn't play. The resolve is left to finish and is stopped
+     when it lands. If an older paused trailer is still playing, it goes back to
+     `orphaned`; otherwise the session is cleared.
+   - The flight is 15 seconds old and hasn't started: the resolve is taken to be hung
+     and cancelled (`Action(Back,busydialog)`, the same stall as above), and a request
+     that waited behind it flies on the next poll if its item still has focus.
    - `playing` and stale, or within 2 seconds of its end: the trailer is paused and
      becomes `orphaned`.
    - `fullscreen` and within 2 seconds of its end: the trailer is paused, rewound
@@ -109,7 +113,6 @@ The action sets these properties, which the service reads:
 |---|---|
 | `trailer_state` | `pending` |
 | `trailer_request` | The `trailer` param |
-| `trailer_pending_since` | Time of the request, in seconds since the epoch |
 | `trailer_item` | The `item` param |
 | `trailer_source` | The `source_prefix` param |
 | `trailer_focus_ids` | The `focus_ids` param |
@@ -180,14 +183,22 @@ starts, and no zoom is set.
 | `trailer_state` | `playing` | The requested trailer starts and is still wanted | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request; the active skin changes or the service stops |
 | `trailer_state` | `orphaned` | The trailer goes stale or nears its end, or a newer request never started | As above |
 | `trailer_state` | `fullscreen` | A request made with `fullscreen` starts and is still wanted | As above |
-| `trailer_file` | `Player.Filenameandpath` of the trailer | The requested trailer starts | As above |
+| `trailer_file` | `Player.Filenameandpath` of the trailer | The flight's playback starts | As above |
 | `trailer_return` | `info_current` at the moment the trailer goes full screen | As `fullscreen` | By `trailer_return` |
 | `info_hop` | `fullscreen` | As `fullscreen`, when `info_current` is set and is not a season | The info dialog's `<onload>`, or `trailer_return` when there is no dialog to reopen |
 
 When a session is cleared, the service clears `trailer_state`, `trailer_request`,
 `trailer_item`, `trailer_source`, `trailer_focus_ids`, `trailer_window`,
-`trailer_fullscreen`, `trailer_viewport`, `trailer_pending_since` and `trailer_file`. `trailer_return` is
-left for [`trailer_return`](../script/actions.md#trailer_return).
+`trailer_fullscreen`, `trailer_viewport` and `trailer_file`. `trailer_return` is
+left for [`trailer_return`](../script/actions.md#trailer_return). A flight still
+resolving outlives the session: it is stopped when it lands.
+
+The flight has two properties of its own:
+
+| Property | Value | Set when | Cleared when |
+|---|---|---|---|
+| `trailer_flight` | The trailer Kodi is resolving | A request is handed to Kodi | Its playback starts, other media starts during its resolve, it is cancelled as hung, or the active skin changes or the service stops |
+| `trailer_pending_since` | Time the flight was handed over (seconds since the epoch), restarted when its trailer is requested again | As `trailer_flight` | When the active skin changes or the service stops |
 
 ### `trailer_played_item`
 
@@ -203,7 +214,15 @@ retired, so the item can try again.
 - Show the video window only while the trailer is playing. Compare `trailer_file`
   with the playing file, so a paused trailer stays hidden.
 - Stop the trailer when the window closes, and set a `pending` request to `cancelled`
-  so it stops as soon as it starts.
+  so it stops as soon as it starts. Do the same wherever a request stops being wanted
+  that the [stale check](#stale-trailers) can't see, such as focus leaving for another
+  part of the window.
+- Never cancel a resolve yourself (`Action(Back,busydialog)`): Kodi stalls until the
+  add-on's script stops, up to 5 seconds. Leave it to land; the service parks or stops
+  it.
+- Let your rest trigger request a trailer while the player holds your own trailer
+  (`trailer_file` or `trailer_request` is the playing file), not only when nothing
+  plays: the service holds the request until the one ahead of it lands.
 
 Example (from Copacetic):
 
@@ -226,9 +245,12 @@ Example (from Copacetic):
 </control>
 ```
 
-Kodi's busy dialog shows while a trailer resolves. To hide it, add this to
-`DialogBusy.xml`:
+Kodi's busy dialog shows while a trailer resolves. To hide it, give `DialogBusy.xml`
+this window-level condition (from Copacetic). Kodi opens the dialog; the condition
+closes it on the next frame while a trailer request is `pending` or `cancelled`, so
+the user can keep scrolling. Each busy dialog names itself with `Window.Is(…)`, so one
+never holds the other open:
 
 ```xml
-<visible>Window.IsActive(busydialog) + !String.IsEqual(Window(home).Property(trailer_state),pending)</visible>
+<visible>[[Window.Is(busydialog) + Window.IsActive(busydialog)] | [Window.Is(busydialognocancel) + Window.IsActive(busydialognocancel)]] + !String.IsEqual(Window(home).Property(trailer_state),pending) + !String.IsEqual(Window(home).Property(trailer_state),cancelled)</visible>
 ```
