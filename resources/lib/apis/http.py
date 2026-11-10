@@ -15,6 +15,9 @@ USER_AGENT = (
 )
 
 
+MAX_BODY = 8_000_000  # bytes read of an answer; a longer one is cut short
+
+
 class HttpError(Exception):
     """A failed request: HTTP status (None when unreachable) and seconds to wait."""
 
@@ -56,11 +59,11 @@ def get_json(
     try:
         with urlopen(request, timeout=timeout) as response:
             log.debug(f"get_json → {response.status} {path}")
-            return json.load(response)
+            return json.loads(response.read(MAX_BODY))  # cut short: bad JSON
     except HTTPError as exc:  # before OSError: it is one
         log.debug(f"get_json → {exc.code} {path}")
         wait = exc.headers.get("Retry-After") or exc.headers.get("X-RateLimit-Reset-In")
         raise HttpError(exc.code, to_int(wait)) from None
-    except (OSError, ValueError) as exc:  # URLError, timeout; bad JSON
+    except (OSError, ValueError, RecursionError) as exc:  # URLError, timeout; bad JSON
         log.debug(f"get_json → {exc!r} {path}")
         raise HttpError(None) from None

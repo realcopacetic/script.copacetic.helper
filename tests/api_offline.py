@@ -504,7 +504,9 @@ class TopSongsTest(Base):
     def test_offline_hides(self):
         self.net.answers = [URLError("offline")]
         self.assertIsNone(self.handler.top_songs())
-        self.assertEqual(self.calls, ["AudioLibrary.GetArtistDetails"])
+        self.assertEqual(
+            self.calls, ["AudioLibrary.GetArtistDetails", "AudioLibrary.GetSongs"]
+        )
 
 
 class TmdbTest(Base):
@@ -1089,7 +1091,7 @@ class BlendTest(unittest.TestCase):
         ranked = rank_songs([(1, DEEZER_ROWS)], QOTSA_SONGS)
         self.assertEqual(len(ranked), len({row["songid"] for row in ranked}))
 
-    def test_equal_scores_by_play_count(self):
+    def test_one_per_title_earliest(self):
         songs = [song(1, "A", 2000), song(2, "A", 2001, 5), song(3, "B", 2000, 1)]
         ranked = rank_songs([(1, [["", "A"]])], songs)
         self.assertEqual([row["songid"] for row in ranked], [1, 3])  # earliest A
@@ -1104,27 +1106,42 @@ class BlendTest(unittest.TestCase):
         self.assertEqual(albums_by_songs([["", "Mono", "Mono (Single)"]], live), [8])
 
     def test_artist_match(self):
-        accept = deezer_match(QOTSA_SONGS)
+        def accept(rows, songs=QOTSA_SONGS):
+            return deezer_match(songs, rows)
+
         self.assertTrue(accept(DEEZER_ROWS))
-        self.assertTrue(accept([["", "x", "Villains"]]))  # an album in common
-        self.assertTrue(
-            accept(
-                [
-                    ["", t, "x"]
-                    for t in ("Mono", "Sunday", "Easy Street", "No One Knows")
-                ]
-            )
-        )
+        three = ("Mono", "Sunday", "Easy Street", "No One Knows")
+        self.assertTrue(accept([["", title, "x"] for title in three]))
         self.assertFalse(accept([["", "Mono", "x"], ["", "No One Knows", "x"]]))
-        self.assertTrue(deezer_match([song(1, "Mono", 2026)])([["", "Mono", "x"]]))
-        self.assertFalse(deezer_match([song(1, "!!!", 2026)])([["", "!!!", "x"]]))
+        # an album in common lowers the bar to one song, never to none
+        self.assertTrue(accept([["", "Mono", "Villains"]]))
+        self.assertFalse(accept([["", "Other Song", "Villains"]]))
+        self.assertTrue(accept([["", "Mono", "x"]], [song(1, "Mono", 2026)]))
+        self.assertFalse(accept([["", "!!!", "x"]], [song(1, "!!!", 2026)]))
+
+    def test_played_tail_earliest_release(self):
+        songs = [
+            song(1, "Hit", 2000),
+            song(2, "Deep Cut", 2010, 3, "", "Best Of"),
+            song(3, "Deep Cut", 0, 3),  # undated: never the earliest
+            song(4, "Deep Cut", 2001, 3, "", "Album"),
+        ]
+        ranked = rank_songs([(1, [["", "Hit"]])], songs)
+        self.assertEqual([row["songid"] for row in ranked], [1, 4])
+
+    def test_tie_by_play_count(self):
+        songs = [song(1, "A", 2000, 1), song(2, "B", 2000, 7)]
+        both = [(1, [["", "A"], ["", "B"]]), (1, [["", "B"], ["", "A"]])]
+        self.assertEqual([row["songid"] for row in rank_songs(both, songs)], [2, 1])
 
 
 class DeezerTest(Base):
     def setUp(self):
         super().setUp()
         self.settings["deezer"] = True
-        self.accept = deezer_match(QOTSA_SONGS)
+
+    def accept(self, rows):
+        return deezer_match(QOTSA_SONGS, rows)
 
     def top(self, key=QOTSA):
         return deezer.top_tracks(key, "Queens of the Stone Age", self.accept)
@@ -1209,6 +1226,55 @@ class DeezerTest(Base):
         self.net.answers = [DEEZER_QUOTA]
         self.assertEqual(self.top(), [])
         self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 60))
+
+    def test_album_only_candidate_passed_over(self):
+        self.net.answers = [
+            deezer_search(
+                (9, "Queens of the Stone Age", 9_000_000),
+                (1177, "Queens of the Stone Age", 10),
+            ),
+            deezer_top(("Other Song", "Villains")),  # an album in common, no song
+            DEEZER_TOP,
+        ]
+        self.assertEqual(self.top(), DEEZER_ROWS)
+
+    def test_symbol_only_name_sends_nothing(self):
+        self.assertEqual(deezer.top_tracks("", "!!!", self.accept), [])
+        self.assertEqual(self.net.requests, [])
+
+    def test_unexpected_answers_retried_soon(self):
+        for answer in (
+            b'{"data": [{"id": 1177, "name": "Queens of the Stone Age"}]}',  # no fans
+            b'{"nodata": []}',
+            b"[]",
+            b'{"error": "x"}',
+        ):
+            self.cache.clear_all()
+            self.net.answers = [answer]
+            self.assertEqual(self.top(), [])
+            self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 300))
+
+    def test_null_titles_never_kept(self):
+        self.net.answers = [
+            DEEZER_SEARCH,
+            json.dumps(
+                {
+                    "data": [
+                        {"title_short": None, "album": {"title": "Villains"}},
+                        {"title_short": "Mono", "album": {"title": "Perfecth"}},
+                        {"title_short": "x" * 50_000, "album": {"title": "Perfecth"}},
+                    ]
+                }
+            ).encode(),
+        ]
+        self.assertEqual(
+            self.top(), [["", "Mono", "Perfecth"], ["", "x" * 200, "Perfecth"]]
+        )
+
+    def test_busy_retried_soon(self):
+        self.net.answers = [b'{"error":{"type":"Exception","code":700}}']
+        self.assertEqual(self.top(), [])
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 300))
 
     def test_untagged_artist_keyed_by_name(self):
         self.assertEqual(
@@ -1295,12 +1361,13 @@ class QotsaRailsTest(Base):
 
     def test_blend(self):
         self.settings["deezer"] = True
-        self.net.answers = [QOTSA_LISTENS, DEEZER_SEARCH, DEEZER_TOP]
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, QOTSA_LISTENS]
         self.assertEqual(self.handler.top_songs(), [1, 2, 6, 8, 3])
+        self.assertIn("listenbrainz", self.net.requests[2].full_url)  # Deezer first
 
     def test_deezer_down_listenbrainz_alone(self):
         self.settings["deezer"] = True
-        self.net.answers = [QOTSA_LISTENS, URLError("offline")]
+        self.net.answers = [URLError("offline"), QOTSA_LISTENS]
         self.assertEqual(self.handler.top_songs(), [1, 2, 6, 3, 8])
 
     def test_both_down_hides(self):
@@ -1318,6 +1385,36 @@ class QotsaRailsTest(Base):
         self.handler.limit = None
         self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
         self.assertEqual(self.handler.discography(), [2, 8, 5, 3, 6, 1, 4, 7])
+
+    def test_discography_both(self):
+        self.settings["deezer"] = True
+        self.handler.limit = None
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, ALBUMS]  # Gorillaz groups: none
+        self.assertEqual(self.handler.discography(), [2, 8, 5, 3, 6, 1, 4, 7])
+        self.assertEqual(self.calls.count("AudioLibrary.GetSongs"), 1)
+
+    def test_discography_cached_reads_no_songs(self):
+        self.settings.update(listenbrainz_token="", deezer=True)
+        self.handler.limit = None
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        self.handler.discography()
+        self.calls.clear()
+        self.cache.put("deezer:top:1177", [], DAY)  # nothing to credit
+        self.assertEqual(self.handler.discography(), [8, 7, 6, 5, 4, 3, 2, 1])
+        self.assertNotIn("AudioLibrary.GetSongs", self.calls)
+
+    def test_no_songs_no_request(self):
+        self.settings["deezer"] = True
+        patch(self, (handlers.PluginHandlers, "_artist_songs", lambda *a: []))
+        self.assertIsNone(self.handler.top_songs())
+        self.assertEqual(self.net.requests, [])
+
+    def test_untagged_refresh_patterns(self):
+        details = {"artist": "Queens of the Stone Age", "musicbrainzartistid": [""]}
+        patch(self, (library, "_details", lambda *args: details))
+        self.assertEqual(
+            library.api_patterns("artist", 4), ["deezer:artist:queensofthestoneage"]
+        )
 
     def test_discography_off_is_date_order(self):
         self.settings["listenbrainz_token"] = ""

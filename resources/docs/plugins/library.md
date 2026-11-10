@@ -307,10 +307,12 @@ the container's content is `songs`.
 **Finding the Deezer artist.** The helper searches Deezer for the library artist's
 name, keeps the artists whose name is the same (case, accents and punctuation
 aside), and tries up to three, most followed first: the first whose top tracks share
-an album title with the library artist's songs, or three song titles (all of them,
-for an artist with fewer), is taken. Its id is kept, keyed by the artist's
+three song titles with the library artist's songs (all of them, for an artist with
+fewer), or one song title and an album title, is taken. An artist whose name has no
+letters or digits ("!!!") isn't looked up. Its id is kept, keyed by the artist's
 MusicBrainz id, else by its name, so later opens skip the search; **Refresh cached
-data** on the artist searches again.
+data** on the artist searches again (a different pick needs a changed library or
+Deezer answer: the check is the same).
 
 Answers are kept in the add-on's `_lookup.db` (`api_cache`):
 
@@ -318,8 +320,9 @@ Answers are kept in the add-on's `_lookup.db` (`api_cache`):
   ListenBrainz refuses the id, as long as it asks after "too many requests", and five
   minutes when it refuses the token (logged as a warning) or is unreachable.
 - Deezer: 90 days for the matched artist (a week when none was found), a week for
-  its top tracks (a day when empty), a week when Deezer has no data, a minute after
-  a quota answer and five minutes when unreachable.
+  its top tracks (a day when empty), a week when Deezer has no data or rejects the
+  query, a minute after a quota answer, and five minutes when it is busy,
+  unreachable or answers in a shape the helper doesn't expect.
 
 An older answer is shown while a source is unreachable. **Clear addon cache** forgets
 them all; *Cache › Clear TMDb / ListenBrainz / Deezer data* forget one source's, and

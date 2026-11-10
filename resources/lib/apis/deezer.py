@@ -13,7 +13,14 @@ API = "https://api.deezer.com/"
 TTL_ARTIST, TTL_NO_ARTIST, TTL_TOP, TTL_NO_TOP = 90 * DAY, 7 * DAY, 7 * DAY, DAY
 CANDIDATES = 3  # same-named artists tried, most followed first
 # Deezer answers its errors with a 200 and a code: as the HTTP status meaning the same
-_STATUS = {4: 429, 700: 503, 800: 404}  # quota, busy, no data
+_STATUS = {
+    4: 429,
+    501: 400,
+    600: 400,
+    700: 503,
+    800: 404,
+}  # quota, bad query, busy, none
+TITLE = 200  # characters kept of a title: Deezer's answer is not ours to trust
 
 
 def enabled() -> bool:
@@ -54,8 +61,13 @@ def _top(artist: int) -> list[list[str]]:
     :param artist: Deezer artist id.
     :return: ["", title without version, album title] rows, like ListenBrainz's.
     """
-    rows = get_json(f"artist/{artist}/top", limit=100)["data"]
-    return [["", row["title_short"], row["album"]["title"]] for row in rows]
+    rows = get_json(f"artist/{artist}/top", limit=100)["data"][:100]
+    return [
+        ["", title[:TITLE], album[:TITLE]]
+        for row in rows
+        if isinstance(title := row["title_short"], str)
+        and isinstance(album := row["album"]["title"], str)
+    ]
 
 
 def top_tracks(key: str, name: str, accept: Callable[[list], bool]) -> list[list]:
@@ -66,13 +78,15 @@ def top_tracks(key: str, name: str, accept: Callable[[list], bool]) -> list[list
     :param key: artist_key of the library artist.
     :param name: Its name, searched for.
     :param accept: Whether a candidate's top-track rows are this artist's.
-    :return: ["", title, album title] rows, possibly empty.
+    :return: ["", title, album title] rows; empty for a name of symbols only.
     """
+    if not (folded := fold(name)):  # it would match every such name
+        return []
     accepted = {}
 
     def find() -> int | None:
-        found = get_json("search/artist", q=name, limit=10)["data"]
-        named = [row for row in found if fold(row["name"]) == fold(name)]
+        found = get_json("search/artist", q=name, limit=10)["data"][:10]
+        named = [row for row in found if fold(row["name"]) == folded]
         for row in sorted(named, key=itemgetter("nb_fan"), reverse=True)[:CANDIDATES]:
             artist = int(row["id"])
             try:
