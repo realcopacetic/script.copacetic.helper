@@ -41,6 +41,7 @@ UNMIGRATED = ("_addonbrowser", "_pictures")  # pre-built for windows not yet mig
 C2_SHELLS = (
     *("tpl_window", "blk_modal_", "tpl_modal_", "img_modal_", "blk_hud_"),
     *("tpl_editor", "blk_settings_panels"),  # the editors and the settings windows
+    "blk_osd_",  # VideoOSD and the seek bar and info dialogs over fullscreen video
 )
 MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow returns
     *("AddonBrowser.xml", "EventLog.xml", "MyFavourites.xml", "MyGames.xml"),
