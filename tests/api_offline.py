@@ -890,13 +890,14 @@ class TmdbTest(Base):
         )
 
 
-def album(albumid, title, year, mbid=""):
+def album(albumid, title, year, mbid="", artistid=(4,)):
     """A library album row as AudioLibrary.GetAlbums returns it (fields used here)."""
     return {
         "albumid": albumid,
         "title": title,
         "year": year,
         "musicbrainzreleasegroupid": mbid,
+        "artistid": [*artistid],
     }
 
 
@@ -1415,6 +1416,15 @@ class QotsaRailsTest(Base):
         self.assertEqual(
             library.api_patterns("artist", 4), ["deezer:artist:queensofthestoneage"]
         )
+
+    def test_discography_album_artists_only(self):
+        self.settings["listenbrainz_token"] = ""
+        self.handler.limit = None
+        featured = album(9, "Cracker Island", 2023, artistid=(7,))  # a guest spot
+        patch(self, (handlers, "library_rows", lambda *a: [*QOTSA_ALBUMS, featured]))
+        self.assertNotIn(9, self.handler.discography())  # setting off: hidden
+        patch(self, (handlers, "condition", lambda condition: True))
+        self.assertIn(9, self.handler.discography())
 
     def test_discography_off_is_date_order(self):
         self.settings["listenbrainz_token"] = ""
