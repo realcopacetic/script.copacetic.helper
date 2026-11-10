@@ -928,7 +928,8 @@ seconds.
 - **This device's cached copies** of that artwork (`Textures.RemoveTexture`) and of
   its processed images are removed, so an image file replaced under the same name is
   read again when next loaded rather than after Kodi's daily check. An image on screen
-  at the time keeps its copy in memory until it leaves the screen. A source that can't
+  at the time keeps its copy in memory: move focus off it for a few seconds (Kodi
+  frees a large image two seconds after it leaves the screen) and it reloads. A source that can't
   be read right now keeps its copy, as it may be the only one left: a missing file, a
   share or web address that doesn't answer within a few seconds, or one that answers
   with anything but an image.
