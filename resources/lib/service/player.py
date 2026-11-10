@@ -130,6 +130,29 @@ class PlayerMonitor(Player):
         # Ends the busy dialog's wait; Kodi stalls until the script stops
         log.execute("Action(Back,busydialog)")
 
+    def onPlayBackSeek(self, target: int, offset: int) -> None:
+        """
+        Publish the jump as player_seek_offset, signed as Player.SeekOffset is
+        (+10:00): the player resets that to 0 once a seek message is handled.
+
+        :param target: The time sought to, in ms.
+        :param offset: The jump, in ms.
+        """
+        minutes, seconds = divmod(abs(offset) // 1000, 60)
+        hours, minutes = divmod(minutes, 60)
+        clock = ":".join(f"{p:02}" for p in (hours, minutes, seconds)[not hours :])
+        sign = "-" if offset < 0 else "+"
+        window_property("player_seek_offset", value=bool(offset) and sign + clock)
+        self._published.add("player_seek_offset")  # the next file or stop clears it
+
+    def onPlayBackSeekChapter(self, chapter: int) -> None:
+        """
+        A chapter jump keeps its Player.SeekOffset: drop the last seek's offset.
+
+        :param chapter: The chapter sought to.
+        """
+        window_property("player_seek_offset")
+
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
         self._cleanup()
