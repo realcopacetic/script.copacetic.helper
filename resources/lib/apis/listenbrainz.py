@@ -10,18 +10,44 @@ from resources.lib.apis import http
 from resources.lib.apis.http import HttpError
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
-from resources.lib.shared.utilities import ADDON
+from resources.lib.shared.utilities import ADDON, DETAILS, json_call
 
 API = "https://api.listenbrainz.org/1/"
 NEXT_CALL = "copacetic.listenbrainz_next"  # home property: epoch of the next free slot
 MAX_WAIT = 3  # seconds a call queues for its slot before giving up
 DAY = 86400
 TTL_HIT, TTL_EMPTY, TTL_INVALID, TTL_DOWN = 14 * DAY, 3 * DAY, 7 * DAY, 300
+_MBIDS = {  # MusicBrainz entity and AudioLibrary field per library type
+    "album": ("release-group", "musicbrainzreleasegroupid"),
+    "artist": ("artist", "musicbrainzartistid"),
+    "song": ("recording", "musicbrainztrackid"),
+}
 
 
 def _token() -> str:
     """The user's ListenBrainz token; empty turns ListenBrainz off."""
     return ADDON.getSetting("listenbrainz_token").strip()
+
+
+def musicbrainz_id(type: str, dbid: int, parent: str) -> tuple[str, str]:
+    """
+    A library album, artist or song's MusicBrainz entity and id: its release group,
+    first artist id or recording (Picard's "MusicBrainz Track Id").
+
+    :param type: album, artist or song.
+    :param dbid: Library id.
+    :param parent: Caller name for logging.
+    :return: (entity, MBID), the MBID empty when untagged.
+    """
+    entity, field = _MBIDS[type]
+    mbid = json_call(
+        DETAILS[type],
+        properties=[field],
+        params={f"{type}id": dbid},
+        parent=parent,
+    )["result"][f"{type}details"][field]
+    # An artist's is a one-id list, [""] when untagged
+    return entity, mbid[0] if type == "artist" else mbid
 
 
 def enabled() -> bool:

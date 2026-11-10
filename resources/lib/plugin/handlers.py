@@ -52,7 +52,6 @@ from resources.lib.plugin.music import (
     dial_item,
     library_item,
     library_rows,
-    musicbrainz_id,
     rank_albums,
     rank_songs,
 )
@@ -1734,7 +1733,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (listenbrainz.enabled() and self._require("id")):
             return
         artistid = int(self.dbid)
-        _, mbid = musicbrainz_id("artist", artistid, "top_songs")
+        _, mbid = listenbrainz.musicbrainz_id("artist", artistid, "top_songs")
         if not (mbid and (recordings := listenbrainz.top_recordings(mbid))):
             return
         songs = library_rows(
@@ -1772,7 +1771,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         groups = []
         if albums and listenbrainz.enabled():
-            _, mbid = musicbrainz_id("artist", artistid, "discography")
+            _, mbid = listenbrainz.musicbrainz_id("artist", artistid, "discography")
             groups = listenbrainz.top_release_groups(mbid) if mbid else []
         set_plugincontent(content="albums")
         rows = rank_albums(groups, albums)[: self.limit]
@@ -1794,7 +1793,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             and self._require("id")
         ):
             return
-        entity, mbid = musicbrainz_id(self.dbtype, int(self.dbid), "listeners")
+        entity, mbid = listenbrainz.musicbrainz_id(
+            self.dbtype, int(self.dbid), "listeners"
+        )
         if not (mbid and (count := listenbrainz.listeners(entity, mbid))):
             return
         return set_items(

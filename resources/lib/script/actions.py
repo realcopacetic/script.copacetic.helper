@@ -16,6 +16,7 @@ from resources.lib.service.trailer import TrailerZoomController, enter_fullscree
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     ADDON,
+    DETAILS,
     SKINXML,
 )
 from resources.lib.shared.speed_dial import SpeedDial
@@ -49,14 +50,7 @@ REGISTRY = {}
 
 _LIBRARY_ITEMS = {"album": "albumid", "artist": "artistid", "genre": "genreid"}
 _INFO_DIALOGS = ("songinformation", "musicinformation", "movieinformation")
-_INFO_DETAILS = {
-    "episode": "VideoLibrary.GetEpisodeDetails",
-    "movie": "VideoLibrary.GetMovieDetails",
-    "musicvideo": "VideoLibrary.GetMusicVideoDetails",
-    "set": "VideoLibrary.GetMovieSetDetails",
-    "song": "AudioLibrary.GetSongDetails",
-    "tvshow": "VideoLibrary.GetTVShowDetails",
-}
+API_SOURCES = {"tmdb": ("TMDb", 32033), "listenbrainz": ("ListenBrainz", 32034)}
 MIX_SIZE = 50
 MIX_ARTIST_SHARE = 0.15
 
@@ -142,6 +136,23 @@ def clean_image_cache(**kwargs: str) -> None:
         )
     progress.close()
     xbmcgui.Dialog().notification(heading, ADDON.getLocalizedString(32223) % len(stale))
+
+
+@action
+def clear_api_cache(source: str, **kwargs: str) -> None:
+    """
+    After a yes/no, forget every saved answer from one web API, so each is fetched
+    again when next needed.
+
+    :param source: tmdb or listenbrainz.
+    """
+    from resources.lib.shared.sqlite import ApiCacheHandler
+
+    name, label = API_SOURCES[source]
+    heading = ADDON.getLocalizedString(label)
+    if xbmcgui.Dialog().yesno(heading, ADDON.getLocalizedString(32035) % name):
+        ApiCacheHandler().clear(f"{source}:%")
+        xbmcgui.Dialog().notification(heading, ADDON.getLocalizedString(32230))
 
 
 @action
@@ -628,10 +639,10 @@ def _info_item(key: str) -> xbmcgui.ListItem | None:
         item.setIsFolder(True)
         item.getMusicInfoTag().setDbId(dbid, dbtype)
         return item
-    if dbtype not in _INFO_DETAILS:
+    if dbtype == "season" or dbtype not in DETAILS:
         return None
     details = json_call(
-        _INFO_DETAILS[dbtype],
+        DETAILS[dbtype],
         properties=["title", "plot" if dbtype == "set" else "file"],
         params={f"{dbtype}id": dbid},
         parent="info",
@@ -746,6 +757,24 @@ def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
         parent="rate_song",
     )
     window_property("liked_songs_version", value=str(time.time_ns()))
+
+
+@action
+def refresh_cached(id: str, type: str, **kwargs: str) -> None:
+    """
+    Forget one library item's saved web answers, processed art and cached images,
+    then refresh the list, so its art and API data are fetched again.
+
+    :param id: The item's library id.
+    :param type: Its DBType.
+    """
+    from resources.lib.script.library import refresh_cached as refresh
+
+    refresh(type, int(id))
+    xbmc.executebuiltin("Container.Refresh")
+    xbmcgui.Dialog().notification(
+        ADDON.getLocalizedString(32835), ADDON.getLocalizedString(32231)
+    )
 
 
 @action
