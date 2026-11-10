@@ -283,6 +283,21 @@ msgctxt "#32035"
 msgid "Forget every saved %s answer? Each is fetched again when next shown."
 msgstr ""
 
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32036"
+msgid "Clear Deezer data"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32037"
+msgid "Deezer"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32038"
+msgid "Rank music with Deezer"
+msgstr ""
+
 #: /resources/settings.xml
 msgctxt "#32133"
 msgid "Forget every saved TMDb answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
@@ -291,6 +306,16 @@ msgstr ""
 #: /resources/settings.xml
 msgctxt "#32134"
 msgid "Forget every saved ListenBrainz answer (top songs, top albums, listener counts), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32136"
+msgid "Forget every saved Deezer answer (matched artists, top tracks), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32138"
+msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz. Sends the artist's name to Deezer; no account needed. Off: nothing sent."
 msgstr ""
 
 

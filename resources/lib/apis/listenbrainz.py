@@ -1,22 +1,14 @@
 # author: realcopacetic
 
-import time
 from typing import Any, Callable
 
-from xbmc import Monitor
-from xbmcgui import Window
-
 from resources.lib.apis import http
-from resources.lib.apis.http import HttpError
-from resources.lib.shared import logger as log
-from resources.lib.shared.sqlite import ApiCacheHandler
+from resources.lib.apis.cache import DAY, cached
 from resources.lib.shared.utilities import ADDON, DETAILS, json_call
 
 API = "https://api.listenbrainz.org/1/"
 NEXT_CALL = "copacetic.listenbrainz_next"  # home property: epoch of the next free slot
-MAX_WAIT = 3  # seconds a call queues for its slot before giving up
-DAY = 86400
-TTL_HIT, TTL_EMPTY, TTL_INVALID, TTL_DOWN = 14 * DAY, 3 * DAY, 7 * DAY, 300
+TTL_HIT, TTL_EMPTY = 14 * DAY, 3 * DAY
 _MBIDS = {  # MusicBrainz entity and AudioLibrary field per library type
     "album": ("release-group", "musicbrainzreleasegroupid"),
     "artist": ("artist", "musicbrainzartistid"),
@@ -68,24 +60,9 @@ def get_json(path: str, body: Any = None) -> Any:
     return http.get_json(f"{API}{path}", headers=headers, body=body)
 
 
-def _failure_ttl(exc: HttpError) -> int:
-    """
-    Seconds before asking again after a failed request.
-
-    :param exc: The failure.
-    :return: 7 days for a bad MBID, 429's wait, else (token refused too) 5 minutes.
-    """
-    if exc.status in (400, 404):
-        return TTL_INVALID
-    if exc.status == 429:
-        return exc.retry_after or 60
-    return TTL_DOWN
-
-
 def _cached(key: str, path: str, shape: Callable[[Any], Any], body: Any = None) -> Any:
     """
-    The answer for key, fetched from path and shaped when stale, cached per answer
-    kind; one request a second across plugin calls, queued up to MAX_WAIT seconds.
+    The answer for key from path, shaped; cached and queued (cache.cached).
 
     :param key: api_cache key.
     :param path: Endpoint path after /1/.
@@ -93,32 +70,9 @@ def _cached(key: str, path: str, shape: Callable[[Any], Any], body: Any = None) 
     :param body: POST body; None for a GET.
     :return: The payload, None when unknown or not fetched.
     """
-    cache = ApiCacheHandler()
-    payload, fresh = cache.get(key) or (None, False)
-    if fresh:
-        return payload
-    home, now = Window(10000), time.time()
-    slot = max(now, float(home.getProperty(NEXT_CALL) or 0))
-    if slot - now > MAX_WAIT:
-        log.debug(f"listenbrainz → busy for {slot - now:.0f}s, skipped {key}")
-        return payload
-    home.setProperty(NEXT_CALL, f"{slot + 1}")
-    if slot > now:
-        log.debug(f"listenbrainz → queued {slot - now:.1f}s {key}")
-        if Monitor().waitForAbort(slot - now):
-            return payload
-    try:
-        payload = shape(get_json(path, body))
-    except HttpError as exc:
-        if exc.status == 401:  # the one failure the user can fix
-            log.warning("listenbrainz → ListenBrainz refused the token (401)")
-        ttl = _failure_ttl(exc)
-        if exc.status == 429:
-            home.setProperty(NEXT_CALL, f"{slot + ttl}")
-        cache.put(key, payload, ttl)  # keeps a stale answer, else a negative one
-        return payload
-    cache.put(key, payload, TTL_HIT if payload else TTL_EMPTY)
-    return payload
+    return cached(
+        key, lambda: shape(get_json(path, body)), (TTL_HIT, TTL_EMPTY), NEXT_CALL
+    )
 
 
 def top_recordings(mbid: str) -> list[list[str]]:

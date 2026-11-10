@@ -10,6 +10,7 @@ import re
 import string
 import sys
 import tempfile
+import unicodedata
 import urllib.parse as urllib
 import xml.etree.ElementTree as ET
 from contextlib import suppress
@@ -636,6 +637,17 @@ def set_plugincontent(
 
 
 """STRINGS"""
+
+
+def fold(text: str) -> str:
+    """
+    Text reduced for matching: no case, accents or punctuation.
+
+    :param text: A name or title.
+    :return: Matching key.
+    """
+    text = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(c for c in text if c.isalnum())
 
 
 def expand_index(index_obj: dict[str, Any]) -> list[str]:

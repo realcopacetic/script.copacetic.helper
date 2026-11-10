@@ -20,8 +20,8 @@ library infolabels and artwork, so your existing layouts work with them.
 | `studio_credits` | Movies and TV shows from a given studio or network. |
 | `artist_credits` | Music videos by a given artist. |
 | `genre_music` | Library artists, albums or songs in any of the given genres. |
-| `top_songs` | A library artist's songs most listened to on ListenBrainz, then its most played. |
-| `discography` | A library artist's albums, most listened to on ListenBrainz first. |
+| `top_songs` | A library artist's most popular songs (ListenBrainz all-time, Deezer now, blended), then its most played. |
+| `discography` | A library artist's albums, most popular (ListenBrainz and Deezer, blended) first. |
 | `soundtracks` | A movie's, TV show's or season's soundtrack albums, or the movie or TV show an album is from. |
 
 ```xml
@@ -265,40 +265,73 @@ for the type. The container's content is `artists`, `albums` or `songs`.
 
 ## `top_songs`
 
-One library artist's songs in the order of its most listened recordings on
-[ListenBrainz](https://listenbrainz.org) (MetaBrainz's free popularity API,
-`/1/popularity/top-recordings-for-artist/<artist MBID>`), then the artist's other
-played songs, most played first.
+One library artist's songs, most popular first, then the artist's other played songs,
+most played first. Two sources rank them, each used when it is on:
 
-**Add-on settings needed:** the user pastes the user token from their free
-ListenBrainz account (listenbrainz.org/settings) into **ListenBrainz user token**
-(setting id `listenbrainz_token`, empty by default). There is no separate on/off
-setting: the token is the user's consent, and ListenBrainz refuses this endpoint
-without one. Every request sends it as `Authorization: Token <token>` with the
-artist's MusicBrainz ID. Without it, the path returns nothing, sends nothing and
-reads no cache. **Test ListenBrainz access** checks the token. A skin can test for it
-with `!String.IsEmpty(Addon.SettingStr(script.copacetic.helper,listenbrainz_token))`.
+- [ListenBrainz](https://listenbrainz.org) (MetaBrainz's free popularity API,
+  `/1/popularity/top-recordings-for-artist/<artist MBID>`): listens since
+  ListenBrainz began, so an artist's early peak leads and a new album barely shows.
+- [Deezer](https://www.deezer.com) (`/artist/<id>/top`, its top 100 tracks): what is
+  streamed now, so a new album shows within days.
 
-A song matches a recording by its MusicBrainz recording id (`musicbrainztrackid`,
-Picard's "MusicBrainz Track Id"), else by title: case, accents, punctuation and a
-trailing `(feat. …)`, `[Remaster]` or ` - Live` part are ignored. Each title appears
-once, from its earliest dated release. The path returns nothing when the artist has
-no MusicBrainz id in the library, ListenBrainz has nothing for it, or no song
-matches, so a list never holds the play counts alone. The items are music library
-songs, as in [`genre_music`](#genre_music); the container's content is `songs`.
+With both on, each source's list becomes places among the songs the library has
+(a source's songs the library lacks take no place; a title listed twice counts once,
+at its first place), and a song scores `1 / (10 + place)` in each list that has it,
+summed (reciprocal rank fusion): songs both rank lead, then the two lists alternate.
+Equal scores go by play count. With one on, its order stands.
 
-Answers are kept in the add-on's `_lookup.db` (`api_cache`): two weeks for a list,
-three days for an empty one, a week when ListenBrainz refuses the id, as long as it
-asks after "too many requests", and five minutes when it refuses the token (logged
-as a warning) or is unreachable (an older list is shown meanwhile). The add-on
-setting **Clear addon cache** forgets them.
-Requests are spaced at least a second apart across all plugin calls, as ListenBrainz
-asks: a call inside that second waits its turn (an artist's info opens three at once,
-so the last fills about two seconds in). When the queue is more than three seconds
-long, the call shows the saved answer or nothing, and the next open fetches. The log
-has one `api_cache →` line per lookup (miss, fresh, stale or stored, with its size);
-with the add-on setting **Include json call/response logs** on, the payload follows
-it.
+**Add-on settings needed** (each is the user's consent; with neither, the path
+returns nothing, sends nothing and reads no cache):
+
+- **ListenBrainz user token** (`listenbrainz_token`, empty by default): the token from
+  the user's free ListenBrainz account (listenbrainz.org/settings). ListenBrainz
+  refuses this endpoint without one; every request sends it as
+  `Authorization: Token <token>` with the artist's MusicBrainz ID.
+  **Test ListenBrainz access** checks it. A skin can test for it with
+  `!String.IsEmpty(Addon.SettingStr(script.copacetic.helper,listenbrainz_token))`.
+- **Rank music with Deezer** (`deezer`, off by default): Deezer needs no account; the
+  helper sends the artist's name (a search) and a Deezer artist id, nothing else, and
+  keeps only ids, titles and album titles (no images or audio). A skin can test for
+  it with `Addon.SettingBool(script.copacetic.helper,deezer)`.
+
+A song matches a ListenBrainz recording by its MusicBrainz recording id
+(`musicbrainztrackid`, Picard's "MusicBrainz Track Id"), else by title: case, accents,
+punctuation and a trailing `(feat. …)`, `[Remaster]` or ` - Live` part are ignored.
+Deezer has no MusicBrainz ids, so its tracks match by title (Deezer's title without
+its version, such as "(Album Version)"). Each title appears once, from its earliest
+dated release unless a recording id matched another. The path returns nothing when
+no source answers for the artist or no song matches, so a list never holds the play
+counts alone. The items are music library songs, as in [`genre_music`](#genre_music);
+the container's content is `songs`.
+
+**Finding the Deezer artist.** The helper searches Deezer for the library artist's
+name, keeps the artists whose name is the same (case, accents and punctuation
+aside), and tries up to three, most followed first: the first whose top tracks share
+an album title with the library artist's songs, or three song titles (all of them,
+for an artist with fewer), is taken. Its id is kept, keyed by the artist's
+MusicBrainz id, else by its name, so later opens skip the search; **Refresh cached
+data** on the artist searches again.
+
+Answers are kept in the add-on's `_lookup.db` (`api_cache`):
+
+- ListenBrainz: two weeks for a list, three days for an empty one, a week when
+  ListenBrainz refuses the id, as long as it asks after "too many requests", and five
+  minutes when it refuses the token (logged as a warning) or is unreachable.
+- Deezer: 90 days for the matched artist (a week when none was found), a week for
+  its top tracks (a day when empty), a week when Deezer has no data, a minute after
+  a quota answer and five minutes when unreachable.
+
+An older answer is shown while a source is unreachable. **Clear addon cache** forgets
+them all; *Cache › Clear TMDb / ListenBrainz / Deezer data* forget one source's, and
+**Refresh cached data** one artist's.
+ListenBrainz requests are spaced at least a second apart across all plugin calls, as
+ListenBrainz asks: a call inside that second waits its turn (an artist's info opens
+three at once, so the last fills about two seconds in). When the queue is more than
+three seconds long, the call shows the saved answer or nothing, and the next open
+fetches. Deezer needs no spacing: a first open of an artist makes two requests
+(search and top tracks), later opens none until the week is up. The log has one
+`api_cache →` line per lookup (miss, fresh, stale or stored, with its size); with the
+add-on setting **Include json call/response logs** on, the payload follows it.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -311,14 +344,22 @@ it.
 
 ## `discography`
 
-One library artist's albums (the same albums as `musicdb://albums/?artistid=`) in the
-order of its most listened release groups on ListenBrainz
-(`/1/popularity/top-release-groups-for-artist/<artist MBID>`), then the albums
-ListenBrainz doesn't rank, newest first. An album matches by its release group
-(`musicbrainzreleasegroupid`), else by title as in `top_songs`, so a deluxe edition
-sits next to the original. With no **ListenBrainz user token**, no MusicBrainz id
-or no answer, all albums come newest first; without a token nothing is sent.
-Same cache and spacing as `top_songs`.
+One library artist's albums (the same albums as `musicdb://albums/?artistid=`), most
+popular first, then the albums no source ranks, newest first. The two sources and
+settings are `top_songs`':
+
+- ListenBrainz ranks release groups
+  (`/1/popularity/top-release-groups-for-artist/<artist MBID>`). An album matches by
+  its release group (`musicbrainzreleasegroupid`), else by title as in `top_songs`, so
+  a deluxe edition sits next to the original.
+- Deezer has no album popularity, so its top tracks rank the albums: each top track
+  the library has credits the album the library holds it on (the album of the same
+  title when there is one, so a live track credits a live album), `1 / (10 + place)`,
+  and albums go by their total credit.
+
+Both lists are blended as in `top_songs`. With neither source on, no MusicBrainz id
+for ListenBrainz alone, or no answer, all albums come newest first; with neither on
+nothing is sent. Same cache and spacing as `top_songs` (the same Deezer answers).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

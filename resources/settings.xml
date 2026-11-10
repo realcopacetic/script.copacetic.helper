@@ -124,6 +124,13 @@
 					</dependencies>
 				</setting>
 			</group>
+			<group id="3" label="32037">
+				<setting id="deezer" type="boolean" label="32038" help="32138">
+					<level>0</level>
+					<default>false</default>
+					<control type="toggle" />
+				</setting>
+			</group>
 		</category>
 		<category id="library" label="32024" help="">
 			<group id="1" label="">
@@ -192,6 +199,16 @@
 					</constraints>
 					<control type="button" format="action">
 						<data>RunScript(script.copacetic.helper,action=clear_api_cache,source=listenbrainz)</data>
+					</control>
+				</setting>
+				<setting id="cache_clear_deezer" type="string" label="32036" help="32136">
+					<level>0</level>
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="button" format="action">
+						<data>RunScript(script.copacetic.helper,action=clear_api_cache,source=deezer)</data>
 					</control>
 				</setting>
 			</group>

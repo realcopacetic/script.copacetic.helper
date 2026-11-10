@@ -46,8 +46,14 @@ from resources.lib.plugin.library import (
 )
 from resources.lib.plugin.music import (
     ALBUM_RANK_PROPERTIES,
+    ALBUM_SONG_PROPERTIES,
     SONG_RANK_PROPERTIES,
+    WEIGHTS,
+    albums_by_groups,
+    albums_by_songs,
+    artist_identity,
     compact_count,
+    deezer_match,
     details_item,
     dial_item,
     library_item,
@@ -1723,18 +1729,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def top_songs(self) -> list[DirectoryItem] | None:
         """
-        Build a container of artist ``self.dbid``'s songs most listened on
-        ListenBrainz, topped up with its most played; empty with access off.
+        Build a container of artist ``self.dbid``'s songs most popular on ListenBrainz
+        (all-time) and Deezer (now), blended, topped up with its most played; empty
+        with both off.
 
         :return: List of directory items for Kodi, or None if empty.
         """
-        from resources.lib.apis import listenbrainz
+        from resources.lib.apis import deezer, listenbrainz
 
-        if not (listenbrainz.enabled() and self._require("id")):
+        on_deezer, on_listenbrainz = deezer.enabled(), listenbrainz.enabled()
+        if not ((on_deezer or on_listenbrainz) and self._require("id")):
             return
         artistid = int(self.dbid)
-        _, mbid = listenbrainz.musicbrainz_id("artist", artistid, "top_songs")
-        if not (mbid and (recordings := listenbrainz.top_recordings(mbid))):
+        name, mbid = artist_identity(artistid, "top_songs")
+        recordings = (
+            listenbrainz.top_recordings(mbid) if mbid and on_listenbrainz else []
+        )
+        if not (recordings or on_deezer):
             return
         songs = library_rows(
             "song",
@@ -1744,19 +1755,26 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "top_songs",
             SONG_RANK_PROPERTIES,
         )
+        # ListenBrainz first: an MBID match claims its title
+        rankings = [(WEIGHTS["listenbrainz"], recordings)]
+        if on_deezer and songs:
+            key = deezer.artist_key(mbid, name)
+            tracks = deezer.top_tracks(key, name, deezer_match(songs))
+            rankings.append((WEIGHTS["deezer"], tracks))
         set_plugincontent(content="songs")
-        rows = rank_songs(recordings, songs)[: self.limit]
+        rows = rank_songs(rankings, songs)[: self.limit]
         return [library_item(row, "song") for row in rows] or None
 
     @log.duration
     def discography(self) -> list[DirectoryItem] | None:
         """
-        Build a container of artist ``self.dbid``'s library albums, most listened
-        on ListenBrainz first, the rest newest first; all newest first with access off.
+        Build a container of artist ``self.dbid``'s library albums, most popular on
+        ListenBrainz and Deezer first (blended), the rest newest first; all newest
+        first with both off.
 
         :return: List of directory items for Kodi, or None if empty.
         """
-        from resources.lib.apis import listenbrainz
+        from resources.lib.apis import deezer, listenbrainz
 
         if not self._require("id"):
             return
@@ -1769,12 +1787,29 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "discography",
             ALBUM_RANK_PROPERTIES,
         )
-        groups = []
-        if albums and listenbrainz.enabled():
-            _, mbid = listenbrainz.musicbrainz_id("artist", artistid, "discography")
-            groups = listenbrainz.top_release_groups(mbid) if mbid else []
+        rankings = []
+        on_deezer, on_listenbrainz = deezer.enabled(), listenbrainz.enabled()
+        if albums and (on_deezer or on_listenbrainz):
+            name, mbid = artist_identity(artistid, "discography")
+            if mbid and on_listenbrainz:
+                groups = listenbrainz.top_release_groups(mbid)
+                rankings.append(
+                    (WEIGHTS["listenbrainz"], albums_by_groups(groups, albums))
+                )
+            songs = on_deezer and library_rows(
+                "song",
+                {"artistid": artistid},
+                None,
+                None,
+                "discography",
+                ALBUM_SONG_PROPERTIES,
+            )
+            if songs:
+                key = deezer.artist_key(mbid, name)
+                tracks = deezer.top_tracks(key, name, deezer_match(songs))
+                rankings.append((WEIGHTS["deezer"], albums_by_songs(tracks, songs)))
         set_plugincontent(content="albums")
-        rows = rank_albums(groups, albums)[: self.limit]
+        rows = rank_albums(rankings, albums)[: self.limit]
         return [library_item(row, "album") for row in rows] or None
 
     @log.duration

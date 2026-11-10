@@ -1,13 +1,18 @@
 """
 Offline checks for the web API layer: apis/http.py, the api_cache table,
-apis/listenbrainz.py (TTLs, stale-on-failure, rate limit), top_songs and the
-TMDb client and cache (apis/tmdb), and the plugin URL parser (shared/parser.py).
+apis/cache.py and apis/listenbrainz.py (TTLs, stale-on-failure, rate limit),
+apis/deezer.py (artist match, TTLs, Deezer's error answers), the blended ranking
+of top_songs and discography, the TMDb client and cache (apis/tmdb), and the
+plugin URL parser (shared/parser.py).
 
 Network calls are replaced by recorded ListenBrainz answers
-(tests/fixtures/listenbrainz_*.json, Gorillaz, fetched Oct 2026), the documented
+(tests/fixtures/listenbrainz_*.json, Gorillaz, fetched Oct 2026), recorded Deezer
+answers (tests/fixtures/deezer_*.json, Queens of the Stone Age, fetched from a
+browser on 10 Nov 2026 and trimmed to the fields the helper reads), the documented
 popularity count shape, a TMDb /tv/{id} answer in TMDb's shape
-(tests/fixtures/tmdb_tv_1399.json, hand-written: no token here) or the failure
-under test. Run from the helper root: python tests/api_offline.py
+(tests/fixtures/tmdb_tv_1399.json, hand-written: no token here), Deezer's error
+shape (hand-written) or the failure under test. Run from the helper root:
+python tests/api_offline.py
 """
 
 import io
@@ -27,6 +32,7 @@ STAGE = Path(tempfile.mkdtemp())
 LOG = install_stubs(HELPER, STAGE, STAGE, verbose=False)
 vars(sys.modules["xbmc"]).update(  # imported names; a test that calls one patches it
     Monitor=None,
+    getCacheThumbName=None,
     getLocalizedString=None,
     AudioStreamDetail=None,
     SubtitleStreamDetail=None,
@@ -36,21 +42,25 @@ sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
 sys.modules["xbmcvfs"].mkdirs = lambda path: Path(path).mkdir(exist_ok=True) or 1
 sys.path.insert(0, str(HELPER))
 
-from resources.lib.apis import http, listenbrainz  # noqa: E402
+from resources.lib.apis import cache, deezer, http, listenbrainz  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.apis.tmdb.fields import filter_tmdb_images_by_size  # noqa: E402
 from resources.lib.plugin import handlers, helpers  # noqa: E402
 from resources.lib.plugin.music import (  # noqa: E402
     ALBUM_RANK_PROPERTIES,
+    albums_by_groups,
+    albums_by_songs,
     compact_count,
+    deezer_match,
+    fused,
     library_item,
     rank_albums,
     rank_songs,
     title_key,
 )
 from resources.lib.plugin.setter import apply_musicinfotag  # noqa: E402
-from resources.lib.script import actions  # noqa: E402
+from resources.lib.script import actions, library  # noqa: E402
 from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 from resources.lib.shared.text import fit_lines  # noqa: E402
@@ -59,11 +69,18 @@ FIXTURES = HELPER / "tests" / "fixtures"
 FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
 ALBUMS = (FIXTURES / "listenbrainz_top_release_groups.json").read_bytes()
 TMDB_TV = (FIXTURES / "tmdb_tv_1399.json").read_bytes()
+DEEZER_SEARCH = (FIXTURES / "deezer_search_qotsa.json").read_bytes()
+DEEZER_TOP = (FIXTURES / "deezer_top_1177.json").read_bytes()
+DEEZER_QUOTA = (
+    b'{"error":{"type":"Exception","message":"Quota limit exceeded","code":4}}'
+)
+DEEZER_NO_DATA = b'{"error":{"type":"DataException","message":"no data","code":800}}'
 GORILLAZ = "e21857d5-3256-4547-afb3-4b6ded592596"
+QOTSA = "7dc8f5bd-9d0b-4087-9f73-dc164950bbd8"
 DAY = 86400
 
 
-def song(songid, title, year, playcount=0, mbid=""):
+def song(songid, title, year, playcount=0, mbid="", album="", albumid=0):
     """A library song row as AudioLibrary.GetSongs returns it (fields used here)."""
     return {
         "songid": songid,
@@ -71,6 +88,8 @@ def song(songid, title, year, playcount=0, mbid=""):
         "year": year,
         "playcount": playcount,
         "musicbrainztrackid": mbid,
+        "album": album,
+        "albumid": albumid,
     }
 
 
@@ -122,13 +141,14 @@ class Base(unittest.TestCase):
     def setUp(self):
         self.now = 1_800_000_000.0
         self.net = Net()
-        self.settings = {"listenbrainz_token": " lb-token "}
+        self.settings = {"listenbrainz_token": " lb-token ", "deezer": False}
         patch(
             self,
             (time, "time", lambda: self.now),
             (http, "urlopen", self.net),
-            (listenbrainz, "Monitor", lambda: self),  # waitForAbort: the clock moves on
+            (cache, "Monitor", lambda: self),  # waitForAbort: the clock moves on
             (listenbrainz.ADDON, "getSetting", lambda key: self.settings.get(key, "")),
+            (listenbrainz.ADDON, "getSettingBool", lambda key: self.settings.get(key)),
         )
         self.cache = ApiCacheHandler()
         self.cache.clear_all()
@@ -373,13 +393,14 @@ class MatchTest(unittest.TestCase):
         self.assertEqual(title_key("(Intro)"), "intro")
 
     def test_rank(self):
-        ranked = [row["songid"] for row in rank_songs(self.recordings, SONGS)]
+        ranked = [row["songid"] for row in rank_songs([(1, self.recordings)], SONGS)]
         # MBID beats the earlier demo; earliest dated Clint Eastwood; one per title;
         # topped up with played songs (10), unplayed Re-Hash left out
         self.assertEqual(ranked, [2, 5, 7, 8, 9, 10])
 
     def test_no_match_no_list(self):
-        self.assertEqual(rank_songs([["x", "Unknown"]], SONGS), [])
+        self.assertEqual(rank_songs([(1, [["x", "Unknown"]])], SONGS), [])
+        self.assertEqual(rank_songs([], SONGS), [])
 
 
 class LibraryItemTest(unittest.TestCase):
@@ -439,7 +460,10 @@ class TopSongsTest(Base):
                 return json.dumps(
                     {
                         "result": {
-                            "artistdetails": {"musicbrainzartistid": self.artist_mbids}
+                            "artistdetails": {
+                                "artist": "Gorillaz",
+                                "musicbrainzartistid": self.artist_mbids,
+                            }
                         }
                     }
                 )
@@ -899,7 +923,14 @@ class DiscographyTest(Base):
             self.calls.append(method)
             if method == "AudioLibrary.GetArtistDetails":
                 return json.dumps(
-                    {"result": {"artistdetails": {"musicbrainzartistid": [GORILLAZ]}}}
+                    {
+                        "result": {
+                            "artistdetails": {
+                                "artist": "Gorillaz",
+                                "musicbrainzartistid": [GORILLAZ],
+                            }
+                        }
+                    }
                 )
             return json.dumps({"result": {"albums": ALBUM_ROWS}})
 
@@ -917,7 +948,12 @@ class DiscographyTest(Base):
         # Demon Days by MBID, its deluxe copy by title (newer first among equals),
         # Gorillaz, Plastic Beach by title; then the unmatched newest first
         self.assertEqual(
-            [row["albumid"] for row in rank_albums(self.groups, ALBUM_ROWS)],
+            [
+                row["albumid"]
+                for row in rank_albums(
+                    [(1, albums_by_groups(self.groups, ALBUM_ROWS))], ALBUM_ROWS
+                )
+            ],
             [3, 2, 1, 4, 6, 5],
         )
 
@@ -944,6 +980,350 @@ class DiscographyTest(Base):
     def test_offline_is_date_order(self):
         self.net.answers = [URLError("offline")]
         self.assertEqual(self.handler.discography(), [6, 5, 4, 3, 2, 1])
+
+
+def qotsa(songid, title, album, albumid, year, playcount=0):
+    """A Queens of the Stone Age library song (untagged, as many libraries are)."""
+    return song(songid, title, year, playcount, "", album, albumid)
+
+
+QOTSA_SONGS = [
+    qotsa(1, "No One Knows", "Songs for the Deaf", 2, 2002),
+    qotsa(2, "Go With the Flow", "Songs for the Deaf", 2, 2002),
+    qotsa(3, "First It Giveth", "Songs for the Deaf", 2, 2002),
+    qotsa(4, "The Lost Art of Keeping a Secret", "Rated R", 1, 2000),
+    qotsa(5, "Feel Good Hit of the Summer", "Rated R", 1, 2000, 4),
+    qotsa(6, "Little Sister", "Lullabies to Paralyze", 3, 2005),
+    qotsa(7, "In My Head", "Lullabies to Paralyze", 3, 2005),
+    qotsa(8, "Make It Wit Chu", "Era Vulgaris", 4, 2007),
+    qotsa(9, "I Sat by the Ocean", "...Like Clockwork", 5, 2013),
+    qotsa(10, "If I Had a Tail", "...Like Clockwork", 5, 2013),
+    qotsa(11, "Feet Don't Fail Me", "Villains", 6, 2017),
+    qotsa(12, "The Way You Used to Do", "Villains", 6, 2017),
+    qotsa(13, "Paper Machete", "In Times New Roman...", 7, 2023),
+    qotsa(14, "Insignificant Other", "Perfecth", 8, 2026),
+    qotsa(15, "Mono", "Perfecth", 8, 2026),
+    qotsa(16, "Easy Street", "Perfecth", 8, 2026),
+    qotsa(17, "It's Only Love", "Perfecth", 8, 2026, 2),  # not in Deezer's 100
+]
+QOTSA_ALBUMS = [
+    album(1, "Rated R", 2000),
+    album(2, "Songs for the Deaf", 2002),
+    album(3, "Lullabies to Paralyze", 2005),
+    album(4, "Era Vulgaris", 2007),
+    album(5, "...Like Clockwork", 2013),
+    album(6, "Villains", 2017),
+    album(7, "In Times New Roman...", 2023),
+    album(8, "Perfecth", 2026),
+]
+DEEZER_ROWS = [
+    ["", row["title_short"], row["album"]["title"]]
+    for row in json.loads(DEEZER_TOP)["data"]
+]
+# ListenBrainz's all-time order for the same songs, hand-made in its answer's shape
+QOTSA_LISTENS = json.dumps(
+    [
+        {"recording_mbid": f"mbid-{n}", "recording_name": title}
+        for n, title in enumerate(
+            [
+                "No One Knows",
+                "Go With the Flow",
+                "Little Sister",
+                "First It Giveth",
+                "Make It Wit Chu",
+                "In My Head",
+                "Feel Good Hit of the Summer",
+                "The Lost Art of Keeping a Secret",
+            ]
+        )
+    ]
+).encode()
+
+
+def deezer_top(*tracks):
+    """A Deezer top-tracks answer with (title, album title) tracks."""
+    data = [
+        {"title_short": title, "album": {"title": album}} for title, album in tracks
+    ]
+    return json.dumps({"data": data}).encode()
+
+
+def deezer_search(*artists):
+    """A Deezer artist search answer with (id, name, fans) artists."""
+    data = [{"id": id, "name": name, "nb_fan": fans} for id, name, fans in artists]
+    return json.dumps({"data": data}).encode()
+
+
+class BlendTest(unittest.TestCase):
+    def test_fused(self):
+        scores = fused([(1, "ab"), (1, "cd")])
+        self.assertEqual(sorted(scores, key=scores.get, reverse=True)[:2], ["a", "c"])
+        both = fused([(1, "ab"), (1, "cb")])
+        self.assertEqual(max(both, key=both.get), "b")  # in both beats first in one
+        self.assertEqual(fused([(1, "aab")]), fused([(1, "ab")]))  # once, first place
+
+    def test_deezer_order(self):
+        ranked = [row["songid"] for row in rank_songs([(1, DEEZER_ROWS)], QOTSA_SONGS)]
+        # Deezer's order: two classics, Perfecth, then the rest; It's Only Love isn't
+        # in the 100 but is played, so it closes the list
+        self.assertEqual(
+            ranked, [1, 2, 14, 15, 16, 6, 9, 8, 12, 4, 3, 10, 11, 7, 13, 5, 17]
+        )
+
+    def test_blend(self):
+        listens = [
+            [row["recording_mbid"], row["recording_name"]]
+            for row in json.loads(QOTSA_LISTENS)
+        ]
+        ranked = rank_songs([(1, listens), (1, DEEZER_ROWS)], QOTSA_SONGS)
+        # Songs both rank lead; Perfecth follows those, ahead of the rest
+        self.assertEqual(
+            [row["songid"] for row in ranked],
+            [1, 2, 6, 8, 3, 4, 7, 5, 14, 15, 16, 9, 12, 10, 11, 13, 17],
+        )
+
+    def test_versions_and_singles(self):
+        titles = [title for _, title, _ in DEEZER_ROWS]
+        self.assertIn("First It Giveth", titles)  # title_short: no "(Album Version)"
+        self.assertEqual(titles.count("Make It Wit Chu"), 2)  # album track and single
+        ranked = rank_songs([(1, DEEZER_ROWS)], QOTSA_SONGS)
+        self.assertEqual(len(ranked), len({row["songid"] for row in ranked}))
+
+    def test_equal_scores_by_play_count(self):
+        songs = [song(1, "A", 2000), song(2, "A", 2001, 5), song(3, "B", 2000, 1)]
+        ranked = rank_songs([(1, [["", "A"]])], songs)
+        self.assertEqual([row["songid"] for row in ranked], [1, 3])  # earliest A
+
+    def test_album_credit(self):
+        # Songs for the Deaf leads (two classics), Perfecth next (three songs high)
+        self.assertEqual(
+            albums_by_songs(DEEZER_ROWS, QOTSA_SONGS), [2, 8, 5, 3, 6, 1, 4, 7]
+        )
+        live = [qotsa(20, "Mono", "Alive", 9, 2027), *QOTSA_SONGS]
+        self.assertEqual(albums_by_songs([["", "Mono", "Alive"]], live), [9])
+        self.assertEqual(albums_by_songs([["", "Mono", "Mono (Single)"]], live), [8])
+
+    def test_artist_match(self):
+        accept = deezer_match(QOTSA_SONGS)
+        self.assertTrue(accept(DEEZER_ROWS))
+        self.assertTrue(accept([["", "x", "Villains"]]))  # an album in common
+        self.assertTrue(
+            accept(
+                [
+                    ["", t, "x"]
+                    for t in ("Mono", "Sunday", "Easy Street", "No One Knows")
+                ]
+            )
+        )
+        self.assertFalse(accept([["", "Mono", "x"], ["", "No One Knows", "x"]]))
+        self.assertTrue(deezer_match([song(1, "Mono", 2026)])([["", "Mono", "x"]]))
+        self.assertFalse(deezer_match([song(1, "!!!", 2026)])([["", "!!!", "x"]]))
+
+
+class DeezerTest(Base):
+    def setUp(self):
+        super().setUp()
+        self.settings["deezer"] = True
+        self.accept = deezer_match(QOTSA_SONGS)
+
+    def top(self, key=QOTSA):
+        return deezer.top_tracks(key, "Queens of the Stone Age", self.accept)
+
+    def deezer_row(self, key):
+        return self.row(key, "deezer:")
+
+    def test_first_open_then_cached(self):
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        rows = self.top()
+        self.assertEqual(rows, DEEZER_ROWS)
+        self.assertEqual(
+            [request.full_url for request in self.net.requests],
+            [
+                "https://api.deezer.com/search/artist?q=Queens+of+the+Stone+Age&limit=10",
+                "https://api.deezer.com/artist/1177/top?limit=100",
+            ],
+        )  # the 0-fan duplicate is never fetched
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (1177, 90 * DAY))
+        self.assertEqual(self.deezer_row("top:1177"), (rows, 7 * DAY))
+        self.assertIsNone(self.net.requests[0].get_header("Authorization"))
+        self.tick(6 * DAY)
+        self.assertEqual(self.top(), rows)
+        self.assertEqual(len(self.net.requests), 2)
+
+    def test_top_refetched_weekly_artist_kept(self):
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, DEEZER_TOP]
+        self.top()
+        self.tick(8 * DAY)
+        self.assertEqual(self.top(), DEEZER_ROWS)
+        self.assertTrue(
+            self.net.requests[2].full_url.endswith("artist/1177/top?limit=100")
+        )
+
+    def test_no_artist_of_that_name(self):
+        self.net.answers = [deezer_search((5, "Queens of the Stone Age Tribute", 9))]
+        self.assertEqual(self.top(), [])
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 7 * DAY))
+        self.assertEqual(self.top(), [])
+        self.assertEqual(len(self.net.requests), 1)
+
+    def test_most_followed_rejected_next_taken(self):
+        self.net.answers = [
+            deezer_search(
+                (9, "Queens of the Stone Age", 9_000_000),
+                (1177, "Queens of the stone age", 10),
+            ),
+            deezer_top(("Other Song", "Other Album")),
+            DEEZER_TOP,
+        ]
+        self.assertEqual(self.top(), DEEZER_ROWS)
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}")[0], 1177)
+        self.assertIsNone(self.cache._get_one("key = ?", ("deezer:top:9",)))
+        self.assertEqual(len(self.net.requests), 3)  # the accepted list isn't refetched
+
+    def test_candidate_without_data_skipped(self):
+        self.net.answers = [
+            deezer_search(
+                (9, "Queens of the Stone Age", 9_000_000),
+                (1177, "Queens of the Stone Age", 10),
+            ),
+            DEEZER_NO_DATA,
+            DEEZER_TOP,
+        ]
+        self.assertEqual(self.top(), DEEZER_ROWS)
+
+    def test_down_mid_search_asked_again_soon(self):
+        self.net.answers = [DEEZER_SEARCH, URLError("offline")]
+        self.assertEqual(self.top(), [])
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 300))
+
+    def test_stale_served_while_down(self):
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        self.top()
+        self.tick(91 * DAY)
+        self.net.answers = [URLError("offline"), URLError("offline")]
+        self.assertEqual(self.top(), DEEZER_ROWS)
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (1177, 300))
+        self.assertEqual(self.deezer_row("top:1177"), (DEEZER_ROWS, 300))
+
+    def test_quota_answer_is_an_error(self):
+        self.net.answers = [DEEZER_QUOTA]
+        self.assertEqual(self.top(), [])
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 60))
+
+    def test_untagged_artist_keyed_by_name(self):
+        self.assertEqual(
+            deezer.artist_key("", "Queens of the Stone Age"), "queensofthestoneage"
+        )
+        self.assertEqual(deezer.artist_key(QOTSA, "x"), QOTSA)
+
+    def test_patterns(self):
+        self.assertEqual(deezer.patterns(QOTSA), [f"deezer:artist:{QOTSA}"])
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        self.top()
+        self.assertEqual(
+            deezer.patterns(QOTSA), [f"deezer:artist:{QOTSA}", "deezer:top:1177"]
+        )
+
+    def test_refresh_and_clear(self):
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        self.top()
+        self.cache.put(f"listenbrainz:top-recordings:{QOTSA}", [], DAY)
+        details = {"artist": "Queens of the Stone Age", "musicbrainzartistid": [QOTSA]}
+        patch(self, (library, "_details", lambda *args: details))
+        patterns = library.api_patterns("artist", 4)
+        self.assertEqual(
+            patterns,
+            [f"listenbrainz:%:{QOTSA}", f"deezer:artist:{QOTSA}", "deezer:top:1177"],
+        )
+        self.assertEqual(self.cache.expire(*patterns), 3)
+        self.net.answers = [URLError("offline"), URLError("offline")]
+        self.assertEqual(self.top(), DEEZER_ROWS)  # stale is still served offline
+        dialog = mock.Mock(**{"return_value.yesno.return_value": True})
+        patch(
+            self,
+            (actions.xbmcgui, "Dialog", dialog),
+            (actions.ADDON, "getLocalizedString", lambda id: "%s"),
+        )
+        actions.clear_api_cache(source="deezer")
+        self.assertIsNone(self.cache.get(f"deezer:artist:{QOTSA}"))
+        self.assertIsNotNone(self.cache.get(f"listenbrainz:top-recordings:{QOTSA}"))
+
+
+class QotsaRailsTest(Base):
+    def setUp(self):
+        super().setUp()
+        self.calls, self.mbids = [], [QOTSA]
+
+        def rpc(request):
+            request = json.loads(request)
+            self.calls.append(request["method"])
+            if request["method"] == "AudioLibrary.GetArtistDetails":
+                details = {
+                    "artist": "Queens of the Stone Age",
+                    "musicbrainzartistid": self.mbids,
+                }
+                return json.dumps({"result": {"artistdetails": details}})
+            if request["method"] == "AudioLibrary.GetAlbums":
+                return json.dumps({"result": {"albums": QOTSA_ALBUMS}})
+            return json.dumps({"result": {"songs": QOTSA_SONGS}})
+
+        patch(
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (handlers, "set_plugincontent", lambda **kwargs: None),
+            (
+                handlers,
+                "library_item",
+                lambda row, type: row.get("songid") or row["albumid"],
+            ),
+        )
+        self.handler = object.__new__(handlers.PluginHandlers)
+        self.handler.params = {"id": "4"}
+        self.handler.dbid, self.handler.limit = "4", 5
+
+    def test_deezer_alone(self):
+        self.settings.update(listenbrainz_token="", deezer=True)
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        self.assertEqual(self.handler.top_songs(), [1, 2, 14, 15, 16])
+
+    def test_untagged_with_deezer_skips_listenbrainz(self):
+        self.settings["deezer"], self.mbids = True, [""]
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        self.assertEqual(self.handler.top_songs(), [1, 2, 14, 15, 16])
+        self.assertEqual(len(self.net.requests), 2)
+        self.assertIsNotNone(self.cache.get("deezer:artist:queensofthestoneage"))
+
+    def test_blend(self):
+        self.settings["deezer"] = True
+        self.net.answers = [QOTSA_LISTENS, DEEZER_SEARCH, DEEZER_TOP]
+        self.assertEqual(self.handler.top_songs(), [1, 2, 6, 8, 3])
+
+    def test_deezer_down_listenbrainz_alone(self):
+        self.settings["deezer"] = True
+        self.net.answers = [QOTSA_LISTENS, URLError("offline")]
+        self.assertEqual(self.handler.top_songs(), [1, 2, 6, 3, 8])
+
+    def test_both_down_hides(self):
+        self.settings["deezer"] = True
+        self.net.answers = [URLError("offline"), URLError("offline")]
+        self.assertIsNone(self.handler.top_songs())
+
+    def test_both_off_sends_nothing(self):
+        self.settings["listenbrainz_token"] = ""
+        self.assertIsNone(self.handler.top_songs())
+        self.assertEqual((self.calls, self.net.requests), ([], []))
+
+    def test_discography_deezer_alone(self):
+        self.settings.update(listenbrainz_token="", deezer=True)
+        self.handler.limit = None
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        self.assertEqual(self.handler.discography(), [2, 8, 5, 3, 6, 1, 4, 7])
+
+    def test_discography_off_is_date_order(self):
+        self.settings["listenbrainz_token"] = ""
+        self.handler.limit = None
+        self.assertEqual(self.handler.discography(), [8, 7, 6, 5, 4, 3, 2, 1])
+        self.assertEqual(self.calls, ["AudioLibrary.GetAlbums"])
 
 
 class ListenersTest(Base):
