@@ -46,7 +46,12 @@ _ICONS = {
 }
 # Details Kodi's own musicdb items carry as {type}_{field} properties too
 _PROPERTIES = {"born", "description", "died", "disbanded", "formed", "yearsactive"}
-ALBUM_RANK_PROPERTIES = [*_DETAILS["album"][1], "art", "musicbrainzreleasegroupid"]
+ALBUM_RANK_PROPERTIES = [
+    *_DETAILS["album"][1],
+    "art",
+    "artistid",
+    "musicbrainzreleasegroupid",
+]
 SONG_RANK_PROPERTIES = [*_DETAILS["song"][1], "art", "musicbrainztrackid", "playcount"]
 ALBUM_SONG_PROPERTIES = ["album", "albumid", "musicbrainztrackid", "title", "year"]
 K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
