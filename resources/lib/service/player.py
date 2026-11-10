@@ -10,6 +10,7 @@ from resources.lib.service import playnext
 from resources.lib.service.trailer import (
     TrailerZoomController,
     enter_fullscreen,
+    start_flight,
     trailer_source,
 )
 from resources.lib.shared import logger as log
@@ -59,7 +60,8 @@ class PlayerMonitor(Player):
         self._published = set()
         self._dial_queue = None
         self._dial_source = False  # (queue key, mark) taken at a start, until AV
-        self._dropped = (None, 0.0)  # last cleared request's path, and when
+        self._landed = None  # the flight's path, from its start until its AV start
+        self._resume_waiting = False  # a hung flight was cancelled: start the next
         SpeedDial().publish()
         if self.isPlaying():
             self.onAVStarted()
@@ -76,37 +78,19 @@ class PlayerMonitor(Player):
             log.execute("PlayerControl(Stop)")
         self._publish({})
         self._clear_trailer_props()
+        window_property("trailer_flight")
+        window_property("trailer_pending_since")
         clear_properties()
 
     def onAVStarted(self) -> None:
         """Handle playback start events for video and audio."""
         path = infolabel("Player.Filenameandpath")
-        request = infolabel("Window(home).Property(trailer_request)")
-        dropped, since = self._dropped
-        if (
-            path == dropped != request
-            and time.time() - since < 30  # a resolve's lifetime
-            and not condition("Window.IsActive(fullscreenvideo)")
-        ):
-            # A cleared request's resolve finished anyway: windowed, hidden, heard
-            self._dropped = (None, 0.0)
-            log.execute("PlayerControl(Stop)")
+        if path == self._landed:
+            self._landed = None
+            self._land(path)
             return
         state = infolabel("Window(home).Property(trailer_state)")
         if state in ("pending", "cancelled"):
-            if path == request:
-                if state == "cancelled":  # requested in a window since left
-                    log.execute("PlayerControl(Stop)")
-                    return
-                window_property("trailer_file", value=path)
-                if self._trailer_is_stale():
-                    self._orphan_trailer()
-                elif infolabel("Window(home).Property(trailer_fullscreen)"):
-                    enter_fullscreen()
-                else:
-                    window_property("trailer_state", value="playing")
-                    self.zoom.apply_zoom_if_needed()
-                return
             # The user's media (onPlayBackStarted dropped the resolve)
             if not self.isPlayingVideo():
                 self._clear_trailer_props()  # the video path below clears its own
@@ -124,16 +108,20 @@ class PlayerMonitor(Player):
     def onPlayBackStarted(self) -> None:
         """
         Hold a new speed dial mark with its queue, for that queue's AV start.
-        Media other than the requested trailer started while it may still be
-        resolving: drop the resolve, or Kodi plays the trailer in its place.
+        End the trailer flight: its own start lands at AV start; other media
+        started inside its resolve's wait drops it, or Kodi plays it in its place.
         """
         if (source := take_source()) is not False:
             self._dial_source = (_queue_key(PlayList(PLAYLIST_MUSIC)), source)
-        state = infolabel("Window(home).Property(trailer_state)")
-        if state in ("pending", "cancelled") and infolabel(
-            "Player.Filenameandpath"
-        ) != infolabel("Window(home).Property(trailer_request)"):
-            log.execute("Action(Back,busydialog)")  # ends the busy dialog's wait
+        if not (flight := infolabel("Window(home).Property(trailer_flight)")):
+            return
+        window_property("trailer_flight")
+        if (path := infolabel("Player.Filenameandpath")) == flight:
+            self._landed = path
+            window_property("trailer_file", value=path)  # ours from its first frame
+        else:
+            # Ends the busy dialog's wait; Kodi stalls until the script stops
+            log.execute("Action(Back,busydialog)")
 
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
@@ -300,6 +288,28 @@ class PlayerMonitor(Player):
         current = infolabel(f"{source}.Label")
         return bool(current) and current != expected
 
+    def _land(self, path: str) -> None:
+        """
+        The flight has started: show it, park it or stop it, and start the
+        request that waited behind it.
+
+        :param path: The flight's file.
+        """
+        if infolabel("Window(home).Property(trailer_state)") != "pending":
+            log.execute("PlayerControl(Stop)")  # left, or given up on: nobody wants it
+            return
+        waiting = infolabel("Window(home).Property(trailer_request)")
+        if self._trailer_is_stale():
+            self._orphan_trailer()
+        elif waiting != path:  # a later rest's request: this one makes way
+            self._pause_session()
+            start_flight(waiting)
+        elif infolabel("Window(home).Property(trailer_fullscreen)"):
+            enter_fullscreen()
+        else:
+            window_property("trailer_state", value="playing")
+            self.zoom.apply_zoom_if_needed()
+
     def _orphan_trailer(self) -> None:
         """
         Demote a stale or ending trailer to a paused, hidden orphan instead of
@@ -310,11 +320,9 @@ class PlayerMonitor(Player):
 
     def _clear_trailer_props(self) -> None:
         """
-        Reset the trailer session to idle. Its request's path is kept for 30 s,
-        so onAVStarted can stop, once, a resolve that finishes after the clear.
+        Reset the trailer session to idle. A flight still resolving is kept: it
+        is stopped when it lands, as nobody wants it.
         """
-        if request := infolabel("Window(home).Property(trailer_request)"):
-            self._dropped = (request, time.time())
         for key in (
             "trailer_state",
             "trailer_request",
@@ -324,7 +332,6 @@ class PlayerMonitor(Player):
             "trailer_window",
             "trailer_fullscreen",
             "trailer_viewport",
-            "trailer_pending_since",
             "trailer_file",
         ):
             window_property(key)
@@ -343,13 +350,13 @@ class PlayerMonitor(Player):
 
     def watch_trailer_session(self) -> None:
         """
-        Poller hook: reap a wedged pending request; demote a playing session
-        whose item lost focus or whose end is near; rewind a demoted session at
-        once, so no close counts it as watched, and reap it once the user settles.
+        Poller hook: watch the flight; demote a playing session whose item lost
+        focus or whose end is near; rewind a demoted session at once, so no close
+        counts it as watched, and reap it once the user settles.
         """
+        self._watch_flight()
         state = infolabel("Window(home).Property(trailer_state)")
         if state in ("pending", "cancelled"):
-            self._reap_stale_pending()
             return
         if state == "fullscreen":
             if self._trailer_ending():
@@ -372,22 +379,40 @@ class PlayerMonitor(Player):
             if condition("System.IdleTime(10)"):
                 log.execute("PlayerControl(Stop)")
 
-    def _reap_stale_pending(self, max_age: float = 5.0) -> None:
+    def _watch_flight(self, retire: float = 5.0, cancel: float = 15.0) -> None:
         """
-        Retire a pending request that never started (e.g. a failed or slow plugin
-        resolve, which is dropped): the paused trailer it was to replace goes back
-        to the reaper, else clear to idle. Media that has arrived is left alone.
+        Retire the flight's request once its trailer is ``retire`` s late, but let
+        the resolve run: a cancel stalls Kodi until the script stops, so only a
+        resolve ``cancel`` s old (hung) is cancelled. Its waiting request follows.
 
-        :param max_age: Seconds a pending request may sit before reaping.
+        :param retire: Seconds before the flight's request is given up on.
+        :param cancel: Seconds before the resolve itself is cancelled.
         """
+        state = infolabel("Window(home).Property(trailer_state)")
+        resume, self._resume_waiting = self._resume_waiting, False
+        if not (flight := infolabel("Window(home).Property(trailer_flight)")):
+            # A poll after the cancel, so never inside the hung wait
+            if resume and state == "pending" and not self._trailer_is_stale():
+                start_flight(infolabel("Window(home).Property(trailer_request)"))
+            return
         since = to_float(infolabel("Window(home).Property(trailer_pending_since)"))
-        if since <= 0.0 or time.time() - since < max_age:
+        age = time.time() - since
+        if age >= cancel:
+            log.debug("PlayerMonitor: Cancelling a hung trailer resolve")
+            log.execute("Action(Back,busydialog)")  # ends the busy dialog's wait
+            window_property("trailer_flight")
+            self._resume_waiting = True
+            return
+        if (
+            age < retire
+            or state not in ("pending", "cancelled")
+            or infolabel("Window(home).Property(trailer_request)") != flight
+        ):
             return
         zombie = self._is_trailer_playback()
         if not zombie and condition("Player.HasMedia"):
             return
-        log.debug("PlayerMonitor: Reaping stale pending trailer request")
-        log.execute("Action(Back,busydialog)")  # else a late resolve plays anyway
+        log.debug("PlayerMonitor: Retiring stale pending trailer request")
         window_property("trailer_played_item")
         if zombie:
             window_property("trailer_state", value="orphaned")
@@ -423,6 +448,7 @@ class PlayerMonitor(Player):
         """
         if not self.isPlaying():
             self._publish({})
+            self._landed = None
         # A pending state belongs to a newer request that superseded the
         # playback this stop event is for — leave its props intact.
         if condition("String.IsEqual(Window(home).Property(trailer_state),pending)"):

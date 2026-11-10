@@ -158,6 +158,7 @@ back with the next play, speed dial change or slide.
 | `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Cleared once the last number has landed, just before the `ReloadSkin()`; left set if the wait gives up after a minute | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
 | `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
+| `trailer_flight` | A request that waited behind an earlier trailer is handed to Kodi (`play_trailer` sets it too) | The trailer Kodi is resolving | Its playback starts, other media starts during its resolve, it is cancelled as hung, or the active skin changes or the service stops | [Trailers](trailers.md) |
 | `trailer_return` | A trailer requested with `fullscreen` starts and goes full screen | The `info_current` key at that moment | By the `trailer_return` action | [Trailers](trailers.md#full-screen) |
 | `info_hop` | As `trailer_return`, when `info_current` is set and is not a season | `fullscreen` | The info dialog's `<onload>`, or the `trailer_return` action | [Trailers](trailers.md#full-screen) |
 | `trailer_played_item` | Never set by the service | — | A trailer fails to play, or a request never starts | [Trailers](trailers.md) |
@@ -187,7 +188,7 @@ back with the next play, speed dial change or slide.
 
 The service also clears the trailer request properties that `action=play_trailer`
 sets (`trailer_request`, `trailer_item`, `trailer_source`, `trailer_focus_ids`,
-`trailer_window`, `trailer_fullscreen`, `trailer_viewport`, `trailer_pending_since`)
+`trailer_window`, `trailer_fullscreen`, `trailer_viewport`)
 when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes full screen, too.
 
 ### What the service reads from the skin
@@ -197,14 +198,14 @@ when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes 
 | `extras/templates/<folder>/` | Skin folder | Start-up and skin change | This page |
 | `addon.xml` (`id`) and `System.AddonVersion(<id>)` | Skin file and infolabel | Every pass of the service loop, to notice a skin change or an in-place update | [Opting in](#opting-in) |
 | `trailer_state` | Window property | On playback start, stop, end and error, and each poll | [Trailers](trailers.md) |
-| `trailer_request` | Window property | When playback starts during a request | [Trailers](trailers.md) |
+| `trailer_request` | Window property | When the flight's trailer starts, and each poll | [Trailers](trailers.md) |
 | `trailer_item` | Window property | When checking if a trailer is stale | [Trailers](trailers.md) |
 | `trailer_source` | Window property | Staleness check and trailer zoom | [Trailers](trailers.md) |
 | `trailer_focus_ids` | Window property | When checking if a trailer is stale | [Trailers](trailers.md) |
 | `trailer_viewport` | Window property | When a trailer starts | [Trailers](trailers.md) |
 | `trailer_fullscreen` | Window property | When a trailer starts | [Trailers](trailers.md#full-screen) |
 | `info_current` | Window property | When a trailer goes full screen | [Trailers](trailers.md#full-screen) |
-| `trailer_pending_since` | Window property | Each poll while a request is `pending` or `cancelled` | [Trailers](trailers.md) |
+| `trailer_flight`, `trailer_pending_since` | Window property | On playback start, and each poll | [Trailers](trailers.md) |
 | `trailer_file` | Window property | Each poll | [Trailers](trailers.md) |
 | `playnext_enabled` | Skin setting (bool) | When a library episode starts | [Play next](playnext.md) |
 | `slideshow_source`, `slideshow2_source` | Skin string | Each poll | [Slideshow](slideshow.md) |
