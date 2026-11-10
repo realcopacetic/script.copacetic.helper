@@ -927,8 +927,8 @@ whether anything was cached for the item.
   its processed images are removed, so an image file replaced under the same name is
   read again when next loaded rather than after Kodi's daily check. An image on screen
   at the time keeps its copy in memory until it leaves the screen. A source that can't
-  be read right now (a dead web link, a share that doesn't answer) keeps its copy, as
-  it may be the only one left.
+  be read right now keeps its copy, as it may be the only one left: a missing file, a
+  share or web image that doesn't answer within a few seconds, or a web error.
 
 It doesn't change the library: art links and information stay as they are (for
 those, Kodi's *Refresh* in the information dialog). Art a parent lends the item
