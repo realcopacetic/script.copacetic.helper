@@ -77,7 +77,9 @@ class PlayerMonitor(Player):
             self._pause_session()
             self.seekTime(0)
             log.execute("PlayerControl(Stop)")
-        if self._landed:  # stopped while opening: it will never land
+        elif self._landed and infolabel("Player.Filenameandpath") == self._landed:
+            log.execute("PlayerControl(Stop)")  # still opening: no video to rewind yet
+        if self._landed:  # it will never land now
             window_property("trailer_flight")
         self._publish({})
         self._clear_trailer_props()  # a flight still out is stopped when it lands
