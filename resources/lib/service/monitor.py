@@ -246,8 +246,8 @@ class Monitor(xbmc.Monitor):
 
     def poller(self) -> None:
         """
-        Polling loop: trailer session watchdog, global slideshow and held
-        speed dial refreshes, plus a daily API cache prune.
+        Polling loop: trailer session watchdog, seek offset expiry, global slideshow
+        and held speed dial refreshes, plus a daily API cache prune.
         """
         if (now := time.time()) >= self.prune_due:  # runs on through suspend
             try:
@@ -258,6 +258,7 @@ class Monitor(xbmc.Monitor):
             else:
                 self.prune_due = now + 86400
         self.player_monitor.watch_trailer_session()
+        self.player_monitor.expire_seek_offset()
         self.slideshow.tick()
         release_refresh()
         self.waitForAbort(1)
