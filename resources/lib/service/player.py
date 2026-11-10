@@ -63,6 +63,7 @@ class PlayerMonitor(Player):
         self._landed = None  # the flight's path, from its start until its AV start
         self._dropped_flight = False  # the user's media dropped one: full screen it
         self._resume_waiting = False  # a hung flight was cancelled: start the next
+        self._seek_at = 0.0  # the last seek's time; 0 clears one left by a restart
         SpeedDial().publish()
         if self.isPlaying():
             self.onAVStarted()
@@ -82,6 +83,7 @@ class PlayerMonitor(Player):
         if self._landed:  # it will never land now
             window_property("trailer_flight")
         self._publish({})
+        window_property("player_seek_offset")
         self._clear_trailer_props()  # a flight still out is stopped when it lands
         clear_properties()
 
@@ -133,7 +135,7 @@ class PlayerMonitor(Player):
     def onPlayBackSeek(self, target: int, offset: int) -> None:
         """
         Publish the jump as player_seek_offset, signed as Player.SeekOffset is
-        (+10:00): the player resets that to 0 once a seek message is handled.
+        (+10:00): handling the seek message usually resets that to 0 first.
 
         :param target: The time sought to, in ms.
         :param offset: The jump, in ms.
@@ -143,6 +145,7 @@ class PlayerMonitor(Player):
         clock = ":".join(f"{p:02}" for p in (hours, minutes, seconds)[not hours :])
         sign = "-" if offset < 0 else "+"
         window_property("player_seek_offset", value=bool(offset) and sign + clock)
+        self._seek_at = time.monotonic()
 
     def onPlayBackSeekChapter(self, chapter: int) -> None:
         """
@@ -160,16 +163,15 @@ class PlayerMonitor(Player):
         """
         window_property("player_seek_offset")
 
-    @staticmethod
-    def expire_seek_offset() -> None:
+    def expire_seek_offset(self, after: float = 4.0) -> None:
         """
-        Poller hook: drop the last jump once the seek bar's 3 s for it are over, so
-        a later seek with no offset of its own (an EDL skip, a stop) never shows it.
+        Poller hook: drop the last jump once its label has faded (3 s, then 1x), so
+        a later seek with no offset of its own (an EDL or scene skip) doesn't show it.
+
+        :param after: Seconds after the seek.
         """
-        if condition(
-            "!String.IsEmpty(Window(home).Property(player_seek_offset))"
-            " + !Player.HasPerformedSeek(3)"
-        ):
+        if self._seek_at is not None and time.monotonic() - self._seek_at > after:
+            self._seek_at = None
             window_property("player_seek_offset")
 
     def onPlayBackStopped(self) -> None:
