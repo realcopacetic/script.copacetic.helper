@@ -726,7 +726,7 @@ watches it:
 | `trailer_state` | `pending` when requested. The service changes it to `playing`, `fullscreen`, or `orphaned` once paused and hidden. Cleared when playback stops. |
 | `trailer_item`, `trailer_focus_ids`, `trailer_source`, `trailer_viewport`, `trailer_window`, `trailer_fullscreen` | The values passed |
 | `trailer_request` | The `trailer` param |
-| `trailer_flight`, `trailer_pending_since` | The trailer and the time it was handed to Kodi; only when no earlier trailer is still resolving, else it waits for the service to start it |
+| `trailer_flight`, `trailer_pending_since` | The trailer and the time it was handed to Kodi; only when no earlier trailer is still resolving or opening, else it waits for the service to start it |
 
 For example, show your `videowindow` only while
 `String.IsEqual(Window(home).Property(trailer_state),playing)`.
