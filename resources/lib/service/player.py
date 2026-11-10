@@ -77,6 +77,8 @@ class PlayerMonitor(Player):
             self._pause_session()
             self.seekTime(0)
             log.execute("PlayerControl(Stop)")
+        if self._landed:  # stopped while opening: it will never land
+            window_property("trailer_flight")
         self._publish({})
         self._clear_trailer_props()  # a flight still out is stopped when it lands
         clear_properties()
@@ -91,9 +93,9 @@ class PlayerMonitor(Player):
         if self._dropped_flight:
             # The user's media, started inside the flight's wait (onPlayBackStarted)
             self._dropped_flight = False
-            if not self.isPlayingVideo():
-                self._clear_trailer_props()  # the video path below clears its own
-            elif not condition("Window.IsActive(fullscreenvideo)"):
+            if self.isPlayingVideo() and not condition(
+                "Window.IsActive(fullscreenvideo)"
+            ):
                 log.execute("Action(FullScreen)")  # took the flight's windowed start
         if self.isPlayingVideo():
             # Not a trailer: any leftover trailer state was superseded by a
@@ -120,7 +122,9 @@ class PlayerMonitor(Player):
             return
         window_property("trailer_flight")
         self._landed = None
+        self._resume_waiting = False
         self._dropped_flight = True
+        self._clear_trailer_props()  # the user's media supersedes the request
         # Ends the busy dialog's wait; Kodi stalls until the script stops
         log.execute("Action(Back,busydialog)")
 
@@ -297,6 +301,7 @@ class PlayerMonitor(Player):
         :param path: The flight's file.
         """
         window_property("trailer_flight")
+        self._resume_waiting = False
         if infolabel("Window(home).Property(trailer_state)") != "pending":
             log.execute("PlayerControl(Stop)")  # left, or given up on: nobody wants it
             return
@@ -394,10 +399,10 @@ class PlayerMonitor(Player):
         :param cancel: Seconds before the resolve itself is cancelled.
         """
         flight = infolabel("Window(home).Property(trailer_flight)")
+        resume, self._resume_waiting = self._resume_waiting, False
         if not flight or self._landed:
             return
-        if self._resume_waiting:  # held a poll, so nothing starts inside the wait
-            self._resume_waiting = False
+        if resume:  # held a poll, so nothing starts inside the hung wait
             self._next_request(flight)
             return
         since = to_float(infolabel("Window(home).Property(trailer_pending_since)"))
@@ -473,10 +478,10 @@ class PlayerMonitor(Player):
         """
         if not self.isPlaying():
             self._publish({})
+            self._dropped_flight = False
             if landed := self._landed:  # the flight stopped before its AV start
                 self._landed = None
                 self._next_request(landed)
-                return
         # A pending state belongs to a newer request that superseded the
         # playback this stop event is for — leave its props intact.
         if condition("String.IsEqual(Window(home).Property(trailer_state),pending)"):
