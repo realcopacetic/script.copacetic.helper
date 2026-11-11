@@ -22,6 +22,7 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     ADDON,
     DETAILS,
+    INFO_DIALOGS,
     SKINXML,
 )
 from resources.lib.shared.speed_dial import SpeedDial
@@ -55,7 +56,6 @@ from resources.lib.shared.utilities import (
 REGISTRY = {}
 
 _LIBRARY_ITEMS = {"album": "albumid", "artist": "artistid", "genre": "genreid"}
-_INFO_DIALOGS = ("songinformation", "musicinformation", "movieinformation")
 API_SOURCES = {
     "tmdb": ("TMDb", 32033),
     "listenbrainz": ("ListenBrainz", 32034),
@@ -719,7 +719,7 @@ def _show_info(item: xbmcgui.ListItem | None, key: str = "") -> None:
     :param item: ListItem from _info_item, or None.
     :param key: The item's trail key, which the dialog's onload records.
     """
-    for dialog in _INFO_DIALOGS:
+    for dialog in INFO_DIALOGS:
         if condition(f"Window.IsVisible({dialog})"):
             log.execute(f"Dialog.Close({dialog},true)", wait=True)
     if item:

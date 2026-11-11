@@ -11,7 +11,7 @@ from functools import cache, cached_property, partial
 from operator import itemgetter
 from typing import Any, Callable
 
-from xbmc import getLocalizedString
+from xbmc import Monitor, getLocalizedString
 from xbmcgui import Window, getCurrentWindowDialogId, getCurrentWindowId
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
@@ -77,6 +77,7 @@ from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
 from resources.lib.shared.utilities import (
     ADDON,
+    INFO_DIALOGS,
     clear_label,
     condition,
     focused_control_id,
@@ -135,15 +136,7 @@ def _video_details(
     )
 
 
-_INFO_DIALOGS = " | ".join(
-    f"Window.IsVisible({name})"
-    for name in (
-        "movieinformation",
-        "musicinformation",
-        "songinformation",
-        "addoninformation",
-    )
-)
+_INFO_OPEN = " | ".join(f"Window.IsVisible({wid})" for wid in INFO_DIALOGS)
 
 
 def _info_open() -> bool:
@@ -151,7 +144,7 @@ def _info_open() -> bool:
     Whether an info dialog is open, from its registration to the end of its close:
     Python's container reads can answer for its rails, which share the windows' ids.
     """
-    return condition(_INFO_DIALOGS)
+    return condition(_INFO_OPEN)
 
 
 class _FocusGuard:
@@ -364,20 +357,41 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             through_info,
         )
 
-    @property
+    @cached_property
     def window_id(self) -> int:
         """
-        Window whose controls this serve draws into: an info dialog's own for its
-        serves (dialog=true, target=item), read live; else the active window.
+        Window whose controls this serve draws into, read once: its info dialog
+        (_info_window) for a dialog serve (dialog=true, target=item); else the active
+        window.
         """
-        return topmost_window_id() if self.dialog else self._active_window
+        return self._info_window if self.dialog else getCurrentWindowId()
 
     @cached_property
-    def _active_window(self) -> int:
+    def _info_window(self) -> int:
         """
-        The active window, read once: a window serve's own, under any dialog since.
+        The info dialog an info dialog's serve belongs to, read once: the topmost
+        dialog when it is one, else the info dialog a menu, Select or busy dialog
+        covers, else the topmost dialog.
         """
-        return getCurrentWindowId()
+        if (top := topmost_window_id()) in INFO_DIALOGS:
+            return top
+        active = (wid for wid in INFO_DIALOGS if condition(f"Window.IsActive({wid})"))
+        return next(active, top)
+
+    def _info_on_top(self) -> bool:
+        """
+        Wait up to a second for the serve's info dialog to be topmost: under a menu,
+        bare ListItem reads answer for the window under the info dialog.
+
+        :return: False when it never was, or Kodi is exiting.
+        """
+        monitor = Monitor()
+        for _ in range(10):
+            if topmost_window_id() == self._info_window:
+                return True
+            if monitor.waitForAbort(0.1):
+                break
+        return False
 
     def _item_key(self, item: str | None = None) -> str:
         """
@@ -575,8 +589,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _artwork_held(self) -> list[DirectoryItem]:
         """
         An aborted serve re-serves what its list (prop_key, an id) shows, under an
-        identity no cursor matches; with no id, an empty list, or (a window serve) a
-        dialog over its window, the last blur and darkens this list wrote.
+        identity no cursor matches; with no id, an empty list, or a dialog over the
+        serve's window (window_id), the last blur and darkens this list wrote.
         """
         key = self.params.get("prop_key", "")
         shown = f"Container({key}).ListItem"
@@ -655,7 +669,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :return: List of directory items for Kodi, or None when there is no art.
         """
         start = time.perf_counter()
-        if self._visit_superseded():
+        if self._visit_superseded() or self.dialog and not self._info_on_top():
             return self._artwork_held()
         # A serve with no focus_ids (the primary view) is unguarded on focus moves.
         window_id = self.window_id
@@ -919,7 +933,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             take_turns,
         )
 
-        if not self._require("tiles"):
+        if not self._require("tiles") or not self._info_on_top():
             return
 
         visit = self.params.get("visit", "")
@@ -940,7 +954,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
         }
         sequences = take_turns(share_out(families))
-        if not seed_registers(topmost_window_id(), sequences, alive=alive):
+        if not seed_registers(self._info_window, sequences, alive=alive):
             return
         return set_items(
             [{"file": plugin_path("multiart_tiles"), "properties": {"visit": visit}}]
@@ -996,6 +1010,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
+        if self.dialog and not self._info_on_top():
+            return
         if self.item and self._info_swapped():
             return
         guard = self._guard()
@@ -1064,7 +1080,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
         # Rerun it, if TMDb adds art of its type and the item wasn't replaced in place
-        # (a filter keeps the position); not under a dialog, whose items it would read
+        # (a filter keeps the position); not with a dialog over the serve's window (its
+        # info dialog's, for a dialog serve), whose items it would read
         if (
             own_miss
             and art_type in tmdb_item.get("art", {})
@@ -1100,6 +1117,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
+        if self.dialog and not self._info_on_top():
+            return
         guard = self._guard()
         if not guard.alive():
             return
@@ -1343,6 +1362,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.art.text import TextRenderer
 
+        if self.dialog and not self._info_on_top():
+            return
         guard = self._guard()
         if not guard.alive():
             return

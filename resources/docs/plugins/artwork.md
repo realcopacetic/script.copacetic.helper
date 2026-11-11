@@ -228,16 +228,16 @@ longer live, the focus guard fails, or `multiart_target_key` no longer matches) 
 one item whose `background`, `background_darken` and `icon_darken` art are those of
 `Container(<prop_key>).ListItem`, with `ListItem.Property(current)` =
 `held/<scope>/<prop_key>`, the scope taken from that item's own `current`. The list is
-read only when `prop_key` is a number and, for a window's call (not `target=item` or
-`dialog=true`), its window is still on top. A window's call takes its window once, the
-active window at its first need; a dialog's call reads the topmost dialog each time.
-Kodi reads any other text as id 0, the focused container, and a dialog opened over a
-window since would answer with its own control of that id. When the list isn't read, or shows no background (it is empty),
-the art is these three properties as they stand and the scope is `artwork_scope`.
-Kodi replaces a container's items with whatever a listing returns, so returning
-nothing would empty the list; the held item keeps its picture and darken until the
-next call lands. Its `current`
-never equals a cursor value, so currency checks stay false, and it carries no
+read only when `prop_key` is a number and the call's window is on top. A call takes its
+window once (see [Plugin Helpers](plugin_helpers.md#the-focus-guard)): the active
+window, or with `target=item` or `dialog=true` its info dialog, whatever menu is over
+it. Kodi reads any other text as id 0, the focused container, and a dialog over that
+window would answer with its own control of that id. When the list isn't read, or
+shows no background (it is empty), the art is these three properties as they stand
+and the scope is `artwork_scope`. Kodi replaces a container's items with whatever a
+listing returns, so returning nothing would empty the list; the held item keeps its
+picture and darken until the next call lands. Its `current` never equals a cursor
+value, so currency checks stay false, and it carries no
 `previous`, `next` or position properties. The `visit` and focus guard checks come first, so a stale
 call returns the held item even with no image URL. A live call with no image URL
 still returns nothing.
@@ -439,8 +439,11 @@ it (see below). Use it for a grid of artwork tiles that should not all change at
 
 - The artwork is read from the window's own item (`ListItem.Art(...)`), the item an
   info dialog shows. There is no `target`.
-- The FadeLabels must be in the topmost dialog, or in the current window when no dialog
-  is open. Give them all the same scroll speed and delay.
+- The FadeLabels must be in the info dialog (as `target=item` takes it, see
+  [Plugin Helpers](plugin_helpers.md#the-focus-guard)), or in the topmost dialog or the
+  current window when no info dialog is open. The call first waits, up to a second,
+  for that dialog to be topmost, and stops if it never is. Give the FadeLabels all the
+  same scroll speed and delay.
 - Library artwork only; no TMDb artwork is added. The main image comes first and the
   rest are shuffled.
 - An image is shown in one FadeLabel where it can be. When several art types hold the
@@ -539,4 +542,4 @@ The helper reads these when you use the matching parameters:
 | A FadeLabel control with id `multiart_fadelabel` in the current window | `multiart_fadelabel` | The skin. |
 | `Window(home).Property(artwork_visit)`, changed once per focus change and passed as `visit` | `visit` | The skin. |
 | `Window(home).Property(infoscreen_gallery_visit)` | `multiart_tiles` with `visit` | The skin, once each time the dialog shows the artwork. |
-| FadeLabel controls with the ids in `tiles`, in the topmost dialog | `multiart_tiles` | The skin. |
+| FadeLabel controls with the ids in `tiles`, in the info dialog | `multiart_tiles` | The skin. |

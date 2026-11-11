@@ -276,6 +276,11 @@ def focused_control_id(window_id: int) -> int:
     return Window(window_id).getFocusId()
 
 
+# Kodi's info dialogs: video, song, music (album, artist) and add-on information. Song
+# comes before music: Kodi opens song info over an album's.
+INFO_DIALOGS = (12003, 10135, 12001, 10146)
+
+
 def topmost_window_id() -> int:
     """
     Id of the topmost modal dialog, else of the active window: the window that holds
