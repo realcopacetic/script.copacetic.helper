@@ -39,7 +39,9 @@ have no visible effect.
 | `slideshow_slot` | `a` or `b`: the slot the current slide wrote | Written last, after the slot. |
 
 All of them are written together for each slide. If the source returns nothing, no new
-slide is published and the last slide stays.
+slide is published and the last slide stays, unless the source itself just changed (a new
+source or path, the other schedule taking over, or a path set to None): then every
+property above is cleared, so the old slide doesn't stay on screen.
 
 If a slide fails (its fanart can't be opened, or the blur gives nothing), nothing is
 published for it and the service tries another fetched item a second later, one item a

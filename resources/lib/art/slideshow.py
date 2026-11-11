@@ -106,20 +106,24 @@ class Slideshow:
 
     def _advance(self, query: str) -> None:
         """
-        Refill the batch on exhaustion or profile change, then publish one random
-        slide and schedule the next from after the fetch. A slide that fails within
-        RETRY_WITHIN tries another item next tick; a slower one waits after it.
+        Refill on exhaustion or profile change (a new profile with nothing clears the
+        props), publish one random slide, schedule the next from after the fetch. A
+        slide failing within RETRY_WITHIN tries another next tick; a slower one waits.
 
         :param query: The skin's slideshow_artwork_params.
         """
         profile = self._config()
-        if profile != self.profile or not self.art:
+        changed = profile != self.profile
+        if changed or not self.art:
             self.profile = profile
             self._fetch_batch()
         interval = self._interval()
         start = time.monotonic()  # after the fetch: a slow source eats no interval
         self.next_slide_at = start + interval
         if not self.art:
+            if changed:  # a new source with nothing to show (e.g. path set to None)
+                self.clear()
+                self.shown = None
             return
         item = self.art.pop(random.randrange(len(self.art)))
         self.seen.add(item["fanart"])
