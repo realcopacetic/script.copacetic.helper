@@ -751,8 +751,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not alive():
             return self._artwork_held()
 
+        # Under an info dialog its rails answer for this window's (they share ids): no
+        # family, register or window properties from them; its close serves again.
+        covered = lambda: (
+            not self.dialog and _info_open() and topmost_window_id() != window_id
+        )
+        blind = covered()
         if not source:
-            multiart_dict = self._multiart_dict(self.target_item, multiart_type)
+            multiart_dict = self._multiart_dict(
+                self.target_item, None if blind else multiart_type
+            )
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
         if not alive():
@@ -763,7 +771,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
         art = seed_multiart(
-            fadelabel_id=self.params.get("multiart_fadelabel"),
+            fadelabel_id=None if blind else self.params.get("multiart_fadelabel"),
             multiart_dict=multiart_dict,
             art=art,
             seed_scope=f"{stamp_scope}@{folder}",
@@ -796,9 +804,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 reposition_control(int(control_id), h=h)
 
         # Not once the cursor has moved on (a new focus, a window left): the properties
-        # are the next item's or the next window's by now.
+        # are the next item's or the next window's by now. Nor under an info dialog,
+        # whose backstage reads them.
         cursor = f"Window(home).Property(artwork_cursor_{cursor_key})"
-        if not cursor_key or infolabel(cursor) == cursor_snapshot:
+        if not covered() and (not cursor_key or infolabel(cursor) == cursor_snapshot):
             for field, prop in self._bridge_props():
                 window_property(prop, art.get(field, ""))
             window_property(self._scope_prop, stamp_scope)
