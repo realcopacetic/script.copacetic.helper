@@ -64,6 +64,33 @@ focused in the bookmarks dialog), call
 [`chapter_focus`](../script/actions.md#chapter_focus) as focus moves; it sets
 `player_chapter_focus` for a single `ranges` control.
 
+### Seek offset
+
+Kodi's `Player.SeekOffset` is often empty by the time a step seek has finished
+(handling the seek usually resets it to zero), so a "+10:00" label can show nothing.
+The service keeps the jump of the last seek in `player_seek_offset`, for any video or
+song, as a fallback for that label.
+
+| Property | Value | Set when |
+|---|---|---|
+| `player_seek_offset` | The jump, signed: `+10:00`, `-00:30`, `+01:30:00` (hours only when there are any) | A seek with a jump finishes |
+
+It is cleared:
+
+- once Kodi's own seek display is over: 4 seconds after the seek, when
+  `Player.HasPerformedSeek(4)` is no longer true;
+- on a chapter jump or a speed change (fast forward, rewind), which report no jump;
+- when a new file starts, and when playback stops, ends or fails.
+
+Use Kodi's value first and the service's when Kodi's is empty:
+
+```xml
+<variable name="seek_offset">
+  <value condition="!String.IsEmpty(Player.SeekOffset)">$INFO[Player.SeekOffset]</value>
+  <value>$INFO[Window(home).Property(player_seek_offset)]</value>
+</variable>
+```
+
 ## Music
 
 | Property | Value | Set when |
