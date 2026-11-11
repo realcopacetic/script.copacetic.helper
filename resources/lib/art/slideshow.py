@@ -106,23 +106,22 @@ class Slideshow:
 
     def _advance(self, query: str) -> None:
         """
-        Refill on exhaustion or profile change (a switch to one with nothing clears
-        the props), publish one random slide, schedule the next after the fetch. A
+        Refill on exhaustion or profile change (a new profile with nothing clears the
+        props), publish one random slide, schedule the next from after the fetch. A
         slide failing within RETRY_WITHIN tries another next tick; a slower one waits.
 
         :param query: The skin's slideshow_artwork_params.
         """
-        profile, known = self._config(), self.profile
-        if profile != known or not self.art:
+        profile = self._config()
+        changed = profile != self.profile
+        if changed or not self.art:
             self.profile = profile
             self._fetch_batch()
         interval = self._interval()
         start = time.monotonic()  # after the fetch: a slow source eats no interval
         self.next_slide_at = start + interval
         if not self.art:
-            # A switch from a known source to one with nothing (e.g. path set to None);
-            # not a fresh start, where a sleeping share would wipe a valid slide
-            if known not in (None, profile):
+            if changed:  # a new source with nothing to show (e.g. path set to None)
                 self.clear()
                 self.shown = None
             return
