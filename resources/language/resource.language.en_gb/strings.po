@@ -105,7 +105,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32112"
-msgid "Clears runtime_state and all builder outputs of the skin you turn this on in, next time that skin starts, then rebuilds from defaults. The toggle reverts itself once applied."
+msgid "Clears runtime_state and all builder outputs of the skin you turn this on in, next time that skin starts, then rebuilds from defaults. The toggle reverts itself once applied. To move it to another skin, turn it off and press OK, then turn it on again."
 msgstr ""
 
 #: /resources/settings.xml

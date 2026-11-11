@@ -899,7 +899,7 @@ Reset vs rebuild](../builders/09-runtime-state.md#reset-vs-rebuild).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `reset` | `true` | off | First delete all settings and output files, so everything is rebuilt from your template defaults. Also turns off the helper's "Reset on next start" setting if it was turned on in this skin; one meant for another skin stays on. |
+| `reset` | `true` | off | First delete all settings and output files, so everything is rebuilt from your template defaults. Also turns off the helper's "Reset on next start" setting if it was turned on in this skin; one meant for another skin stays on (to move it to this skin, turn it off and press OK, then turn it on again). |
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=rebuild)</onclick>

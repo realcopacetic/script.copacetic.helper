@@ -87,6 +87,8 @@ interrupted. In order:
    `dev_reset.txt` in the add-on's profile folder when the settings are saved (or at
    its own start, for one turned on before), and only that skin's next check uses it.
    Other skins leave it on and keep their files; turning it off deletes the file.
+   The settings are saved once, on OK, so to move a reset to another skin, turn it
+   off and press OK, then turn it on again in that skin.
 
    If the build raises an exception, the service logs the traceback at error level,
    shows a notification, doesn't reload, and carries on with the steps below on

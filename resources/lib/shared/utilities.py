@@ -110,7 +110,7 @@ def reset_dev_state() -> None:
 
     if dev_reset_due():
         ADDON.setSettingBool("dev_reset", False)
-        DEV_RESET.unlink()
+        DEV_RESET.unlink(missing_ok=True)  # the service's settings hook may be first
     for config in BUILDER_CONFIG.values():
         write_path = config.get("write_path")
         if write_path:
