@@ -294,15 +294,16 @@ fadelabel controls.
 
 ## container_reset
 
-Selects a container's first item in the topmost dialog (else the active window), with
-no focus change and no wrap (`ControlList.selectItem(0)`). Kodi restores each list's
-last selection when a kept-in-memory window opens again, before `<onload>`; this puts
-a list back at the start. `Control.Move` can't for a panel with more than one row,
-since it moves a column at a time and wraps.
+Selects a container's first item, or another, in the topmost dialog (else the active
+window), with no focus change and no wrap (`ControlList.selectItem`). Kodi restores each
+list's last selection when a kept-in-memory window opens again, before `<onload>`; this
+puts a list back at the start, or on the playing song. `Control.Move` can't for a panel
+with more than one row, since it moves a column at a time and wraps.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `id` | container id | required | The container to reset |
+| `item` | 1 and up | `1` | The item to select, counted from 1 as `MusicPlayer.PlaylistPosition` and `CurrentItem` count |
 
 Example from Copacetic, for each info dialog rail at open:
 

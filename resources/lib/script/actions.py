@@ -282,15 +282,16 @@ def clear_label(id: int | str, **kwargs: str) -> None:
 
 
 @action
-def container_reset(id: str, **kwargs: str) -> None:
+def container_reset(id: str, item: str = "1", **kwargs: str) -> None:
     """
-    Select a container's first item in the topmost dialog or window, without
-    focusing it: a kept-in-memory window reopens on each list's last selection.
+    Select a container's item in the topmost dialog or window, without focusing
+    it: a kept-in-memory window reopens on each list's last selection.
 
     :param id: Container id.
+    :param item: The item to select, from 1 (MusicPlayer.PlaylistPosition reads so).
     """
     window = xbmcgui.Window(topmost_window_id())
-    window.getControl(int(id)).selectItem(0)
+    window.getControl(int(id)).selectItem(max(to_int(item) - 1, 0))
 
 
 @action
