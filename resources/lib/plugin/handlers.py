@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+import time
 from collections import Counter
 from datetime import date, datetime, timedelta
 from functools import cache, partial
@@ -610,17 +611,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None when there is no art.
         """
+        start = time.perf_counter()
         if self._visit_superseded():
             return self._artwork_held()
         # A serve with no focus_ids (the primary view) is unguarded on focus moves.
         window_id = self.window_id
         focus = focused_control_id(window_id)
+        read = time.perf_counter()
 
         from resources.lib.art.editor import ImageEditor
         from resources.lib.art.multiart import seed_multiart
         from resources.lib.art.policy import ART_PROCESS_MAP
         from resources.lib.plugin.opts import ArtOpts
 
+        imported = time.perf_counter()
         guard = self._guard()
         if not guard.alive():
             return self._artwork_held()
@@ -709,7 +713,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 else None
             )
 
+        guarded = time.perf_counter()
         image_processor = ImageEditor().image_processor
+        # Where the time before the image work goes: each window and focus read waits
+        # for Kodi's render lock.
+        log.debug(
+            f"{self.__class__.__name__} → artwork before images: "
+            f"{(read - start) * 1000:.0f}ms window reads, "
+            f"{(imported - read) * 1000:.0f}ms imports, "
+            f"{(guarded - imported) * 1000:.0f}ms guard and item reads, "
+            f"{(time.perf_counter() - guarded) * 1000:.0f}ms editor setup"
+        )
         art = image_processor(
             jobs=jobs,
             art_opts=art_opts,
