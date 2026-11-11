@@ -30,6 +30,7 @@ Trailers started with `action=play_trailer` do not set these properties. See
 | `player_set` | Movie set name | As above |
 | `player_set_path` | A `videodb://` URL of the set's other films (the playing one left out by title), ready for a list's `<content>` | As above |
 | `player_subtitle_kind` | The subtitle showing: `forced`, `full` or `impaired` (hearing impaired). While off: `missing` when the actions were given a language with no preferred stream, otherwise empty | A video starts; `player_stream` and `player_stream_refresh` update it |
+| `player_video_count` | How many video streams the file has, so a skin can dim a video stream button that would do nothing | A video starts |
 | `player_genre_query` | One of the video's genres, as the library names it (`Action & Adventure`) | A video with a genre starts (an episode has its show's) |
 | `player_genre` | The same pick, cleaned for a label (`Adventure`), as `metadata` does | As above |
 | `player_director` | One of the video's directors | A video with a director starts |

@@ -29,6 +29,10 @@ It does nothing when:
 - the playlist already has an item after the current one;
 - the episode is the last one of the show.
 
+Turning `playnext_enabled` off while an episode plays removes the episode the service
+queued (within a second), as long as it is still the next item, so playback ends with
+the current episode. Turning it back on queues nothing until the next episode starts.
+
 ## Which episode is queued
 
 The service lists the show's episodes in season and episode order and takes the one

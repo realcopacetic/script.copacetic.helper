@@ -9,25 +9,37 @@ PLAYLIST_VIDEO = 1
 WALK_PROPERTIES = ["file"]
 
 
-def ensure_successor(dbid: int, tvshowid: int) -> None:
+def ensure_successor(dbid: int, tvshowid: int) -> str | None:
     """
-    Append the next episode of the show to the video playlist if the
-    feature is enabled and no successor is already queued. Called once
-    per episode from onAVStarted; strict season/episode order.
+    Append the next episode of the show to the video playlist if the feature is
+    enabled and no successor is queued. Once per episode from onAVStarted.
     :param dbid: Library episodeid of the episode now playing.
     :param tvshowid: Library tvshowid of its show.
-    :return: None.
+    :return: The queued episode's file, or None when nothing was queued.
     """
-    if not condition("Skin.HasSetting(playnext_enabled)"):
-        return
-    if _successor_present():
-        return
+    if not condition("Skin.HasSetting(playnext_enabled)") or _successor_present():
+        return None
+    if successor := _next_episode(dbid, tvshowid):
+        _append(successor["episodeid"])
+        return successor["file"]
+    return None
 
-    next_id = _next_episode_id(dbid, tvshowid)
-    if not next_id:
-        return
 
-    _append(next_id)
+def withdraw(file: str) -> None:
+    """
+    Remove the successor ensure_successor queued while it is still the next item:
+    Play next was switched off during its episode.
+    :param file: The queued episode's file.
+    """
+    playlist = PlayList(PLAYLIST_VIDEO)
+    position = playlist.getposition() + 1
+    if 0 < position < playlist.size() and playlist[position].getPath() == file:
+        json_call(
+            "Playlist.Remove",
+            params={"playlistid": PLAYLIST_VIDEO, "position": position},
+            parent="playnext",
+        )
+        log.debug(f"playnext: withdrew {file}")
 
 
 def _successor_present() -> bool:
@@ -44,14 +56,13 @@ def _successor_present() -> bool:
     return position < playlist.size() - 1
 
 
-def _next_episode_id(dbid: int, tvshowid: int) -> int | None:
+def _next_episode(dbid: int, tvshowid: int) -> dict | None:
     """
-    Walk the show's episodes in season/episode order and return the
-    episodeid following the one now playing. Entries sharing the
-    current file are skipped so multi-part episodes are not requeued.
+    Walk the show's episodes in season/episode order to the one after the one
+    playing, skipping other parts of the same file (multi-part episodes).
     :param dbid: Library episodeid of the episode now playing.
     :param tvshowid: Library tvshowid of its show.
-    :return: The successor episodeid, or None at the end of the show.
+    :return: The successor's episodeid and file, or None at the end of the show.
     """
     response = json_call(
         "VideoLibrary.GetEpisodes",
@@ -66,7 +77,7 @@ def _next_episode_id(dbid: int, tvshowid: int) -> int | None:
     # Consume up to and including the playing episode, then take the next
     # one that isn't another part of the same file.
     any(episode["episodeid"] == dbid for episode in episodes)
-    return next((e["episodeid"] for e in episodes if e["file"] != current_file), None)
+    return next((e for e in episodes if e["file"] != current_file), None)
 
 
 def _append(episodeid: int) -> None:

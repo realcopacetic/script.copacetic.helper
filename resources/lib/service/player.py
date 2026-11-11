@@ -79,6 +79,7 @@ class PlayerMonitor(Player):
         self._dropped_flight = False  # the user's media dropped one: full screen it
         self._resume_waiting = False  # a hung flight was cancelled: start the next
         self._seek_at = 0.0  # the last seek's time; 0 clears one left by a restart
+        self._successor = ""  # the file Play next queued after this episode
         SpeedDial().publish()
         if self.isPlaying():
             self.onAVStarted()
@@ -192,6 +193,15 @@ class PlayerMonitor(Player):
             self._seek_at = None
             window_property("player_seek_offset")
 
+    def watch_playnext(self) -> None:
+        """
+        Poller hook: Play next switched off during an episode drops the successor
+        it queued, so playback ends with the episode.
+        """
+        if self._successor and not condition("Skin.HasSetting(playnext_enabled)"):
+            playnext.withdraw(self._successor)
+            self._successor = ""
+
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
         self._cleanup()
@@ -210,17 +220,21 @@ class PlayerMonitor(Player):
 
     def _handle_video_start(self) -> None:
         """
-        Publish video-related window properties on playback start: parent ids
-        (tvshowid, setid, with the set's name and its other films' path) via
-        JSON-RPC where needed, subtitle type, genre and director picks.
+        Publish video properties on start: parent ids (tvshowid; setid, its name and
+        other films' path), subtitle type, stream count, genre and director picks,
+        and note the successor Play next queues.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
         media_type = tag.getMediaType()
         # Always published, so stop clears what actions write later; with no lang
         # here it is never missing until the skin's player_stream_refresh passes one
-        props = {"player_subtitle_kind": subtitle_status(*player_streams("subtitle"))}
+        props = {
+            "player_subtitle_kind": subtitle_status(*player_streams("subtitle")),
+            "player_video_count": str(len(self.getAvailableVideoStreams())),
+        }
         props |= self._picks(tag)
+        self._successor = ""
 
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
@@ -234,7 +248,7 @@ class PlayerMonitor(Player):
                 details = query.get("result", {}).get("episodedetails", {})
                 if tvshowid := details.get("tvshowid"):
                     props["player_tvshowid"] = str(tvshowid)
-                    playnext.ensure_successor(dbid, tvshowid)
+                    self._successor = playnext.ensure_successor(dbid, tvshowid) or ""
 
         elif media_type == "movie" and dbid > 0:
             query = json_call(
@@ -546,6 +560,7 @@ class PlayerMonitor(Player):
         if not self.isPlaying():
             self._publish({})
             self._dropped_flight = False
+            self._successor = ""
             if landed := self._landed:  # the flight stopped before its AV start
                 self._landed = None
                 self._next_request(landed)
