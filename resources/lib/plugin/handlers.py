@@ -827,6 +827,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             seed_scope=f"{stamp_scope}@{folder}",
             seed_item=f"{current_position}/{dbid}/{self.params.get('visit', '')}",
             alive=alive,
+            window_id=window_id,
         )
         if art is None:
             return self._artwork_held()

@@ -540,7 +540,7 @@ The helper reads these when you use the matching parameters:
 | What | Used with | Set by |
 |---|---|---|
 | `Window(home).Property(artwork_cursor_<cursor_key>)` | `cursor_key` | The skin, at focus time. The helper may also write it (see above). |
-| A FadeLabel control with id `multiart_fadelabel` in the current window | `multiart_fadelabel` | The skin. |
+| A FadeLabel control with id `multiart_fadelabel` in the serve's window: the dialog's for `dialog=true`, else the current window | `multiart_fadelabel` | The skin. |
 | `Window(home).Property(artwork_visit)`, changed once per focus change and passed as `visit` | `visit` | The skin. |
 | `Window(home).Property(infoscreen_gallery_visit)` | `multiart_tiles` with `visit` | The skin, once each time the dialog shows the artwork. |
 | FadeLabel controls with the ids in `tiles`, in the info dialog | `multiart_tiles` | The skin. |
