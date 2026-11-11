@@ -148,17 +148,21 @@ with `target_id` does). `focus_ids` still works, and artwork returns no position
 properties.
 
 `progressbar` and `typewriter` move controls. They use the current window, even when
-a dialog is open on top of it. With `dialog=true`, or with `target=item`, they use
-their info dialog instead: the topmost dialog when it is one, else the info dialog a
-context menu, Select or busy dialog covers, else the topmost dialog. Every path takes
-its window once. Such a path first waits, up to a second, for its info dialog to be
-topmost, since under a menu a bare `ListItem` read answers for the window under the
-info dialog; if it never is, the path stops (`artwork` returns its held item). Pass
-`dialog=true` when the controls are in a dialog and the path reads a list in it
-(`target=<id>`). On every path the focus check reads that same window: the dialog's focus with `dialog=true` or `target=item`, else the current
-window's. A dialog run also aborts once its dialog has closed, since a closed info
-dialog still reports the control it closed on as focused; a modal opened over it, such
-as the context menu, does not stop the run.
+a dialog is open on top of it. `dialog=true` (and `target=item`, which implies it)
+means the path belongs to an info dialog (`movieinformation`, `songinformation`,
+`musicinformation`, `addoninformation`): it uses that dialog instead, the topmost
+dialog when it is one, else the info dialog a context menu, Select or busy dialog
+covers, else the topmost dialog. Every path takes its window once. `artwork`,
+`metadata`, `progressbar`, `text` and `multiart_tiles` first wait for that info
+dialog to be topmost, for up to a second not counting time behind the busy dialog
+(Kodi's own Information shows it while it swaps the item), since under a menu a bare
+`ListItem` read answers for the window under the info dialog. If it never is, the
+path stops (`artwork` returns its held item). Pass `dialog=true` when the controls are
+in an info dialog and the path reads a list in it (`target=<id>`). On every path the
+focus check reads that same window: the dialog's focus with `dialog=true` or
+`target=item`, else the current window's. A dialog run also aborts once its dialog has
+closed, since a closed info dialog still reports the control it closed on as focused;
+a modal opened over it, such as the context menu, does not stop the run.
 
 Three cases always pass: when no control has focus at all, when the live identity
 reads as empty, and when a modal dialog is over the current window the run reads
