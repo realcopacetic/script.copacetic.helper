@@ -556,14 +556,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _artwork_held(self) -> list[DirectoryItem]:
         """
-        An aborted serve re-serves what its list (prop_key) shows, under an identity
-        no cursor matches, so the picture stays; with nothing to read (an empty list,
-        a modal dialog over it), the last blur and darkens this list wrote.
+        An aborted serve re-serves what its list (prop_key, an id) shows, under an
+        identity no cursor matches; with nothing to read (no id, an empty list, another
+        window on top), the last blur and darkens this list wrote.
         """
         key = self.params.get("prop_key", "")
         shown = f"Container({key}).ListItem"
         props = self._bridge_props()
-        if infolabel(f"{shown}.Art(background)"):
+        # Kodi takes a non-numeric id as 0, the focused container; another window on
+        # top would answer with its own control of that id.
+        if (
+            key.isdigit()
+            and topmost_window_id() == self.window_id
+            and infolabel(f"{shown}.Art(background)")
+        ):
             # <scope>/pos/dbid/visit, or held/<scope>/<key> from an earlier hold
             current = infolabel(f"{shown}.Property(current)")
             scope = current.removeprefix("held/").partition("/")[0]

@@ -168,7 +168,7 @@ show; with no rectangles that is the part of the image the frame shows.
 | `target` | container id, `item` or `player` | — | Container whose focused item this call is for; `item` is the window's own item (an info dialog's); `player` is the playing song (its art is `Player.Art(...)`; a song's `thumb` is its album cover). See [Plugin Helpers](plugin_helpers.md#the-focus-guard). With `player` the guard is the song: pass `song=$INFO[MusicPlayer.DBID],$INFO[MusicPlayer.PlaylistPosition],$INFO[MusicPlayer.Duration]` (its id, which also tells apart the tracks of a CUE sheet, and its place in the queue and length for songs outside the library; a radio stream has none of the three, so two stations are told apart only by their art; not the file or the title, as a stream's path can carry its own `&…=` and a stream's title a `\|`, either of which cuts a plugin URL). A call whose song is no longer playing when it starts or at any step after, or whose window (the visualisation) is no longer the active one, changes nothing; focus plays no part, and `focus_guard` and `identity_labels` are not read. The param also makes Kodi rerun the call for every song, the songs of one album and a call cut short by a skip included. Without it the call checks the song playing as it starts. Give the call its own `prop_key`: a song with no art (a radio stream) empties the `multiart_fadelabel` and clears the window properties below, so nothing of the last song stays. |
 | `clean_label` | an infolabel's name, e.g. `ListItem.AddonNews` | — | Read this label's text and return it cleaned of markdown as `ListItem.Property(clean_label)`: `#` headings bold, `-` list lines `•`, line breaks `[CR]`; inline markdown stays as written. The helper reads the label, so its text never has to survive the URL, where a `\|` would end the options. Kodi reruns a path only when it changes, so make the path differ per item (`focus_guard` with `identity_labels` does). Not returned on the held item. |
 | `clean_label_color` | a Kodi colour, by name or hex | — | Colour for `clean_label`'s headings. |
-| `prop_key` | the id of the list this path is in, e.g. `9300` | — | Suffix for the window properties the helper sets, and the list an aborted call reads to hold what it shows (see [Window properties](#window-properties)). Any other text works as a suffix; the hold then falls back on the properties. |
+| `prop_key` | the id of the list this path is in, e.g. `9300` | — | Suffix for the window properties the helper sets, and the list an aborted call reads to hold what it shows, while the call's window is on top (see [Window properties](#window-properties)). Any text that isn't a number works as a suffix only: the hold then uses the properties. |
 | `cursor_key` | any text | — | Name of the window property that marks the focused item (`artwork_cursor_<cursor_key>`). See [Is this result for the focused item?](#is-this-result-for-the-focused-item). |
 | `visit` | any text | — | A value that changes once per focus change. See the same section. A new value also refills the multiart FadeLabel. If passed (even empty) and not equal to `Window(home).Property(artwork_visit)`, the call is a superseded or replayed path (the live one fires anyway) and returns the held item (see [Window properties](#window-properties)). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -226,10 +226,12 @@ to keep the last background on screen while the next one is processed.
 longer live, the focus guard fails, or `multiart_target_key` no longer matches) returns
 one item whose `background`, `background_darken` and `icon_darken` art are those of
 `Container(<prop_key>).ListItem`, with `ListItem.Property(current)` =
-`held/<scope>/<prop_key>`, the scope taken from that item's own `current`. When the
-list shows no background (it is empty, or a modal dialog over it answers Python's
-reads), the art is these three properties as they stand and the scope is
-`artwork_scope`. Kodi replaces a container's items with whatever a listing returns, so
+`held/<scope>/<prop_key>`, the scope taken from that item's own `current`. The list is
+read only when `prop_key` is a number and the call's window (the active window; the
+topmost dialog with `target=item` or `dialog=true`) is on top: Kodi reads any other
+text as id 0, the focused container, and a dialog on top would answer with its own
+control of that id. When it isn't read, or shows no background (it is empty), the art
+is these three properties as they stand and the scope is `artwork_scope`. Kodi replaces a container's items with whatever a listing returns, so
 returning nothing would empty the list; the held item keeps its picture and darken
 until the next call lands. Its `current`
 never equals a cursor value, so currency checks stay false, and it carries no
