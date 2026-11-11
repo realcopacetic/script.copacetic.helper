@@ -11,7 +11,7 @@ from operator import itemgetter
 from typing import Any, Callable
 
 from xbmc import getLocalizedString
-from xbmcgui import Window, getCurrentWindowId
+from xbmcgui import Window, getCurrentWindowDialogId, getCurrentWindowId
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.plugin.geometry import PlacementOpts
@@ -207,6 +207,12 @@ class _FocusGuard:
                 f"dialog {self.window_id} closed"
             )
             return False
+
+        # A modal dialog over the window answers the reads below, and nothing under
+        # it moves.
+        modal = getCurrentWindowDialogId() != 9999
+        if modal and self.window_id == getCurrentWindowId():
+            return True
 
         if not (focus_id := focused_control_id(self.window_id)):
             return True
@@ -621,12 +627,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if (label := self.params.get("clean_label"))
             else {}
         )
-        # The window's own item or the playing song has no position: no cursor
-        # stamp, no neighbours.
+        # The window's own item or the playing song has no position, and a modal
+        # dialog over the window would answer for it: no cursor stamp, no neighbours.
         current_position = (
             None
-            if self.item or self.player
+            if self.item or self.player or topmost_window_id() != window_id
             else to_int(infolabel(f"{self.identity_container}.CurrentItem"), None)
+        )
+        # Songs outside the library share an empty DBID: their file doesn't (not the
+        # guard's identity, whose queue position a shuffle moves mid-song)
+        dbid = (
+            infolabel("Player.Filenameandpath") + infolabel("MusicPlayer.DBID")
+            if self.player
+            else infolabel(f"{self.identity_item}.DBID")
         )
         cursor_key = self.params.get("cursor_key", "")
         cursor_snapshot = (
@@ -708,13 +721,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_property("tmdb_art_missed", self._tmdb_missed)
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
-        # Songs outside the library share an empty DBID: their file doesn't (not the
-        # guard's identity, whose queue position a shuffle moves mid-song)
-        dbid = (
-            infolabel("Player.Filenameandpath") + infolabel("MusicPlayer.DBID")
-            if self.player
-            else infolabel(f"{self.identity_item}.DBID")
-        )
         art = seed_multiart(
             fadelabel_id=self.params.get("multiart_fadelabel"),
             multiart_dict=multiart_dict,
@@ -810,7 +816,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                                 else ""
                             ),
                         }
-                        if current_position is not None
+                        if not (self.item or self.player)
                         # The playing song has no position: current tells songs apart,
                         # so a slide serve (9400) is matched to its song's
                         else (

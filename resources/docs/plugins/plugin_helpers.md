@@ -156,8 +156,11 @@ window's. A dialog run also aborts once its dialog has closed, since a closed in
 dialog still reports the control it closed on as focused; a modal opened over it, such
 as the context menu, does not stop the run.
 
-Two cases always pass: when no control has focus at all, and when the live identity
-reads as empty.
+Three cases always pass: when no control has focus at all, when the live identity
+reads as empty, and when a modal dialog is over the current window the run reads
+(not a dialog run's own dialog). Python's reads would answer for that dialog's
+controls, and nothing under a modal dialog takes input, so the item is still the one
+the path was built for.
 
 Either check can be disabled by omission: no `focus_ids` skips the focus check; an absent or empty `focus_guard` skips the identity check. A handler with neither runs unguarded.
 

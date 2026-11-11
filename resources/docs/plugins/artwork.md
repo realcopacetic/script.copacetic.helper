@@ -467,7 +467,10 @@ focused control when that property is empty. With `target=item` there is no posi
 so none of these properties are set. With `target=player` there is none either, but
 `current` is set, to `player//<file><id>` (the playing file and `MusicPlayer.DBID`): two
 calls for the same song carry the same value, so a slide's serve can be matched to the
-song's.
+song's. When a modal dialog is over the window as a container call starts, the
+position is not read (Python's reads would answer for the dialog): `current` is then
+the cursor property's value as the call started (rule 2 below), the helper writes no
+cursor, and the position properties name no position.
 
 ### The value of `current`
 
