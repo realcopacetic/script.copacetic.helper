@@ -228,11 +228,11 @@ longer live, the focus guard fails, or `multiart_target_key` no longer matches) 
 one item whose `background`, `background_darken` and `icon_darken` art are those of
 `Container(<prop_key>).ListItem`, with `ListItem.Property(current)` =
 `held/<scope>/<prop_key>`, the scope taken from that item's own `current`. The list is
-read only when `prop_key` is a number and the call's window is still on top. The call
-takes its window once, at its first need: the active window, or the topmost dialog with
-`target=item` or `dialog=true`. Kodi reads any other text as id 0, the focused
-container, and a dialog opened over that window since would answer with its own
-control of that id. When the list isn't read, or shows no background (it is empty),
+read only when `prop_key` is a number and, for a window's call (not `target=item` or
+`dialog=true`), its window is still on top. A window's call takes its window once, the
+active window at its first need; a dialog's call reads the topmost dialog each time.
+Kodi reads any other text as id 0, the focused container, and a dialog opened over a
+window since would answer with its own control of that id. When the list isn't read, or shows no background (it is empty),
 the art is these three properties as they stand and the scope is `artwork_scope`.
 Kodi replaces a container's items with whatever a listing returns, so returning
 nothing would empty the list; the held item keeps its picture and darken until the
@@ -378,10 +378,11 @@ library artwork:
   `tmdb_art_ready` (`<kind>:<tmdb_id>`). Put that in the URL,
   `$INFO[Window(home).Property(tmdb_art_ready),&tmdb_ready=]`, and Kodi reruns the serve
   once, which then adds the extras. That rerun keeps the art on screen, except with
-  `multiart_target` when the family had one image or none: two or more make its first
-  slide the backdrop. For that case the result's `tmdb_swap` property names the miss
-  (`<kind>:<tmdb_id>`), so equal to `tmdb_art_ready` it marks the running job as a
-  rerun that changes the backdrop.
+  `multiart_target` when the family had one image: the extras make it two or more, and
+  its first slide becomes the backdrop. The result's `tmdb_swap` property names the
+  miss (`<kind>:<tmdb_id>`) whenever the family had fewer than two images (a family of
+  none gets no extras, so its rerun changes nothing), so equal to `tmdb_art_ready` it
+  marks the running job as a rerun that can change the backdrop.
 - For movies and TV shows with a TMDb id. Episodes use their show's artwork.
 - A `tvshow.` type adds TMDb artwork of the plain type: `tvshow.fanart` adds TMDb
   `fanart`.
