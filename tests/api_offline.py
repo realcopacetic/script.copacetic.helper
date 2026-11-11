@@ -419,6 +419,7 @@ class LibraryItemTest(unittest.TestCase):
             "formed": "1998",
             "genre": ["Alternative"],
             "label": "Gorillaz",
+            "type": "Group",
             "yearsactive": ["1990s", "2000s"],
         }
         song = {"art": {}, "file": "f.mp3", "genre": [], "label": "Dare", "songid": 2}
@@ -434,6 +435,7 @@ class LibraryItemTest(unittest.TestCase):
                         "artist_died": "",
                         "artist_disbanded": "",
                         "artist_formed": "1998",
+                        "artist_type": "Group",
                         "artist_yearsactive": "1990s / 2000s",
                     },
                 ),
