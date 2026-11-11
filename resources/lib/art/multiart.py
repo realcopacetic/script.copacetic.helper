@@ -292,6 +292,7 @@ def set_multiart_fadelabel(
     ordered: list[str],
     *,
     alive: Callable[[], bool] | None = None,
+    window_id: int | None = None,
 ) -> bool:
     """
     Seed a FadeLabel control with a multiart sequence.
@@ -299,11 +300,14 @@ def set_multiart_fadelabel(
     :param fadelabel_id: Control id of the FadeLabel to populate.
     :param ordered: URLs in display order (see order_multiart).
     :param alive: Focus guard; seeding stops before the extras if it returns False.
+    :param window_id: Window holding the FadeLabel; the current one by default.
     :return: True if labels were set successfully.
     """
     try:
         return seed_registers(
-            getCurrentWindowId(), {to_int(fadelabel_id): ordered}, alive=alive
+            window_id or getCurrentWindowId(),
+            {to_int(fadelabel_id): ordered},
+            alive=alive,
         )
 
     except Exception as e:
@@ -332,6 +336,7 @@ def seed_multiart(
     seed_scope: str,
     seed_item: str,
     alive: Callable[[], bool],
+    window_id: int | None = None,
 ) -> dict[str, str] | None:
     """
     Seed/clear a multiart register and reconcile multiart art keys. Register identity
@@ -344,6 +349,7 @@ def seed_multiart(
     :param seed_scope: Listing identity of this serve (region@folder).
     :param seed_item: Item and visit of this serve (pos/dbid/visit); keys the skip.
     :param alive: Focus guard callable; False aborts mid-seed.
+    :param window_id: Window holding the register (a dialog's serve); else the current.
     :return: Updated art dict, or None when the guard died mid-seed.
     """
 
@@ -384,13 +390,15 @@ def seed_multiart(
     seeded = False
     if len(multiart_dict) > 1:
         ordered = order_multiart(multiart_dict)
-        seeded = set_multiart_fadelabel(fadelabel_id, ordered, alive=alive)
+        seeded = set_multiart_fadelabel(
+            fadelabel_id, ordered, alive=alive, window_id=window_id
+        )
     if seeded:
         log.debug(
             f"seed_multiart → seeded register {fadelabel_id} ({len(ordered)} items)"
         )
     elif alive():
-        clear_label(fadelabel_id)
+        clear_label(fadelabel_id, window_id)
         art = {k: v for k, v in art.items() if not k.startswith("multiart")}
     else:
         return None

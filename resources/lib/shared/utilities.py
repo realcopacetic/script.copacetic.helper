@@ -181,16 +181,17 @@ def notify_build_failed() -> None:
 """KODI UTILS"""
 
 
-def clear_label(label_id: int | str) -> None:
+def clear_label(label_id: int | str, window_id: int | None = None) -> None:
     """
-    Clear a label control in the current window.
+    Clear a label control in a window, the current one by default.
 
     :param label_id: Control id of the label to clear.
+    :param window_id: Window holding it, e.g. a dialog.
     """
     if (ctrl_id := to_int(label_id, 0)) <= 0:
         return
 
-    window = Window(getCurrentWindowId())
+    window = Window(window_id or getCurrentWindowId())
     try:
         ctrl = window.getControl(ctrl_id)
         ctrl.reset()
