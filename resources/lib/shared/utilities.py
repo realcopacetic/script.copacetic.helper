@@ -78,14 +78,17 @@ _JSON_RESPONSE_LIMIT = 5
 
 def pin_dev_reset() -> None:
     """
-    Keep "Reset on next start" with the builder skin active when it was turned on
-    (else the next one saved or started in), so no other skin uses it up; turning
-    it off drops it. Run at start and on each save.
+    Keep "Reset on next start" with the first builder skin it is on in (at a save,
+    a check or a reset), so no other skin uses it up; turning it off drops it.
     """
     if not ADDON.getSettingBool("dev_reset"):
         DEV_RESET.unlink(missing_ok=True)
-    elif not DEV_RESET.exists() and skin_uses_builder():
-        DEV_RESET.write_text(skin_id(skin_path()))
+    elif (
+        not DEV_RESET.exists()
+        and skin_uses_builder()
+        and (active := skin_id(skin_path()))
+    ):
+        DEV_RESET.write_text(active)
 
 
 def dev_reset_due() -> bool:
@@ -104,11 +107,12 @@ def dev_reset_due() -> bool:
 def reset_dev_state() -> None:
     """
     Delete the active skin's builder outputs, runtime_state and resolver cache to
-    force a clean rebuild, and turn off "Reset on next start" if it was this skin's.
-    Imports BUILDER_CONFIG locally to avoid a circular dependency.
+    force a clean rebuild, and turn off "Reset on next start" if it is this skin's
+    (an unpinned one becomes so). Imports BUILDER_CONFIG locally (circular import).
     """
     from resources.lib.builders.builder_config import BUILDER_CONFIG
 
+    pin_dev_reset()
     if dev_reset_due():
         ADDON.setSettingBool("dev_reset", False)
         DEV_RESET.unlink(missing_ok=True)  # the service's settings hook may be first

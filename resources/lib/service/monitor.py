@@ -55,7 +55,6 @@ class Monitor(xbmc.Monitor):
         self.prune_due = 0.0  # wall-clock time of the next API cache prune
         self.player_monitor = None
         self.slideshow = None
-        pin_dev_reset()  # one turned on before this helper, or with the service off
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
         self._run()
 
@@ -139,6 +138,7 @@ class Monitor(xbmc.Monitor):
         requested, rebuild, reload.
         """
         adopt_shared_state()  # first, so a dev reset clears what it adopts
+        pin_dev_reset()  # one turned on outside a builder skin, or before this helper
         dev_mode = ADDON.getSettingBool("dev_mode")
 
         if dev_mode and dev_reset_due():

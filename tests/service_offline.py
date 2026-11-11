@@ -390,19 +390,38 @@ class BuildBoundary(unittest.TestCase):
             self.service.onSettingsChanged()
         self.assertFalse(utilities.DEV_RESET.exists())
 
-    def test_dev_reset_waits_for_a_builder_skin(self):
+    def test_dev_reset_runs_in_the_next_builder_skin_followed(self):
+        self.current_cache()
+        STATE.write_text('{"test": [], "kept": []}')
         self.addCleanup(utilities.DEV_RESET.unlink, missing_ok=True)
-        with patch.object(monitor.ADDON, "getSettingBool", lambda key: True):
+        with (
+            patch.object(monitor.ADDON, "getSettingBool", lambda key: True),
+            patch.object(monitor.ADDON, "setSettingBool", create=True) as setting,
+        ):
             with (
                 as_skin("skin.estuary"),
                 patch.object(utilities, "skin_uses_builder", lambda: False),
             ):
                 self.service.onSettingsChanged()
-                self.start()
             self.assertFalse(utilities.DEV_RESET.exists())
-            with as_skin("skin.other"):
-                self.start()
-        self.assertEqual(utilities.DEV_RESET.read_text(), "skin.other")
+            with as_skin(""):  # addon.xml unreadable mid-install
+                self.service.onSettingsChanged()
+            self.assertFalse(utilities.DEV_RESET.exists())
+            self.follow(REAL)  # a switch into skin.test, no restart
+        setting.assert_called_once_with("dev_reset", False)
+        self.assertFalse(utilities.DEV_RESET.exists())
+        self.assertNotIn("kept", json.loads(STATE.read_text()))
+
+    def test_rebuild_reset_takes_an_unpinned_reset(self):
+        self.current_cache()
+        self.addCleanup(utilities.DEV_RESET.unlink, missing_ok=True)
+        with (
+            patch.object(monitor.ADDON, "getSettingBool", lambda key: True),
+            patch.object(monitor.ADDON, "setSettingBool", create=True) as setting,
+        ):
+            utilities.reset_dev_state()
+        setting.assert_called_once_with("dev_reset", False)
+        self.assertFalse(utilities.DEV_RESET.exists())
 
     def test_rebuild_reset_keeps_another_skins_pending_reset(self):
         self.dev_reset_on("skin.other")
