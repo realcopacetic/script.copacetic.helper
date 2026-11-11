@@ -360,9 +360,10 @@ class PlayerMonitor(Player):
         """
         Publish music-related window properties on audio start.
         Splits the player's artists and their ids into player_artist_1..3 and
-        player_artistid_1..3 for exact matching; the album's rail path.
+        player_artistid_1..3 for exact matching; the album's rail path; the song id.
         """
         tag = self.getMusicInfoTag()
+        songid = tag.getDbId()
         query = json_call(
             "Player.GetItem",
             params={"playerid": 0, "properties": ["albumid", "artist", "artistid"]},
@@ -377,13 +378,14 @@ class PlayerMonitor(Player):
                 "player_albumartist": tag.getAlbumArtist(),
                 "player_album": tag.getAlbum(),
                 "player_albumid": str(item.get("albumid", "")),
+                "player_songid": str(songid),
                 "player_album_path": self._album_path(item.get("albumid", 0)),
                 "player_disc": str(tag.getDisc()),
             }
             | {f"player_artist_{i}": a for i, a in enumerate(artists[:3], 1)}
             | {f"player_artistid_{i}": str(a) for i, a in enumerate(artistids[:3], 1)}
         )
-        self._record_speed_dial(tag.getDbId())
+        self._record_speed_dial(songid)
 
     def _album_path(self, albumid: int) -> str:
         """
