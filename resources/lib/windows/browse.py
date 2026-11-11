@@ -38,6 +38,7 @@ def _get_strings() -> dict[str, str]:
     return {
         "video_library": xbmc.getLocalizedString(14236),  # Video library
         "music_library": xbmc.getLocalizedString(14237),  # Music library
+        "none": xbmc.getLocalizedString(231),  # None
         "video_playlists": xbmc.getLocalizedString(20012),  # Video playlists
         "music_playlists": xbmc.getLocalizedString(20011),  # Music playlists
         "addons": xbmc.getLocalizedString(24001),  # Add-ons
@@ -900,29 +901,33 @@ def _custom_path() -> tuple[str, str] | None:
 # ---------------------------------------------------------------------------
 
 
-def browse_content(cfg) -> dict[str, str] | None:
+def browse_content(cfg) -> dict[str, str] | str | None:
     """
     Entry point for content path browsing. Called from onclick_actions.
-    Widget mode returns ``{path, label, icon, target}``; menu mode
-    also adds ``{type, window, action}`` for menu-item construction.
-    Either adds ``item_type`` when ``sibling_fields`` maps it.
+    Widget mode returns ``{path, label, icon, target}``; menu mode adds
+    ``{type, window, action}``; ``item_type`` when ``sibling_fields`` maps it.
 
-    :param cfg: Onclick config; ``heading``, ``mode``, and ``depth`` for ``item_type``.
-    :return: Result dict, or None if cancelled.
+    :param cfg: Onclick config; ``heading``, ``mode``, ``clearable``, ``depth``.
+    :return: Result dict, ``""`` for None (``clearable``), or None if cancelled.
     """
     s = _get_strings()
     heading = cfg.get("heading", s["select_content"])
     mode = cfg.get("mode", "widget")
+    clear = [(s["none"], None)] if cfg.get("clearable") else []
+    sources = clear + _get_top_level() + (_get_menu_extra() if mode == "menu" else [])
+    labels = [
+        label + ("" if label in (s["none"], s["custom_path"]) else "  >")
+        for label, _ in sources
+    ]
 
     while True:
-        sources = _get_top_level() + (_get_menu_extra() if mode == "menu" else [])
-        labels = [
-            label + ("" if label == s["custom_path"] else "  >") for label, _ in sources
-        ]
-        idx = Dialog().select(heading, labels)
+        # None sits at the top; the cursor starts below it
+        idx = Dialog().select(heading, labels, preselect=len(clear))
 
         if idx == -1:
             return None
+        if clear and idx == 0:
+            return ""
 
         label, path = sources[idx]
 

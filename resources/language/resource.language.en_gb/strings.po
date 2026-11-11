@@ -574,6 +574,11 @@ msgctxt "#32804"
 msgid "Custom path..."
 msgstr ""
 
+#: /resources/lib/windows/onclick_actions.py — browse_single's Browse, below None
+msgctxt "#32805"
+msgid "Browse..."
+msgstr ""
+
 #: /resources/lib/windows/browse.py — navigation and status labels
 msgctxt "#32809"
 msgid "Use this path"

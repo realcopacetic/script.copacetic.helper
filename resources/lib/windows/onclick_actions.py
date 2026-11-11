@@ -4,7 +4,7 @@ import xbmc
 from xbmcgui import Dialog
 
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import condition, infolabel, skin_string
+from resources.lib.shared.utilities import ADDON, condition, infolabel, skin_string
 
 BROWSE_TYPE_MAP = {
     "directories": 0,
@@ -43,11 +43,20 @@ def browse(cfg: dict) -> str | list[str]:
     )
 
 
-def browse_single(cfg: dict) -> str:
+def browse_single(cfg: dict) -> str | None:
     """
-    Show a single-select browse dialog and return the chosen path.
+    Show a single-select browse dialog and return the chosen path, or None if
+    cancelled. ``clearable`` first offers None (returns ``""``) above Browse.
     """
-    return Dialog().browseSingle(*_browse_args(cfg, "files"))
+    if cfg.get("clearable"):
+        labels = [xbmc.getLocalizedString(231), ADDON.getLocalizedString(32805)]
+        idx = Dialog().select(cfg["heading"], labels, preselect=1)
+        if idx < 1:
+            return "" if idx == 0 else None
+    args = _browse_args(cfg, "files")
+    # Kodi returns the default on cancel (Dialog.cpp browseSingle)
+    path = Dialog().browseSingle(*args)
+    return None if path == args[-1] else path
 
 
 def browse_multiple(cfg: dict) -> list[str]:
@@ -57,13 +66,13 @@ def browse_multiple(cfg: dict) -> list[str]:
     return Dialog().browseMultiple(*_browse_args(cfg, "files"))
 
 
-def browse_content(cfg: dict) -> dict | None:
+def browse_content(cfg: dict) -> dict | str | None:
     """
     Widget mode returns ``{path, label, icon, target}``; menu mode
     also adds ``{type, window, action}`` for menu-item construction.
 
     :param cfg: Onclick config; ``mode`` is "widget" or "menu".
-    :return: Result dict, or None if cancelled.
+    :return: Result dict, ``""`` for None (``clearable``), or None if cancelled.
     """
     from resources.lib.windows.browse import browse_content
 

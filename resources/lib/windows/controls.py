@@ -525,6 +525,7 @@ class ButtonHandler(BaseControlHandler):
             "useThumbs",
             "treatAsFolder",
             "default",
+            "clearable",
             "enableMultiple",
             "autoclose",
             "preselect",
