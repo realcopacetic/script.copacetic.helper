@@ -868,13 +868,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                             "current_pos": str(current_position),
                             "previous_pos": str(prev_item.pos),
                             "next_pos": str(next_item.pos),
-                            # The miss whose rerun keeps this art, so the skin holds
-                            # its fades; a favourite's family backdrop needs two images,
-                            # and a key already stamped reruns nothing
-                            "tmdb_pending": (
+                            # The miss whose rerun changes the backdrop, so the skin
+                            # fades for it: a favourite's family backdrop needs two
+                            # images; a key already stamped reruns nothing
+                            "tmdb_swap": (
                                 self._tmdb_key
                                 if self._tmdb_missed
-                                and (not source or len(multiart_dict) > 1)
+                                and source
+                                and len(multiart_dict) <= 1
                                 and infolabel("Window(home).Property(tmdb_art_ready)")
                                 != self._tmdb_key
                                 else ""
