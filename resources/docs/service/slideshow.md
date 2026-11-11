@@ -41,7 +41,8 @@ have no visible effect.
 All of them are written together for each slide. If the source returns nothing, no new
 slide is published and the last slide stays, unless the source itself just changed (a new
 source or path, the other schedule taking over, or a path set to None): then every
-property above is cleared, so the old slide doesn't stay on screen.
+property above is cleared, so the old slide doesn't stay on screen. Not when the service
+starts, so a share that is still waking up doesn't wipe a valid slide.
 
 If a slide fails (its fanart can't be opened, or the blur gives nothing), nothing is
 published for it and the service tries another fetched item a second later, one item a
