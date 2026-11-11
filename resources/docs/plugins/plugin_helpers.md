@@ -162,8 +162,9 @@ reads as empty, and when a modal dialog is over the current window the run reads
 controls, and nothing under a modal dialog takes input, so the item is still the one
 the path was built for. An info dialog is the exception: Copacetic's info rails share
 the windows' container ids, so a run would read the dialog's rails as its own. While
-`Window(home).Property(infoscreen_open)` is set, a window's run under a modal dialog
-aborts; only `artwork` carries on, and it reads nothing from the dialog's rails (no
+an info dialog is open (`movieinformation`, `musicinformation`, `songinformation` or
+`addoninformation` visible, from the moment Kodi registers it to the end of its close),
+a window's run under a modal dialog aborts; only `artwork` carries on, and it reads nothing from the dialog's rails (no
 multiart family, no window properties, see [artwork](artwork.md)).
 
 Either check can be disabled by omission: no `focus_ids` skips the focus check; an absent or empty `focus_guard` skips the identity check. A handler with neither runs unguarded.
