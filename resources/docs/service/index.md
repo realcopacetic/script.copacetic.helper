@@ -170,6 +170,7 @@ back with the next play, speed dial change or slide.
 | `player_setid` | A library movie in a set starts | Movie set database id | As above | [Player properties](player.md) |
 | `player_set`, `player_set_path` | A library movie in a set starts | The set's name, and a `videodb://` URL of its other films | As above | [Player properties](player.md) |
 | `player_subtitle_kind` | A video starts; the `player_stream` and `player_stream_refresh` actions update it | `forced`, `full` or `impaired`; while off, `missing` (no preferred stream for the language an action was given) or empty | As above | [Player properties](player.md#subtitle-type) |
+| `player_video_count` | A video starts | Number of video streams | As above | [Player properties](player.md) |
 | `player_genre_query`, `player_genre`, `player_director` | A video with a genre or director starts | One genre (as named, and cleaned) and one director, picked once per video and session | As above | [Player properties](player.md#genre-and-director-picks) |
 | `player_artist` | A song starts | Artist (all artists in one string) | As above | [Player properties](player.md) |
 | `player_artist_1` … `player_artist_3` | A song starts | First, second and third artist | As above | [Player properties](player.md) |
