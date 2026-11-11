@@ -180,6 +180,21 @@ The value is read *resolved* — the stored value, or the config default when th
 | `"true"` / `"false"` (or bool) | `Skin.SetBool` / `Skin.Reset` | `Skin.HasSetting(name)` |
 | anything else | `Skin.SetString` | `Skin.String(name,value)` / `Skin.String(name)` |
 
+**A choice of one from many** is one field mirrored as a string, not a family of bools set with `Skin.SelectBool`: a mirror keeps one field in one skin setting. Give the field a config with one item per choice and a `select` button (see [Onclick](06-controls.md#onclick)), then test each value. Copacetic's age rating flags work this way:
+
+```json
+"rating_system": {
+  "items": { "BBFC": "$LOCALIZE[31940]", "MPAA": "$LOCALIZE[31941]", "ACB": "$LOCALIZE[31943]" },
+  "defaults": { "*": "BBFC" }
+}
+```
+
+```xml
+<value condition="Skin.String(rating_system,ACB)">$VAR[texture_mpaa_ACB]</value>
+```
+
+Kodi compares `Skin.String(name,value)` without regard to case. A skin that used to keep the choice in bools starts from the config default once, since the old bools aren't read.
+
 A string is written whole, so commas, spaces, quotes and backslashes in it are kept (a path such as `special://profile/playlists/video/Fanart, mix.xsp` reads back as it is). An empty value clears the skin string.
 
 **One direction only.** The runtime value is the source of truth and the mirror is a projection of it. Never write the skin setting from XML — `Skin.ToggleSetting` on a mirrored name will be silently overwritten on the next sync. If the user should change the value, give them an editor control for the field; the mirror follows.
