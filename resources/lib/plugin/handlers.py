@@ -385,18 +385,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _info_on_top(self) -> bool:
         """
-        Wait up to a second for the serve's info dialog to be topmost: under a menu,
-        bare ListItem reads answer for the window under the info dialog.
+        Wait up to a second, busy dialog aside, for the serve's info dialog to be
+        topmost: under a menu, bare ListItem reads answer for the window under it.
 
         :return: False when it never was, or Kodi is exiting.
         """
-        monitor = Monitor()
-        for _ in range(10):
-            if topmost_window_id() == self._info_window:
-                return True
-            if monitor.waitForAbort(0.1):
-                break
-        return False
+        monitor, steps = Monitor(), 10
+        while (top := topmost_window_id()) != self._info_window:
+            # Kodi's own Information swaps the item behind the busy dialog
+            steps -= top != 10138
+            if steps < 0 or monitor.waitForAbort(0.1):
+                return False
+        return True
 
     def _item_key(self, item: str | None = None) -> str:
         """
