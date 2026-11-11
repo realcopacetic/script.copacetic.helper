@@ -135,6 +135,8 @@ class PlayerMonitor(Player):
         self._resume_waiting = False  # a hung flight was cancelled: start the next
         self._seek_at = 0.0  # the last seek's time; 0 clears one left by a restart
         self._successor = ""  # the file Play next queued after this episode
+        self._queue_songs = (None, set())  # music queue key, its song ids
+        self._album_queue = (None, False)  # (queue key, album id), queue is the album
         SpeedDial().publish()
         if self.isPlaying():
             self.onAVStarted()
@@ -358,7 +360,7 @@ class PlayerMonitor(Player):
         """
         Publish music-related window properties on audio start.
         Splits the player's artists and their ids into player_artist_1..3 and
-        player_artistid_1..3 for exact matching.
+        player_artistid_1..3 for exact matching; the album's rail path.
         """
         tag = self.getMusicInfoTag()
         query = json_call(
@@ -375,12 +377,45 @@ class PlayerMonitor(Player):
                 "player_albumartist": tag.getAlbumArtist(),
                 "player_album": tag.getAlbum(),
                 "player_albumid": str(item.get("albumid", "")),
+                "player_album_path": self._album_path(item.get("albumid", 0)),
                 "player_disc": str(tag.getDisc()),
             }
             | {f"player_artist_{i}": a for i, a in enumerate(artists[:3], 1)}
             | {f"player_artistid_{i}": str(a) for i, a in enumerate(artistids[:3], 1)}
         )
         self._record_speed_dial(tag.getDbId())
+
+    def _album_path(self, albumid: int) -> str:
+        """
+        The playing album's folder, for its rail; empty for a song outside the
+        library or when the queue is exactly that album's songs.
+
+        :param albumid: Library album id; 0 or less if none.
+        :return: musicdb://albums/<albumid>/, or empty.
+        """
+        if albumid <= 0:
+            return ""
+        # The queue is read once per queue (a long one costs a moment), the album once
+        # per album in it
+        queue = _queue_key(PlayList(PLAYLIST_MUSIC))
+        if queue != self._queue_songs[0]:
+            items = json_call(
+                "Playlist.GetItems",
+                params={"playlistid": PLAYLIST_MUSIC},
+                parent="now_playing_queue",
+            )
+            ids = {item.get("id") for item in items.get("result", {}).get("items", [])}
+            self._queue_songs = (queue, ids)
+        if (key := (queue, albumid)) != self._album_queue[0]:
+            album = json_call(
+                "AudioLibrary.GetSongs",
+                query_filter={"albumid": albumid},
+                params={"includesingles": True},  # else a single's songs are left out
+                parent="now_playing_album",
+            )
+            songs = {s["songid"] for s in album.get("result", {}).get("songs", [])}
+            self._album_queue = (key, self._queue_songs[1] == songs)
+        return "" if self._album_queue[1] else f"musicdb://albums/{albumid}/"
 
     def _record_speed_dial(self, songid: int) -> None:
         """

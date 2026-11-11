@@ -110,6 +110,7 @@ Use Kodi's value first and the service's when Kodi's is empty:
 | `player_albumartist` | Album artist | A song starts |
 | `player_album` | Album title | A song starts |
 | `player_albumid` | Album database id (`-1` outside the library) | A song starts |
+| `player_album_path` | The album's folder, `musicdb://albums/<id>/`, for a rail of its songs. Empty outside the library, and when the music queue is exactly this album's songs (it would only repeat the queue); a queue of some of them, or of more, keeps it. The queue is read when it changes (by its length or first song) and the album's songs when the album does, not on every song, so a queue edit that keeps both shows on the next queue. | A song starts |
 | `player_disc` | Disc number | A song starts |
 
 `player_artist_1` to `player_artist_3` hold one artist each, so you can match a single
