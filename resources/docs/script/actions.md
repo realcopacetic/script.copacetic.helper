@@ -313,9 +313,10 @@ Example from Copacetic, for each info dialog rail at open:
 
 Removes entries from a builder mapping whose parent entry no longer exists (see
 [Runtime State → Parent links](../builders/09-runtime-state.md#parent-links)). If
-anything was removed, it rebuilds the builder output and reloads the skin. While a
-settings window is open, the rebuild waits until the window closes. The rebuild sets
-[`helper_reloading`](#dynamic_settings_window), so the skin can cover it.
+anything was removed, it rebuilds the builder output, and reloads the skin if that
+changed an output file. While a settings window is open, the rebuild waits until the
+window closes. The rebuild sets [`helper_reloading`](#dynamic_settings_window), so the
+skin can cover it.
 
 Mappings without a `parent_mapping` are left alone.
 
@@ -382,8 +383,10 @@ Commas inside a builtin's brackets are safe — Kodi does not split there.
 Opens a builder settings window as a dialog. The left-hand list shows the entries of
 one mapping; the controls on the right edit the highlighted entry. Every change is
 saved at once. The window loads the controls declared for `mapping` (plus any from
-`controls_from`). When the window closes, the builder output is rebuilt and the skin
-reloads, but only if something changed.
+`controls_from`). When the window closes, the builder output is rebuilt if something
+changed, and the skin reloads only if that changed an output file. A setting no output
+file reads (one only mirrored to a skin setting, say) closes without a reload: see
+[On close](../builders/09-runtime-state.md#on-close).
 
 The full window contract — required control ids, management buttons, fixed versus
 editable lists and hosting — is in
@@ -418,7 +421,7 @@ editable lists and hosting — is in
 | `current_mapping` | The `mapping`. With `parent`, the name becomes `current_mapping_<parent>`. Cleared on close. |
 | `editor_label` | The window's `System.CurrentWindow` label when it opened. Set back to its earlier value on close. |
 | `host_exit_target` | You set this (to a window name) to leave a hosted window. The helper clears it. |
-| `helper_reloading` | `rebuild` while the builder outputs rebuild on close, then `reload` as the skin reload is sent (also in `rebuild` and `delete_orphans`, and `reload` alone when the service reloads for a skin update, except during fullscreen video), so the skin can cover both, for example with its splash. The skin clears it, once its window is ready after the reload; the helper clears it only when no reload follows: a failed rebuild, or a dropped or postponed reload. |
+| `helper_reloading` | `rebuild` while the builder outputs rebuild on close, then `reload` as the skin reload is sent (also in `rebuild` and `delete_orphans`, and `reload` alone when the service reloads for a skin update, except during fullscreen video), so the skin can cover both, for example with its splash. The skin clears it, once its window is ready after the reload; the helper clears it only when no reload follows: a rebuild that failed or changed no output file, or a dropped or postponed reload. |
 
 If the list is empty and it is an editable list, the Add dialog opens straight away.
 Cancel it and the window closes.

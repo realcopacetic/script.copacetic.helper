@@ -84,7 +84,7 @@ Include each one once from your skin. The addon also keeps two files per skin in
 | Kodi starts, or the user switches to your skin (production) | The settings file gains entries for any `dynamic` mapping it doesn't have yet. If that happened, or the resolver cache is missing or was built for another skin or another version of the skin or helper, or an output file isn't the one that build wrote (another Kodi profile wrote it: profiles share your skin's folder but keep their own settings file and cache), everything is rebuilt. Otherwise only output files that are missing are built. A file is written only when its content changed, and `ReloadSkin()` follows only if one was. |
 | The skin is updated in place (same folder, new version) | The same check as at start-up. |
 | Kodi starts, the user switches to your skin, or it is updated in place (dev mode) | Everything is rebuilt, then `ReloadSkin()` |
-| User closes a settings window with changes | Everything is rebuilt, then `ReloadSkin()` |
+| User closes a settings window with changes | Everything is rebuilt; `ReloadSkin()` follows only if an output file changed. See [On close](09-runtime-state.md#on-close). |
 | `action=rebuild` | Everything is rebuilt, then `ReloadSkin()` |
 | A settings window opens | Configs and controls are read from the resolver cache, which every successful build refreshes. A build drops the cache first, so a failed one leaves none and the next start rebuilds everything. If the cache is missing or was built for another skin or another version of the skin or helper, they are read from your template files instead. Nothing is built. |
 

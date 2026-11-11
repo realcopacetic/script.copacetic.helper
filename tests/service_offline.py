@@ -441,9 +441,14 @@ class RebuildSplash(unittest.TestCase):
 
     def test_good_rebuild_keeps_the_splash(self):
         self.addCleanup(window_property, "helper_reloading")
-        with patch.object(REAL, "run"):
-            actions._rebuild()
+        with patch.object(REAL, "run", return_value=True):
+            self.assertTrue(actions._rebuild())
         self.assertEqual(self.reloading(), "rebuild")
+
+    def test_rebuild_that_wrote_nothing_clears_the_splash(self):
+        with patch.object(REAL, "run", return_value=False):
+            self.assertFalse(actions._rebuild())
+        self.assertEqual(self.reloading(), "")
 
 
 if __name__ == "__main__":
