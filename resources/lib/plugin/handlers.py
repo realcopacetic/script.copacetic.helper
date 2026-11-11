@@ -811,7 +811,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                             ),
                         }
                         if current_position is not None
-                        else {}
+                        # The playing song has no position: current tells songs apart,
+                        # so a slide serve (9400) is matched to its song's
+                        else (
+                            {"current": identity.partial(("scope", "pos", "dbid"))}
+                            if self.player
+                            else {}
+                        )
                     )
                     | cleaned,
                 }
