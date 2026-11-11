@@ -154,10 +154,10 @@ means the path belongs to an info dialog (`movieinformation`, `songinformation`,
 dialog when it is one, else the info dialog a context menu, Select or busy dialog
 covers, else the topmost dialog. Every path takes its window once. `artwork`,
 `metadata`, `progressbar`, `text` and `multiart_tiles` first wait for that info
-dialog to be topmost, for up to a second not counting time behind the busy dialog
+dialog to be topmost, for up to a second, plus up to five behind the busy dialog
 (Kodi's own Information shows it while it swaps the item), since under a menu a bare
-`ListItem` read answers for the window under the info dialog. If it never is, the
-path stops (`artwork` returns its held item). Pass `dialog=true` when the controls are
+`ListItem` read answers for the window under the info dialog. If it never is, or the
+info dialog closes meanwhile, the path stops (`artwork` returns its held item). Pass `dialog=true` when the controls are
 in an info dialog and the path reads a list in it (`target=<id>`). On every path the
 focus check reads that same window: the dialog's focus with `dialog=true` or
 `target=item`, else the current window's. A dialog run also aborts once its dialog has
@@ -175,9 +175,12 @@ an info dialog is open (`movieinformation`, `musicinformation`, `songinformation
 a window's run under a modal dialog aborts; only `artwork` carries on, and it reads
 nothing from the dialog's rails (no multiart family, no window properties, see
 [artwork](artwork.md)). A `metadata` or `progressbar` run that aborts there raises
-`Window(home).Property(info_aborted)` by one: put it in the path
-(`$INFO[Window(home).Property(info_aborted)]`) and Kodi runs the path again once the
-window reads it, after the dialog has closed, only when a run was lost.
+its own window's `info_aborted` property by one. Put
+`$INFO[Window.Property(info_aborted)]` in the path, which reads the list's own
+window, and Kodi runs the path again after the dialog has closed, only when a run of
+that window was lost. This needs the list hidden while an info dialog is open: a
+hidden list reads no path, so it reads the new count once, when it shows again; a
+list left visible would run the path again under the dialog and lose it once more.
 
 Either check can be disabled by omission: no `focus_ids` skips the focus check; an absent or empty `focus_guard` skips the identity check. A handler with neither runs unguarded.
 

@@ -234,10 +234,11 @@ class _FocusGuard:
                 return True
             log.debug(f"{LOG_TAG} → {self.caller_name}: ABORTED → under an info dialog")
             if self.caller_name in ("metadata", "progressbar"):
-                # A new count: the skin's rows carry it, so the list serves again
-                # once the dialog closes
-                aborted = to_int(infolabel("Window(home).Property(info_aborted)"), 0)
-                window_property("info_aborted", aborted + 1)
+                # A new count on the run's window: its rows carry it, so its list
+                # serves again once the dialog closes
+                count = f"Window({self.window_id}).Property(info_aborted)"
+                aborted = to_int(infolabel(count), 0)
+                window_property("info_aborted", aborted + 1, self.window_id)
             return False
 
         if not (focus_id := focused_control_id(self.window_id)):
@@ -385,16 +386,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _info_on_top(self) -> bool:
         """
-        Wait up to a second, busy dialog aside, for the serve's info dialog to be
-        topmost: under a menu, bare ListItem reads answer for the window under it.
+        Wait up to a second, and up to five more behind the busy dialog, for the
+        serve's info dialog to be topmost: under a menu, ListItem reads miss it.
 
-        :return: False when it never was, or Kodi is exiting.
+        :return: False when it never was, it closed, or Kodi is exiting.
         """
-        monitor, steps = Monitor(), 10
+        monitor, left, busy_left = Monitor(), 10, 50
         while (top := topmost_window_id()) != self._info_window:
             # Kodi's own Information swaps the item behind the busy dialog
-            steps -= top != 10138
-            if steps < 0 or monitor.waitForAbort(0.1):
+            if top == 10138:
+                busy_left -= 1
+            else:
+                left -= 1
+            if (
+                min(left, busy_left) < 0
+                or not condition(f"Window.IsVisible({self._info_window})")
+                or monitor.waitForAbort(0.1)
+            ):
                 return False
         return True
 
