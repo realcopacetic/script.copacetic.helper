@@ -579,6 +579,11 @@ msgctxt "#32805"
 msgid "Browse..."
 msgstr ""
 
+#: /resources/lib/windows/browse.py — Pictures with no picture sources
+msgctxt "#32806"
+msgid "No picture sources found"
+msgstr ""
+
 #: /resources/lib/windows/browse.py — navigation and status labels
 msgctxt "#32809"
 msgid "Use this path"
