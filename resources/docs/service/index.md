@@ -119,12 +119,14 @@ While the skin opts in and the screensaver is not active, the service runs a loo
 once a second. Each pass it:
 
 1. checks the trailer session (see [Trailers](trailers.md));
-2. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
-3. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
+2. clears `player_seek_offset` once Kodi's seek display is over (see
+   [Seek offset](player.md#seek-offset));
+3. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
+4. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
    focus is no longer on a speed dial item (see
    [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list));
-4. once a day, starting with the first pass, deletes saved TMDb and ListenBrainz
-   answers in the add-on's `_lookup.db` that expired more than 30 days ago. If the
+5. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz and
+   Deezer answers in the add-on's `_lookup.db` that expired more than 30 days ago. If the
    database is busy, it tries again an hour later.
 
 When the screensaver starts, the loop pauses; when it stops, the loop resumes. While
@@ -132,8 +134,8 @@ paused, or while the skin doesn't opt in, the service checks again every 2 secon
 
 ### On playback events
 
-The player monitor handles playback start, stop, end and error while a skin that opts
-in is active, including while the screensaver pauses the poll loop.
+The player monitor handles playback start, stop, end and error, seeks, chapter jumps
+and speed changes while a skin that opts in is active, including while the screensaver pauses the poll loop.
 
 ## Full contract
 
@@ -175,6 +177,7 @@ back with the next play, speed dial change or slide.
 | `player_album` | A song starts | Album title | As above | [Player properties](player.md) |
 | `player_albumid` | A song starts | Album database id | As above | [Player properties](player.md) |
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
+| `player_seek_offset` | A seek with a jump finishes | The jump, signed (`+10:00`, `-00:30`) | 4 seconds after the seek once `Player.HasPerformedSeek(4)` is false; a chapter jump or speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
 | `speed_dial_version` | A song starts and the play changes what speed dial shows, or the poll loop releases `speed_dial_held` | A new number each time | Only when the active skin changes or the service stops | [Player properties](player.md#speed-dial) |
 | `speed_dial_held` | As `speed_dial_version`, but focus is on a speed dial item | The next `speed_dial_version` | The poll loop moves it to `speed_dial_version` | [Speed dial](../plugins/speed_dial.md#window-properties) |
 | `speed_dial_album1` … `speed_dial_album7`, `speed_dial_artist1` … `speed_dial_artist7`, `speed_dial_song1` … `speed_dial_song7`, `speed_dial_playlist` | The skin becomes active | Pinned ids by type and number of digits, or pinned playlist paths, joined with `\|` | Set again on every pin, unpin or move; empty when nothing matches | [Speed dial](../plugins/speed_dial.md#window-properties) |
