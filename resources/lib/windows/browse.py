@@ -324,6 +324,24 @@ _BACK_SENTINEL = object()
 # videodb:// and musicdb:// are direct content endpoints — never fetched.
 _ENDPOINT_PREFIXES = ("videodb://", "musicdb://")
 
+# Files Kodi lists as folders but plays as playlists or feeds: PlayListFactory's
+# IsPlaylist extensions, smart playlists and RSS. Archives stay browsable.
+_FOLDER_PLAYLISTS = (
+    ".m3u",
+    ".m3u8",
+    ".b4s",
+    ".pls",
+    ".strm",
+    ".wpl",
+    ".asx",
+    ".ram",
+    ".url",
+    ".pxml",
+    ".xspf",
+    ".xsp",
+    ".rss",
+)
+
 # Known URL scheme prefixes for real paths (vs action/command strings).
 _PATH_SCHEMES = (
     "library://",
@@ -458,6 +476,13 @@ def _is_endpoint(path: str) -> bool:
 def _is_folder(item: dict) -> bool:
     """Return True if a listed item is a folder to browse into (a playlist isn't)."""
     return item["filetype"] == "directory" and not _is_endpoint(item["file"])
+
+
+def _is_plain_folder(item: dict) -> bool:
+    """Return True if a listed item is a directory, not a playlist listed as one."""
+    return item["filetype"] == "directory" and not item["file"].lower().endswith(
+        _FOLDER_PLAYLISTS
+    )
 
 
 def _is_known_flat(path: str) -> bool:
@@ -770,7 +795,8 @@ def _browse_level(path: str, heading: str, mode: str = "widget", folders: bool =
         items = [
             item
             for item in items
-            if item["file"] not in _SUPPRESS_ITEMS and (not folders or _is_folder(item))
+            if item["file"] not in _SUPPRESS_ITEMS
+            and (not folders or _is_plain_folder(item))
         ]
 
         suppress_use_path = mode == "widget" and (
