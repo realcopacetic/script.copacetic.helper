@@ -137,6 +137,7 @@ def _video_details(
 
 
 _INFO_OPEN = " | ".join(f"Window.IsVisible({wid})" for wid in INFO_DIALOGS)
+_SERVE_DIALOGS = (*INFO_DIALOGS, 10120)  # and the music OSD, whose rails serve alike
 
 
 def _info_open() -> bool:
@@ -375,13 +376,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @cached_property
     def _info_window(self) -> int:
         """
-        The info dialog an info dialog's serve belongs to, read once: the topmost
-        dialog when it is one, else the info dialog a menu, Select or busy dialog
-        covers, else the topmost dialog.
+        The dialog a dialog serve belongs to (an info dialog or the music OSD), read
+        once: the topmost dialog when it is one, else the one a menu, Select or busy
+        dialog covers, else the topmost dialog.
         """
-        if (top := topmost_window_id()) in INFO_DIALOGS:
+        if (top := topmost_window_id()) in _SERVE_DIALOGS:
             return top
-        active = (wid for wid in INFO_DIALOGS if condition(f"Window.IsActive({wid})"))
+        active = (wid for wid in _SERVE_DIALOGS if condition(f"Window.IsActive({wid})"))
         return next(active, top)
 
     def _info_on_top(self) -> bool:

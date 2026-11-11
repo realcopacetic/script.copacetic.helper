@@ -16,6 +16,7 @@ from resources.lib.shared.utilities import (
     clear_label,
     infolabel,
     to_int,
+    topmost_window_id,
     window_property,
 )
 
@@ -185,14 +186,18 @@ def order_multiart(art: dict[str, str]) -> list[str]:
     return [main, *extras]
 
 
-def _read_back(expected: Mapping[int, str], monitor: Monitor) -> bool:
+def _read_back(expected: Mapping[int, str], monitor: Monitor, readable: bool) -> bool:
     """
-    Poll registers until each Control.GetLabel reads its label, at most 10 x 20 ms.
+    Poll registers until each Control.GetLabel reads its label, at most 10 x 20 ms;
+    one 40 ms pass when another window is topmost, as the reads would answer for it.
 
     :param expected: Register id → expected read-back; "" after a bare reset.
     :param monitor: Monitor for the bounded wait.
-    :return: True when every register read back, False on timeout or abort.
+    :param readable: Whether the registers' window is topmost.
+    :return: True when every register read back (or, blind, the wait ran out).
     """
+    if not readable:
+        return not monitor.waitForAbort(0.04)
     for _ in range(10):
         if all(infolabel(f"Control.GetLabel({i})") == s for i, s in expected.items()):
             return True
@@ -218,17 +223,17 @@ def seed_registers(
     """
     window = Window(window_id)  # keep: the window holds the controls' native refs
     controls = {i: window.getControl(i) for i in sequences}
-    monitor = Monitor()
+    monitor, readable = Monitor(), window_id == topmost_window_id()
     for ctrl in controls.values():
         ctrl.reset()
     # A live register never reads empty, so the empty read-back proves the resets
     # are dispatched; each main image then reads back only after its own dispatch,
     # so the extras land a pass later, after a frame at index 0 (notes: handshake).
-    _read_back(dict.fromkeys(sequences, ""), monitor)
+    _read_back(dict.fromkeys(sequences, ""), monitor, readable)
     mains = {i: labels[0] for i, labels in sequences.items() if labels}
     for i, main in mains.items():
         controls[i].addLabel(main)
-    _read_back(mains, monitor)
+    _read_back(mains, monitor, readable)
     if monitor.abortRequested() or (alive and not alive()):
         return False
     for row in zip_longest(*(labels[1:] for labels in sequences.values())):
@@ -355,9 +360,18 @@ def seed_multiart(
 
     if not fadelabel_id:
         return art
-    seed_scope_key = f"multiart_seed_scope_{fadelabel_id}"
+    window_id = window_id or getCurrentWindowId()
+    # Python's label reads answer for the topmost window; a dialog keeps its own keys,
+    # as the window under it seeds the same register id
+    readable = window_id == topmost_window_id()
+    own = (
+        fadelabel_id
+        if window_id == getCurrentWindowId()
+        else f"{fadelabel_id}_{window_id}"
+    )
+    seed_scope_key = f"multiart_seed_scope_{own}"
     same_scope = infolabel(f"Window(home).Property({seed_scope_key})") == seed_scope
-    sig_key = f"multiart_seed_sig_{fadelabel_id}"
+    sig_key = f"multiart_seed_sig_{own}"
     stored = infolabel(f"Window(home).Property({sig_key})")
     signature = f"{seed_item}:{_multiart_signature(multiart_dict)}"
     # Interruptor guard: a refire that would reseed the identical set for the
@@ -370,7 +384,7 @@ def seed_multiart(
         len(multiart_dict) > 1
         and same_scope
         and stored == signature
-        and infolabel(f"Control.GetLabel({fadelabel_id})")
+        and (not readable or infolabel(f"Control.GetLabel({fadelabel_id})"))
     ):
         log.debug(
             f"seed_multiart → skip: register {fadelabel_id} already carries this set"
@@ -382,6 +396,7 @@ def seed_multiart(
     elif (
         len(multiart_dict) > 1
         and stored.startswith(f"{seed_item}:")
+        and readable
         and (displayed := infolabel(f"Control.GetLabel({fadelabel_id})"))
     ):
         # A refire of the item on screen with a changed set holds its slide through
