@@ -536,22 +536,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _artwork_held(self) -> list[DirectoryItem]:
         """
-        An aborted serve re-serves the last blur and darkens this list wrote, under
-        an identity no cursor matches and the scope they belong to, so the list never
-        empties between serves.
+        An aborted serve re-serves what its list (prop_key) shows, under an identity
+        no cursor matches, so the picture stays; with nothing to read (an empty list,
+        a modal dialog over it), the last blur and darkens this list wrote.
         """
-        scope = infolabel(f"Window(home).Property({self._scope_prop})")
+        key = self.params.get("prop_key", "")
+        shown = f"Container({key}).ListItem"
+        props = self._bridge_props()
+        if infolabel(f"{shown}.Art(background)"):
+            # <scope>/pos/dbid/visit, or held/<scope>/<key> from an earlier hold
+            current = infolabel(f"{shown}.Property(current)")
+            scope = current.removeprefix("held/").partition("/")[0]
+            labels = {field: f"{shown}.Art({field})" for field, _ in props}
+        else:
+            scope = infolabel(f"Window(home).Property({self._scope_prop})")
+            labels = {field: f"Window(home).Property({prop})" for field, prop in props}
         return set_items(
             [
                 {
                     "file": plugin_path("artwork"),
-                    "art": {
-                        field: infolabel(f"Window(home).Property({prop})")
-                        for field, prop in self._bridge_props()
-                    },
-                    "properties": {
-                        "current": f"held/{scope}/{self.params.get('prop_key', '')}"
-                    },
+                    "art": {field: infolabel(label) for field, label in labels.items()},
+                    "properties": {"current": f"held/{scope}/{key}"},
                 }
             ]
         )
