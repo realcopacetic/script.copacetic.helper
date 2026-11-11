@@ -174,7 +174,8 @@ an info dialog is open (`movieinformation`, `musicinformation`, `songinformation
 `addoninformation` visible, from the moment Kodi registers it to the end of its close),
 a window's run under a modal dialog aborts; only `artwork` carries on, and it reads
 nothing from the dialog's rails (no multiart family, no window properties, see
-[artwork](artwork.md)). A `metadata` or `progressbar` run that aborts there raises
+[artwork](artwork.md)). A `target=player` run is outside all of this: its guard is the
+song and its window, and it reads the `Player` infos, which no dialog answers for. A `metadata` or `progressbar` run that aborts there raises
 its own window's `info_aborted` property by one. Put
 `$INFO[Window.Property(info_aborted)]` in the path, which reads the list's own
 window, and Kodi runs the path again after the dialog has closed, only when a run of
