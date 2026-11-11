@@ -883,7 +883,7 @@ def filled_params(skin: Path) -> frozenset[tuple[str, str]]:
     """
     Params the include templates fill per mapping row (a ``{field}`` in the value),
     with the call's name as a glob: a placeholder or ``$PARAM`` in it matches anything,
-    and a name that is nothing else (``$PARAM[base]``) is dropped, as it names no include.
+    and a name that is nothing else (``$PARAM[base]``) is dropped: it names no include.
 
     :param skin: Skin root directory.
     :return: ``(include glob, param)`` pairs; none if the skin has no templates (C1).
@@ -897,7 +897,7 @@ def filled_params(skin: Path) -> frozenset[tuple[str, str]]:
     return frozenset(
         (glob, param.get("name"))
         for glob, call in calls
-        if glob != "*"
+        if glob.strip("*")
         for param in call.iterfind("param")
         if FIELD.search(param.get("value", param.text or ""))
     )
