@@ -203,7 +203,10 @@ The list item also carries some properties; see
 ## Window properties
 
 The helper also sets these on the home window. With `prop_key`, each name ends in
-`_<prop_key>` (for example `background_blur_9300`).
+`_<prop_key>` (for example `background_blur_9300`). With `cursor_key`, it sets them
+only while `Window(home).Property(artwork_cursor_<cursor_key>)` still holds the value
+it had when the call started: once the cursor has moved on, they would be another
+item's or another window's.
 
 | Property | Value |
 |---|---|
