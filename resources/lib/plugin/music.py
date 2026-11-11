@@ -21,7 +21,7 @@ _DETAILS = {
     ),
     "artist": (
         "AudioLibrary.GetArtistDetails",
-        ["born", "died", "disbanded", "formed", "genre", "yearsactive"],
+        ["born", "died", "disbanded", "formed", "genre", "type", "yearsactive"],
     ),
     "song": (
         "AudioLibrary.GetSongDetails",
@@ -45,7 +45,15 @@ _ICONS = {
     "song": "DefaultMusicSongs.png",
 }
 # Details Kodi's own musicdb items carry as {type}_{field} properties too
-_PROPERTIES = {"born", "description", "died", "disbanded", "formed", "yearsactive"}
+_PROPERTIES = {
+    "born",
+    "description",
+    "died",
+    "disbanded",
+    "formed",
+    "type",
+    "yearsactive",
+}
 ALBUM_RANK_PROPERTIES = [
     *_DETAILS["album"][1],
     "art",
