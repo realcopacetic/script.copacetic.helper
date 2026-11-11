@@ -335,22 +335,71 @@ class BuildBoundary(unittest.TestCase):
         self.assertTrue(shared.exists())
         self.assertEqual(own_state.read_bytes(), before)
 
-    def test_dev_reset_clears_only_the_active_skin(self):
+    def dev_reset_on(self, skin_id: str) -> Path:
+        """Both skins built with a marked state; Reset on next start on in ``skin_id``."""
         self.current_cache()
         other_state, _ = self.other_skin("skin.other")
         with as_skin("skin.other"):
             self.builds_on_start()
         for path in (STATE, other_state):
             path.write_text('{"test": [], "kept": []}')
+        self.addCleanup(utilities.DEV_RESET.unlink, missing_ok=True)
         with (
+            as_skin(skin_id),
+            patch.object(monitor.ADDON, "getSettingBool", lambda key: True),
+        ):
+            self.service.onSettingsChanged()
+        return other_state
+
+    def dev_start(self, skin_id: str) -> Mock:
+        """Start the service in ``skin_id`` with dev mode and the reset on."""
+        with (
+            as_skin(skin_id),
             patch.object(monitor.ADDON, "getSettingBool", lambda key: True),
             patch.object(monitor.ADDON, "setSettingBool", create=True) as setting,
         ):
             self.start()
             self.follow(REAL)
+        return setting
+
+    def test_dev_reset_clears_only_the_active_skin(self):
+        other_state = self.dev_reset_on("skin.test")
+        setting = self.dev_start("skin.test")
         setting.assert_called_once_with("dev_reset", False)
+        self.assertFalse(utilities.DEV_RESET.exists())
         self.assertNotIn("kept", json.loads(STATE.read_text()))
         self.assertIn("kept", json.loads(other_state.read_text()))
+
+    def test_dev_reset_waits_for_the_skin_it_was_turned_on_in(self):
+        other_state = self.dev_reset_on("skin.other")
+        self.dev_start("skin.test").assert_not_called()
+        self.assertIn("kept", json.loads(STATE.read_text()))
+        self.dev_start("skin.other").assert_called_once_with("dev_reset", False)
+        self.assertNotIn("kept", json.loads(other_state.read_text()))
+        self.assertIn("kept", json.loads(STATE.read_text()))
+
+    def test_dev_reset_keeps_its_skin_until_turned_off(self):
+        self.dev_reset_on("skin.other")
+        with (
+            as_skin("skin.test"),
+            patch.object(monitor.ADDON, "getSettingBool", lambda key: True),
+        ):
+            self.service.onSettingsChanged()  # another setting saved in skin.test
+        self.assertEqual(utilities.DEV_RESET.read_text(), "skin.other")
+        with patch.object(monitor.ADDON, "getSettingBool", lambda key: False):
+            self.service.onSettingsChanged()
+        self.assertFalse(utilities.DEV_RESET.exists())
+
+    def test_rebuild_reset_keeps_another_skins_pending_reset(self):
+        self.dev_reset_on("skin.other")
+        with (
+            patch.object(monitor.ADDON, "getSettingBool", lambda key: True),
+            patch.object(monitor.ADDON, "setSettingBool", create=True) as setting,
+        ):
+            utilities.reset_dev_state()
+        setting.assert_not_called()
+        self.assertFalse(STATE.exists())
+        self.assertEqual(utilities.DEV_RESET.read_text(), "skin.other")
 
 
 class ServiceReload(unittest.TestCase):

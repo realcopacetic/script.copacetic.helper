@@ -100,7 +100,7 @@ If a build fails, no `ReloadSkin()` follows and a notification appears. See [Tro
 
 **Dev mode** (Addon Settings → Developers): rebuild everything each time your skin becomes active (Kodi start, switching to it, or an in-place update), then reload the skin.
 
-**Reset on next start** (sub-toggle of dev mode): also deletes the settings file, the resolver cache and all outputs first, so everything regenerates from defaults. Clears itself after running. You need a reset only when the *list of entries* should change: a new `items` or `default_order` on an existing dynamic mapping, or a changed `parent` in metadata. Other metadata and `config_fields` are read live, so a rebuild picks them up. A brand-new dynamic mapping gets its entries on the next start without a reset.
+**Reset on next start** (sub-toggle of dev mode): also deletes the settings file, the resolver cache and all outputs first, so everything regenerates from defaults. It applies to the skin you turn it on in (dev mode itself is shared by every skin) and clears itself after running. You need a reset only when the *list of entries* should change: a new `items` or `default_order` on an existing dynamic mapping, or a changed `parent` in metadata. Other metadata and `config_fields` are read live, so a rebuild picks them up. A brand-new dynamic mapping gets its entries on the next start without a reset.
 
 **Rebuild from anywhere:**
 

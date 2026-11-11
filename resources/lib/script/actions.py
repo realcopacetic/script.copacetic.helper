@@ -1395,7 +1395,6 @@ def rebuild(**kwargs: str) -> None:
     reset = kwargs.get("reset") == "true"
     if reset:
         reset_dev_state()
-        ADDON.setSettingBool("dev_reset", False)
 
     _rebuild()
     _reload_skin()
