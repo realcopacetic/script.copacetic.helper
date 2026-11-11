@@ -364,13 +364,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             through_info,
         )
 
-    @cached_property
+    @property
     def window_id(self) -> int:
         """
-        Window whose controls this serve draws into, read once: an info dialog's own
-        for its serves (dialog=true, target=item); else the active window.
+        Window whose controls this serve draws into: an info dialog's own for its
+        serves (dialog=true, target=item), read live; else the active window.
         """
-        return topmost_window_id() if self.dialog else getCurrentWindowId()
+        return topmost_window_id() if self.dialog else self._active_window
+
+    @cached_property
+    def _active_window(self) -> int:
+        """
+        The active window, read once: a window serve's own, under any dialog since.
+        """
+        return getCurrentWindowId()
 
     def _item_key(self, item: str | None = None) -> str:
         """
@@ -568,8 +575,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _artwork_held(self) -> list[DirectoryItem]:
         """
         An aborted serve re-serves what its list (prop_key, an id) shows, under an
-        identity no cursor matches; with no id, an empty list, or a dialog over the
-        serve's window (window_id), the last blur and darkens this list wrote.
+        identity no cursor matches; with no id, an empty list, or (a window serve) a
+        dialog over its window, the last blur and darkens this list wrote.
         """
         key = self.params.get("prop_key", "")
         shown = f"Container({key}).ListItem"
