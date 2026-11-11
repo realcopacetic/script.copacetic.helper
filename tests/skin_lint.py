@@ -26,6 +26,7 @@ from PIL import Image, ImageChops, ImageSequence
 REF = re.compile(r"\$(?:ESC(?=VAR))?(VAR|EXP)\[((?:[^\[\]]|\[[^\[\]]*\])+)\]")
 ESCEXP = re.compile(r"\$ESCEXP\[(?:[^\[\]]|\[[^\[\]]*\])+\]")  # not a Kodi token
 PARAM = re.compile(r"\$PARAM\[([^\[\]]*)\]")
+FIELD = re.compile(r"\{[^{}]*\}")  # a builder placeholder: {layout}, {index+1}
 WHOLE_EXP = re.compile(r"\[?\$EXP\[([^\[\]]+)\]\]?")
 INCLUDE_REF = re.compile(r"\$(?:EXP|PARAM)\[[^\[\]]*\]")  # resolved by includes only
 CONDITION_REF = re.compile(r"\$(?:EXP|PARAM|(?:ESC)?VAR)\[[^\[\]]*\]")
@@ -248,16 +249,26 @@ def first_three(names: list[str]) -> str:
 class Skin:
     """Parsed skin files plus the definitions Kodi would register from them."""
 
-    def __init__(self, paths: list[Path], media_families: tuple[str, ...]):
+    def __init__(
+        self,
+        paths: list[Path],
+        media_families: tuple[str, ...],
+        window_families: tuple[str, ...] = (),
+        filled: frozenset[tuple[str, str]] = frozenset(),
+    ):
         """
         Parse every file, then register definitions from the include files
         ``Includes.xml`` loads, in load order.
 
         :param paths: XML files to lint.
         :param media_families: Name suffixes of the builder's media window definitions.
+        :param window_families: Name suffixes of every builder window and scope.
+        :param filled: ``(include glob, param)`` pairs templates fill per mapping row.
         """
         self.findings = set()
         self.media_families = media_families
+        self.window_families = window_families
+        self.filled = filled
         self.roots = {}
         for path in paths:
             try:
@@ -395,10 +406,17 @@ class Skin:
     def check_params(self) -> None:
         """
         Report params a call site passes that no include it reached mentions:
-        a call named by ``$PARAM`` passes what any of its targets or its default needs.
+        a call named by ``$PARAM`` passes what any of its targets or its default needs,
+        and a generated call passes its mapping row's fields to whichever it picks.
         """
         for src, (targets, passed) in self.calls.items():
             known = set().union(*(self.params.get(name, ()) for name in targets))
+            if src.startswith(GENERATED):
+                known.update(
+                    param
+                    for glob, param in self.filled
+                    if any(fnmatch(name, glob) for name in targets)
+                )
             for param in passed - known:
                 names = "/".join(sorted(targets))
                 self.report("unknown-param", src, f"{names}: no param {param!r}")
@@ -738,17 +756,25 @@ class Skin:
                 if token == "VAR":
                     self.check_reference(token, ref, node.src)
 
+    def family(self, kind: str, name: str) -> tuple[str, str] | None:
+        """``(kind, name less its suffix)`` for a per-window or per-scope definition."""
+        suffix = next((s for s in self.window_families if name.endswith(s)), None)
+        return suffix and (kind, name.removesuffix(suffix))
+
     def check_unreferenced(self) -> None:
         """
         Report generated variables and expressions that no linted window reaches,
-        through its values or its include conditions.
+        through its values or include conditions, unless another window's (or scope's)
+        copy is reached: the builder writes one for each, mounted reader or not.
         """
+        mounted = {self.family(*key) for key in self.reached} - {None}
         for kind in KINDS.values():
             for name, node in self.defs[kind].items():
                 if (
                     node.src.startswith(GENERATED)
                     and not name.endswith(UNMIGRATED)
                     and (kind, name) not in self.reached
+                    and self.family(kind, name) not in mounted
                 ):
                     self.report("unreferenced-definition", node.src, f"{kind} {name}")
 
@@ -813,6 +839,19 @@ def check_textures(skin: Path) -> Iterator[Finding]:
                 break
 
 
+def window_metadata(skin: Path) -> dict[str, dict[str, str]]:
+    """
+    Builder windows and their metadata, from ``mappings_windows.json``.
+
+    :param skin: Skin root directory.
+    :return: {window: metadata}; empty if the skin has no mappings (C1).
+    """
+    path = skin / "extras/templates/mappings/mappings_windows.json"
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text())["windows"]["metadata"]
+
+
 def media_families(skin: Path) -> tuple[str, ...]:
     """
     Name suffixes of the generated per-window definitions of the builder's media
@@ -821,11 +860,45 @@ def media_families(skin: Path) -> tuple[str, ...]:
     :param skin: Skin root directory.
     :return: Suffixes such as ``_videos``; none if the skin has no mappings (C1).
     """
-    path = skin / "extras/templates/mappings/mappings_windows.json"
-    if not path.exists():
-        return ()
-    metadata = json.loads(path.read_text())["windows"]["metadata"]
-    return tuple(f"_{w}" for w, meta in metadata.items() if meta["mode"] == "media")
+    return tuple(
+        f"_{w}" for w, meta in window_metadata(skin).items() if meta["mode"] == "media"
+    )
+
+
+def window_families(skin: Path) -> tuple[str, ...]:
+    """
+    Name suffixes of the generated per-window and per-scope definitions: one for each
+    ``mappings_windows.json`` window and each ``scope`` they name.
+
+    :param skin: Skin root directory.
+    :return: Suffixes such as ``_home``, ``_widgets``; none without mappings (C1).
+    """
+    names = {
+        name for w, meta in window_metadata(skin).items() for name in (w, meta["scope"])
+    }
+    return tuple(f"_{name}" for name in sorted(names))
+
+
+def filled_params(skin: Path) -> frozenset[tuple[str, str]]:
+    """
+    Params the include templates fill per mapping row (a ``{field}`` in the value),
+    with the call's name as a glob: a placeholder or ``$PARAM`` in it matches anything.
+
+    :param skin: Skin root directory.
+    :return: ``(include glob, param)`` pairs; none if the skin has no templates (C1).
+    """
+    calls = (
+        call
+        for path in (skin / "extras/templates/includes").glob("*.xml")
+        for call in ET.parse(path).iter("include")
+        if "content" in call.attrib
+    )
+    return frozenset(
+        (FIELD.sub("*", PARAM.sub("*", call.get("content"))), param.get("name"))
+        for call in calls
+        for param in call.iterfind("param")
+        if FIELD.search(param.get("value", param.text or ""))
+    )
 
 
 def location(finding: Finding) -> tuple[str, int]:
@@ -859,7 +932,12 @@ def main() -> None:
             print(f"build: {build_isolated(args.skin, generated)}")
         files = {p.name: p for p in sorted((args.skin / "16x9").glob("*.xml"))}
         files |= {p.name: p for p in sorted((generated / "16x9").glob("*.xml"))}
-        skin = Skin(list(files.values()), media_families(args.skin))
+        skin = Skin(
+            list(files.values()),
+            media_families(args.skin),
+            window_families(args.skin),
+            filled_params(args.skin),
+        )
         windows = None if args.all else sorted({*skin.migrated(), *args.window}) or None
         if windows:
             print(f"windows: {', '.join(windows)}")
