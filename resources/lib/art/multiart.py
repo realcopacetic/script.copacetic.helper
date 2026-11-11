@@ -43,19 +43,21 @@ def build_multiart_dict(
     type. TMDb only extends a local family, so the first image is the item's own.
 
     :param target: Infolabel prefix such as "ListItem" or "Container(3100).ListItem".
-    :param multiart_type: Base art type (e.g. "fanart", "poster", "keyart").
-    :param max_items: Maximum number of multiart slots to read.
+    :param multiart_type: Base art type ("fanart"), or several joined in turn by ",".
+    :param max_items: Maximum number of multiart slots to read, per type.
     :param tmdb_art: TMDb art dict ("fanart", "fanart1" …); empty for none.
     :return: A dict mapping "multiart" and "multiartN" keys to artwork URLs.
     """
     if not multiart_type:
         return {}
 
-    local_seq = multiart_sequence_from_infolabels(
-        target=target,
-        art_type=multiart_type,
-        max_items=max_items,
-    )
+    local_seq = [
+        url
+        for art_type in multiart_type.split(",")
+        for url in multiart_sequence_from_infolabels(
+            target=target, art_type=art_type, max_items=max_items
+        )
+    ]
     tmdb_type = multiart_type.removeprefix("tvshow.")  # TMDb keys are bare
     size = TMDB_MULTIART_SIZES.get(tmdb_type, "original")
     tmdb_seq = (

@@ -76,6 +76,7 @@ from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
 from resources.lib.shared.utilities import (
     ADDON,
+    clear_label,
     condition,
     focused_control_id,
     infolabel,
@@ -90,6 +91,14 @@ from resources.lib.shared.utilities import (
     window_property,
 )
 
+# The playing song's identity for target=player, by labels a plugin URL carries
+# intact (a path or title can hold "&key=" or a "|", which cut it): its id, and its
+# queue position and length for songs outside the library
+PLAYING_SONG = (
+    "MusicPlayer.DBID",
+    "MusicPlayer.PlaylistPosition",
+    "MusicPlayer.Duration",
+)
 _VIDEO_METHODS = {
     "movie": "Movie",
     "tvshow": "TVShow",
@@ -138,6 +147,7 @@ class _FocusGuard:
         "focus_ids",
         "window_id",
         "dialog",
+        "player",
     )
 
     def __init__(
@@ -148,6 +158,7 @@ class _FocusGuard:
         window_id: int,
         dialog: bool,
         focus_ids: tuple[str, ...] = (),
+        player: bool = False,
     ):
         """
         Create a guard that checks container focus and item identity.
@@ -158,6 +169,7 @@ class _FocusGuard:
         :param window_id: Window whose focus is read, which holds the serve's controls.
         :param dialog: Whether window_id is a dialog, so its closing aborts the run.
         :param focus_ids: Control ids of which one must hold focus; empty to skip.
+        :param player: Whether the item is the playing song, which no focus follows.
         """
         self.caller_name = caller_name
         self.expected_identity = expected_identity
@@ -165,6 +177,7 @@ class _FocusGuard:
         self.window_id = window_id
         self.dialog = dialog
         self.focus_ids = focus_ids
+        self.player = player
 
     def alive(self) -> bool:
         """
@@ -172,6 +185,17 @@ class _FocusGuard:
 
         :return: True if guard conditions still hold, otherwise False.
         """
+        # Nothing in the visualisation takes focus: its window and the song decide.
+        # A stop empties the identity, so it aborts too.
+        if self.player:
+            if getCurrentWindowId() != self.window_id or (
+                self.expected_identity
+                and self.identity_getter() != self.expected_identity
+            ):
+                log.debug(f"{LOG_TAG} → {self.caller_name}: ABORTED → song or window")
+                return False
+            return True
+
         # A closed info dialog still reports the rail it closed on as focused.
         if (
             self.dialog
@@ -236,8 +260,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # target=item reads the window's own item (an info dialog's): a bare
         # ListItem prefix, since a Container one lands on the focused container.
         self.item = params.get("target") == "item"
+        # target=player reads the playing song (Player.Art); it has no position either
+        self.player = params.get("target") == "player"
         self.target_item = (
-            "ListItem" if self.item else f"{self.target_container}.ListItem"
+            "ListItem"
+            if self.item
+            else "Player" if self.player else f"{self.target_container}.ListItem"
         )
         self.dialog = self.item or parse_bool(params.get("dialog"))
         self.identity_id = to_int(params.get("identity_container"), self.target)
@@ -280,17 +308,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Focus/identity guard for the running handler, logged under its info name.
         """
-        if self.identity_labels:
-            getter = lambda: ",".join(infolabel(p) for p in self.identity_labels)
+        labels = PLAYING_SONG if self.player else self.identity_labels
+        if labels:
+            getter = lambda: ",".join(infolabel(p) for p in labels)
         else:
             getter = lambda: infolabel(f"{self.identity_container}.CurrentItem")
+        # The song whose art the URL carries (song=); with none, the one playing now
+        expected = (
+            self.params.get("song", getter()) if self.player else self.expected_identity
+        )
         return _FocusGuard(
             self.params.get("info", ""),
-            self.expected_identity,
+            expected,
             getter,
             self.window_id,
             self.dialog,
             self.focus_ids,
+            self.player,
         )
 
     @property
@@ -587,10 +621,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if (label := self.params.get("clean_label"))
             else {}
         )
-        # The window's own item has no position: no cursor stamp, no neighbours.
+        # The window's own item or the playing song has no position: no cursor
+        # stamp, no neighbours.
         current_position = (
             None
-            if self.item
+            if self.item or self.player
             else to_int(infolabel(f"{self.identity_container}.CurrentItem"), None)
         )
         cursor_key = self.params.get("cursor_key", "")
@@ -601,8 +636,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         # Scope of this serve, needed before seeding: the seeder must know
         # whether the register's previous content is same-container.
-        if self.item:
-            stamp_scope = "item"
+        if self.item or self.player:
+            stamp_scope = self.params["target"]
         elif self.target is not None:
             stamp_scope = str(self.target)
         else:
@@ -641,6 +676,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         }
         if not jobs:
             log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
+            # A song with no art (a stream): none of the last one stays
+            if self.player and alive():
+                clear_label(self.params.get("multiart_fadelabel", ""))
+                for _, prop in self._bridge_props():
+                    window_property(prop)
             # A dialog item with no art still lands, so the page isn't held back.
             return (
                 set_items([{"file": plugin_path("artwork"), "properties": cleaned}])
@@ -668,7 +708,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_property("tmdb_art_missed", self._tmdb_missed)
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
-        dbid = infolabel(f"{self.identity_item}.DBID")
+        # Songs outside the library share an empty DBID: their file doesn't (not the
+        # guard's identity, whose queue position a shuffle moves mid-song)
+        dbid = (
+            infolabel("Player.Filenameandpath") + infolabel("MusicPlayer.DBID")
+            if self.player
+            else infolabel(f"{self.identity_item}.DBID")
+        )
         art = seed_multiart(
             fadelabel_id=self.params.get("multiart_fadelabel"),
             multiart_dict=multiart_dict,

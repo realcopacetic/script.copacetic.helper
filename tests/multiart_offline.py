@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from build_offline import HELPER, install_stubs
 
@@ -17,7 +18,8 @@ install_stubs(HELPER, STAGE, STAGE, verbose=False)
 sys.modules["xbmc"].Monitor = None  # imported by multiart; share_out never calls it
 sys.path.insert(0, str(HELPER))
 
-from resources.lib.art.multiart import share_out  # noqa: E402
+from resources.lib.art import multiart  # noqa: E402
+from resources.lib.art.multiart import build_multiart_dict, share_out  # noqa: E402
 
 TMDB = "https://image.tmdb.org/t/p"
 
@@ -54,6 +56,43 @@ class ShareOut(unittest.TestCase):
     def test_duplicate_whose_extras_are_held_keeps_its_main(self):
         families = {3402: ["p", "s"], 3404: ["p", "s"], 3405: ["s"]}
         self.assertEqual(share_out(families), {3402: ["p"], 3404: ["p"], 3405: ["s"]})
+
+
+class JoinedFamily(unittest.TestCase):
+    """A comma-separated multiart reads each type in turn, each image once."""
+
+    ART = {
+        "Player.Art(thumb)": "cover",
+        "Player.Art(artist.thumb)": "cover",
+        "Player.Art(artist.fanart)": "f",
+        "Player.Art(artist.fanart2)": "f2",
+    }
+
+    def family(self, multiart_type, tmdb_art={}):
+        labels = lambda target, keys: {k: self.ART.get(f"{target}.{k}") for k in keys}
+        with mock.patch.object(multiart, "get_infolabels", labels):
+            return build_multiart_dict(
+                target="Player",
+                multiart_type=multiart_type,
+                max_items=15,
+                tmdb_art=tmdb_art,
+            )
+
+    def test_types_join_in_order_without_repeats(self):
+        self.assertEqual(
+            self.family("thumb,artist.thumb,artist.fanart"),
+            {"multiart": "cover", "multiart1": "f", "multiart2": "f2"},
+        )
+
+    def test_one_type_is_unchanged(self):
+        self.assertEqual(
+            self.family("artist.fanart"), {"multiart": "f", "multiart1": "f2"}
+        )
+
+    def test_tmdb_extends_one_type_only(self):
+        tmdb = {"artist.fanart": "t", "thumb": "t"}
+        self.assertEqual(self.family("artist.fanart", tmdb)["multiart2"], "t")
+        self.assertNotIn("t", self.family("thumb,artist.fanart", tmdb).values())
 
 
 if __name__ == "__main__":
