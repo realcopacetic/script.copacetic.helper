@@ -7,7 +7,7 @@ import random
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta
-from functools import cache, partial
+from functools import cache, cached_property, partial
 from operator import itemgetter
 from typing import Any, Callable
 
@@ -364,11 +364,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             through_info,
         )
 
-    @property
+    @cached_property
     def window_id(self) -> int:
         """
-        Window whose controls this serve draws into: an info dialog's own for its
-        serves (dialog=true, target=item); else the active window, under any dialog.
+        Window whose controls this serve draws into, read once: an info dialog's own
+        for its serves (dialog=true, target=item); else the active window.
         """
         return topmost_window_id() if self.dialog else getCurrentWindowId()
 
@@ -568,8 +568,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _artwork_held(self) -> list[DirectoryItem]:
         """
         An aborted serve re-serves what its list (prop_key, an id) shows, under an
-        identity no cursor matches; with nothing to read (no id, an empty list, another
-        window on top), the last blur and darkens this list wrote.
+        identity no cursor matches; with no id, an empty list, or a dialog over the
+        serve's window (window_id), the last blur and darkens this list wrote.
         """
         key = self.params.get("prop_key", "")
         shown = f"Container({key}).ListItem"

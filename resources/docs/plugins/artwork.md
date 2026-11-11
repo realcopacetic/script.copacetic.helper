@@ -228,13 +228,15 @@ longer live, the focus guard fails, or `multiart_target_key` no longer matches) 
 one item whose `background`, `background_darken` and `icon_darken` art are those of
 `Container(<prop_key>).ListItem`, with `ListItem.Property(current)` =
 `held/<scope>/<prop_key>`, the scope taken from that item's own `current`. The list is
-read only when `prop_key` is a number and the call's window (the active window; the
-topmost dialog with `target=item` or `dialog=true`) is on top: Kodi reads any other
-text as id 0, the focused container, and a dialog on top would answer with its own
-control of that id. When it isn't read, or shows no background (it is empty), the art
-is these three properties as they stand and the scope is `artwork_scope`. Kodi replaces a container's items with whatever a listing returns, so
-returning nothing would empty the list; the held item keeps its picture and darken
-until the next call lands. Its `current`
+read only when `prop_key` is a number and the call's window is still on top. The call
+takes its window once, at its first need: the active window, or the topmost dialog with
+`target=item` or `dialog=true`. Kodi reads any other text as id 0, the focused
+container, and a dialog opened over that window since would answer with its own
+control of that id. When the list isn't read, or shows no background (it is empty),
+the art is these three properties as they stand and the scope is `artwork_scope`.
+Kodi replaces a container's items with whatever a listing returns, so returning
+nothing would empty the list; the held item keeps its picture and darken until the
+next call lands. Its `current`
 never equals a cursor value, so currency checks stay false, and it carries no
 `previous`, `next` or position properties. The `visit` and focus guard checks come first, so a stale
 call returns the held item even with no image URL. A live call with no image URL
