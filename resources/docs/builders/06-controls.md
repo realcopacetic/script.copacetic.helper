@@ -218,7 +218,7 @@ A button's `onclick` names an action `type` plus options. Types are not case-sen
 |---|---|
 | `select` | Choice dialog over the control's allowed values (shown with their labels) |
 | `confirm` | Radiobutton and cycle only. Yes/no dialog (`heading`, `message`) that gates the control's own write: Yes → write, then the `yes` action list; No/cancel → nothing written, the `no` list runs if declared. With a `condition` (Rule Engine, against the highlighted entry), the dialog only appears when it is true; otherwise the write just happens. |
-| `browse_content` | The addon's content browser — returns a path plus extras (label, icon, target, …). `mode`: `widget` (default) or `menu`, which adds menu shortcuts and also returns `type`, `window` and `action`. In `menu` mode the video and music libraries also list **Playlists**, a target that opens the playlists folder in Kodi's own window, where its add items are (New smart playlist, and New playlist for music). When `sibling_fields` maps `item_type`, it also returns the plural type of the items the path lists (`albums`, `movies`, else `unknown`), read from one short listing; `depth: 1` reads it inside the first folder instead, for widgets that show a level below their path. |
+| `browse_content` | The addon's content browser — returns a path plus extras (label, icon, target, …). `mode`: `widget` (default) or `menu`, which adds menu shortcuts and also returns `type`, `window` and `action`. In `menu` mode the video and music libraries also list **Playlists**, a target that opens the playlists folder in Kodi's own window, where its add items are (New smart playlist, and New playlist for music). When `sibling_fields` maps `item_type`, it also returns the plural type of the items the path lists (`albums`, `movies`, else `unknown`), read from one short listing; `depth: 1` reads it inside the first folder instead, for widgets that show a level below their path. In `widget` mode, `pictures: true` adds **Pictures** after the libraries: the profile's picture sources (Kodi's `Files.GetSources`), so a plain picture folder can be picked, e.g. for a slideshow. |
 | `browse_image` | Kodi's image browser, opened at `folder` (required) |
 | `browse` / `browse_single` / `browse_multiple` | Kodi's file browsers. `browseType`: `directories`, `files`, `images` or `writeable` (default `directories` for `browse`, `files` for the others). Kodi's dialog returns `default` when cancelled; `browse_single` takes that as a cancel and writes nothing (so picking exactly `default` does nothing either). |
 | `input` / `numeric` | Keyboard / number entry |
@@ -281,7 +281,7 @@ Options the dialogs read, beyond `heading`:
 | `clearable` | `browse_single`, `browse_content` | `true` puts **None** at the top of the picker, which writes an empty value, as if never set (siblings keep theirs). The cursor starts below it. `browse_single` then shows a two-row list, None and Browse…, before Kodi's browser. Cancel still writes nothing. |
 | `shares`, `mask`, `useThumbs`, `treatAsFolder`, `enableMultiple` | browse types | Passed to Kodi's browse dialog (`shares` default `files`) |
 | `folder` | `browse_image` | Folder the browser opens in |
-| `mode`, `result_field`, `sibling_fields` | `browse_content` | See above and below |
+| `mode`, `pictures`, `result_field`, `sibling_fields` | `browse_content` | See above and below |
 | `kwargs` | `runtime_script` | Parameters for the action |
 | `then` | `item_picker` | See below |
 

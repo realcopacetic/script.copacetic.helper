@@ -531,6 +531,7 @@ class ButtonHandler(BaseControlHandler):
             "preselect",
             "useDetails",
             "mode",
+            "pictures",
             "depth",
             "sibling_fields",
             "result_field",

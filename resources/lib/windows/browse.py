@@ -38,6 +38,7 @@ def _get_strings() -> dict[str, str]:
     return {
         "video_library": xbmc.getLocalizedString(14236),  # Video library
         "music_library": xbmc.getLocalizedString(14237),  # Music library
+        "pictures": xbmc.getLocalizedString(1),  # Pictures
         "none": xbmc.getLocalizedString(231),  # None
         "video_playlists": xbmc.getLocalizedString(20012),  # Video playlists
         "music_playlists": xbmc.getLocalizedString(20011),  # Music playlists
@@ -75,6 +76,7 @@ def _get_top_level() -> list[tuple[str, str | None]]:
     return [
         (s["video_library"], "library://video/"),
         (s["music_library"], "library://music/"),
+        (s["pictures"], None),
         (s["video_playlists"], None),
         (s["music_playlists"], None),
         (s["addons"], None),
@@ -881,6 +883,35 @@ def _browse_addons(heading: str, mode: str = "widget") -> tuple[str, str] | None
         return result  # (path, label) or None
 
 
+def _browse_picture_sources(heading: str) -> tuple[str, str] | None:
+    """
+    Show the profile's picture sources, then browse the chosen one.
+    JSON-RPC can't list ``sources://pictures/`` (``RemoteAccessAllowed``).
+
+    :param heading: Dialog heading.
+    :return: ``(path, label)``, or None.
+    """
+    s = _get_strings()
+    result = json_call(
+        "Files.GetSources", params={"media": "pictures"}, parent="browse_content"
+    )
+    sources = result.get("result", {}).get("sources") or []
+    labels = [s["back"]] + [source["label"] + "  >" for source in sources]
+
+    while True:
+        idx = Dialog().select(heading, labels)
+
+        if idx < 1:
+            return None  # cancel or ".." — back to top-level picker
+
+        source = sources[idx - 1]
+        result = _browse_level(source["file"], source["label"])
+
+        if result is _BACK_SENTINEL:
+            continue
+        return result  # (path, label) or None
+
+
 def _custom_path() -> tuple[str, str] | None:
     """
     Open a keyboard dialog and return (path, "") or None.
@@ -907,14 +938,16 @@ def browse_content(cfg) -> dict[str, str] | str | None:
     Widget mode returns ``{path, label, icon, target}``; menu mode adds
     ``{type, window, action}``; ``item_type`` when ``sibling_fields`` maps it.
 
-    :param cfg: Onclick config; ``heading``, ``mode``, ``clearable``, ``depth``.
+    :param cfg: Onclick config; ``heading``, ``mode``, ``clearable``, ``pictures``.
     :return: Result dict, ``""`` for None (``clearable``), or None if cancelled.
     """
     s = _get_strings()
     heading = cfg.get("heading", s["select_content"])
     mode = cfg.get("mode", "widget")
+    pictures = mode == "widget" and cfg.get("pictures", False)
     clear = [(s["none"], None)] if cfg.get("clearable") else []
-    sources = clear + _get_top_level() + (_get_menu_extra() if mode == "menu" else [])
+    top = [src for src in _get_top_level() if pictures or src[0] != s["pictures"]]
+    sources = clear + top + (_get_menu_extra() if mode == "menu" else [])
     labels = [
         label + ("" if label in (s["none"], s["custom_path"]) else "  >")
         for label, _ in sources
@@ -935,6 +968,8 @@ def browse_content(cfg) -> dict[str, str] | str | None:
             result = _browse_playlists("video", heading)
         elif label == s["music_playlists"]:
             result = _browse_playlists("music", heading)
+        elif label == s["pictures"]:
+            result = _browse_picture_sources(heading)
         elif label == s["addons"]:
             result = _browse_addons(heading, mode)
         elif label == s["custom_path"]:
