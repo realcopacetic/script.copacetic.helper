@@ -114,6 +114,7 @@ def install_stubs(
     _module(
         "xbmcvfs",
         delete=lambda path: Path(path).unlink(missing_ok=True),
+        exists=lambda path: Path(path).exists(),
         translatePath=translate_path,
     )
     _module(

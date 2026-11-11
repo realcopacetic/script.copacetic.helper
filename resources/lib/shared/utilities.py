@@ -78,12 +78,13 @@ _JSON_RESPONSE_LIMIT = 5
 
 def pin_dev_reset() -> None:
     """
-    Keep "Reset on next start" with the skin active when it was turned on, so no
-    other skin uses it up; turning it off drops it. Run at start and on each save.
+    Keep "Reset on next start" with the builder skin active when it was turned on
+    (else the next one saved or started in), so no other skin uses it up; turning
+    it off drops it. Run at start and on each save.
     """
     if not ADDON.getSettingBool("dev_reset"):
         DEV_RESET.unlink(missing_ok=True)
-    elif not DEV_RESET.exists():
+    elif not DEV_RESET.exists() and skin_uses_builder():
         DEV_RESET.write_text(skin_id(skin_path()))
 
 
