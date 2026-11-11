@@ -187,6 +187,7 @@ back with the next play, speed dial change or slide.
 | `player_album` | A song starts | Album title | As above | [Player properties](player.md) |
 | `player_albumid` | A song starts | Album database id | As above | [Player properties](player.md) |
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
+| `player_genres` | A song starts | The song's genres, joined with ` / ` | As above | [Player properties](player.md) |
 | `player_songid` | A song starts | Song database id, for matching the others to `MusicPlayer.DBID` | As above | [Player properties](player.md) |
 | `player_seek_offset` | A seek with a jump finishes | The jump, signed (`+10:00`, `-00:30`) | 4 seconds after the seek once `Player.HasPerformedSeek(4)` is false; a chapter jump or speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
 | `speed_dial_version` | A song starts and the play changes what speed dial shows, or the poll loop releases `speed_dial_held` | A new number each time | Only when the active skin changes or the service stops | [Player properties](player.md#speed-dial) |
