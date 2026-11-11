@@ -752,6 +752,7 @@ class TmdbTest(Base):
         handler = object.__new__(handlers.PluginHandlers)
         handler.params = {"enrich_with_tmdb": "true"}
         handler.item, handler.dbtype, handler.dbid = False, "tvshow", "7"
+        handler.dialog = False
         handler.target_item = "Container(50).ListItem"
         handler._guard = lambda: mock.Mock(alive=lambda: True)
         handler._get_tmdb_item = lambda **kwargs: transform.tmdb_to_canonical(
@@ -854,6 +855,7 @@ class TmdbTest(Base):
             "truncate_width": "20",
         }
         handler.item, handler.dbtype, handler.dbid = False, "movie", "7"
+        handler.dialog = False
         handler.target_item = "Container(50).ListItem"
         handler._guard = lambda: mock.Mock(alive=lambda: True)
         shown = {"6009": "This plot", "6036": "This title"}
