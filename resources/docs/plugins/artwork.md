@@ -377,9 +377,11 @@ library artwork:
   item, with the item still focused and no dialog open, it sets the Home window property
   `tmdb_art_ready` (`<kind>:<tmdb_id>`). Put that in the URL,
   `$INFO[Window(home).Property(tmdb_art_ready),&tmdb_ready=]`, and Kodi reruns the serve
-  once, which then adds the extras. The result's `tmdb_pending` property names the miss
-  (`<kind>:<tmdb_id>`) when that rerun keeps the art on screen, so equal to
-  `tmdb_art_ready` it marks the running job as the rerun.
+  once, which then adds the extras. That rerun keeps the art on screen, except with
+  `multiart_target` when the family had one image or none: two or more make its first
+  slide the backdrop. For that case the result's `tmdb_swap` property names the miss
+  (`<kind>:<tmdb_id>`), so equal to `tmdb_art_ready` it marks the running job as a
+  rerun that changes the backdrop.
 - For movies and TV shows with a TMDb id. Episodes use their show's artwork.
 - A `tvshow.` type adds TMDb artwork of the plain type: `tvshow.fanart` adds TMDb
   `fanart`.
@@ -475,7 +477,7 @@ When the container position is known, the list item carries:
 | `current_pos` | The container position (`CurrentItem`) this result is for. |
 | `previous`, `next` | `<container>/<position>` of the items either side. Positions wrap around when the container has more than one item. |
 | `previous_pos`, `next_pos` | The positions either side, on their own. |
-| `tmdb_pending` | The TMDb miss whose rerun keeps this art (see [Multiart](#multiart-1)), else empty. |
+| `tmdb_swap` | The TMDb miss whose rerun changes this item's backdrop (see [Multiart](#multiart-1)), else empty. |
 
 The container is `target` when passed. Without `target`, it is the first `/`
 segment of `Window(home).Property(artwork_cursor_<cursor_key>)`, or the id of the
