@@ -9,20 +9,20 @@ PLAYLIST_VIDEO = 1
 WALK_PROPERTIES = ["file"]
 
 
-def ensure_successor(dbid: int, tvshowid: int) -> str | None:
+def ensure_successor(dbid: int, tvshowid: int) -> str:
     """
     Append the next episode of the show to the video playlist if the feature is
     enabled and no successor is queued. Once per episode from onAVStarted.
     :param dbid: Library episodeid of the episode now playing.
     :param tvshowid: Library tvshowid of its show.
-    :return: The queued episode's file, or None when nothing was queued.
+    :return: The queued episode's file; empty when nothing was queued.
     """
     if not condition("Skin.HasSetting(playnext_enabled)") or _successor_present():
-        return None
+        return ""
     if successor := _next_episode(dbid, tvshowid):
         _append(successor["episodeid"])
         return successor["file"]
-    return None
+    return ""
 
 
 def withdraw(file: str) -> None:
@@ -30,6 +30,7 @@ def withdraw(file: str) -> None:
     Remove the successor ensure_successor queued while it is still the next item:
     Play next was switched off during its episode.
     :param file: The queued episode's file.
+    :return: None.
     """
     playlist = PlayList(PLAYLIST_VIDEO)
     position = playlist.getposition() + 1

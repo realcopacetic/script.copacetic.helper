@@ -3,6 +3,7 @@
 import json
 import random
 import time
+from typing import Any
 from urllib.parse import quote
 
 from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Player, PlayList
@@ -37,17 +38,58 @@ from resources.lib.shared.utilities import (
 _NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
 
 
-def _set_path(setid: int, title: str) -> str:
+def _videodb_path(path: str, rules: list[dict], **xsp: Any) -> str:
     """
-    The videodb URL of a movie set's films less one, for a rail of the rest.
+    A videodb URL filtered by a smart playlist, its JSON quoted so a name's "&" or
+    "#" can't cut the URL.
 
-    :param setid: Library movie set id.
-    :param title: Title of the film to leave out.
-    :return: The URL, its filter quoted so a title's "&" or "#" can't cut it.
+    :param path: The videodb node, with or without options.
+    :param rules: Filter rules, ANDed.
+    :param xsp: The playlist's other fields: type, and order or limit if wanted.
+    :return: The URL.
     """
-    rule = {"field": "title", "operator": "isnot", "value": title}
-    xsp = json.dumps({"type": "movies", "rules": {"and": [rule]}}, ensure_ascii=False)
-    return f"videodb://movies/titles/?setid={setid}&xsp={quote(xsp, safe='')}"
+    query = json.dumps(xsp | {"rules": {"and": rules}}, ensure_ascii=False)
+    return f"{path}{'&' if '?' in path else '?'}xsp={quote(query, safe='')}"
+
+
+def _episode_paths(tvshowid: int, season: int, episode: int, other: dict) -> dict:
+    """
+    A library episode's rails: its next 20 in season and episode order, into the
+    next season, and its season's unwatched; none for a special.
+
+    :param tvshowid: Library TV show id.
+    :param season: The episode's season.
+    :param episode: The episode's number.
+    :param other: The rule that leaves out the playing file (its other parts too).
+    :return: player_next_path and player_season_path, or nothing.
+    """
+    if season < 1:
+        return {}
+    show, order = f"videodb://tvshows/titles/{tvshowid}", {"method": "episode"}
+    later = {
+        "or": [
+            {"field": "season", "operator": "greaterthan", "value": str(season)},
+            {
+                "and": [
+                    {"field": "season", "operator": "is", "value": str(season)},
+                    {
+                        "field": "episode",
+                        "operator": "greaterthan",
+                        "value": str(episode),
+                    },
+                ]
+            },
+        ]
+    }
+    unwatched = {"field": "playcount", "operator": "is", "value": "0"}
+    return {
+        "player_next_path": _videodb_path(
+            f"{show}/-1/", [other, later], type="episodes", order=order, limit=20
+        ),
+        "player_season_path": _videodb_path(
+            f"{show}/{season}/", [other, unwatched], type="episodes", order=order
+        ),
+    }
 
 
 def _queue_key(playlist: PlayList) -> tuple[int, str] | None:
@@ -220,9 +262,9 @@ class PlayerMonitor(Player):
 
     def _handle_video_start(self) -> None:
         """
-        Publish video properties on start: parent ids (tvshowid; setid, its name and
-        other films' path), subtitle type, stream count, genre and director picks,
-        and note the successor Play next queues.
+        Publish video properties on start: parent ids with the rails' paths (an
+        episode's next and its season's; a set's name and other films), subtitle
+        type, stream count, genre and director picks; note Play next's successor.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
@@ -235,6 +277,12 @@ class PlayerMonitor(Player):
         }
         props |= self._picks(tag)
         self._successor = ""
+        # As the library names the file: a title can repeat, a file can't
+        other = {
+            "field": "filename",
+            "operator": "isnot",
+            "value": infolabel("Player.Filename"),
+        }
 
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
@@ -248,7 +296,10 @@ class PlayerMonitor(Player):
                 details = query.get("result", {}).get("episodedetails", {})
                 if tvshowid := details.get("tvshowid"):
                     props["player_tvshowid"] = str(tvshowid)
-                    self._successor = playnext.ensure_successor(dbid, tvshowid) or ""
+                    props |= _episode_paths(
+                        tvshowid, tag.getSeason(), tag.getEpisode(), other
+                    )
+                    self._successor = playnext.ensure_successor(dbid, tvshowid)
 
         elif media_type == "movie" and dbid > 0:
             query = json_call(
@@ -259,8 +310,10 @@ class PlayerMonitor(Player):
             details = query.get("result", {}).get("moviedetails", {})
             if setid := details.get("setid"):
                 props["player_setid"] = str(setid)
-                props["player_set"] = details.get("set", "")
-                props["player_set_path"] = _set_path(setid, tag.getTitle())
+                props["player_set"] = details["set"]
+                props["player_set_path"] = _videodb_path(
+                    f"videodb://movies/titles/?setid={setid}", [other], type="movies"
+                )
         self._publish(props)
 
     @staticmethod
