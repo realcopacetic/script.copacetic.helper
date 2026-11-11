@@ -135,6 +135,14 @@ def _video_details(
     )
 
 
+def _info_open() -> bool:
+    """
+    Whether an info dialog is open (the skin's infoscreen_open): Python's container
+    reads then answer for its rails, which share the windows' ids.
+    """
+    return bool(infolabel("Window(home).Property(infoscreen_open)"))
+
+
 class _FocusGuard:
     """
     Lazy focus/identity guard for plugin operations.
@@ -149,6 +157,7 @@ class _FocusGuard:
         "window_id",
         "dialog",
         "player",
+        "through_info",
     )
 
     def __init__(
@@ -160,6 +169,7 @@ class _FocusGuard:
         dialog: bool,
         focus_ids: tuple[str, ...] = (),
         player: bool = False,
+        through_info: bool = False,
     ):
         """
         Create a guard that checks container focus and item identity.
@@ -171,6 +181,7 @@ class _FocusGuard:
         :param dialog: Whether window_id is a dialog, so its closing aborts the run.
         :param focus_ids: Control ids of which one must hold focus; empty to skip.
         :param player: Whether the item is the playing song, which no focus follows.
+        :param through_info: Whether the run passes under an info dialog too.
         """
         self.caller_name = caller_name
         self.expected_identity = expected_identity
@@ -179,6 +190,7 @@ class _FocusGuard:
         self.dialog = dialog
         self.focus_ids = focus_ids
         self.player = player
+        self.through_info = through_info
 
     def alive(self) -> bool:
         """
@@ -210,10 +222,14 @@ class _FocusGuard:
             return False
 
         # A modal dialog over the window answers the reads below, and nothing under
-        # it moves.
+        # it moves. An info dialog's rails share the window's ids, so under one only
+        # a run that reads none of them carries on.
         modal = getCurrentWindowDialogId() != 9999
         if modal and self.window_id == getCurrentWindowId():
-            return True
+            if self.through_info or not _info_open():
+                return True
+            log.debug(f"{LOG_TAG} → {self.caller_name}: ABORTED → under an info dialog")
+            return False
 
         if not (focus_id := focused_control_id(self.window_id)):
             return True
@@ -311,9 +327,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "value": self.exclude_value,
         }
 
-    def _guard(self) -> _FocusGuard:
+    def _guard(self, through_info: bool = False) -> _FocusGuard:
         """
         Focus/identity guard for the running handler, logged under its info name.
+
+        :param through_info: Whether the run passes under an info dialog too.
         """
         labels = PLAYING_SONG if self.player else self.identity_labels
         if labels:
@@ -332,6 +350,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.dialog,
             self.focus_ids,
             self.player,
+            through_info,
         )
 
     @property
@@ -625,7 +644,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.plugin.opts import ArtOpts
 
         imported = time.perf_counter()
-        guard = self._guard()
+        guard = self._guard(through_info=True)
         if not guard.alive():
             return self._artwork_held()
 
