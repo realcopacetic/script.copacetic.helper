@@ -31,7 +31,8 @@ It does nothing when:
 
 Turning `playnext_enabled` off while an episode plays removes the episode the service
 queued (within a second), as long as it is still the next item, so playback ends with
-the current episode. Turning it back on queues nothing until the next episode starts.
+the current episode. Turning it back on during the same episode queues nothing: playback
+still ends with it.
 
 ## Which episode is queued
 
