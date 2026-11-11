@@ -76,14 +76,17 @@ interrupted. In order:
      factory files, and they stay until the next start, a switch back into the skin,
      `action=rebuild` or a settings change.
    - **Dev mode on:** the service rebuilds every output, then runs `ReloadSkin()`,
-     waiting, dropped or postponed as above, with the same `helper_reloading`. If *Reset on next start* is also on, it
+     waiting, dropped or postponed as above, with the same `helper_reloading`. If *Reset on next start* is also on for this skin, it
      first deletes the skin's outputs, runtime state and resolver cache, then turns
      that setting off again.
 
    Dev mode (`dev_mode`) and *Reset on next start* (`dev_reset`) are settings of the
-   helper add-on, in its *Developers* category: one pair for every skin in the
-   profile, so dev mode applies to whichever skin is active, and a reset to the skin
-   the service checks next; other skins' files stay.
+   helper add-on, in its *Developers* category. Dev mode is one switch for every skin
+   in the profile, so it applies to whichever skin is active. A reset belongs to the
+   skin that was active when it was turned on: the service writes that skin's id to
+   `dev_reset.txt` in the add-on's profile folder when the settings are saved (or at
+   its own start, for one turned on before), and only that skin's next check uses it.
+   Other skins leave it on and keep their files; turning it off deletes the file.
 
    If the build raises an exception, the service logs the traceback at error level,
    shows a notification, doesn't reload, and carries on with the steps below on

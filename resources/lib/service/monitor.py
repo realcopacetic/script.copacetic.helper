@@ -18,8 +18,10 @@ from resources.lib.shared.utilities import (
     ADDON,
     adopt_shared_state,
     condition,
+    dev_reset_due,
     infolabel,
     notify_build_failed,
+    pin_dev_reset,
     reset_dev_state,
     skin_path,
     skin_uses_builder,
@@ -53,6 +55,7 @@ class Monitor(xbmc.Monitor):
         self.prune_due = 0.0  # wall-clock time of the next API cache prune
         self.player_monitor = None
         self.slideshow = None
+        pin_dev_reset()  # one turned on before this helper, or with the service off
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
         self._run()
 
@@ -137,11 +140,9 @@ class Monitor(xbmc.Monitor):
         """
         adopt_shared_state()  # first, so a dev reset clears what it adopts
         dev_mode = ADDON.getSettingBool("dev_mode")
-        dev_reset = ADDON.getSettingBool("dev_reset")
 
-        if dev_mode and dev_reset:
+        if dev_mode and dev_reset_due():
             reset_dev_state()
-            ADDON.setSettingBool("dev_reset", False)
             log.info(
                 f"{self.__class__.__name__} → Dev reset consumed — "
                 f"outputs and runtime_state cleared"
@@ -241,8 +242,9 @@ class Monitor(xbmc.Monitor):
         self.idle = False
 
     def onSettingsChanged(self) -> None:
-        """Kodi event hook: re-read the add-on's debug_logging setting."""
+        """Kodi event hook: re-read debug_logging, pin a new reset to this skin."""
         log.debug_logging.cache_clear()
+        pin_dev_reset()
 
     def poller(self) -> None:
         """

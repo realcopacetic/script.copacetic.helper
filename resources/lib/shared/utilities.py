@@ -39,6 +39,8 @@ CROPS = str(Path(ADDONDATA) / "crop")
 TEXTS = str(Path(ADDONDATA) / "text")
 TEMPS = str(Path(ADDONDATA) / "temp")
 LOOKUPS = str(Path(ADDONDATA) / "_lookup.db")
+# The id of the skin a pending "Reset on next start" is for (pin_dev_reset).
+DEV_RESET = Path(ADDONDATA, "dev_reset.txt")
 
 # DBType: details method; its id and result keys are f"{type}id", f"{type}details"
 DETAILS = {
@@ -74,16 +76,41 @@ _JSON_RESPONSE_LIMIT = 5
 """ADDON"""
 
 
+def pin_dev_reset() -> None:
+    """
+    Keep "Reset on next start" with the skin active when it was turned on, so no
+    other skin uses it up; turning it off drops it. Run at start and on each save.
+    """
+    if not ADDON.getSettingBool("dev_reset"):
+        DEV_RESET.unlink(missing_ok=True)
+    elif not DEV_RESET.exists():
+        DEV_RESET.write_text(skin_id(skin_path()))
+
+
+def dev_reset_due() -> bool:
+    """
+    Whether "Reset on next start" is on for the active skin.
+
+    :return: True when it is on and was turned on in this skin.
+    """
+    return (
+        ADDON.getSettingBool("dev_reset")
+        and DEV_RESET.exists()
+        and DEV_RESET.read_text() == skin_id(skin_path())
+    )
+
+
 def reset_dev_state() -> None:
     """
     Delete the active skin's builder outputs, runtime_state and resolver cache to
-    force a clean rebuild on next service boot. Intended for dev/skinner use.
+    force a clean rebuild, and turn off "Reset on next start" if it was this skin's.
     Imports BUILDER_CONFIG locally to avoid a circular dependency.
-
-    :return: None.
     """
     from resources.lib.builders.builder_config import BUILDER_CONFIG
 
+    if dev_reset_due():
+        ADDON.setSettingBool("dev_reset", False)
+        DEV_RESET.unlink()
     for config in BUILDER_CONFIG.values():
         write_path = config.get("write_path")
         if write_path:
