@@ -55,6 +55,7 @@ def _get_strings() -> dict[str, str]:
         "finding_playlists": _L(32812),  # Finding playlists...
         "no_playlists_found": _L(32813),  # No playlists found
         "no_favourites_found": _L(32814),  # No favourites found
+        "no_sources_found": _L(32806),  # No picture sources found
         "getting_directory": _L(32815),  # Getting directory listing...
         "enter_path": _L(32816),  # Enter content path
         "select_content": _L(32817),  # Select content
@@ -716,7 +717,7 @@ def _browse_favourites(heading: str) -> tuple[str, str, str] | None:
 # ---------------------------------------------------------------------------
 
 
-def _browse_level(path: str, heading: str, mode: str = "widget"):
+def _browse_level(path: str, heading: str, mode: str = "widget", folders: bool = False):
     """
     Returned label uses heading for endpoints/flat/empty/use-path,
     item label for files, and propagates from sub-levels for directories.
@@ -724,6 +725,7 @@ def _browse_level(path: str, heading: str, mode: str = "widget"):
     :param path: Directory path to browse.
     :param heading: Dialog heading and fallback label.
     :param mode: "widget" (default) or "menu".
+    :param folders: List folders only, so a file can't be picked.
     :return: ``(path, label)``, ``_BACK_SENTINEL`` (back), or None.
     """
     s = _get_strings()
@@ -748,7 +750,12 @@ def _browse_level(path: str, heading: str, mode: str = "widget"):
                 if target := _PLAYLIST_NODES.get(item["file"]):
                     item.update(file=target, filetype="file")
 
-        items = [item for item in items if item["file"] not in _SUPPRESS_ITEMS]
+        items = [
+            item
+            for item in items
+            if item["file"] not in _SUPPRESS_ITEMS
+            and (not folders or item["filetype"] == "directory")
+        ]
 
         suppress_use_path = mode == "widget" and (
             path in _NO_USE_PATH or path in _NO_USE_PATH_XML
@@ -790,7 +797,7 @@ def _browse_level(path: str, heading: str, mode: str = "widget"):
         if next_path == path:
             return next_path, selected["label"]
 
-        result = _browse_level(next_path, selected["label"], mode)
+        result = _browse_level(next_path, selected["label"], mode, folders)
         if result is _BACK_SENTINEL:
             continue
         return result  # (path, label) or None — propagate as-is
@@ -896,6 +903,10 @@ def _browse_picture_sources(heading: str) -> tuple[str, str] | None:
         "Files.GetSources", params={"media": "pictures"}, parent="browse_content"
     )
     sources = result.get("result", {}).get("sources") or []
+    if not sources:
+        Dialog().notification(heading, s["no_sources_found"], time=2000)
+        return None
+
     labels = [s["back"]] + [source["label"] + "  >" for source in sources]
 
     while True:
@@ -905,7 +916,7 @@ def _browse_picture_sources(heading: str) -> tuple[str, str] | None:
             return None  # cancel or ".." — back to top-level picker
 
         source = sources[idx - 1]
-        result = _browse_level(source["file"], source["label"])
+        result = _browse_level(source["file"], source["label"], folders=True)
 
         if result is _BACK_SENTINEL:
             continue
@@ -938,7 +949,7 @@ def browse_content(cfg) -> dict[str, str] | str | None:
     Widget mode returns ``{path, label, icon, target}``; menu mode adds
     ``{type, window, action}``; ``item_type`` when ``sibling_fields`` maps it.
 
-    :param cfg: Onclick config; ``heading``, ``mode``, ``clearable``, ``pictures``.
+    :param cfg: Onclick config (heading, mode, clearable, pictures, depth).
     :return: Result dict, ``""`` for None (``clearable``), or None if cancelled.
     """
     s = _get_strings()
