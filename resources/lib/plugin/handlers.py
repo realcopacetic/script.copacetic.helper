@@ -759,9 +759,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             ):
                 reposition_control(int(control_id), h=h)
 
-        for field, prop in self._bridge_props():
-            window_property(prop, art.get(field, ""))
-        window_property(self._scope_prop, stamp_scope)
+        # Not once the cursor has moved on (a new focus, a window left): the properties
+        # are the next item's or the next window's by now.
+        cursor = f"Window(home).Property(artwork_cursor_{cursor_key})"
+        if not cursor_key or infolabel(cursor) == cursor_snapshot:
+            for field, prop in self._bridge_props():
+                window_property(prop, art.get(field, ""))
+            window_property(self._scope_prop, stamp_scope)
 
         total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 
@@ -786,12 +790,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             and cursor_snapshot != str(identity)
             else ""
         )
-        if (
-            stamped
-            and alive()
-            and infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
-            == cursor_snapshot
-        ):
+        if stamped and alive() and infolabel(cursor) == cursor_snapshot:
             window_property(f"artwork_cursor_{cursor_key}", stamped)
 
         return set_items(
