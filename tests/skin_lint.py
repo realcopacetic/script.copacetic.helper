@@ -882,20 +882,22 @@ def window_families(skin: Path) -> tuple[str, ...]:
 def filled_params(skin: Path) -> frozenset[tuple[str, str]]:
     """
     Params the include templates fill per mapping row (a ``{field}`` in the value),
-    with the call's name as a glob: a placeholder or ``$PARAM`` in it matches anything.
+    with the call's name as a glob: a placeholder or ``$PARAM`` in it matches anything,
+    and a name that is nothing else (``$PARAM[base]``) is dropped, as it names no include.
 
     :param skin: Skin root directory.
     :return: ``(include glob, param)`` pairs; none if the skin has no templates (C1).
     """
     calls = (
-        call
+        (FIELD.sub("*", PARAM.sub("*", call.get("content"))), call)
         for path in (skin / "extras/templates/includes").glob("*.xml")
         for call in ET.parse(path).iter("include")
         if "content" in call.attrib
     )
     return frozenset(
-        (FIELD.sub("*", PARAM.sub("*", call.get("content"))), param.get("name"))
-        for call in calls
+        (glob, param.get("name"))
+        for glob, call in calls
+        if glob != "*"
         for param in call.iterfind("param")
         if FIELD.search(param.get("value", param.text or ""))
     )
