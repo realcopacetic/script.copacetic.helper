@@ -464,7 +464,10 @@ When the container position is known, the list item carries:
 The container is `target` when passed. Without `target`, it is the first `/`
 segment of `Window(home).Property(artwork_cursor_<cursor_key>)`, or the id of the
 focused control when that property is empty. With `target=item` there is no position,
-so none of these properties are set.
+so none of these properties are set. With `target=player` there is none either, but
+`current` is set, to `player//<file><id>` (the playing file and `MusicPlayer.DBID`): two
+calls for the same song carry the same value, so a slide's serve can be matched to the
+song's.
 
 ### The value of `current`
 
