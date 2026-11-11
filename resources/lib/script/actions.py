@@ -9,6 +9,7 @@ from operator import itemgetter
 from urllib.parse import quote
 
 import xbmc
+import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
@@ -44,6 +45,7 @@ from resources.lib.shared.utilities import (
     play_files,
     reset_dev_state,
     skin_path,
+    skin_string,
     to_int,
     topmost_window_id,
     url_decode_path,
@@ -61,6 +63,19 @@ API_SOURCES = {
 }
 MIX_SIZE = 50
 MIX_ARTIST_SHARE = 0.15
+WAVEFORM = "visualization.waveform"
+# Smooth curves (0: no resampling), one quiet grey line (Waveform draws without
+# blending, so no alpha), no fill (an all-zero background draws none)
+WAVEFORM_LOOK = {
+    "points-per-line": 0,
+    "line-thickness": 2,
+    "line-red": 0.16,
+    "line-green": 0.16,
+    "line-blue": 0.16,
+    "bg-red": 0.0,
+    "bg-green": 0.0,
+    "bg-blue": 0.0,
+}
 
 
 def action(fn):
@@ -1404,6 +1419,101 @@ def unpin(id: str = "", type: str = "", path: str = "", **kwargs: str) -> None:
     :param path: Playlist path.
     """
     SpeedDial().unpin(dial_entry(type, id, path))
+
+
+@action
+def waveform_background(enabled: str, **kwargs: str) -> None:
+    """
+    On: enable Waveform (installing it if asked), style it for the blurred background
+    and make it the visualiser, keeping the user's and Waveform's own look. Off: give
+    both back; the visualiser only if Waveform is still the one in use.
+
+    :param enabled: 'true' to switch to Waveform, anything else to switch back.
+    """
+    setting = {"setting": "musicplayer.visualisation"}
+    current = json_call(
+        "Settings.GetSettingValue", params=setting, parent="waveform_background"
+    )["result"]["value"]
+    if not parse_bool(enabled):
+        if current == WAVEFORM:
+            saved = infolabel("Skin.String(waveform_restore)")
+            # One removed or disabled since can't run: none, as Kodi would have it
+            restore = saved if condition(f"System.AddonIsEnabled({saved})") else ""
+            json_call(
+                "Settings.SetSettingValue",
+                params=setting | {"value": restore},
+                parent="waveform_background",
+            )
+        kept = infolabel("Skin.String(waveform_look)")
+        if kept and condition(f"System.AddonIsEnabled({WAVEFORM})"):
+            _waveform_look(
+                {
+                    key: type(value)(text)
+                    for (key, value), text in zip(
+                        WAVEFORM_LOOK.items(), kept.split(",")
+                    )
+                }
+            )
+        skin_string("waveform_look")
+        return
+    if not condition(f"System.HasAddon({WAVEFORM})"):
+        log.execute(f"InstallAddon({WAVEFORM})")  # Kodi asks first
+        # Polled, as wait=True holds the GIL through the question: done once it is
+        # enabled, or Kodi's questions (a master lock's code first) and download have
+        # been gone for 2 s
+        asking = (
+            "Window.IsActive(yesnodialog) | Window.IsActive(progressdialog)"
+            " | Window.IsActive(numericinput) | Window.IsActive(virtualkeyboard)"
+            " | Window.IsActive(gamepadinput)"
+        )
+        monitor, quiet = xbmc.Monitor(), 0
+        while quiet < 10 and not condition(f"System.AddonIsEnabled({WAVEFORM})"):
+            if monitor.waitForAbort(0.2):
+                return
+            quiet = 0 if condition(asking) else quiet + 1
+    elif not condition(f"System.AddonIsEnabled({WAVEFORM})"):
+        json_call(
+            "Addons.SetAddonEnabled",
+            params={"addonid": WAVEFORM, "enabled": True},
+            parent="waveform_background",
+        )
+    if not condition(f"System.AddonIsEnabled({WAVEFORM})"):
+        # Declined or not offered: the skin keeps its usual layers
+        xbmcgui.Dialog().notification(
+            ADDON.getLocalizedString(32000), ADDON.getLocalizedString(32233)
+        )
+        return
+    waveform = xbmcaddon.Addon(WAVEFORM)
+    kept = (
+        (
+            waveform.getSettingInt(key)
+            if isinstance(value, int)
+            else waveform.getSettingNumber(key)
+        )
+        for key, value in WAVEFORM_LOOK.items()
+    )
+    skin_string("waveform_look", ",".join(map(str, kept)))
+    _waveform_look(WAVEFORM_LOOK)
+    skin_string("waveform_restore", current)
+    json_call(
+        "Settings.SetSettingValue",
+        params=setting | {"value": WAVEFORM},
+        parent="waveform_background",
+    )
+
+
+def _waveform_look(look: dict[str, int | float]) -> None:
+    """
+    Write Waveform's own settings: whole numbers as integers, colours as numbers.
+
+    :param look: Setting id → value.
+    """
+    waveform = xbmcaddon.Addon(WAVEFORM)
+    for key, value in look.items():
+        if isinstance(value, int):
+            waveform.setSettingInt(key, value)
+        else:
+            waveform.setSettingNumber(key, value)
 
 
 @action

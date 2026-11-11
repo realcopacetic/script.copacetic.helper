@@ -101,6 +101,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`trailer_fullscreen`](#trailer_fullscreen) | Takes a window's trailer full screen without restarting it |
 | [`trailer_return`](#trailer_return) | Reopens the info dialog a full-screen trailer came from |
 | [`unpin`](#unpin) | Unpins a speed dial entry |
+| [`waveform_background`](#waveform_background) | Makes Waveform the music visualiser, styled for a blurred background, or switches back |
 
 All window properties below are set on the Home window (`Window(home)`), unless the
 action lets you choose another window.
@@ -1356,4 +1357,44 @@ this action. It shows on any pinned item.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=unpin,type=playlist,"path=$INFO[ListItem.FolderPath]")</onclick>
+```
+
+---
+
+## waveform_background
+
+For a skin that draws Kodi's Waveform visualiser over its own blurred background.
+
+**On** (`enabled=true`):
+
+1. Waveform (`visualization.waveform`) is installed if it is missing (Kodi asks
+   first, after the master lock's code if one is set) or enabled if it is turned off.
+   If it still isn't enabled (the user said no, the install failed, or no repository
+   offers it), a notification says so and nothing else changes.
+2. Waveform's own settings are kept in the skin string `waveform_look`, then written:
+   smooth curves (*Points per line* 0, Kodi's old style), a thin line (*Line
+   thickness* 2) in a dark grey (`0.16` red, green and blue; Waveform draws without
+   blending, so the line can't be see-through) and no background colour, so whatever
+   is behind the visualisation shows through.
+3. The current visualiser (Kodi's *Settings › Player › Music › Visualisation*) is
+   kept in the skin string `waveform_restore`, and Waveform becomes the visualiser.
+
+**Off** (anything else): if Waveform is still the visualiser, the one kept in
+`waveform_restore` comes back (empty means none, and so does one that has since been
+removed or disabled); if the user has picked another
+visualiser since, it is left alone. Waveform's own settings go back to those kept in
+`waveform_look`, either way.
+
+It runs once per switch, nothing is enforced afterwards. A visualiser reads its
+settings when it starts, so a visualisation already on screen keeps its old look
+until it next opens.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `enabled` | `true`, anything else | required | On or off |
+
+From a builder radiobutton, `{waveform_background}` is the field's new value:
+
+```json
+"onclick": { "type": "custom", "action": "RunScript(script.copacetic.helper,action=waveform_background,enabled={waveform_background})" }
 ```

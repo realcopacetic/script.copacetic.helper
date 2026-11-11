@@ -482,6 +482,11 @@ msgctxt "#32232"
 msgid "Nothing cached for this item"
 msgstr ""
 
+#: /resources/lib/script/actions.py
+msgctxt "#32233"
+msgid "Waveform couldn't be switched on: the background stays as it is"
+msgstr ""
+
 
 
 
