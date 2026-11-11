@@ -278,7 +278,7 @@ class Slideshow:
         """
         if not fanart:
             return None
-        clearlogo = item.get("clearlogo-billboard") or item.get("clearlogo")
+        clearlogo = item.get("clearlogo")
         params = dict(parse_qsl(query))
         params["background_url"] = fanart
         if "background_blur" not in params:  # declaration absent: plain blur

@@ -32,7 +32,7 @@ have no visible effect.
 | `slideshow_fanart` | Path to the original fanart; a typed wrapper (`image://music@…/`, `image://video_…@…/`) stays wrapped | Replaced by each slide. |
 | `slideshow_blur` | Path to the blurred fanart (JPEG) | Replaced by each slide. |
 | `slideshow_darken` | Darken percentage, `0`–`100` | Cleared when the slide has no darken value. Written again on its own when `slideshow_artwork_params` changes. Only set when `slideshow_artwork_params` has `background_darken=true` (see [Processing options](#processing-options)). |
-| `slideshow_clearlogo` | Path to the cropped clearlogo (PNG) | Cleared when the item has no clearlogo. Uses `clearlogo-billboard` art first, then `clearlogo`. |
+| `slideshow_clearlogo` | Path to the cropped clearlogo (PNG) | Cleared when the item has no `clearlogo` art. |
 | `slideshow_title` | The item's label | Cleared when the item has no label. |
 | `slideshow_clearlogo_a`, `slideshow_clearlogo_b` | As `slideshow_clearlogo`, in alternating slots | Each slide writes one slot and leaves the other holding the slide before. |
 | `slideshow_title_a`, `slideshow_title_b` | As `slideshow_title`, in alternating slots | As above. |
