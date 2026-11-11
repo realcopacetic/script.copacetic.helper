@@ -114,7 +114,10 @@ def install_stubs(
     _module(
         "xbmcvfs",
         delete=lambda path: Path(path).unlink(missing_ok=True),
-        exists=lambda path: Path(path).exists(),
+        # Omega: a trailing slash asks CDirectory::Exists, else CFile::Exists.
+        exists=lambda path: getattr(
+            Path(path), "is_dir" if path.endswith("/") else "exists"
+        )(),
         translatePath=translate_path,
     )
     _module(

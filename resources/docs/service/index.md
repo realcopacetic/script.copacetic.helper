@@ -84,10 +84,10 @@ interrupted. In order:
    helper add-on, in its *Developers* category. Dev mode is one switch for every skin
    in the profile, so it applies to whichever skin is active. A reset belongs to the
    skin that was active when it was turned on: the service writes that skin's id to
-   `dev_reset.txt` in the add-on's profile folder when the settings are saved (or at
-   its own start, for one turned on before), and only that skin's next check uses it.
-   Turned on in a skin without the builder (Estuary), it waits for the next save or
-   start in one that has it.
+   `dev_reset.txt` in the add-on's profile folder when the settings are saved, and
+   only that skin's next check uses it. Turned on in a skin without the builder
+   (Estuary), it waits for the next builder skin it is in: that skin's next check
+   (a start, a switch in or an update) or `rebuild` with `reset=true` takes it.
    Other skins leave it on and keep their files; turning it off deletes the file.
    The settings are saved once, on OK, so to move a reset to another skin, turn it
    off and press OK, then turn it on again in that skin.
