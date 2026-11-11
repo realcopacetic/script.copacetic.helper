@@ -152,7 +152,7 @@ show; with no rectangles that is the part of the image the frame shows.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `multiart` | an art type, e.g. `fanart`, `poster`, `keyart`, `tvshow.fanart` | — | The family to collect. |
+| `multiart` | an art type, e.g. `fanart`, `poster`, `keyart`, `tvshow.fanart`, or several separated by commas | — | The family to collect. Several types are read in turn and joined into one family, each image once: `thumb,artist.thumb,artist.fanart` gives a playing song's album cover, then its artist's art. `get_extra_multiart` adds nothing to a joined family. |
 | `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for (`fanart1` … `fanart15`). |
 | `multiart_target` | container id | — | Read the family, and its TMDb item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. When the family has more than one image (so the FadeLabel rotates), its first image is also the background, so each slide's blur continues the base's. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
 | `multiart_target_key` | `dbtype:dbid` | — | With `multiart_target`: the item the call is for. If given and the target reads as another item (it hasn't landed yet, or a modal dialog is up), the call returns the held item instead of seeding or clearing. Not given: no check. |
@@ -165,7 +165,7 @@ show; with no rectangles that is the part of the image the frame shows.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `target` | container id, or `item` | — | Container whose focused item this call is for; `item` is the window's own item (an info dialog's). See [Plugin Helpers](plugin_helpers.md#the-focus-guard). |
+| `target` | container id, `item` or `player` | — | Container whose focused item this call is for; `item` is the window's own item (an info dialog's); `player` is the playing song (its art is `Player.Art(...)`; a song's `thumb` is its album cover). See [Plugin Helpers](plugin_helpers.md#the-focus-guard). With `player` the guard is the song: pass `song=$INFO[MusicPlayer.DBID],$INFO[MusicPlayer.PlaylistPosition],$INFO[MusicPlayer.Duration]` (its id, which also tells apart the tracks of a CUE sheet, and its place in the queue and length for songs outside the library; a radio stream has none of the three, so two stations are told apart only by their art; not the file or the title, as a stream's path can carry its own `&…=` and a stream's title a `\|`, either of which cuts a plugin URL). A call whose song is no longer playing when it starts or at any step after, or whose window (the visualisation) is no longer the active one, changes nothing; focus plays no part, and `focus_guard` and `identity_labels` are not read. The param also makes Kodi rerun the call for every song, the songs of one album and a call cut short by a skip included. Without it the call checks the song playing as it starts. Give the call its own `prop_key`: a song with no art (a radio stream) empties the `multiart_fadelabel` and clears the window properties below, so nothing of the last song stays. |
 | `clean_label` | an infolabel's name, e.g. `ListItem.AddonNews` | — | Read this label's text and return it cleaned of markdown as `ListItem.Property(clean_label)`: `#` headings bold, `-` list lines `•`, line breaks `[CR]`; inline markdown stays as written. The helper reads the label, so its text never has to survive the URL, where a `\|` would end the options. Kodi reruns a path only when it changes, so make the path differ per item (`focus_guard` with `identity_labels` does). Not returned on the held item. |
 | `clean_label_color` | a Kodi colour, by name or hex | — | Colour for `clean_label`'s headings. |
 | `prop_key` | any text | — | Suffix for the window properties the helper sets (see [Window properties](#window-properties)). |
@@ -210,7 +210,7 @@ The helper also sets these on the home window. With `prop_key`, each name ends i
 | `background_blur` | Path of the blurred background. Cleared when there is none. |
 | `background_darken` | The background darken value, % black. Cleared when there is none or it is `0`. |
 | `icon_darken` | The icon darken value, % black. Cleared when there is none or it is `0`. |
-| `artwork_scope` | The scope the values above were written for: `item` for an info dialog's own item, the `target`, or the cursor's or focused control's id. |
+| `artwork_scope` | The scope the values above were written for: `item` for an info dialog's own item, `player` for the playing song, the `target`, or the cursor's or focused control's id. |
 
 Use them when something outside the helper container's window needs the values, or
 to keep the last background on screen while the next one is processed.
