@@ -30,7 +30,10 @@ python tests/multiart_offline.py
 # the skin naming info=speed_dial, a failure after a seed (builders/runtime.py)
 # is retried next start, each skin keeps its own runtime state (Copacetic 2 adopts
 # the old shared files only while it has none; a dev reset clears one skin), an
-# output another profile wrote is rebuilt, and a deleted one is built alone
+# output another profile wrote is rebuilt, and a deleted one is built alone; a script
+# rebuild (script/actions.py) sets helper_reloading and clears it on failure, and the
+# editor close and delete_orphans reload only when the build wrote a file (or for a
+# host open once the session has closed), else clear it
 python tests/service_offline.py
 ```
 
