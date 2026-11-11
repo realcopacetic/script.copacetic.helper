@@ -551,6 +551,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         else:
             scope = infolabel(f"Window(home).Property({self._scope_prop})")
             labels = {field: f"Window(home).Property({prop})" for field, prop in props}
+        # The next visit stamp carries this count, so the URL held here never repeats.
+        holds = to_int(infolabel("Window(home).Property(artwork_holds)"), 0)
+        window_property("artwork_holds", holds + 1)
         return set_items(
             [
                 {

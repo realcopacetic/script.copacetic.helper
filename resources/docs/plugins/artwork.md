@@ -214,6 +214,7 @@ item's or another window's.
 | `background_darken` | The background darken value, % black. Cleared when there is none or it is `0`. |
 | `icon_darken` | The icon darken value, % black. Cleared when there is none or it is `0`. |
 | `artwork_scope` | The scope the values above were written for: `item` for an info dialog's own item, `player` for the playing song, the `target`, or the cursor's or focused control's id. |
+| `artwork_holds` | How many held items (below) have been returned; never suffixed. Append it to the `visit` stamp so the first stamp after a hold is a new visit: a quick return to an item whose call was held, inside the same clock second, would otherwise repeat that call's path, and Kodi fires nothing for an unchanged path. |
 
 Use them when something outside the helper container's window needs the values, or
 to keep the last background on screen while the next one is processed.
