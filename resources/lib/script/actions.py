@@ -69,21 +69,26 @@ def action(fn):
     return fn
 
 
-def _rebuild() -> None:
+def _rebuild() -> bool:
     """
     Rebuild builder outputs under Window(home).Property(helper_reloading)=rebuild,
-    so the skin can cover the rebuild and the reload after it, then clear it. No reload
-    follows a failed build, which clears it itself, shows a toast and raises.
+    so the skin can cover the rebuild and the reload after it, then clear it. No
+    reload follows a build that wrote nothing or failed (toast, raise): cleared here.
+
+    :return: True when any output file was written.
     """
     from resources.lib.builders.build_elements import BuildElements
 
     window_property("helper_reloading", value="rebuild")
     try:
-        BuildElements().run()
+        written = BuildElements().run()
     except Exception:
         window_property("helper_reloading")
         notify_build_failed()
         raise
+    if not written:
+        window_property("helper_reloading")
+    return written
 
 
 def _reload_skin() -> None:
@@ -279,8 +284,8 @@ def container_reset(id: str, **kwargs: str) -> None:
 @action
 def delete_orphans(**kwargs: str) -> None:
     """
-    Remove child entries whose parent is missing or ineligible, then
-    rebuild outputs and reload the skin if anything was removed.
+    Remove child entries whose parent is missing or ineligible, then rebuild
+    outputs if anything was removed, and reload the skin if a file changed.
     """
     child_mapping = kwargs.get("child_mapping")
     if not child_mapping:
@@ -302,8 +307,7 @@ def delete_orphans(**kwargs: str) -> None:
             # Editor session live: its close-time snapshot diff sees these
             # deletions and rebuilds once — a reload here lands under the modal.
             log.info("delete_orphans: editor session live — rebuild deferred")
-        else:
-            _rebuild()
+        elif _rebuild():
             _reload_skin()
 
 
@@ -378,7 +382,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
     myWindow.host_focus = host_focus
     myWindow.focus_item = focus_item
     myWindow.controls_from = controls_from
-    rebuilt = False
+    reload = False
     try:
         myWindow.doModal()
 
@@ -413,8 +417,9 @@ def dynamic_settings_window(**kwargs: str) -> None:
                 myWindow.runtime_manager.runtime_state
                 != myWindow._runtime_state_snapshot
             ):
-                _rebuild()
-                rebuilt = True
+                # Reload when a file changed, or for a host entered again during the
+                # rebuild: the closed gate skipped its onload, which the reload re-runs.
+                reload = _rebuild() or host and condition(f"Window.IsActive({host})")
     finally:
         # Always restore properties — a stuck active_editor_name makes every
         # later top-level session look nested and silently skip rebuilds.
@@ -427,7 +432,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
 
     # Posted after the restores: the reload re-inits the host, whose onload
     # starts the next session.
-    if rebuilt:
+    if reload:
         _reload_skin()
 
 
