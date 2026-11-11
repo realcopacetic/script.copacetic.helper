@@ -804,7 +804,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         # Under an info dialog its rails answer for this window's (they share ids): no
         # family, register or window properties from them; its close serves again.
-        covered = lambda: not self.dialog and _info_open()
+        # The playing song is read from Player infos, which no dialog answers for.
+        covered = lambda: not (self.dialog or self.player) and _info_open()
         blind = covered()
         if not source:
             multiart_dict = self._multiart_dict(

@@ -206,7 +206,8 @@ The helper also sets these on the home window. With `prop_key`, each name ends i
 `_<prop_key>` (for example `background_blur_9300`). With `cursor_key`, it sets them
 only while `Window(home).Property(artwork_cursor_<cursor_key>)` still holds the value
 it had when the call started: once the cursor has moved on, they would be another
-item's or another window's. A window's call (not `dialog=true` or `target=item`) while
+item's or another window's. A window's call (not `dialog=true`, `target=item` or
+`target=player`, whose song no dialog answers for) while
 an info dialog is open (`movieinformation`, `musicinformation`, `songinformation` or
 `addoninformation` visible, its close included) writes none of them and reads no
 `multiart` family: Python's container reads can answer for the info dialog's rails,
