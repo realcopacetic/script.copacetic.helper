@@ -26,6 +26,22 @@ MAPPINGS.mkdir(parents=True)
 )
 sys.modules["xbmc"].Monitor = type("Monitor", (), {"abortRequested": lambda self: True})
 DIALOG = sys.modules["xbmcgui"].Dialog = Mock()
+
+
+class Editor:
+    """DynamicEditor stand-in: closes at once, its state changed if ``changed``."""
+
+    changed = True
+
+    def __init__(self, *args):
+        self.runtime_manager = Mock(runtime_state=Editor.changed)
+        self._runtime_state_snapshot = False
+
+    def doModal(self):
+        pass
+
+
+_module("resources.lib.windows.dynamiceditor", DynamicEditor=Editor)
 _module("resources.lib.art.slideshow", Slideshow=Mock)
 _module("resources.lib.service.player", PlayerMonitor=Mock)
 sys.path.insert(0, str(HELPER))
@@ -445,10 +461,66 @@ class RebuildSplash(unittest.TestCase):
             self.assertTrue(actions._rebuild())
         self.assertEqual(self.reloading(), "rebuild")
 
-    def test_rebuild_that_wrote_nothing_clears_the_splash(self):
+    def test_rebuild_that_wrote_nothing_keeps_the_splash(self):
+        self.addCleanup(window_property, "helper_reloading")
         with patch.object(REAL, "run", return_value=False):
             self.assertFalse(actions._rebuild())
-        self.assertEqual(self.reloading(), "")
+        self.assertEqual(self.reloading(), "rebuild")
+
+
+class ReloadGate(unittest.TestCase):
+    """
+    Editor close and delete_orphans reload only when the build wrote, or for a host
+    entered during the rebuild; otherwise they clear helper_reloading instead.
+    """
+
+    def outcome(self, action, written, host_active=False, **kwargs):
+        """Run ``action``; return (rebuilt, reloaded, helper_reloading cleared)."""
+        rebuild, reload = Mock(return_value=written), Mock()
+        prop = Mock(wraps=window_property)
+        with (
+            patch.object(actions, "_rebuild", rebuild),
+            patch.object(actions, "_reload_skin", reload),
+            patch.object(actions, "condition", lambda text: host_active),
+            patch.object(actions, "window_property", prop),
+        ):
+            action(**kwargs)
+        cleared = call("helper_reloading") in prop.call_args_list
+        return rebuild.called, reload.called, cleared
+
+    def close(self, written, changed=True, **kwargs):
+        Editor.changed = changed
+        return self.outcome(
+            actions.dynamic_settings_window, written, mapping="test", **kwargs
+        )
+
+    def orphans(self, written, removed=1):
+        manager = Mock(**{"delete_orphans.return_value": removed})
+        with patch.object(RuntimeStateManager, "from_templates", return_value=manager):
+            return self.outcome(actions.delete_orphans, written, child_mapping="test")
+
+    def test_editor_close(self):
+        cases = {
+            "written": (self.close(True), (True, True, False)),
+            "not written": (self.close(False), (True, False, True)),
+            "host left": (self.close(False, host="skinsettings"), (True, False, True)),
+            "host entered again": (
+                self.close(False, host="skinsettings", host_active=True),
+                (True, True, False),
+            ),
+            "unchanged": (self.close(True, changed=False), (False, False, False)),
+        }
+        for name, (got, wanted) in cases.items():
+            with self.subTest(name):
+                self.assertEqual(got, wanted)
+
+    def test_delete_orphans(self):
+        self.assertEqual(self.orphans(True), (True, True, False))
+        self.assertEqual(self.orphans(False), (True, False, True))
+        self.assertEqual(self.orphans(True, removed=0), (False, False, False))
+
+    def test_rebuild_action_always_reloads(self):
+        self.assertEqual(self.outcome(actions.rebuild, False), (True, True, False))
 
 
 if __name__ == "__main__":
