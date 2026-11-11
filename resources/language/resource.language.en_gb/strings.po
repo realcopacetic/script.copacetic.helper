@@ -589,6 +589,11 @@ msgctxt "#32806"
 msgid "No picture sources found"
 msgstr ""
 
+#: /resources/lib/windows/browse.py — a picture source Kodi can't list
+msgctxt "#32807"
+msgid "Can't open this folder"
+msgstr ""
+
 #: /resources/lib/windows/browse.py — navigation and status labels
 msgctxt "#32809"
 msgid "Use this path"

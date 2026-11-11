@@ -56,6 +56,7 @@ def _get_strings() -> dict[str, str]:
         "no_playlists_found": _L(32813),  # No playlists found
         "no_favourites_found": _L(32814),  # No favourites found
         "no_sources_found": _L(32806),  # No picture sources found
+        "cannot_list": _L(32807),  # Can't open this folder
         "getting_directory": _L(32815),  # Getting directory listing...
         "enter_path": _L(32816),  # Enter content path
         "select_content": _L(32817),  # Select content
@@ -454,6 +455,11 @@ def _is_endpoint(path: str) -> bool:
     )
 
 
+def _is_folder(item: dict) -> bool:
+    """Return True if a listed item is a folder to browse into (a playlist isn't)."""
+    return item["filetype"] == "directory" and not _is_endpoint(item["file"])
+
+
 def _is_known_flat(path: str) -> bool:
     """
     Return True if path is a known flat content node (titles, recently added,
@@ -497,8 +503,11 @@ def _is_action_string(path: str) -> bool:
     return not any(path.startswith(scheme) for scheme in _PATH_SCHEMES)
 
 
-def _fetch_raw(path: str, limit: int | None = None):
-    """Fetch a directory listing (its first limit items) without a progress dialog."""
+def _fetch_raw(path: str, limit: int | None = None) -> list[dict] | None:
+    """
+    Fetch a directory listing (its first limit items) without a progress dialog.
+    None when Kodi answers with an error (unreachable, not shared), [] when empty.
+    """
     params = {"directory": path}
     if not path.startswith("special://"):
         params["media"] = "files"
@@ -509,7 +518,9 @@ def _fetch_raw(path: str, limit: int | None = None):
         params=params,
         parent="browse_content",
     )
-    return result.get("result", {}).get("files", [])
+    if "result" not in result:
+        return None
+    return result["result"].get("files", [])
 
 
 def _get_directory(path: str, heading: str):
@@ -526,7 +537,7 @@ def _walk_playlists(path: str):
     Recursively collect .xsp and .m3u items from *path*.
     """
     items = []
-    for item in _fetch_raw(path):
+    for item in _fetch_raw(path) or []:
         f = item["file"]
         if f.endswith((".xsp", ".m3u")):
             items.append(item)
@@ -571,7 +582,7 @@ def _item_type(path: str, depth: int = 0) -> str:
     :param depth: Folder levels to descend before reading the type.
     :return: Plural item type.
     """
-    items = _fetch_raw(path, limit=_TYPE_PROBE_LIMIT)
+    items = _fetch_raw(path, limit=_TYPE_PROBE_LIMIT) or []
     if depth:
         folder = next((i["file"] for i in items if i["filetype"] == "directory"), None)
         return _item_type(folder, depth - 1) if folder else "unknown"
@@ -739,10 +750,16 @@ def _browse_level(path: str, heading: str, mode: str = "widget", folders: bool =
 
         items = _get_directory(path, heading)
 
+        # A picture source that can't be listed is never saved as the path
+        if items is None and folders:
+            Dialog().notification(heading, s["cannot_list"], time=2000)
+            return _BACK_SENTINEL
+
         if not items:
             return path, heading
 
-        if _is_flat_content(items):
+        # UPnP picture folders type their items; folders mode still lists them
+        if not folders and _is_flat_content(items):
             return path, heading
 
         if mode == "menu":
@@ -753,8 +770,7 @@ def _browse_level(path: str, heading: str, mode: str = "widget", folders: bool =
         items = [
             item
             for item in items
-            if item["file"] not in _SUPPRESS_ITEMS
-            and (not folders or item["filetype"] == "directory")
+            if item["file"] not in _SUPPRESS_ITEMS and (not folders or _is_folder(item))
         ]
 
         suppress_use_path = mode == "widget" and (
@@ -767,7 +783,7 @@ def _browse_level(path: str, heading: str, mode: str = "widget", folders: bool =
 
         for item in items:
             label = item["label"]
-            if item["filetype"] == "directory" and not _is_endpoint(item["file"]):
+            if _is_folder(item):
                 label += "  >"
             labels.append(label)
 
