@@ -2,7 +2,9 @@
 Offline checks for the service's build boundary (resources/lib/service/monitor.py):
 a build that raises is logged, and the player monitor, slideshow and helper_active
 still start; helper_speed_dial follows the skin naming info=speed_dial; each skin
-keeps its own runtime state.
+keeps its own runtime state; a script rebuild sets and clears helper_reloading, and
+the editor close and delete_orphans reload only when the build wrote (or for a host
+open once the session has closed), else clear it.
 Run from the helper root: python tests/service_offline.py
 """
 
@@ -471,17 +473,24 @@ class RebuildSplash(unittest.TestCase):
 class ReloadGate(unittest.TestCase):
     """
     Editor close and delete_orphans reload only when the build wrote, or for a host
-    entered during the rebuild; otherwise they clear helper_reloading instead.
+    active once the session has closed; otherwise they clear helper_reloading.
     """
 
     def outcome(self, action, written, host_active=False, **kwargs):
         """Run ``action``; return (rebuilt, reloaded, helper_reloading cleared)."""
         rebuild, reload = Mock(return_value=written), Mock()
         prop = Mock(wraps=window_property)
+        # The host reads as active only once the gate has reopened, so a host check
+        # made before that (inside the session) misses it.
+        reopened = call("active_editor_name", value="")
         with (
             patch.object(actions, "_rebuild", rebuild),
             patch.object(actions, "_reload_skin", reload),
-            patch.object(actions, "condition", lambda text: host_active),
+            patch.object(
+                actions,
+                "condition",
+                lambda text: host_active and reopened in prop.call_args_list,
+            ),
             patch.object(actions, "window_property", prop),
         ):
             action(**kwargs)

@@ -428,8 +428,8 @@ def dynamic_settings_window(**kwargs: str) -> None:
         window_property("active_editor_name", value=previous_editor)
         del myWindow
 
-    # Decided after the restores: a host entered while the gate was closed skipped
-    # its onload, and the reload's re-init of it starts the next session.
+    # Decided after the restores: an active host may have skipped its onload while
+    # the gate was closed, and the reload's re-init of it starts the next session.
     if rebuilt:
         if written or host and condition(f"Window.IsActive({host})"):
             _reload_skin()
