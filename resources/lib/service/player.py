@@ -1,7 +1,9 @@
 # author: realcopacetic
 
+import json
 import random
 import time
+from urllib.parse import quote
 
 from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
@@ -33,6 +35,19 @@ from resources.lib.shared.utilities import (
 
 # No modal (9999) or a busy dialog (10138, 10160): a trailer resolve shows one.
 _NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
+
+
+def _set_path(setid: int, title: str) -> str:
+    """
+    The videodb URL of a movie set's films less one, for a rail of the rest.
+
+    :param setid: Library movie set id.
+    :param title: Title of the film to leave out.
+    :return: The URL, its filter quoted so a title's "&" or "#" can't cut it.
+    """
+    rule = {"field": "title", "operator": "isnot", "value": title}
+    xsp = json.dumps({"type": "movies", "rules": {"and": [rule]}}, ensure_ascii=False)
+    return f"videodb://movies/titles/?setid={setid}&xsp={quote(xsp, safe='')}"
 
 
 def _queue_key(playlist: PlayList) -> tuple[int, str] | None:
@@ -196,8 +211,8 @@ class PlayerMonitor(Player):
     def _handle_video_start(self) -> None:
         """
         Publish video-related window properties on playback start: parent ids
-        (tvshowid, setid) via JSON-RPC where needed, subtitle type, genre and
-        director picks.
+        (tvshowid, setid, with the set's name and its other films' path) via
+        JSON-RPC where needed, subtitle type, genre and director picks.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
@@ -224,12 +239,14 @@ class PlayerMonitor(Player):
         elif media_type == "movie" and dbid > 0:
             query = json_call(
                 "VideoLibrary.GetMovieDetails",
-                params={"properties": ["setid"], "movieid": dbid},
+                params={"properties": ["setid", "set"], "movieid": dbid},
                 parent="now_playing_movie",
             )
             details = query.get("result", {}).get("moviedetails", {})
             if setid := details.get("setid"):
                 props["player_setid"] = str(setid)
+                props["player_set"] = details.get("set", "")
+                props["player_set_path"] = _set_path(setid, tag.getTitle())
         self._publish(props)
 
     @staticmethod
