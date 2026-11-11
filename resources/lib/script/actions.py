@@ -72,8 +72,8 @@ def action(fn):
 def _rebuild() -> bool:
     """
     Rebuild builder outputs under Window(home).Property(helper_reloading)=rebuild,
-    so the skin can cover the rebuild and the reload after it, then clear it. No
-    reload follows a build that wrote nothing or failed (toast, raise): cleared here.
+    so the skin can cover the rebuild and the reload after it, then clear it. A failed
+    build clears it here (toast, raise); a caller that sends no reload clears it.
 
     :return: True when any output file was written.
     """
@@ -81,14 +81,11 @@ def _rebuild() -> bool:
 
     window_property("helper_reloading", value="rebuild")
     try:
-        written = BuildElements().run()
+        return BuildElements().run()
     except Exception:
         window_property("helper_reloading")
         notify_build_failed()
         raise
-    if not written:
-        window_property("helper_reloading")
-    return written
 
 
 def _reload_skin() -> None:
@@ -309,6 +306,8 @@ def delete_orphans(**kwargs: str) -> None:
             log.info("delete_orphans: editor session live — rebuild deferred")
         elif _rebuild():
             _reload_skin()
+        else:
+            window_property("helper_reloading")
 
 
 @action
@@ -382,7 +381,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
     myWindow.host_focus = host_focus
     myWindow.focus_item = focus_item
     myWindow.controls_from = controls_from
-    reload = False
+    rebuilt = written = False
     try:
         myWindow.doModal()
 
@@ -417,9 +416,8 @@ def dynamic_settings_window(**kwargs: str) -> None:
                 myWindow.runtime_manager.runtime_state
                 != myWindow._runtime_state_snapshot
             ):
-                # Reload when a file changed, or for a host entered again during the
-                # rebuild: the closed gate skipped its onload, which the reload re-runs.
-                reload = _rebuild() or host and condition(f"Window.IsActive({host})")
+                rebuilt = True
+                written = _rebuild()
     finally:
         # Always restore properties — a stuck active_editor_name makes every
         # later top-level session look nested and silently skip rebuilds.
@@ -430,10 +428,13 @@ def dynamic_settings_window(**kwargs: str) -> None:
         window_property("active_editor_name", value=previous_editor)
         del myWindow
 
-    # Posted after the restores: the reload re-inits the host, whose onload
-    # starts the next session.
-    if reload:
-        _reload_skin()
+    # Decided after the restores: a host entered while the gate was closed skipped
+    # its onload, and the reload's re-init of it starts the next session.
+    if rebuilt:
+        if written or host and condition(f"Window.IsActive({host})"):
+            _reload_skin()
+        else:
+            window_property("helper_reloading")
 
 
 @action

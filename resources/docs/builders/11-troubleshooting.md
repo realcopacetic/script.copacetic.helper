@@ -120,7 +120,7 @@ Untouched settings aren't stored — they read their config default live, so tem
 
 ## "Something in a nested editor didn't stick until later"
 
-By design: when one editor opens another (for example a child list opened with `parent=`), the rebuild and skin reload wait for the **outermost** editor to close, so a whole session reloads once. Close all the way out.
+By design: when one editor opens another (for example a child list opened with `parent=`), the rebuild and skin reload wait for the **outermost** editor to close, so a whole session rebuilds once (and reloads if a file changed). Close all the way out.
 
 ---
 

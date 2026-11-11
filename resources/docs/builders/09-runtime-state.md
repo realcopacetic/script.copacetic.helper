@@ -122,7 +122,8 @@ reopens only after the other properties are restored. `ReloadSkin` is sent after
 and its re-init of the shell starts the next session. A shell entered during the
 rebuild therefore waits for the reload instead of starting a session that the closing
 one would then clear. That is why the shell still gets a reload when the rebuild wrote
-no file (see [On close](#on-close)), if it is the active window once the rebuild ends.
+no file (see [On close](#on-close)), if it is the active window once the session has
+closed.
 
 **The exit verdict.** Any control in the session may record a forwarding address — write a window name to `host_exit_target` and the editor closes itself; once the dialog is provably dead, the router runs `ReplaceWindow(<target>)`. Close with the verdict *empty* (Back on `host_focus`) and the router leaves the whole system with `Action(Back)`. Two verdicts, nothing else: forward, or leave.
 
@@ -152,7 +153,7 @@ Gate the editor window's close fade on the verdict so a forward is instant while
 
 ### Composition
 
-Hosting composes with the other session kwargs. Editors opened *from inside* a hosted session (`parent=`, or plain drill-in buttons) behave as nested sessions: they skip the exit router, and the rebuild waits for the outermost — hosted — session to close, so a whole visit reloads once.
+Hosting composes with the other session kwargs. Editors opened *from inside* a hosted session (`parent=`, or plain drill-in buttons) behave as nested sessions: they skip the exit router, and the rebuild waits for the outermost — hosted — session to close, so a whole visit rebuilds once (and reloads if a file changed).
 
 ---
 
@@ -259,4 +260,4 @@ Each row also carries its resolved entry — metadata, stored values, and config
 
 ## On close
 
-If the settings file changed, all builder outputs rebuild. `ReloadSkin()` follows only if that changed an output file (the outputs are includes, which Kodi reads only when it loads the skin), so changes show immediately. A change no output file reads closes without a reload, and its skin setting mirrors were already written as it was made: a visible condition follows at once, an include condition when its window next opens (Kodi loads a window again if one of its include conditions changed value). One exception: a hosted shell entered again during the rebuild gets the reload anyway (see [the session gate](#the-contract)). Nested editors wait for the outermost one to close, so a whole session rebuilds once. Hosted sessions route their window exit before the rebuild, so the reload lands on the right window.
+If the settings file changed, all builder outputs rebuild. `ReloadSkin()` follows only if that changed an output file (the outputs are includes, which Kodi reads only when it loads the skin), so changes show immediately. A change no output file reads closes without a reload, and its skin setting mirrors were already written as it was made: a visible condition follows at once, an include condition when its window next opens (Kodi loads a window again if one of its include conditions changed value). One exception: a hosted shell that is the active window again once the session has closed (entered during the rebuild) gets the reload anyway (see [the session gate](#the-contract)). Nested editors wait for the outermost one to close, so a whole session rebuilds once. Hosted sessions route their window exit before the rebuild, so the reload lands on the right window.
