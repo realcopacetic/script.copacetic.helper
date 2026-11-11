@@ -408,6 +408,20 @@ class BuildBoundary(unittest.TestCase):
             self.service.onSettingsChanged()
         self.assertFalse(utilities.DEV_RESET.exists())
 
+    def test_dev_reset_waits_for_a_builder_skin(self):
+        self.addCleanup(utilities.DEV_RESET.unlink, missing_ok=True)
+        with patch.object(monitor.ADDON, "getSettingBool", lambda key: True):
+            with (
+                as_skin("skin.estuary"),
+                patch.object(utilities, "skin_uses_builder", lambda: False),
+            ):
+                self.service.onSettingsChanged()
+                self.start()
+            self.assertFalse(utilities.DEV_RESET.exists())
+            with as_skin("skin.other"):
+                self.start()
+        self.assertEqual(utilities.DEV_RESET.read_text(), "skin.other")
+
     def test_rebuild_reset_keeps_another_skins_pending_reset(self):
         self.dev_reset_on("skin.other")
         with (
