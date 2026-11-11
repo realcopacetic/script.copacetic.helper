@@ -83,6 +83,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`play_trailer`](#play_trailer) | Plays a trailer in a window, with clean-up when focus moves on |
 | [`player_stream`](#player_stream) | Steps the playing video's subtitle, audio or video stream, with no notification |
 | [`player_stream_refresh`](#player_stream_refresh) | Updates `player_subtitle_kind` after Kodi changed the subtitle itself |
+| [`playlist_goto`](#playlist_goto) | Plays the music queue from one of its songs |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
 | [`refresh_cached`](#refresh_cached) | Makes one library item's web answers and cached images come again |
@@ -875,6 +876,24 @@ playback stops), it empties the property.
 <onload>RunScript(script.copacetic.helper,action=player_stream_refresh,lang=$INFO[Skin.String(subtitle_language)],kind=$INFO[Skin.String(subtitle_kind)])</onload>
 <!-- DialogSettings.xml, which Kodi also uses for the subtitle and audio settings -->
 <onunload condition="Window.IsVisible(videoosd)">RunScript(script.copacetic.helper,action=player_stream_refresh,lang=$INFO[Skin.String(subtitle_language)],kind=$INFO[Skin.String(subtitle_kind)])</onunload>
+```
+
+---
+
+## playlist_goto
+
+Plays the music queue from one of its songs, through JSON-RPC `Player.GoTo`, so the queue
+stays as it is. A list showing the queue (`playlistmusic://`) would otherwise play the
+clicked song on its own, through `PlayMedia`.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `position` | 1 and up | required | The song's place in the queue, as the list's `CurrentItem` gives it |
+
+Example from Copacetic, the music OSD's Playlist rail:
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=playlist_goto,position=$INFO[Container(3220).CurrentItem])</onclick>
 ```
 
 ---

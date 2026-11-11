@@ -567,6 +567,21 @@ def play_items(id: str, **kwargs: str) -> None:
 
 
 @action
+def playlist_goto(position: str, **kwargs: str) -> None:
+    """
+    Plays the music queue from one of its songs, keeping the queue: a list's own
+    click on a queue item plays the song on its own.
+
+    :param position: The song's place in the queue, from 1 (Container.CurrentItem).
+    """
+    json_call(
+        "Player.GoTo",
+        params={"playerid": 0, "to": to_int(position) - 1},
+        parent="playlist_goto",
+    )
+
+
+@action
 def play_trailer(trailer: str, **kwargs: str) -> None:
     """
     Request a trailer, stamping the item it is for so a stale start is parked.
