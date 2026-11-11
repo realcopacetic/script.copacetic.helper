@@ -77,6 +77,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`pin`](#pin) | Pins a music item to the front of speed dial |
 | [`play_album`](#play_album) | Plays an album |
 | [`play_album_from_track`](#play_album_from_track) | Plays a song's album, starting at that song |
+| [`play_item`](#play_item) | Plays one library video from its resume point |
 | [`play_items`](#play_items) | Plays every item in a container |
 | [`play_radio`](#play_radio) | Old name for `start_mix` |
 | [`play_trailer`](#play_trailer) | Plays a trailer in a window, with clean-up when focus moves on |
@@ -670,6 +671,27 @@ on. The album is added to the [speed dial](../plugins/speed_dial.md) recent list
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=play_album_from_track,id=$INFO[ListItem.DBID])</onclick>
+```
+
+---
+
+## play_item
+
+Plays one library movie, episode or music video, from its resume point if it has one,
+in place of whatever is playing. Kodi makes it the only item in the video playlist, so
+[Play next](../service/playnext.md) queues on from an episode. Started over JSON-RPC,
+it keeps a full-screen video full screen (a list's own click goes through `PlayMedia`,
+which leaves full screen first).
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `movie`, `episode`, `musicvideo` | required | The item's library type |
+| `id` | library id | required | The item's database id |
+
+Example from Copacetic, a rail in the video OSD:
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=play_item,type=episode,id=$INFO[Container(3254).ListItem.DBID])</onclick>
 ```
 
 ---

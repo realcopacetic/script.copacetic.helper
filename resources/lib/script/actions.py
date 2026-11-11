@@ -478,6 +478,23 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
 
 
 @action
+def play_item(type: str, id: str, **kwargs: str) -> None:
+    """
+    Plays one library video from where it was left, in place of what plays: Kodi
+    makes it the video playlist's only item and stays full screen.
+
+    :param type: movie, episode or musicvideo.
+    :param id: Its library id.
+    """
+    json_call(
+        "Player.Open",
+        item={f"{type}id": int(id)},
+        options={"resume": True},
+        parent="play_item",
+    )
+
+
+@action
 def play_items(id: str, **kwargs: str) -> None:
     """
     Plays all media items in a container by index.

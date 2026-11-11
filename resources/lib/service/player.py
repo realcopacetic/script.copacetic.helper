@@ -52,6 +52,19 @@ def _videodb_path(path: str, rules: list[dict], **xsp: Any) -> str:
     return f"{path}{'&' if '?' in path else '?'}xsp={quote(query, safe='')}"
 
 
+def _not_file(file: str) -> dict:
+    """
+    The smart playlist rule that leaves out a library file, by the filename field's
+    value: the whole path for a stack, archive or plugin, else the name.
+
+    :param file: The item's library file.
+    :return: The rule.
+    """
+    whole = file.lower().startswith(("stack://", "rar://", "zip://", "plugin://"))
+    name = file if whole else file.replace("\\", "/").rsplit("/", 1)[-1]
+    return {"field": "filename", "operator": "isnot", "value": name}
+
+
 def _episode_paths(tvshowid: int, season: int, episode: int, other: dict) -> dict:
     """
     A library episode's rails: its next 20 in season and episode order, into the
@@ -277,12 +290,6 @@ class PlayerMonitor(Player):
         }
         props |= self._picks(tag)
         self._successor = ""
-        # As the library names the file: a title can repeat, a file can't
-        other = {
-            "field": "filename",
-            "operator": "isnot",
-            "value": infolabel("Player.Filename"),
-        }
 
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
@@ -290,21 +297,24 @@ class PlayerMonitor(Player):
             if dbid > 0:
                 query = json_call(
                     "VideoLibrary.GetEpisodeDetails",
-                    params={"properties": ["tvshowid"], "episodeid": dbid},
+                    params={"properties": ["tvshowid", "file"], "episodeid": dbid},
                     parent="now_playing_episode",
                 )
                 details = query.get("result", {}).get("episodedetails", {})
                 if tvshowid := details.get("tvshowid"):
                     props["player_tvshowid"] = str(tvshowid)
                     props |= _episode_paths(
-                        tvshowid, tag.getSeason(), tag.getEpisode(), other
+                        tvshowid,
+                        tag.getSeason(),
+                        tag.getEpisode(),
+                        _not_file(details["file"]),
                     )
                     self._successor = playnext.ensure_successor(dbid, tvshowid)
 
         elif media_type == "movie" and dbid > 0:
             query = json_call(
                 "VideoLibrary.GetMovieDetails",
-                params={"properties": ["setid", "set"], "movieid": dbid},
+                params={"properties": ["setid", "set", "file"], "movieid": dbid},
                 parent="now_playing_movie",
             )
             details = query.get("result", {}).get("moviedetails", {})
@@ -312,7 +322,9 @@ class PlayerMonitor(Player):
                 props["player_setid"] = str(setid)
                 props["player_set"] = details["set"]
                 props["player_set_path"] = _videodb_path(
-                    f"videodb://movies/titles/?setid={setid}", [other], type="movies"
+                    f"videodb://movies/titles/?setid={setid}",
+                    [_not_file(details["file"])],
+                    type="movies",
                 )
         self._publish(props)
 
