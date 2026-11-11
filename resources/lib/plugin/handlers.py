@@ -135,12 +135,23 @@ def _video_details(
     )
 
 
+_INFO_DIALOGS = " | ".join(
+    f"Window.IsVisible({name})"
+    for name in (
+        "movieinformation",
+        "musicinformation",
+        "songinformation",
+        "addoninformation",
+    )
+)
+
+
 def _info_open() -> bool:
     """
-    Whether an info dialog is open (the skin's infoscreen_open): Python's container
-    reads then answer for its rails, which share the windows' ids.
+    Whether an info dialog is open, from its registration to the end of its close:
+    Python's container reads can answer for its rails, which share the windows' ids.
     """
-    return bool(infolabel("Window(home).Property(infoscreen_open)"))
+    return condition(_INFO_DIALOGS)
 
 
 class _FocusGuard:
@@ -759,9 +770,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         # Under an info dialog its rails answer for this window's (they share ids): no
         # family, register or window properties from them; its close serves again.
-        covered = lambda: (
-            not self.dialog and _info_open() and topmost_window_id() != window_id
-        )
+        covered = lambda: not self.dialog and _info_open()
         blind = covered()
         if not source:
             multiart_dict = self._multiart_dict(
