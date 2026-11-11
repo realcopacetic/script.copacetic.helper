@@ -170,7 +170,10 @@ an info dialog is open (`movieinformation`, `musicinformation`, `songinformation
 `addoninformation` visible, from the moment Kodi registers it to the end of its close),
 a window's run under a modal dialog aborts; only `artwork` carries on, and it reads
 nothing from the dialog's rails (no multiart family, no window properties, see
-[artwork](artwork.md)).
+[artwork](artwork.md)). A `metadata` or `progressbar` run that aborts there raises
+`Window(home).Property(info_aborted)` by one: put it in the path
+(`$INFO[Window(home).Property(info_aborted)]`) and Kodi runs the path again once the
+window reads it, after the dialog has closed, only when a run was lost.
 
 Either check can be disabled by omission: no `focus_ids` skips the focus check; an absent or empty `focus_guard` skips the identity check. A handler with neither runs unguarded.
 

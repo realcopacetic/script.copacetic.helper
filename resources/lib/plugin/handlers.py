@@ -233,6 +233,11 @@ class _FocusGuard:
             if self.through_info or not _info_open():
                 return True
             log.debug(f"{LOG_TAG} → {self.caller_name}: ABORTED → under an info dialog")
+            if self.caller_name in ("metadata", "progressbar"):
+                # A new count: the skin's rows carry it, so the list serves again
+                # once the dialog closes
+                aborted = to_int(infolabel("Window(home).Property(info_aborted)"), 0)
+                window_property("info_aborted", aborted + 1)
             return False
 
         if not (focus_id := focused_control_id(self.window_id)):
