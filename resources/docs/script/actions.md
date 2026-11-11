@@ -136,7 +136,7 @@ whose builder templates (`extras/templates/`) or `16x9/` XML name
 `info=speed_dial`, for example in a widget's content path. The service checks when
 the skin becomes active and again when it is updated, and sets
 `Window(home).Property(helper_speed_dial)` for it. A skin that opts in without speed
-dial gets the other four items only.
+dial gets the other five items only.
 
 **Pin to speed dial** and **Unpin** tell a pinned item by the speed dial window
 properties (see [Is this item pinned?](../plugins/speed_dial.md#is-this-item-pinned)),
@@ -257,7 +257,7 @@ not touched. Also in the helper's settings, under *Library*.
 
 Deletes the helper's processed artwork (blurred, cropped and text images) and resets
 its artwork lookup database. It also empties the saved answers from web services
-(TMDb, ListenBrainz), so they are fetched again, and the saved text truncations,
+(TMDb, ListenBrainz, Deezer), so they are fetched again, and the saved text truncations,
 then compacts the database file. A notification shows how much space was saved.
 Images are made again the next time they are needed.
 
