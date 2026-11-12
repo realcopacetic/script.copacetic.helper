@@ -133,6 +133,12 @@ class SegmentsTest(unittest.TestCase):
         self.segments.tick(200)  # a cold open names nothing
         self.assertEqual(self.props, {"player_credits": "3301"})
 
+    def test_named_credits_keep_an_earlier_credits_start(self):
+        self.play({"credits": [1300000, None]}, 1380)
+        self.labels |= {"Player.Chapter": "02", "Player.ChapterName": "Preview"}
+        self.segments.tick(1380)  # Play next's card, opened at 1301, stays open
+        self.assertEqual(self.props["player_credits"], "1301")
+
     def test_named_chapter_keeps_an_earlier_start(self):
         self.play({"intro": [100000, 130000]}, 120, 150, 3300)
         self.labels |= {"Player.Chapter": "02", "Player.ChapterName": "Intro"}

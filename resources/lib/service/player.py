@@ -6,7 +6,7 @@ import random
 import time
 from functools import cached_property
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
@@ -402,11 +402,14 @@ class PlayerMonitor(Player):
         :return: player_clearlogo(_width) and player_clean_* properties, if any.
         """
         props = {}
-        name = os.path.basename(path)
-        untitled = {name, os.path.splitext(name)[0]}  # Kodi titles it by its file
+        names = os.path.basename(path), unquote(os.path.basename(path))
+        untitled = {*names, *(os.path.splitext(n)[0] for n in names)}  # by its file
         # VideoPlayer.Title: the tag's title, else the item's label, else the file name
         if tag.getDbId() <= 0 and infolabel("VideoPlayer.Title") in untitled:
-            props |= {f"player_clean_{k}": v for k, v in clean_name(path).items()}
+            # A web or DAV path is URL-encoded; its label isn't
+            props |= {
+                f"player_clean_{k}": v for k, v in clean_name(unquote(path)).items()
+            }
         logo = infolabel("VideoPlayer.Art(clearlogo)") or infolabel(
             "VideoPlayer.Art(tvshow.clearlogo)"
         )

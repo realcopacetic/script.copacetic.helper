@@ -1422,10 +1422,10 @@ def size_identity(window: str = "videoosd", **kwargs: str) -> None:
 @action
 def skip_segment(seek: str, **kwargs: str) -> None:
     """
-    The skin's skip button: seek to the end of the segment it opened on, passed by
-    the skin when pressed, as the helper may already publish the next one.
+    The skin's skip button: seek to the end of the segment, passed by the skin
+    once it has checked that segment is still the one the button opened on.
 
-    :param seek: Seconds, as player_skip_seek held them.
+    :param seek: Seconds, player_skip_seek when pressed.
     """
     if seconds := to_float(seek):
         xbmc.Player().seekTime(seconds)

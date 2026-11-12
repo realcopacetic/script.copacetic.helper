@@ -1324,15 +1324,25 @@ itself and has the OSD size again on its next open:
 ## skip_segment
 
 Seeks to the end of a skip segment (see
-[Skip segments](../service/player.md#skip-segments)), exactly. Pass the
-`player_skip_seek` the button opened on, held in the dialog when it opened: the service
-moves on to the next segment as one ends, so a late press would read that one. Don't
-send `PlayerControl(Next)` for a segment ending on a chapter: with a playlist of two or
-more (Play next's queued episode), Kodi's playlist takes Next first and plays the next
-file.
+[Skip segments](../service/player.md#skip-segments)), exactly. Pass
+`player_skip_seek`. The service moves on to the next segment as one ends, so check
+first that the segment is still the one the button opened on (hold
+`player_skip_start` when it opens and compare). Don't send `PlayerControl(Next)` for a
+segment ending on a chapter: with a playlist of two or more (Play next's queued
+episode), Kodi's playlist takes Next first and plays the next file.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
+| `seek` | Seconds | required | Where to seek to |
+
+Example from Copacetic, the skip button's OK (`skip_live` compares the held start and
+checks the playhead is still inside):
+
+```xml
+<onclick condition="$EXP[skip_live]">RunScript(script.copacetic.helper,action=skip_segment,seek=$INFO[Window(home).Property(player_skip_seek)])</onclick>
+```
+
+---|---|---|---|
 | `seek` | Seconds | required | Where to seek to |
 
 Example from Copacetic, the skip button's OK, its `onload` having held the values:
