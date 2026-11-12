@@ -1395,10 +1395,10 @@ For a skin that draws Kodi's Waveform visualiser over its own blurred background
    If it still isn't enabled (the user said no, the install failed, or no repository
    offers it), a notification says so and nothing else changes.
 2. Waveform's own settings are kept in the skin string `waveform_look`, then written:
-   smooth curves (*Points per line* 0, Kodi's old style), a thin line (*Line
-   thickness* 2) in a dark grey (`0.16` red, green and blue; Waveform draws without
-   blending, so the line can't be see-through) and no background colour, so whatever
-   is behind the visualisation shows through.
+   calm curves (*Points per line* 250, the fewest), a thin line (*Line thickness* 2)
+   in the skin's near-white `ghosted` (Waveform draws without blending, so the line
+   can't be see-through: the skin dims it under a veil of its blur) and no background
+   colour, so whatever is behind the visualisation shows through.
 3. The current visualiser (Kodi's *Settings › Player › Music › Visualisation*) is
    kept in the skin string `waveform_restore`, and Waveform becomes the visualiser.
 

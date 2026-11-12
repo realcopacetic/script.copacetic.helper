@@ -64,14 +64,15 @@ API_SOURCES = {
 MIX_SIZE = 50
 MIX_ARTIST_SHARE = 0.15
 WAVEFORM = "visualization.waveform"
-# 250 points a line (the fewest: calmer than 0, no resampling), one quiet grey line
-# (Waveform draws without blending, so no alpha), no fill (an all-zero background)
+# 250 points a line (the fewest: calmer than 0, no resampling), lines in the skin's
+# ghosted (Waveform draws without blending; the skin's veil of blur dims them), no
+# fill (an all-zero background)
 WAVEFORM_LOOK = {
     "points-per-line": 250,
     "line-thickness": 2,
-    "line-red": 0.16,
-    "line-green": 0.16,
-    "line-blue": 0.16,
+    "line-red": 0.941,
+    "line-green": 0.937,
+    "line-blue": 0.937,
     "bg-red": 0.0,
     "bg-green": 0.0,
     "bg-blue": 0.0,
