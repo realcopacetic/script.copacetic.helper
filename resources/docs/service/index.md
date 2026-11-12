@@ -142,7 +142,9 @@ paused, or while the skin doesn't opt in, the service checks again every 2 secon
 ### On music queue edits
 
 While a skin that opts in is active, each addition, removal, clear or shuffle of the
-music queue sets `playlist_revision` to a new number (see the table below).
+music queue that the service handles sets `playlist_revision` to a new number (see
+the table below). Kodi delivers these events late; those handled while the helper
+refills the queue are skipped, and those handled after it still count.
 
 ### On playback events
 
