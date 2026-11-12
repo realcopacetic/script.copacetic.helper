@@ -139,6 +139,11 @@ once a second. Each pass it:
 When the screensaver starts, the loop pauses; when it stops, the loop resumes. While
 paused, or while the skin doesn't opt in, the service checks again every 2 seconds.
 
+### On music queue edits
+
+While a skin that opts in is active, each change to the music queue sets
+`playlist_revision` to a new number (see the table below).
+
 ### On playback events
 
 The player monitor handles playback start, stop, end and error, seeks, chapter jumps
@@ -165,6 +170,7 @@ back with the next play, speed dial change or slide.
 | `helper_speed_dial` | As `helper_active`, when the skin's templates or `16x9/` XML name `info=speed_dial`; checked again on a skin update | `True` | As `helper_active`; a skin update that drops `info=speed_dial` | [Context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu) |
 | `helper_reloading` | Just before the service reloads the skin after an in-place update, except during fullscreen video. Not on a start, a switch into the skin or a helper restart | `reload` | Your skin clears it once its window is ready after the reload; the service clears it if the reload is dropped or postponed | [Script actions](../script/actions.md#dynamic_settings_window) |
 | `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Cleared once the last number has landed, just before the `ReloadSkin()`; left set if the wait gives up after a minute | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
+| `playlist_revision` | Songs are added to, removed from or cleared out of the music queue (`Playlist.OnAdd`, `OnRemove`, `OnClear` for playlist 0), while a skin that opts in is active | A number that changes each time: put it in a queue list's path (`playlistmusic://?revision=…`), as Kodi's list providers refresh on play, resume and stop, not when the queue changes | Never | [On music queue edits](#on-music-queue-edits) |
 | `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
 | `trailer_flight` | A request that waited behind an earlier trailer is handed to Kodi (`play_trailer` sets it too) | The trailer Kodi is resolving or opening | Its audio and video are up, its stream fails to open, other media starts during its resolve, or the poll after it is cancelled as hung | [Trailers](trailers.md) |

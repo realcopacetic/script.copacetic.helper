@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import json
 import sqlite3
 import sys
 import time
@@ -38,6 +39,8 @@ SPEED_DIAL_PROPERTY = "helper_speed_dial"
 SETTLE_PROPERTY = "helper_settle"
 # Time for the skin to draw helper_reloading's dots before ReloadSkin freezes the frame.
 RELOAD_COVER_SECS = 0.2
+# Edits to a queue: Kodi's list providers refresh on play, resume and stop, not on these.
+PLAYLIST_EDITS = {"Playlist.OnAdd", "Playlist.OnRemove", "Playlist.OnClear"}
 
 
 class Monitor(xbmc.Monitor):
@@ -240,6 +243,18 @@ class Monitor(xbmc.Monitor):
     def onScreensaverDeactivated(self) -> None:
         """Kodi event hook: Resume monitoring when screensaver ends."""
         self.idle = False
+
+    def onNotification(self, sender: str, method: str, data: str) -> None:
+        """
+        Kodi event hook: a new playlist_revision on each music queue edit while
+        active, which the skin's queue rail puts in its path to refetch.
+        """
+        if (
+            self.player_monitor
+            and method in PLAYLIST_EDITS
+            and json.loads(data).get("playlistid") == 0
+        ):
+            window_property("playlist_revision", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:
         """Kodi event hook: re-read debug_logging, pin a new reset to this skin."""
