@@ -1,8 +1,9 @@
 """
 Offline checks for clean names (shared/utilities.py clean_name and file_clean_name):
 a film's title and year, and an episode's show, 1x07 code and title in the scene,
-Sonarr, underscore and title-less forms; which titles count as the file's own name. Kodi's clean-up (CUtil::CleanString, Omega Util.cpp, with the default
-cleanstrings) is stood in for by a port of it.
+Sonarr, underscore and title-less forms; which titles count as the file's own name.
+Kodi's clean-up (CUtil::CleanString, Omega Util.cpp, with the default cleanstrings,
+and GetMovieName's decoding) is stood in for by a port of it.
 Run from the helper root: python tests/clean_name_offline.py
 """
 
