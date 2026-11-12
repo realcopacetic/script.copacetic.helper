@@ -11,7 +11,7 @@ import xbmcvfs
 from xbmc import executebuiltin
 
 import uuid
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import count
 
 from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
@@ -337,9 +337,9 @@ class RuntimeStateManager:
 
     def initialize_runtime_state(self) -> bool:
         """
-        Create the runtime state from defaults if absent; in an existing file,
-        add missing mappings; a fixed list gains rows for new items, drops bare rows
-        (no saved choice) of removed ones, and keeps its rows in ``items`` order.
+        Create the runtime state from defaults if absent; in an existing file, add
+        missing mappings; a fixed list gains rows for new items, carries saved values
+        to a field's new row, drops bare rows of removed items, keeps ``items`` order.
 
         :return: True when state was written (fresh seed, new mappings, rows changed).
         """
@@ -353,8 +353,10 @@ class RuntimeStateManager:
                 items = mapping.get("default_order", mapping.get("items", []))
             elif self._is_fixed_list(mapping_key):
                 order = {item: i for i, item in enumerate(mapping["items"])}
+                entries = [dict(entry) for entry in state[mapping_key]]
+                carried = self._carry_moved_fields(mapping_key, entries)
                 kept, dropped = [], []
-                for entry in state[mapping_key]:
+                for entry in entries:
                     if entry["mapping_item"] in order or entry.keys() - IDENTITY_FIELDS:
                         kept.append(entry)
                     else:
@@ -370,6 +372,9 @@ class RuntimeStateManager:
                 continue
             rows = kept + self._default_entries(mapping_key, items)
             if order:
+                for entry in rows:
+                    for field, value in carried.get(entry["mapping_item"], {}).items():
+                        entry.setdefault(field, value)
                 # Users can't reorder a fixed list: rows follow items, orphans last.
                 rows.sort(
                     key=lambda entry: order.get(entry["mapping_item"], len(order))
@@ -387,6 +392,38 @@ class RuntimeStateManager:
             seeded = True
         self.reconcile_skin_mirrors()
         return seeded
+
+    def _carry_moved_fields(
+        self, mapping_key: str, entries: list[dict]
+    ) -> dict[str, dict]:
+        """
+        Pop saved values of fields an entry's item no longer seeds but one listed
+        item does, so a field moved between items keeps the user's choice.
+
+        :param mapping_key: Mapping group key.
+        :param entries: Copied entries, edited in place.
+        :return: Owning item → {field: value} to set where its row has none.
+        """
+        mapping = self.mappings[mapping_key]
+        seeders = defaultdict(list)
+        for item, fields in mapping.get("config_fields", {}).items():
+            if item in mapping["items"]:  # not global, nor an item no row is kept for
+                for field in fields:
+                    seeders[field].append(item)
+        owners = {
+            field: items[0] for field, items in seeders.items() if len(items) == 1
+        }
+        carried = defaultdict(dict)
+        for entry in entries:
+            seeded = self._seed_fields_for(mapping_key, entry["mapping_item"])
+            for field in entry.keys() & owners.keys() - seeded.keys():
+                carried[owners[field]][field] = entry.pop(field)
+        if carried:
+            log.info(
+                f"{self.__class__.__name__} → {mapping_key}: carried "
+                f"{dict(carried)} to their new rows"
+            )
+        return dict(carried)
 
     def _is_fixed_list(self, mapping_key: str) -> bool:
         """
