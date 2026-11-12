@@ -787,7 +787,9 @@ _OPTIONS = dict.fromkeys(
     ("rss", "rsss", "rar", "apk", "xbt", "zip", "addons", "image", "videodb"), r"\?"
 )
 _OPTIONS |= dict.fromkeys(("musicdb", "androidapp", "pvr"), r"\?")
-_OPTIONS |= dict.fromkeys(("http", "https", "dav", "davs", "plugin", "rtsp"), r"[?;#|]")
+_OPTIONS |= dict.fromkeys(
+    ("http", "https", "dav", "davs", "shout", "plugin", "rtsp"), r"[?;#|]"
+)
 _OPTIONS |= dict.fromkeys(("ftp", "ftps"), r"[?;|]")
 _ENCODED = frozenset({"http", "https", "dav", "davs"})
 # What getCleanMovieTitle decodes again (it decodes the name it takes) or splits on
@@ -810,13 +812,11 @@ def _name(path: str) -> tuple[str, bool]:
 def _file_names(path: str) -> tuple[str, str, str]:
     """
     A file's name as Kodi reads it: raw, decoded, and as getCleanMovieTitle should
-    get it (a stack's whole path: its GetMovieName names the stack).
+    get it.
 
     :param path: The file's path.
     :return: (raw, decoded, to clean).
     """
-    if path.startswith("stack://"):
-        return path, path, path
     raw, encoded = _name(path)
     decoded = urllib.unquote_plus(raw)
     return raw, decoded, decoded.translate(_REENCODE) if encoded else raw
@@ -831,6 +831,15 @@ def file_clean_name(path: str, title: str | None = None) -> dict[str, str]:
     :param title: VideoPlayer.Title; None to clean whatever the title.
     :return: clean_name's values; empty for a title of its own.
     """
+    if path.startswith("stack://"):  # its GetMovieName names the stack, as its label
+        name, year = found = xbmc.getCleanMovieTitle(path, False)
+        if title is not None and not (
+            title and xbmc.getCleanMovieTitle(title, False) == found
+        ):
+            return {}
+        if _EPISODE_CODE.search(name):  # split the stack's name, not a part's
+            return clean_name(f"{name.translate(_REENCODE)}.mkv")
+        return {k: v for k, v in (("title", name), ("year", year)) if v}
     raw, decoded, name = _file_names(path)
     forms = {path, raw, decoded, *(os.path.splitext(n)[0] for n in (raw, decoded))}
     if title is not None and not (title and title in forms):

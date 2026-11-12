@@ -176,18 +176,23 @@ class CleanNameTest(unittest.TestCase):
                 self.assertEqual(utilities.file_clean_name(path, title), expected)
 
     def test_stack_named_by_kodi(self):  # GetMovieName names a stack from its parts
-        stack = (
-            "stack:///m/Hello,, Dolly!.1969.cd1.mkv , /m/Hello,, Dolly!.1969.cd2.mkv"
-        )
-        asked = []
-        utilities.xbmc.getCleanMovieTitle = lambda path, folder: (
-            asked.append(path) or ("Hello, Dolly!", "1969")
-        )
-        self.assertEqual(
-            utilities.file_clean_name(stack), {"title": "Hello, Dolly!", "year": "1969"}
-        )
-        self.assertEqual(asked, [stack])
-        self.assertEqual(utilities.file_clean_name(stack, "Hello, Dolly!.1969.mkv"), {})
+        films = "stack:///m/Film.2001.cd1.mkv , /m/Film.2001.cd2.mkv"
+        shows = "stack:///m/Show S01E02 part1.mkv , /m/Show S01E02 part2.mkv"
+        named = {films: ("Film", "2001"), shows: ("Show S01E02", "")}
+
+        def clean(path, folder):  # Kodi's GetStackedTitlePath, stood in for
+            return named[path] if path in named else clean_string(path, folder)
+
+        utilities.xbmc.getCleanMovieTitle = clean
+        film = {"title": "Film", "year": "2001"}
+        show = {"tvshowtitle": "Show", "episode": "1x02"}
+        self.assertEqual(utilities.file_clean_name(films), film)
+        self.assertEqual(utilities.file_clean_name(shows), show)  # not "part2"
+        # Played, it is titled by its label, the stack's name: clean alike, or not
+        self.assertEqual(utilities.file_clean_name(films, "Film.2001.mkv"), film)
+        self.assertEqual(utilities.file_clean_name(shows, "Show S01E02.mkv"), show)
+        self.assertEqual(utilities.file_clean_name(films, "Its Own Title"), {})
+        self.assertEqual(utilities.file_clean_name(films, ""), {})
 
     def test_plugin_options_cut(self):
         self.assertEqual(
@@ -199,6 +204,10 @@ class CleanNameTest(unittest.TestCase):
         self.assertEqual(
             utilities.file_clean_name("http://h/Show%20Name%20S01E02.mkv"),
             {"tvshowtitle": "Show Name", "episode": "1x02"},
+        )
+        self.assertEqual(  # undecoded, as Kodi passes it: its own '?' is no option
+            utilities.file_clean_name("https://h/Who%20Am%20I%3F%202014.mkv"),
+            {"title": "Who Am I?", "year": "2014"},
         )
 
     def test_numbers_inside_words_are_no_code(self):

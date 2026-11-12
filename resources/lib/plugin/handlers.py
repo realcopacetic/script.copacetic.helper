@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+import sys
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta
@@ -73,6 +74,7 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
+from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
 from resources.lib.shared.utilities import (
@@ -1381,7 +1383,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         if not self._require("path"):
             return
-        names = file_clean_name(self.params["path"])
+        # Kodi passes the plugin URL's values raw: decoding once more would split a
+        # web name at its own encoded '?' or '#', so the path is read undecoded
+        names = file_clean_name(parse_plugin_argv(sys.argv, raw={"path"})["path"])
         return set_items(
             [
                 {
