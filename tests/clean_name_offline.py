@@ -177,20 +177,33 @@ class CleanNameTest(unittest.TestCase):
 
     def test_stack_named_by_kodi(self):  # GetMovieName names a stack from its parts
         films = "stack:///m/Film.2001.cd1.mkv , /m/Film.2001.cd2.mkv"
-        shows = "stack:///m/Show S01E02 part1.mkv , /m/Show S01E02 part2.mkv"
-        named = {films: ("Film", "2001"), shows: ("Show S01E02", "")}
+        shows = (
+            "stack:///m/Show S01E02 Pilot part1.mkv , /m/Show S01E02 Pilot part2.mkv"
+        )
+        dated = "stack:///m/Doctor.Who.2005.S01E02.Rose.part1.mkv , /m/Doctor.Who.2005.S01E02.Rose.part2.mkv"  # noqa: E501
+        named = {
+            films: ("Film", "2001"),
+            shows: ("Show S01E02 Pilot", ""),
+            dated: ("Doctor Who", "2005"),  # CleanString cuts at the year
+        }
 
         def clean(path, folder):  # Kodi's GetStackedTitlePath, stood in for
             return named[path] if path in named else clean_string(path, folder)
 
         utilities.xbmc.getCleanMovieTitle = clean
         film = {"title": "Film", "year": "2001"}
-        show = {"tvshowtitle": "Show", "episode": "1x02"}
+        show = {"tvshowtitle": "Show", "episode": "1x02", "title": "Pilot"}
         self.assertEqual(utilities.file_clean_name(films), film)
         self.assertEqual(utilities.file_clean_name(shows), show)  # not "part2"
         # Played, it is titled by its label, the stack's name: clean alike, or not
         self.assertEqual(utilities.file_clean_name(films, "Film.2001.mkv"), film)
-        self.assertEqual(utilities.file_clean_name(shows, "Show S01E02.mkv"), show)
+        self.assertEqual(
+            utilities.file_clean_name(shows, "Show S01E02 Pilot.mkv"), show
+        )
+        who = {"tvshowtitle": "Doctor Who", "episode": "1x02"}
+        self.assertEqual(utilities.file_clean_name(dated), who)
+        label = "Doctor.Who.2005.S01E02.Rose.mkv"
+        self.assertEqual(utilities.file_clean_name(dated, label), who)
         self.assertEqual(utilities.file_clean_name(films, "Its Own Title"), {})
         self.assertEqual(utilities.file_clean_name(films, ""), {})
 
