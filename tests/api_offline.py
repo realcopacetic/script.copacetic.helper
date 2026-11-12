@@ -1,7 +1,8 @@
 """
 Offline checks for the web API layer: apis/http.py, the api_cache table,
 apis/cache.py and apis/listenbrainz.py (TTLs, stale-on-failure, rate limit),
-apis/deezer.py (artist match, TTLs, Deezer's error answers), the blended ranking
+apis/deezer.py (artist match, TTLs, Deezer's error answers), apis/theintrodb.py
+(the ids tried in turn, best segment, TTLs, clearing), the blended ranking
 of top_songs and discography, the TMDb client and cache (apis/tmdb), and the
 plugin URL parser (shared/parser.py).
 
@@ -11,7 +12,8 @@ answers (tests/fixtures/deezer_*.json, Queens of the Stone Age, fetched from a
 browser on 10 Nov 2026 and trimmed to the fields the helper reads), the documented
 popularity count shape, a TMDb /tv/{id} answer in TMDb's shape
 (tests/fixtures/tmdb_tv_1399.json, hand-written: no token here), Deezer's error
-shape (hand-written) or the failure under test. Run from the helper root:
+shape (hand-written), TheIntroDB's v4 /media shape (hand-written from its npm
+client's docs) or the failure under test. Run from the helper root:
 python tests/api_offline.py
 """
 
@@ -43,7 +45,13 @@ sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
 sys.modules["xbmcvfs"].mkdirs = lambda path: Path(path).mkdir(exist_ok=True) or 1
 sys.path.insert(0, str(HELPER))
 
-from resources.lib.apis import cache, deezer, http, listenbrainz  # noqa: E402
+from resources.lib.apis import (
+    cache,
+    deezer,
+    http,
+    listenbrainz,
+    theintrodb,
+)  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.apis.tmdb.fields import filter_tmdb_images_by_size  # noqa: E402
@@ -2021,6 +2029,105 @@ class ProgressbarTest(unittest.TestCase):
             counts["Property(UnwatchedEpisodes)"] = left
             self.assertNotIn("next_air", self.prop_all(**show | counts))
         self.assertEqual(len(asks), 10)
+
+
+TIDB = {
+    "tvdb_id": 81189,
+    "type": "tv",
+    "season": 1,
+    "episode": 1,
+    "group_duration_ms": 3480000,
+    "intro": [
+        {"start_ms": 61000, "end_ms": 91000, "confidence": 0.6, "submission_count": 2},
+        {"start_ms": 60500, "end_ms": 90500, "confidence": 0.9, "submission_count": 7},
+        {"start_ms": 95000, "end_ms": 94000, "confidence": 1.0},  # ends before start
+    ],
+    "recap": [{"start_ms": None, "end_ms": 30000, "confidence": 0.8}],
+    "credits": [{"start_ms": 3400000, "end_ms": None, "confidence": 0.7}],
+}
+SHOW = {"tmdb": "1396", "tvdb": "81189", "imdb": "tt0903747"}
+
+
+class TheIntroDbTest(Base):
+    def setUp(self):
+        super().setUp()
+        sys.modules["xbmcgui"].Window().clearProperty(theintrodb.NEXT_CALL)
+
+    def lookup(self, ids=SHOW):
+        return theintrodb.segments(ids, 1, 1, 3_481_234)
+
+    def key(self, kind="tmdb", value="1396"):
+        return f"theintrodb:episode:{kind}:{value}:1x1:3481"
+
+    def test_best_segments_cached_half_a_year(self):
+        self.net.answers = [json.dumps(TIDB).encode()]
+        found = self.lookup()
+        self.assertEqual(
+            found,
+            {
+                "recap": [0, 30000],
+                "intro": [60500, 90500],
+                "credits": [3400000, None],
+                "duration": 3480000,
+            },
+        )
+        self.assertEqual(self.row(self.key(), ""), (found, 180 * DAY))
+        self.assertEqual(
+            self.net.requests[0].full_url,
+            "https://api.theintrodb.org/v4/media?tmdb_id=1396&season=1&episode=1"
+            "&details=true&duration_ms=3481234",
+        )
+        self.assertIsNone(self.net.requests[0].get_header("Authorization"))
+        self.tick(179 * DAY)
+        self.assertEqual(self.lookup(), found)
+        self.assertEqual(len(self.net.requests), 1)
+
+    def test_unknown_id_tries_the_next(self):
+        self.net.answers = [http_error(404), json.dumps(TIDB).encode()]
+        self.assertEqual(self.lookup()["intro"], [60500, 90500])
+        self.assertEqual(self.row(self.key(), ""), (None, 7 * DAY - 1))  # queued 1 s
+        self.assertIn("tvdb_id=81189", self.net.requests[1].full_url)
+        self.assertEqual(self.lookup()["intro"], [60500, 90500])  # both cached
+        self.assertEqual(len(self.net.requests), 2)
+
+    def test_empty_answer_three_days_and_no_other_id(self):
+        self.net.answers = [b'{"tvdb_id": 81189, "type": "tv"}']
+        self.assertEqual(self.lookup(), {})
+        self.assertEqual(self.row(self.key(), ""), ({}, 3 * DAY))
+        self.assertEqual(len(self.net.requests), 1)
+
+    def test_no_ids_or_offline(self):
+        self.assertEqual(self.lookup({}), {})
+        self.net.answers = [URLError("offline")] * 3
+        self.assertEqual(self.lookup(), {})  # each id asked, a second apart
+        self.assertEqual(self.row(self.key(), ""), (None, 300 - 2))
+        self.assertEqual(len(self.net.requests), 3)
+
+    def test_patterns_refresh_and_clear(self):
+        self.net.answers = [json.dumps(TIDB).encode()]
+        self.lookup()
+        details = {"tvshowid": 3, "uniqueid": SHOW}
+        patch(self, (library, "_details", lambda *args: details))
+        patterns = library.api_patterns("episode", 9)
+        self.assertEqual(
+            patterns,
+            [
+                "tmdb:tvshow:1396:%",
+                "tmdb:season_%:1396:%",
+                "theintrodb:episode:tmdb:1396:%",
+                "theintrodb:episode:tvdb:81189:%",
+                "theintrodb:episode:imdb:tt0903747:%",
+            ],
+        )
+        self.assertEqual(self.cache.expire(*patterns), 1)
+        dialog = mock.Mock(**{"return_value.yesno.return_value": True})
+        patch(
+            self,
+            (actions.xbmcgui, "Dialog", dialog),
+            (actions.ADDON, "getLocalizedString", lambda id: "%s"),
+        )
+        actions.clear_api_cache(source="theintrodb")
+        self.assertIsNone(self.cache.get(self.key()))
 
 
 if __name__ == "__main__":

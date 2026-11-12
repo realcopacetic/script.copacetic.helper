@@ -96,6 +96,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`shuffle`](#shuffle) | Plays an artist, album, genre, year or music playlist, shuffled |
 | [`shuffle_artist`](#shuffle_artist) | Plays all of an artist's songs, shuffled |
 | [`size_identity`](#size_identity) | Sizes the video OSD's logo control to the playing item's logo |
+| [`skip_segment`](#skip_segment) | Seeks past the intro, recap or credits in play |
 | [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year |
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
 | [`tmdb_test`](#tmdb_test) | Checks the TMDb token |
@@ -220,7 +221,7 @@ again the next time it is needed. For one item instead, use
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `source` | `tmdb`, `listenbrainz`, `deezer` | required | Which service's answers |
+| `source` | `tmdb`, `listenbrainz`, `deezer`, `theintrodb` | required | Which service's answers |
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=clear_api_cache,source=listenbrainz)</onclick>
@@ -971,9 +972,10 @@ seconds.
   for a TV show, season or episode, the show's and all its seasons'; for an artist,
   album or song, its ListenBrainz answers (by its MusicBrainz id: an artist's top
   songs, top albums and listener count); for an artist, also its Deezer match and
-  top tracks, so the next open searches Deezer again. Each is fetched again when
-  next needed, and the old answer still shows if that fetch fails (offline, service
-  down).
+  top tracks, so the next open searches Deezer again; for a TV show, season or
+  episode, also TheIntroDB's skip times for all the show's episodes. Each is fetched
+  again when next needed, and the old answer still shows if that fetch fails (offline,
+  service down).
 - **Processed artwork** (blurred, cropped) of the item's own artwork that was made
   before Kodi had cached the image is forgotten, so it is made again. The rest is
   keyed by the image's content, so it is made again by itself once the image changes.
@@ -1307,6 +1309,22 @@ logo yet:
 
 ```xml
 <onload condition="!String.IsEqual(Window(home).Property(player_identity_videoosd),Window(home).Property(player_clearlogo))">RunScript(script.copacetic.helper,action=size_identity)</onload>
+```
+
+---
+
+## skip_segment
+
+Seeks to the end of the segment in play, `player_skip_seek` (see
+[Skip segments](../service/player.md#skip-segments)). Takes no params. A segment
+whose `player_skip_target` is `chapter` ends on the next chapter's start, so a skin can
+send `PlayerControl(Next)` there instead, which needs no script start.
+
+Example from Copacetic, the skip button's OK:
+
+```xml
+<onclick condition="String.IsEqual(Window(home).Property(player_skip_target),chapter) + Integer.IsGreater(Player.Chapter,0)">PlayerControl(Next)</onclick>
+<onclick condition="!String.IsEqual(Window(home).Property(player_skip_target),chapter) | !Integer.IsGreater(Player.Chapter,0)">RunScript(script.copacetic.helper,action=skip_segment)</onclick>
 ```
 
 ---

@@ -15,7 +15,7 @@ python tests/skin_lint.py ../skin.copacetic2 [--window MyPics.xml ...] [--all] [
 # Artwork prepare + compose on synthetic posters: label rects, element step, colour, band alpha and ratio, palette PNG transparency, measure version, RGB PNG tRNS resize, timings (needs Pillow; reads the skin's fonts)
 python tests/artwork_check.py ../skin.copacetic2
 
-# Web API layer (http, api_cache, ListenBrainz, Deezer, the top_songs/discography blend, TMDb) against recorded answers, no network
+# Web API layer (http, api_cache, ListenBrainz, Deezer, TheIntroDB, the top_songs/discography blend, TMDb) against recorded answers, no network
 python tests/api_offline.py
 
 # The artwork serve (plugin/handlers.py artwork()) with Kodi's reads stubbed: the logo
@@ -41,6 +41,11 @@ python tests/multiart_offline.py
 # editor close and delete_orphans reload only when the build wrote a file (or for a
 # host open once the session has closed), else clear it
 python tests/service_offline.py
+
+# Skip segments (service/segments.py): chapter starts from Player.Chapters, TheIntroDB's
+# times snapped to chapter marks (another cut only on marks), the tick pattern, named
+# chapters taking over on entry, and what is published as the playhead moves
+python tests/segments_offline.py
 ```
 
 - `build_offline` stubs only the `xbmc*` calls the builders make; a new Kodi call fails loudly — add it to `install_stubs`. Any ERROR log line fails the build.

@@ -149,9 +149,9 @@ def _details(type: str, dbid: int, *properties: str) -> dict:
 
 def api_patterns(type: str, dbid: int) -> list[str]:
     """
-    LIKE patterns for an item's api_cache rows: a movie's TMDb rows, a show's and its
-    seasons' for a show, season or episode, ListenBrainz's for a music item and an
-    artist's Deezer match and top tracks.
+    LIKE patterns for an item's api_cache rows: a movie's TMDb rows; for a show,
+    season or episode its show's and seasons' TMDb rows and episodes' TheIntroDB rows;
+    ListenBrainz's for a music item and an artist's Deezer match and top tracks.
 
     :param type: A DETAILS key.
     :param dbid: The item's library id.
@@ -173,10 +173,14 @@ def api_patterns(type: str, dbid: int) -> list[str]:
         type, dbid = "tvshow", _details(type, dbid, "tvshowid")["tvshowid"]
     if type not in ("movie", "tvshow"):
         return []
-    if not (tmdb := _details(type, dbid, "uniqueid")["uniqueid"].get("tmdb")):
-        return []
-    kinds = ("movie",) if type == "movie" else ("tvshow", "season_%")
-    return [f"tmdb:{kind}:{tmdb}:%" for kind in kinds]
+    ids = _details(type, dbid, "uniqueid")["uniqueid"]
+    tmdb = ids.get("tmdb")
+    if type == "movie":
+        return [f"tmdb:movie:{tmdb}:%"] if tmdb else []
+    from resources.lib.apis.theintrodb import IDS
+
+    shows = [f"tmdb:{kind}:{tmdb}:%" for kind in ("tvshow", "season_%")] if tmdb else []
+    return shows + [f"theintrodb:episode:{k}:{v}:%" for k in IDS if (v := ids.get(k))]
 
 
 def remove_textures(urls: Iterable[str] = (), prefixes: Iterable[str] = ()) -> int:

@@ -45,6 +45,43 @@ Trailers started with `action=play_trailer` do not set these properties. See
 
 When a library episode starts, the service also runs [Play next](playnext.md).
 
+### Skip segments
+
+With the skin setting `skip_segments` on (`Skin.HasSetting(skip_segments)`), the
+service finds where a video's intro, recap and credits are and publishes the next one,
+for a skip button and for opening Play next when the credits start. The sources, in
+order:
+
+1. **Named chapters.** Entering a chapter named `Intro`, `Opening`, `Recap`,
+   `Previously`, `Credits`, `Ending`, `Outro` or `Preview` (case ignored) makes that
+   chapter the segment, over anything else there. Kodi gives a chapter's name only
+   while it plays (`Player.ChapterName`), so these are found on entering.
+2. **[TheIntroDB](https://theintrodb.org)**, for a library episode, while the
+   helper's *TheIntroDB* setting is on (the default). The service asks once at AV start
+   by the show's TMDb id, then TVDB, then IMDb (a TMDb lookup reads TMDb's episode
+   numbering, as a TMDb-scraped library has), sending the file's length so the answer
+   comes from the nearest release. Answers are kept 180 days (an episode with none,
+   3 days) in the API cache: offline, and on a rewatch, the last answer is used. A time
+   within 3 seconds of a chapter mark takes the mark; an answer from a release more than
+   2 % longer or shorter than the file is used only on marks.
+3. **The tick pattern**, when TheIntroDB has nothing: unnamed marks shaped like a
+   streaming release's, two in the first 10 minutes 20 to 120 seconds apart (the intro)
+   and one in the last 10 % (credits), with none between. Files under 15 minutes are
+   left alone.
+
+| Property | Value |
+|---|---|
+| `player_skip_kind` | `intro`, `recap`, `credits` or `preview`: the segment the playhead is in or comes to next |
+| `player_skip_start`, `player_skip_end` | Its start and end in whole seconds, for `Player.Time(secs)` |
+| `player_skip_seek` | Its exact end in seconds, for [`skip_segment`](../script/actions.md#skip_segment) |
+| `player_skip_target` | `chapter` when its end is the next chapter's start (Next gets there), else `time` |
+| `player_credits` | Where credits (or a preview) run to the end of the file, in whole seconds |
+
+Credits that end before the file does (a scene after them) are a `credits` segment;
+credits that run to the end set `player_credits` instead. The properties update each
+second and clear when the video stops. A skin that remembers a dismissed button in
+`player_skip_dismissed` (Home) has it cleared at each new video too.
+
 ### Identity and clean names
 
 The identity properties let a skin put a two-line label right beside the playing item's

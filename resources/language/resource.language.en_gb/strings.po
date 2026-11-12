@@ -299,6 +299,21 @@ msgid "Rank music with Deezer"
 msgstr ""
 
 #: /resources/settings.xml
+msgctxt "#32039"
+msgid "TheIntroDB"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32040"
+msgid "Find intros and credits with TheIntroDB"
+msgstr ""
+
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32041"
+msgid "Clear TheIntroDB data"
+msgstr ""
+
+#: /resources/settings.xml
 msgctxt "#32133"
 msgid "Forget every saved TMDb answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
 msgstr ""
@@ -316,6 +331,16 @@ msgstr ""
 #: /resources/settings.xml
 msgctxt "#32138"
 msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz. Sends the artist's name to Deezer; no account needed. Off: nothing sent."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32140"
+msgid "Where a library episode's intro, recap and credits are, for the skin's skip button and Play next. Sends the show's ids and the episode's number to TheIntroDB; no account needed. Off: nothing sent, and only chapters are used."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32141"
+msgid "Forget every saved TheIntroDB answer (intro, recap and credits times), so each is fetched again when next played. One show: Refresh cached data in its context menu."
 msgstr ""
 
 

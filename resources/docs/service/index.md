@@ -128,13 +128,15 @@ once a second. Each pass it:
 1. checks the trailer session (see [Trailers](trailers.md));
 2. clears `player_seek_offset` and `player_seek_chapter` once Kodi's seek display is over (see
    [Seek offset](player.md#seek-offset));
-3. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
-4. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
+3. publishes the playing video's skip segment in play or next (see
+   [Skip segments](player.md#skip-segments));
+4. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
+5. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
    focus is no longer on a speed dial item (see
    [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list));
-5. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz and
-   Deezer answers in the add-on's `_lookup.db` that expired more than 30 days ago. If the
-   database is busy, it tries again an hour later.
+6. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz, Deezer
+   and TheIntroDB answers in the add-on's `_lookup.db` that expired more than 30 days
+   ago. If the database is busy, it tries again an hour later.
 
 When the screensaver starts, the loop pauses; when it stops, the loop resumes. While
 paused, or while the skin doesn't opt in, the service checks again every 2 seconds.
@@ -192,6 +194,7 @@ back with the next play, speed dial change or slide.
 | `player_clearlogo`, `player_clearlogo_width` | A video with a clearlogo starts | The logo cropped, and its width in a 600 x 90 box | As above | [Player properties](player.md#identity-and-clean-names) |
 | `player_identity_seekbar`, `player_identity_videoosd` | A video starts; `size_identity` for the OSD | The logo the window's control `4045` is sized for | Never cleared; compare with `player_clearlogo` | [Player properties](player.md#identity-and-clean-names) |
 | `player_clean_title`, `player_clean_year`, `player_clean_tvshowtitle`, `player_clean_episode` | A video outside the library starts whose title is its file name | Its clean name: title and year, or show, `1x07` and episode title | As above | [Player properties](player.md#identity-and-clean-names) |
+| `player_skip_kind`, `player_skip_start`, `player_skip_end`, `player_skip_seek`, `player_skip_target`, `player_credits` | A video plays with the skin's `skip_segments` on | The intro, recap or credits in play or next, and where credits run to the end | Each second; when the video stops | [Player properties](player.md#skip-segments) |
 | `player_artist` | A song starts | Artist (all artists in one string) | As above | [Player properties](player.md) |
 | `player_artist_1` … `player_artist_3` | A song starts | First, second and third artist | As above | [Player properties](player.md) |
 | `player_artistid_1` … `player_artistid_3` | A library song starts | First, second and third artist's database id | As above | [Player properties](player.md) |

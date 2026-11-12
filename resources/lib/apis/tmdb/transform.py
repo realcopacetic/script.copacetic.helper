@@ -4,6 +4,7 @@ from typing import Any, Mapping
 
 from xbmcgui import Window
 
+from resources.lib.apis.cache import DAY, failure_ttl
 from resources.lib.apis.http import HttpError
 from resources.lib.apis.tmdb.client import (
     fetch_tmdb_fields,
@@ -23,9 +24,8 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import plugin_path, window_property
 
-DAY = 86400
 EPISODE_KEYS = ("file", "art", "properties", "Trailer")  # show-level, fit an episode
-TTL_HIT, TTL_MISSING, TTL_DOWN = 7 * DAY, DAY, 300
+TTL_HIT, TTL_MISSING = 7 * DAY, DAY
 TOKEN_REFUSED = "tmdb_token_refused"  # Home property: the warning logs once a session
 IMAGE_LIST_ROLES = {
     "images_posters": [
@@ -117,7 +117,8 @@ def tmdb_to_canonical(
         # Both stale: the art entry first, as a cache-only read (with multiart off an
         # older one can win until |noart is renewed), kept in |noart for the wait
         payload = full or payload
-        cache.put(key, payload, _failure_ttl(exc))  # the stale item, else negative
+        # The stale item, else a negative entry
+        cache.put(key, payload, failure_ttl(exc, TTL_MISSING))
         return payload or {}
     if not raw:
         return {}
@@ -131,20 +132,6 @@ def tmdb_to_canonical(
     )
     cache.put(key, item, TTL_HIT)
     return item
-
-
-def _failure_ttl(exc: HttpError) -> int:
-    """
-    Seconds before asking TMDb again after a failed request.
-
-    :param exc: The failure.
-    :return: A day for an unknown id, the server's wait for 429, else 5 minutes.
-    """
-    if exc.status == 404:
-        return TTL_MISSING
-    if exc.status == 429:
-        return exc.retry_after or 60
-    return TTL_DOWN
 
 
 def _build_tmdb_canonical_item(

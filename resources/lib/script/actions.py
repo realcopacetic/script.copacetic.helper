@@ -47,6 +47,7 @@ from resources.lib.shared.utilities import (
     reset_dev_state,
     skin_path,
     skin_string,
+    to_float,
     to_int,
     topmost_window_id,
     url_decode_path,
@@ -60,6 +61,7 @@ API_SOURCES = {
     "tmdb": ("TMDb", 32033),
     "listenbrainz": ("ListenBrainz", 32034),
     "deezer": ("Deezer", 32036),
+    "theintrodb": ("TheIntroDB", 32041),
 }
 MIX_SIZE = 50
 MIX_ARTIST_SHARE = 0.15
@@ -170,7 +172,7 @@ def clear_api_cache(source: str, **kwargs: str) -> None:
     After a yes/no, forget every saved answer from one web API, so each is fetched
     again when next needed.
 
-    :param source: tmdb, listenbrainz or deezer.
+    :param source: tmdb, listenbrainz, deezer or theintrodb.
     """
     from resources.lib.shared.sqlite import ApiCacheHandler
 
@@ -1413,6 +1415,16 @@ def size_identity(**kwargs: str) -> None:
     from resources.lib.plugin.helpers import size_identity as fit  # this action only
 
     fit("videoosd")
+
+
+@action
+def skip_segment(**kwargs: str) -> None:
+    """
+    The skin's skip button off a chapter mark: seek to the end of the segment in
+    play (player_skip_seek); one ending on a mark uses PlayerControl(Next).
+    """
+    if seconds := to_float(infolabel("Window(home).Property(player_skip_seek)")):
+        xbmc.Player().seekTime(seconds)
 
 
 @action
