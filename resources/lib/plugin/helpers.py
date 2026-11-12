@@ -757,6 +757,11 @@ class TypewriterAnimation:
             _abort("superseded")
             return
         control.setVisible(True)
+        # setVisible waits for a frame: a reset that landed in that wait hid the box
+        # first, and it shows again now, so nothing more may go into it.
+        if _superseded():
+            _abort("superseded")
+            return
 
         for i in range(1, len(label) + 1):
             sub = label[:i]
