@@ -204,10 +204,17 @@ rest sharing its genres), with no song that is already queued. It only adds, so 
 queue and any list of it just grow; a shuffled queue plays them after the songs it
 already had.
 
+Each song added carries `ListItem.Property(added_from)`: the seed song's artists,
+joined with ` / `. Read it as `MusicPlayer.Property(added_from)` while the song plays,
+or on a list of the queue, for a "because you played" line. If the music playlist
+window is open, it is refreshed, since a song added from Python doesn't refresh it.
+
 It does nothing in party mode (Kodi fills that queue itself), with repeat all on (the
-queue loops), for a song played on its own rather than from the queue, and for a song
-outside the library (there is no seed). Speed dial treats the grown queue as the same
-queue, so the songs added are not recorded as a new play.
+queue loops), for a song outside the library (there is no seed), and when Kodi isn't
+playing from the music queue (a library window's song with Kodi's *Play next song
+automatically* off). A single song started some other way, from a widget for example,
+is a queue of one, so it grows. Speed dial treats the grown queue as the same queue,
+so the songs added are not recorded as a new play.
 
 ## Speed dial
 

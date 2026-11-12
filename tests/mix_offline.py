@@ -129,8 +129,9 @@ class Playlist:
     def __getitem__(self, i: int):
         return mock.Mock(getPath=lambda: self.paths[i])
 
-    def add(self, path: str, item=None) -> None:
+    def add(self, path: str, properties: dict) -> None:
         self.paths.append(path)
+        self.properties = properties
 
 
 class EndlessQueue(unittest.TestCase):
@@ -146,7 +147,7 @@ class EndlessQueue(unittest.TestCase):
             mock.patch.object(
                 player,
                 "add_songs",
-                lambda pl, songs: [pl.add(s["file"]) for s in songs],
+                lambda pl, songs, **props: [pl.add(s["file"], props) for s in songs],
             ),
             mock.patch.object(
                 player,
@@ -168,6 +169,7 @@ class EndlessQueue(unittest.TestCase):
         self.assertEqual(monitor._dial_queue, player._queue_key(playlist))
         self.assertEqual(monitor._queue_songs[0], monitor._dial_queue)
         self.assertIn(109, monitor._queue_songs[1])
+        self.assertEqual(playlist.properties, {"added_from": "Kyuss"})
 
     def test_ten_left_holds(self):
         playlist, _, mixed = self.grow(20, 9)

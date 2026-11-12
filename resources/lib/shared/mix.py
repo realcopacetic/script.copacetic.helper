@@ -131,18 +131,17 @@ def _leading_genres() -> list[dict]:
         },
         parent="daily_mixes",
     )["result"].get("songs", [])
-    plays, artists, genres = defaultdict(Counter), {}, {}
+    plays, totals, artists, genres = defaultdict(Counter), Counter(), {}, {}
     for song in songs:
         credits = dict(zip(song["artistid"], song["artist"]))
         artists |= credits
         for genreid, genre in zip(song["genreid"], song["genre"]):
             genres[genreid] = genre
+            totals[genreid] += song["playcount"]  # once a song: a duet counts once
             plays[genreid].update(dict.fromkeys(credits, song["playcount"]))
     mixes, leads = [], set()
-    for genreid, counts in sorted(
-        plays.items(), key=lambda p: p[1].total(), reverse=True
-    ):
-        seeds = [artistid for artistid, _ in counts.most_common(DAILY_SEEDS)]
+    for genreid, _ in totals.most_common():
+        seeds = [artistid for artistid, _ in plays[genreid].most_common(DAILY_SEEDS)]
         if len(seeds) < DAILY_SEEDS or seeds[0] in leads:
             continue
         leads.add(seeds[0])

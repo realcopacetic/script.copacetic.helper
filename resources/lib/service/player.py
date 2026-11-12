@@ -481,6 +481,10 @@ class PlayerMonitor(Player):
         item = query.get("result", {}).get("item", {})
         artists = item.get("artist", [])
         artistids = item.get("artistid", [])
+        self._record_speed_dial(songid)
+        # Grow the queue before the album path, which compares the queue with the album
+        if songid > 0 and condition(ENDLESS_QUEUE):
+            self._extend_queue(artists, tag.getGenres())
         self._publish(
             {
                 "player_artist": tag.getArtist(),
@@ -495,9 +499,6 @@ class PlayerMonitor(Player):
             | {f"player_artist_{i}": a for i, a in enumerate(artists[:3], 1)}
             | {f"player_artistid_{i}": str(a) for i, a in enumerate(artistids[:3], 1)}
         )
-        self._record_speed_dial(songid)
-        if songid > 0 and condition(ENDLESS_QUEUE):
-            self._extend_queue(artists, tag.getGenres())
 
     def _album_path(self, albumid: int) -> str:
         """
@@ -544,11 +545,13 @@ class PlayerMonitor(Player):
     def _extend_queue(self, artists: list[str], genres: list[str]) -> None:
         """
         Endless queue: once fewer than QUEUE_LOW songs follow the playing one, append
-        QUEUE_GROWTH from a mix seeded by it, none already queued.
+        QUEUE_GROWTH from a mix seeded by it, none already queued, each with
+        ListItem.Property(added_from) naming its artists for the "why this song" line.
 
         :param artists: The playing song's artists.
         :param genres: Its genres.
         """
+        # -1 unless playing from the music queue (a song played alone is a queue of 1)
         position = (
             json_call(
                 "Player.GetProperties",
@@ -557,7 +560,7 @@ class PlayerMonitor(Player):
             )
             .get("result", {})
             .get("position", -1)
-        )  # -1 unless playing from the music queue
+        )
         playlist = PlayList(PLAYLIST_MUSIC)
         if position < 0 or playlist.size() - position - 1 >= QUEUE_LOW:
             return
@@ -565,7 +568,10 @@ class PlayerMonitor(Player):
         songs = mix_songs(
             artists, genres or artist_genres(artists), QUEUE_GROWTH, queued
         )
-        add_songs(playlist, songs)
+        add_songs(playlist, songs, added_from=" / ".join(artists))
+        if condition("Window.IsActive(musicplaylist)"):
+            # A Python add sends no GUI_MSG_PLAYLIST_CHANGED, as Kodi's own add does
+            log.execute("Container.Refresh")
         # The same queue, grown: keep its reads, and speed dial must not count it new
         self._dial_queue = _queue_key(playlist)
         self._queue_songs = (self._dial_queue, queued | {s["songid"] for s in songs})
