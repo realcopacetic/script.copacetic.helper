@@ -115,6 +115,17 @@ def _queue_key(playlist: PlayList) -> tuple[int, str] | None:
     return (playlist.size(), playlist[0].getPath()) if playlist.size() else None
 
 
+def _publish_seek(offset: str = "", chapter: str = "") -> None:
+    """
+    Publish the last seek: its jump, or the chapter a chapter jump went to; empty clears.
+
+    :param offset: The jump, signed as Player.SeekOffset is (+10:00).
+    :param chapter: The chapter number a chapter jump went to.
+    """
+    window_property("player_seek_offset", value=offset)
+    window_property("player_seek_chapter", value=chapter)
+
+
 class PlayerMonitor(Player):
     """
     Player monitor for operations to be performed on playback start/stop.
@@ -156,7 +167,7 @@ class PlayerMonitor(Player):
         if self._landed:  # it will never land now
             window_property("trailer_flight")
         self._publish({})
-        window_property("player_seek_offset")
+        _publish_seek()
         self._clear_trailer_props()  # a flight still out is stopped when it lands
         clear_properties()
 
@@ -189,7 +200,7 @@ class PlayerMonitor(Player):
         The trailer flight's own start is ours from its first frame; other media
         started inside its wait drops it, or Kodi plays the trailer in its place.
         """
-        window_property("player_seek_offset")  # Next or a new item sends no stop
+        _publish_seek()  # Next or a new item sends no stop
         if (source := take_source()) is not False:
             self._dial_source = (_queue_key(PlayList(PLAYLIST_MUSIC)), source)
         if not (flight := infolabel("Window(home).Property(trailer_flight)")):
@@ -210,6 +221,7 @@ class PlayerMonitor(Player):
         """
         Publish the jump as player_seek_offset, signed as Player.SeekOffset is
         (+10:00): handling the seek message usually resets that to 0 first.
+        A chapter jump's player_seek_chapter goes.
 
         :param target: The time sought to, in ms.
         :param offset: The jump, in ms.
@@ -218,29 +230,31 @@ class PlayerMonitor(Player):
         hours, minutes = divmod(minutes, 60)
         clock = ":".join(f"{p:02}" for p in (hours, minutes, seconds)[not hours :])
         sign = "-" if offset < 0 else "+"
-        window_property("player_seek_offset", value=bool(offset) and sign + clock)
+        _publish_seek(offset=sign + clock if offset else "")
         self._seek_at = time.monotonic()
 
     def onPlayBackSeekChapter(self, chapter: int) -> None:
         """
-        A chapter jump reports no offset: drop the last seek's.
+        A chapter jump reports no offset: publish its chapter as
+        player_seek_chapter in place of the last seek's jump.
 
         :param chapter: The chapter sought to.
         """
-        window_property("player_seek_offset")
+        _publish_seek(chapter=str(chapter))
+        self._seek_at = time.monotonic()
 
     def onPlayBackSpeedChanged(self, speed: int) -> None:
         """
-        A speed change counts as a seek with no jump: drop the last seek's offset.
+        A speed change counts as a seek with no jump: drop the last seek's.
 
         :param speed: The new playback speed.
         """
-        window_property("player_seek_offset")
+        _publish_seek()
 
     def expire_seek_offset(self) -> None:
         """
-        Poller hook: drop the last jump once its label has faded (Kodi's 3 s from the
-        seek's end, then 1x), so a later seek with no offset of its own doesn't show it.
+        Poller hook: drop the last jump or chapter 4 s after the seek, once Kodi's
+        seek display is over, so a later seek with neither doesn't show it.
         """
         if (
             self._seek_at is not None
@@ -248,7 +262,7 @@ class PlayerMonitor(Player):
             and condition("!Player.HasPerformedSeek(4)")
         ):
             self._seek_at = None
-            window_property("player_seek_offset")
+            _publish_seek()
 
     def watch_playnext(self) -> None:
         """
@@ -668,7 +682,7 @@ class PlayerMonitor(Player):
         Clear the last jump, the player properties unless the next file already
         plays (its onAVStarted replaces them), then the trailer session.
         """
-        window_property("player_seek_offset")  # the last file's jump
+        _publish_seek()  # the last file's jump
         if not self.isPlaying():
             self._publish({})
             self._dropped_flight = False
