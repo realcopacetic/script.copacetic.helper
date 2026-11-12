@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import random
 from collections import Counter, defaultdict
 from collections.abc import Collection
 from datetime import date
@@ -9,7 +10,10 @@ from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import json_call
 
 MIX_SIZE = 50
-MIX_ARTIST_SHARE = 0.15
+# A mix's share by its seed's artists, as radios lean 12–36 % on theirs (coding-notes
+# audits/2026-11-12-music-popularity.md); Ash, 12 Nov
+SEED_SHARE = {"song": 0.25, "album": 0.35, "artist": 0.35}
+SIMILAR_CAP = 6  # most songs of a mix by any one similar artist
 DAILY_ARTIST_SHARE = 0.3  # a daily mix leans harder on the artists it is named for
 DAILY_MIXES = 6
 DAILY_SEEDS = 3  # lead artists a genre needs to make a daily mix
@@ -69,34 +73,59 @@ def mix_songs(
     genres: list[str],
     size: int,
     exclude: Collection[int] = (),
-    share: float = MIX_ARTIST_SHARE,
+    share: float = SEED_SHARE["song"],
+    similar: list[str] = (),
 ) -> list[dict]:
     """
-    Random songs for a mix: about share of them by artists, at least one, spread
-    through songs of genres by others; artists' songs alone with no genres.
+    Random songs for a mix: about share of them by artists (at least one), spread
+    through songs by similar artists, SIMILAR_CAP each, then of genres by others.
 
     :param artists: Artist names the mix leans on.
-    :param genres: Genre names for the rest.
-    :param size: Most songs to return.
+    :param genres: Genre names for what similar artists don't fill.
+    :param size: Most songs to return; with neither similar nor genres, all by artists.
     :param exclude: Song ids to leave out: a seed, a queue's songs.
     :param share: Fraction of the songs by artists.
+    :param similar: Library artist names like artists.
     :return: Song dicts with songid, file, artist and genre.
     """
+    exclude = {*exclude}
 
-    def pick(query_filter: dict, count: int) -> list[dict]:
-        # Over-fetch by the exclusions, as many of them may come up
-        songs = random_songs(query_filter, count + len(exclude))
-        return [s for s in songs if s["songid"] not in exclude][:count]
+    def pick(query_filter: dict, count: int, cap: int = 0) -> list[dict]:
+        if count <= 0:  # a limit of 0 would fetch every song
+            return []
+        # Over-fetch by the exclusions, as many of them may come up; thrice for a cap
+        songs = random_songs(query_filter, count * (3 if cap else 1) + len(exclude))
+        per_artist = Counter()
+        picked = []
+        for song in songs:
+            if (
+                song["songid"] in exclude
+                or cap
+                and per_artist[song["artist"][0]] >= cap
+            ):
+                continue
+            per_artist[song["artist"][0]] += 1
+            picked.append(song)
+            if len(picked) == count:
+                break
+        exclude.update(song["songid"] for song in picked)
+        return picked
 
     by_artist = {"field": "artist", "operator": "is", "value": artists}
-    own = pick(by_artist, max(1, round(size * share)) if genres else size)
-    if not genres:
-        return own
-    genre_rule = {"field": "genre", "operator": "is", "value": genres}
-    others = pick(
-        {"and": [genre_rule, {**by_artist, "operator": "isnot"}]}, size - len(own)
+    if not (similar or genres):
+        return pick(by_artist, size)
+    own = pick(by_artist, max(1, round(size * share)))
+    rest = size - len(own)
+    others = (
+        pick({**by_artist, "value": [*similar]}, rest, SIMILAR_CAP) if similar else []
     )
-    return spread(own, others)
+    if genres:
+        genre_rule = {"field": "genre", "operator": "is", "value": genres}
+        others += pick(
+            {"and": [genre_rule, {**by_artist, "operator": "isnot"}]},
+            rest - len(others),
+        )
+    return spread(own, random.sample(others, len(others)))
 
 
 def todays_mixes() -> list[dict]:

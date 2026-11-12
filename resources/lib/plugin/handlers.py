@@ -63,6 +63,7 @@ from resources.lib.plugin.music import (
     mix_card,
     rank_albums,
     rank_songs,
+    similar_artists,
 )
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
@@ -81,11 +82,13 @@ from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
 from resources.lib.shared.utilities import (
     ADDON,
+    DETAILS,
     INFO_DIALOGS,
     clear_label,
     condition,
     file_clean_name,
     focused_control_id,
+    fold,
     infolabel,
     json_call,
     parse_bool,
@@ -1990,6 +1993,43 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.label,
             "genre_music",
         )
+
+    @log.duration
+    def similar_music(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of library artists, albums or songs (type=) like artist id=
+        (an album's or song's with seed=): its similar artists', topped up as
+        genre_music; with no similar source, genre_music alone.
+
+        :return: List of directory items for Kodi, or None if empty.
+        """
+        if not (self._require("type", "id") and self.dbtype in MUSIC_TYPES):
+            return
+        if (seed := self.params.get("seed", "artist")) != "artist":
+            details = json_call(
+                DETAILS[seed],
+                properties=["artistid"],
+                params={f"{seed}id": int(self.dbid)},
+                parent="similar_music",
+            )
+            self.dbid = str(details["result"][f"{seed}details"]["artistid"][0])
+        similar = similar_artists(int(self.dbid), "similar_music")
+        if not similar:
+            return self.genre_music()
+        rule = {"field": "artist", "operator": "is", "value": similar}
+        if self.dbtype == "artist":  # closest first
+            set_plugincontent(content="artists", category=self.label)
+            place = {fold(name): n for n, name in enumerate(similar)}
+            rows = library_rows("artist", rule, None, None, "similar_music")
+            rows.sort(key=lambda row: place[fold(row["artist"])])
+            items = [library_item(row, "artist") for row in rows[: self.limit]]
+        else:
+            items = self._random_music(self.dbtype, [rule], self.label, "similar_music")
+            items = items or []
+        if self.limit is None or len(items) < self.limit:
+            shown = {path for path, *_ in items}
+            items += [item for item in self.genre_music() or [] if item[0] not in shown]
+        return items[: self.limit] or None
 
     @staticmethod
     def _artist_songs(
