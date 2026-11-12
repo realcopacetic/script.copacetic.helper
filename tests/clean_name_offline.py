@@ -46,7 +46,8 @@ YEAR = re.compile(
 
 def clean_string(path: str, use_folder: bool) -> tuple[str, str]:
     """CUtil::CleanString as getCleanMovieTitle runs it, default cleanstrings."""
-    name, year = unquote_plus(os.path.basename(path)), ""  # GetMovieName decodes
+    # GetMovieName: URIUtils::GetFileName (at / or \), then CURL::Decode
+    name, year = unquote_plus(re.split(r"[/\\]", path)[-1]), ""
     if match := YEAR.search(name):
         name, year = match.group(1), match.group(2)
     root, ext = os.path.splitext(name)
@@ -97,8 +98,29 @@ class CleanNameTest(unittest.TestCase):
         for path, title, expected in (
             (local, "Batman.Begins.2005.mkv", film),  # extensions shown
             (local, "Batman.Begins.2005", film),  # hidden
-            (local, local, film),  # a label that is the path (a stack part)
+            (local, local, film),  # a label that is the path (PlayList.add(url))
             (local, "Batman Begins", {}),  # a title of its own
+            ("https://h/?id=1", "", {}),  # no title, no name
+            (  # a stack, titled by its label: the first part's name less its part
+                "stack:///m/Film.2001.cd1.mkv , /m/Film.2001.cd2.mkv",
+                "Film.2001.mkv",
+                {"title": "Film", "year": "2001"},
+            ),
+            (
+                "HTTP://h/Film%20Two.2003.mkv",
+                "Film Two.2003.mkv",
+                {"title": "Film Two", "year": "2003"},
+            ),
+            (  # no code made of an escape's digits
+                "http://h/Top%25x05%20Film.mkv",
+                "Top%x05 Film.mkv",
+                {"title": "Top%x05 Film"},
+            ),
+            (
+                "http://h/Show%2BS01E02%20Pilot.mkv",
+                "Show+S01E02 Pilot.mkv",
+                {"tvshowtitle": "Show+", "episode": "1x02", "title": "Pilot"},
+            ),
             (  # titled decoded (extensions shown), cleaned as Kodi's clean-up does
                 "/m/Romeo+Juliet.1996.mkv",
                 "Romeo Juliet.1996.mkv",
@@ -125,6 +147,26 @@ class CleanNameTest(unittest.TestCase):
                 {"title": "Romeo+Juliet"},
             ),
             (
+                "http://h/100%2525%20Wolf%20(2020).mkv",
+                "100%25 Wolf (2020).mkv",
+                {"title": "100%25 Wolf", "year": "2020"},
+            ),
+            (
+                "http://h/AC%5CDC.Live.2010.mkv",
+                "AC\\DC.Live.2010.mkv",
+                {"title": "AC\\DC Live", "year": "2010"},
+            ),
+            (  # an episode code straight after an escape
+                "http://h/Show%2BS01E02.Pilot.mkv",
+                "Show+S01E02.Pilot.mkv",
+                {"tvshowtitle": "Show+", "episode": "1x02", "title": "Pilot"},
+            ),
+            (  # Kodi's own FTP option
+                "ftp://h/Movie.2001.mkv|utf8=0",
+                "Movie.2001.mkv",
+                {"title": "Movie", "year": "2001"},
+            ),
+            (
                 "http://h/C%2B%2B%20Talk%20S01E02%20Pilot.mkv",
                 "C++ Talk S01E02 Pilot.mkv",
                 {"tvshowtitle": "C++ Talk", "episode": "1x02", "title": "Pilot"},
@@ -132,6 +174,12 @@ class CleanNameTest(unittest.TestCase):
         ):
             with self.subTest(path=path, title=title):
                 self.assertEqual(utilities.file_clean_name(path, title), expected)
+
+    def test_without_a_title_any_file(self):  # the clean_name plugin path
+        self.assertEqual(
+            utilities.file_clean_name("http://h/Show%20Name%20S01E02.mkv"),
+            {"tvshowtitle": "Show Name", "episode": "1x02"},
+        )
 
     def test_numbers_inside_words_are_no_code(self):
         self.assertNotIn("episode", self.name("Area51x100.Documentary.mkv"))

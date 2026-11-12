@@ -75,7 +75,7 @@ from resources.lib.plugin.soundtracks import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
-from resources.lib.shared.utilities import clean_name as file_names
+from resources.lib.shared.utilities import file_clean_name
 from resources.lib.shared.utilities import (
     ADDON,
     INFO_DIALOGS,
@@ -1381,7 +1381,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         if not self._require("path"):
             return
-        names = file_names(self.params["path"])
+        names = file_clean_name(self.params["path"])
         return set_items(
             [
                 {
