@@ -340,7 +340,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32141"
-msgid "Forget every saved TheIntroDB answer (intro, recap and credits times), so each is fetched again when next played. One show: Refresh cached data in its context menu."
+msgid "Forget every saved TheIntroDB answer (intro, recap and credits times), so each is fetched again when next played. One film or show: Refresh cached data in its context menu."
 msgstr ""
 
 

@@ -360,13 +360,13 @@ class PlayerMonitor(Player):
                     self._successor = playnext.ensure_successor(dbid, tvshowid)
 
         elif media_type == "movie" and dbid > 0:
-            library = ("movie", dbid)
             query = json_call(
                 "VideoLibrary.GetMovieDetails",
                 params={"properties": ["setid", "set", "file"], "movieid": dbid},
                 parent="now_playing_movie",
             )
-            details = query.get("result", {}).get("moviedetails", {})
+            if details := query.get("result", {}).get("moviedetails", {}):
+                library = ("movie", dbid)
             if setid := details.get("setid"):
                 props["player_setid"] = str(setid)
                 props["player_set"] = details["set"]
