@@ -624,9 +624,12 @@ class PlayerMonitor(Player):
     def _retire(self) -> None:
         """
         Give up on the request: the paused trailer it was to replace goes back to
-        the reaper, else the session clears. The item may ask again.
+        the reaper, else the session clears. Its item may ask again; a newer item's
+        stamp, set before that item's request arrives, stays.
         """
-        window_property("trailer_played_item")
+        item = infolabel("Window(home).Property(trailer_item)")
+        if infolabel("Window(home).Property(trailer_played_item)") == item:
+            window_property("trailer_played_item")
         if self._is_trailer_playback():
             window_property("trailer_state", value="orphaned")
         else:

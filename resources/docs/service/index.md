@@ -170,7 +170,7 @@ back with the next play, speed dial change or slide.
 | `trailer_flight` | A request that waited behind an earlier trailer is handed to Kodi (`play_trailer` sets it too) | The trailer Kodi is resolving or opening | Its audio and video are up, its stream fails to open, other media starts during its resolve, or the poll after it is cancelled as hung | [Trailers](trailers.md) |
 | `trailer_return` | A trailer requested with `fullscreen` starts and goes full screen | The `info_current` key at that moment | By the `trailer_return` action | [Trailers](trailers.md#full-screen) |
 | `info_hop` | As `trailer_return`, when `info_current` is set and is not a season | `fullscreen` | The info dialog's `<onload>`, or the `trailer_return` action | [Trailers](trailers.md#full-screen) |
-| `trailer_played_item` | Never set by the service | — | A trailer fails to play, or a request never starts | [Trailers](trailers.md) |
+| `trailer_played_item` | Never set by the service | — | A trailer fails to play, or a request for the item it names never starts | [Trailers](trailers.md) |
 | `player_tvshowtitle` | An episode starts | TV show title | Playback stops, ends or fails and nothing else starts; the next file replaces it | [Player properties](player.md) |
 | `player_season` | An episode starts | Season number | As above | [Player properties](player.md) |
 | `player_tvshowid` | A library episode starts | TV show database id | As above | [Player properties](player.md) |
