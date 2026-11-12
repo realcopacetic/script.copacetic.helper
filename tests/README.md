@@ -18,6 +18,11 @@ python tests/artwork_check.py ../skin.copacetic2
 # Web API layer (http, api_cache, ListenBrainz, Deezer, the top_songs/discography blend, TMDb) against recorded answers, no network
 python tests/api_offline.py
 
+# The artwork serve (plugin/handlers.py artwork()) with Kodi's reads stubbed: the logo
+# read from clearlogo_source (headers kept; the URL's under a menu, none if cut), with
+# and without a favourite's multiart_target
+python tests/artwork_serve_offline.py
+
 # Soundtrack title matching (plugin/soundtracks.py) against real album titles
 python tests/soundtracks_offline.py
 
