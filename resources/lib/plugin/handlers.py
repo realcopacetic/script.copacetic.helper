@@ -163,6 +163,7 @@ class _FocusGuard:
         "dialog",
         "player",
         "through_info",
+        "lost_to",
     )
 
     def __init__(
@@ -196,6 +197,7 @@ class _FocusGuard:
         self.focus_ids = focus_ids
         self.player = player
         self.through_info = through_info
+        self.lost_to = ""  # the identity read when the item moved on
 
     def alive(self) -> bool:
         """
@@ -262,6 +264,7 @@ class _FocusGuard:
 
         current_identity = self.identity_getter()
         if current_identity and current_identity != self.expected_identity:
+            self.lost_to = current_identity
             log.debug(
                 f"{LOG_TAG} → {self.caller_name}: ABORTED → "
                 f"'{self.expected_identity}' lost focus to '{current_identity}'"
@@ -600,22 +603,22 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         suffix = f"_{key}" if (key := self.params.get("prop_key")) else ""
         return f"artwork_scope{suffix}"
 
-    def _artwork_held(self) -> list[DirectoryItem]:
+    def _artwork_held(self, lost_to: str = "") -> list[DirectoryItem]:
         """
         An aborted serve re-serves what its list (prop_key, an id) shows, under an
         identity no cursor matches; with no id, an empty list, or a dialog over the
         serve's window (window_id), the last blur and darkens this list wrote.
+
+        :param lost_to: The identity the guard read when the item moved on, if it did.
+        :return: The held item for Kodi.
         """
         key = self.params.get("prop_key", "")
         shown = f"Container({key}).ListItem"
         props = self._bridge_props()
+        on_top = topmost_window_id() == self.window_id
         # Kodi takes a non-numeric id as 0, the focused container; another window on
         # top would answer with its own control of that id.
-        if (
-            key.isdigit()
-            and topmost_window_id() == self.window_id
-            and infolabel(f"{shown}.Art(background)")
-        ):
+        if key.isdigit() and on_top and infolabel(f"{shown}.Art(background)"):
             # <scope>/pos/dbid/visit, or held/<scope>/<key> from an earlier hold
             current = infolabel(f"{shown}.Property(current)")
             scope = current.removeprefix("held/").partition("/")[0]
@@ -626,6 +629,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # The next visit stamp carries this count, so the URL held here never repeats.
         holds = to_int(infolabel("Window(home).Property(artwork_holds)"), 0)
         window_property("artwork_holds", holds + 1)
+        # The guard's own read, not a fresh one: the cursor may be back already.
+        if lost_to and on_top and not self._visit_superseded():
+            self._name_unstamped_hold()
         return set_items(
             [
                 {
@@ -635,6 +641,31 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 }
             ]
         )
+
+    def _name_unstamped_hold(self) -> None:
+        """
+        A hold on a move that stamped no visit (the jumpbar): name the held position
+        (artwork_held_<cursor_key>) and count it (artwork_holds_unstamped). 9300's URL
+        carries the count only on that position, so only a return serves again.
+        """
+        cursor_key = self.params.get("cursor_key")
+        position = self.expected_identity
+        # Identity labels guard something other than a position. The cursor's
+        # container must be in this window: absent in another (Back to Home over a
+        # trailer), where the guard read another window's item.
+        cursor = f"Window(home).Property(artwork_cursor_{cursor_key})"
+        scope = ArtworkIdentity.parse(infolabel(cursor)).scope if cursor_key else ""
+        if not (scope and position) or self.identity_labels:
+            return
+        if not infolabel(f"Container({scope}).CurrentItem"):
+            return
+        # The name first: a URL read between the two then never pairs a new count
+        # with the position the cursor is on.
+        window_property(f"artwork_held_{cursor_key}", position)
+        unstamped = to_int(
+            infolabel("Window(home).Property(artwork_holds_unstamped)"), 0
+        )
+        window_property("artwork_holds_unstamped", unstamped + 1)
 
     def _multiart_dict(self, item: str, multiart_type: str | None) -> dict[str, str]:
         """
@@ -698,7 +729,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         imported = time.perf_counter()
         guard = self._guard(through_info=True)
         if not guard.alive():
-            return self._artwork_held()
+            return self._artwork_held(guard.lost_to)
 
         # Read here, not passed in the URL: a "|" in the text would end Kodi's options
         cleaned = (
@@ -757,7 +788,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 key is None or self._item_key(multiart_item) == key
             )
             if not alive():
-                return self._artwork_held()
+                return self._artwork_held(guard.lost_to)
             multiart_dict = self._multiart_dict(multiart_item, multiart_type)
             if len(multiart_dict) > 1:  # seed_multiart seeds only then
                 params = params | {"background_url": multiart_dict["multiart"]}
@@ -808,7 +839,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             source=self.target_item,
         )
         if not alive():
-            return self._artwork_held()
+            return self._artwork_held(guard.lost_to)
 
         # Under an info dialog its rails answer for this window's (they share ids): no
         # family, register or window properties from them; its close serves again.
@@ -822,7 +853,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
         if not alive():
-            return self._artwork_held()
+            return self._artwork_held(guard.lost_to)
         # After the image jobs: a stamp before them makes Kodi discard this serve
         if self._tmdb_missed is not None:
             window_property("tmdb_art_missed", self._tmdb_missed)
@@ -838,7 +869,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_id=window_id,
         )
         if art is None:
-            return self._artwork_held()
+            return self._artwork_held(guard.lost_to)
 
         # Sized before the list lands (no blank). A cancelled job still runs: size only
         # for the URL's item, in its window, still topmost (windows share control ids).
