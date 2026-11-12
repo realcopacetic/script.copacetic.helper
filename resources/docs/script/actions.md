@@ -1232,7 +1232,8 @@ Kodi's shuffle turned off.
   song itself. For an album or artist, it is one of its five most played songs,
   picked at random. Up to seven more songs are by the same artist, spread evenly
   through the mix. The rest are random songs by other artists that share the first
-  song's genres. If the first song has no genre, the mix is songs by its artist only.
+  song's genres. A first song with no genre takes the genres of its artist's other
+  songs; if none of them has one either, the mix is songs by its artist only.
 - **Genre or year:** 50 random songs of that genre or year.
 
 If the album or artist has no songs, or the song is not found, nothing changes: what
