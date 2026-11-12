@@ -60,6 +60,7 @@ from resources.lib.plugin.music import (
     dial_item,
     library_item,
     library_rows,
+    mix_card,
     rank_albums,
     rank_songs,
 )
@@ -74,6 +75,7 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
+from resources.lib.shared.mix import todays_mixes
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
@@ -1711,6 +1713,38 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return self._random_music(
             "album", [], ADDON.getLocalizedString(32610), "random_albums"
         )
+
+    @log.duration
+    def rediscover(self) -> list[DirectoryItem] | None:
+        """
+        Build a seed-stable randomised container of songs not played in 90 days
+        that you played five times or more, or liked (Skin.String(like_threshold)).
+        """
+        missed = [{"field": "playcount", "operator": "greaterthan", "value": "4"}]
+        if (threshold := to_int(infolabel("Skin.String(like_threshold)"))) > 0:
+            missed.append(
+                {
+                    "field": "userrating",
+                    "operator": "between",
+                    "value": [str(threshold), "10"],
+                }
+            )
+        stale = {"field": "lastplayed", "operator": "notinthelast", "value": "90"}
+        return self._random_music(
+            "song",
+            [stale, {"or": missed}],
+            ADDON.getLocalizedString(32836),
+            "rediscover",
+        )
+
+    @log.duration
+    def daily_mixes(self) -> list[DirectoryItem] | None:
+        """
+        Today's mixes from your listening, a card per leading genre, the same all
+        day (shared.mix.todays_mixes); the skin's click starts one (start_mix).
+        """
+        set_plugincontent(category=ADDON.getLocalizedString(32837))
+        return [mix_card(mix) for mix in todays_mixes()[: self.limit]] or None
 
     @log.duration
     def random_genre(self) -> list[DirectoryItem] | None:

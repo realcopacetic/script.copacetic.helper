@@ -741,3 +741,17 @@ msgstr ""
 msgctxt "#32835"
 msgid "Refresh cached data"
 msgstr ""
+
+#: /resources/lib/plugin/handlers.py — Home rows
+msgctxt "#32836"
+msgid "Rediscover"
+msgstr ""
+
+msgctxt "#32837"
+msgid "Daily mixes"
+msgstr ""
+
+#: /resources/lib/plugin/music.py — a daily mix card, %s the genre
+msgctxt "#32838"
+msgid "%s mix"
+msgstr ""

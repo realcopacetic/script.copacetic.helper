@@ -194,6 +194,21 @@ three artists leaves the rest empty.
 For the playing song's rating, use Kodi's own `MusicPlayer.UserRating`. It updates
 straight away when [`rate_song`](../script/actions.md#rate_song) changes the rating.
 
+## Endless queue
+
+With `Skin.HasSetting(endless_queue)` on, the music queue never runs out. When a
+library song starts from the music queue and fewer than 10 songs follow it, the
+service adds 10 more to the end: a mix seeded by that song, as
+[`start_mix`](../script/actions.md#start_mix) makes one (about two by its artists, the
+rest sharing its genres), with no song that is already queued. It only adds, so the
+queue and any list of it just grow; a shuffled queue plays them after the songs it
+already had.
+
+It does nothing in party mode (Kodi fills that queue itself), with repeat all on (the
+queue loops), for a song played on its own rather than from the queue, and for a song
+outside the library (there is no seed). Speed dial treats the grown queue as the same
+queue, so the songs added are not recorded as a new play.
+
 ## Speed dial
 
 When a song starts, the service also records what the user started playing in

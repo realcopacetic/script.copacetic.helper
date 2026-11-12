@@ -120,6 +120,34 @@ def details_item(
     return library_item(details, type) if details else None
 
 
+def mix_card(mix: dict) -> DirectoryItem:
+    """
+    A daily mix as a card: "<genre> mix", its lead artists as label2, the first
+    one's art. It opens the genre; a skin's click starts the mix (start_mix).
+
+    :param mix: A todays_mixes dict.
+    :return: (path, ListItem, is_folder).
+    """
+    lead = (
+        json_call(
+            "AudioLibrary.GetArtistDetails",
+            properties=["art"],
+            params={"artistid": mix["artistids"][0]},
+            parent="daily_mixes",
+        )
+        .get("result", {})
+        .get("artistdetails", {})
+    )
+    li = ListItem(
+        ADDON.getLocalizedString(32838) % mix["genre"],
+        ", ".join(mix["artists"]),
+        offscreen=True,
+    )
+    li.setArt(lead.get("art", {}) | {"icon": "DefaultMusicGenres.png"})
+    li.setProperty("mix_genreid", str(mix["genreid"]))
+    return f"musicdb://genres/{mix['genreid']}/", li, True
+
+
 def compact_count(count: int) -> str:
     """
     A count to two significant figures with K, M or B once that reaches 1000,

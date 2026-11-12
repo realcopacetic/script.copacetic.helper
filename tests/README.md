@@ -27,6 +27,11 @@ python tests/artwork_serve_offline.py
 # Soundtrack title matching (plugin/soundtracks.py) against real album titles
 python tests/soundtracks_offline.py
 
+# Mixes and the endless queue (shared/mix.py, service/player.py) with the library
+# faked: exclusions and the artists' share, today's mixes by plays and kept for the
+# day, the queue growing below ten songs left and staying the same queue
+python tests/mix_offline.py
+
 # Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,
 # unless a tile has no other image free
 python tests/multiart_offline.py

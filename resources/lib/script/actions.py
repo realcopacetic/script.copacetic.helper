@@ -5,7 +5,6 @@ import random
 import time
 from collections.abc import Iterable
 from functools import reduce
-from operator import itemgetter
 from urllib.parse import quote
 
 import xbmc
@@ -24,6 +23,14 @@ from resources.lib.shared.utilities import (
     DETAILS,
     INFO_DIALOGS,
     SKINXML,
+)
+from resources.lib.shared.mix import (
+    DAILY_ARTIST_SHARE,
+    MIX_SIZE,
+    artist_genres,
+    mix_songs,
+    random_songs,
+    todays_mixes,
 )
 from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.speed_dial import entry as dial_entry
@@ -63,8 +70,6 @@ API_SOURCES = {
     "deezer": ("Deezer", 32036),
     "theintrodb": ("TheIntroDB", 32041),
 }
-MIX_SIZE = 50
-MIX_ARTIST_SHARE = 0.15
 WAVEFORM = "visualization.waveform"
 # 250 points a line (the fewest: calmer than 0, no resampling), lines in the skin's
 # ghosted (Waveform draws without blending; the skin's veil of blur dims them), no
@@ -1084,24 +1089,6 @@ def _year_rule(year: str) -> dict:
     return {"field": "year", "operator": "is", "value": year}
 
 
-def _random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
-    """
-    Fetches songs in random order, with their files, artists and genres.
-
-    :param query_filter: AudioLibrary.GetSongs filter.
-    :param limit: Maximum number of songs; None for all.
-    :return: Song dicts with songid, file, artist and genre.
-    """
-    return json_call(
-        "AudioLibrary.GetSongs",
-        properties=["file", "artist", "genre"],
-        sort={"method": "random"},
-        limit=limit,
-        query_filter=query_filter,
-        parent="music",
-    )["result"].get("songs", [])
-
-
 def _mix_seed(type: str, dbid: int) -> dict | None:
     """
     The song a mix starts from: the song itself, or one of the five most
@@ -1131,35 +1118,6 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
         parent="start_mix",
     )["result"].get("songs")
     return random.choice(top) if top else None
-
-
-def _artist_genres(artists: list[str]) -> list[str]:
-    """
-    The genres of these artists' library songs, for a seed song with none.
-
-    :param artists: Artist names.
-    :return: Genre names, first seen first.
-    """
-    songs = json_call(
-        "AudioLibrary.GetSongs",
-        properties=["genre"],
-        query_filter={"field": "artist", "operator": "is", "value": artists},
-        parent="start_mix",
-    )["result"].get("songs", [])
-    return [*dict.fromkeys(g for song in songs for g in song["genre"])]
-
-
-def _spread(own: list, others: list) -> list:
-    """
-    Spreads own evenly through others, keeping the order of each.
-
-    :param own: Items to spread.
-    :param others: Items to spread them through.
-    :return: Merged list.
-    """
-    step = (len(others) + 1) / (len(own) + 1)
-    keyed = [*enumerate(others), *((n * step - 0.5, s) for n, s in enumerate(own, 1))]
-    return [s for _, s in sorted(keyed, key=itemgetter(0))]
 
 
 @action
@@ -1199,7 +1157,7 @@ def shuffle(id: str = "", type: str = "artist", path: str = "", **kwargs: str) -
     :param path: Playlist path, for types without a library ID.
     """
     if type == "year":
-        if songs := _random_songs(_year_rule(id)):  # none: Kodi starts nothing
+        if songs := random_songs(_year_rule(id)):  # none: Kodi starts nothing
             mark_source(None)
             play_files(songs)
         return
@@ -1230,16 +1188,26 @@ def shuffle_artist(id: str = "", **kwargs: str) -> None:
 @action
 def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     """
-    Plays a random mix. A genre or year mix is its own songs; a song, album or
-    artist mix starts from a seed song, then songs sharing its genres (else its
-    artists'), about MIX_ARTIST_SHARE of them by its artists, spread through.
+    Plays a random mix. A genre or year mix is its own songs, a daily one today's
+    mix of a genre; a song, album or artist mix starts from a seed song, then songs
+    sharing its genres (else its artists'), some by its artists, spread through.
 
-    :param id: Library ID (defaults to ListItem.DBID); the year itself for year.
-    :param type: song, album, artist, genre or year.
+    :param id: Library ID (defaults to ListItem.DBID); the year for year.
+    :param type: song, album, artist, genre, year or daily (id a genre ID).
     """
+    if type == "daily":
+        mix = next((m for m in todays_mixes() if m["genreid"] == to_int(id)), None)
+        if not mix:  # the day turned since its card loaded: the genre's own mix
+            start_mix(id=id, type="genre")
+        elif songs := mix_songs(
+            mix["artists"], [mix["genre"]], MIX_SIZE, share=DAILY_ARTIST_SHARE
+        ):
+            mark_source(None)
+            play_files(songs)
+        return
     if type in ("genre", "year"):
         rule = {"genreid": to_int(id)} if type == "genre" else _year_rule(id)
-        if songs := _random_songs(rule, MIX_SIZE):  # none: Kodi starts nothing
+        if songs := random_songs(rule, MIX_SIZE):  # none: Kodi starts nothing
             mark_source(None)
             play_files(songs)
         return
@@ -1247,27 +1215,10 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     if not (seed := _mix_seed(type, dbid)):
         return
     mark_source(dial_entry(type, dbid))
-
-    genres = seed["genre"] or _artist_genres(seed["artist"])
-    by_artist = {"field": "artist", "operator": "is", "value": seed["artist"]}
-    own_size = round(MIX_SIZE * MIX_ARTIST_SHARE) if genres else MIX_SIZE
-    own = [
-        s for s in _random_songs(by_artist, own_size) if s["songid"] != seed["songid"]
-    ][: own_size - 1]
-    others = (
-        _random_songs(
-            {
-                "and": [
-                    {"field": "genre", "operator": "is", "value": genres},
-                    {**by_artist, "operator": "isnot"},
-                ]
-            },
-            MIX_SIZE - 1 - len(own),
-        )
-        if genres
-        else []
+    genres = seed["genre"] or artist_genres(seed["artist"])
+    play_files(
+        [seed, *mix_songs(seed["artist"], genres, MIX_SIZE - 1, {seed["songid"]})]
     )
-    play_files([seed, *_spread(own, others)])
 
 
 REGISTRY["play_radio"] = start_mix  # former name, kept for skins that call it
