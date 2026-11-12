@@ -79,12 +79,16 @@ song, as a fallback for that label.
 | Property | Value | Set when |
 |---|---|---|
 | `player_seek_offset` | The jump, signed: `+10:00`, `-00:30`, `+01:30:00` (hours only when there are any) | A seek with a jump finishes |
+| `player_seek_chapter` | The chapter a chapter jump went to (`4`) | A chapter jump finishes |
 
-It is cleared:
+A chapter jump (Kodi's `ChapterOrBigStepForward` in a file with chapters, or
+`ChapterOrBigStepBack`) reports no jump, so it sets `player_seek_chapter` instead, and a
+seek with a jump clears it. Show the chapter's name (`Player.ChapterName`) while it is
+set and `Player.HasPerformedSeek` holds. Both are cleared:
 
 - once Kodi's own seek display is over: 4 seconds after the seek, when
   `Player.HasPerformedSeek(4)` is no longer true;
-- on a chapter jump or a speed change (fast forward, rewind), which report no jump;
+- on a speed change (fast forward, rewind), which reports no jump;
 - when a new file starts, and when playback stops, ends or fails.
 
 Use Kodi's value first and the service's when Kodi's is empty:

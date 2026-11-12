@@ -126,7 +126,7 @@ While the skin opts in and the screensaver is not active, the service runs a loo
 once a second. Each pass it:
 
 1. checks the trailer session (see [Trailers](trailers.md));
-2. clears `player_seek_offset` once Kodi's seek display is over (see
+2. clears `player_seek_offset` and `player_seek_chapter` once Kodi's seek display is over (see
    [Seek offset](player.md#seek-offset));
 3. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
 4. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
@@ -191,6 +191,7 @@ back with the next play, speed dial change or slide.
 | `player_genres` | A song starts | The song's genres, joined with ` / ` | As above | [Player properties](player.md) |
 | `player_songid` | A song starts | Song database id, for matching the others to `MusicPlayer.DBID` | As above | [Player properties](player.md) |
 | `player_seek_offset` | A seek with a jump finishes | The jump, signed (`+10:00`, `-00:30`) | 4 seconds after the seek once `Player.HasPerformedSeek(4)` is false; a chapter jump or speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
+| `player_seek_chapter` | A chapter jump finishes | The chapter it went to (`4`) | 4 seconds after the jump once `Player.HasPerformedSeek(4)` is false; a seek with a jump or a speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
 | `speed_dial_version` | A song starts and the play changes what speed dial shows, or the poll loop releases `speed_dial_held` | A new number each time | Only when the active skin changes or the service stops | [Player properties](player.md#speed-dial) |
 | `speed_dial_held` | As `speed_dial_version`, but focus is on a speed dial item | The next `speed_dial_version` | The poll loop moves it to `speed_dial_version` | [Speed dial](../plugins/speed_dial.md#window-properties) |
 | `speed_dial_album1` … `speed_dial_album7`, `speed_dial_artist1` … `speed_dial_artist7`, `speed_dial_song1` … `speed_dial_song7`, `speed_dial_playlist` | The skin becomes active | Pinned ids by type and number of digits, or pinned playlist paths, joined with `\|` | Set again on every pin, unpin or move; empty when nothing matches | [Speed dial](../plugins/speed_dial.md#window-properties) |
