@@ -1238,10 +1238,13 @@ Kodi's shuffle turned off.
 
 - **Song, album or artist:** the mix starts with one song. For a song, that is the
   song itself. For an album or artist, it is one of its five most played songs,
-  picked at random. Up to seven more songs are by the same artist, spread evenly
-  through the mix. The rest are random songs by other artists that share the first
-  song's genres. A first song with no genre takes the genres of its artist's other
-  songs; if none of them has one either, the mix is songs by its artist only.
+  picked at random. About a quarter of the mix (a song's) or a third (an album's or
+  artist's) is by the same artist, spread evenly through it. The rest are random
+  songs by its [similar artists](../plugins/library.md#similar_music) in your
+  library, at most six by any one of them, then songs by other artists that share
+  the first song's genres. A first song with no genre takes the genres of its
+  artist's other songs; with no similar artist and no genre, the mix is songs by its
+  artist only.
 - **Genre or year:** 50 random songs of that genre or year.
 - **Daily:** one of today's mixes, as the [`daily_mixes`](../plugins/library.md#daily_mixes)
   cards show them, by its genre's id: 50 songs, about 15 of them by its three lead

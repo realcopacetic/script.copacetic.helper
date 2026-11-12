@@ -2,7 +2,7 @@
 
 import re
 from collections import Counter
-from functools import lru_cache
+from functools import cache, lru_cache
 from operator import itemgetter
 from pathlib import PurePosixPath
 from typing import Callable, Iterable, Iterator
@@ -372,6 +372,50 @@ def library_rows(
         parent=parent,
     )
     return rows.get("result", {}).get(f"{type}s", [])
+
+
+def similar_artists(artistid: int, parent: str) -> list[str]:
+    """
+    Names of library artists like library artist artistid, closest first: Deezer's
+    related and ListenBrainz's similar artists, blended by WEIGHTS.
+
+    :param artistid: Library artist id.
+    :param parent: Caller name for logging.
+    :return: Library artist names, the artist's own left out; [] with neither source.
+    """
+    from resources.lib.apis import deezer, listenbrainz
+
+    name, mbid = artist_identity(artistid, parent)
+    rankings = []
+    if deezer.enabled():  # its songs are read only to check a first Deezer match
+        songs = cache(
+            lambda: library_rows(
+                "song", {"artistid": artistid}, None, None, parent, ["album", "title"]
+            )
+        )
+        related = deezer.related(
+            deezer.artist_key(mbid, name),
+            name,
+            lambda rows: deezer_match(songs(), rows),
+        )
+        rankings.append((WEIGHTS["deezer"], related))
+    if mbid and listenbrainz.enabled():
+        rankings.append((WEIGHTS["listenbrainz"], listenbrainz.similar_artists(mbid)))
+    names = {fold(similar): similar for _, ranked in rankings for similar in ranked}
+    scores = fused((weight, map(fold, ranked)) for weight, ranked in rankings)
+    if not scores:
+        return []
+    rule = {"field": "artist", "operator": "is", "value": [*names.values()]}
+    owned = {
+        fold(row["artist"]): row["artist"]
+        for row in library_rows("artist", rule, None, None, parent, [])
+    }
+    owned.pop(fold(name), None)
+    return [
+        owned[key]
+        for key in sorted(scores, key=scores.get, reverse=True)
+        if key in owned
+    ]
 
 
 def dial_item(entry: dict, offsets: tuple[int, ...] | None) -> DirectoryItem | None:

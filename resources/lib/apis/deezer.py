@@ -12,6 +12,7 @@ from resources.lib.shared.utilities import ADDON, fold
 API = "https://api.deezer.com/"
 TTL_ARTIST, TTL_NO_ARTIST, TTL_TOP, TTL_NO_TOP = 90 * DAY, 7 * DAY, 7 * DAY, DAY
 CANDIDATES = 3  # same-named artists tried, most followed first
+RELATED = 20  # related artists asked for
 # Deezer answers its errors with a 200 and a code: as the HTTP status meaning the same
 _STATUS = {
     4: 429,  # quota
@@ -70,19 +71,19 @@ def _top(artist: int) -> list[list[str]]:
     ]
 
 
-def top_tracks(key: str, name: str, accept: Callable[[list], bool]) -> list[list]:
+def _artist(key: str, name: str, accept: Callable[[list], bool]) -> tuple:
     """
-    A library artist's Deezer top tracks: those of the first of its most followed
-    same-named Deezer artists whose tracks accept takes as the library's.
+    A library artist's Deezer artist: the first of its most followed same-named
+    Deezer artists whose top tracks accept takes as the library's.
 
     :param key: artist_key of the library artist.
     :param name: Its name, searched for.
     :param accept: Whether a candidate's top-track rows are this artist's.
-    :return: ["", title, album title] rows; empty for a name of symbols only.
+    :return: (Deezer id or None, {id: top rows} fetched by this search).
     """
-    if not (folded := fold(name)):  # it would match every such name
-        return []
     accepted = {}
+    if not (folded := fold(name)):  # it would match every such name
+        return None, accepted
 
     def find() -> int | None:
         found = get_json("search/artist", q=name, limit=10)["data"][:10]
@@ -99,7 +100,19 @@ def top_tracks(key: str, name: str, accept: Callable[[list], bool]) -> list[list
                 accepted[artist] = rows
                 return artist
 
-    artist = cached(f"deezer:artist:{key}", find, (TTL_ARTIST, TTL_NO_ARTIST))
+    return cached(f"deezer:artist:{key}", find, (TTL_ARTIST, TTL_NO_ARTIST)), accepted
+
+
+def top_tracks(key: str, name: str, accept: Callable[[list], bool]) -> list[list]:
+    """
+    A library artist's Deezer top tracks (_artist finds its Deezer artist).
+
+    :param key: artist_key of the library artist.
+    :param name: Its name, searched for.
+    :param accept: Whether a candidate's top-track rows are this artist's.
+    :return: ["", title, album title] rows; empty for a name of symbols only.
+    """
+    artist, accepted = _artist(key, name, accept)
     if not artist:
         return []
     return (
@@ -112,12 +125,39 @@ def top_tracks(key: str, name: str, accept: Callable[[list], bool]) -> list[list
     )
 
 
+def related(key: str, name: str, accept: Callable[[list], bool]) -> list[str]:
+    """
+    Names of a library artist's related Deezer artists, closest first.
+
+    :param key: artist_key of the library artist.
+    :param name: Its name, searched for.
+    :param accept: Whether a candidate's top-track rows are this artist's.
+    :return: Artist names, possibly empty.
+    """
+    if not (artist := _artist(key, name, accept)[0]):
+        return []
+    return (
+        cached(
+            f"deezer:related:{artist}",
+            lambda: [
+                similar[:TITLE]
+                for row in get_json(f"artist/{artist}/related", limit=RELATED)["data"]
+                if isinstance(similar := row["name"], str)
+            ][:RELATED],
+            (TTL_TOP, TTL_NO_TOP),
+        )
+        or []
+    )
+
+
 def patterns(key: str) -> list[str]:
     """
-    LIKE patterns for one library artist's rows: its Deezer id and that id's tracks.
+    LIKE patterns for one library artist's rows: its Deezer id, that id's tracks and
+    related artists.
 
     :param key: artist_key of the library artist.
     :return: Patterns for ApiCacheHandler.expire.
     """
     artist = (ApiCacheHandler().get(f"deezer:artist:{key}") or (None,))[0]
-    return [f"deezer:artist:{key}", *([f"deezer:top:{artist}"] if artist else [])]
+    by_id = [f"deezer:{kind}:{artist}" for kind in ("top", "related")] if artist else []
+    return [f"deezer:artist:{key}", *by_id]

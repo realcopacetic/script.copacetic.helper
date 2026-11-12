@@ -1300,7 +1300,8 @@ class DeezerTest(Base):
         self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
         self.top()
         self.assertEqual(
-            deezer.patterns(QOTSA), [f"deezer:artist:{QOTSA}", "deezer:top:1177"]
+            deezer.patterns(QOTSA),
+            [f"deezer:artist:{QOTSA}", "deezer:top:1177", "deezer:related:1177"],
         )
 
     def test_refresh_and_clear(self):
@@ -1312,7 +1313,12 @@ class DeezerTest(Base):
         patterns = library.api_patterns("artist", 4)
         self.assertEqual(
             patterns,
-            [f"listenbrainz:%:{QOTSA}", f"deezer:artist:{QOTSA}", "deezer:top:1177"],
+            [
+                f"listenbrainz:%:{QOTSA}",
+                f"deezer:artist:{QOTSA}",
+                "deezer:top:1177",
+                "deezer:related:1177",
+            ],
         )
         self.assertEqual(self.cache.expire(*patterns), 3)
         self.net.answers = [URLError("offline"), URLError("offline")]

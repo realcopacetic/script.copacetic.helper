@@ -7,6 +7,7 @@ Run from the helper root: python tests/mix_offline.py
 """
 
 import sys
+from collections import Counter
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,7 +18,13 @@ from build_offline import HELPER, install_stubs
 STAGE = Path(tempfile.mkdtemp())
 install_stubs(HELPER, STAGE, STAGE, verbose=False)
 vars(sys.modules["xbmc"]).update(
-    Player=object, InfoTagVideo=None, Monitor=None, getLocalizedString=None
+    Player=object,
+    InfoTagVideo=None,
+    Monitor=None,
+    getLocalizedString=None,
+    VideoStreamDetail=None,
+    AudioStreamDetail=None,
+    SubtitleStreamDetail=None,
 )
 sys.path.insert(0, str(HELPER))
 
@@ -54,7 +61,19 @@ class Mix(unittest.TestCase):
         ids = [s["songid"] for s in songs]
         self.assertEqual(len(ids), 10)
         self.assertFalse({0, 1, 8} & set(ids))
-        self.assertEqual(sum(s["artist"] == ["Kyuss"] for s in songs), 2)
+        self.assertEqual(sum(s["artist"] == ["Kyuss"] for s in songs), 2)  # 25 %
+
+    def test_similar_then_genres(self):
+        with mock.patch.object(mix, "json_call", library):
+            songs = mix.mix_songs(["Kyuss"], ["Stoner"], 10, similar=["Low"])
+        by = Counter(s["artist"][0] for s in songs)
+        self.assertEqual(by, {"Kyuss": 2, "Low": 5, "Sleep": 3})
+
+    def test_similar_capped(self):
+        with mock.patch.object(mix, "json_call", library):
+            songs = mix.mix_songs(["Kyuss"], [], 20, similar=["Sleep"])
+        by = Counter(s["artist"][0] for s in songs)
+        self.assertEqual(by, {"Kyuss": 5, "Sleep": mix.SIMILAR_CAP})
 
     def test_artists_alone_without_genres(self):
         with mock.patch.object(mix, "json_call", library):
@@ -159,7 +178,7 @@ class EndlessQueue(unittest.TestCase):
                 ),
             ) as mixed,
         ):
-            monitor._extend_queue(["Kyuss"], ["Stoner"])
+            monitor._extend_queue(["Kyuss"], [], ["Stoner"])
         return playlist, monitor, mixed
 
     def test_grows_below_ten_left(self):
