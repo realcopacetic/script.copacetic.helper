@@ -63,7 +63,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
-| [`container_reset`](#container_reset) | Selects a container's first item without focusing it |
+| [`container_reset`](#container_reset) | Selects a container's first item, or another, without focusing it |
 | [`delete_orphans`](#delete_orphans) | Removes builder entries whose parent entry is gone |
 | [`dialog_textviewer`](#dialog_textviewer) | Shows an infolabel's text in Kodi's text viewer |
 | [`dialog_yesno`](#dialog_yesno) | Asks a yes/no question and runs builtins for the answer |
@@ -1402,8 +1402,9 @@ For a skin that draws Kodi's Waveform visualiser over its own blurred background
 **Off** (anything else): if Waveform is still the visualiser, the one kept in
 `waveform_restore` comes back (empty means none, and so does one that has since been
 removed or disabled); if the user has picked another
-visualiser since, it is left alone. Waveform's own settings go back to those kept in
-`waveform_look`, either way.
+visualiser since, it is left alone. Either way, Waveform's own settings go back to
+those kept in `waveform_look` while Waveform is still installed and enabled, and
+`waveform_look` is then emptied.
 
 It runs once per switch, nothing is enforced afterwards. A visualiser reads its
 settings when it starts, so a visualisation already on screen keeps its old look
