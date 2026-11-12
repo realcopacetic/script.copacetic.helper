@@ -123,11 +123,11 @@ Shows as selected when the stored value is `true`. Selecting it writes the first
 Text that can't take focus, for naming a group of rows. It has no `field` or `onclick`: the helper sets its `label` and shows or hides it by `visible`, so give it the same rule as the rows it heads. A grouplist's up and down moves pass through it, as long as the XML control has an ID.
 
 ```json
-"title_trailers": {
-  "id": 231,
+"title_music": {
+  "id": 230,
   "control_type": "label",
   "visible": "equals({settings_category}, player)",
-  "label": "$LOCALIZE[31803]"
+  "label": "$LOCALIZE[249]"
 }
 ```
 
