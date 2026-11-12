@@ -2085,7 +2085,7 @@ class TheIntroDbTest(Base):
     def test_unknown_id_tries_the_next(self):
         self.net.answers = [http_error(404), json.dumps(TIDB).encode()]
         self.assertEqual(self.lookup()["intro"], [60500, 90500])
-        self.assertEqual(self.row(self.key(), ""), (None, 7 * DAY - 1))  # queued 1 s
+        self.assertEqual(self.row(self.key(), ""), ([], 3 * DAY - 1))  # queued 1 s
         self.assertIn("tvdb_id=81189", self.net.requests[1].full_url)
         self.assertEqual(self.lookup()["intro"], [60500, 90500])  # both cached
         self.assertEqual(len(self.net.requests), 2)
@@ -2096,12 +2096,21 @@ class TheIntroDbTest(Base):
         self.assertEqual(self.row(self.key(), ""), ({}, 3 * DAY))
         self.assertEqual(len(self.net.requests), 1)
 
+    def test_odd_types_are_no_answer(self):
+        odd = dict(TIDB, intro=[{"start_ms": "61000", "end_ms": {"x": 1}}])
+        self.net.answers = [json.dumps(odd).encode()]
+        self.assertEqual(self.lookup(), {})
+        self.assertEqual(self.row(self.key(), ""), (None, 300))
+
     def test_no_ids_or_offline(self):
         self.assertEqual(self.lookup({}), {})
-        self.net.answers = [URLError("offline")] * 3
-        self.assertEqual(self.lookup(), {})  # each id asked, a second apart
-        self.assertEqual(self.row(self.key(), ""), (None, 300 - 2))
-        self.assertEqual(len(self.net.requests), 3)
+        for failure in (URLError("offline"), http_error(429, {"Retry-After": "60"})):
+            self.cache.clear_all()
+            self.tick(2)
+            self.net.answers = [failure]
+            self.assertEqual(self.lookup(), {})  # the other ids would fail alike
+            self.assertEqual(len(self.net.answers), 0)
+        self.assertEqual(self.row(self.key(), ""), (None, 60))
 
     def test_patterns_refresh_and_clear(self):
         self.net.answers = [json.dumps(TIDB).encode()]

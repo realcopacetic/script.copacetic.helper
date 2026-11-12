@@ -44,9 +44,6 @@ from resources.lib.shared.utilities import (
 # No modal (9999) or a busy dialog (10138, 10160): a trailer resolve shows one.
 _NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
 
-# The windows that mount the identity lockup: the seek bar dialog and the video OSD
-_SEEKBAR_ID, _VIDEOOSD_ID = 10115, 12901
-
 
 def _videodb_path(path: str, rules: list[dict], **xsp: Any) -> str:
     """
@@ -158,6 +155,7 @@ class PlayerMonitor(Player):
         self._seek_at = 0.0  # the last seek's time; 0 clears one left by a restart
         self._successor = ""  # the file Play next queued after this episode
         self._segments = None  # the playing video's skip segments
+        self._starts = 0  # files started: a lookup lands only for its own file
         self._queue_songs = (None, set())  # music queue key, its song ids
         self._album_queue = (None, False)  # (queue key, album id), queue is the album
         SpeedDial().publish()
@@ -216,6 +214,8 @@ class PlayerMonitor(Player):
         started inside its wait drops it, or Kodi plays the trailer in its place.
         """
         _publish_seek()  # Next or a new item sends no stop
+        self._segments, self._starts = None, self._starts + 1  # the last file's
+        segments.clear()
         if (source := take_source()) is not False:
             self._dial_source = (_queue_key(PlayList(PLAYLIST_MUSIC)), source)
         if not (flight := infolabel("Window(home).Property(trailer_flight)")):
@@ -291,7 +291,11 @@ class PlayerMonitor(Player):
     def watch_segments(self) -> None:
         """Poller hook: publish the playing video's skip segment in play or next."""
         if self._segments and self.isPlayingVideo():
-            self._segments.tick(self.getTime())
+            try:
+                now = self.getTime()
+            except RuntimeError:  # stopped since isPlayingVideo
+                return
+            self._segments.tick(now)
 
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
@@ -370,13 +374,18 @@ class PlayerMonitor(Player):
                     type="movies",
                 )
         self._publish(props)
-        size_identity("seekbar", _SEEKBAR_ID)
+        size_identity("seekbar")
         if condition("Window.IsVisible(videoosd)"):  # Next with the OSD up
-            size_identity("videoosd", _VIDEOOSD_ID)
+            size_identity("videoosd")
         segments.clear()  # after the props: a lookup's wait never holds them back
-        self._segments = segments.lookup(
+        # The lookup's queue wait runs callbacks queued meanwhile, a next file's
+        # start among them: the answer lands only if no other file started
+        started = self._starts
+        found = segments.lookup(
             tvshowid, tag.getSeason(), tag.getEpisode(), self.getTotalTime()
         )
+        if started == self._starts:
+            self._segments = found
 
     @cached_property
     def _image_editor(self) -> ImageEditor:
@@ -394,8 +403,9 @@ class PlayerMonitor(Player):
         """
         props = {}
         name = os.path.basename(path)
-        untitled = {"", name, os.path.splitext(name)[0]}  # Kodi titles it by its file
-        if tag.getDbId() <= 0 and tag.getTitle() in untitled:
+        untitled = {name, os.path.splitext(name)[0]}  # Kodi titles it by its file
+        # VideoPlayer.Title: the tag's title, else the item's label, else the file name
+        if tag.getDbId() <= 0 and infolabel("VideoPlayer.Title") in untitled:
             props |= {f"player_clean_{k}": v for k, v in clean_name(path).items()}
         logo = infolabel("VideoPlayer.Art(clearlogo)") or infolabel(
             "VideoPlayer.Art(tvshow.clearlogo)"
@@ -758,7 +768,7 @@ class PlayerMonitor(Player):
             self._publish({})
             self._dropped_flight = False
             self._successor = ""
-            self._segments = None
+            self._segments, self._starts = None, self._starts + 1
             segments.clear()
             if landed := self._landed:  # the flight stopped before its AV start
                 self._landed = None

@@ -46,6 +46,11 @@ python tests/service_offline.py
 # times snapped to chapter marks (another cut only on marks), the tick pattern, named
 # chapters taking over on entry, and what is published as the playhead moves
 python tests/segments_offline.py
+
+# Clean names (shared/utilities.py clean_name) against a port of Kodi's CleanString:
+# a film's title and year; an episode's show, 1x07 and title in the scene, Sonarr,
+# underscore and title-less forms
+python tests/clean_name_offline.py
 ```
 
 - `build_offline` stubs only the `xbmc*` calls the builders make; a new Kodi call fails loudly — add it to `install_stubs`. Any ERROR log line fails the build.

@@ -1,9 +1,11 @@
 # author: realcopacetic
 
+from operator import itemgetter
 from typing import Any
 
 from resources.lib.apis import http
 from resources.lib.apis.cache import DAY, cached
+from resources.lib.apis.http import HttpError
 from resources.lib.shared.utilities import ADDON
 
 API = "https://api.theintrodb.org/v4/media"
@@ -30,17 +32,23 @@ def _best(kind: str, rows: list[dict]) -> list[int | None] | None:
     :return: [start_ms, end_ms], end None for one running to the end; None if none.
     """
 
-    def valid(row: dict) -> bool:
+    def span(row: dict) -> tuple[float, int, int, int | None]:
+        """(confidence, submissions, start, end) as numbers; a bad type raises."""
         end = row.get("end_ms")
-        return kind in OPEN_ENDED if end is None else end > (row.get("start_ms") or 0)
+        return (
+            float(row.get("confidence") or 0),
+            int(row.get("submission_count") or 0),
+            int(row.get("start_ms") or 0),
+            None if end is None else int(end),
+        )
 
-    if not (rows := [row for row in rows if valid(row)]):
+    def valid(s: tuple) -> bool:
+        """An end after the start, or none for a kind that runs to the end."""
+        return kind in OPEN_ENDED if s[3] is None else s[3] > s[2]
+
+    if not (spans := [s for s in map(span, rows) if valid(s)]):
         return None
-    best = max(
-        rows,
-        key=lambda row: (row.get("confidence") or 0, row.get("submission_count") or 0),
-    )
-    return [best.get("start_ms") or 0, best.get("end_ms")]
+    return list(max(spans, key=itemgetter(0, 1))[2:])
 
 
 def _shape(data: dict[str, Any]) -> dict[str, Any]:
@@ -54,8 +62,25 @@ def _shape(data: dict[str, Any]) -> dict[str, Any]:
         kind: span for kind in KINDS if (span := _best(kind, data.get(kind) or []))
     }
     if found and (duration := data.get("group_duration_ms")):
-        found["duration"] = duration
+        found["duration"] = int(duration)
     return found
+
+
+def _fetch(params: dict[str, Any]) -> dict[str, Any] | list:
+    """
+    GET /media, shaped; a 404 (nothing under this id) as [], an empty answer that
+    tells segments to ask by the next id.
+
+    :param params: The query.
+    :return: _shape's payload, or [] for an id TheIntroDB doesn't know.
+    :raises HttpError: On any other failure.
+    """
+    try:
+        return _shape(http.get_json(API, params, timeout=3))
+    except HttpError as exc:
+        if exc.status != 404:
+            raise
+        return []
 
 
 def segments(
@@ -81,10 +106,10 @@ def segments(
             params["duration_ms"] = duration_ms
         found = cached(
             f"theintrodb:episode:{id_type}:{value}:{season}x{episode}:{seconds}",
-            lambda: _shape(http.get_json(API, params, timeout=3)),
+            lambda: _fetch(params),
             (TTL_HIT, TTL_EMPTY),
             NEXT_CALL,
         )
-        if found is not None:  # an answer, empty or not; None: unknown under this id
-            return found
+        if found != []:  # an answer, or a failure that the other ids would share
+            return found or {}
     return {}

@@ -72,13 +72,13 @@ order:
 | Property | Value |
 |---|---|
 | `player_skip_kind` | `intro`, `recap`, `credits` or `preview`: the segment the playhead is in or comes to next |
-| `player_skip_start`, `player_skip_end` | Its start and end in whole seconds, for `Player.Time(secs)` |
+| `player_skip_start`, `player_skip_end` | Its start and end in whole seconds, for `Player.Time(secs)` (which Kodi rounds: the start is rounded up past it, so it reads only once reached) |
 | `player_skip_seek` | Its exact end in seconds, for [`skip_segment`](../script/actions.md#skip_segment) |
-| `player_skip_target` | `chapter` when its end is the next chapter's start (Next gets there), else `time` |
-| `player_credits` | Where credits (or a preview) run to the end of the file, in whole seconds |
+| `player_credits` | Where credits (or a preview) run to the end of the file, in whole seconds, rounded up as the start is |
 
 Credits that end before the file does (a scene after them) are a `credits` segment;
-credits that run to the end set `player_credits` instead. The properties update each
+credits that run to the end, or end where a preview running to the end starts, set
+`player_credits` instead. The properties update each
 second and clear when the video stops. A skin that remembers a dismissed button in
 `player_skip_dismissed` (Home) has it cleared at each new video too.
 
@@ -90,9 +90,10 @@ works out its width in a 600 x 90 box, and sets the width of control `4045` (the
 in the seek bar dialog at once, and in the video OSD if it is open. Mount the logo as
 control `4045` with `<aspectratio aligny="center">keep</aspectratio>` and left
 alignment, and show the label beside it once `player_identity_<window>` equals
-`player_clearlogo`. The video OSD keeps its controls loaded, so its `<onload>` runs
-[`size_identity`](../script/actions.md#size_identity) for the first open after a new
-file.
+`player_clearlogo`. A window the service didn't size (the video OSD's first open
+after a new file; either window after a skin reload, which rebuilds its controls) runs
+[`size_identity`](../script/actions.md#size_identity) from its `<onload>`. A window
+without control `4045` is left alone, and its stamp isn't set.
 
 The clean names use Kodi's own clean-up (`xbmc.getCleanMovieTitle`, which follows the
 user's `cleanstrings` in `advancedsettings.xml`): `Batman.Begins.2005.1080p.BluRay.mkv`
