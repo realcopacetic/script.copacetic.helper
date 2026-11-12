@@ -704,7 +704,8 @@ Example from Copacetic, a rail in the video OSD:
 
 ## play_items
 
-Clears the playlists, queues every item in a container and starts playing.
+Clears the playlists, queues every item in a container and starts playing. In party
+mode it turns party mode off first, as it would otherwise refill the queue.
 
 - With `type=music`, every item is queued by its path (`ListItem.FileNameAndPath`) in
   the music playlist. Items with no path are left out. A library song
@@ -718,6 +719,7 @@ Clears the playlists, queues every item in a container and starts playing.
 | `id` | container id | required | The container to play |
 | `method` | `from_here`, `shuffle` | none | `from_here` starts at the selected item and plays to the end. `shuffle` plays the whole container shuffled. Anything else plays the whole container in order. |
 | `type` | `music` | video | `music` uses the music playlist. Anything else uses the video playlist. |
+| `select` | container id | none | With `type=music`: a list of the music queue (`playlistmusic://`) to select the new queue's first song in, once that list has refetched (up to 3 s). Kodi keeps a refetched list's selection by path, which can be a later song. |
 
 Example from Copacetic:
 

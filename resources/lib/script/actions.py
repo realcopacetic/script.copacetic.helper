@@ -517,6 +517,25 @@ def play_item(type: str, id: str, **kwargs: str) -> None:
     )
 
 
+def _select_first(id: str, path: str) -> None:
+    """
+    Select a queue list's first song once its refetch lists the new queue, for up
+    to 3 s: a refetch keeps the old selection by path, maybe a later song.
+
+    :param id: Container id of the queue list.
+    :param path: The new queue's first file.
+    """
+    monitor = xbmc.Monitor()
+    for _ in range(30):
+        if not condition(f"Container({id}).IsUpdating") and path == infolabel(
+            f"Container({id}).ListItemAbsolute(0).FileNameAndPath"
+        ):
+            container_reset(id)
+            return
+        if monitor.waitForAbort(0.1):
+            return
+
+
 @action
 def play_items(id: str, **kwargs: str) -> None:
     """
@@ -525,6 +544,7 @@ def play_items(id: str, **kwargs: str) -> None:
     :param id: Container ID.
     :param method: "from_here" or "shuffle" for behavior control.
     :param type: "music" or "video".
+    :param select: Music: a queue list to select the first song in, once it shows.
     """
     method = kwargs.get("method", "")
     scope = "NoWrap" if method == "from_here" else "Absolute"
@@ -542,6 +562,8 @@ def play_items(id: str, **kwargs: str) -> None:
                     song["songid"] = songid
                 songs.append(song)
         play_files(songs, shuffled=method == "shuffle")
+        if (select := kwargs.get("select")) and songs:
+            _select_first(select, songs[0]["file"])
         return
 
     clear_playlists()
