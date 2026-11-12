@@ -3,6 +3,7 @@
 import json
 import random
 import time
+from contextlib import suppress
 from functools import cached_property
 from typing import Any
 from urllib.parse import quote
@@ -404,9 +405,9 @@ class PlayerMonitor(Player):
         if tag.getDbId() <= 0:  # VideoPlayer.Title: tag, else label, else file name
             title = infolabel("VideoPlayer.Title")
             # A .strm or playlist entry plays its target, titled by that file's name
-            names = file_clean_name(path, title) or file_clean_name(
-                self.getPlayingFile(), title
-            )
+            names = file_clean_name(path, title)
+            with suppress(RuntimeError):  # stopped since the AV start
+                names = names or file_clean_name(self.getPlayingFile(), title)
             props |= {f"player_clean_{k}": v for k, v in names.items()}
         logo = infolabel("VideoPlayer.Art(clearlogo)") or infolabel(
             "VideoPlayer.Art(tvshow.clearlogo)"

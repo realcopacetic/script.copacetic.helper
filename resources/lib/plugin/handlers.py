@@ -75,12 +75,12 @@ from resources.lib.plugin.soundtracks import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
-from resources.lib.shared.utilities import file_clean_name
 from resources.lib.shared.utilities import (
     ADDON,
     INFO_DIALOGS,
     clear_label,
     condition,
+    file_clean_name,
     focused_control_id,
     infolabel,
     json_call,

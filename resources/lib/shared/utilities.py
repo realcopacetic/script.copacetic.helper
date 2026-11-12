@@ -745,7 +745,7 @@ def return_label(
 
 
 _EPISODE_CODE = re.compile(  # not \b, as "_" is a word character
-    r"(?:(?<![a-z0-9%])|(?<=%2B|%2F|%5C|%25))"  # not in a word or an escape; after one
+    r"(?:(?<![a-z0-9%])|(?<=%[0-9a-f]{2}))"  # not in a word or an escape; after one
     r"(?:s(\d{1,2})[ ._-]?e(\d{1,3})(?:[ ._-]?e\d{1,3})*"  # S01E02, S01E02E03
     r"|(\d{1,2})x(\d{2,3}))(?![0-9])",  # 1x07
     re.IGNORECASE,
@@ -783,36 +783,43 @@ def clean_name(path: str) -> dict[str, str]:
 
 
 # Where Kodi's CURL::Parse ends a file's path, by protocol; web and DAV paths encoded
-_OPTIONS = dict.fromkeys(("http", "https", "dav", "davs", "rtsp"), r"[?;#|]")
+_OPTIONS = dict.fromkeys(
+    ("rss", "rsss", "rar", "apk", "xbt", "zip", "addons", "image", "videodb"), r"\?"
+)
+_OPTIONS |= dict.fromkeys(("musicdb", "androidapp", "pvr"), r"\?")
+_OPTIONS |= dict.fromkeys(("http", "https", "dav", "davs", "plugin", "rtsp"), r"[?;#|]")
 _OPTIONS |= dict.fromkeys(("ftp", "ftps"), r"[?;|]")
 _ENCODED = frozenset({"http", "https", "dav", "davs"})
-# Kodi's default video stack pattern: title, part, rest, extension (AdvancedSettings)
-_STACK = re.compile(
-    r"(.*?)([ _.-]*(?:cd|dvd|p(?:(?:ar)?t)|dis[ck])[ _.-]*[0-9]+)(.*?)(\.[^.]+)$", re.I
-)
 # What getCleanMovieTitle decodes again (it decodes the name it takes) or splits on
 _REENCODE = str.maketrans({"%": "%25", "+": "%2B", "/": "%2F", "\\": "%5C"})
 
 
-def _file_names(path: str) -> tuple[str, str, str]:
+def _name(path: str) -> tuple[str, bool]:
     """
-    A file's name as Kodi takes it from its path (options cut, split at / or \\; a
-    stack's as its label, from its first part): raw, decoded, and to clean.
+    A file's name as Kodi takes it from its path: options cut, split at / or \\.
 
     :param path: The file's path.
-    :return: (raw, decoded, as getCleanMovieTitle should get it).
+    :return: (name, whether Kodi keeps it URL-encoded).
     """
-    stack = path.startswith("stack://")
-    if stack:
-        path = path.removeprefix("stack://").split(" , ")[0]
     protocol = path.partition("://")[0].lower()
     if options := _OPTIONS.get(protocol):
         path = re.split(options, path, maxsplit=1)[0]
-    raw = re.split(r"[/\\]", path)[-1]
-    if stack and (part := _STACK.match(raw)):
-        raw = part[1] + part[3] + part[4]
+    return re.split(r"[/\\]", path)[-1], protocol in _ENCODED
+
+
+def _file_names(path: str) -> tuple[str, str, str]:
+    """
+    A file's name as Kodi reads it: raw, decoded, and as getCleanMovieTitle should
+    get it (a stack's whole path: its GetMovieName names the stack).
+
+    :param path: The file's path.
+    :return: (raw, decoded, to clean).
+    """
+    if path.startswith("stack://"):
+        return path, path, path
+    raw, encoded = _name(path)
     decoded = urllib.unquote_plus(raw)
-    return raw, decoded, decoded.translate(_REENCODE) if protocol in _ENCODED else raw
+    return raw, decoded, decoded.translate(_REENCODE) if encoded else raw
 
 
 def file_clean_name(path: str, title: str | None = None) -> dict[str, str]:
