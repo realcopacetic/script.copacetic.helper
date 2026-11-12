@@ -390,11 +390,11 @@ class PlayerMonitor(Player):
 
     def _album_path(self, albumid: int) -> str:
         """
-        The playing album's folder, for its rail; empty for a song outside the
-        library or when the queue is exactly that album's songs.
+        The playing album's songs, every disc in one list, for its rail; empty
+        outside the library or when the queue is exactly that album's songs.
 
         :param albumid: Library album id; 0 or less if none.
-        :return: musicdb://albums/<albumid>/, or empty.
+        :return: musicdb://songs/?albumid=<albumid>, or empty.
         """
         if albumid <= 0:
             return ""
@@ -418,7 +418,9 @@ class PlayerMonitor(Player):
             )
             songs = {s["songid"] for s in album.get("result", {}).get("songs", [])}
             self._album_queue = (key, self._queue_songs[1] == songs)
-        return "" if self._album_queue[1] else f"musicdb://albums/{albumid}/"
+        # Not musicdb://albums/<id>/: a two-disc album lists its discs, folders a
+        # dialog's rail can't open
+        return "" if self._album_queue[1] else f"musicdb://songs/?albumid={albumid}"
 
     def _record_speed_dial(self, songid: int) -> None:
         """
