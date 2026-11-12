@@ -254,8 +254,10 @@ class Monitor(xbmc.Monitor):
         :param method: Announcement name, e.g. "Playlist.OnAdd".
         :param data: Its data as JSON.
         """
-        if not self.player_monitor:
-            return
+        if not self.player_monitor or infolabel(
+            "Window(home).Property(playlist_replacing)"
+        ):
+            return  # play_files is filling the queue: its play refetches the lists
         if method in PLAYLIST_EDITS:
             edited = json.loads(data).get("playlistid") == 0
         elif method == "Player.OnPropertyChanged":
