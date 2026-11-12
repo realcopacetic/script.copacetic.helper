@@ -839,6 +839,11 @@ def file_clean_name(path: str, title: str | None = None) -> dict[str, str]:
             return {}
         if _EPISODE_CODE.search(name):  # split the stack's name, not a part's
             return clean_name(f"{name.translate(_REENCODE)}.mkv")
+        # Kodi's name is cut at a year (Show.2005.S01E02): the episode is read from the
+        # first part, without its title, which ends in the volume (Rose part1)
+        first = path[8:].split(" , ", 1)[0].replace(",,", ",")
+        if "episode" in (names := file_clean_name(first)):
+            return {k: v for k, v in names.items() if k != "title"}
         return {k: v for k, v in (("title", name), ("year", year)) if v}
     raw, decoded, name = _file_names(path)
     forms = {path, raw, decoded, *(os.path.splitext(n)[0] for n in (raw, decoded))}
