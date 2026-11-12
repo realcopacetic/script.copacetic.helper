@@ -376,17 +376,17 @@ def library_rows(
 
 def similar_artists(artistid: int, parent: str) -> list[str]:
     """
-    Names of library artists like library artist artistid, closest first: Deezer's
-    related and ListenBrainz's similar artists, blended by WEIGHTS.
+    Library artists like library artist artistid: Deezer's related ones in its order
+    and ListenBrainz's (a random sample, so each at the middle place), by WEIGHTS.
 
     :param artistid: Library artist id.
     :param parent: Caller name for logging.
-    :return: Library artist names, the artist's own left out; [] with neither source.
+    :return: Library artist names, closest first, its own left out; [] with no source.
     """
     from resources.lib.apis import deezer, listenbrainz
 
     name, mbid = artist_identity(artistid, parent)
-    rankings = []
+    scores = Counter()
     if deezer.enabled():  # its songs are read only to check a first Deezer match
         songs = cache(
             lambda: library_rows(
@@ -398,24 +398,20 @@ def similar_artists(artistid: int, parent: str) -> list[str]:
             name,
             lambda rows: deezer_match(songs(), rows),
         )
-        rankings.append((WEIGHTS["deezer"], related))
+        scores = fused([(WEIGHTS["deezer"], map(fold, related))])
     if mbid and listenbrainz.enabled():
-        rankings.append((WEIGHTS["listenbrainz"], listenbrainz.similar_artists(mbid)))
-    names = {fold(similar): similar for _, ranked in rankings for similar in ranked}
-    scores = fused((weight, map(fold, ranked)) for weight, ranked in rankings)
+        similar = {*map(fold, listenbrainz.similar_artists(mbid))}
+        middle = WEIGHTS["listenbrainz"] / (K + (len(similar) + 1) / 2)
+        scores.update(dict.fromkeys(similar, middle))
+    scores.pop(fold(name), None)
     if not scores:
         return []
-    rule = {"field": "artist", "operator": "is", "value": [*names.values()]}
     owned = {
         fold(row["artist"]): row["artist"]
-        for row in library_rows("artist", rule, None, None, parent, [])
+        for row in library_rows("artist", None, None, None, parent, [])
     }
-    owned.pop(fold(name), None)
-    return [
-        owned[key]
-        for key in sorted(scores, key=scores.get, reverse=True)
-        if key in owned
-    ]
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    return [owned[key] for key in ranked if key in owned]
 
 
 def dial_item(entry: dict, offsets: tuple[int, ...] | None) -> DirectoryItem | None:

@@ -165,6 +165,7 @@ class PlayerMonitor(Player):
         self._segments = None  # the playing video's skip segments
         self._starts = 0  # files started: a lookup lands only for its own file
         self._queue_songs = (None, set())  # music queue key, its song ids
+        self._growing = False  # the endless queue is fetching its next songs
         self._album_queue = (None, False)  # (queue key, album id), queue is the album
         SpeedDial().publish()
         if self.isPlaying():
@@ -571,14 +572,21 @@ class PlayerMonitor(Player):
             .get("position", -1)
         )
         playlist = PlayList(PLAYLIST_MUSIC)
-        if position < 0 or playlist.size() - position - 1 >= QUEUE_LOW:
+        if self._growing or position < 0 or playlist.size() - position - 1 >= QUEUE_LOW:
             return False
         from resources.lib.plugin.music import similar_artists
 
         queued = self._queue_ids()
         genres = genres or artist_genres(artists)
-        similar = similar_artists(artistids[0], "endless_queue") if artistids else []
-        songs = mix_songs(artists, genres, QUEUE_GROWTH, queued, similar=similar)
+        # a ListenBrainz wait runs queued callbacks: a skip's onAVStarted can land here
+        self._growing = True
+        try:
+            similar = (
+                similar_artists(artistids[0], "endless_queue") if artistids else []
+            )
+            songs = mix_songs(artists, genres, QUEUE_GROWTH, queued, similar=similar)
+        finally:
+            self._growing = False
         if not songs:
             return False
         add_songs(playlist, songs, added_from=" / ".join(artists))

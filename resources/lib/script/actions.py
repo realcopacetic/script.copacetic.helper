@@ -1219,7 +1219,9 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
 
     mark_source(dial_entry(type, dbid))
     genres = seed["genre"] or artist_genres(seed["artist"])
-    similar = similar_artists(seed["artistid"][0], "start_mix")
+    # an artist's own, as its top song may be another's it features on
+    artistid = dbid if type == "artist" else seed["artistid"][0]
+    similar = similar_artists(artistid, "start_mix")
     songs = mix_songs(
         seed["artist"],
         genres,
