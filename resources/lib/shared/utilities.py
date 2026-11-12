@@ -781,6 +781,28 @@ def clean_name(path: str) -> dict[str, str]:
     }
 
 
+_ENCODED = ("http://", "https://", "dav://", "davs://")  # paths Kodi keeps encoded
+# What getCleanMovieTitle decodes again (it decodes the name it takes) or splits on
+_REENCODE = str.maketrans({"%": "%25", "+": "%2B", "/": "%2F", "\\": "%5C"})
+
+
+def file_clean_name(path: str, title: str) -> dict[str, str]:
+    """
+    clean_name for a file Kodi titles by its name, in any form VideoPlayer.Title
+    takes then (the path itself; the name raw without its extension, or decoded).
+
+    :param path: The playing file.
+    :param title: VideoPlayer.Title.
+    :return: clean_name's values; empty for a title of its own.
+    """
+    encoded = path.startswith(_ENCODED)
+    file = re.split(r"[?;#|]", path, maxsplit=1)[0] if encoded else path  # no options
+    names = os.path.basename(file), urllib.unquote_plus(os.path.basename(file))
+    if title not in {path, file, *names, *(os.path.splitext(n)[0] for n in names)}:
+        return {}
+    return clean_name(names[1].translate(_REENCODE) if encoded else file)
+
+
 def split(
     string: str, *, separator: str = " / ", number: int = 0, **kwargs: object
 ) -> str:

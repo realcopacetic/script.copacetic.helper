@@ -1,12 +1,11 @@
 # author: realcopacetic
 
 import json
-import os
 import random
 import time
 from functools import cached_property
 from typing import Any
-from urllib.parse import quote, unquote_plus
+from urllib.parse import quote
 
 from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
@@ -30,8 +29,8 @@ from resources.lib.shared.speed_dial import (
 )
 from resources.lib.shared.streams import player_streams, subtitle_status
 from resources.lib.shared.utilities import (
-    clean_name,
     condition,
+    file_clean_name,
     infolabel,
     json_call,
     session_salt,
@@ -40,9 +39,6 @@ from resources.lib.shared.utilities import (
     to_int,
     window_property,
 )
-
-# Paths Kodi keeps URL-encoded: web and DAV sources
-_ENCODED = ("http://", "https://", "dav://", "davs://")
 
 # No modal (9999) or a busy dialog (10138, 10160): a trailer resolve shows one.
 _NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
@@ -405,14 +401,9 @@ class PlayerMonitor(Player):
         :return: player_clearlogo(_width) and player_clean_* properties, if any.
         """
         props = {}
-        # VideoPlayer.Title: the tag's title, else the item's label, else the file name
-        # as GetTitleFromPath gives it, URL-decoded (+ as a space) whatever the source
-        names = os.path.basename(path), unquote_plus(os.path.basename(path))
-        untitled = {*names, *(os.path.splitext(n)[0] for n in names)}
-        if tag.getDbId() <= 0 and infolabel("VideoPlayer.Title") in untitled:
-            # Only a web or DAV path is encoded: its name decoded alone, as Kodi does
-            clean = names[1] if path.startswith(_ENCODED) else path
-            props |= {f"player_clean_{k}": v for k, v in clean_name(clean).items()}
+        if tag.getDbId() <= 0:  # VideoPlayer.Title: tag, else label, else file name
+            names = file_clean_name(path, infolabel("VideoPlayer.Title"))
+            props |= {f"player_clean_{k}": v for k, v in names.items()}
         logo = infolabel("VideoPlayer.Art(clearlogo)") or infolabel(
             "VideoPlayer.Art(tvshow.clearlogo)"
         )

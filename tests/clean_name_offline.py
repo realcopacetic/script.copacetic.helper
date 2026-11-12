@@ -1,7 +1,7 @@
 """
-Offline checks for clean names (shared/utilities.py clean_name): a film's title and
-year, and an episode's show, 1x07 code and title in the scene, Sonarr, underscore and
-title-less forms. Kodi's clean-up (CUtil::CleanString, Omega Util.cpp, with the default
+Offline checks for clean names (shared/utilities.py clean_name and file_clean_name):
+a film's title and year, and an episode's show, 1x07 code and title in the scene,
+Sonarr, underscore and title-less forms; which titles count as the file's own name. Kodi's clean-up (CUtil::CleanString, Omega Util.cpp, with the default
 cleanstrings) is stood in for by a port of it.
 Run from the helper root: python tests/clean_name_offline.py
 """
@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import unquote_plus
 
 from build_offline import HELPER, install_stubs
 
@@ -44,7 +45,7 @@ YEAR = re.compile(
 
 def clean_string(path: str, use_folder: bool) -> tuple[str, str]:
     """CUtil::CleanString as getCleanMovieTitle runs it, default cleanstrings."""
-    name, year = os.path.basename(path), ""
+    name, year = unquote_plus(os.path.basename(path)), ""  # GetMovieName decodes
     if match := YEAR.search(name):
         name, year = match.group(1), match.group(2)
     root, ext = os.path.splitext(name)
@@ -88,6 +89,48 @@ class CleanNameTest(unittest.TestCase):
         ):
             with self.subTest(file):
                 self.assertEqual(self.name(file), expected)
+
+    def test_titled_by_its_file(self):  # file_clean_name: VideoPlayer.Title's forms
+        film = {"title": "Batman Begins", "year": "2005"}
+        local = "/media/Batman.Begins.2005.mkv"
+        for path, title, expected in (
+            (local, "Batman.Begins.2005.mkv", film),  # extensions shown
+            (local, "Batman.Begins.2005", film),  # hidden
+            (local, local, film),  # a label that is the path (a stack part)
+            (local, "Batman Begins", {}),  # a title of its own
+            (  # titled decoded (extensions shown), cleaned as Kodi's clean-up does
+                "/m/Romeo+Juliet.1996.mkv",
+                "Romeo Juliet.1996.mkv",
+                {"title": "Romeo Juliet", "year": "1996"},
+            ),
+            (
+                "https://h/v/My%20Movie.2001.mp4?token=abc",
+                "My Movie.2001.mp4",
+                {"title": "My Movie", "year": "2001"},
+            ),
+            (
+                "https://h/v/My%20Movie.mp4|User-Agent=Mozilla/5.0",
+                "My%20Movie",
+                {"title": "My Movie"},
+            ),
+            (
+                "davs://h/AC%2FDC%20Live%20(2010).mkv",
+                "AC/DC Live (2010).mkv",
+                {"title": "AC/DC Live", "year": "2010"},
+            ),
+            (
+                "http://h/Romeo%2BJuliet.mkv",
+                "Romeo+Juliet.mkv",
+                {"title": "Romeo+Juliet"},
+            ),
+            (
+                "http://h/C%2B%2B%20Talk%20S01E02%20Pilot.mkv",
+                "C++ Talk S01E02 Pilot.mkv",
+                {"tvshowtitle": "C++ Talk", "episode": "1x02", "title": "Pilot"},
+            ),
+        ):
+            with self.subTest(path=path, title=title):
+                self.assertEqual(utilities.file_clean_name(path, title), expected)
 
     def test_numbers_inside_words_are_no_code(self):
         self.assertNotIn("episode", self.name("Area51x100.Documentary.mkv"))
