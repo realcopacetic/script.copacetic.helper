@@ -42,12 +42,13 @@ class ArtworkServe(unittest.TestCase):
 
     def serve(self, params: dict, on_top: bool = True) -> dict:
         """
-        Run artwork() and report what it saw and returned.
+        Run artwork() and report what it saw: logo (the clearlogo URL the image work
+        got), family (the item the family was read from), seeded (the family
+        seed_multiart got) and items (what it returned).
 
         :param params: The URL's params past the fixed ones.
         :param on_top: Whether the serve's window is topmost (else a menu is).
-        :return: logo (the clearlogo URL the image work got), family (the item the
-            family was read from), seeded (the family seed_multiart got), items.
+        :return: What it saw, by logo, family, seeded and items.
         """
         seen = {}
         labels = {SOURCE: LOGO, "Container(50).CurrentItem": "3"}
@@ -147,7 +148,15 @@ class ArtworkServe(unittest.TestCase):
 class HeldNaming(unittest.TestCase):
     """A held serve names its position only for a move that stamped no visit."""
 
-    def hold(self, params=None, lost_to="9", visit="v1", on_top=True, cursor=None):
+    def hold(
+        self,
+        params: dict | None = None,
+        lost_to: str = "9",
+        visit: str = "v1",
+        on_top: bool = True,
+        cursor: str | None = None,
+        serve: bool = False,
+    ) -> tuple[str, str, str | None]:
         """
         Hold a serve of position 7 in view 50 and report Home's counts after.
 
@@ -156,6 +165,7 @@ class HeldNaming(unittest.TestCase):
         :param visit: The live visit stamp (the URL carries v1).
         :param on_top: Whether the serve's window is topmost.
         :param cursor: The cursor stamp; None for 50/3/12/v1, empty for cleared.
+        :param serve: Run artwork(), whose real guard reads lost_to, not the hold alone.
         :return: (artwork_holds, artwork_holds_unstamped, artwork_held_primary).
         """
         home = {
@@ -164,7 +174,8 @@ class HeldNaming(unittest.TestCase):
             "artwork_holds_unstamped": "2",
             "artwork_cursor_primary": "50/3/12/v1" if cursor is None else cursor,
         }
-        here = {"Container(50).CurrentItem": "7"}  # the cursor is back already
+        # The cursor is back already; a serve's guard reads where it went instead.
+        here = {"Container(50).CurrentItem": lost_to if serve else "7"}
 
         def infolabel(label):
             if label.startswith("Window(home).Property("):
@@ -177,6 +188,7 @@ class HeldNaming(unittest.TestCase):
         handler = handlers.PluginHandlers(
             {
                 "info": "artwork",
+                "target": "50",
                 "prop_key": "9300",
                 "focus_guard": "7",
                 "cursor_key": "primary",
@@ -192,8 +204,13 @@ class HeldNaming(unittest.TestCase):
             topmost_window_id=lambda: WINDOW if on_top else MENU,
             set_items=lambda items: items,
             plugin_path=lambda name: name,
+            focused_control_id=lambda window_id: 50,
+            getCurrentWindowDialogId=lambda: 9999,
         ):
-            handler._artwork_held(lost_to)
+            if serve:
+                handler.artwork()
+            else:
+                handler._artwork_held(lost_to)
         return (
             home["artwork_holds"],
             home["artwork_holds_unstamped"],
@@ -204,6 +221,9 @@ class HeldNaming(unittest.TestCase):
 
     def test_jumpbar_move_named_though_the_cursor_is_back(self):
         self.assertEqual(self.hold(), self.NAMED)
+
+    def test_serve_names_the_position_its_guard_lost(self):
+        self.assertEqual(self.hold(serve=True), self.NAMED)
 
     def test_list_move_new_visit(self):
         self.assertEqual(self.hold(visit="v2"), self.UNNAMED)
