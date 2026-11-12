@@ -1557,6 +1557,12 @@ class ParserTest(unittest.TestCase):
     def parse(self, query):
         return parse_plugin_argv(["plugin://script.copacetic.helper/", "1", query])
 
+    def test_raw_keys_stay_encoded(self):  # clean_name's path: Kodi passes it raw
+        query = "?info=clean_name&path=https://h/Who%20Am%20I%3F.mkv&label=a%20b"
+        params = parse_plugin_argv(["plugin://x/", "1", query], raw={"path"})
+        self.assertEqual(params["path"], "https://h/Who%20Am%20I%3F.mkv")
+        self.assertEqual(params["label"], "a b")
+
     def test_empty_var_separators(self):
         # An empty $VAR leaves a trailing '&' or '&&': neither joins the value
         for query in (

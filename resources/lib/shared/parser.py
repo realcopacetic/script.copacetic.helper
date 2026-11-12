@@ -1,6 +1,6 @@
 # author: realcopacetic
 
-from typing import Iterable, Iterator
+from typing import Container, Iterable, Iterator
 import re
 import urllib.parse as urllib
 
@@ -25,13 +25,14 @@ def parse_params(argv: list[str], mode: str = "plugin") -> dict[str, str]:
     return parse_plugin_argv(argv) if mode == "plugin" else parse_script_argv(argv)
 
 
-def parse_plugin_argv(argv: list[str]) -> dict[str, str]:
+def parse_plugin_argv(argv: list[str], raw: Container[str] = ()) -> dict[str, str]:
     """
     Parse plugin argv. Accepts '?k=v&k=v' or 'k=v&k=v' in argv[2].
     Preserves raw '&' inside values by splitting only at '&KEY=' ('&&KEY=') or a
     trailing '&'.
 
     :param argv: sys.argv list; querystring is expected in argv[2].
+    :param raw: Keys whose values stay as Kodi passed them, not URL-decoded.
     :return: Dict of parsed key-value parameter pairs.
     """
     q = ""
@@ -40,7 +41,7 @@ def parse_plugin_argv(argv: list[str]) -> dict[str, str]:
     if not q:
         return {}
     q = q.replace("&amp;", "&")
-    return {k: urllib.unquote(v) for k, v in _PLUGIN_KV.findall(q)}
+    return {k: v if k in raw else urllib.unquote(v) for k, v in _PLUGIN_KV.findall(q)}
 
 
 def parse_script_argv(argv: list[str]) -> dict[str, str]:

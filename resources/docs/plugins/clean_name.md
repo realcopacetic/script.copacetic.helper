@@ -4,10 +4,13 @@ Turns a file name such as `Batman.Begins.2005.1080p.BluRay.x264.mkv` into someth
 readable, with Kodi's own clean-up (`xbmc.getCleanMovieTitle`, which follows the user's
 `cleanstrings` in `advancedsettings.xml`). Use it for files outside the library, whose
 labels are their file names. The name is read from the path as Kodi reads it: a web or
-DAV path's options (`?token=…`, `|User-Agent=…`) and URL-encoding don't get in the way,
-and a `stack://` path gives the stack's name (Kodi's own stacking rules). Kodi decodes
-the plugin URL's values once, so a web or DAV name with an encoded `%` or `+` in it can
-clean a little differently from the player's; and a `|` in a file name ends the value.
+DAV path's `?` options and URL-encoding don't get in the way, and a `stack://` path
+gives the stack's name (Kodi's own stacking rules).
+
+Pass the path with `$INFO`, not URL-encoded: Kodi hands the plugin URL's values over
+raw and the helper reads `path` as it comes. One limit: a `|` in the path (a file name
+with one, or `|User-Agent=…` options) ends the plugin query there, so `label` is lost
+and a skin matching on it shows nothing.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=clean_name&amp;path=$INFO[ListItem.FileNameAndPath]&amp;label=$INFO[ListItem.Label]</content>
