@@ -233,11 +233,7 @@ def play_files(songs: list[dict], position: int = 0, shuffled: bool = False) -> 
         xbmc.PlayList(xbmc.PLAYLIST_VIDEO).clear()
         playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
         playlist.clear()  # keeps a previous shuffle's flag: set it explicitly below
-        for song in songs:
-            item = ListItem(song["file"], offscreen=True)  # a bare add's label
-            if "songid" in song:
-                item.getMusicInfoTag().setDbId(song["songid"], "song")
-            playlist.add(song["file"], item)
+        add_songs(playlist, songs)
         if shuffled:
             playlist.shuffle()
         else:
@@ -245,6 +241,20 @@ def play_files(songs: list[dict], position: int = 0, shuffled: bool = False) -> 
     finally:
         window_property("playlist_replacing")
     xbmc.Player().play(playlist, startpos=position)
+
+
+def add_songs(playlist: xbmc.PlayList, songs: list[dict]) -> None:
+    """
+    Appends songs to a playlist by real path, each tagged with its songid if any.
+
+    :param playlist: The playlist.
+    :param songs: Song dicts with file, and songid for library songs.
+    """
+    for song in songs:
+        item = ListItem(song["file"], offscreen=True)  # a bare add's label
+        if "songid" in song:
+            item.getMusicInfoTag().setDbId(song["songid"], "song")
+        playlist.add(song["file"], item)
 
 
 def condition(condition: str) -> bool:

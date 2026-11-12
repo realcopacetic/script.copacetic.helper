@@ -1,7 +1,7 @@
 # Library Listings
 
 These plugin paths fill a container with items from your video library (`random_albums`,
-`genre_music`, `random_genre` with a music type, `top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
+`rediscover`, `daily_mixes`, `genre_music`, `random_genre` with a music type, `top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
 library infolabels and artwork, so your existing layouts work with them.
 
 | `info=` | What it lists |
@@ -11,6 +11,8 @@ library infolabels and artwork, so your existing layouts work with them.
 | `random_movies` | Movies in random order. |
 | `random_tvshows` | TV shows in random order. |
 | `random_albums` | Music library albums in random order. |
+| `rediscover` | Library songs you haven't played in 90 days that you played five times or more, or liked, in random order. |
+| `daily_mixes` | Today's mixes from your listening: one card per leading genre. |
 | `random_genre` | Movies, TV shows, albums or artists from one genre, the genre itself picked at random. |
 | `cast` | A library movie's, TV show's or episode's cast, in billing order. |
 | `actor_credits` | Movies and TV shows with a given actor. |
@@ -142,6 +144,46 @@ as `musicdb://` folders. The container's content is `albums`.
 
 `sortby="userpreference"` keeps the helper's order, as for
 [`genre_music`](#genre_music).
+
+## `rediscover`
+
+Library songs not played in the last 90 days that you played five times or more, or
+rated at or above `Skin.String(like_threshold)` (when that is `1` to `10`); a liked
+song never played counts too. Songs are not folders: their path is the file. The container's
+content is `songs`.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `limit` | whole number | — | Most songs to return. |
+| `randomise` | any text | — | A seed, as for [`random_albums`](#random_albums). |
+
+```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=rediscover&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
+```
+
+## `daily_mixes`
+
+Up to six mix cards made from the songs you played in the last 30 days. Each card is
+one genre: the genres are ranked by the plays of those songs, and each needs three
+artists in it. Its three most played artists lead it; a genre whose first artist
+already leads a card is passed over, so the cards differ. The cards are worked out on
+the day's first call and kept in the helper's cache for the day, so they don't move
+while today's plays change what was played last.
+
+Each card's label is *Genre* mix and its `Label2` its lead artists, joined with `, `.
+Its art is the first artist's, with `DefaultMusicGenres.png` as the icon.
+`ListItem.Property(mix_genreid)` holds the genre's id. A card's path opens the genre
+(`musicdb://genres/<id>/`). To play the mix instead, give the list a click that runs
+[`start_mix`](../script/actions.md#start_mix) with `type=daily`:
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `limit` | whole number | — | Most cards to return. |
+
+```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=daily_mixes</content>
+<onclick>RunScript(script.copacetic.helper,action=start_mix,type=daily,id=$INFO[ListItem.Property(mix_genreid)])</onclick>
+```
 
 ## `random_genre`
 

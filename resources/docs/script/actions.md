@@ -97,7 +97,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`shuffle_artist`](#shuffle_artist) | Plays all of an artist's songs, shuffled |
 | [`size_identity`](#size_identity) | Sizes the video OSD's logo control to the playing item's logo |
 | [`skip_segment`](#skip_segment) | Seeks past the intro, recap or credits in play |
-| [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year |
+| [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year, or one of today's mixes |
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
 | [`tmdb_test`](#tmdb_test) | Checks the TMDb token |
 | [`toggle_addon`](#toggle_addon) | Enables or disables an add-on |
@@ -1243,6 +1243,10 @@ Kodi's shuffle turned off.
   song's genres. A first song with no genre takes the genres of its artist's other
   songs; if none of them has one either, the mix is songs by its artist only.
 - **Genre or year:** 50 random songs of that genre or year.
+- **Daily:** one of today's mixes, as the [`daily_mixes`](../plugins/library.md#daily_mixes)
+  cards show them, by its genre's id: 50 songs, about 15 of them by its three lead
+  artists, spread through the rest of the genre. If the day has turned since the card
+  loaded and that genre leads no mix today, it plays the genre's own mix.
 
 If the album or artist has no songs, or the song is not found, nothing changes: what
 was playing carries on. A genre or year with no songs clears the playlists and plays
@@ -1250,8 +1254,8 @@ nothing.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `type` | `song`, `album`, `artist`, `genre`, `year` | `song` | What the mix is built around |
-| `id` | database id, or the year itself for `year` | `ListItem.DBID` (not for `genre` or `year`) | The item |
+| `type` | `song`, `album`, `artist`, `genre`, `year`, `daily` | `song` | What the mix is built around |
+| `id` | database id (a genre's for `daily`), or the year itself for `year` | `ListItem.DBID` (not for `genre`, `year` or `daily`) | The item |
 
 A mix from a song, album or artist adds that item to the
 [speed dial](../plugins/speed_dial.md) recent list.

@@ -22,6 +22,7 @@ from resources.lib.service.trailer import (
     trailer_source,
 )
 from resources.lib.shared import logger as log
+from resources.lib.shared.mix import artist_genres, mix_songs
 from resources.lib.shared.speed_dial import (
     SpeedDial,
     clear_properties,
@@ -30,6 +31,7 @@ from resources.lib.shared.speed_dial import (
 )
 from resources.lib.shared.streams import player_streams, subtitle_status
 from resources.lib.shared.utilities import (
+    add_songs,
     condition,
     file_clean_name,
     infolabel,
@@ -43,6 +45,12 @@ from resources.lib.shared.utilities import (
 
 # No modal (9999) or a busy dialog (10138, 10160): a trailer resolve shows one.
 _NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
+# The endless queue: on, and Kodi isn't refilling or looping the queue itself
+ENDLESS_QUEUE = (
+    "Skin.HasSetting(endless_queue) + !MusicPartyMode.Enabled + !Playlist.IsRepeat"
+)
+QUEUE_LOW = 10  # it grows once fewer songs than this follow the playing one
+QUEUE_GROWTH = 10  # songs it adds then
 
 
 def _videodb_path(path: str, rules: list[dict], **xsp: Any) -> str:
@@ -488,6 +496,8 @@ class PlayerMonitor(Player):
             | {f"player_artistid_{i}": str(a) for i, a in enumerate(artistids[:3], 1)}
         )
         self._record_speed_dial(songid)
+        if songid > 0 and condition(ENDLESS_QUEUE):
+            self._extend_queue(artists, tag.getGenres())
 
     def _album_path(self, albumid: int) -> str:
         """
@@ -499,8 +509,27 @@ class PlayerMonitor(Player):
         """
         if albumid <= 0:
             return ""
-        # The queue is read once per queue (a long one costs a moment), the album once
-        # per album in it
+        # The album is read once per album in a queue
+        queue = _queue_key(PlayList(PLAYLIST_MUSIC))
+        if (key := (queue, albumid)) != self._album_queue[0]:
+            album = json_call(
+                "AudioLibrary.GetSongs",
+                query_filter={"albumid": albumid},
+                params={"includesingles": True},  # else a single's songs are left out
+                parent="now_playing_album",
+            )
+            songs = {s["songid"] for s in album.get("result", {}).get("songs", [])}
+            self._album_queue = (key, self._queue_ids() == songs)
+        # Not musicdb://albums/<id>/: a two-disc album lists its discs, folders a
+        # dialog's rail can't open
+        return "" if self._album_queue[1] else f"musicdb://songs/?albumid={albumid}"
+
+    def _queue_ids(self) -> set[int | None]:
+        """
+        The music queue's song ids, read once per queue (a long one costs a moment).
+
+        :return: Its items' library ids; None for an item outside the library.
+        """
         queue = _queue_key(PlayList(PLAYLIST_MUSIC))
         if queue != self._queue_songs[0]:
             items = json_call(
@@ -510,18 +539,36 @@ class PlayerMonitor(Player):
             )
             ids = {item.get("id") for item in items.get("result", {}).get("items", [])}
             self._queue_songs = (queue, ids)
-        if (key := (queue, albumid)) != self._album_queue[0]:
-            album = json_call(
-                "AudioLibrary.GetSongs",
-                query_filter={"albumid": albumid},
-                params={"includesingles": True},  # else a single's songs are left out
-                parent="now_playing_album",
+        return self._queue_songs[1]
+
+    def _extend_queue(self, artists: list[str], genres: list[str]) -> None:
+        """
+        Endless queue: once fewer than QUEUE_LOW songs follow the playing one, append
+        QUEUE_GROWTH from a mix seeded by it, none already queued.
+
+        :param artists: The playing song's artists.
+        :param genres: Its genres.
+        """
+        position = (
+            json_call(
+                "Player.GetProperties",
+                params={"playerid": 0, "properties": ["position"]},
+                parent="endless_queue",
             )
-            songs = {s["songid"] for s in album.get("result", {}).get("songs", [])}
-            self._album_queue = (key, self._queue_songs[1] == songs)
-        # Not musicdb://albums/<id>/: a two-disc album lists its discs, folders a
-        # dialog's rail can't open
-        return "" if self._album_queue[1] else f"musicdb://songs/?albumid={albumid}"
+            .get("result", {})
+            .get("position", -1)
+        )  # -1 unless playing from the music queue
+        playlist = PlayList(PLAYLIST_MUSIC)
+        if position < 0 or playlist.size() - position - 1 >= QUEUE_LOW:
+            return
+        queued = self._queue_ids()
+        songs = mix_songs(
+            artists, genres or artist_genres(artists), QUEUE_GROWTH, queued
+        )
+        add_songs(playlist, songs)
+        # The same queue, grown: keep its reads, and speed dial must not count it new
+        self._dial_queue = _queue_key(playlist)
+        self._queue_songs = (self._dial_queue, queued | {s["songid"] for s in songs})
 
     def _record_speed_dial(self, songid: int) -> None:
         """
