@@ -375,15 +375,17 @@ by play count. With one on, its order stands.
 
 | Situation | Top songs | Discography |
 |---|---|---|
-| Both answer | The blend | The blend, then unranked albums newest first |
-| One is off, unreachable or doesn't know the artist | That source's order | That source's order, then newest first |
-| Neither answers | Nothing (a skin hides the list; its *Most played* list stays) | Newest first |
+| Both rank library songs | The blend | The blend, then unranked albums newest first |
+| One is off, unreachable with nothing saved, or ranks none of the library's songs | The other source's order | The other source's order, then newest first |
+| Neither ranks any | Nothing (a skin hides the list; its *Most played* list stays) | Newest first |
 
-An unreachable source shows its saved answer when there is one, however old, and is
-asked again after five minutes. Neither source on sends nothing.
+An unreachable source still counts with its saved answer, however old (a saved answer
+expired over 30 days and unread since is pruned). It is asked again after five
+minutes; after a "too many requests" answer, after the wait it gives (a minute when it
+gives none). Neither source on sends nothing.
 
-**Add-on settings needed** (each is the user's consent; with neither, the path
-returns nothing, sends nothing and reads no cache):
+**Add-on settings** (with neither on, the path returns nothing, sends nothing and
+reads no cache):
 
 - **ListenBrainz user token** (`listenbrainz_token`, empty by default): the token from
   the user's free ListenBrainz account (listenbrainz.org/settings). ListenBrainz
@@ -391,7 +393,9 @@ returns nothing, sends nothing and reads no cache):
   `Authorization: Token <token>` with the artist's MusicBrainz ID.
   **Test ListenBrainz access** checks it. A skin can test for it with
   `!String.IsEmpty(Addon.SettingStr(script.copacetic.helper,listenbrainz_token))`.
-- **Rank music with Deezer** (`deezer`, on by default): Deezer needs no account; the
+- **Rank music with Deezer** (`deezer`, on by default since 12 Nov 2026; Kodi resets
+  a value saved at the old default, so existing installs switch it on too): Deezer
+  needs no account; the
   helper sends the artist's name (a search) and a Deezer artist id, nothing else, and
   keeps only ids, titles and album titles (no images or audio). A skin can test for
   it with `Addon.SettingBool(script.copacetic.helper,deezer)`.

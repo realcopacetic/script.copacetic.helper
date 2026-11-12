@@ -25,7 +25,7 @@ TITLE = 500  # characters kept of a title: Deezer's answer is not ours to trust
 
 
 def enabled() -> bool:
-    """True when the user turned Deezer on, which is their consent."""
+    """True while Rank music with Deezer is on (the default); off sends nothing."""
     return ADDON.getSettingBool("deezer")
 
 
