@@ -112,7 +112,8 @@ def mix_songs(
         return picked
 
     by_artist = {"field": "artist", "operator": "is", "value": artists}
-    own = pick(by_artist, max(1, round(size * share)))
+    want = max(1, round(size * share))
+    own = pick(by_artist, want)
     rest = size - len(own)
     others = (
         pick({**by_artist, "value": [*similar]}, rest, SIMILAR_CAP) if similar else []
@@ -121,7 +122,8 @@ def mix_songs(
         genre_rule = {"field": "genre", "operator": "is", "value": genres}
         not_theirs = {**by_artist, "operator": "isnot", "value": [*artists, *similar]}
         others += pick({"and": [genre_rule, not_theirs]}, rest - len(others))
-    own += pick(by_artist, rest - len(others))
+    if len(own) == want:  # else the artists have no more
+        own += pick(by_artist, rest - len(others))
     return spread(own, random.sample(others, len(others)))
 
 

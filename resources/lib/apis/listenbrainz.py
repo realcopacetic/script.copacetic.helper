@@ -128,8 +128,8 @@ def top_release_groups(mbid: str) -> list[list[str]]:
 
 def similar_artists(mbid: str) -> list[str]:
     """
-    Names of the artists most like artist mbid, by LB Radio's closest ("easy") mode,
-    in its order.
+    Names of artists like artist mbid: LB Radio's closest ("easy") mode, a random
+    pick from its similarity bands, unordered.
 
     :param mbid: Artist MusicBrainz id.
     :return: Artist names, possibly empty.

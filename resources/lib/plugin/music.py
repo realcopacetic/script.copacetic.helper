@@ -400,7 +400,7 @@ def similar_artists(artistid: int, parent: str) -> list[str]:
         )
         scores = fused([(WEIGHTS["deezer"], map(fold, related))])
     if mbid and listenbrainz.enabled():
-        similar = {*map(fold, listenbrainz.similar_artists(mbid))}
+        similar = dict.fromkeys(map(fold, listenbrainz.similar_artists(mbid)))
         middle = WEIGHTS["listenbrainz"] / (K + (len(similar) + 1) / 2)
         scores.update(dict.fromkeys(similar, middle))
     scores.pop(fold(name), None)

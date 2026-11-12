@@ -502,6 +502,8 @@ class PlayerMonitor(Player):
             and condition(ENDLESS_QUEUE)
             and self._extend_queue(artists, artistids, tag.getGenres())
         ):
+            if not self.isPlayingAudio() or self.getMusicInfoTag().getDbId() != songid:
+                return  # the next song published its own while the queue grew
             # The album path compared the queue before it grew
             album_path = self._album_path(item.get("albumid", 0))
             window_property("player_album_path", value=album_path)
