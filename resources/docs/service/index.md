@@ -186,7 +186,7 @@ back with the next play, speed dial change or slide.
 | `player_albumartist` | A song starts | Album artist | As above | [Player properties](player.md) |
 | `player_album` | A song starts | Album title | As above | [Player properties](player.md) |
 | `player_albumid` | A song starts | Album database id | As above | [Player properties](player.md) |
-| `player_album_path` | A song starts | The album's folder, `musicdb://albums/<id>/`; empty outside the library or when the music queue is exactly this album's songs | As above | [Player properties](player.md) |
+| `player_album_path` | A song starts | The album's songs, every disc in one list, `musicdb://songs/?albumid=<id>`; empty outside the library or when the music queue is exactly this album's songs | As above | [Player properties](player.md) |
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
 | `player_genres` | A song starts | The song's genres, joined with ` / ` | As above | [Player properties](player.md) |
 | `player_songid` | A song starts | Song database id, for matching the others to `MusicPlayer.DBID` | As above | [Player properties](player.md) |
