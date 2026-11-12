@@ -117,7 +117,8 @@ def _queue_key(playlist: PlayList) -> tuple[int, str] | None:
 
 def _publish_seek(offset: str = "", chapter: str = "") -> None:
     """
-    Publish the last seek: its jump, or the chapter a chapter jump went to; empty clears.
+    Publish the last seek: its jump, or the chapter a chapter jump went to.
+    Empty clears.
 
     :param offset: The jump, signed as Player.SeekOffset is (+10:00).
     :param chapter: The chapter number a chapter jump went to.
@@ -235,7 +236,7 @@ class PlayerMonitor(Player):
 
     def onPlayBackSeekChapter(self, chapter: int) -> None:
         """
-        A chapter jump reports no offset: publish its chapter as
+        A chapter jump's offset isn't reliable: publish its chapter as
         player_seek_chapter in place of the last seek's jump.
 
         :param chapter: The chapter sought to.

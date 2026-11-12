@@ -82,9 +82,11 @@ song, as a fallback for that label.
 | `player_seek_chapter` | The chapter a chapter jump went to (`4`) | A chapter jump finishes |
 
 A chapter jump (Kodi's `ChapterOrBigStepForward` in a file with chapters, or
-`ChapterOrBigStepBack`) reports no jump, so it sets `player_seek_chapter` instead, and a
-seek with a jump clears it. Show the chapter's name (`Player.ChapterName`) while it is
-set and `Player.HasPerformedSeek` holds. Both are cleared:
+`ChapterOrBigStepBack`) reports no reliable jump, so it sets `player_seek_chapter`
+instead, and any other seek clears it. While it is set and `Player.HasPerformedSeek`
+holds, show the chapter's name (`Player.ChapterName`) in place of a jump label: hide
+any jump label then, as Kodi's `Player.SeekOffset` can hold a stray value after a chapter
+jump. Both are cleared:
 
 - once Kodi's own seek display is over: 4 seconds after the seek, when
   `Player.HasPerformedSeek(4)` is no longer true;
