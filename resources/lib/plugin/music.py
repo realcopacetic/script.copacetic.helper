@@ -63,7 +63,9 @@ ALBUM_RANK_PROPERTIES = [
 SONG_RANK_PROPERTIES = [*_DETAILS["song"][1], "art", "musicbrainztrackid", "playcount"]
 ALBUM_SONG_PROPERTIES = ["album", "albumid", "musicbrainztrackid", "title", "year"]
 K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
-WEIGHTS = {"deezer": 1.0, "listenbrainz": 1.0}  # what's streamed now, all-time
+# What's streamed now counts double all-time listening: closest to Spotify and YouTube
+# Music, new albums included (coding-notes audits/2026-11-12-music-popularity.md)
+WEIGHTS = {"deezer": 2.0, "listenbrainz": 1.0}
 OVERLAP = 3  # song titles in common that identify an artist with no album in common
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)

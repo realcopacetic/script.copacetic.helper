@@ -323,9 +323,23 @@ most played first. Two sources rank them, each used when it is on:
 
 With both on, each source's list becomes places among the songs the library has
 (a source's songs the library lacks take no place; a title listed twice counts once,
-at its first place), and a song scores `1 / (10 + place)` in each list that has it,
-summed (reciprocal rank fusion): songs both rank lead, then the two lists alternate.
-Equal scores go by play count. With one on, its order stands.
+at its first place), and a song scores `weight / (10 + place)` in each list that has
+it, summed (reciprocal rank fusion). Deezer's weight is 2, ListenBrainz's 1: what is
+streamed now counts double all-time listening, which put the result closest to
+Spotify's and YouTube Music's own top 10s, a new album included, in a comparison over
+five artists (coding-notes `audits/2026-11-12-music-popularity.md`). Equal scores go
+by play count. With one on, its order stands.
+
+**When a source is missing.** Each source counts only when it is on and answers:
+
+| Situation | Top songs | Discography |
+|---|---|---|
+| Both answer | The blend | The blend, then unranked albums newest first |
+| One is off, unreachable or doesn't know the artist | That source's order | That source's order, then newest first |
+| Neither answers | Nothing (a skin hides the list; its *Most played* list stays) | Newest first |
+
+An unreachable source shows its saved answer when there is one, however old, and is
+asked again after five minutes. Neither source on sends nothing.
 
 **Add-on settings needed** (each is the user's consent; with neither, the path
 returns nothing, sends nothing and reads no cache):
