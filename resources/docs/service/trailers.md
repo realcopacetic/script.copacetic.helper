@@ -216,7 +216,8 @@ the item whose trailer it just started, so the trailer doesn't start again on th
 next focus. The service clears it when a trailer fails to play or a request is
 retired, so the item can try again. A retired request clears it only while it still
 names that request's item: a newer item may have set it before its own request
-arrived.
+arrived. Likewise a trailer that fails while a newer request waits behind it leaves
+the stamp, which is that request's.
 
 ## What your skin should do
 
