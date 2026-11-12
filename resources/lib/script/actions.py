@@ -586,7 +586,8 @@ def playlist_goto(position: str, **kwargs: str) -> None:
 def play_trailer(trailer: str, **kwargs: str) -> None:
     """
     Request a trailer, stamping the item it is for so a stale start is parked.
-    It plays at once, or when the trailer still resolving ahead of it lands.
+    It plays at once, or when the trailer still resolving ahead of it lands; one
+    already playing for the same item and window plays on.
 
     :param trailer: Player path or plugin URL to play.
     :param item: Item label captured skin-side, atomic with the trailer URL.
@@ -598,6 +599,12 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     """
     if not trailer:
         return
+    playing = ("playing", trailer, kwargs.get("item", ""), kwargs.get("window", ""))
+    if playing == tuple(
+        infolabel(f"Window(home).Property(trailer_{key})")
+        for key in ("state", "request", "item", "window")
+    ):
+        return  # landed after a quick away-and-back: the return's rest asks again
 
     window_property("trailer_state", value="pending")
     window_property("trailer_request", value=trailer)
