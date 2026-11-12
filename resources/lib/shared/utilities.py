@@ -243,17 +243,20 @@ def play_files(songs: list[dict], position: int = 0, shuffled: bool = False) -> 
     xbmc.Player().play(playlist, startpos=position)
 
 
-def add_songs(playlist: xbmc.PlayList, songs: list[dict]) -> None:
+def add_songs(playlist: xbmc.PlayList, songs: list[dict], **properties: str) -> None:
     """
-    Appends songs to a playlist by real path, each tagged with its songid if any.
+    Appends songs to a playlist by real path, each tagged with its songid if any
+    and given properties, which the player's item keeps (MusicPlayer.Property).
 
     :param playlist: The playlist.
     :param songs: Song dicts with file, and songid for library songs.
+    :param properties: ListItem properties for every song.
     """
     for song in songs:
         item = ListItem(song["file"], offscreen=True)  # a bare add's label
         if "songid" in song:
             item.getMusicInfoTag().setDbId(song["songid"], "song")
+        item.setProperties(properties)
         playlist.add(song["file"], item)
 
 
