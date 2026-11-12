@@ -57,6 +57,11 @@ library infolabels and artwork, so your existing layouts work with them.
   the album's artist credit in `ListItem.Artist`, as Kodi's own album items do, for
   example `JAY-Z & Kanye West`. So it matches `ListItem.AlbumArtist` on the album's
   songs. Songs carry their artist names joined with ` / `.
+- Music artists (`random_genre` and `genre_music` with artists) carry the details Kodi's
+  own artist items carry as properties: `ListItem.Property(artist_type)` (for example
+  `Person` or `Group`), `artist_born`, `artist_died`, `artist_formed`,
+  `artist_disbanded` and `artist_yearsactive`. Use `artist_type` to choose between born
+  and died, or formed and disbanded.
 
 ---
 
