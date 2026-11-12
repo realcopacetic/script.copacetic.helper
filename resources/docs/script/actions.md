@@ -1342,15 +1342,6 @@ checks the playhead is still inside):
 <onclick condition="$EXP[skip_live]">RunScript(script.copacetic.helper,action=skip_segment,seek=$INFO[Window(home).Property(player_skip_seek)])</onclick>
 ```
 
----|---|---|---|
-| `seek` | Seconds | required | Where to seek to |
-
-Example from Copacetic, the skip button's OK, its `onload` having held the values:
-
-```xml
-<onclick condition="$EXP[skip_live]">RunScript(script.copacetic.helper,action=skip_segment,seek=$INFO[Window(1191).Property(skip_seek)])</onclick>
-```
-
 ---
 
 ## tmdb_test
