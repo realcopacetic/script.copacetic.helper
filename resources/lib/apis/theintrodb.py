@@ -110,6 +110,6 @@ def segments(
             (TTL_HIT, TTL_EMPTY),
             NEXT_CALL,
         )
-        if found != []:  # an answer, or a failure that the other ids would share
+        if found != []:  # an answer, or a failure (the other ids would fail alike)
             return found or {}
     return {}

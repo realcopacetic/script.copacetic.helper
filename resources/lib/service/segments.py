@@ -203,10 +203,8 @@ class Segments:
             return
         start = self.starts[chapter - 1]
         end = self.starts[chapter] if chapter < len(self.starts) else None
-        if end is None:
-            if kind not in theintrodb.OPEN_ENDED:
-                return
-            self.credits = None
+        if end is None and kind not in theintrodb.OPEN_ENDED:
+            return
         over = [s for s in self.spans if s[1] > start and not (end and s[0] >= end)]
         self.spans = [s for s in self.spans if s not in over]
         # Keep an earlier start of the same kind: a dismissal names that start
