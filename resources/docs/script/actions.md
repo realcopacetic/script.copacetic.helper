@@ -95,6 +95,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`set_search_query`](#set_search_query) | Copies an edit control's text into a window property |
 | [`shuffle`](#shuffle) | Plays an artist, album, genre, year or music playlist, shuffled |
 | [`shuffle_artist`](#shuffle_artist) | Plays all of an artist's songs, shuffled |
+| [`size_identity`](#size_identity) | Sizes the video OSD's logo control to the playing item's logo |
 | [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year |
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
 | [`tmdb_test`](#tmdb_test) | Checks the TMDb token |
@@ -1289,6 +1290,23 @@ Example from Copacetic, in the video OSD:
 
 ```xml
 <onclick condition="Skin.String(Subtitle_Limiter)">RunScript(script.copacetic.helper,action=subtitle_limiter,lang=$INFO[Skin.String(Subtitle_Limiter)])</onclick>
+```
+
+---
+
+## size_identity
+
+Sizes control `4045` in the topmost window (the video OSD) to the playing item's logo,
+as the service does for the seek bar dialog when a video starts, then sets
+`player_identity_videoosd`. See
+[Identity and clean names](../service/player.md#identity-and-clean-names). Takes no
+params.
+
+Example from Copacetic, in the video OSD; it runs only when the OSD isn't sized for this
+logo yet:
+
+```xml
+<onload condition="!String.IsEqual(Window(home).Property(player_identity_videoosd),Window(home).Property(player_clearlogo))">RunScript(script.copacetic.helper,action=size_identity)</onload>
 ```
 
 ---

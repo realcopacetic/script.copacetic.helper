@@ -28,6 +28,7 @@ from resources.lib.shared.utilities import (
     split_random,
     to_int,
     topmost_window_id,
+    window_property,
 )
 
 # Music genres are single names ("Drum & Bass"); " & " joins TMDb's video ones
@@ -35,6 +36,10 @@ _WHOLE_GENRES = frozenset({"album", "artist", "song", "musicvideo"})
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
 _CLAMP_VERSION = "5"
+
+# The identity lockup's logo (osd.xml blk_osd_identity) and its box, W x H
+IDENTITY_LOGO_ID = 4045
+IDENTITY_LOGO_BOX = (600, 90)
 
 # Skin authoring resolution; Kodi rasterises fonts at size * ScreenHeight / height.
 _SKIN_WIDTH = 1920
@@ -48,6 +53,7 @@ def reposition_control(
     y: int | None = None,
     w: int | None = None,
     h: int | None = None,
+    window_id: int | None = None,
 ) -> None:
     """
     Set any provided geometry on a control; unset axes are left untouched.
@@ -59,16 +65,18 @@ def reposition_control(
     :param y: New top in px, or None to leave unchanged.
     :param w: New width in px, or None to leave unchanged.
     :param h: New height in px, or None to leave unchanged.
+    :param window_id: A loaded window other than the topmost, holding the control.
     """
-    window_id = topmost_window_id()
-    # Probe first: a getControl miss logs an engine error even when caught.
-    # Control.IsEnabled reads the same window and is false for a missing control.
-    if not condition(f"Control.IsEnabled({control_id})"):
-        log.debug(
-            f"reposition_control: control {control_id} not found "
-            f"in window {window_id}"
-        )
-        return
+    if window_id is None:  # a caller naming a window vouches for the control
+        window_id = topmost_window_id()
+        # Probe first: a getControl miss logs an engine error even when caught.
+        # Control.IsEnabled reads the same window and is false for a missing control.
+        if not condition(f"Control.IsEnabled({control_id})"):
+            log.debug(
+                f"reposition_control: control {control_id} not found "
+                f"in window {window_id}"
+            )
+            return
     window = Window(window_id)  # keep: the window holds the control's only native ref
     ctrl = window.getControl(control_id)
 
@@ -83,6 +91,20 @@ def reposition_control(
         ctrl.setHeight(h)
     if x is not None and y is not None:
         ctrl.setPosition(x, y)
+
+
+def size_identity(window: str, window_id: int | None = None) -> None:
+    """
+    Fit the identity lockup's logo control to the playing item's logo, so the label
+    beside it follows, then stamp the window sized for that logo.
+
+    :param window: The window's name in player_identity_<window>.
+    :param window_id: Its id when it isn't the topmost window.
+    """
+    if width := to_int(infolabel("Window(home).Property(player_clearlogo_width)")):
+        reposition_control(IDENTITY_LOGO_ID, w=width, window_id=window_id)
+    logo = infolabel("Window(home).Property(player_clearlogo)")
+    window_property(f"player_identity_{window}", value=logo)
 
 
 def fit_height(fit: str, src_w: int, src_h: int) -> int | None:

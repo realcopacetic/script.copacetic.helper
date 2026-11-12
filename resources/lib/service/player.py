@@ -1,14 +1,19 @@
 # author: realcopacetic
 
 import json
+import os
 import random
 import time
+from functools import cached_property
 from typing import Any
 from urllib.parse import quote
 
 from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
 
+from resources.lib.art.editor import ImageEditor
+from resources.lib.plugin.helpers import IDENTITY_LOGO_BOX, size_identity
+from resources.lib.plugin.opts import ArtOpts
 from resources.lib.service import playnext
 from resources.lib.service.trailer import (
     TrailerZoomController,
@@ -25,17 +30,22 @@ from resources.lib.shared.speed_dial import (
 )
 from resources.lib.shared.streams import player_streams, subtitle_status
 from resources.lib.shared.utilities import (
+    clean_name,
     condition,
     infolabel,
     json_call,
     session_salt,
     split_random,
     to_float,
+    to_int,
     window_property,
 )
 
 # No modal (9999) or a busy dialog (10138, 10160): a trailer resolve shows one.
 _NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
+
+# The windows that mount the identity lockup: the seek bar dialog and the video OSD
+_SEEKBAR_ID, _VIDEOOSD_ID = 10115, 12901
 
 
 def _videodb_path(path: str, rules: list[dict], **xsp: Any) -> str:
@@ -152,6 +162,7 @@ class PlayerMonitor(Player):
         SpeedDial().publish()
         if self.isPlaying():
             self.onAVStarted()
+            window_property("player_start")  # entered mid-playback: no start label
 
     def release(self) -> None:
         """
@@ -298,18 +309,20 @@ class PlayerMonitor(Player):
         """
         Publish video properties on start: parent ids with the rails' paths (an
         episode's next and its season's; a set's name and other films), subtitle
-        type, stream count, genre and director picks; note Play next's successor.
+        type, stream count, genre and director picks, identity; Play next's successor.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
         media_type = tag.getMediaType()
+        path = infolabel("Player.Filenameandpath")
         # Always published, so stop clears what actions write later; with no lang
         # here it is never missing until the skin's player_stream_refresh passes one
         props = {
             "player_subtitle_kind": subtitle_status(*player_streams("subtitle")),
             "player_video_count": str(len(self.getAvailableVideoStreams())),
+            "player_start": path,  # the skin's video_start timer clears it
         }
-        props |= self._picks(tag)
+        props |= self._picks(tag) | self._identity(tag, path)
         self._successor = ""
 
         if media_type == "episode":
@@ -348,6 +361,50 @@ class PlayerMonitor(Player):
                     type="movies",
                 )
         self._publish(props)
+        size_identity("seekbar", _SEEKBAR_ID)
+        if condition("Window.IsVisible(videoosd)"):  # Next with the OSD up
+            size_identity("videoosd", _VIDEOOSD_ID)
+
+    @cached_property
+    def _image_editor(self) -> ImageEditor:
+        """The artwork cache and processor, built on the first logo."""
+        return ImageEditor()
+
+    def _identity(self, tag: InfoTagVideo, path: str) -> dict[str, str]:
+        """
+        The identity lockup's logo, cropped, with its width in the lockup's box; for
+        a file outside the library whose title is its file name, a clean name.
+
+        :param tag: The playing video's info tag.
+        :param path: The playing file.
+        :return: player_clearlogo(_width) and player_clean_* properties, if any.
+        """
+        props = {}
+        name = os.path.basename(path)
+        untitled = {"", name, os.path.splitext(name)[0]}  # Kodi titles it by its file
+        if tag.getDbId() <= 0 and tag.getTitle() in untitled:
+            props |= {f"player_clean_{k}": v for k, v in clean_name(path).items()}
+        logo = infolabel("VideoPlayer.Art(clearlogo)") or infolabel(
+            "VideoPlayer.Art(tvshow.clearlogo)"
+        )
+        if not logo:
+            return props
+        art = self._image_editor.image_processor(
+            jobs={"clearlogo": ("crop",)},
+            art_opts={
+                "clearlogo": ArtOpts.from_params(
+                    {"clearlogo_url": logo, "clearlogo_crop": "true"}, "clearlogo"
+                )
+            },
+        )
+        box_w, box_h = IDENTITY_LOGO_BOX
+        w, h = (to_int(art.get(f"clearlogo_{k}")) for k in ("width", "height"))
+        return props | {
+            "player_clearlogo": art.get("clearlogo") or logo,
+            "player_clearlogo_width": str(
+                min(box_w, round(box_h * w / h)) if h else box_w
+            ),
+        }
 
     @staticmethod
     def _picks(tag: InfoTagVideo) -> dict[str, str]:

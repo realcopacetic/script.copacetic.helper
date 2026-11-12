@@ -36,8 +36,33 @@ Trailers started with `action=play_trailer` do not set these properties. See
 | `player_genre_query` | One of the video's genres, as the library names it (`Action & Adventure`) | A video with a genre starts (an episode has its show's) |
 | `player_genre` | The same pick, cleaned for a label (`Adventure`), as `metadata` does | As above |
 | `player_director` | One of the video's directors | A video with a director starts |
+| `player_start` | The playing file's path, for a skin's start-of-playback label; a skin clears it when its label is done | A video starts, not when the skin is entered mid-playback |
+| `player_clearlogo` | The playing item's clearlogo (an episode's show's), cropped to its visible edges; the original if cropping fails | A video with a clearlogo starts |
+| `player_clearlogo_width` | That logo's width when fitted into a 600 x 90 box, in skin pixels | As above |
+| `player_identity_<window>` | `player_clearlogo` once that window's logo control is sized to it (`seekbar`, `videoosd`) | A video starts; for `videoosd`, also the [`size_identity`](../script/actions.md#size_identity) action |
+| `player_clean_title`, `player_clean_year` | A film's title and year, by Kodi's own clean-up of its file name | A video outside the library starts whose title is its file name |
+| `player_clean_tvshowtitle`, `player_clean_episode`, `player_clean_title` | For a file named like an episode (`S01E07` or `1x07`): the show, the `1x07` code and the episode title | As above |
 
 When a library episode starts, the service also runs [Play next](playnext.md).
+
+### Identity and clean names
+
+The identity properties let a skin put a two-line label right beside the playing item's
+logo. Kodi images can't size themselves to their picture, so the service crops the logo,
+works out its width in a 600 x 90 box, and sets the width of control `4045` (the logo)
+in the seek bar dialog at once, and in the video OSD if it is open. Mount the logo as
+control `4045` with `<aspectratio aligny="center">keep</aspectratio>` and left
+alignment, and show the label beside it once `player_identity_<window>` equals
+`player_clearlogo`. The video OSD keeps its controls loaded, so its `<onload>` runs
+[`size_identity`](../script/actions.md#size_identity) for the first open after a new
+file.
+
+The clean names use Kodi's own clean-up (`xbmc.getCleanMovieTitle`, which follows the
+user's `cleanstrings` in `advancedsettings.xml`): `Batman.Begins.2005.1080p.BluRay.mkv`
+gives `Batman Begins` and `2005`. A file named like an episode is split at its
+`S01E07` or `1x07` and each side is cleaned: the show before it, the episode title
+after it. The same clean-up is available for any file through the
+[`clean_name`](../plugins/clean_name.md) plugin path.
 
 ### Genre and director picks
 

@@ -75,6 +75,7 @@ from resources.lib.plugin.soundtracks import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
+from resources.lib.shared.utilities import clean_name as file_names
 from resources.lib.shared.utilities import (
     ADDON,
     INFO_DIALOGS,
@@ -1369,6 +1370,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 else ""
             ),
         }
+
+    @log.duration
+    def clean_name(self) -> list[DirectoryItem] | None:
+        """
+        A file's readable name by Kodi's clean-up: a film's title and year, or an
+        episode's show, 1x07 code and title, as clean_* properties.
+
+        :return: One item echoing the label param, so a skin can match it to its item.
+        """
+        if not self._require("path"):
+            return
+        names = file_names(self.params["path"])
+        return set_items(
+            [
+                {
+                    "file": plugin_path("clean_name"),
+                    "label": self.params.get("label", ""),
+                    "properties": {f"clean_{k}": v for k, v in names.items()},
+                }
+            ]
+        )
 
     @log.duration
     def reposition(self) -> list[DirectoryItem] | None:

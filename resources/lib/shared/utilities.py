@@ -744,6 +744,40 @@ def return_label(
     return label.replace(find, replace, label.count(find))
 
 
+_EPISODE_CODE = re.compile(
+    r"\b(?:s(\d{1,2})[ ._-]?e(\d{1,3})|(\d{1,2})x(\d{2,3}))\b", re.IGNORECASE
+)
+
+
+def clean_name(path: str) -> dict[str, str]:
+    """
+    A file's readable name by Kodi's own clean-up (the user's cleanstrings too): a
+    film's title and year, or an episode's show, 1x07 code and title.
+
+    :param path: The file's path.
+    :return: title and year, or tvshowtitle, episode and title; empty values dropped.
+    """
+    stem = os.path.splitext(os.path.basename(path))[0]
+    if not (match := _EPISODE_CODE.search(stem)):
+        title, year = xbmc.getCleanMovieTitle(path, False)
+        return {k: v for k, v in (("title", title), ("year", year)) if v}
+    season, episode = map(int, filter(None, match.groups()))
+    # A bare name as the "path": the extension keeps the last word from reading as one
+    show, title = (
+        xbmc.getCleanMovieTitle(f"{part}.mkv", False)[0] if part.strip(" ._-") else ""
+        for part in (stem[: match.start()], stem[match.end() :])
+    )
+    return {
+        k: v
+        for k, v in (
+            ("tvshowtitle", show),
+            ("episode", f"{season}x{episode:02d}"),
+            ("title", title),
+        )
+        if v
+    }
+
+
 def split(
     string: str, *, separator: str = " / ", number: int = 0, **kwargs: object
 ) -> str:
