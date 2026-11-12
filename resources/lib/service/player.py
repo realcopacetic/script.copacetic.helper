@@ -269,11 +269,15 @@ class PlayerMonitor(Player):
 
     def onPlayBackError(self) -> None:
         """
-        Clean up when requested playback fails and clear the refire stamp
-        so the item can retry on its next focus.
+        Clean up when requested playback fails and clear the refire stamp so the
+        item can retry on its next focus; a failed flight that a newer request
+        waited behind leaves that request's stamp.
         """
+        request = infolabel("Window(home).Property(trailer_request)")
+        own = self._landed in (None, request)  # else _cleanup hands on to request
         self._cleanup()
-        window_property("trailer_played_item")
+        if own:
+            window_property("trailer_played_item")
 
     def _handle_video_start(self) -> None:
         """
