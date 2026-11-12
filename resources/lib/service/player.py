@@ -402,7 +402,11 @@ class PlayerMonitor(Player):
         """
         props = {}
         if tag.getDbId() <= 0:  # VideoPlayer.Title: tag, else label, else file name
-            names = file_clean_name(path, infolabel("VideoPlayer.Title"))
+            title = infolabel("VideoPlayer.Title")
+            # A .strm or playlist entry plays its target, titled by that file's name
+            names = file_clean_name(path, title) or file_clean_name(
+                self.getPlayingFile(), title
+            )
             props |= {f"player_clean_{k}": v for k, v in names.items()}
         logo = infolabel("VideoPlayer.Art(clearlogo)") or infolabel(
             "VideoPlayer.Art(tvshow.clearlogo)"

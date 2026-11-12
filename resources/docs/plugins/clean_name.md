@@ -3,7 +3,9 @@
 Turns a file name such as `Batman.Begins.2005.1080p.BluRay.x264.mkv` into something
 readable, with Kodi's own clean-up (`xbmc.getCleanMovieTitle`, which follows the user's
 `cleanstrings` in `advancedsettings.xml`). Use it for files outside the library, whose
-labels are their file names.
+labels are their file names. The name is read from the path as Kodi reads it: a web or
+DAV path's options (`?token=…`, `|User-Agent=…`) and URL-encoding don't get in the way,
+and a `stack://` path gives the stack's name.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=clean_name&amp;path=$ESCINFO[ListItem.FileNameAndPath]&amp;label=$ESCINFO[ListItem.Label]</content>
