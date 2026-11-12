@@ -64,10 +64,10 @@ API_SOURCES = {
 MIX_SIZE = 50
 MIX_ARTIST_SHARE = 0.15
 WAVEFORM = "visualization.waveform"
-# Smooth curves (0: no resampling), one quiet grey line (Waveform draws without
-# blending, so no alpha), no fill (an all-zero background draws none)
+# 250 points a line (the fewest: calmer than 0, no resampling), one quiet grey line
+# (Waveform draws without blending, so no alpha), no fill (an all-zero background)
 WAVEFORM_LOOK = {
-    "points-per-line": 0,
+    "points-per-line": 250,
     "line-thickness": 2,
     "line-red": 0.16,
     "line-green": 0.16,
