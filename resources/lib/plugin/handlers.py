@@ -1999,33 +1999,51 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Build a container of library artists, albums or songs (type=) like artist id=
         (an album's or song's with seed=): its similar artists', topped up as
-        genre_music; with no similar source, genre_music alone.
+        genre_music; genre_music alone with no id, similar artist or source.
 
         :return: List of directory items for Kodi, or None if empty.
         """
-        if not (self._require("type", "id") and self.dbtype in MUSIC_TYPES):
+        if not (self._require("type") and self.dbtype in MUSIC_TYPES):
             return
-        if (seed := self.params.get("seed", "artist")) != "artist":
+        if self.dbid and (seed := self.params.get("seed", "artist")) != "artist":
             details = json_call(
                 DETAILS[seed],
-                properties=["artistid"],
+                properties=(
+                    ["artistid", "compilation"] if seed == "album" else ["artistid"]
+                ),
                 params={f"{seed}id": int(self.dbid)},
                 parent="similar_music",
+            )["result"][f"{seed}details"]
+            # a compilation's first artist is Various Artists: genres only
+            self.dbid = (
+                "" if details.get("compilation") else str(details["artistid"][0])
             )
-            self.dbid = str(details["result"][f"{seed}details"]["artistid"][0])
-        similar = similar_artists(int(self.dbid), "similar_music")
-        if not similar:
+        if not (
+            self.dbid and (similar := similar_artists(int(self.dbid), "similar_music"))
+        ):
             return self.genre_music()
-        rule = {"field": "artist", "operator": "is", "value": similar}
         if self.dbtype == "artist":  # closest first
             set_plugincontent(content="artists", category=self.label)
             place = {fold(name): n for n, name in enumerate(similar)}
+            rule = {"field": "artist", "operator": "is", "value": similar}
             rows = library_rows("artist", rule, None, None, "similar_music")
-            rows.sort(key=lambda row: place[fold(row["artist"])])
+            # "is" is a LIKE: a name's "_" or "%" may match another artist too
+            rows.sort(key=lambda row: place.get(fold(row["artist"]), len(place)))
             items = [library_item(row, "artist") for row in rows[: self.limit]]
         else:
-            items = self._random_music(self.dbtype, [rule], self.label, "similar_music")
-            items = items or []
+            by = "albumartist" if self.dbtype == "album" else "artist"  # not features
+            rules = [
+                {"field": by, "operator": "is", "value": similar},
+                {
+                    "field": _MUSIC_NAMES[self.dbtype],
+                    "operator": "isnot",
+                    "value": self.exclude_value,
+                },
+            ]
+            items = (
+                self._random_music(self.dbtype, rules, self.label, "similar_music")
+                or []
+            )
         if self.limit is None or len(items) < self.limit:
             shown = {path for path, *_ in items}
             items += [item for item in self.genre_music() or [] if item[0] not in shown]

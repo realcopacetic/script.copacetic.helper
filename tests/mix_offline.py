@@ -73,7 +73,8 @@ class Mix(unittest.TestCase):
         with mock.patch.object(mix, "json_call", library):
             songs = mix.mix_songs(["Kyuss"], [], 20, similar=["Sleep"])
         by = Counter(s["artist"][0] for s in songs)
-        self.assertEqual(by, {"Kyuss": 5, "Sleep": mix.SIMILAR_CAP})
+        # capped, then topped up by the seed artist: all eight Kyuss songs
+        self.assertEqual(by, {"Kyuss": 8, "Sleep": mix.SIMILAR_CAP})
 
     def test_artists_alone_without_genres(self):
         with mock.patch.object(mix, "json_call", library):
@@ -159,6 +160,7 @@ class EndlessQueue(unittest.TestCase):
         monitor = object.__new__(player.PlayerMonitor)
         monitor._queue_songs = (player._queue_key(playlist), set(range(size)))
         monitor._dial_queue = player._queue_key(playlist)
+        monitor._growing = False
         answer = {"result": {"position": position}}
         with (
             mock.patch.object(player, "PlayList", lambda kind: playlist),

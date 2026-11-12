@@ -1242,9 +1242,10 @@ Kodi's shuffle turned off.
   artist's) is by the same artist, spread evenly through it. The rest are random
   songs by its [similar artists](../plugins/library.md#similar_music) in your
   library, at most six by any one of them, then songs by other artists that share
-  the first song's genres. A first song with no genre takes the genres of its
-  artist's other songs; with no similar artist and no genre, the mix is songs by its
-  artist only.
+  the first song's genres; what they leave short is the artist's own songs. A first
+  song with no genre takes the genres of its artist's other songs. The first mix for
+  an artist can take a few seconds while Deezer and ListenBrainz answer; later ones
+  read the saved answers.
 - **Genre or year:** 50 random songs of that genre or year.
 - **Daily:** one of today's mixes, as the [`daily_mixes`](../plugins/library.md#daily_mixes)
   cards show them, by its genre's id: 50 songs, about 15 of them by its three lead

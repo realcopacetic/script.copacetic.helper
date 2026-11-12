@@ -287,18 +287,23 @@ studio for the container to cut.
 
 Library artists, albums or songs (`type=`) like an artist, or an album's or song's
 first artist (`seed=album` or `seed=song`, `id=` its `DBID`). Its similar artists come
-from Deezer's related artists (`/artist/<id>/related`, the Deezer artist `top_songs`
-found) and ListenBrainz's (LB Radio, `/1/lb-radio/artist/<MBID>`, its closest "easy"
-mode, 20 artists), each when its source is on, blended as `top_songs` blends (Deezer
-counts double), and kept to artists in the library, the artist itself left out.
+from Deezer's related artists (`/artist/<id>/related`, in Deezer's order, on the Deezer
+artist `top_songs` found) and ListenBrainz's (LB Radio, `/1/lb-radio/artist/<MBID>`,
+its closest "easy" mode, 20 artists). LB Radio picks its artists at random from
+similarity bands and returns them unordered, so each counts as if at the middle place
+of its list. They are blended as `top_songs` blends (Deezer counts double) and matched
+to the library's artists by name (case, accents and punctuation aside), the artist
+itself left out.
 
 - `type=artist`: those artists, closest first.
-- `type=album` or `song`: their albums or songs in random order, as
-  [`random_albums`](#random_albums) (`randomise=`).
+- `type=album`: albums whose album artist is one of them; `type=song`: songs any of
+  them is credited on. Random order, as [`random_albums`](#random_albums)
+  (`randomise=`), `exclude_value` left out.
 
 Fewer than `limit` are topped up from [`genre_music`](#genre_music) with the same
-`label`, `exclude_value` and `randomise`, and the artist's album genres; with no
-similar artist in the library, or neither source on, it is `genre_music` alone. The
+`label`, `exclude_value` and `randomise`, and the artist's album genres. With no `id`
+(an item outside the library), a compilation album, no similar artist in the
+library, or neither source on, it is `genre_music` alone. The
 answers are cached as `top_songs`' (`deezer:related:<id>`,
 `listenbrainz:similar-artists:<MBID>`): related artists a week, ListenBrainz's two
 weeks. [`start_mix`](../script/actions.md#start_mix) and the endless queue use the
