@@ -784,18 +784,22 @@ class TypewriterAnimation:
                 _grow(sub, pages)
 
         # The last character's check was skipped: give its layout up to four steps.
-        for _ in range(4):
-            if pages is not None:
-                break
-            if monitor.waitForAbort(self.step_time):
+        # A dialog over the window answers the reads, so those wait for it to close,
+        # at a slower pace: under a dialog each guard check waits for a frame.
+        steps = 4
+        while pages is None and steps:
+            covered = topmost_window_id() != self.window_id
+            if monitor.waitForAbort(0.25 if covered else self.step_time):
                 return
             if not _alive() or _superseded():
                 log.debug(
                     f"{self.__class__.__name__} → ABORTED → '{label}' settling, kept"
                 )
                 return
-            if pages := _pages(label):
-                _grow(label, pages)
+            if not covered:
+                steps -= 1
+                if pages := _pages(label):
+                    _grow(label, pages)
 
         log.debug(
             f"{self.__class__.__name__} → DONE → '{label}' "

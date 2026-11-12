@@ -73,7 +73,9 @@ The textbox width is the rectangle's width.
    text, the helper reads `Container(<target_id>).NumPages`. When it is above 1, the
    textbox grows to fit the text, up to `max_lines`, in the direction `valign` sets.
    After the last character the helper checks for up to four more steps, so a wrap
-   on the last character is not missed.
+   on the last character is not missed. A modal dialog over the run's window (a
+   context menu, the busy dialog) hides the textbox from those reads, so the checks
+   wait, every 0.25 s, for it to close, then grow the textbox in one step.
 
 After every 25 ms wait the run checks the focus guard and the claimed property, so
 the textbox never shows or grows for a run that is no longer current. When either
