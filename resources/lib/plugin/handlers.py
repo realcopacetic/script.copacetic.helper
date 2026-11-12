@@ -761,6 +761,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             multiart_dict = self._multiart_dict(multiart_item, multiart_type)
             if len(multiart_dict) > 1:  # seed_multiart seeds only then
                 params = params | {"background_url": multiart_dict["multiart"]}
+        # Kodi ends a plugin URL's options at its first "|" (art headers): the logo is
+        # read by the infolabel the skin names, headers kept. A dialog on top would
+        # answer the read, so then the URL's logo stands, or none if it was cut: a
+        # hold could outlast the dialog (an info rail's URL rests through it).
+        logo_source = params.get("clearlogo_source")
+        if logo_source and topmost_window_id() == window_id:
+            params = params | {"clearlogo_url": infolabel(logo_source)}
         art_opts = {
             art_type: ArtOpts.from_params(params, art_type)
             for art_type in ("clearlogo", "background", "icon")
