@@ -2,7 +2,7 @@
 
 import random
 from collections import Counter, defaultdict
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from datetime import date
 from operator import itemgetter
 
@@ -74,7 +74,7 @@ def mix_songs(
     size: int,
     exclude: Collection[int] = (),
     share: float = SEED_SHARE["song"],
-    similar: list[str] = (),
+    similar: Sequence[str] = (),
 ) -> list[dict]:
     """
     Random songs for a mix: about share of them by artists (at least one), spread
@@ -82,7 +82,7 @@ def mix_songs(
 
     :param artists: Artist names the mix leans on.
     :param genres: Genre names for what similar artists don't fill.
-    :param size: Most songs to return; with neither similar nor genres, all by artists.
+    :param size: Most songs; what the others leave short is topped up by artists.
     :param exclude: Song ids to leave out: a seed, a queue's songs.
     :param share: Fraction of the songs by artists.
     :param similar: Library artist names like artists.
@@ -112,8 +112,6 @@ def mix_songs(
         return picked
 
     by_artist = {"field": "artist", "operator": "is", "value": artists}
-    if not (similar or genres):
-        return pick(by_artist, size)
     own = pick(by_artist, max(1, round(size * share)))
     rest = size - len(own)
     others = (
@@ -121,10 +119,9 @@ def mix_songs(
     )
     if genres:
         genre_rule = {"field": "genre", "operator": "is", "value": genres}
-        others += pick(
-            {"and": [genre_rule, {**by_artist, "operator": "isnot"}]},
-            rest - len(others),
-        )
+        not_theirs = {**by_artist, "operator": "isnot", "value": [*artists, *similar]}
+        others += pick({"and": [genre_rule, not_theirs]}, rest - len(others))
+    own += pick(by_artist, rest - len(others))
     return spread(own, random.sample(others, len(others)))
 
 
