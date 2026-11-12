@@ -842,8 +842,8 @@ def check_textures(skin: Path) -> Iterator[Finding]:
 
 def check_strings(skin: Path) -> Iterator[Finding]:
     """
-    Report a string id defined twice in a ``strings.po``: Kodi keeps the last, so
-    the first one's readers show the other text.
+    Report a string id defined twice in a ``strings.po``: Kodi keeps the first and
+    ignores the later one, whose readers then show the other text.
 
     :param skin: Skin root directory.
     :return: One finding per repeat, at its line.
