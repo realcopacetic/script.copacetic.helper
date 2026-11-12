@@ -59,6 +59,10 @@ class SegmentsTest(unittest.TestCase):
         self.segments.tick(now)
         return self.props
 
+    def test_duplicate_and_zero_marks_keep_their_numbers(self):
+        self.labels |= chapters(300, 300, 600) | {"Player.ChapterCount": "05"}
+        self.assertEqual(segments.chapter_starts(LENGTH), [0.0, 0.0, 300, 300, 600])
+
     def test_chapter_starts(self):
         self.labels |= chapters(40, 70.5, 3300)
         starts = segments.chapter_starts(LENGTH)
@@ -70,7 +74,7 @@ class SegmentsTest(unittest.TestCase):
         self.labels |= {"Player.Chapters": "", "Player.ChapterCount": "00"}
         self.assertEqual(segments.chapter_starts(LENGTH), [])
 
-    def test_theintrodb_snaps_to_marks_and_skips_by_chapter(self):
+    def test_theintrodb_snaps_to_marks(self):
         found = {
             "intro": [61000, 92000],
             "credits": [3301500, None],
@@ -81,24 +85,26 @@ class SegmentsTest(unittest.TestCase):
             props,
             {
                 "player_skip_kind": "intro",
-                "player_skip_start": "60",
+                "player_skip_start": "61",  # Kodi rounds Player.Time(secs)
                 "player_skip_end": "90",
                 "player_skip_seek": props["player_skip_seek"],
-                "player_skip_target": "chapter",
-                "player_credits": "3300",
+                "player_credits": "3301",
             },
         )
         self.assertAlmostEqual(float(props["player_skip_seek"]), 90, places=1)
 
-    def test_theintrodb_off_marks_seeks_by_time(self):
+    def test_theintrodb_off_marks(self):
         props = self.play({"recap": [0, 45000], "intro": [300000, 330000]})
         self.assertEqual(props["player_skip_kind"], "recap")
-        self.assertEqual(props["player_skip_target"], "time")
         self.segments.tick(46)
         self.assertEqual(self.props["player_skip_kind"], "intro")
         self.assertEqual(self.props["player_skip_seek"], "330.000")
         self.segments.tick(331)
         self.assertNotIn("player_skip_kind", self.props)
+
+    def test_credits_before_a_preview_run_to_the_end(self):
+        found = {"credits": [3300000, 3420000], "preview": [3420000, None]}
+        self.assertEqual(self.play(found), {"player_credits": "3301"})
 
     def test_another_cut_needs_marks(self):
         other = {"intro": [61000, 92000], "duration": 3000000}
@@ -108,25 +114,31 @@ class SegmentsTest(unittest.TestCase):
     def test_pattern(self):
         props = self.play({}, 300, 360, 3300)
         self.assertEqual(props["player_skip_kind"], "intro")
-        self.assertEqual(props["player_credits"], "3300")
+        self.assertEqual(props["player_credits"], "3301")
         for starts in ((300, 360, 1500, 3300), (300, 900, 3300), (300, 3300, 3400)):
             self.assertEqual(self.play({}, *starts), {})  # even, wide or doubled
-        self.assertEqual(self.play({}, 3300), {"player_credits": "3300"})
+        self.assertEqual(self.play({}, 3300), {"player_credits": "3301"})
 
     def test_named_chapter_takes_over(self):
         found = {"intro": [100000, 130000]}
         self.play(found, 95, 125, 1700, 3300)
-        self.assertEqual(self.props["player_skip_start"], "100")
+        self.assertEqual(self.props["player_skip_start"], "101")
         self.labels |= {"Player.Chapter": "02", "Player.ChapterName": "Opening"}
         self.segments.tick(96)
-        self.assertEqual(self.props["player_skip_start"], "95")
-        self.assertEqual(self.props["player_skip_target"], "chapter")
+        self.assertEqual(self.props["player_skip_start"], "96")
         self.labels |= {"Player.Chapter": "05", "Player.ChapterName": "Ending"}
         self.segments.tick(3301)
-        self.assertEqual(self.props, {"player_credits": "3300"})
+        self.assertEqual(self.props, {"player_credits": "3301"})
         self.labels |= {"Player.Chapter": "03", "Player.ChapterName": "Prologue"}
         self.segments.tick(200)  # a cold open names nothing
-        self.assertEqual(self.props, {"player_credits": "3300"})
+        self.assertEqual(self.props, {"player_credits": "3301"})
+
+    def test_named_chapter_keeps_an_earlier_start(self):
+        self.play({"intro": [100000, 130000]}, 120, 150, 3300)
+        self.labels |= {"Player.Chapter": "02", "Player.ChapterName": "Intro"}
+        self.segments.tick(121)  # a button dismissed at 100 stays dismissed
+        self.assertEqual(self.props["player_skip_start"], "101")
+        self.assertEqual(self.props["player_skip_end"], "150")
 
     def test_short_and_chapterless(self):
         self.assertEqual(self.play({}), {})

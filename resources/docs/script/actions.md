@@ -1298,33 +1298,47 @@ Example from Copacetic, in the video OSD:
 
 ## size_identity
 
-Sizes control `4045` in the topmost window (the video OSD) to the playing item's logo,
-as the service does for the seek bar dialog when a video starts, then sets
-`player_identity_videoosd`. See
-[Identity and clean names](../service/player.md#identity-and-clean-names). Takes no
-params.
+Sizes control `4045` in the video OSD or the seek bar dialog to the playing item's
+logo, as the service does when a video starts, then sets `player_identity_<window>`.
+See [Identity and clean names](../service/player.md#identity-and-clean-names).
 
-Example from Copacetic, in the video OSD; it runs only when the OSD isn't sized for this
-logo yet:
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `window` | `videoosd`, `seekbar` | `videoosd` | Which window's logo control |
+
+Examples from Copacetic. The video OSD sizes only when it isn't sized for this logo yet;
+the seek bar dialog, opened when video goes full screen (and after a skin reload), sizes
+itself and has the OSD size again on its next open:
 
 ```xml
 <onload condition="!String.IsEqual(Window(home).Property(player_identity_videoosd),Window(home).Property(player_clearlogo))">RunScript(script.copacetic.helper,action=size_identity)</onload>
+```
+
+```xml
+<onload>ClearProperty(player_identity_videoosd,home)</onload>
+<onload>RunScript(script.copacetic.helper,action=size_identity,window=seekbar)</onload>
 ```
 
 ---
 
 ## skip_segment
 
-Seeks to the end of the segment in play, `player_skip_seek` (see
-[Skip segments](../service/player.md#skip-segments)). Takes no params. A segment
-whose `player_skip_target` is `chapter` ends on the next chapter's start, so a skin can
-send `PlayerControl(Next)` there instead, which needs no script start.
+Seeks to the end of a skip segment (see
+[Skip segments](../service/player.md#skip-segments)), exactly. Pass the
+`player_skip_seek` the button opened on, held in the dialog when it opened: the service
+moves on to the next segment as one ends, so a late press would read that one. Don't
+send `PlayerControl(Next)` for a segment ending on a chapter: with a playlist of two or
+more (Play next's queued episode), Kodi's playlist takes Next first and plays the next
+file.
 
-Example from Copacetic, the skip button's OK:
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `seek` | Seconds | required | Where to seek to |
+
+Example from Copacetic, the skip button's OK, its `onload` having held the values:
 
 ```xml
-<onclick condition="String.IsEqual(Window(home).Property(player_skip_target),chapter) + Integer.IsGreater(Player.Chapter,0)">PlayerControl(Next)</onclick>
-<onclick condition="!String.IsEqual(Window(home).Property(player_skip_target),chapter) | !Integer.IsGreater(Player.Chapter,0)">RunScript(script.copacetic.helper,action=skip_segment)</onclick>
+<onclick condition="$EXP[skip_live]">RunScript(script.copacetic.helper,action=skip_segment,seek=$INFO[Window(1191).Property(skip_seek)])</onclick>
 ```
 
 ---

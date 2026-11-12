@@ -1,5 +1,7 @@
 # author: realcopacetic
 
+from math import ceil
+
 from resources.lib.apis import theintrodb
 from resources.lib.shared.utilities import (
     condition,
@@ -26,7 +28,6 @@ PROPS = (
     "player_skip_start",
     "player_skip_end",
     "player_skip_seek",
-    "player_skip_target",
     "player_credits",
 )
 
@@ -40,15 +41,15 @@ def clear() -> None:
 def chapter_starts(duration: float) -> list[float]:
     """
     Each chapter's start in seconds, by chapter number: Player.Chapters holds percent
-    pairs ending at each start after 0, so a first chapter at 0 is added back.
+    pairs ending at each start after 0, so chapters at 0 are added back.
 
     :param duration: The file's length in seconds.
     :return: Starts, starts[n - 1] being chapter n's; empty without chapters.
     """
     count = to_int(infolabel("Player.ChapterCount"))
     pairs = infolabel("Player.Chapters").split(",")
-    marks = sorted({round(to_float(p) * duration / 100, 3) for p in pairs[1::2] if p})
-    return [0.0, *marks] if len(marks) < count else marks
+    marks = sorted(round(to_float(p) * duration / 100, 3) for p in pairs[1::2] if p)
+    return [0.0] * (count - len(marks)) + marks
 
 
 def lookup(tvshowid: int, season: int, episode: int, total: float) -> "Segments | None":
@@ -90,7 +91,7 @@ class Segments:
         """
         self.found, self.duration = found, duration
         self.starts = []  # chapter starts by number, read once Kodi has them
-        self.spans = []  # (start, end, kind, chapter): chapter when Next reaches end
+        self.spans = []  # (start, end, kind)
         self.credits = None  # where credits run to the end: Play next opens there
         self.chapter = -1
         self.published = {}
@@ -128,18 +129,23 @@ class Segments:
     def _add(self, start: float, end: float | None, kind: str) -> None:
         """
         Take a segment: one running to the end opens Play next (credits, preview);
-        else a span, Next-able when its end is the next chapter's start.
+        else a span for the skip button.
 
         :param start: Seconds.
         :param end: Seconds; None, or at the end, for one running to the end.
         :param kind: intro, recap, credits or preview.
         """
         if end is None or end >= self.duration - SNAP:
-            if kind in theintrodb.OPEN_ENDED:
-                self.credits = min(start, self.credits or start)
+            if kind in theintrodb.OPEN_ENDED:  # credits ending where it starts join it
+                joined = {
+                    s for s in self.spans if s[2] == "credits" and s[1] + SNAP > start
+                }
+                self.spans = [s for s in self.spans if s not in joined]
+                self.credits = min(
+                    start, *(s[0] for s in joined), self.credits or start
+                )
             return
-        inside = [m for m in self.starts if start < m <= end]
-        self.spans = sorted([*self.spans, (start, end, kind, inside == [end])])
+        self.spans = sorted([*self.spans, (start, end, kind)])
 
     def _build(self, found: dict) -> None:
         """
@@ -201,25 +207,29 @@ class Segments:
             if kind not in theintrodb.OPEN_ENDED:
                 return
             self.credits = None
-        self.spans = [s for s in self.spans if s[1] <= start or end and s[0] >= end]
-        self._add(start, end, kind)
+        over = [s for s in self.spans if s[1] > start and not (end and s[0] >= end)]
+        self.spans = [s for s in self.spans if s not in over]
+        # Keep an earlier start of the same kind: a dismissal names that start
+        self._add(min([start, *(s[0] for s in over if s[2] == kind)]), end, kind)
 
     def _publish(self, now: float) -> None:
         """
         Publish the span the playhead is in or comes to next, and where credits
-        open Play next: whole seconds for the skin's Player.Time(secs) tests.
+        open Play next: whole seconds for the skin's Player.Time(secs) tests, which
+        Kodi rounds, so a start reads only once it is reached.
 
         :param now: The playhead in seconds.
         """
-        props = {"player_credits": f"{int(self.credits)}" if self.credits else ""}
+        props = {
+            "player_credits": f"{ceil(self.credits + 0.5)}" if self.credits else ""
+        }
         if span := next((s for s in self.spans if s[1] > now), None):
-            start, end, kind, chapter = span
+            start, end, kind = span
             props |= {
                 "player_skip_kind": kind,
-                "player_skip_start": f"{int(start)}",
-                "player_skip_end": f"{int(end)}",
+                "player_skip_start": f"{ceil(start + 0.5)}",
+                "player_skip_end": f"{round(end)}",
                 "player_skip_seek": f"{end:.3f}",
-                "player_skip_target": "chapter" if chapter else "time",
             }
         for key in PROPS:
             if (value := props.get(key, "")) != self.published.get(key, ""):

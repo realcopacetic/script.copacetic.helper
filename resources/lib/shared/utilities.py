@@ -744,8 +744,10 @@ def return_label(
     return label.replace(find, replace, label.count(find))
 
 
-_EPISODE_CODE = re.compile(
-    r"\b(?:s(\d{1,2})[ ._-]?e(\d{1,3})|(\d{1,2})x(\d{2,3}))\b", re.IGNORECASE
+_EPISODE_CODE = re.compile(  # not \b: "_" counts as a word character; S01E02E03 too
+    r"(?<![a-z0-9])(?:s(\d{1,2})[ ._-]?e(\d{1,3})(?:[ ._-]?e\d{1,3})*"
+    r"|(\d{1,2})x(\d{2,3}))(?![0-9])",
+    re.IGNORECASE,
 )
 
 
@@ -762,11 +764,12 @@ def clean_name(path: str) -> dict[str, str]:
         title, year = xbmc.getCleanMovieTitle(path, False)
         return {k: v for k, v in (("title", title), ("year", year)) if v}
     season, episode = map(int, filter(None, match.groups()))
-    # A bare name as the "path": the extension keeps the last word from reading as one
-    show, title = (
-        xbmc.getCleanMovieTitle(f"{part}.mkv", False)[0] if part.strip(" ._-") else ""
-        for part in (stem[: match.start()], stem[match.end() :])
-    )
+    before, after = stem[: match.start()], stem[match.start() :]
+    # A bare name as the "path": the extension keeps the last word from reading as one.
+    # The title keeps the code in front while cleaned: Kodi cuts no tag at position 0
+    show = xbmc.getCleanMovieTitle(f"{before}.mkv", False)[0] if before else ""
+    title = xbmc.getCleanMovieTitle(f"{after}.mkv", False)[0]
+    show, title = show.strip(" .-"), _EPISODE_CODE.sub("", title, 1).strip(" .-")
     return {
         k: v
         for k, v in (

@@ -1407,23 +1407,27 @@ def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) 
 
 
 @action
-def size_identity(**kwargs: str) -> None:
+def size_identity(window: str = "videoosd", **kwargs: str) -> None:
     """
-    VideoOSD's onload: fit its identity logo to the playing item's. The OSD stays
-    loaded, so this only matters for the first open after a new file.
+    A window's onload: fit its identity logo to the playing item's, for an open the
+    service didn't size (the OSD's first, any after a skin reload).
+
+    :param window: videoosd or seekbar.
     """
     from resources.lib.plugin.helpers import size_identity as fit  # this action only
 
-    fit("videoosd")
+    fit(window)
 
 
 @action
-def skip_segment(**kwargs: str) -> None:
+def skip_segment(seek: str, **kwargs: str) -> None:
     """
-    The skin's skip button off a chapter mark: seek to the end of the segment in
-    play (player_skip_seek); one ending on a mark uses PlayerControl(Next).
+    The skin's skip button: seek to the end of the segment it opened on, passed by
+    the skin when pressed, as the helper may already publish the next one.
+
+    :param seek: Seconds, as player_skip_seek held them.
     """
-    if seconds := to_float(infolabel("Window(home).Property(player_skip_seek)")):
+    if seconds := to_float(seek):
         xbmc.Player().seekTime(seconds)
 
 

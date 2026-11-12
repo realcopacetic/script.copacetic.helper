@@ -40,6 +40,7 @@ _CLAMP_VERSION = "5"
 # The identity lockup's logo (osd.xml blk_osd_identity) and its box, W x H
 IDENTITY_LOGO_ID = 4045
 IDENTITY_LOGO_BOX = (600, 90)
+IDENTITY_WINDOWS = {"seekbar": 10115, "videoosd": 12901}  # the windows that mount it
 
 # Skin authoring resolution; Kodi rasterises fonts at size * ScreenHeight / height.
 _SKIN_WIDTH = 1920
@@ -54,7 +55,7 @@ def reposition_control(
     w: int | None = None,
     h: int | None = None,
     window_id: int | None = None,
-) -> None:
+) -> bool:
     """
     Set any provided geometry on a control; unset axes are left untouched.
     Setters only (no getWidth/getX), so it never reads a control that may be
@@ -65,9 +66,10 @@ def reposition_control(
     :param y: New top in px, or None to leave unchanged.
     :param w: New width in px, or None to leave unchanged.
     :param h: New height in px, or None to leave unchanged.
-    :param window_id: A loaded window other than the topmost, holding the control.
+    :param window_id: A window other than the topmost, holding the control.
+    :return: True when the control was found and set.
     """
-    if window_id is None:  # a caller naming a window vouches for the control
+    if window_id is None:
         window_id = topmost_window_id()
         # Probe first: a getControl miss logs an engine error even when caught.
         # Control.IsEnabled reads the same window and is false for a missing control.
@@ -76,9 +78,13 @@ def reposition_control(
                 f"reposition_control: control {control_id} not found "
                 f"in window {window_id}"
             )
-            return
+            return False
     window = Window(window_id)  # keep: the window holds the control's only native ref
-    ctrl = window.getControl(control_id)
+    try:
+        ctrl = window.getControl(control_id)
+    except RuntimeError:  # a named window not loaded, or a skin without the control
+        log.debug(f"reposition_control: no control {control_id} in {window_id}")
+        return False
 
     log.debug(
         f"reposition_control: window={window_id} control={control_id} "
@@ -91,18 +97,20 @@ def reposition_control(
         ctrl.setHeight(h)
     if x is not None and y is not None:
         ctrl.setPosition(x, y)
+    return True
 
 
-def size_identity(window: str, window_id: int | None = None) -> None:
+def size_identity(window: str) -> None:
     """
-    Fit the identity lockup's logo control to the playing item's logo, so the label
+    Fit a window's identity logo control to the playing item's logo, so the label
     beside it follows, then stamp the window sized for that logo.
 
-    :param window: The window's name in player_identity_<window>.
-    :param window_id: Its id when it isn't the topmost window.
+    :param window: seekbar or videoosd, as in player_identity_<window>.
     """
-    if width := to_int(infolabel("Window(home).Property(player_clearlogo_width)")):
-        reposition_control(IDENTITY_LOGO_ID, w=width, window_id=window_id)
+    width = to_int(infolabel("Window(home).Property(player_clearlogo_width)"))
+    window_id = IDENTITY_WINDOWS[window]
+    if width and not reposition_control(IDENTITY_LOGO_ID, w=width, window_id=window_id):
+        return  # unsized: the label stays hidden rather than beside the wrong width
     logo = infolabel("Window(home).Property(player_clearlogo)")
     window_property(f"player_identity_{window}", value=logo)
 
