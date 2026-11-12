@@ -127,7 +127,7 @@
 			<group id="3" label="32037">
 				<setting id="deezer" type="boolean" label="32038" help="32138">
 					<level>0</level>
-					<default>false</default>
+					<default>true</default>
 					<control type="toggle" />
 				</setting>
 			</group>
