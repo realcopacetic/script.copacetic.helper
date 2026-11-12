@@ -39,7 +39,8 @@ SPEED_DIAL_PROPERTY = "helper_speed_dial"
 SETTLE_PROPERTY = "helper_settle"
 # Time for the skin to draw helper_reloading's dots before ReloadSkin freezes the frame.
 RELOAD_COVER_SECS = 0.2
-# Edits to a queue: Kodi's list providers refresh on play, resume and stop, not on these.
+# Edits to a queue: Kodi's list providers refresh on play, resume and stop, not on these
+# (nor on a shuffle, a Player.OnPropertyChanged; a move announces nothing).
 PLAYLIST_EDITS = {"Playlist.OnAdd", "Playlist.OnRemove", "Playlist.OnClear"}
 
 
@@ -247,13 +248,22 @@ class Monitor(xbmc.Monitor):
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
         Kodi event hook: a new playlist_revision on each music queue edit while
-        active, which the skin's queue rail puts in its path to refetch.
+        active (a shuffle too), which the skin's queue rail puts in its path.
+
+        :param sender: Announcement sender.
+        :param method: Announcement name, e.g. "Playlist.OnAdd".
+        :param data: Its data as JSON.
         """
-        if (
-            self.player_monitor
-            and method in PLAYLIST_EDITS
-            and json.loads(data).get("playlistid") == 0
-        ):
+        if not self.player_monitor:
+            return
+        if method in PLAYLIST_EDITS:
+            edited = json.loads(data).get("playlistid") == 0
+        elif method == "Player.OnPropertyChanged":
+            data = json.loads(data)
+            edited = "shuffled" in data["property"] and data["player"]["playerid"] == 0
+        else:
+            return
+        if edited:
             window_property("playlist_revision", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:

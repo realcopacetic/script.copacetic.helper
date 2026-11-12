@@ -223,6 +223,9 @@ def play_files(songs: list[dict], position: int = 0, shuffled: bool = False) -> 
     :param position: Index of the song to start from.
     :param shuffled: Shuffle the playlist before playing.
     """
+    if condition("MusicPartyMode.Enabled"):
+        # Off first: clearing the queue leaves it on, and it would refill the queue
+        xbmc.executebuiltin("PlayerControl(PartyMode)", wait=True)
     xbmc.PlayList(xbmc.PLAYLIST_VIDEO).clear()
     playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
     playlist.clear()  # keeps a previous shuffle's flag: set it explicitly below
