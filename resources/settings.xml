@@ -127,7 +127,14 @@
 			<group id="3" label="32037">
 				<setting id="deezer" type="boolean" label="32038" help="32138">
 					<level>0</level>
-					<default>false</default>
+					<default>true</default>
+					<control type="toggle" />
+				</setting>
+			</group>
+			<group id="4" label="32039">
+				<setting id="theintrodb" type="boolean" label="32040" help="32140">
+					<level>0</level>
+					<default>true</default>
 					<control type="toggle" />
 				</setting>
 			</group>
@@ -209,6 +216,16 @@
 					</constraints>
 					<control type="button" format="action">
 						<data>RunScript(script.copacetic.helper,action=clear_api_cache,source=deezer)</data>
+					</control>
+				</setting>
+				<setting id="cache_clear_theintrodb" type="string" label="32041" help="32141">
+					<level>0</level>
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="button" format="action">
+						<data>RunScript(script.copacetic.helper,action=clear_api_cache,source=theintrodb)</data>
 					</control>
 				</setting>
 			</group>

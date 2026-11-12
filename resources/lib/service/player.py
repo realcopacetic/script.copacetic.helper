@@ -14,7 +14,7 @@ from xbmcgui import getCurrentWindowDialogId
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.helpers import IDENTITY_LOGO_BOX, size_identity
 from resources.lib.plugin.opts import ArtOpts
-from resources.lib.service import playnext
+from resources.lib.service import playnext, segments
 from resources.lib.service.trailer import (
     TrailerZoomController,
     enter_fullscreen,
@@ -157,6 +157,7 @@ class PlayerMonitor(Player):
         self._resume_waiting = False  # a hung flight was cancelled: start the next
         self._seek_at = 0.0  # the last seek's time; 0 clears one left by a restart
         self._successor = ""  # the file Play next queued after this episode
+        self._segments = None  # the playing video's skip segments
         self._queue_songs = (None, set())  # music queue key, its song ids
         self._album_queue = (None, False)  # (queue key, album id), queue is the album
         SpeedDial().publish()
@@ -180,6 +181,8 @@ class PlayerMonitor(Player):
             window_property("trailer_flight")
         self._publish({})
         _publish_seek()
+        self._segments = None
+        segments.clear()
         self._clear_trailer_props()  # a flight still out is stopped when it lands
         clear_properties()
 
@@ -285,6 +288,11 @@ class PlayerMonitor(Player):
             playnext.withdraw(self._successor)
             self._successor = ""
 
+    def watch_segments(self) -> None:
+        """Poller hook: publish the playing video's skip segment in play or next."""
+        if self._segments and self.isPlayingVideo():
+            self._segments.tick(self.getTime())
+
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
         self._cleanup()
@@ -308,8 +316,8 @@ class PlayerMonitor(Player):
     def _handle_video_start(self) -> None:
         """
         Publish video properties on start: parent ids with the rails' paths (an
-        episode's next and its season's; a set's name and other films), subtitle
-        type, stream count, genre and director picks, identity; Play next's successor.
+        episode's next and its season's; a set's name and other films), subtitle type,
+        stream count, picks, identity; Play next's successor; then skip segments.
         """
         tag = self.getVideoInfoTag()
         dbid = tag.getDbId()
@@ -324,6 +332,7 @@ class PlayerMonitor(Player):
         }
         props |= self._picks(tag) | self._identity(tag, path)
         self._successor = ""
+        tvshowid = 0
 
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
@@ -364,6 +373,10 @@ class PlayerMonitor(Player):
         size_identity("seekbar", _SEEKBAR_ID)
         if condition("Window.IsVisible(videoosd)"):  # Next with the OSD up
             size_identity("videoosd", _VIDEOOSD_ID)
+        segments.clear()  # after the props: a lookup's wait never holds them back
+        self._segments = segments.lookup(
+            tvshowid, tag.getSeason(), tag.getEpisode(), self.getTotalTime()
+        )
 
     @cached_property
     def _image_editor(self) -> ImageEditor:
@@ -745,6 +758,8 @@ class PlayerMonitor(Player):
             self._publish({})
             self._dropped_flight = False
             self._successor = ""
+            self._segments = None
+            segments.clear()
             if landed := self._landed:  # the flight stopped before its AV start
                 self._landed = None
                 self._next_request(landed)

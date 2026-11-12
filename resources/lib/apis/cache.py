@@ -15,15 +15,16 @@ DAY = 86400
 TTL_INVALID, TTL_DOWN = 7 * DAY, 300
 
 
-def failure_ttl(exc: HttpError) -> int:
+def failure_ttl(exc: HttpError, invalid: int = TTL_INVALID) -> int:
     """
     Seconds before asking again after a failed request.
 
     :param exc: The failure.
-    :return: 7 days for a bad id, 429's wait, else (token refused too) 5 minutes.
+    :param invalid: Seconds a bad or unknown id (400, 404) waits.
+    :return: invalid for a bad id, 429's wait, else (token refused too) 5 minutes.
     """
     if exc.status in (400, 404):
-        return TTL_INVALID
+        return invalid
     if exc.status == 429:
         return exc.retry_after or 60
     return TTL_DOWN

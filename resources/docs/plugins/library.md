@@ -294,7 +294,7 @@ returns nothing, sends nothing and reads no cache):
   `Authorization: Token <token>` with the artist's MusicBrainz ID.
   **Test ListenBrainz access** checks it. A skin can test for it with
   `!String.IsEmpty(Addon.SettingStr(script.copacetic.helper,listenbrainz_token))`.
-- **Rank music with Deezer** (`deezer`, off by default): Deezer needs no account; the
+- **Rank music with Deezer** (`deezer`, on by default): Deezer needs no account; the
   helper sends the artist's name (a search) and a Deezer artist id, nothing else, and
   keeps only ids, titles and album titles (no images or audio). A skin can test for
   it with `Addon.SettingBool(script.copacetic.helper,deezer)`.
