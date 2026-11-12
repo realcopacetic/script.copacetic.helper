@@ -41,6 +41,9 @@ from resources.lib.shared.utilities import (
     window_property,
 )
 
+# Paths Kodi keeps URL-encoded, with a decoded label: web and DAV sources
+_ENCODED = ("http://", "https://", "dav://", "davs://")
+
 # No modal (9999) or a busy dialog (10138, 10160): a trailer resolve shows one.
 _NO_MODAL_OR_BUSY = frozenset({9999, 10138, 10160})
 
@@ -402,15 +405,13 @@ class PlayerMonitor(Player):
         :return: player_clearlogo(_width) and player_clean_* properties, if any.
         """
         props = {}
-        names = os.path.basename(path), unquote_plus(os.path.basename(path))
-        untitled = {*names, *(os.path.splitext(n)[0] for n in names)}  # by its file
+        if path.startswith(_ENCODED):  # its label is decoded as Kodi's (+ as a space)
+            path = unquote_plus(path)
+        name = os.path.basename(path)
+        untitled = {name, os.path.splitext(name)[0]}  # Kodi titles it by its file
         # VideoPlayer.Title: the tag's title, else the item's label, else the file name
         if tag.getDbId() <= 0 and infolabel("VideoPlayer.Title") in untitled:
-            # A web or DAV path is URL-encoded, its label decoded as Kodi's (+ too)
-            props |= {
-                f"player_clean_{k}": v
-                for k, v in clean_name(unquote_plus(path)).items()
-            }
+            props |= {f"player_clean_{k}": v for k, v in clean_name(path).items()}
         logo = infolabel("VideoPlayer.Art(clearlogo)") or infolabel(
             "VideoPlayer.Art(tvshow.clearlogo)"
         )
