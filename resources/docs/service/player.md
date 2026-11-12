@@ -56,11 +56,13 @@ order:
    `Previously`, `Credits`, `Ending`, `Outro` or `Preview` (case ignored) makes that
    chapter the segment, over anything else there. Kodi gives a chapter's name only
    while it plays (`Player.ChapterName`), so these are found on entering.
-2. **[TheIntroDB](https://theintrodb.org)**, for a library episode, while the
+2. **[TheIntroDB](https://theintrodb.org)**, for a library film or episode, while the
    helper's *TheIntroDB* setting is on (the default). The service asks once at AV start
-   by the show's TMDb id, then TVDB, then IMDb (a TMDb lookup reads TMDb's episode
-   numbering, as a TMDb-scraped library has), sending the file's length so the answer
-   comes from the nearest release. Answers are kept 180 days (an episode with none,
+   by the film's (or the episode's show's) TMDb id, then TVDB, then IMDb (a TMDb lookup
+   reads TMDb's episode numbering, as a TMDb-scraped library has), sending the file's
+   length so the answer comes from the nearest release. Every segment of a kind is
+   kept, as a film's credits split by a mid-credits scene are; of overlapping takes on
+   one, the most trusted. Answers are kept 180 days (an episode with none,
    3 days) in the API cache: offline, and on a rewatch, the last answer is used. A time
    within 3 seconds of a chapter mark takes the mark; an answer from a release more than
    2 % longer or shorter than the file is used only on marks.

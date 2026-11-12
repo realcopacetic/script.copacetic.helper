@@ -968,7 +968,8 @@ loads). The context menu's **Refresh cached data** item runs it. A notification 
 whether anything was cached for the item. Checking the sources takes up to six
 seconds.
 
-- **Web answers** are marked out of date rather than deleted: a film's TMDb details;
+- **Web answers** are marked out of date rather than deleted: a film's TMDb details
+  and TheIntroDB skip times;
   for a TV show, season or episode, the show's and all its seasons'; for an artist,
   album or song, its ListenBrainz answers (by its MusicBrainz id: an artist's top
   songs, top albums and listener count); for an artist, also its Deezer match and
