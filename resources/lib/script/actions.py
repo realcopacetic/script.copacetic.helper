@@ -1108,6 +1108,22 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
     return random.choice(top) if top else None
 
 
+def _artist_genres(artists: list[str]) -> list[str]:
+    """
+    The genres of these artists' library songs, for a seed song with none.
+
+    :param artists: Artist names.
+    :return: Genre names, first seen first.
+    """
+    songs = json_call(
+        "AudioLibrary.GetSongs",
+        properties=["genre"],
+        query_filter={"field": "artist", "operator": "is", "value": artists},
+        parent="start_mix",
+    )["result"].get("songs", [])
+    return [*dict.fromkeys(g for song in songs for g in song["genre"])]
+
+
 def _spread(own: list, others: list) -> list:
     """
     Spreads own evenly through others, keeping the order of each.
@@ -1190,8 +1206,8 @@ def shuffle_artist(id: str = "", **kwargs: str) -> None:
 def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     """
     Plays a random mix. A genre or year mix is its own songs; a song, album or
-    artist mix starts from a seed song, then songs sharing its genres, about
-    MIX_ARTIST_SHARE of them by the seed's artists, spread through the list.
+    artist mix starts from a seed song, then songs sharing its genres (else its
+    artists'), about MIX_ARTIST_SHARE of them by its artists, spread through.
 
     :param id: Library ID (defaults to ListItem.DBID); the year itself for year.
     :param type: song, album, artist, genre or year.
@@ -1207,7 +1223,7 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
         return
     mark_source(dial_entry(type, dbid))
 
-    genres = seed["genre"]
+    genres = seed["genre"] or _artist_genres(seed["artist"])
     by_artist = {"field": "artist", "operator": "is", "value": seed["artist"]}
     own_size = round(MIX_SIZE * MIX_ARTIST_SHARE) if genres else MIX_SIZE
     own = [
