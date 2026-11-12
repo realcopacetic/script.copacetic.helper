@@ -76,8 +76,8 @@ class SegmentsTest(unittest.TestCase):
 
     def test_theintrodb_snaps_to_marks(self):
         found = {
-            "intro": [61000, 92000],
-            "credits": [3301500, None],
+            "intro": [[61000, 92000]],
+            "credits": [[3301500, None]],
             "duration": 3480000,
         }
         props = self.play(found, 60, 90, 3300)
@@ -94,7 +94,7 @@ class SegmentsTest(unittest.TestCase):
         self.assertAlmostEqual(float(props["player_skip_seek"]), 90, places=1)
 
     def test_theintrodb_off_marks(self):
-        props = self.play({"recap": [0, 45000], "intro": [300000, 330000]})
+        props = self.play({"recap": [[0, 45000]], "intro": [[300000, 330000]]})
         self.assertEqual(props["player_skip_kind"], "recap")
         self.segments.tick(46)
         self.assertEqual(self.props["player_skip_kind"], "intro")
@@ -103,11 +103,11 @@ class SegmentsTest(unittest.TestCase):
         self.assertNotIn("player_skip_kind", self.props)
 
     def test_credits_before_a_preview_run_to_the_end(self):
-        found = {"credits": [3300000, 3420000], "preview": [3420000, None]}
+        found = {"credits": [[3300000, 3420000]], "preview": [[3420000, None]]}
         self.assertEqual(self.play(found), {"player_credits": "3301"})
 
     def test_another_cut_needs_marks(self):
-        other = {"intro": [61000, 92000], "duration": 3000000}
+        other = {"intro": [[61000, 92000]], "duration": 3000000}
         self.assertEqual(self.play(other), {})
         self.assertEqual(self.play(other, 60, 90)["player_skip_end"], "90")
 
@@ -120,7 +120,7 @@ class SegmentsTest(unittest.TestCase):
         self.assertEqual(self.play({}, 3300), {"player_credits": "3301"})
 
     def test_named_chapter_takes_over(self):
-        found = {"intro": [100000, 130000]}
+        found = {"intro": [[100000, 130000]]}
         self.play(found, 95, 125, 1700, 3300)
         self.assertEqual(self.props["player_skip_start"], "101")
         self.labels |= {"Player.Chapter": "02", "Player.ChapterName": "Opening"}
@@ -134,17 +134,30 @@ class SegmentsTest(unittest.TestCase):
         self.assertEqual(self.props, {"player_credits": "3301"})
 
     def test_named_credits_keep_an_earlier_credits_start(self):
-        self.play({"credits": [1300000, None]}, 1380)
+        self.play({"credits": [[1300000, None]]}, 1380)
         self.labels |= {"Player.Chapter": "02", "Player.ChapterName": "Preview"}
         self.segments.tick(1380)  # Play next's card, opened at 1301, stays open
         self.assertEqual(self.props["player_credits"], "1301")
 
     def test_named_chapter_keeps_an_earlier_start(self):
-        self.play({"intro": [100000, 130000]}, 120, 150, 3300)
+        self.play({"intro": [[100000, 130000]]}, 120, 150, 3300)
         self.labels |= {"Player.Chapter": "02", "Player.ChapterName": "Intro"}
         self.segments.tick(121)  # a button dismissed at 100 stays dismissed
         self.assertEqual(self.props["player_skip_start"], "101")
         self.assertEqual(self.props["player_skip_end"], "150")
+
+    def test_a_films_credits_around_its_scenes(self):  # mid- and post-credits
+        found = {
+            "credits": [[6000000, 6300000], [6420000, 6900000], [6960000, None]],
+            "duration": 7200000,
+        }
+        self.segments = segments.Segments(found, 7200)
+        self.segments.tick(0)
+        self.assertEqual(self.props["player_skip_seek"], "6300.000")
+        self.assertEqual(self.props["player_credits"], "6961")  # nothing for a film
+        self.segments.tick(6301)
+        self.assertEqual(self.props["player_skip_start"], "6421")
+        self.assertEqual(self.props["player_skip_end"], "6900")
 
     def test_short_and_chapterless(self):
         self.assertEqual(self.play({}), {})

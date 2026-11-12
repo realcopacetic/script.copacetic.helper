@@ -335,7 +335,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32140"
-msgid "Where a library episode's intro, recap and credits are, for the skin's skip button and Play next. Sends the show's ids and the episode's number to TheIntroDB; no account needed. Off: nothing sent, and only chapters are used."
+msgid "Where a library film's or episode's intro, recap and credits are, for the skin's skip button and Play next. Times come from TheIntroDB (theintrodb.org), sent the film's or show's ids and the episode's number; no account needed. Off: nothing sent, and only chapters are used."
 msgstr ""
 
 #: /resources/settings.xml

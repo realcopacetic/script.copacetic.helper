@@ -336,7 +336,7 @@ class PlayerMonitor(Player):
         }
         props |= self._picks(tag) | self._identity(tag, path)
         self._successor = ""
-        tvshowid = 0
+        library = ("movie", 0)  # what TheIntroDB is asked by: a film, or a show's id
 
         if media_type == "episode":
             props["player_tvshowtitle"] = tag.getTVShowTitle()
@@ -350,6 +350,7 @@ class PlayerMonitor(Player):
                 details = query.get("result", {}).get("episodedetails", {})
                 if tvshowid := details.get("tvshowid"):
                     props["player_tvshowid"] = str(tvshowid)
+                    library = ("tvshow", tvshowid, tag.getSeason(), tag.getEpisode())
                     props |= _episode_paths(
                         tvshowid,
                         tag.getSeason(),
@@ -359,6 +360,7 @@ class PlayerMonitor(Player):
                     self._successor = playnext.ensure_successor(dbid, tvshowid)
 
         elif media_type == "movie" and dbid > 0:
+            library = ("movie", dbid)
             query = json_call(
                 "VideoLibrary.GetMovieDetails",
                 params={"properties": ["setid", "set", "file"], "movieid": dbid},
@@ -381,9 +383,7 @@ class PlayerMonitor(Player):
         # The lookup's queue wait runs callbacks queued meanwhile, a next file's
         # start among them: the answer lands only if no other file started
         started = self._starts
-        found = segments.lookup(
-            tvshowid, tag.getSeason(), tag.getEpisode(), self.getTotalTime()
-        )
+        found = segments.lookup(self.getTotalTime(), *library)
         if started == self._starts:
             self._segments = found
 

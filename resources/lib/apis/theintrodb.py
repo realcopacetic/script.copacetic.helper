@@ -23,13 +23,14 @@ def enabled() -> bool:
     return ADDON.getSettingBool("theintrodb")
 
 
-def _best(kind: str, rows: list[dict]) -> list[int | None] | None:
+def _spans(kind: str, rows: list[dict]) -> list[list[int | None]]:
     """
-    The most trusted of one kind's segments: confidence, then submissions.
+    One kind's segments, most trusted first (confidence, then submissions), each kept
+    unless it overlaps one kept: a rival take on it. A film's credits can be several.
 
     :param kind: intro, recap, credits or preview.
     :param rows: TheIntroDB's segments of that kind.
-    :return: [start_ms, end_ms], end None for one running to the end; None if none.
+    :return: [start_ms, end_ms] pairs by start, end None for one running to the end.
     """
 
     def span(row: dict) -> tuple[float, int, int, int | None]:
@@ -46,9 +47,16 @@ def _best(kind: str, rows: list[dict]) -> list[int | None] | None:
         """An end after the start, or none for a kind that runs to the end."""
         return kind in OPEN_ENDED if s[3] is None else s[3] > s[2]
 
-    if not (spans := [s for s in map(span, rows) if valid(s)]):
-        return None
-    return list(max(spans, key=itemgetter(0, 1))[2:])
+    kept = []
+    for *_, start, end in sorted(
+        filter(valid, map(span, rows)), key=itemgetter(0, 1), reverse=True
+    ):
+        if all(
+            end is not None and end <= s or e is not None and e <= start
+            for s, e in kept
+        ):
+            kept.append([start, end])
+    return sorted(kept, key=itemgetter(0))
 
 
 def _shape(data: dict[str, Any]) -> dict[str, Any]:
@@ -56,10 +64,10 @@ def _shape(data: dict[str, Any]) -> dict[str, Any]:
     TheIntroDB's answer as the cached payload.
 
     :param data: GET /media's decoded JSON.
-    :return: {kind: [start_ms, end_ms]} and the answering release's "duration" (ms).
+    :return: {kind: [[start_ms, end_ms], ...]} and the answering release's "duration".
     """
     found = {
-        kind: span for kind in KINDS if (span := _best(kind, data.get(kind) or []))
+        kind: spans for kind in KINDS if (spans := _spans(kind, data.get(kind) or []))
     }
     if found and (duration := data.get("group_duration_ms")):
         found["duration"] = int(duration)
@@ -84,28 +92,36 @@ def _fetch(params: dict[str, Any]) -> dict[str, Any] | list:
 
 
 def segments(
-    ids: dict[str, str], season: int, episode: int, duration_ms: int
+    ids: dict[str, str],
+    duration_ms: int,
+    season: int | None = None,
+    episode: int | None = None,
 ) -> dict[str, Any]:
     """
-    An episode's skip segments from the first of its show's ids TheIntroDB knows,
-    in IDS order; each answer cached (cache.cached), queued one call a second.
+    A film's skip segments, or an episode's by its show's ids, from the first id
+    TheIntroDB knows, in IDS order; each answer cached, queued one call a second.
 
-    :param ids: The show's uniqueid, by type.
-    :param season: Season number, in the library's order.
-    :param episode: Episode number.
+    :param ids: The film's or show's uniqueid, by type.
     :param duration_ms: The file's length, for the release nearest it; 0 unknown.
+    :param season: An episode's season, in the library's order; None for a film.
+    :param episode: An episode's number.
     :return: _shape's payload; empty when none.
     """
     seconds = duration_ms // 1000
+    media, which = (
+        ("movie", "") if season is None else ("episode", f":{season}x{episode}")
+    )
     for id_type in IDS:
         if not (value := ids.get(id_type)):
             continue
-        params = {f"{id_type}_id": value, "season": season, "episode": episode}
+        params = {f"{id_type}_id": value}
+        if season is not None:
+            params |= {"season": season, "episode": episode}
         params["details"] = "true"  # confidence, and the answering release's length
         if duration_ms:
             params["duration_ms"] = duration_ms
         found = cached(
-            f"theintrodb:episode:{id_type}:{value}:{season}x{episode}:{seconds}",
+            f"theintrodb:{media}:{id_type}:{value}{which}:{seconds}",
             lambda: _fetch(params),
             (TTL_HIT, TTL_EMPTY),
             NEXT_CALL,

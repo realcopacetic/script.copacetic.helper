@@ -175,12 +175,14 @@ def api_patterns(type: str, dbid: int) -> list[str]:
         return []
     ids = _details(type, dbid, "uniqueid")["uniqueid"]
     tmdb = ids.get("tmdb")
-    if type == "movie":
-        return [f"tmdb:movie:{tmdb}:%"] if tmdb else []
     from resources.lib.apis.theintrodb import IDS
 
+    media = "movie" if type == "movie" else "episode"
+    times = [f"theintrodb:{media}:{k}:{v}:%" for k in IDS if (v := ids.get(k))]
+    if type == "movie":
+        return [*([f"tmdb:movie:{tmdb}:%"] if tmdb else []), *times]
     shows = [f"tmdb:{kind}:{tmdb}:%" for kind in ("tvshow", "season_%")] if tmdb else []
-    return shows + [f"theintrodb:episode:{k}:{v}:%" for k in IDS if (v := ids.get(k))]
+    return shows + times
 
 
 def remove_textures(urls: Iterable[str] = (), prefixes: Iterable[str] = ()) -> int:

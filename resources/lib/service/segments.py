@@ -52,27 +52,41 @@ def chapter_starts(duration: float) -> list[float]:
     return [0.0] * (count - len(marks)) + marks
 
 
-def lookup(tvshowid: int, season: int, episode: int, total: float) -> "Segments | None":
+LIBRARY = {  # how a video's TheIntroDB ids are read: an episode's are its show's
+    "movie": ("VideoLibrary.GetMovieDetails", "movieid", "moviedetails"),
+    "tvshow": ("VideoLibrary.GetTVShowDetails", "tvshowid", "tvshowdetails"),
+}
+
+
+def lookup(
+    total: float,
+    media: str,
+    dbid: int,
+    season: int | None = None,
+    episode: int | None = None,
+) -> "Segments | None":
     """
     A new video's segments, with the skin's skip setting on: TheIntroDB's answer for
-    a library episode while it is on, the rest built on the first tick.
+    a library film or episode while it is on, the rest built on the first tick.
 
-    :param tvshowid: Library id of an episode's show; 0 for any other video.
-    :param season: Season number.
-    :param episode: Episode number.
     :param total: The file's length in seconds.
+    :param media: movie, or tvshow for an episode.
+    :param dbid: Library id of the film or the episode's show; 0 for any other video.
+    :param season: An episode's season number.
+    :param episode: An episode's number.
     :return: Segments; None with the setting off.
     """
     if not condition(ENABLED):
         return None
     found = {}
-    if tvshowid and theintrodb.enabled():
+    if dbid and theintrodb.enabled():
+        method, key, result = LIBRARY[media]
         ids = json_call(
-            "VideoLibrary.GetTVShowDetails",
-            params={"properties": ["uniqueid"], "tvshowid": tvshowid},
+            method,
+            params={"properties": ["uniqueid"], key: dbid},
             parent="skip_segments",
-        )["result"]["tvshowdetails"]["uniqueid"]
-        found = theintrodb.segments(ids, season, episode, round(total * 1000))
+        )["result"][result]["uniqueid"]
+        found = theintrodb.segments(ids, round(total * 1000), season, episode)
     return Segments(found, total)
 
 
@@ -159,13 +173,12 @@ class Segments:
             not group or abs(group / 1000 - self.duration) <= SAME_CUT * self.duration
         )
         for kind in theintrodb.KINDS:
-            if not (span := found.get(kind)):
-                continue
-            start, end = span[0] / 1000, span[1] and span[1] / 1000
-            on_start, on_end = self._snap(start), self._snap(end)
-            if same or on_start is not None and (end is None or on_end is not None):
-                start = start if on_start is None else on_start
-                self._add(start, end if on_end is None else on_end, kind)
+            for span in found.get(kind, ()):
+                start, end = span[0] / 1000, span[1] and span[1] / 1000
+                on_start, on_end = self._snap(start), self._snap(end)
+                if same or on_start is not None and (end is None or on_end is not None):
+                    start = start if on_start is None else on_start
+                    self._add(start, end if on_end is None else on_end, kind)
         if not (self.spans or self.credits):
             self._pattern()
 

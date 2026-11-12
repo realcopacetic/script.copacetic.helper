@@ -2051,6 +2051,15 @@ TIDB = {
     "recap": [{"start_ms": None, "end_ms": 30000, "confidence": 0.8}],
     "credits": [{"start_ms": 3400000, "end_ms": None, "confidence": 0.7}],
 }
+FILM = {
+    "tvdb_id": 169,
+    "type": "movie",
+    "credits": [  # a mid-credits scene between two: both kept, by start
+        {"start_ms": 6408000, "end_ms": None, "confidence": 0.8},
+        {"start_ms": 5801777, "end_ms": 6371111, "confidence": 0.9},
+        {"start_ms": 5800000, "end_ms": 6300000, "confidence": 0.4},  # a rival take
+    ],
+}
 SHOW = {"tmdb": "1396", "tvdb": "81189", "imdb": "tt0903747"}
 
 
@@ -2060,7 +2069,7 @@ class TheIntroDbTest(Base):
         sys.modules["xbmcgui"].Window().clearProperty(theintrodb.NEXT_CALL)
 
     def lookup(self, ids=SHOW):
-        return theintrodb.segments(ids, 1, 1, 3_481_234)
+        return theintrodb.segments(ids, 3_481_234, 1, 1)
 
     def key(self, kind="tmdb", value="1396"):
         return f"theintrodb:episode:{kind}:{value}:1x1:3481"
@@ -2071,9 +2080,9 @@ class TheIntroDbTest(Base):
         self.assertEqual(
             found,
             {
-                "recap": [0, 30000],
-                "intro": [60500, 90500],
-                "credits": [3400000, None],
+                "recap": [[0, 30000]],
+                "intro": [[60500, 90500]],
+                "credits": [[3400000, None]],
                 "duration": 3480000,
             },
         )
@@ -2090,11 +2099,24 @@ class TheIntroDbTest(Base):
 
     def test_unknown_id_tries_the_next(self):
         self.net.answers = [http_error(404), json.dumps(TIDB).encode()]
-        self.assertEqual(self.lookup()["intro"], [60500, 90500])
+        self.assertEqual(self.lookup()["intro"], [[60500, 90500]])
         self.assertEqual(self.row(self.key(), ""), ([], 3 * DAY - 1))  # queued 1 s
         self.assertIn("tvdb_id=81189", self.net.requests[1].full_url)
-        self.assertEqual(self.lookup()["intro"], [60500, 90500])  # both cached
+        self.assertEqual(self.lookup()["intro"], [[60500, 90500]])  # both cached
         self.assertEqual(len(self.net.requests), 2)
+
+    def test_a_film_by_its_own_ids(self):
+        self.net.answers = [json.dumps(FILM).encode()]
+        found = theintrodb.segments({"tmdb": "299534"}, 10_860_000)
+        self.assertEqual(found, {"credits": [[5801777, 6371111], [6408000, None]]})
+        self.assertEqual(
+            self.net.requests[0].full_url,
+            "https://api.theintrodb.org/v4/media?tmdb_id=299534&details=true"
+            "&duration_ms=10860000",
+        )
+        self.assertEqual(
+            self.row("theintrodb:movie:tmdb:299534:10860", ""), (found, 180 * DAY)
+        )
 
     def test_empty_answer_three_days_and_no_other_id(self):
         self.net.answers = [b'{"tvdb_id": 81189, "type": "tv"}']
@@ -2135,6 +2157,15 @@ class TheIntroDbTest(Base):
             ],
         )
         self.assertEqual(self.cache.expire(*patterns), 1)
+        details["uniqueid"] = {"tmdb": "299534", "imdb": "tt4154796"}
+        self.assertEqual(
+            library.api_patterns("movie", 5),
+            [
+                "tmdb:movie:299534:%",
+                "theintrodb:movie:tmdb:299534:%",
+                "theintrodb:movie:imdb:tt4154796:%",
+            ],
+        )
         dialog = mock.Mock(**{"return_value.yesno.return_value": True})
         patch(
             self,
