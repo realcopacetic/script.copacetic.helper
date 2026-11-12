@@ -101,10 +101,10 @@ class CleanNameTest(unittest.TestCase):
             (local, local, film),  # a label that is the path (PlayList.add(url))
             (local, "Batman Begins", {}),  # a title of its own
             ("https://h/?id=1", "", {}),  # no title, no name
-            (  # a stack, titled by its label: the first part's name less its part
-                "stack:///m/Film.2001.cd1.mkv , /m/Film.2001.cd2.mkv",
-                "Film.2001.mkv",
-                {"title": "Film", "year": "2001"},
+            (
+                "/m/Show%20S01E02.mkv",
+                "Show%20S01E02.mkv",
+                {"tvshowtitle": "Show", "episode": "1x02"},
             ),
             (
                 "HTTP://h/Film%20Two.2003.mkv",
@@ -174,6 +174,26 @@ class CleanNameTest(unittest.TestCase):
         ):
             with self.subTest(path=path, title=title):
                 self.assertEqual(utilities.file_clean_name(path, title), expected)
+
+    def test_stack_named_by_kodi(self):  # GetMovieName names a stack from its parts
+        stack = (
+            "stack:///m/Hello,, Dolly!.1969.cd1.mkv , /m/Hello,, Dolly!.1969.cd2.mkv"
+        )
+        asked = []
+        utilities.xbmc.getCleanMovieTitle = lambda path, folder: (
+            asked.append(path) or ("Hello, Dolly!", "1969")
+        )
+        self.assertEqual(
+            utilities.file_clean_name(stack), {"title": "Hello, Dolly!", "year": "1969"}
+        )
+        self.assertEqual(asked, [stack])
+        self.assertEqual(utilities.file_clean_name(stack, "Hello, Dolly!.1969.mkv"), {})
+
+    def test_plugin_options_cut(self):
+        self.assertEqual(
+            utilities.file_clean_name("plugin://plugin.video.x/Film.2001.mkv?id=5"),
+            {"title": "Film", "year": "2001"},
+        )
 
     def test_without_a_title_any_file(self):  # the clean_name plugin path
         self.assertEqual(
