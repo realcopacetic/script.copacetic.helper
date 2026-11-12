@@ -410,7 +410,7 @@ class PlayerMonitor(Player):
         names = os.path.basename(path), unquote_plus(os.path.basename(path))
         untitled = {*names, *(os.path.splitext(n)[0] for n in names)}
         if tag.getDbId() <= 0 and infolabel("VideoPlayer.Title") in untitled:
-            # Only a web or DAV path is itself encoded: its name decoded alone, as Kodi's
+            # Only a web or DAV path is encoded: its name decoded alone, as Kodi does
             clean = names[1] if path.startswith(_ENCODED) else path
             props |= {f"player_clean_{k}": v for k, v in clean_name(clean).items()}
         logo = infolabel("VideoPlayer.Art(clearlogo)") or infolabel(
