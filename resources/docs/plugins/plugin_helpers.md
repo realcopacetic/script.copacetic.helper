@@ -38,6 +38,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `typewriter` | Types a label into a textbox one character at a time. | [Typewriter](typewriter.md) |
 | `text` | Draws text into a PNG image. | [Text Image](text.md) |
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
+| `clean_name` | Returns a file's readable name: a film's title and year, or an episode's show, code and title. | [Clean name](clean_name.md) |
 | `favourite` | Returns the library item a favourite points to, with its details and artwork. | [Favourite](favourite.md) |
 | `in_progress`, `next_up`, `random_movies`, `random_tvshows`, `random_albums`, `random_genre`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `genre_music`, `top_songs`, `discography`, `soundtracks` | Fill a container with library items. | [Library Listings](library.md) |
 | `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |

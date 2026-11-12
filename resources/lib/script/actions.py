@@ -1405,6 +1405,17 @@ def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) 
 
 
 @action
+def size_identity(**kwargs: str) -> None:
+    """
+    VideoOSD's onload: fit its identity logo to the playing item's. The OSD stays
+    loaded, so this only matters for the first open after a new file.
+    """
+    from resources.lib.plugin.helpers import size_identity as fit  # this action only
+
+    fit("videoosd")
+
+
+@action
 def listenbrainz_test(**kwargs: str) -> None:
     """
     Verify the configured ListenBrainz token by making a test request.
