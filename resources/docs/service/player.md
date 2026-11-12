@@ -220,10 +220,10 @@ straight away when [`rate_song`](../script/actions.md#rate_song) changes the rat
 With `Skin.HasSetting(endless_queue)` on, the music queue never runs out. When a
 library song starts from the music queue and fewer than 10 songs follow it, the
 service adds 10 more to the end: a mix seeded by that song, as
-[`start_mix`](../script/actions.md#start_mix) makes one (about two by its artists, the
-rest sharing its genres), with no song that is already queued. It only adds, so the
-queue and any list of it just grow; a shuffled queue plays them after the songs it
-already had.
+[`start_mix`](../script/actions.md#start_mix) makes one (two or three by its
+artists, the rest by its similar artists, then sharing its genres), with no song
+already queued. It only adds, so the queue and any list of it just grow; a shuffled
+queue plays them after the songs it already had.
 
 Each song added carries `ListItem.Property(added_from)`: the seed song's artists,
 joined with ` / `. Read it as `MusicPlayer.Property(added_from)` while the song plays,

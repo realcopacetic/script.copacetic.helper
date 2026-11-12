@@ -1,7 +1,7 @@
 # Library Listings
 
 These plugin paths fill a container with items from your video library (`random_albums`,
-`rediscover`, `daily_mixes`, `genre_music`, `random_genre` with a music type, `top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
+`rediscover`, `similar_music`, `daily_mixes`, `genre_music`, `random_genre` with a music type, `top_songs`, `discography`: your music library; `soundtracks`: both). Use them as widgets or in any list. Each item carries the usual
 library infolabels and artwork, so your existing layouts work with them.
 
 | `info=` | What it lists |
@@ -22,6 +22,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `studio_credits` | Movies and TV shows from a given studio or network. |
 | `artist_credits` | Music videos by a given artist. |
 | `genre_music` | Library artists, albums or songs in any of the given genres. |
+| `similar_music` | Library artists, albums or songs by an artist's similar artists (Deezer, ListenBrainz), then in its genres. |
 | `top_songs` | A library artist's most popular songs (ListenBrainz all-time, Deezer now, blended), then its most played. |
 | `discography` | A library artist's albums, most popular (ListenBrainz and Deezer, blended) first. |
 | `soundtracks` | A movie's, TV show's or season's soundtrack albums, or the movie or TV show an album is from. |
@@ -281,6 +282,41 @@ Adventure`): the helper splits its parameters only where `&name=` follows, where
 `videodb://` filter in the path would cut the value at the `&`. Pass the container's
 own `limit` and order as `limit` and `sort`, so Kodi never fetches a whole genre or
 studio for the container to cut.
+
+## `similar_music`
+
+Library artists, albums or songs (`type=`) like an artist, or an album's or song's
+first artist (`seed=album` or `seed=song`, `id=` its `DBID`). Its similar artists come
+from Deezer's related artists (`/artist/<id>/related`, the Deezer artist `top_songs`
+found) and ListenBrainz's (LB Radio, `/1/lb-radio/artist/<MBID>`, its closest "easy"
+mode, 20 artists), each when its source is on, blended as `top_songs` blends (Deezer
+counts double), and kept to artists in the library, the artist itself left out.
+
+- `type=artist`: those artists, closest first.
+- `type=album` or `song`: their albums or songs in random order, as
+  [`random_albums`](#random_albums) (`randomise=`).
+
+Fewer than `limit` are topped up from [`genre_music`](#genre_music) with the same
+`label`, `exclude_value` and `randomise`, and the artist's album genres; with no
+similar artist in the library, or neither source on, it is `genre_music` alone. The
+answers are cached as `top_songs`' (`deezer:related:<id>`,
+`listenbrainz:similar-artists:<MBID>`): related artists a week, ListenBrainz's two
+weeks. [`start_mix`](../script/actions.md#start_mix) and the endless queue use the
+same similar artists.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type` | `artist`, `album`, `song` | required | What to list |
+| `id` | the seed's `DBID` | required | The artist (album or song with `seed`) |
+| `seed` | `artist`, `album`, `song` | `artist` | What `id` is |
+| `label` | genres, ` / ` joined | — | Genres for the top-up |
+| `exclude_value` | a name | — | Leaves one out of the top-up |
+| `limit` | whole number | all | Most items |
+| `randomise` | any text | — | A seed for the random order |
+
+```xml
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=similar_music&amp;type=artist&amp;id=$INFO[ListItem.DBID]&amp;limit=20&amp;label=$INFO[ListItem.Genre]&amp;exclude_value=$INFO[ListItem.Artist]</content>
+```
 
 ## `genre_music`
 

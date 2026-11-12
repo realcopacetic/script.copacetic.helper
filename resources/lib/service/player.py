@@ -499,7 +499,7 @@ class PlayerMonitor(Player):
         if (
             songid > 0
             and condition(ENDLESS_QUEUE)
-            and self._extend_queue(artists, tag.getGenres())
+            and self._extend_queue(artists, artistids, tag.getGenres())
         ):
             # The album path compared the queue before it grew
             album_path = self._album_path(item.get("albumid", 0))
@@ -547,13 +547,16 @@ class PlayerMonitor(Player):
             self._queue_songs = (queue, ids)
         return self._queue_songs[1]
 
-    def _extend_queue(self, artists: list[str], genres: list[str]) -> bool:
+    def _extend_queue(
+        self, artists: list[str], artistids: list[int], genres: list[str]
+    ) -> bool:
         """
         Endless queue: once fewer than QUEUE_LOW songs follow the playing one, append
         QUEUE_GROWTH from a mix seeded by it, none already queued, each with
         ListItem.Property(added_from) naming its artists for the "why this song" line.
 
         :param artists: The playing song's artists.
+        :param artistids: Their library ids.
         :param genres: Its genres.
         :return: True when the queue grew.
         """
@@ -570,10 +573,12 @@ class PlayerMonitor(Player):
         playlist = PlayList(PLAYLIST_MUSIC)
         if position < 0 or playlist.size() - position - 1 >= QUEUE_LOW:
             return False
+        from resources.lib.plugin.music import similar_artists
+
         queued = self._queue_ids()
-        songs = mix_songs(
-            artists, genres or artist_genres(artists), QUEUE_GROWTH, queued
-        )
+        genres = genres or artist_genres(artists)
+        similar = similar_artists(artistids[0], "endless_queue") if artistids else []
+        songs = mix_songs(artists, genres, QUEUE_GROWTH, queued, similar=similar)
         if not songs:
             return False
         add_songs(playlist, songs, added_from=" / ".join(artists))

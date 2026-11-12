@@ -27,6 +27,7 @@ from resources.lib.shared.utilities import (
 from resources.lib.shared.mix import (
     DAILY_ARTIST_SHARE,
     MIX_SIZE,
+    SEED_SHARE,
     artist_genres,
     mix_songs,
     random_songs,
@@ -1096,13 +1097,13 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
 
     :param type: song, album or artist.
     :param dbid: Library ID of the item.
-    :return: Song dict with songid, file, artist and genre, or None.
+    :return: Song dict with songid, file, artist, artistid and genre, or None.
     """
     if type == "song":
         return (
             json_call(
                 "AudioLibrary.GetSongDetails",
-                properties=["file", "artist", "genre"],
+                properties=["file", "artist", "artistid", "genre"],
                 params={"songid": dbid},
                 parent="start_mix",
             )
@@ -1111,7 +1112,7 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
         )
     top = json_call(
         "AudioLibrary.GetSongs",
-        properties=["file", "artist", "genre"],
+        properties=["file", "artist", "artistid", "genre"],
         sort={"method": "playcount", "order": "descending"},
         limit=5,
         query_filter={_LIBRARY_ITEMS[type]: dbid},
@@ -1189,8 +1190,8 @@ def shuffle_artist(id: str = "", **kwargs: str) -> None:
 def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     """
     Plays a random mix. A genre or year mix is its own songs, a daily one today's
-    mix of a genre; a song, album or artist mix starts from a seed song, then songs
-    sharing its genres (else its artists'), some by its artists, spread through.
+    mix of a genre; a song, album or artist mix is a seed song, SEED_SHARE by its
+    artists, the rest by similar artists, then of its genres (else its artists').
 
     :param id: Library ID (defaults to ListItem.DBID); the year for year.
     :param type: song, album, artist, genre, year or daily (id a genre ID).
@@ -1214,11 +1215,20 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     dbid = to_int(id or infolabel("ListItem.DBID"))
     if not (seed := _mix_seed(type, dbid)):
         return
+    from resources.lib.plugin.music import similar_artists
+
     mark_source(dial_entry(type, dbid))
     genres = seed["genre"] or artist_genres(seed["artist"])
-    play_files(
-        [seed, *mix_songs(seed["artist"], genres, MIX_SIZE - 1, {seed["songid"]})]
+    similar = similar_artists(seed["artistid"][0], "start_mix")
+    songs = mix_songs(
+        seed["artist"],
+        genres,
+        MIX_SIZE - 1,
+        {seed["songid"]},
+        SEED_SHARE[type],
+        similar,
     )
+    play_files([seed, *songs])
 
 
 REGISTRY["play_radio"] = start_mix  # former name, kept for skins that call it
