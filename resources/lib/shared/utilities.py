@@ -226,6 +226,9 @@ def play_files(songs: list[dict], position: int = 0, shuffled: bool = False) -> 
     if condition("MusicPartyMode.Enabled"):
         # Off first: clearing the queue leaves it on, and it would refill the queue
         xbmc.executebuiltin("PlayerControl(PartyMode)", wait=True)
+    # The service holds playlist_revision meanwhile: a queue list fetched mid-fill
+    # walks the playlist as it grows
+    window_property("playlist_replacing", value="true")
     xbmc.PlayList(xbmc.PLAYLIST_VIDEO).clear()
     playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
     playlist.clear()  # keeps a previous shuffle's flag: set it explicitly below
@@ -238,6 +241,7 @@ def play_files(songs: list[dict], position: int = 0, shuffled: bool = False) -> 
         playlist.shuffle()
     else:
         playlist.unshuffle()
+    window_property("playlist_replacing")
     xbmc.Player().play(playlist, startpos=position)
 
 
