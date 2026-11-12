@@ -4,7 +4,7 @@ Lint a skin's ``16x9/*.xml`` together with freshly generated helper outputs.
 Mirrors Omega's ``CGUIIncludes`` load and resolve rules. By default only what
 the migrated (C2) windows load is checked; ``--all``, or a skin with none (C1),
 checks everything. Also checks that ``media`` textures store white under fully
-transparent pixels. Errors exit 1.
+transparent pixels, and that no string id is defined twice. Errors exit 1.
 """
 
 import argparse
@@ -72,6 +72,7 @@ ERRORS = {
     "undefined-variable",
     "texture-clear",
     "timer-unresolved",
+    "duplicate-string",
 }
 
 
@@ -839,6 +840,25 @@ def check_textures(skin: Path) -> Iterator[Finding]:
                 break
 
 
+def check_strings(skin: Path) -> Iterator[Finding]:
+    """
+    Report a string id defined twice in a ``strings.po``: Kodi keeps the last, so
+    the first one's readers show the other text.
+
+    :param skin: Skin root directory.
+    :return: One finding per repeat, at its line.
+    """
+    for path in sorted((skin / "language").glob("*/strings.po")):
+        seen = {}
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for number, line in enumerate(lines, 1):
+            if match := re.fullmatch(r'msgctxt "#(\d+)"', line.strip()):
+                src = f"{path.relative_to(skin)}:{number}"
+                if (first := seen.setdefault(match[1], number)) != number:
+                    message = f"#{match[1]} again (first at line {first})"
+                    yield Finding("duplicate-string", src, message)
+
+
 def window_metadata(skin: Path) -> dict[str, dict[str, str]]:
     """
     Builder windows and their metadata, from ``mappings_windows.json``.
@@ -943,7 +963,11 @@ def main() -> None:
         windows = None if args.all else sorted({*skin.migrated(), *args.window}) or None
         if windows:
             print(f"windows: {', '.join(windows)}")
-        findings = skin.lint(windows) | set(check_textures(args.skin))
+        findings = (
+            skin.lint(windows)
+            | set(check_textures(args.skin))
+            | set(check_strings(args.skin))
+        )
         if args.count:  # after lint: expanding again records calls and findings
             for window in windows or sorted(skin.roots):
                 if skin.roots[window].tag == "window":
