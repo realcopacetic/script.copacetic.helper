@@ -44,8 +44,10 @@ SONGS = [
         + [("Low", "Slowcore")] * 5
     )
 ]
-# Kyuss's plays: songid → (playcount, days since last played); the rest unplayed
+# Plays: songid → (playcount, days since last played); the rest unplayed. Kyuss's
+# 0-7, then Sleep's 8-11, played more than any of Kyuss's
 PLAYS = {0: (5, 3), 2: (9, 40), 4: (2, 1), 7: (7, 10)}
+PLAYS |= {n: (20 - n, 1) for n in range(8, 12)}
 
 
 def library(
@@ -106,6 +108,15 @@ class Mix(unittest.TestCase):
         # three played lately, four never played, then the one played long ago
         self.assertEqual([s["songid"] for s in songs][:3], [7, 0, 4])
         self.assertEqual({s["songid"] for s in songs}, set(range(8)))
+
+    def test_played_a_fair_share_each(self):
+        with mock.patch.object(mix, "json_call", library):
+            songs = mix.mix_songs(["Kyuss", "Sleep"], [], 10, share=0.6, played="30")
+        ids = [s["songid"] for s in songs]
+        # three familiar, at most two each: Sleep's top two, then Kyuss's top one
+        self.assertEqual(ids[:3], [8, 9, 7])
+        by = Counter(s["artist"][0] for s in songs[3:6])  # three new, two at most
+        self.assertEqual(by, {"Kyuss": 2, "Sleep": 1})
 
     def test_artists_alone_without_genres(self):
         with mock.patch.object(mix, "json_call", library):
