@@ -30,5 +30,9 @@ It returns one item, with these properties (each only when found):
 | `clean_tvshowtitle` | For a file named like an episode (`S01E07` or `1x07`): the show |
 | `clean_episode` | The episode's code, as `1x07` |
 
+A stack of episode parts whose name Kodi cuts at a year (`Show.2005.S01E07.part1.mkv`)
+gives the show and the code, but no `clean_title`: the parts' titles end in their
+part number.
+
 The playing file gets the same names as `player_clean_*` properties, from the service
 (see [Player properties](../service/player.md#identity-and-clean-names)).
