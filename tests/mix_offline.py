@@ -236,8 +236,25 @@ class Today(unittest.TestCase):
             raise KeyError("result")  # GetArtistDetails: the database failed to open
 
         self.similar.side_effect = down
-        self.assertIsNone(mix.keep_todays_mixes(lambda: True))  # retried, not counted
+        self.assertFalse(mix.keep_todays_mixes(lambda: True))  # as kept: same URL
         self.assertEqual(mix.todays_mixes(), first)
+
+    def test_a_gone_lead_keeps_its_mix_while_another_fills(self):
+        self.like[4] = []  # Low's lookup unanswered on the first pass
+        self.assertTrue(mix.keep_todays_mixes(lambda: True))
+        first = mix.todays_mixes()
+        self.like[4] = ["Galaxie 500"]  # answers now
+
+        def similar(artistid: int, parent: str, owned: dict) -> list[str]:
+            if artistid == 2:  # Sleep, a Stoner and a Drone lead, gone since
+                raise KeyError("result")
+            return self.like.get(artistid, [])
+
+        self.similar.side_effect = similar
+        self.assertTrue(mix.keep_todays_mixes(lambda: True))
+        stoner, slowcore, drone = mix.todays_mixes()
+        self.assertEqual((stoner, drone), (first[0], first[2]))  # as kept
+        self.assertEqual(slowcore["similar"], ["Galaxie 500"])  # filled
 
     def test_no_plays_keeps_nothing(self):
         self.calls.return_value = {"result": {"songs": []}}
