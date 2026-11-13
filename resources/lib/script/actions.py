@@ -1201,7 +1201,11 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
         if not mix:  # the day turned since its card loaded: the genre's own mix
             start_mix(id=id, type="genre")
         elif songs := mix_songs(
-            mix["artists"], [mix["genre"]], MIX_SIZE, share=DAILY_ARTIST_SHARE
+            mix["artists"],
+            [mix["genre"]],
+            MIX_SIZE,
+            share=DAILY_ARTIST_SHARE,
+            similar=mix["similar"],
         ):
             mark_source(None)
             play_files(songs)

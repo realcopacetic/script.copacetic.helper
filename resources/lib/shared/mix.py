@@ -132,9 +132,10 @@ def todays_mixes() -> list[dict]:
     Today's mixes, worked out on the day's first read and kept for the day, so the
     cards hold while today's plays move lastplayed. Empty until there are plays.
 
-    :return: Mix dicts: genreid, genre, artistids and artists, leads first.
+    :return: Mix dicts: genreid, genre, artistids and artists (leads) and similar.
     """
-    cache, key = ApiCacheHandler(), f"library:daily_mixes:{date.today()}"
+    # v2: mixes carry similar; a day cached before them would lack it
+    cache, key = ApiCacheHandler(), f"library:daily_mixes:v2:{date.today()}"
     if hit := cache.get(key):
         return hit[0]
     if mixes := _leading_genres():
@@ -145,10 +146,13 @@ def todays_mixes() -> list[dict]:
 def _leading_genres() -> list[dict]:
     """
     The genres of the songs played lately, by plays, each with its three most
-    played artists; a genre whose lead already leads a mix is passed over.
+    played artists and the library artists like them (fused, closest first); a
+    genre whose lead already leads a mix is passed over.
 
     :return: Up to DAILY_MIXES mix dicts.
     """
+    from resources.lib.plugin.music import fused, similar_artists
+
     songs = json_call(
         "AudioLibrary.GetSongs",
         properties=["artist", "artistid", "genre", "genreid", "playcount"],
@@ -173,12 +177,16 @@ def _leading_genres() -> list[dict]:
         if len(seeds) < DAILY_SEEDS or seeds[0] in leads:
             continue
         leads.add(seeds[0])
+        names = [artists[artistid] for artistid in seeds]
+        like = fused((1, similar_artists(seed, "daily_mixes")) for seed in seeds)
+        similar = [name for name, _ in like.most_common() if name not in names]
         mixes.append(
             {
                 "genreid": genreid,
                 "genre": genres[genreid],
                 "artistids": seeds,
-                "artists": [artists[artistid] for artistid in seeds],
+                "artists": names,
+                "similar": similar,
             }
         )
         if len(mixes) == DAILY_MIXES:
