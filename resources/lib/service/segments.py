@@ -14,7 +14,7 @@ from resources.lib.shared.utilities import (
 
 ENABLED = "Skin.HasSetting(skip_segments)"
 SNAP = 3  # seconds a TheIntroDB time may sit from a chapter mark and take it
-SAME_CUT = 0.02  # a release within 2 % of the file's length is the same cut
+SAME_CUT = 0.05  # within 5 % of the file's length: the same cut, a longer tail
 EARLY, LATE, SHORTEST = 600, 0.9, 900  # the tick pattern's windows; shorter: no pattern
 INTRO_GAP = 20, 120  # seconds between the pattern's two early marks
 NAMES = {  # chapter names (case folded) that name a segment; "prologue" is a cold open
