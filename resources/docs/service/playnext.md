@@ -46,3 +46,11 @@ The service sets no window properties for this feature. The queued episode appea
 the video playlist, so Kodi's own infolabels show it, for example
 `$INFO[VideoPlayer.Offset(1).Title]` and `$INFO[Playlist.Length(video)]`.
 (`VideoPlayer.NextTitle` is the next PVR programme, not the next playlist item.)
+
+To show a "next episode" card when the credits start, rather than a fixed time before
+the end, use `player_credits` from [Skip segments](player.md#skip-segments). It needs
+the skin setting `skip_segments` on, and is empty when the service found no credits:
+
+```xml
+<visible>!String.IsEmpty(Window(home).Property(player_credits)) + Integer.IsGreaterOrEqual(Player.Time(secs),Window(home).Property(player_credits))</visible>
+```
