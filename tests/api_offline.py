@@ -1252,6 +1252,51 @@ class DeezerTest(Base):
         ]
         self.assertEqual(self.top(), DEEZER_ROWS)
 
+    def test_far_ahead_taken_unconfirmed(self):
+        other = deezer_top(("Other Song", "Other Album"))
+        self.net.answers = [
+            deezer_search(
+                (9, "Queens of the Stone Age", 9_000_000),
+                (5, "Queens of the Stone Age", 899_999),
+            ),
+            other,
+            other,
+        ]
+        self.assertEqual(self.top(), [["", "Other Song", "Other Album"]])
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}")[0], 9)
+        self.assertEqual(len(self.net.requests), 3)  # its list isn't refetched
+
+    def test_not_far_ahead_none(self):
+        other = deezer_top(("Other Song", "Other Album"))
+        self.net.answers = [
+            deezer_search(
+                (9, "Queens of the Stone Age", 9_000_000),
+                (5, "Queens of the Stone Age", 900_000),
+            ),
+            other,
+            other,
+        ]
+        self.assertEqual(self.top(), [])
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 7 * DAY))
+
+    def test_only_one_taken_with_fans(self):
+        for fans, artist in ((1, 9), (0, None)):
+            self.cache.clear_all()
+            self.net.answers = [
+                deezer_search((9, "Queens of the Stone Age", fans)),
+                deezer_top(("Other Song", "Other Album")),
+            ]
+            self.top()
+            self.assertEqual(self.deezer_row(f"artist:{QOTSA}")[0], artist)
+
+    def test_far_ahead_without_data_none(self):
+        self.net.answers = [
+            deezer_search((9, "Queens of the Stone Age", 9_000_000)),
+            DEEZER_NO_DATA,
+        ]
+        self.assertEqual(self.top(), [])
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 7 * DAY))
+
     def test_symbol_only_name_sends_nothing(self):
         self.assertEqual(deezer.top_tracks("", "!!!", self.accept), [])
         self.assertEqual(self.net.requests, [])

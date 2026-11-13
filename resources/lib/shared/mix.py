@@ -175,8 +175,8 @@ def todays_mixes() -> list[dict]:
 def keep_todays_mixes(alive: Callable[[], bool]) -> bool | None:
     """
     Keeps today's mixes (those kept already, else today's leads) with their similar
-    artists as answered now, a lookup per distinct lead, so a second pass fills only
-    what the first missed. Stops unsaved once alive turns False.
+    artists in their genre as answered now, a lookup per distinct lead, so a second
+    pass fills only what the first missed. Stops unsaved once alive turns False.
 
     :param alive: Whether to go on; the service's abort.
     :return: Whether the kept mixes changed; None when none are (no plays, an abort).
@@ -206,11 +206,34 @@ def keep_todays_mixes(alive: Callable[[], bool]) -> bool | None:
             continue
         scores = fused((1, like[artistid]) for artistid in mix["artistids"])
         similar = [a for a, _ in scores.most_common() if a not in mix["artists"]]
-        fresh.append(mix | {"similar": similar})
+        fresh.append(mix | {"similar": similar and _in_genre(similar, mix["genre"])})
     if fresh == kept:
         return False
     store.put(key, fresh, DAILY_TTL)
     return True
+
+
+def _in_genre(artists: list[str], genre: str) -> list[str]:
+    """
+    The library artists of these with songs in genre (theirs or on their albums), in
+    order: a daily mix's similar artists, so its card and songs keep to its genre.
+
+    :param artists: Library artist names.
+    :param genre: Genre name.
+    :return: Those of artists in genre.
+    """
+    rules = [
+        {"field": "genre", "operator": "is", "value": genre},
+        {"field": "artist", "operator": "is", "value": artists},
+    ]
+    rows = json_call(
+        "AudioLibrary.GetArtists",
+        query_filter={"and": rules},
+        params={"albumartistsonly": False},
+        parent="daily_mixes",
+    )["result"].get("artists", [])
+    found = {row["artist"] for row in rows}
+    return [artist for artist in artists if artist in found]
 
 
 def _leading_genres() -> list[dict]:
