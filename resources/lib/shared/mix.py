@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from collections.abc import Collection, Sequence
 from datetime import date
 from functools import cache
+from math import ceil
 from operator import itemgetter
 
 from resources.lib.shared.sqlite import ApiCacheHandler
@@ -128,10 +129,13 @@ def mix_songs(
     by_artist = {"field": "artist", "operator": "is", "value": artists}
     want = max(1, round(size * share))
     own = []
-    if played:  # familiar then new, as Spotify's daily mixes
+    if played:  # familiar then new, as Spotify's daily mixes; each artist a fair share
         lately = {"field": "lastplayed", "operator": "inthelast", "value": played}
-        own = pick({"and": [by_artist, lately]}, want // 2, sort=MOST_PLAYED)
-        own += pick({"and": [by_artist, UNPLAYED]}, want - len(own))
+        familiar = want // 2
+        cap = ceil(familiar / len(artists))
+        own = pick({"and": [by_artist, lately]}, familiar, cap, MOST_PLAYED)
+        new = want - len(own)
+        own += pick({"and": [by_artist, UNPLAYED]}, new, ceil(new / len(artists)))
     own += pick(by_artist, want - len(own))
     rest = size - len(own)
     others = (
