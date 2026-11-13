@@ -240,7 +240,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32127"
-msgid "Check every artwork link of artists, albums, films, sets, TV shows and seasons, then remove the ones that are gone (web images that no longer exist, files that were moved or deleted). Run it on a device whose share login can read every art folder. Asks before removing anything; an artist it changes loses its discography and music video links until refreshed."
+msgid "Check every artwork link of artists, albums, films, sets, TV shows and seasons, then remove the ones that are gone (web images no longer there, files moved or deleted). Run it on a device whose share login can read every art folder. Asks first; an artist it changes loses its discography and music video links until refreshed."
 msgstr ""
 
 #: /resources/settings.xml, /resources/lib/script/actions.py
