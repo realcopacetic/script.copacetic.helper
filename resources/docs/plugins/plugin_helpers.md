@@ -151,14 +151,14 @@ properties.
 `progressbar` and `typewriter` move controls. They use the current window, even when
 a dialog is open on top of it. `dialog=true` (and `target=item`, which implies it)
 means the path belongs to an info dialog (`movieinformation`, `songinformation`,
-`musicinformation`, `addoninformation`): it uses that dialog instead, the topmost
-dialog when it is one, else the info dialog a context menu, Select or busy dialog
-covers, else the topmost dialog. Every path takes its window once. `artwork`,
-`metadata`, `progressbar`, `text` and `multiart_tiles` first wait for that info
-dialog to be topmost, for up to a second, plus up to five behind the busy dialog
+`musicinformation`, `addoninformation`) or the music OSD (`musicosd`): it uses that
+dialog instead, the topmost dialog when it is one of these, else the one a context
+menu, Select or busy dialog covers, else the topmost dialog. Every path takes its
+window once. `artwork`, `metadata`, `progressbar`, `text` and `multiart_tiles` first
+wait for that dialog to be topmost, for up to a second, plus up to five behind the busy dialog
 (Kodi's own Information shows it while it swaps the item), since under a menu a bare
 `ListItem` read answers for the window under the info dialog. If it never is, or the
-info dialog closes meanwhile, the path stops (`artwork` returns its held item). Pass `dialog=true` when the controls are
+dialog closes meanwhile, the path stops (`artwork` returns its held item). Pass `dialog=true` when the controls are
 in an info dialog and the path reads a list in it (`target=<id>`). On every path the
 focus check reads that same window: the dialog's focus with `dialog=true` or
 `target=item`, else the current window's. A dialog run also aborts once its dialog has
