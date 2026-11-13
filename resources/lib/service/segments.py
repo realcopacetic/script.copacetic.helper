@@ -171,8 +171,9 @@ class Segments:
         :param found: theintrodb.segments' payload.
         """
         group = found.get("duration")
-        extra = (self.duration - group / 1000) / self.duration if group else 0.0
-        same = -SAME_CUT <= extra <= max(SAME_CUT, self.tail)
+        extra = self.duration - group / 1000 if group else 0.0
+        width = self.duration * max(SAME_CUT, self.tail)
+        same = -SAME_CUT * self.duration <= extra <= width
         for kind in theintrodb.KINDS:
             for span in found.get(kind, ()):
                 start, end = span[0] / 1000, span[1] and span[1] / 1000

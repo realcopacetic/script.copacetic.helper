@@ -122,6 +122,7 @@ class SegmentsTest(unittest.TestCase):
         self.props.clear()
         self.segments.tick(0)
         self.assertEqual(self.props, {})
+        segments.Segments(tail, 0.0, segments.TAIL).tick(0)  # length not known yet
 
     def test_pattern(self):
         props = self.play({}, 300, 360, 3300)
