@@ -88,9 +88,9 @@ def mix_songs(
     played: str = "",
 ) -> list[dict]:
     """
-    Random songs for a mix: about share of them by artists (at least one), spread
-    through songs by similar artists, SIMILAR_CAP each, then of genres by others.
-    With played, half the artists' are their most played lately, the rest unplayed.
+    Random songs for a mix: about share by artists (at least one), spread through songs
+    by similar artists, SIMILAR_CAP each, then of genres by others. With played (daily),
+    half the artists' are most played lately, the rest unplayed; similar ones' of genres
 
     :param artists: Artist names the mix leans on.
     :param genres: Genre names for what similar artists don't fill.
@@ -139,11 +139,12 @@ def mix_songs(
         own += pick({"and": [by_artist, UNPLAYED]}, new, ceil(new / len(artists)))
     own += pick(by_artist, want - len(own))
     rest = size - len(own)
-    others = (
-        pick({**by_artist, "value": [*similar]}, rest, SIMILAR_CAP) if similar else []
-    )
+    genre_rule = {"field": "genre", "operator": "is", "value": genres}
+    theirs = {**by_artist, "value": [*similar]}
+    if played:  # a daily mix: its similar artists' songs in its genre too
+        theirs = {"and": [theirs, genre_rule]}
+    others = pick(theirs, rest, SIMILAR_CAP) if similar else []
     if genres:
-        genre_rule = {"field": "genre", "operator": "is", "value": genres}
         not_theirs = {**by_artist, "operator": "isnot", "value": [*artists, *similar]}
         others += pick({"and": [genre_rule, not_theirs]}, rest - len(others))
     if len(own) == want:  # else the artists have no more

@@ -417,12 +417,12 @@ the container's content is `songs`.
 name, keeps the artists whose name is the same (case, accents and punctuation
 aside), and tries up to three, most followed first: the first whose top tracks share
 three song titles with the library artist's songs (all of them, for an artist with
-fewer), or one song title and an album title, is taken. When none is, the most
-followed is taken if it has more than ten times the fans of the next same-named
-artist (any fans at all, when it is the only one): a library artist whose songs aren't among its top
-tracks still gets its Deezer lists, at the risk of a namesake's for a library artist
-Deezer doesn't have. An artist whose name has no
-letters or digits ("!!!") isn't looked up. Its id is kept, keyed by the artist's
+fewer), or one song title and an album title, is taken. When none is and the library
+artist has fewer than three song titles, too few to tell, the most followed is taken
+if it has more than ten times the fans of the next same-named artist and more than
+1,000: a library artist with a song or two that aren't among its top tracks still
+gets its Deezer lists, at the risk of a namesake's for one Deezer doesn't have. An
+artist whose name has no letters or digits ("!!!") isn't looked up. Its id is kept, keyed by the artist's
 MusicBrainz id, else by its name, so later opens skip the search; **Refresh cached
 data** on the artist searches again (a different pick needs a changed library or
 Deezer answer: the check is the same).

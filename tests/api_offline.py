@@ -1132,6 +1132,9 @@ class BlendTest(unittest.TestCase):
         self.assertFalse(accept([["", "Other Song", "Villains"]]))
         self.assertTrue(accept([["", "Mono", "x"]], [song(1, "Mono", 2026)]))
         self.assertFalse(accept([["", "!!!", "x"]], [song(1, "!!!", 2026)]))
+        # no match: None while the library has too few titles to tell, else False
+        self.assertIsNone(accept([["", "Other", "x"]], QOTSA_SONGS[:2]))
+        self.assertIs(accept([["", "Other", "x"]]), False)
 
     def test_played_tail_earliest_release(self):
         songs = [
@@ -1153,9 +1156,10 @@ class DeezerTest(Base):
     def setUp(self):
         super().setUp()
         self.settings["deezer"] = True
+        self.songs = QOTSA_SONGS
 
     def accept(self, rows):
-        return deezer_match(QOTSA_SONGS, rows)
+        return deezer_match(self.songs, rows)
 
     def top(self, key=QOTSA):
         return deezer.top_tracks(key, "Queens of the Stone Age", self.accept)
@@ -1252,7 +1256,21 @@ class DeezerTest(Base):
         ]
         self.assertEqual(self.top(), DEEZER_ROWS)
 
-    def test_far_ahead_taken_unconfirmed(self):
+    def test_homonym_not_taken_over_many_songs(self):
+        other = deezer_top(("Other Song", "Other Album"))
+        self.net.answers = [
+            deezer_search(
+                (9, "Queens of the Stone Age", 9_000_000),
+                (5, "Queens of the Stone Age", 10),
+            ),
+            other,
+            other,
+        ]
+        self.assertEqual(self.top(), [])
+        self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 7 * DAY))
+
+    def test_far_ahead_taken_with_few_songs(self):
+        self.songs = QOTSA_SONGS[:2]
         other = deezer_top(("Other Song", "Other Album"))
         self.net.answers = [
             deezer_search(
@@ -1267,6 +1285,7 @@ class DeezerTest(Base):
         self.assertEqual(len(self.net.requests), 3)  # its list isn't refetched
 
     def test_not_far_ahead_none(self):
+        self.songs = QOTSA_SONGS[:2]
         other = deezer_top(("Other Song", "Other Album"))
         self.net.answers = [
             deezer_search(
@@ -1279,8 +1298,9 @@ class DeezerTest(Base):
         self.assertEqual(self.top(), [])
         self.assertEqual(self.deezer_row(f"artist:{QOTSA}"), (None, 7 * DAY))
 
-    def test_only_one_taken_with_fans(self):
-        for fans, artist in ((1, 9), (0, None)):
+    def test_only_one_taken_over_token_fans(self):
+        self.songs = QOTSA_SONGS[:2]
+        for fans, artist in ((deezer.FANS + 1, 9), (deezer.FANS, None)):
             self.cache.clear_all()
             self.net.answers = [
                 deezer_search((9, "Queens of the Stone Age", fans)),
@@ -1290,6 +1310,7 @@ class DeezerTest(Base):
             self.assertEqual(self.deezer_row(f"artist:{QOTSA}")[0], artist)
 
     def test_far_ahead_without_data_none(self):
+        self.songs = QOTSA_SONGS[:2]
         self.net.answers = [
             deezer_search((9, "Queens of the Stone Age", 9_000_000)),
             DEEZER_NO_DATA,

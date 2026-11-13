@@ -259,21 +259,24 @@ def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
     return find
 
 
-def deezer_match(songs: list[dict], rows: list) -> bool:
+def deezer_match(songs: list[dict], rows: list) -> bool | None:
     """
     Whether a Deezer artist's top-track rows are this library artist's: OVERLAP
     song titles in common (all of them, for fewer), or one and an album title.
 
     :param songs: The library artist's songs with album and title.
     :param rows: ["", title, album title] rows.
-    :return: True for a match.
+    :return: True for a match; None for none from fewer than OVERLAP titles.
     """
     titles = {title_key(song["title"]) for song in songs} - {""}
     shared = len(titles.intersection(title_key(title) for _, title, _ in rows))
     albums = {title_key(song["album"]) for song in songs} - {""}
-    if not albums.isdisjoint(title_key(album) for *_, album in rows):
-        return shared >= 1
-    return shared >= min(OVERLAP, len(titles)) > 0
+    if shared and (
+        shared >= min(OVERLAP, len(titles))
+        or not albums.isdisjoint(title_key(album) for *_, album in rows)
+    ):
+        return True
+    return None if len(titles) < OVERLAP else False
 
 
 def rank_songs(rankings: list[tuple[float, list]], songs: list[dict]) -> list[dict]:
