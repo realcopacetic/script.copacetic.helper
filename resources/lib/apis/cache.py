@@ -13,6 +13,8 @@ from resources.lib.shared.sqlite import ApiCacheHandler
 MAX_WAIT = 3  # seconds a queued call waits for its slot before giving up
 DAY = 86400
 TTL_INVALID, TTL_DOWN = 7 * DAY, 300
+# TheIntroDB's 429 for one film or episode: its wait holds that key, not the queue
+ONE_MEDIA = "specific_media_usage_limit_exceeded"
 
 
 def failure_ttl(exc: HttpError, invalid: int = TTL_INVALID) -> int:
@@ -69,7 +71,7 @@ def cached(
         if exc.status == 401:  # the one failure the user can fix
             log.warning(f"{source} → refused the token (401)")
         wait = failure_ttl(exc)
-        if exc.status == 429 and queue:
+        if exc.status == 429 and queue and exc.code != ONE_MEDIA:
             home.setProperty(queue, f"{slot + wait}")
         cache.put(key, payload, wait)  # keeps a stale answer, else a negative one
         return payload
