@@ -65,9 +65,10 @@ order:
    Every segment of a kind is kept, as a film's credits split by a mid-credits scene
    are; of overlapping takes on one, the most trusted. Answers are kept 180 days (a
    film or episode with none, 3 days) in the API cache: offline, and on a rewatch, the
-   last answer is used. A time within 3 seconds of a chapter mark takes the mark; an
-   answer from a release more than 2 % longer or shorter than the file is used only on
-   marks.
+   last answer is used. TheIntroDB's rate limit pauses every lookup for the wait it
+   sends; its limit on one film or episode pauses only that one's. A time within 3
+   seconds of a chapter mark takes the mark; an answer from a release more than 2 %
+   longer or shorter than the file is used only on marks.
 3. **The tick pattern**, when TheIntroDB has nothing: unnamed marks shaped like a
    streaming release's, two in the first 10 minutes 20 to 120 seconds apart (the intro)
    and one in the last 10 % (credits), with none between. Files under 15 minutes are
