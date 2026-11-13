@@ -52,10 +52,20 @@ service finds where a video's intro, recap and credits are and publishes the nex
 for a skip button and for opening Play next when the credits start. The sources, in
 order:
 
-1. **Named chapters.** Entering a chapter named `Intro`, `Opening`, `Recap`,
-   `Previously`, `Credits`, `Ending`, `Outro` or `Preview` (case ignored) makes that
-   chapter the segment, over anything else there. Kodi gives a chapter's name only
-   while it plays (`Player.ChapterName`), so these are found on entering.
+1. **Named chapters.** Entering a chapter with one of these names (case and spaces
+   around it ignored) makes that chapter the segment, over anything else there. Kodi
+   gives a chapter's name only while it plays (`Player.ChapterName`), so these are
+   found on entering.
+
+   | Chapter name | Segment |
+   |---|---|
+   | `Intro`, `Opening`, `Opening Credits`, `OP` | `intro` |
+   | `Recap`, `Previously`, `Previously On` | `recap` |
+   | `Credits`, `End Credits`, `Ending`, `ED`, `Outro` | `credits` |
+   | `Preview`, `Next Episode`, `Next Time` | `preview` |
+
+   The last chapter counts only as credits or a preview, which run to the end of the
+   file. Any other name (`Prologue`, a cold open) is not a segment.
 2. **[TheIntroDB](https://theintrodb.org)**, for a library film or episode, while the
    helper's *TheIntroDB* setting is on (the default). The service asks once at AV start
    by the film's (or the episode's show's) TMDb id, then TVDB, then IMDb (a TMDb lookup
@@ -66,10 +76,21 @@ order:
    3 days) in the API cache: offline, and on a rewatch, the last answer is used. A time
    within 3 seconds of a chapter mark takes the mark; an answer from a release more than
    2 % longer or shorter than the file is used only on marks.
-3. **The tick pattern**, when TheIntroDB has nothing: unnamed marks shaped like a
-   streaming release's, two in the first 10 minutes 20 to 120 seconds apart (the intro)
-   and one in the last 10 % (credits), with none between. Files under 15 minutes are
-   left alone.
+3. **The tick pattern**, when TheIntroDB has nothing: chapter marks shaped like a
+   streaming release's. Two marks in the first 10 minutes, 20 to 120 seconds apart,
+   are the intro. One mark in the last 10 % starts the credits. A file can have either
+   or both, but no other marks: one anywhere else, a third early mark or a second late
+   one, and the pattern is not used. Files under 15 minutes are left alone.
+
+**What TheIntroDB is sent.** One id for the film or the episode's show (TMDb, TVDB or
+IMDb, in that order, until one is known), the season and episode number for an
+episode, and the file's length. No account is needed. Requests are spaced at least a
+second apart; a request that would wait more than 3 seconds is skipped, and the last
+answer (if any) is used. The setting is `theintrodb` in the helper's settings, on by
+default: off, nothing is sent and only chapters are used. A skin can test for it with
+`Addon.SettingBool(script.copacetic.helper,theintrodb)`. *Cache › Clear TheIntroDB
+data* forgets every saved answer; **Refresh cached data** one film's or show's (see
+[`refresh_cached`](../script/actions.md#refresh_cached)).
 
 | Property | Value |
 |---|---|
