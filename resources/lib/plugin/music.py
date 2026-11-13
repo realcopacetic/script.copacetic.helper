@@ -71,7 +71,7 @@ OVERLAP = 3  # song titles in common that identify an artist with no album in co
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
 _DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
-MIX_NAMES = 5  # artists a daily mix card names
+MIX_NAMES = 8  # artists a daily mix card names (Ash, 13 Nov)
 MIX_SLIDES = 25  # its multiart: every artist of the mix, up to 25 slides (Ash, 13 Nov)
 
 
@@ -127,9 +127,9 @@ def details_item(
 
 def mix_card(mix: dict) -> DirectoryItem:
     """
-    A daily mix as a card: "<genre> mix", its genre, an eyebrow, its first artists as
-    description and their thumbs as square multiart, leads first. It opens the
-    genre; a skin's click starts the mix (start_mix).
+    A daily mix as a card: "<genre> mix", its genre, an eyebrow, its first MIX_NAMES
+    artists as description and their thumbs as square multiart, leads first. It
+    opens the genre; a skin's click starts the mix (start_mix).
 
     :param mix: A todays_mixes dict.
     :return: (path, ListItem, is_folder).
@@ -147,10 +147,11 @@ def mix_card(mix: dict) -> DirectoryItem:
         if "thumb" in row["art"]
     }
     slides = [thumbs[name] for name in names if name in thumbs][:MIX_SLIDES]
-    *first, last = names[:MIX_NAMES]
-    described = ADDON.getLocalizedString(32840) % (", ".join(first), last)
     if names[MIX_NAMES:]:
-        described = ADDON.getLocalizedString(32841) % described
+        described = ADDON.getLocalizedString(32841) % ", ".join(names[:MIX_NAMES])
+    else:
+        *first, last = names
+        described = ADDON.getLocalizedString(32840) % (", ".join(first), last)
     li = ListItem(
         ADDON.getLocalizedString(32838) % mix["genre"],
         ", ".join(mix["artists"]),

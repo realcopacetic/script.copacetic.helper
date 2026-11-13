@@ -761,11 +761,12 @@ msgctxt "#32839"
 msgid "Daily mix · %s songs"
 msgstr ""
 
-#: /resources/lib/plugin/music.py — its artists: "A, B, C, D and E", then "…, and more"
+#: /resources/lib/plugin/music.py — its artists, "A, B and C." (%s "A, B", %s "C")
 msgctxt "#32840"
-msgid "%s and %s"
+msgid "%s and %s."
 msgstr ""
 
+#: /resources/lib/plugin/music.py — its first eight of more, "A, …, H and more."
 msgctxt "#32841"
-msgid "%s, and more"
+msgid "%s and more."
 msgstr ""
