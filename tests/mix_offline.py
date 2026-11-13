@@ -3,9 +3,9 @@ Offline checks for mixes (shared/mix.py) and the endless queue (service/player.p
 with Kodi's library faked: a mix leaves out what it's told, leans on its artists (a
 daily one on their songs played lately, then the unplayed); today's mixes rank
 genres by plays, pass over a lead already leading, are the leads alone until the
-service keeps them with the artists like their leads (a lookup a seed; a second
-pass fills a miss; an abort keeps nothing), then hold for the day; the queue grows
-below ten songs left, only from the queue, as the same queue.
+service keeps them with the artists like their leads in their genre (a lookup a
+seed; a second pass fills a miss; an abort keeps nothing), then hold for the day;
+the queue grows below ten songs left, only from the queue, as the same queue.
 Run from the helper root: python tests/mix_offline.py
 """
 
@@ -154,6 +154,19 @@ class Today(unittest.TestCase):
             for a, n, g, gn, p in PLAYED
         ]
         self.calls = mock.Mock(return_value={"result": {"songs": rows}})
+        # Library artists' genres, for _in_genre's GetArtists
+        self.genres = {"Om": {"Stoner", "Drone"}, "Yob": {"Stoner"}}
+        self.genres["Galaxie 500"] = {"Slowcore"}
+        self.in_genre = []
+
+        def library(method: str, query_filter: dict, **kwargs) -> dict:
+            if method == "AudioLibrary.GetSongs":
+                return self.calls(method, query_filter=query_filter, **kwargs)
+            genre, names = (rule["value"] for rule in query_filter["and"])
+            self.in_genre.append(genre)
+            artists = [n for n in names if genre in self.genres.get(n, ())]
+            return {"result": {"artists": [{"artist": n} for n in artists[::-1]]}}
+
         self.cache = {}
         handler = mock.Mock()
         handler.get.side_effect = lambda key: (
@@ -167,7 +180,7 @@ class Today(unittest.TestCase):
             side_effect=lambda artistid, parent, owned: self.like.get(artistid, [])
         )
         patches = (
-            mock.patch.object(mix, "json_call", self.calls),
+            mock.patch.object(mix, "json_call", library),
             mock.patch.object(mix, "ApiCacheHandler", lambda: handler),
             mock.patch.object(music, "similar_artists", self.similar),
             mock.patch.object(music, "artist_names", lambda parent: {}),
@@ -191,6 +204,15 @@ class Today(unittest.TestCase):
         self.assertTrue(mix.keep_todays_mixes(lambda: True))
         # Om is like all three leads, Yob like two; the leads themselves are left out
         self.assertEqual(mix.todays_mixes()[0]["similar"], ["Om", "Yob"])
+
+    def test_similar_kept_to_the_genre(self):
+        self.like[1].append("Daft Punk")  # in the library, not in Stoner
+        self.assertTrue(mix.keep_todays_mixes(lambda: True))
+        stoner, slowcore, drone = mix.todays_mixes()
+        self.assertEqual(stoner["similar"], ["Om", "Yob"])  # in their order
+        self.assertEqual(drone["similar"], ["Om"])  # Sleep's Yob has no Drone
+        self.assertEqual(slowcore["similar"], [])
+        self.assertEqual(self.in_genre, ["Stoner", "Drone"])  # none asked for none
 
     def test_each_seed_looked_up_once(self):
         mix.keep_todays_mixes(lambda: True)

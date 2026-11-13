@@ -12,6 +12,7 @@ from resources.lib.shared.utilities import ADDON, fold
 API = "https://api.deezer.com/"
 TTL_ARTIST, TTL_NO_ARTIST, TTL_TOP, TTL_NO_TOP = 90 * DAY, 7 * DAY, 7 * DAY, DAY
 CANDIDATES = 3  # same-named artists tried, most followed first
+LEAD = 10  # times the next one's fans the most followed needs, unconfirmed by songs
 RELATED = 20  # related artists asked for
 # Deezer answers its errors with a 200 and a code: as the HTTP status meaning the same
 _STATUS = {
@@ -74,7 +75,8 @@ def _top(artist: int) -> list[list[str]]:
 def _artist(key: str, name: str, accept: Callable[[list], bool]) -> tuple:
     """
     A library artist's Deezer artist: the first of its most followed same-named
-    Deezer artists whose top tracks accept takes as the library's.
+    Deezer artists whose top tracks accept takes as the library's, else the most
+    followed with LEAD times the next one's fans.
 
     :param key: artist_key of the library artist.
     :param name: Its name, searched for.
@@ -88,16 +90,25 @@ def _artist(key: str, name: str, accept: Callable[[list], bool]) -> tuple:
     def find() -> int | None:
         found = get_json("search/artist", q=name, limit=10)["data"][:10]
         named = [row for row in found if fold(row["name"]) == folded]
-        for row in sorted(named, key=itemgetter("nb_fan"), reverse=True)[:CANDIDATES]:
+        named.sort(key=itemgetter("nb_fan"), reverse=True)
+        tops = {}
+        for row in named[:CANDIDATES]:
             artist = int(row["id"])
             try:
-                rows = _top(artist)
+                tops[artist] = _top(artist)
             except HttpError as exc:
                 if exc.status == 404:  # no data for this one: try the next
                     continue
                 raise  # the search can't finish: asked again soon
-            if accept(rows):
-                accepted[artist] = rows
+            if accept(tops[artist]):
+                accepted[artist] = tops[artist]
+                return artist
+        # The library's songs confirm none: the most followed, if far ahead
+        fans = [row["nb_fan"] for row in named[:2]]
+        if fans and fans[0] > LEAD * sum(fans[1:]):
+            artist = int(named[0]["id"])
+            if artist in tops:  # Deezer has its tracks
+                accepted[artist] = tops[artist]
                 return artist
 
     return cached(f"deezer:artist:{key}", find, (TTL_ARTIST, TTL_NO_ARTIST)), accepted
