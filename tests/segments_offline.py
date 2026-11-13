@@ -111,9 +111,17 @@ class SegmentsTest(unittest.TestCase):
         self.assertEqual(self.play(other), {})
         self.assertEqual(self.play(other, 60, 90)["player_skip_end"], "90")
 
-    def test_a_longer_tail_is_the_same_cut(self):  # Mario: 2:52 after the credits
-        tail = {"intro": [[61000, 92000]], "duration": 3383000}
-        self.assertEqual(self.play(tail)["player_skip_end"], "92")
+    def test_a_films_longer_tail_is_the_same_cut(self):  # Mario: 2:52 after credits
+        tail = {"intro": [[61000, 92000]], "duration": 3383000}  # file 2.9 % longer
+        self.assertEqual(self.play(tail), {})  # an episode: a longer recap or ident
+        self.segments = segments.Segments(tail, LENGTH, segments.TAIL)
+        self.segments.tick(0)
+        self.assertEqual(self.props.get("player_skip_end"), "92")
+        short = {"intro": [[61000, 92000]], "duration": 3577000}  # file 2.7 % shorter
+        self.segments = segments.Segments(short, LENGTH, segments.TAIL)
+        self.props.clear()
+        self.segments.tick(0)
+        self.assertEqual(self.props, {})
 
     def test_pattern(self):
         props = self.play({}, 300, 360, 3300)

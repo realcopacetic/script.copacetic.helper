@@ -14,7 +14,8 @@ from resources.lib.shared.utilities import (
 
 ENABLED = "Skin.HasSetting(skip_segments)"
 SNAP = 3  # seconds a TheIntroDB time may sit from a chapter mark and take it
-SAME_CUT = 0.05  # within 5 % of the file's length: the same cut, a longer tail
+SAME_CUT = 0.02  # a release within 2 % of the file's length is the same cut
+TAIL = 0.05  # a film's file up to 5 % longer is too: a tail after the credits
 EARLY, LATE, SHORTEST = 600, 0.9, 900  # the tick pattern's windows; shorter: no pattern
 INTRO_GAP = 20, 120  # seconds between the pattern's two early marks
 NAMES = {  # chapter names (case folded) that name a segment; "prologue" is a cold open
@@ -87,7 +88,7 @@ def lookup(
             parent="skip_segments",
         )["result"][result]["uniqueid"]
         found = theintrodb.segments(ids, round(total * 1000), season, episode)
-    return Segments(found, total)
+    return Segments(found, total, TAIL if media == "movie" else 0.0)
 
 
 class Segments:
@@ -96,14 +97,15 @@ class Segments:
     chapters as the playhead enters them. Publishes the one in play or next.
     """
 
-    def __init__(self, found: dict, duration: float) -> None:
+    def __init__(self, found: dict, duration: float, tail: float = 0.0) -> None:
         """
         Hold TheIntroDB's answer until the first tick, when the chapters are in.
 
         :param found: theintrodb.segments' payload.
         :param duration: The file's length in seconds.
+        :param tail: The fraction longer a film's file may be and stay the same cut.
         """
-        self.found, self.duration = found, duration
+        self.found, self.duration, self.tail = found, duration, tail
         self.starts = []  # chapter starts by number, read once Kodi has them
         self.spans = []  # (start, end, kind)
         self.credits = None  # where credits run to the end: Play next opens there
@@ -169,9 +171,8 @@ class Segments:
         :param found: theintrodb.segments' payload.
         """
         group = found.get("duration")
-        same = (
-            not group or abs(group / 1000 - self.duration) <= SAME_CUT * self.duration
-        )
+        extra = (self.duration - group / 1000) / self.duration if group else 0.0
+        same = -SAME_CUT <= extra <= max(SAME_CUT, self.tail)
         for kind in theintrodb.KINDS:
             for span in found.get(kind, ()):
                 start, end = span[0] / 1000, span[1] and span[1] / 1000
