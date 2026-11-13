@@ -1,8 +1,8 @@
 """
 Offline checks for mixes (shared/mix.py) and the endless queue (service/player.py)
 with Kodi's library faked: a mix leaves out what it's told, leans on its artists;
-today's mixes rank genres by plays, pass over a lead already leading, hold for the
-day; the queue grows below ten songs left, only from the queue, as the same queue.
+today's mixes rank genres by plays, pass over a lead already leading, carry the
+artists like their leads, hold for the day; the queue grows below ten songs left, only from the queue, as the same queue.
 Run from the helper root: python tests/mix_offline.py
 """
 
@@ -28,6 +28,7 @@ vars(sys.modules["xbmc"]).update(
 )
 sys.path.insert(0, str(HELPER))
 
+from resources.lib.plugin import music  # noqa: E402
 from resources.lib.service import player  # noqa: E402
 from resources.lib.shared import mix  # noqa: E402
 
@@ -118,9 +119,11 @@ class Today(unittest.TestCase):
         handler.put.side_effect = lambda key, payload, ttl: self.cache.update(
             {key: payload}
         )
+        like = {1: ["Sleep", "Om", "Kyuss"], 2: ["Om", "Yob"], 3: ["Yob", "Om"]}
         patches = (
             mock.patch.object(mix, "json_call", self.calls),
             mock.patch.object(mix, "ApiCacheHandler", lambda: handler),
+            mock.patch.object(music, "similar_artists", lambda a, _: like.get(a, [])),
         )
         for patch in patches:
             patch.start()
@@ -130,6 +133,10 @@ class Today(unittest.TestCase):
         mixes = mix.todays_mixes()
         self.assertEqual([m["genre"] for m in mixes], ["Stoner", "Slowcore"])
         self.assertEqual(mixes[0]["artists"], ["Kyuss", "Sleep", "Fu Manchu"])
+
+    def test_similar_fused_without_leads(self):
+        # Om is like all three leads, Yob like two; the leads themselves are left out
+        self.assertEqual(mix.todays_mixes()[0]["similar"], ["Om", "Yob"])
 
     def test_held_for_the_day(self):
         mix.todays_mixes()
