@@ -171,26 +171,31 @@ def todays_mixes() -> list[dict]:
     return _leading_genres()
 
 
-def keep_todays_mixes(alive: Callable[[], bool]) -> bool:
+def keep_todays_mixes(alive: Callable[[], bool]) -> bool | None:
     """
     Keeps today's mixes (those kept already, else today's leads) with their similar
     artists as answered now, a lookup per distinct lead, so a second pass fills only
     what the first missed. Stops unsaved once alive turns False.
 
     :param alive: Whether to go on; the service's abort.
-    :return: Whether the kept mixes changed.
+    :return: Whether the kept mixes changed; None when none are (no plays, an abort).
     """
     from resources.lib.plugin.music import artist_names, fused, similar_artists
 
     store, key = ApiCacheHandler(), _day_key()
     kept = (store.get(key) or (None,))[0]
     if not (mixes := kept or _leading_genres()):
-        return False
+        return None
     owned, like = artist_names("daily_mixes"), {}
     for artistid in dict.fromkeys(a for mix in mixes for a in mix["artistids"]):
         if not alive():
-            return False
-        like[artistid] = similar_artists(artistid, "daily_mixes", owned)
+            return None
+        try:
+            like[artistid] = similar_artists(artistid, "daily_mixes", owned)
+        except KeyError:  # gone from the library since: no details to look up
+            like[artistid] = []
+    if not alive():
+        return None
     fresh = []
     for mix in mixes:
         scores = fused((1, like[artistid]) for artistid in mix["artistids"])

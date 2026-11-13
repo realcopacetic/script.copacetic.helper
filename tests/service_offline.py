@@ -643,6 +643,29 @@ class DailyMixPasses(unittest.TestCase):
     def test_a_failed_pass_is_logged_and_still_scheduled(self):
         self.run_pass(side_effect=KeyError("result"))
         self.assertGreater(self.service.mixes_due, monitor.time.time())
+        self.assertIsNone(self.service.mixes_day)  # not counted
+
+    def test_empty_passes_keep_retrying(self):
+        for _ in range(3):  # no plays yet: never pushed to midnight
+            self.run_pass(kept=None)
+            self.assertLess(
+                self.service.mixes_due - monitor.time.time(), monitor.MIXES_RETRY + 1
+            )
+        self.assertIsNone(self.service.mixes_day)
+
+    def test_a_raising_pass_moves_due_forward(self):
+        self.service.player_monitor = self.service.slideshow = Mock()
+        self.service.waitForAbort = Mock()
+        self.service.prune_due = float("inf")
+        with (
+            patch.object(monitor, "infolabel", Mock(return_value="true")),
+            patch.object(monitor, "release_refresh"),
+            patch.object(monitor, "keep_todays_mixes", Mock(side_effect=ValueError)),
+            patch("threading.excepthook"),  # the uncaught raise, kept off stderr
+        ):
+            self.service.poller()
+            self.service.mixes.join()
+        self.assertGreater(self.service.mixes_due, monitor.time.time())
 
     def test_waits_for_a_daily_mixes_read(self):
         self.service.player_monitor = self.service.slideshow = Mock()

@@ -285,16 +285,20 @@ class Monitor(xbmc.Monitor):
     def _keep_mixes(self) -> None:
         """
         Thread: keeps today's mixes with their similar artists (network lookups, off
-        the plugin's path), a new rail URL when they changed; a day's second pass
-        fills what the first missed, then the next is at midnight.
+        the plugin's path), a new rail URL when they changed; the second pass that
+        keeps a day fills what the first missed, then the next is at midnight.
         """
         today = date.today()  # before the work, which may cross midnight
-        second, self.mixes_day = self.mixes_day == today, today
         try:
-            if keep_todays_mixes(lambda: not self.abortRequested()):
-                window_property(MIXES_PROPERTY, value=f"{time.time()}")
+            changed = keep_todays_mixes(lambda: not self.abortRequested())
         except (sqlite3.OperationalError, KeyError) as e:  # locked, or a JSON error
             log.warning(f"{self.__class__.__name__} → Daily mixes: {e!r}")
+            changed = None
+        second = changed is not None and self.mixes_day == today
+        if changed is not None:  # a day is kept: only then does a pass count
+            self.mixes_day = today
+        if changed:
+            window_property(MIXES_PROPERTY, value=f"{time.time()}")
         midnight = datetime.combine(today + timedelta(days=1), datetime.min.time())
         retry = time.time() + MIXES_RETRY
         self.mixes_due = midnight.timestamp() if second else retry
@@ -310,6 +314,7 @@ class Monitor(xbmc.Monitor):
             and not (self.mixes and self.mixes.is_alive())
             and infolabel(f"Window(home).Property({MIXES_WANTED})")
         ):
+            self.mixes_due = now + MIXES_RETRY  # the pass moves it; a raise can't
             self.mixes = Thread(target=self._keep_mixes, daemon=True)
             self.mixes.start()
         if now >= self.prune_due:  # runs on through suspend
