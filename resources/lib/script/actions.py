@@ -26,6 +26,7 @@ from resources.lib.shared.utilities import (
 )
 from resources.lib.shared.mix import (
     DAILY_ARTIST_SHARE,
+    DAILY_WINDOW,
     MIX_SIZE,
     SEED_SHARE,
     artist_genres,
@@ -1206,6 +1207,7 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
             MIX_SIZE,
             share=DAILY_ARTIST_SHARE,
             similar=mix["similar"],
+            played=DAILY_WINDOW,
         ):
             mark_source(None)
             play_files(songs)

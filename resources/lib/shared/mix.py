@@ -19,20 +19,27 @@ DAILY_MIXES = 6
 DAILY_SEEDS = 3  # lead artists a genre needs to make a daily mix
 DAILY_WINDOW = "30"  # days of plays the daily mixes read
 DAILY_TTL = 2 * 86400  # past the day its key is dated, so a late read still hits
+RANDOM = {"method": "random"}
+MOST_PLAYED = {"method": "playcount", "order": "descending"}
+UNPLAYED = {"field": "playcount", "operator": "is", "value": "0"}
 
 
-def random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
+def random_songs(
+    query_filter: dict, limit: int | None = None, sort: dict = RANDOM
+) -> list[dict]:
     """
-    Fetches songs in random order, with their files, artists and genres.
+    Fetches songs in random order unless sort says otherwise, with their files,
+    artists and genres.
 
     :param query_filter: AudioLibrary.GetSongs filter.
     :param limit: Maximum number of songs; None for all.
+    :param sort: JSON-RPC sort.
     :return: Song dicts with songid, file, artist and genre.
     """
     return json_call(
         "AudioLibrary.GetSongs",
         properties=["file", "artist", "genre"],
-        sort={"method": "random"},
+        sort=sort,
         limit=limit,
         query_filter=query_filter,
         parent="music",
@@ -75,10 +82,12 @@ def mix_songs(
     exclude: Collection[int] = (),
     share: float = SEED_SHARE["song"],
     similar: Sequence[str] = (),
+    played: str = "",
 ) -> list[dict]:
     """
     Random songs for a mix: about share of them by artists (at least one), spread
     through songs by similar artists, SIMILAR_CAP each, then of genres by others.
+    With played, half the artists' are their most played lately, the rest unplayed.
 
     :param artists: Artist names the mix leans on.
     :param genres: Genre names for what similar artists don't fill.
@@ -86,15 +95,19 @@ def mix_songs(
     :param exclude: Song ids to leave out: a seed, a queue's songs.
     :param share: Fraction of the songs by artists.
     :param similar: Library artist names like artists.
+    :param played: Days of plays the artists' songs lean on; empty for random.
     :return: Song dicts with songid, file, artist and genre.
     """
     exclude = {*exclude}
 
-    def pick(query_filter: dict, count: int, cap: int = 0) -> list[dict]:
+    def pick(
+        query_filter: dict, count: int, cap: int = 0, sort: dict = RANDOM
+    ) -> list[dict]:
         if count <= 0:  # a limit of 0 would fetch every song
             return []
         # Over-fetch by the exclusions, as many of them may come up; thrice for a cap
-        songs = random_songs(query_filter, count * (3 if cap else 1) + len(exclude))
+        limit = count * (3 if cap else 1) + len(exclude)
+        songs = random_songs(query_filter, limit, sort)
         per_artist = Counter()
         picked = []
         for song in songs:
@@ -113,7 +126,12 @@ def mix_songs(
 
     by_artist = {"field": "artist", "operator": "is", "value": artists}
     want = max(1, round(size * share))
-    own = pick(by_artist, want)
+    own = []
+    if played:  # familiar then new, as Spotify's daily mixes
+        lately = {"field": "lastplayed", "operator": "inthelast", "value": played}
+        own = pick({"and": [by_artist, lately]}, want // 2, sort=MOST_PLAYED)
+        own += pick({"and": [by_artist, UNPLAYED]}, want - len(own))
+    own += pick(by_artist, want - len(own))
     rest = size - len(own)
     others = (
         pick({**by_artist, "value": [*similar]}, rest, SIMILAR_CAP) if similar else []
