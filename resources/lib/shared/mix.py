@@ -2,9 +2,8 @@
 
 import random
 from collections import Counter, defaultdict
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from datetime import date
-from functools import cache
 from math import ceil
 from operator import itemgetter
 
@@ -21,6 +20,7 @@ DAILY_MIXES = 6
 DAILY_SEEDS = 3  # lead artists a genre needs to make a daily mix
 DAILY_WINDOW = "30"  # days of plays the daily mixes read
 DAILY_TTL = 2 * 86400  # past the day its key is dated, so a late read still hits
+MIXES_WANTED = "daily_mixes_wanted"  # set by a Daily mixes read: the service's go
 RANDOM = {"method": "random"}
 MOST_PLAYED = {"method": "playcount", "order": "descending"}
 UNPLAYED = {"field": "playcount", "operator": "is", "value": "0"}
@@ -171,33 +171,34 @@ def todays_mixes() -> list[dict]:
     return _leading_genres()
 
 
-def keep_todays_mixes() -> bool:
+def keep_todays_mixes(alive: Callable[[], bool]) -> bool:
     """
-    Works out today's mixes with their similar artists, a lookup per distinct lead,
-    and keeps them for the day, so the cards hold while today's plays move
-    lastplayed; not when a lookup went unanswered, so the next pass retries.
+    Keeps today's mixes (those kept already, else today's leads) with their similar
+    artists as answered now, a lookup per distinct lead, so a second pass fills only
+    what the first missed. Stops unsaved once alive turns False.
 
-    :return: True once today's are kept; False to try again later.
+    :param alive: Whether to go on; the service's abort.
+    :return: Whether the kept mixes changed.
     """
-    from resources.lib.apis.cache import record_misses
     from resources.lib.plugin.music import artist_names, fused, similar_artists
 
     store, key = ApiCacheHandler(), _day_key()
-    if store.get(key):
-        return True
-    if not (mixes := _leading_genres()):
+    kept = (store.get(key) or (None,))[0]
+    if not (mixes := kept or _leading_genres()):
         return False
-    owned = artist_names("daily_mixes")
-    like = cache(lambda artistid: similar_artists(artistid, "daily_mixes", owned))
-    with record_misses() as misses:
-        for mix in mixes:
-            scores = fused((1, like(artistid)) for artistid in mix["artistids"])
-            mix["similar"] = [
-                name for name, _ in scores.most_common() if name not in mix["artists"]
-            ]
-    if misses:
+    owned, like = artist_names("daily_mixes"), {}
+    for artistid in dict.fromkeys(a for mix in mixes for a in mix["artistids"]):
+        if not alive():
+            return False
+        like[artistid] = similar_artists(artistid, "daily_mixes", owned)
+    fresh = []
+    for mix in mixes:
+        scores = fused((1, like[artistid]) for artistid in mix["artistids"])
+        similar = [a for a, _ in scores.most_common() if a not in mix["artists"]]
+        fresh.append(mix | {"similar": similar})
+    if fresh == kept:
         return False
-    store.put(key, mixes, DAILY_TTL)
+    store.put(key, fresh, DAILY_TTL)
     return True
 
 

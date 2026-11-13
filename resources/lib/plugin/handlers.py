@@ -76,7 +76,7 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.mix import todays_mixes
+from resources.lib.shared.mix import MIXES_WANTED, todays_mixes
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
@@ -1754,8 +1754,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def daily_mixes(self) -> list[DirectoryItem] | None:
         """
         Today's mixes from your listening, a card per leading genre, the same all
-        day (shared.mix.todays_mixes); the skin's click starts one (start_mix).
+        day (shared.mix.todays_mixes); the skin's click starts one (start_mix). Tells
+        the service a skin shows them, so it works out their similar artists.
         """
+        window_property(MIXES_WANTED, value="true")
         set_plugincontent(category=ADDON.getLocalizedString(32837))
         return [mix_card(mix) for mix in todays_mixes()[: self.limit]] or None
 

@@ -3,9 +3,9 @@ Offline checks for mixes (shared/mix.py) and the endless queue (service/player.p
 with Kodi's library faked: a mix leaves out what it's told, leans on its artists (a
 daily one on their songs played lately, then the unplayed); today's mixes rank
 genres by plays, pass over a lead already leading, are the leads alone until the
-service keeps them with the artists like their leads (a lookup a seed, not after a
-miss), then hold for the day; the queue grows below ten songs left, only from the queue,
-as the same queue.
+service keeps them with the artists like their leads (a lookup a seed; a second
+pass fills a miss; an abort keeps nothing), then hold for the day; the queue grows
+below ten songs left, only from the queue, as the same queue.
 Run from the helper root: python tests/mix_offline.py
 """
 
@@ -31,7 +31,6 @@ vars(sys.modules["xbmc"]).update(
 )
 sys.path.insert(0, str(HELPER))
 
-from resources.lib.apis import cache  # noqa: E402
 from resources.lib.plugin import music  # noqa: E402
 from resources.lib.service import player  # noqa: E402
 from resources.lib.shared import mix  # noqa: E402
@@ -163,15 +162,10 @@ class Today(unittest.TestCase):
         handler.put.side_effect = lambda key, payload, ttl: self.cache.update(
             {key: payload}
         )
-        like = {1: ["Sleep", "Om", "Kyuss"], 2: ["Om", "Yob"], 3: ["Yob", "Om"]}
-        self.missed = set()  # artistids whose lookup fails
-
-        def similar(artistid: int, parent: str, owned: dict) -> list[str]:
-            if artistid in self.missed:
-                cache._missed(f"deezer:related:{artistid}")
-            return like.get(artistid, [])
-
-        self.similar = mock.Mock(side_effect=similar)
+        self.like = {1: ["Sleep", "Om", "Kyuss"], 2: ["Om", "Yob"], 3: ["Yob", "Om"]}
+        self.similar = mock.Mock(
+            side_effect=lambda artistid, parent, owned: self.like.get(artistid, [])
+        )
         patches = (
             mock.patch.object(mix, "json_call", self.calls),
             mock.patch.object(mix, "ApiCacheHandler", lambda: handler),
@@ -194,25 +188,32 @@ class Today(unittest.TestCase):
         self.assertEqual(self.cache, {})
 
     def test_similar_fused_without_leads(self):
-        self.assertTrue(mix.keep_todays_mixes())
+        self.assertTrue(mix.keep_todays_mixes(lambda: True))
         # Om is like all three leads, Yob like two; the leads themselves are left out
         self.assertEqual(mix.todays_mixes()[0]["similar"], ["Om", "Yob"])
 
     def test_each_seed_looked_up_once(self):
-        mix.keep_todays_mixes()
+        mix.keep_todays_mixes(lambda: True)
         seeds = [call.args[0] for call in self.similar.call_args_list]
         self.assertEqual(sorted(seeds), [1, 2, 3, 4, 5, 6, 9])  # Sleep, Codeine once
 
-    def test_not_kept_on_a_miss(self):
-        self.missed = {5}
-        self.assertFalse(mix.keep_todays_mixes())
+    def test_second_pass_fills_a_miss(self):
+        self.like[4] = []  # Low's lookup unanswered: kept with what did answer
+        self.assertTrue(mix.keep_todays_mixes(lambda: True))
+        self.assertEqual(mix.todays_mixes()[1]["similar"], [])
+        self.like[4] = ["Galaxie 500"]
+        self.assertTrue(mix.keep_todays_mixes(lambda: True))  # changed: a new URL
+        self.assertEqual(mix.todays_mixes()[1]["similar"], ["Galaxie 500"])
+        self.assertFalse(mix.keep_todays_mixes(lambda: True))  # as kept
+        self.assertEqual(self.calls.call_count, 1)  # the kept leads, not today's
+
+    def test_stops_on_abort(self):
+        self.assertFalse(mix.keep_todays_mixes(lambda: False))
+        self.similar.assert_not_called()
         self.assertEqual(self.cache, {})
-        self.missed = set()
-        self.assertTrue(mix.keep_todays_mixes())  # the next pass
 
     def test_held_for_the_day(self):
-        mix.keep_todays_mixes()
-        mix.keep_todays_mixes()
+        mix.keep_todays_mixes(lambda: True)
         mix.todays_mixes()
         self.assertEqual(self.calls.call_count, 1)
 

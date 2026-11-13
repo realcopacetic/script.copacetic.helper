@@ -614,5 +614,55 @@ class ReloadGate(unittest.TestCase):
         self.assertEqual(self.outcome(actions.rebuild, False), (True, True, False))
 
 
+class DailyMixPasses(unittest.TestCase):
+    """Two passes a day at today's mixes, the second 15 minutes on, then midnight."""
+
+    def setUp(self):
+        self.service = monitor.Monitor()
+        self.addCleanup(window_property, monitor.MIXES_PROPERTY)
+
+    def run_pass(self, kept=True, **raising):
+        with patch.object(
+            monitor, "keep_todays_mixes", Mock(return_value=kept, **raising)
+        ):
+            self.service._keep_mixes()
+        return sys.modules["xbmcgui"].Window().getProperty(monitor.MIXES_PROPERTY)
+
+    def test_second_pass_then_midnight(self):
+        self.assertTrue(self.run_pass())  # changed: a new rail URL
+        first = self.service.mixes_due
+        self.assertLess(first - monitor.time.time(), monitor.MIXES_RETRY + 1)
+        window_property(monitor.MIXES_PROPERTY)
+        self.assertFalse(self.run_pass(kept=False))  # unchanged: the same URL
+        self.assertGreater(self.service.mixes_due, first)
+        self.assertEqual(
+            monitor.datetime.fromtimestamp(self.service.mixes_due).time(),
+            monitor.datetime.min.time(),
+        )
+
+    def test_a_failed_pass_is_logged_and_still_scheduled(self):
+        self.run_pass(side_effect=KeyError("result"))
+        self.assertGreater(self.service.mixes_due, monitor.time.time())
+
+    def test_waits_for_a_daily_mixes_read(self):
+        self.service.player_monitor = self.service.slideshow = Mock()
+        self.service.waitForAbort = Mock()
+        self.service.prune_due = float("inf")
+        wanted = Mock(return_value="")  # Window(home).Property(daily_mixes_wanted)
+        with (
+            patch.object(monitor, "Thread") as thread,
+            patch.object(monitor, "infolabel", wanted),
+            patch.object(monitor, "release_refresh"),
+        ):
+            self.service.poller()
+            thread.assert_not_called()
+            wanted.return_value = "true"
+            self.service.poller()
+            thread.return_value.start.assert_called_once()
+            thread.return_value.is_alive.return_value = True
+            self.service.poller()  # the pass still runs: no second one
+            thread.return_value.start.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

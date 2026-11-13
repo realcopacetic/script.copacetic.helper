@@ -31,7 +31,8 @@ python tests/soundtracks_offline.py
 # Mixes and the endless queue (shared/mix.py, service/player.py) with the library
 # faked: exclusions and the artists' share (a daily mix's: played lately, then
 # unplayed), today's mixes by plays, leads alone until kept with their similar
-# artists (not after a missed lookup) and kept for the day, the queue growing below ten songs left and staying the same queue
+# artists (a second pass fills a miss) and held for the day, the queue growing
+# below ten songs left and staying the same queue
 python tests/mix_offline.py
 
 # Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,
