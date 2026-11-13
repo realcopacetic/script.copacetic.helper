@@ -7,6 +7,7 @@ from datetime import date
 from math import ceil
 from operator import itemgetter
 
+from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import json_call
 
@@ -186,15 +187,16 @@ def keep_todays_mixes(alive: Callable[[], bool]) -> bool | None:
     kept = (store.get(key) or (None,))[0]
     if not (mixes := kept or _leading_genres()):
         return None
-    owned, like = artist_names("daily_mixes"), {}
+    owned, like, unread = artist_names("daily_mixes"), {}, False
     for artistid in dict.fromkeys(a for mix in mixes for a in mix["artistids"]):
         if not alive():
             return None
         try:
             like[artistid] = similar_artists(artistid, "daily_mixes", owned)
-        except KeyError:  # gone from the library since: no details to look up
-            like[artistid] = []
-    if not alive():
+        except KeyError:  # no details: gone from the library, or it failed to open
+            log.debug(f"keep_todays_mixes → no details for artist {artistid}")
+            like[artistid], unread = [], True
+    if not alive() or unread and kept:  # a library hiccup mustn't undo a kept day
         return None
     fresh = []
     for mix in mixes:

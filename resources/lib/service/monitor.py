@@ -45,7 +45,8 @@ RELOAD_COVER_SECS = 0.2
 # Edits to a queue: Kodi's list providers refresh on play, resume and stop, not on these
 # (nor on a shuffle, a Player.OnPropertyChanged; a move announces nothing).
 PLAYLIST_EDITS = {"Playlist.OnAdd", "Playlist.OnRemove", "Playlist.OnClear"}
-# Seconds to a day's second pass at its mixes: past a failed lookup's 5 minutes
+# Seconds to the next pass at today's mixes after one that kept nothing, failed or
+# raised, and to a day's second pass: past a failed lookup's 5 minutes
 MIXES_RETRY = 900
 MIXES_PROPERTY = "daily_mixes_version"  # Daily mixes rails put it in their URL
 
@@ -64,8 +65,8 @@ class Monitor(xbmc.Monitor):
         self.reload_due = False
         self.prune_due = 0.0  # wall-clock time of the next API cache prune
         self.mixes_due = 0.0  # and of the next pass at today's mixes
-        self.mixes_day = None  # the day of the last pass
-        self.mixes = None  # its thread
+        self.mixes_day = None  # the day the last pass that kept a day kept
+        self.mixes = None  # the thread of the last pass
         self.player_monitor = None
         self.slideshow = None
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
