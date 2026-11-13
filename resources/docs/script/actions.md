@@ -1249,8 +1249,8 @@ Kodi's shuffle turned off.
 - **Genre or year:** 50 random songs of that genre or year.
 - **Daily:** one of today's mixes, as the [`daily_mixes`](../plugins/library.md#daily_mixes)
   cards show them, by its genre's id: 50 songs, about 15 of them by its three lead
-  artists, spread through songs by their similar artists who have songs in the
-  genre, then the rest of the genre. If the day has turned since the card
+  artists, spread through their similar artists' songs in the genre, then the rest
+  of the genre. If the day has turned since the card
   loaded and that genre leads no mix today, it plays the genre's own mix.
 
 If the album or artist has no songs, or the song is not found, nothing changes: what

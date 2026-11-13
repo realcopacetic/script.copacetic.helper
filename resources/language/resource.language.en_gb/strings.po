@@ -766,7 +766,7 @@ msgctxt "#32840"
 msgid "%s and %s."
 msgstr ""
 
-#: /resources/lib/plugin/music.py — its first eight of more, "A, …, H and more."
+#: /resources/lib/plugin/music.py — its first eight of nine or more, "A, …, H and more."
 msgctxt "#32841"
 msgid "%s and more."
 msgstr ""

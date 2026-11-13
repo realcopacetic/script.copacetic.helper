@@ -86,6 +86,20 @@ class Mix(unittest.TestCase):
         by = Counter(s["artist"][0] for s in songs)
         self.assertEqual(by, {"Kyuss": 2, "Low": 5, "Sleep": 3})
 
+    def test_daily_similar_in_genres(self):
+        with mock.patch.object(mix, "json_call", library):
+            songs = mix.mix_songs(
+                ["Kyuss"],
+                ["Stoner"],
+                10,
+                share=0.2,
+                similar=["Low", "Sleep"],
+                played="30",
+            )
+        by = Counter(s["artist"][0] for s in songs)
+        # Low's songs are all Slowcore: none, where a mix without played takes two
+        self.assertEqual(by, {"Kyuss": 4, "Sleep": mix.SIMILAR_CAP})
+
     def test_similar_capped(self):
         with mock.patch.object(mix, "json_call", library):
             songs = mix.mix_songs(["Kyuss"], [], 20, similar=["Sleep"])
