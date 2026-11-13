@@ -208,9 +208,29 @@ class Today(unittest.TestCase):
         self.assertEqual(self.calls.call_count, 1)  # the kept leads, not today's
 
     def test_stops_on_abort(self):
-        self.assertFalse(mix.keep_todays_mixes(lambda: False))
+        self.assertIsNone(mix.keep_todays_mixes(lambda: False))
         self.similar.assert_not_called()
         self.assertEqual(self.cache, {})
+
+    def test_abort_during_the_last_lead_keeps_nothing(self):
+        alive = mock.Mock(side_effect=[True] * 7 + [False])  # 7 leads, then the save
+        self.assertIsNone(mix.keep_todays_mixes(alive))
+        self.assertEqual(self.similar.call_count, 7)
+        self.assertEqual(self.cache, {})
+
+    def test_a_lead_gone_from_the_library_has_none(self):
+        def similar(artistid: int, parent: str, owned: dict) -> list[str]:
+            if artistid == 2:  # Sleep: artist_identity finds no details
+                raise KeyError("result")
+            return self.like.get(artistid, [])
+
+        self.similar.side_effect = similar
+        self.assertTrue(mix.keep_todays_mixes(lambda: True))
+        self.assertEqual(mix.todays_mixes()[0]["similar"], ["Om", "Yob"])  # 1 and 3
+
+    def test_no_plays_keeps_nothing(self):
+        self.calls.return_value = {"result": {"songs": []}}
+        self.assertIsNone(mix.keep_todays_mixes(lambda: True))
 
     def test_held_for_the_day(self):
         mix.keep_todays_mixes(lambda: True)
