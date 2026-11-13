@@ -90,7 +90,7 @@ def mix_songs(
     """
     Random songs for a mix: about share by artists (at least one), spread through songs
     by similar artists, SIMILAR_CAP each, then of genres by others. With played (daily),
-    half the artists' are most played lately, the rest unplayed; similar ones' of genres
+    half the artists' are most played lately, the rest unplayed; similar artists' keep to genres.
 
     :param artists: Artist names the mix leans on.
     :param genres: Genre names for what similar artists don't fill.
