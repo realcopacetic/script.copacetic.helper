@@ -172,7 +172,10 @@ the day's first call and kept in the helper's cache for the day, so they don't m
 while today's plays change what was played last.
 
 Each card's label is *Genre* mix and its `Label2` its lead artists, joined with `, `.
-Its art is the first artist's, with `DefaultMusicGenres.png` as the icon.
+`ListItem.Property(Artist_Description)` names its first eight artists, leads then
+similar ones, as "A, B and C." or "A, …, H and more.". Its art is those artists'
+thumbs as square multiart (`square`, `square1` …, up to 25), with
+`DefaultMusicGenres.png` as the icon.
 `ListItem.Property(mix_genreid)` holds the genre's id. A card's path opens the genre
 (`musicdb://genres/<id>/`). To play the mix instead, give the list a click that runs
 [`start_mix`](../script/actions.md#start_mix) with `type=daily`:

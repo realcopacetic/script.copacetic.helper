@@ -292,8 +292,8 @@ class Card(unittest.TestCase):
     STRINGS = {
         32838: "%s mix",
         32839: "Daily mix · %s songs",
-        32840: "%s and %s",
-        32841: "%s, and more",
+        32840: "%s and %s.",
+        32841: "%s and more.",
     }
 
     def card(self, similar: list[str]) -> mock.Mock:
@@ -321,11 +321,11 @@ class Card(unittest.TestCase):
         return list_item.return_value
 
     def test_artists_leads_first(self):
-        li = self.card(["Om", "Yob", "Weedeater"])
+        li = self.card(["Om", "Yob", "Weedeater", "Sunn", "Earth", "Boris", "Melvins"])
         props = li.setProperties.call_args.args[0]
         self.assertEqual(
             props["Artist_Description"],
-            "Kyuss, Sleep, Fu Manchu, Om and Yob, and more",
+            "Kyuss, Sleep, Fu Manchu, Om, Yob, Weedeater, Sunn, Earth and more.",
         )
         self.assertEqual(props["eyebrow"], f"Daily mix · {mix.MIX_SIZE} songs")
         art = li.setArt.call_args.args[0]
@@ -335,10 +335,14 @@ class Card(unittest.TestCase):
         )
         li.getMusicInfoTag.return_value.setGenres.assert_called_with(["Stoner"])
 
-    def test_five_or_fewer_and_no_more(self):
-        li = self.card(["Om"])
-        props = li.setProperties.call_args.args[0]
-        self.assertEqual(props["Artist_Description"], "Kyuss, Sleep, Fu Manchu and Om")
+    def test_eight_or_fewer_and_no_more(self):
+        for similar, described in (
+            (["Om"], "Kyuss, Sleep, Fu Manchu and Om."),
+            ([*"ABCDE"], "Kyuss, Sleep, Fu Manchu, A, B, C, D and E."),
+        ):
+            li = self.card(similar)
+            props = li.setProperties.call_args.args[0]
+            self.assertEqual(props["Artist_Description"], described)
 
     def test_slides_capped(self):
         li = self.card([f"A{n:02}" for n in range(30)])
