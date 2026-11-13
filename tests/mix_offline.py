@@ -2,8 +2,9 @@
 Offline checks for mixes (shared/mix.py) and the endless queue (service/player.py)
 with Kodi's library faked: a mix leaves out what it's told, leans on its artists (a
 daily one on their songs played lately, then the unplayed); today's mixes rank
-genres by plays, pass over a lead already leading, carry the artists like their
-leads, hold for the day; the queue grows below ten songs left, only from the queue,
+genres by plays, pass over a lead already leading, are the leads alone until the
+service keeps them with the artists like their leads (a lookup a seed, not after a
+miss), then hold for the day; the queue grows below ten songs left, only from the queue,
 as the same queue.
 Run from the helper root: python tests/mix_offline.py
 """
@@ -30,6 +31,7 @@ vars(sys.modules["xbmc"]).update(
 )
 sys.path.insert(0, str(HELPER))
 
+from resources.lib.apis import cache  # noqa: E402
 from resources.lib.plugin import music  # noqa: E402
 from resources.lib.service import player  # noqa: E402
 from resources.lib.shared import mix  # noqa: E402
@@ -123,6 +125,9 @@ PLAYED = [  # artistid, artist, genreid, genre, playcount
     (6, "Duster", 12, "Slowcore", 2),
     (7, "Mogwai", 13, "Post-rock", 30),  # two artists only: no mix
     (8, "Slint", 13, "Post-rock", 30),
+    (9, "Earth", 14, "Drone", 2),  # Sleep and Codeine seed a second mix
+    (2, "Sleep", 14, "Drone", 1),
+    (5, "Codeine", 14, "Drone", 1),
 ]
 
 
@@ -148,10 +153,19 @@ class Today(unittest.TestCase):
             {key: payload}
         )
         like = {1: ["Sleep", "Om", "Kyuss"], 2: ["Om", "Yob"], 3: ["Yob", "Om"]}
+        self.missed = set()  # artistids whose lookup fails
+
+        def similar(artistid: int, parent: str, owned: dict) -> list[str]:
+            if artistid in self.missed:
+                cache._missed(f"deezer:related:{artistid}")
+            return like.get(artistid, [])
+
+        self.similar = mock.Mock(side_effect=similar)
         patches = (
             mock.patch.object(mix, "json_call", self.calls),
             mock.patch.object(mix, "ApiCacheHandler", lambda: handler),
-            mock.patch.object(music, "similar_artists", lambda a, _: like.get(a, [])),
+            mock.patch.object(music, "similar_artists", self.similar),
+            mock.patch.object(music, "artist_names", lambda parent: {}),
         )
         for patch in patches:
             patch.start()
@@ -159,15 +173,35 @@ class Today(unittest.TestCase):
 
     def test_genres_by_plays(self):
         mixes = mix.todays_mixes()
-        self.assertEqual([m["genre"] for m in mixes], ["Stoner", "Slowcore"])
+        self.assertEqual([m["genre"] for m in mixes], ["Stoner", "Slowcore", "Drone"])
         self.assertEqual(mixes[0]["artists"], ["Kyuss", "Sleep", "Fu Manchu"])
 
+    def test_leads_alone_until_kept(self):
+        # the plugin's read: no lookups, nothing kept
+        self.assertEqual(mix.todays_mixes()[0]["similar"], [])
+        self.similar.assert_not_called()
+        self.assertEqual(self.cache, {})
+
     def test_similar_fused_without_leads(self):
+        self.assertTrue(mix.keep_todays_mixes())
         # Om is like all three leads, Yob like two; the leads themselves are left out
         self.assertEqual(mix.todays_mixes()[0]["similar"], ["Om", "Yob"])
 
+    def test_each_seed_looked_up_once(self):
+        mix.keep_todays_mixes()
+        seeds = [call.args[0] for call in self.similar.call_args_list]
+        self.assertEqual(sorted(seeds), [1, 2, 3, 4, 5, 6, 9])  # Sleep, Codeine once
+
+    def test_not_kept_on_a_miss(self):
+        self.missed = {5}
+        self.assertFalse(mix.keep_todays_mixes())
+        self.assertEqual(self.cache, {})
+        self.missed = set()
+        self.assertTrue(mix.keep_todays_mixes())  # the next pass
+
     def test_held_for_the_day(self):
-        mix.todays_mixes()
+        mix.keep_todays_mixes()
+        mix.keep_todays_mixes()
         mix.todays_mixes()
         self.assertEqual(self.calls.call_count, 1)
 

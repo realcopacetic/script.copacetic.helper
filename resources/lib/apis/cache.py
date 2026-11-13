@@ -1,7 +1,8 @@
 # author: realcopacetic
 
 import time
-from typing import Any, Callable
+from contextlib import contextmanager
+from typing import Any, Callable, Iterator
 
 from xbmc import Monitor
 from xbmcgui import Window
@@ -15,6 +16,33 @@ DAY = 86400
 TTL_INVALID, TTL_DOWN = 7 * DAY, 300
 # TheIntroDB's 429 for one film or episode: its wait holds that key, not the queue
 ONE_MEDIA = "specific_media_usage_limit_exceeded"
+_recorders: list[set[str]] = []  # open record_misses sets
+
+
+@contextmanager
+def record_misses() -> Iterator[set[str]]:
+    """
+    Collects, while open, the keys cached() answers without a fetch of its own: a
+    failure, a busy queue or an abort (any thread's, which only errs towards a miss).
+
+    :return: The set of keys, filled as they come.
+    """
+    misses = set()
+    _recorders.append(misses)
+    try:
+        yield misses
+    finally:
+        _recorders.remove(misses)
+
+
+def _missed(key: str) -> None:
+    """
+    Notes key in every open record_misses set.
+
+    :param key: api_cache key left unanswered.
+    """
+    for misses in _recorders:
+        misses.add(key)
 
 
 def failure_ttl(exc: HttpError, invalid: int = TTL_INVALID) -> int:
@@ -56,11 +84,13 @@ def cached(
         slot = max(now, float(home.getProperty(queue) or 0))
         if slot - now > MAX_WAIT:
             log.debug(f"{source} → busy for {slot - now:.0f}s, skipped {key}")
+            _missed(key)
             return payload
         home.setProperty(queue, f"{slot + 1}")
         if slot > now:
             log.debug(f"{source} → queued {slot - now:.1f}s {key}")
             if Monitor().waitForAbort(slot - now):
+                _missed(key)
                 return payload
     try:
         payload = fetch()
@@ -74,6 +104,7 @@ def cached(
         if exc.status == 429 and queue and exc.code != ONE_MEDIA:
             home.setProperty(queue, f"{slot + wait}")
         cache.put(key, payload, wait)  # keeps a stale answer, else a negative one
+        _missed(key)
         return payload
     cache.put(key, payload, ttl[0] if payload else ttl[1])
     return payload
