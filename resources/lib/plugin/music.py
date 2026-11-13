@@ -397,13 +397,29 @@ def library_rows(
     return rows.get("result", {}).get(f"{type}s", [])
 
 
-def similar_artists(artistid: int, parent: str) -> list[str]:
+def artist_names(parent: str) -> dict[str, str]:
+    """
+    Every library artist's name by its folded form.
+
+    :param parent: Caller name for logging.
+    :return: {fold(name): name}.
+    """
+    return {
+        fold(row["artist"]): row["artist"]
+        for row in library_rows("artist", None, None, None, parent, [])
+    }
+
+
+def similar_artists(
+    artistid: int, parent: str, owned: dict[str, str] | None = None
+) -> list[str]:
     """
     Library artists like library artist artistid: Deezer's related ones in its order
     and ListenBrainz's (a random sample, so each at the middle place), by WEIGHTS.
 
     :param artistid: Library artist id.
     :param parent: Caller name for logging.
+    :param owned: artist_names, when several lookups share it; None to fetch it.
     :return: Library artist names, closest first, its own left out; [] with no source.
     """
     from resources.lib.apis import deezer, listenbrainz
@@ -429,10 +445,7 @@ def similar_artists(artistid: int, parent: str) -> list[str]:
     scores.pop(fold(name), None)
     if not scores:
         return []
-    owned = {
-        fold(row["artist"]): row["artist"]
-        for row in library_rows("artist", None, None, None, parent, [])
-    }
+    owned = owned or artist_names(parent)
     ranked = sorted(scores, key=scores.get, reverse=True)
     return [owned[key] for key in ranked if key in owned]
 
