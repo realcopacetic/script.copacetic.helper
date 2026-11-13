@@ -2125,6 +2125,23 @@ class TheIntroDbTest(Base):
             http.get_json(theintrodb.API)
         self.assertEqual(caught.exception.code, "")
 
+    def test_one_episode_cap_holds_only_that_episode(self):
+        capped = b'{"code":"specific_media_usage_limit_exceeded"}'
+        self.net.answers = [
+            http_error(429, {"Retry-After": "3600"}, capped),
+            json.dumps(TIDB).encode(),
+        ]
+        self.assertEqual(self.lookup(), {})
+        self.assertEqual(self.row(self.key(), ""), (None, 3600))
+        found = theintrodb.segments(SHOW, 3_481_234, 1, 2)  # the next episode: no wait
+        self.assertEqual(found["intro"], [[60500, 90500]])
+        self.assertEqual(len(self.net.requests), 2)
+        self.cache.clear_all()
+        self.net.answers = [http_error(429, {"Retry-After": "3600"})]
+        self.lookup()  # the shared limit holds every lookup
+        self.assertEqual(theintrodb.segments(SHOW, 3_481_234, 1, 2), {})
+        self.assertEqual(len(self.net.requests), 3)
+
     def test_a_film_by_its_own_ids(self):
         self.net.answers = [json.dumps(FILM).encode()]
         found = theintrodb.segments({"tmdb": "299534"}, 10_860_000)
