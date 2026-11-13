@@ -228,6 +228,17 @@ class Today(unittest.TestCase):
         self.assertTrue(mix.keep_todays_mixes(lambda: True))
         self.assertEqual(mix.todays_mixes()[0]["similar"], ["Om", "Yob"])  # 1 and 3
 
+    def test_outage_during_the_second_pass_keeps_the_first(self):
+        self.assertTrue(mix.keep_todays_mixes(lambda: True))
+        first = mix.todays_mixes()
+
+        def down(artistid: int, parent: str, owned: dict) -> list[str]:
+            raise KeyError("result")  # GetArtistDetails: the database failed to open
+
+        self.similar.side_effect = down
+        self.assertIsNone(mix.keep_todays_mixes(lambda: True))  # retried, not counted
+        self.assertEqual(mix.todays_mixes(), first)
+
     def test_no_plays_keeps_nothing(self):
         self.calls.return_value = {"result": {"songs": []}}
         self.assertIsNone(mix.keep_todays_mixes(lambda: True))
