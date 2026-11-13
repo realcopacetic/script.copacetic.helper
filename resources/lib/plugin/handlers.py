@@ -797,13 +797,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             multiart_dict = self._multiart_dict(multiart_item, multiart_type)
             if len(multiart_dict) > 1:  # seed_multiart seeds only then
                 params = params | {"background_url": multiart_dict["multiart"]}
-        # Kodi ends a plugin URL's options at its first "|" (art headers): the logo is
-        # read by the infolabel the skin names, headers kept. A dialog on top would
-        # answer the read, so then the URL's logo stands, or none if it was cut: a
-        # hold could outlast the dialog (an info rail's URL rests through it).
-        logo_source = params.get("clearlogo_source")
-        if logo_source and topmost_window_id() == window_id:
-            params = params | {"clearlogo_url": infolabel(logo_source)}
+        # Kodi ends a plugin URL's options at its first "|" (art headers): the logo and
+        # icon are read by the infolabels the skin names, headers kept, and a band label
+        # cut off after them is the item's own. A dialog on top would answer the reads,
+        # so then the URL's stand, or none if cut: a hold could outlast the dialog (an
+        # info rail's URL rests through it).
+        reads = {
+            param: info
+            for param, info in (
+                ("clearlogo_url", params.get("clearlogo_source")),
+                ("icon_url", params.get("icon_source")),
+            )
+            if info
+        }
+        if reads and topmost_window_id() == window_id:
+            if "icon_url" in reads and "icon_darken_label" not in params:
+                reads["icon_darken_label"] = f"{self.target_item}.Label"
+            params = params | {param: infolabel(info) for param, info in reads.items()}
         art_opts = {
             art_type: ArtOpts.from_params(params, art_type)
             for art_type in ("clearlogo", "background", "icon")
