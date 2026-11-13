@@ -76,11 +76,11 @@ def _shape(data: dict[str, Any]) -> dict[str, Any]:
 
 def _fetch(params: dict[str, Any]) -> dict[str, Any] | list:
     """
-    GET /media, shaped; a 404 (nothing under this id) as [], an empty answer that
-    tells segments to ask by the next id.
+    GET /media, shaped; a 404 for a film or episode it knows with no times as {}, any
+    other 404 (nothing under this id) as [], which tells segments to ask by the next.
 
     :param params: The query.
-    :return: _shape's payload, or [] for an id TheIntroDB doesn't know.
+    :return: _shape's payload, or [] for an id or numbering TheIntroDB doesn't know.
     :raises HttpError: On any other failure.
     """
     try:
@@ -88,7 +88,7 @@ def _fetch(params: dict[str, Any]) -> dict[str, Any] | list:
     except HttpError as exc:
         if exc.status != 404:
             raise
-        return []
+        return {} if exc.code == "no_submissions" else []
 
 
 def segments(

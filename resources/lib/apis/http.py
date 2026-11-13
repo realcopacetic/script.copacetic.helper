@@ -20,11 +20,24 @@ MAX_BODY = 8_000_000  # bytes read of an answer; a longer one is cut short
 
 
 class HttpError(Exception):
-    """A failed request: HTTP status (None when unreachable) and seconds to wait."""
+    """
+    A failed request: HTTP status (None when unreachable), seconds to wait and the
+    error body's "code" ("" when none).
+    """
 
-    def __init__(self, status: int | None, retry_after: int = 0) -> None:
+    def __init__(
+        self, status: int | None, retry_after: int = 0, code: str = ""
+    ) -> None:
         super().__init__(status)
-        self.status, self.retry_after = status, retry_after
+        self.status, self.retry_after, self.code = status, retry_after, code
+
+
+def _error_code(exc: HTTPError) -> str:
+    """The error body's top-level "code" (TheIntroDB's reason), "" when none."""
+    try:
+        return str(json.loads(exc.read(MAX_BODY)).get("code") or "")
+    except (OSError, ValueError, AttributeError, RecursionError, HTTPException):
+        return ""  # unreadable, not JSON, or not an object
 
 
 def get_json(
@@ -64,7 +77,7 @@ def get_json(
     except HTTPError as exc:  # before OSError: it is one
         log.debug(f"get_json → {exc.code} {path}")
         wait = exc.headers.get("Retry-After") or exc.headers.get("X-RateLimit-Reset-In")
-        raise HttpError(exc.code, to_int(wait)) from None
+        raise HttpError(exc.code, to_int(wait), _error_code(exc)) from None
     except (OSError, ValueError, RecursionError, HTTPException) as exc:
         # URLError, timeout; bad JSON; a body cut short (IncompleteRead)
         log.debug(f"get_json → {exc!r} {path}")

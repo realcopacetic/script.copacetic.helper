@@ -133,9 +133,10 @@ class Net:
         return response
 
 
-def http_error(code, headers=None):
+def http_error(code, headers=None, body=b""):
     """An HTTPError as urllib raises it."""
-    return HTTPError("https://api.listenbrainz.org/x", code, "", headers or {}, None)
+    url = "https://api.listenbrainz.org/x"
+    return HTTPError(url, code, "", headers or {}, io.BytesIO(body))
 
 
 def patch(test, *patches):
@@ -2098,12 +2099,25 @@ class TheIntroDbTest(Base):
         self.assertEqual(len(self.net.requests), 1)
 
     def test_unknown_id_tries_the_next(self):
-        self.net.answers = [http_error(404), json.dumps(TIDB).encode()]
+        # TheIntroDB's 404 bodies, as api.theintrodb.org answered on 13 Nov 2026
+        unknown = http_error(404, body=b'{"code":"episode_not_found"}')
+        self.net.answers = [unknown, json.dumps(TIDB).encode()]
         self.assertEqual(self.lookup()["intro"], [[60500, 90500]])
         self.assertEqual(self.row(self.key(), ""), ([], 3 * DAY - 1))  # queued 1 s
         self.assertIn("tvdb_id=81189", self.net.requests[1].full_url)
         self.assertEqual(self.lookup()["intro"], [[60500, 90500]])  # both cached
         self.assertEqual(len(self.net.requests), 2)
+
+    def test_no_submissions_ends_the_lookup(self):
+        none = b'{"error":"no submissions for this media","code":"no_submissions"}'
+        self.net.answers = [http_error(404, body=none)]
+        self.assertEqual(self.lookup(), {})
+        self.assertEqual(self.row(self.key(), ""), ({}, 3 * DAY))
+        self.assertEqual(len(self.net.requests), 1)
+        self.net.answers = [http_error(404, body=b"<html>")]  # a proxy's page: no code
+        with self.assertRaises(http.HttpError) as caught:
+            http.get_json(theintrodb.API)
+        self.assertEqual(caught.exception.code, "")
 
     def test_a_film_by_its_own_ids(self):
         self.net.answers = [json.dumps(FILM).encode()]
