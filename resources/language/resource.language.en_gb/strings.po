@@ -755,3 +755,17 @@ msgstr ""
 msgctxt "#32838"
 msgid "%s mix"
 msgstr ""
+
+#: /resources/lib/plugin/music.py — its eyebrow, %s the songs it plays
+msgctxt "#32839"
+msgid "Daily mix · %s songs"
+msgstr ""
+
+#: /resources/lib/plugin/music.py — its artists: "A, B, C, D and E", then "…, and more"
+msgctxt "#32840"
+msgid "%s and %s"
+msgstr ""
+
+msgctxt "#32841"
+msgid "%s, and more"
+msgstr ""
