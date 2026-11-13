@@ -1,8 +1,10 @@
 """
 Offline checks for mixes (shared/mix.py) and the endless queue (service/player.py)
-with Kodi's library faked: a mix leaves out what it's told, leans on its artists;
-today's mixes rank genres by plays, pass over a lead already leading, carry the
-artists like their leads, hold for the day; the queue grows below ten songs left, only from the queue, as the same queue.
+with Kodi's library faked: a mix leaves out what it's told, leans on its artists (a
+daily one on their songs played lately, then the unplayed); today's mixes rank
+genres by plays, pass over a lead already leading, carry the artists like their
+leads, hold for the day; the queue grows below ten songs left, only from the queue,
+as the same queue.
 Run from the helper root: python tests/mix_offline.py
 """
 
@@ -40,18 +42,29 @@ SONGS = [
         + [("Low", "Slowcore")] * 5
     )
 ]
+# Kyuss's plays: songid → (playcount, days since last played); the rest unplayed
+PLAYS = {0: (5, 3), 2: (9, 40), 4: (2, 1), 7: (7, 10)}
 
 
-def library(method: str, query_filter: dict, limit: int | None = None, **kwargs):
+def library(
+    method: str, query_filter: dict, limit: int | None = None, sort=None, **kwargs
+):
     """AudioLibrary.GetSongs over SONGS for the rules mix_songs sends, in order."""
 
     def keep(song: dict, rule: dict) -> bool:
         if "and" in rule:
             return all(keep(song, r) for r in rule["and"])
+        plays, days = PLAYS.get(song["songid"], (0, None))
+        if rule["field"] == "lastplayed":  # inthelast
+            return days is not None and days < int(rule["value"])
+        if rule["field"] == "playcount":  # is
+            return plays == int(rule["value"])
         hit = bool(set(song[rule["field"]]) & set(rule["value"]))
         return hit if rule["operator"] == "is" else not hit
 
     songs = [s for s in SONGS if keep(s, query_filter)]
+    if sort["method"] == "playcount":  # descending
+        songs.sort(key=lambda s: PLAYS.get(s["songid"], (0,))[0], reverse=True)
     return {"result": {"songs": songs[:limit]}}
 
 
@@ -76,6 +89,21 @@ class Mix(unittest.TestCase):
         by = Counter(s["artist"][0] for s in songs)
         # capped, then topped up by the seed artist: all eight Kyuss songs
         self.assertEqual(by, {"Kyuss": 8, "Sleep": mix.SIMILAR_CAP})
+
+    def test_played_lately_then_unplayed(self):
+        with mock.patch.object(mix, "json_call", library):
+            songs = mix.mix_songs(["Kyuss"], [], 10, share=0.6, played="30")
+        ids = [s["songid"] for s in songs]
+        # half of six: the most played in 30 days first (2 was 40 days ago)
+        self.assertEqual(ids[:3], [7, 0, 4])
+        self.assertLessEqual({*ids[3:6]}, {1, 3, 5, 6})  # then never played
+
+    def test_played_short_tops_up(self):
+        with mock.patch.object(mix, "json_call", library):
+            songs = mix.mix_songs(["Kyuss"], [], 8, share=1, played="30")
+        # three played lately, four never played, then the one played long ago
+        self.assertEqual([s["songid"] for s in songs][:3], [7, 0, 4])
+        self.assertEqual({s["songid"] for s in songs}, set(range(8)))
 
     def test_artists_alone_without_genres(self):
         with mock.patch.object(mix, "json_call", library):

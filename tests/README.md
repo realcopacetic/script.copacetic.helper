@@ -29,7 +29,8 @@ python tests/artwork_serve_offline.py
 python tests/soundtracks_offline.py
 
 # Mixes and the endless queue (shared/mix.py, service/player.py) with the library
-# faked: exclusions and the artists' share, today's mixes by plays and kept for the
+# faked: exclusions and the artists' share (a daily mix's: played lately, then
+# unplayed), today's mixes by plays with their similar artists and kept for the
 # day, the queue growing below ten songs left and staying the same queue
 python tests/mix_offline.py
 
