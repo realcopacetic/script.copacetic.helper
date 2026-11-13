@@ -12,6 +12,7 @@ from xbmcgui import ListItem
 
 from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag, joined
+from resources.lib.shared.mix import MIX_SIZE
 from resources.lib.shared.utilities import ADDON, fold, json_call
 
 _DETAILS = {
@@ -70,6 +71,8 @@ OVERLAP = 3  # song titles in common that identify an artist with no album in co
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
 _DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
+MIX_NAMES = 5  # artists a daily mix card names
+MIX_SLIDES = 25  # its multiart: every artist of the mix, up to 25 slides (Ash, 13 Nov)
 
 
 def library_item(details: dict, type: str) -> DirectoryItem:
@@ -124,29 +127,47 @@ def details_item(
 
 def mix_card(mix: dict) -> DirectoryItem:
     """
-    A daily mix as a card: "<genre> mix", its lead artists as label2, the first
-    one's art. It opens the genre; a skin's click starts the mix (start_mix).
+    A daily mix as a card: "<genre> mix", its genre, an eyebrow, its first artists as
+    description and their thumbs as square multiart, leads first. It opens the
+    genre; a skin's click starts the mix (start_mix).
 
     :param mix: A todays_mixes dict.
     :return: (path, ListItem, is_folder).
     """
-    lead = (
-        json_call(
-            "AudioLibrary.GetArtistDetails",
+    names = [*mix["artists"], *mix["similar"]]
+    thumbs = {
+        row["artist"]: row["art"]["thumb"]
+        for row in json_call(
+            "AudioLibrary.GetArtists",
             properties=["art"],
-            params={"artistid": mix["artistids"][0]},
+            query_filter={"field": "artist", "operator": "is", "value": names},
+            params={"albumartistsonly": False},
             parent="daily_mixes",
-        )
-        .get("result", {})
-        .get("artistdetails", {})
-    )
+        )["result"].get("artists", [])
+        if "thumb" in row["art"]
+    }
+    slides = [thumbs[name] for name in names if name in thumbs][:MIX_SLIDES]
+    *first, last = names[:MIX_NAMES]
+    described = ADDON.getLocalizedString(32840) % (", ".join(first), last)
+    if names[MIX_NAMES:]:
+        described = ADDON.getLocalizedString(32841) % described
     li = ListItem(
         ADDON.getLocalizedString(32838) % mix["genre"],
         ", ".join(mix["artists"]),
         offscreen=True,
     )
-    li.setArt(lead.get("art", {}) | {"icon": "DefaultMusicGenres.png"})
-    li.setProperty("mix_genreid", str(mix["genreid"]))
+    li.setArt(
+        {f"square{n or ''}": url for n, url in enumerate(slides)}
+        | {"icon": "DefaultMusicGenres.png"}
+    )
+    li.getMusicInfoTag().setGenres([mix["genre"]])
+    li.setProperties(
+        {
+            "Artist_Description": described,
+            "eyebrow": ADDON.getLocalizedString(32839) % MIX_SIZE,
+            "mix_genreid": str(mix["genreid"]),
+        }
+    )
     return f"musicdb://genres/{mix['genreid']}/", li, True
 
 

@@ -172,6 +172,63 @@ class Today(unittest.TestCase):
         self.assertEqual(self.calls.call_count, 1)
 
 
+class Card(unittest.TestCase):
+    STRINGS = {
+        32838: "%s mix",
+        32839: "Daily mix · %s songs",
+        32840: "%s and %s",
+        32841: "%s, and more",
+    }
+
+    def card(self, similar: list[str]) -> mock.Mock:
+        today = {
+            "genreid": 10,
+            "genre": "Stoner",
+            "artistids": [1, 2, 3],
+            "artists": ["Kyuss", "Sleep", "Fu Manchu"],
+            "similar": similar,
+        }
+        rows = [  # the library's order, not the mix's; Om has no thumb
+            {"artist": n, "art": {"thumb": f"{n}.jpg"} if n != "Om" else {}}
+            for n in sorted([*today["artists"], *similar])
+        ]
+        with (
+            mock.patch.object(music, "ListItem") as list_item,
+            mock.patch.object(
+                music, "json_call", return_value={"result": {"artists": rows}}
+            ),
+            mock.patch.object(music, "ADDON") as addon,
+        ):
+            addon.getLocalizedString = self.STRINGS.get
+            path, _, folder = music.mix_card(today)
+        self.assertEqual((path, folder), ("musicdb://genres/10/", True))
+        return list_item.return_value
+
+    def test_artists_leads_first(self):
+        li = self.card(["Om", "Yob", "Weedeater"])
+        props = li.setProperties.call_args.args[0]
+        self.assertEqual(
+            props["Artist_Description"],
+            "Kyuss, Sleep, Fu Manchu, Om and Yob, and more",
+        )
+        self.assertEqual(props["eyebrow"], f"Daily mix · {mix.MIX_SIZE} songs")
+        art = li.setArt.call_args.args[0]
+        self.assertEqual(
+            [art["square"], art["square1"], art["square2"], art["square3"]],
+            ["Kyuss.jpg", "Sleep.jpg", "Fu Manchu.jpg", "Yob.jpg"],
+        )
+        li.getMusicInfoTag.return_value.setGenres.assert_called_with(["Stoner"])
+
+    def test_five_or_fewer_and_no_more(self):
+        li = self.card(["Om"])
+        props = li.setProperties.call_args.args[0]
+        self.assertEqual(props["Artist_Description"], "Kyuss, Sleep, Fu Manchu and Om")
+
+    def test_slides_capped(self):
+        li = self.card([f"A{n:02}" for n in range(30)])
+        self.assertEqual(len(li.setArt.call_args.args[0]), music.MIX_SLIDES + 1)
+
+
 class Playlist:
     """The music playlist: items by path; add appends."""
 
