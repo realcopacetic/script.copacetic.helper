@@ -187,7 +187,7 @@ def keep_todays_mixes(alive: Callable[[], bool]) -> bool | None:
     kept = (store.get(key) or (None,))[0]
     if not (mixes := kept or _leading_genres()):
         return None
-    owned, like, unread = artist_names("daily_mixes"), {}, False
+    owned, like, unread = artist_names("daily_mixes"), {}, set()
     for artistid in dict.fromkeys(a for mix in mixes for a in mix["artistids"]):
         if not alive():
             return None
@@ -195,11 +195,15 @@ def keep_todays_mixes(alive: Callable[[], bool]) -> bool | None:
             like[artistid] = similar_artists(artistid, "daily_mixes", owned)
         except KeyError:  # no details: gone from the library, or it failed to open
             log.debug(f"keep_todays_mixes → no details for artist {artistid}")
-            like[artistid], unread = [], True
-    if not alive() or unread and kept:  # a library hiccup mustn't undo a kept day
+            like[artistid] = []
+            unread.add(artistid)
+    if not alive():
         return None
     fresh = []
     for mix in mixes:
+        if kept and not unread.isdisjoint(mix["artistids"]):
+            fresh.append(mix)  # mixes are kept's: a library hiccup keeps what it had
+            continue
         scores = fused((1, like[artistid]) for artistid in mix["artistids"])
         similar = [a for a, _ in scores.most_common() if a not in mix["artists"]]
         fresh.append(mix | {"similar": similar})
