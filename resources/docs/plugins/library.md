@@ -474,21 +474,15 @@ add-on setting **Include json call/response logs** on, the payload follows it.
 
 One library artist's albums (the same albums as the artist's folder: those it only
 features on as a song artist only with Kodi's *Show song and album artists* on),
-most popular first, then the albums no source ranks, newest first. The two sources and
-settings are `top_songs`':
+most popular first, then the albums no source ranks, newest first. It ranks with
+`top_songs`' sources, settings and blend: each song's `top_songs` score counts for the
+album holding the song `top_songs` would show (the earliest release, unless a
+ListenBrainz MBID matched), and albums go by their total, so the two rails agree.
+Another edition of an album, or a live album, gets credit only through a matched MBID.
 
-- ListenBrainz ranks release groups
-  (`/1/popularity/top-release-groups-for-artist/<artist MBID>`). An album matches by
-  its release group (`musicbrainzreleasegroupid`), else by title as in `top_songs`, so
-  a deluxe edition sits next to the original.
-- Deezer has no album popularity, so its top tracks rank the albums: each top track
-  the library has credits the album the library holds it on (the album of the same
-  title when there is one, so a live track credits a live album), `1 / (10 + place)`,
-  and albums go by their total credit.
-
-Both lists are blended as in `top_songs`. With neither source on, no MusicBrainz id
-for ListenBrainz alone, or no answer, all albums come newest first; with neither on
-nothing is sent. Same cache and spacing as `top_songs` (the same Deezer answers).
+With neither source on, no MusicBrainz id for ListenBrainz alone, or no answer, all
+albums come newest first; with neither on nothing is sent. Same answers, cache and
+spacing as `top_songs`, so an artist's second rail asks nothing.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

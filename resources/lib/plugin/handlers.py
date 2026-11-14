@@ -8,7 +8,7 @@ import sys
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta
-from functools import cache, cached_property, partial
+from functools import cached_property, partial
 from operator import itemgetter
 from typing import Any, Callable
 
@@ -51,8 +51,6 @@ from resources.lib.plugin.music import (
     ALBUM_SONG_PROPERTIES,
     SONG_RANK_PROPERTIES,
     WEIGHTS,
-    albums_by_groups,
-    albums_by_songs,
     artist_identity,
     compact_count,
     deezer_match,
@@ -2155,29 +2153,22 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # and album artists" (JSON-RPC's artistid filter takes song artists too)
         if not condition("System.GetBool(musiclibrary.showcompilationartists)"):
             albums = [album for album in albums if artistid in album["artistid"]]
-        rankings = []
+        rankings, songs = [], []
         on_deezer, on_listenbrainz = deezer.enabled(), listenbrainz.enabled()
         if albums and (on_deezer or on_listenbrainz):
             name, mbid = artist_identity(artistid, "discography")
-            # read only if Deezer needs them: to check a match, or to credit tracks
-            songs = cache(
-                lambda: self._artist_songs(
-                    artistid, ALBUM_SONG_PROPERTIES, "discography"
-                )
-            )
-            if on_deezer and (tracks := self._deezer_tracks(name, mbid, songs)):
-                shown = {album["albumid"] for album in albums}  # no place for others
-                credited = albums_by_songs(tracks, songs())
-                rankings.append(
-                    (WEIGHTS["deezer"], [i for i in credited if i in shown])
-                )
+            songs = self._artist_songs(artistid, ALBUM_SONG_PROPERTIES, "discography")
+            tracks = self._deezer_tracks(name, mbid, lambda: songs) if on_deezer else []
+            # Top songs' own lists and order, so the two rails agree
+            recordings = []
             if mbid and on_listenbrainz:
-                groups = listenbrainz.top_release_groups(mbid)
-                rankings.append(
-                    (WEIGHTS["listenbrainz"], albums_by_groups(groups, albums))
-                )
+                recordings = listenbrainz.top_recordings(mbid)
+            rankings = [
+                (WEIGHTS["listenbrainz"], recordings),
+                (WEIGHTS["deezer"], tracks),
+            ]
         set_plugincontent(content="albums")
-        rows = rank_albums(rankings, albums)[: self.limit]
+        rows = rank_albums(rankings, songs, albums)[: self.limit]
         return [library_item(row, "album") for row in rows] or None
 
     @log.duration

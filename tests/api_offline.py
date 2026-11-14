@@ -58,8 +58,6 @@ from resources.lib.apis.tmdb.fields import filter_tmdb_images_by_size  # noqa: E
 from resources.lib.plugin import handlers, helpers  # noqa: E402
 from resources.lib.plugin.music import (  # noqa: E402
     ALBUM_RANK_PROPERTIES,
-    albums_by_groups,
-    albums_by_songs,
     compact_count,
     deezer_match,
     fused,
@@ -76,7 +74,6 @@ from resources.lib.shared.text import fit_lines  # noqa: E402
 
 FIXTURES = HELPER / "tests" / "fixtures"
 FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
-ALBUMS = (FIXTURES / "listenbrainz_top_release_groups.json").read_bytes()
 TMDB_TV = (FIXTURES / "tmdb_tv_1399.json").read_bytes()
 DEEZER_SEARCH = (FIXTURES / "deezer_search_qotsa.json").read_bytes()
 DEEZER_TOP = (FIXTURES / "deezer_top_1177.json").read_bytes()
@@ -266,25 +263,6 @@ class ListenBrainzTest(Base):
         self.net.answers = [FIXTURE]
         self.assertTrue(listenbrainz.top_recordings(GORILLAZ))
 
-    def test_top_release_groups(self):
-        self.net.answers = [ALBUMS]
-        albums = listenbrainz.top_release_groups(GORILLAZ)
-        self.assertEqual(
-            albums[:2],
-            [
-                ["f959a46a-a136-3134-9412-6572b23fad95", "Demon Days"],
-                ["b0405d2a-5720-340a-bb56-4e135d031cc2", "Gorillaz"],
-            ],
-        )
-        self.assertEqual(
-            self.row(key="listenbrainz:top-release-groups:"), (albums, 14 * DAY)
-        )
-        self.assertTrue(
-            self.net.requests[0].full_url.endswith(
-                f"/1/popularity/top-release-groups-for-artist/{GORILLAZ}"
-            )
-        )
-
     def test_listeners(self):
         answer = [
             {
@@ -337,10 +315,10 @@ class ListenBrainzTest(Base):
         self.assertEqual(len(self.net.requests), 3)
 
     def test_calls_inside_a_second_queue(self):
-        self.net.answers = [FIXTURE, ALBUMS, FIXTURE]
+        self.net.answers = [FIXTURE, FIXTURE, FIXTURE]
         start = self.now
         listenbrainz.top_recordings(GORILLAZ)
-        self.assertTrue(listenbrainz.top_release_groups(GORILLAZ))
+        self.assertTrue(listenbrainz.top_recordings("third-artist"))
         self.assertTrue(listenbrainz.top_recordings("other-artist"))
         self.assertEqual(len(self.net.requests), 3)
         self.assertEqual(self.now - start, 2)
@@ -903,33 +881,31 @@ class TmdbTest(Base):
         )
 
 
-def album(albumid, title, year, mbid="", artistid=(4,)):
+def album(albumid, title, year, artistid=(4,)):
     """A library album row as AudioLibrary.GetAlbums returns it (fields used here)."""
-    return {
-        "albumid": albumid,
-        "title": title,
-        "year": year,
-        "musicbrainzreleasegroupid": mbid,
-        "artistid": [*artistid],
-    }
+    return {"albumid": albumid, "title": title, "year": year, "artistid": [*artistid]}
 
 
 ALBUM_ROWS = [
     album(1, "Gorillaz", 2001),
-    album(2, "Demon Days", 2005, "f959a46a-a136-3134-9412-6572b23fad95"),
-    album(3, "Demon Days (Deluxe Edition)", 2006),  # same title once trimmed
-    album(4, "Plastic Beach", 2010, "other-release-group"),  # wrong MBID, title hits
-    album(5, "Song Machine, Season One", 2020),  # unknown to the fixture
+    album(2, "Demon Days", 2005),
+    album(3, "Demon Days (Deluxe Edition)", 2006),  # its songs are Demon Days' too
+    album(4, "Plastic Beach", 2010),
+    album(5, "Song Machine, Season One", 2020),  # no song in the fixture
     album(6, "Cracker Island", 2023),
+]
+# The fixture's 1st, 2nd, 3rd, 4th and 8th recordings, by title (untagged)
+ALBUM_SONGS = [
+    song(1, "Clint Eastwood", 2001, album="Gorillaz", albumid=1),
+    song(2, "Feel Good Inc.", 2005, album="Demon Days", albumid=2),
+    song(3, "DARE", 2005, album="Demon Days", albumid=2),
+    song(4, "Feel Good Inc.", 2006, album="Demon Days (Deluxe Edition)", albumid=3),
+    song(5, "On Melancholy Hill", 2010, album="Plastic Beach", albumid=4),
+    song(6, "Rhinestone Eyes", 2010, album="Plastic Beach", albumid=4),
 ]
 
 
 class DiscographyTest(Base):
-    groups = [
-        [row["release_group_mbid"], row["release_group"]["name"]]
-        for row in json.loads(ALBUMS)
-    ]
-
     def setUp(self):
         super().setUp()
         self.calls = []
@@ -948,7 +924,9 @@ class DiscographyTest(Base):
                         }
                     }
                 )
-            return json.dumps({"result": {"albums": ALBUM_ROWS}})
+            if method == "AudioLibrary.GetAlbums":
+                return json.dumps({"result": {"albums": ALBUM_ROWS}})
+            return json.dumps({"result": {"songs": ALBUM_SONGS}})
 
         patch(
             self,
@@ -961,21 +939,19 @@ class DiscographyTest(Base):
         self.handler.dbid, self.handler.limit = "4", None
 
     def test_rank(self):
-        # Demon Days by MBID, its deluxe copy by title (newer first among equals),
-        # Gorillaz, Plastic Beach by title; then the unmatched newest first
-        self.assertEqual(
-            [
-                row["albumid"]
-                for row in rank_albums(
-                    [(1, albums_by_groups(self.groups, ALBUM_ROWS))], ALBUM_ROWS
-                )
-            ],
-            [3, 2, 1, 4, 6, 5],
-        )
+        # Demon Days sums Feel Good Inc. (1st) and DARE (3rd); the deluxe copy gets no
+        # credit (one song per title, the earliest); then the unranked newest first
+        rows = [
+            [row["recording_mbid"], row["recording_name"]]
+            for row in json.loads(FIXTURE)
+        ]
+        ranked = rank_albums([(1, rows)], ALBUM_SONGS, ALBUM_ROWS)
+        self.assertEqual([row["albumid"] for row in ranked], [2, 4, 1, 6, 5, 3])
 
-    def test_no_groups_is_date_order(self):
+    def test_no_rankings_is_date_order(self):
         self.assertEqual(
-            [row["albumid"] for row in rank_albums([], ALBUM_ROWS)], [6, 5, 4, 3, 2, 1]
+            [row["albumid"] for row in rank_albums([], [], ALBUM_ROWS)],
+            [6, 5, 4, 3, 2, 1],
         )
 
     def test_off_is_date_order_without_requests(self):
@@ -985,13 +961,14 @@ class DiscographyTest(Base):
         self.assertEqual(self.net.requests, [])
 
     def test_on(self):
-        self.net.answers = [ALBUMS]
-        self.assertEqual(self.handler.discography(), [3, 2, 1, 4, 6, 5])
+        self.net.answers = [FIXTURE]
+        self.assertEqual(self.handler.discography(), [2, 4, 1, 6, 5, 3])
         self.assertTrue(
             self.net.requests[0].full_url.endswith(
-                f"top-release-groups-for-artist/{GORILLAZ}"
+                f"top-recordings-for-artist/{GORILLAZ}"
             )
         )
+        self.assertIsNotNone(self.cache.get(f"listenbrainz:top-recordings:{GORILLAZ}"))
 
     def test_offline_is_date_order(self):
         self.net.answers = [URLError("offline")]
@@ -1112,12 +1089,13 @@ class BlendTest(unittest.TestCase):
 
     def test_album_credit(self):
         # Songs for the Deaf leads (two classics), Perfecth next (three songs high)
-        self.assertEqual(
-            albums_by_songs(DEEZER_ROWS, QOTSA_SONGS), [2, 8, 5, 3, 6, 1, 4, 7]
-        )
+        ranked = rank_albums([(1, DEEZER_ROWS)], QOTSA_SONGS, QOTSA_ALBUMS)
+        self.assertEqual([row["albumid"] for row in ranked], [2, 8, 5, 3, 6, 1, 4, 7])
+        # a song credits the album standing for its title, as on Top songs
         live = [qotsa(20, "Mono", "Alive", 9, 2027), *QOTSA_SONGS]
-        self.assertEqual(albums_by_songs([["", "Mono", "Alive"]], live), [9])
-        self.assertEqual(albums_by_songs([["", "Mono", "Mono (Single)"]], live), [8])
+        albums = [*QOTSA_ALBUMS, album(9, "Alive", 2027)]
+        ranked = rank_albums([(1, [["", "Mono", "Alive"]])], live, albums)
+        self.assertEqual(ranked[0]["albumid"], 8)
 
     def test_artist_match(self):
         def accept(rows, songs=QOTSA_SONGS):
@@ -1475,19 +1453,19 @@ class QotsaRailsTest(Base):
     def test_discography_both(self):
         self.settings["deezer"] = True
         self.handler.limit = None
-        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, ALBUMS]  # Gorillaz groups: none
-        self.assertEqual(self.handler.discography(), [2, 8, 5, 3, 6, 1, 4, 7])
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, QOTSA_LISTENS]
+        # Deezer's double weight lifts Perfecth's three songs over Lullabies
+        self.assertEqual(self.handler.discography(), [2, 8, 3, 1, 5, 6, 4, 7])
         self.assertEqual(self.calls.count("AudioLibrary.GetSongs"), 1)
+        self.assertIn("top-recordings-for-artist", self.net.requests[2].full_url)
 
-    def test_discography_cached_reads_no_songs(self):
-        self.settings.update(listenbrainz_token="", deezer=True)
+    def test_discography_shares_top_songs_lists(self):
+        self.settings["deezer"] = True
         self.handler.limit = None
-        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
-        self.handler.discography()
-        self.calls.clear()
-        self.cache.put("deezer:top:1177", [], DAY)  # nothing to credit
-        self.assertEqual(self.handler.discography(), [8, 7, 6, 5, 4, 3, 2, 1])
-        self.assertNotIn("AudioLibrary.GetSongs", self.calls)
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, QOTSA_LISTENS]
+        self.handler.top_songs()
+        self.assertEqual(self.handler.discography(), [2, 8, 3, 1, 5, 6, 4, 7])
+        self.assertEqual(len(self.net.requests), 3)  # both lists cached: no request
 
     def test_no_songs_no_request(self):
         self.settings["deezer"] = True
