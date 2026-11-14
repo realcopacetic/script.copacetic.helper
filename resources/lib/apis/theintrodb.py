@@ -76,8 +76,9 @@ def _shape(data: dict[str, Any]) -> dict[str, Any]:
 
 def _fetch(params: dict[str, Any]) -> dict[str, Any] | list:
     """
-    GET /media, shaped; a 404 for a film or episode it knows with no times as {}, any
-    other 404 (nothing under this id) as [], which tells segments to ask by the next.
+    GET /media, shaped; a "no submissions" 404 as {}, ending the lookup (records are
+    keyed by TVDB id, so any TVDB miss answers so), any other 404 (nothing under this
+    id or numbering) as [], which tells segments to ask by the next.
 
     :param params: The query.
     :return: _shape's payload, or [] for an id or numbering TheIntroDB doesn't know.

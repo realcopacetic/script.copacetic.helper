@@ -70,7 +70,9 @@ order:
    helper's *TheIntroDB* setting is on (the default). The service asks once at AV start
    by the film's (or the episode's show's) TMDb id, then TVDB, then IMDb (a TMDb lookup
    reads TMDb's episode numbering, as a TMDb-scraped library has), moving on only while
-   an id or its numbering is unknown there (a "no submissions" answer ends it), sending
+   a TMDb or IMDb id or its numbering is unknown there. A "no submissions" answer ends
+   it: TheIntroDB keys its records by TVDB id and answers so for any TVDB id or episode
+   without times, known or not, and an IMDb id finds the same record. The service sends
    the file's length so the answer comes from the nearest release. Every segment of a
    kind is kept, as a film's credits split by a mid-credits scene are; of overlapping
    takes on one, the most trusted. Answers are kept 180 days (a film or episode with
