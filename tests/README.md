@@ -29,10 +29,11 @@ python tests/artwork_serve_offline.py
 python tests/soundtracks_offline.py
 
 # Mixes and the endless queue (shared/mix.py, service/player.py) with the library
-# faked: a random draw out of Kodi's song id order, exclusions and the artists' share (a daily mix's: played lately, then
-# unplayed), today's mixes by plays, leads alone until kept with their similar
-# artists (a second pass fills a miss) and held for the day, the queue growing
-# below ten songs left and staying the same queue
+# faked: a random draw out of Kodi's song id order; a mix from seed songs leaving out
+# what it's told, leaning a fair share on its artists' own albums, familiar seeds
+# first, kept to a genre or year; daily mixes by songs played, kept until midnight,
+# redrawn when similar artists answer otherwise; the cards in play order; the queue
+# growing below ten songs left and staying the same queue
 python tests/mix_offline.py
 
 # Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,

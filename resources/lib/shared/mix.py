@@ -2,12 +2,11 @@
 
 import random
 from collections import Counter, defaultdict
-from collections.abc import Callable, Collection, Sequence
-from datetime import date
+from collections.abc import Collection, Sequence
+from datetime import datetime, time, timedelta
 from math import ceil
 from operator import itemgetter
 
-from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import json_call
 
@@ -16,44 +15,97 @@ MIX_SIZE = 50
 # audits/2026-11-12-music-popularity.md); Ash, 12 Nov
 SEED_SHARE = {"song": 0.25, "album": 0.35, "artist": 0.35}
 SIMILAR_CAP = 6  # most songs of a mix by any one similar artist
-DAILY_ARTIST_SHARE = 0.3  # a daily mix leans harder on the artists it is named for
+DAILY_ARTIST_SHARE = 0.3  # a genre's mix leans harder on the artists you played in it
 DAILY_MIXES = 6
-DAILY_SEEDS = 3  # lead artists a genre needs to make a daily mix
+DAILY_SEEDS = 3  # artists a genre's played songs need to make a daily mix; its leads
 DAILY_WINDOW = "30"  # days of plays the daily mixes read
-DAILY_TTL = 2 * 86400  # past the day its key is dated, so a late read still hits
-MIXES_WANTED = "daily_mixes_wanted"  # set by a Daily mixes read: the service's go
 RANDOM = {"method": "random"}
-MOST_PLAYED = {"method": "playcount", "order": "descending"}
-UNPLAYED = {"field": "playcount", "operator": "is", "value": "0"}
+SONG_PROPERTIES = ["file", "artist", "albumartist", "genre"]
 
 
-def random_songs(
-    query_filter: dict, limit: int | None = None, sort: dict = RANDOM
-) -> list[dict]:
+def random_songs(query_filter: dict, limit: int | None = None) -> list[dict]:
     """
-    Fetches songs in random order unless sort says otherwise, with their files,
-    artists and genres.
+    Fetches a random draw of songs in random order, with what a mix reads of each.
 
     :param query_filter: AudioLibrary.GetSongs filter.
     :param limit: Maximum number of songs; None for all.
-    :param sort: JSON-RPC sort.
-    :return: Song dicts with songid, file, artist and genre.
+    :return: Song dicts with songid, file, artist, albumartist and genre.
     """
     songs = json_call(
         "AudioLibrary.GetSongs",
-        properties=["file", "artist", "genre"],
-        sort=sort,
+        properties=SONG_PROPERTIES,
+        sort=RANDOM,
         limit=limit,
         query_filter=query_filter,
-        parent="music",
+        parent="mix",
     )["result"].get("songs", [])
     # Kodi draws at random but lists the draw by song id once artists are asked for
-    return random.sample(songs, len(songs)) if sort is RANDOM else songs
+    return random.sample(songs, len(songs))
+
+
+def played_songs(genres: Collection[str] = ()) -> list[dict]:
+    """
+    The songs played in DAILY_WINDOW days: a genre mix's seeds.
+
+    :param genres: Genre names to keep to; empty for every genre.
+    :return: Song dicts with songid, file, artist, albumartist, genre and lastplayed.
+    """
+    rules = [{"field": "lastplayed", "operator": "inthelast", "value": DAILY_WINDOW}]
+    if genres:
+        rules.append(genre_rule(genres))
+    return json_call(
+        "AudioLibrary.GetSongs",
+        properties=[*SONG_PROPERTIES, "lastplayed"],
+        query_filter={"and": rules},
+        parent="mix",
+    )["result"].get("songs", [])
+
+
+def genre_rule(genres: Collection[str]) -> dict:
+    """
+    The songs rule for a mix's genres: Kodi's genres by name, exactly ("is" is SQL
+    LIKE: case doesn't matter, spelling does). The one place a genre is matched.
+
+    :param genres: Genre names.
+    :return: AudioLibrary.GetSongs rule.
+    """
+    return {"field": "genre", "operator": "is", "value": [*genres]}
+
+
+def genre_ids() -> dict[str, int]:
+    """
+    The library's music genres.
+
+    :return: Genre id by name.
+    """
+    rows = json_call("AudioLibrary.GetGenres", parent="mix")["result"].get("genres", [])
+    return {row["label"]: row["genreid"] for row in rows}
+
+
+def credits(song: dict) -> list[str]:
+    """
+    The artists a song counts for: those of its artists who lead its album, else
+    (a compilation, a soundtrack) all of them; never a guest on another's album.
+
+    :param song: Song dict with artist and albumartist.
+    :return: Artist names.
+    """
+    return [a for a in song["albumartist"] if a in song["artist"]] or song["artist"]
+
+
+def lead_id(song: dict) -> int:
+    """
+    The library id of the first artist a song counts for (credits).
+
+    :param song: Song dict with artist, artistid and albumartist.
+    :return: Artist id.
+    """
+    return dict(zip(song["artist"], song["artistid"]))[credits(song)[0]]
 
 
 def artist_genres(artists: list[str]) -> list[str]:
     """
-    The genres of these artists' library songs, for a seed song with none.
+    The genres of these artists' albums' songs, for seeds with none.
 
     :param artists: Artist names.
     :return: Genre names, first seen first.
@@ -61,7 +113,7 @@ def artist_genres(artists: list[str]) -> list[str]:
     songs = json_call(
         "AudioLibrary.GetSongs",
         properties=["genre"],
-        query_filter={"field": "artist", "operator": "is", "value": artists},
+        query_filter={"field": "albumartist", "operator": "is", "value": artists},
         parent="mix",
     )["result"].get("songs", [])
     return [*dict.fromkeys(g for song in songs for g in song["genre"])]
@@ -81,205 +133,172 @@ def spread(own: list, others: list) -> list:
 
 
 def mix_songs(
-    artists: list[str],
-    genres: list[str],
+    seeds: Sequence[dict],
     size: int,
     exclude: Collection[int] = (),
     share: float = SEED_SHARE["song"],
     similar: Sequence[str] = (),
-    played: str = "",
+    keep: dict | None = None,
+    familiar: int = 0,
 ) -> list[dict]:
     """
-    Random songs for a mix: about share by artists (at least one), spread through songs
-    by similar artists, SIMILAR_CAP each, then of genres by others. With played (daily),
-    half the artists' are most played lately, the rest unplayed; similar artists' keep to genres.
+    A mix grown from seed songs: about share by the artists they count for (the first
+    familiar of it the seeds themselves), then similar artists', SIMILAR_CAP each, then
+    their genres' (else their artists'), or keep's; what's short, by the artists.
 
-    :param artists: Artist names the mix leans on.
-    :param genres: Genre names for what similar artists don't fill.
-    :param size: Most songs; what the others leave short is topped up by artists.
-    :param exclude: Song ids to leave out: a seed, a queue's songs.
-    :param share: Fraction of the songs by artists.
-    :param similar: Library artist names like artists.
-    :param played: Days of plays the artists' songs lean on; empty for random.
-    :return: Song dicts with songid, file, artist and genre.
+    :param seeds: Song dicts with artist, albumartist and genre; none for keep alone.
+    :param size: Most songs.
+    :param exclude: Song ids to leave out: a seed played first, a queue's songs.
+    :param share: Fraction of the songs by the seeds' artists.
+    :param similar: Library artist names like the seeds' artists.
+    :param keep: A songs rule every song must meet (a genre's, a year's); None to roam.
+    :param familiar: Most seeds to play as they are, in their order.
+    :return: Song dicts in play order.
     """
     exclude = {*exclude}
 
+    def take(
+        songs: Sequence[dict], count: int, cap: int = 0, tally: Counter | None = None
+    ) -> list[dict]:
+        taken, tally = [], Counter() if tally is None else tally
+        for song in songs:
+            if len(taken) == count:
+                break
+            artist = song["artist"][0]
+            if song["songid"] in exclude or cap and tally[artist] >= cap:
+                continue
+            tally[artist] += 1
+            exclude.add(song["songid"])
+            taken.append(song)
+        return taken
+
     def pick(
-        query_filter: dict, count: int, cap: int = 0, sort: dict = RANDOM
+        rule: dict, count: int, cap: int = 0, tally: Counter | None = None
     ) -> list[dict]:
         if count <= 0:  # a limit of 0 would fetch every song
             return []
         # Over-fetch by the exclusions, as many of them may come up; thrice for a cap
         limit = count * (3 if cap else 1) + len(exclude)
-        songs = random_songs(query_filter, limit, sort)
-        per_artist = Counter()
-        picked = []
-        for song in songs:
-            if (
-                song["songid"] in exclude
-                or cap
-                and per_artist[song["artist"][0]] >= cap
-            ):
-                continue
-            per_artist[song["artist"][0]] += 1
-            picked.append(song)
-            if len(picked) == count:
-                break
-        exclude.update(song["songid"] for song in picked)
-        return picked
+        return take(random_songs(rule, limit), count, cap, tally)
 
-    by_artist = {"field": "artist", "operator": "is", "value": artists}
-    want = max(1, round(size * share))
+    def by(names: Sequence[str]) -> dict:  # their own albums' songs, within keep
+        rule = {"field": "albumartist", "operator": "is", "value": [*names]}
+        return {"and": [rule, keep]} if keep else rule
+
+    leads = Counter(artist for song in seeds for artist in credits(song))
+    artists = [artist for artist, _ in leads.most_common()]
+    fill = keep
+    if seeds and not keep:  # the seeds' genres, else their artists'
+        genres = [*dict.fromkeys(g for song in seeds for g in song["genre"])]
+        if genres := genres or artist_genres(artists):
+            fill = genre_rule(genres)
     own = []
-    if played:  # familiar then new, as Spotify's daily mixes; each artist a fair share
-        lately = {"field": "lastplayed", "operator": "inthelast", "value": played}
-        familiar = want // 2
-        cap = ceil(familiar / len(artists))
-        own = pick({"and": [by_artist, lately]}, familiar, cap, MOST_PLAYED)
-        new = want - len(own)
-        own += pick({"and": [by_artist, UNPLAYED]}, new, ceil(new / len(artists)))
-    own += pick(by_artist, want - len(own))
-    rest = size - len(own)
-    genre_rule = {"field": "genre", "operator": "is", "value": genres}
-    theirs = {**by_artist, "value": [*similar]}
-    if played:  # a daily mix: its similar artists' songs in its genre too
-        theirs = {"and": [theirs, genre_rule]}
-    others = pick(theirs, rest, SIMILAR_CAP) if similar else []
-    if genres:
-        not_theirs = {**by_artist, "operator": "isnot", "value": [*artists, *similar]}
-        others += pick({"and": [genre_rule, not_theirs]}, rest - len(others))
-    if len(own) == want:  # else the artists have no more
-        own += pick(by_artist, rest - len(others))
+    if artists:
+        want = max(1, round(size * share))
+        cap, theirs = ceil(want / len(artists)), Counter()  # a fair share each
+        own = take(seeds, min(familiar, want), cap, theirs)
+        own += pick(by(artists), want - len(own), cap, theirs)
+    others = pick(by(similar), size - len(own), SIMILAR_CAP) if similar else []
+    if fill:
+        names = [*artists, *similar]
+        strangers = {"field": "albumartist", "operator": "isnot", "value": names}
+        rule = {"and": [fill, strangers]} if names else fill
+        others += pick(rule, size - len(own) - len(others))
+    if artists:  # what the others left short
+        own += pick(by(artists), size - len(own) - len(others))
     return spread(own, random.sample(others, len(others)))
 
 
-def _day_key() -> str:
+def leading_genres(played: Sequence[dict]) -> list[tuple[str, list[dict]]]:
     """
-    Today's api_cache key; v2, as a day kept before mixes carried similar lacks it.
+    The genres of the songs played lately that make a daily mix, most songs first,
+    each with its songs (the mix's seeds); a genre needs DAILY_SEEDS artists, and one
+    most of whose songs already seed a chosen genre is passed over.
 
+    :param played: Songs played in DAILY_WINDOW days (played_songs).
+    :return: Up to DAILY_MIXES (genre, seed songs) pairs.
+    """
+    seeds = defaultdict(list)
+    for song in played:
+        for genre in song["genre"]:
+            seeds[genre].append(song)
+    chosen, seeding = [], set()
+    for genre in sorted(seeds, key=lambda g: len(seeds[g]), reverse=True):
+        songs = seeds[genre]
+        shared = sum(song["songid"] in seeding for song in songs)
+        artists = {artist for song in songs for artist in credits(song)}
+        if len(artists) < DAILY_SEEDS or shared > len(songs) / 2:
+            continue
+        seeding.update(song["songid"] for song in songs)
+        chosen.append((genre, songs))
+        if len(chosen) == DAILY_MIXES:
+            break
+    return chosen
+
+
+def genre_mix(genre: str, seeds: Sequence[dict]) -> dict:
+    """
+    A genre's mix, the same draw for a card and Start mix: seeded by the songs you
+    played in it, leaning on their artists, similar to the DAILY_SEEDS most played.
+
+    :param genre: Genre name.
+    :param seeds: Songs played in it lately (played_songs); none for its songs alone.
+    :return: Mix dict: songs in play order, leads and the similar artists drawn with.
+    """
+    from resources.lib.plugin.music import similar_to
+
+    counts = Counter(artist for song in seeds for artist in credits(song))
+    leads = [artist for artist, _ in counts.most_common(DAILY_SEEDS)]
+    similar = similar_to(leads, "mix") if leads else []
+    songs = mix_songs(
+        seeds,
+        MIX_SIZE,
+        share=DAILY_ARTIST_SHARE,
+        similar=similar,
+        keep=genre_rule([genre]),
+        familiar=round(MIX_SIZE * DAILY_ARTIST_SHARE) // 2,
+    )
+    return {"songs": songs, "leads": leads, "similar": similar}
+
+
+def _mix_key(genre: str) -> str:
+    """
+    A genre's kept mix's api_cache key: one row a genre, replaced in place.
+
+    :param genre: Genre name.
     :return: Key.
     """
-    return f"library:daily_mixes:v2:{date.today()}"
+    return f"library:mix:{genre}"
 
 
-def todays_mixes() -> list[dict]:
+def kept_mix(genre: str, seeds: Sequence[dict] | None = None) -> dict:
     """
-    Today's mixes as the service kept them (keep_todays_mixes); until then its leads
-    alone, worked out now with no network and not kept. Empty until there are plays.
+    A genre's mix as kept until midnight, so a card names what its click plays;
+    drawn (genre_mix) and kept when there's none fresh.
 
-    :return: Mix dicts: genreid, genre, artistids and artists (leads) and similar.
-    """
-    if hit := ApiCacheHandler().get(_day_key()):
-        return hit[0]
-    return _leading_genres()
-
-
-def keep_todays_mixes(alive: Callable[[], bool]) -> bool | None:
-    """
-    Keeps today's mixes (those kept already, else today's leads) with their similar
-    artists in their genre as answered now, a lookup per distinct lead, so a second
-    pass fills only what the first missed. Stops unsaved once alive turns False.
-
-    :param alive: Whether to go on; the service's abort.
-    :return: Whether the kept mixes changed; None when none are (no plays, an abort).
-    """
-    from resources.lib.plugin.music import artist_names, fused, similar_artists
-
-    store, key = ApiCacheHandler(), _day_key()
-    kept = (store.get(key) or (None,))[0]
-    if not (mixes := kept or _leading_genres()):
-        return None
-    owned, like, unread = artist_names("daily_mixes"), {}, set()
-    for artistid in dict.fromkeys(a for mix in mixes for a in mix["artistids"]):
-        if not alive():
-            return None
-        try:
-            like[artistid] = similar_artists(artistid, "daily_mixes", owned)
-        except KeyError:  # no details: gone from the library, or it failed to open
-            log.debug(f"keep_todays_mixes → no details for artist {artistid}")
-            like[artistid] = []
-            unread.add(artistid)
-    if not alive():
-        return None
-    fresh = []
-    for mix in mixes:
-        if kept and not unread.isdisjoint(mix["artistids"]):
-            fresh.append(mix)  # mixes are kept's: a library hiccup keeps what it had
-            continue
-        scores = fused((1, like[artistid]) for artistid in mix["artistids"])
-        similar = [a for a, _ in scores.most_common() if a not in mix["artists"]]
-        fresh.append(mix | {"similar": similar and _in_genre(similar, mix["genre"])})
-    if fresh == kept:
-        return False
-    store.put(key, fresh, DAILY_TTL)
-    return True
-
-
-def _in_genre(artists: list[str], genre: str) -> list[str]:
-    """
-    The library artists of these with songs in genre (theirs or on their albums), in
-    order: a daily mix's similar artists, so its card and songs keep to its genre.
-
-    :param artists: Library artist names.
     :param genre: Genre name.
-    :return: Those of artists in genre.
+    :param seeds: Songs played in it lately, if in hand; else read for a draw.
+    :return: Mix dict (genre_mix).
     """
-    rules = [
-        {"field": "genre", "operator": "is", "value": genre},
-        {"field": "artist", "operator": "is", "value": artists},
-    ]
-    rows = json_call(
-        "AudioLibrary.GetArtists",
-        query_filter={"and": rules},
-        params={"albumartistsonly": False},
-        parent="daily_mixes",
-    )["result"].get("artists", [])
-    found = {row["artist"] for row in rows}
-    return [artist for artist in artists if artist in found]
+    store, key = ApiCacheHandler(), _mix_key(genre)
+    if (hit := store.get(key)) and hit[1]:
+        return hit[0]
+    mix = genre_mix(genre, played_songs([genre]) if seeds is None else seeds)
+    now = datetime.now()
+    midnight = datetime.combine(now.date() + timedelta(days=1), time())
+    store.put(key, mix, int((midnight - now).total_seconds()) + 1)
+    return mix
 
 
-def _leading_genres() -> list[dict]:
+def recheck_similar(genre: str, mix: dict) -> None:
     """
-    The genres of the songs played lately, by plays, each with its three most
-    played artists and no similar ones yet; a genre whose lead already leads a mix
-    is passed over.
+    Marks a kept mix stale when its leads' similar artists answer otherwise now, as
+    a script may look up what the plugin had no cache for: the next rail load redraws.
 
-    :return: Up to DAILY_MIXES mix dicts.
+    :param genre: Genre name.
+    :param mix: Its kept mix dict.
     """
-    songs = json_call(
-        "AudioLibrary.GetSongs",
-        properties=["artist", "artistid", "genre", "genreid", "playcount"],
-        query_filter={
-            "field": "lastplayed",
-            "operator": "inthelast",
-            "value": DAILY_WINDOW,
-        },
-        parent="daily_mixes",
-    )["result"].get("songs", [])
-    plays, totals, artists, genres = defaultdict(Counter), Counter(), {}, {}
-    for song in songs:
-        credits = dict(zip(song["artistid"], song["artist"]))
-        artists |= credits
-        for genreid, genre in zip(song["genreid"], song["genre"]):
-            genres[genreid] = genre
-            totals[genreid] += song["playcount"]  # once a song: a duet counts once
-            plays[genreid].update(dict.fromkeys(credits, song["playcount"]))
-    mixes, leads = [], set()
-    for genreid, _ in totals.most_common():
-        seeds = [artistid for artistid, _ in plays[genreid].most_common(DAILY_SEEDS)]
-        if len(seeds) < DAILY_SEEDS or seeds[0] in leads:
-            continue
-        leads.add(seeds[0])
-        mixes.append(
-            {
-                "genreid": genreid,
-                "genre": genres[genreid],
-                "artistids": seeds,
-                "artists": [artists[artistid] for artistid in seeds],
-                "similar": [],
-            }
-        )
-        if len(mixes) == DAILY_MIXES:
-            break
-    return mixes
+    from resources.lib.plugin.music import similar_to
+
+    if mix["leads"] and similar_to(mix["leads"], "start_mix") != mix["similar"]:
+        ApiCacheHandler().expire(_mix_key(genre))

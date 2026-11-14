@@ -1,12 +1,11 @@
 """
 Offline checks for mixes (shared/mix.py) and the endless queue (service/player.py)
 with Kodi's library faked: a random draw leaves the song id order Kodi lists it in;
-a mix leaves out what it's told, leans on its artists (a
-daily one on their songs played lately, then the unplayed); today's mixes rank
-genres by plays, pass over a lead already leading, are the leads alone until the
-service keeps them with the artists like their leads in their genre (a lookup a
-seed; a second pass fills a miss; an abort keeps nothing), then hold for the day;
-the queue grows below ten songs left, only from the queue, as the same queue.
+a mix grown from seed songs leaves out what it's told, leans on the artists they
+count for (their own albums), plays its familiar seeds first and keeps to keep;
+daily mixes: genres by songs played, kept until midnight and replayed as kept,
+redrawn once a lead's similar artists answer otherwise; the cards name the list's
+artists in play order; the queue grows below ten songs left, only from the queue.
 Run from the helper root: python tests/mix_offline.py
 """
 
@@ -37,281 +36,209 @@ from resources.lib.service import player  # noqa: E402
 from resources.lib.shared import mix  # noqa: E402
 
 SONGS = [
-    {"songid": n, "file": f"/m/{n}.flac", "artist": [a], "genre": [g]}
+    {
+        "songid": n,
+        "file": f"/m/{n}.flac",
+        "artist": [a],
+        "albumartist": [a],
+        "genre": [g],
+    }
     for n, (a, g) in enumerate(
         [("Kyuss", "Stoner")] * 8
         + [("Sleep", "Stoner")] * 30
         + [("Low", "Slowcore")] * 5
     )
 ]
-# Plays: songid → (playcount, days since last played); the rest unplayed. Kyuss's
-# 0-7, then Sleep's 8-11, played more than any of Kyuss's
-PLAYS = {0: (5, 3), 2: (9, 40), 4: (2, 1), 7: (7, 10)}
-PLAYS |= {n: (20 - n, 1) for n in range(8, 12)}
+# Song 43: Kyuss guesting on Low's album
+SONGS += [
+    {
+        "songid": 43,
+        "file": "/m/43.flac",
+        "artist": ["Low", "Kyuss"],
+        "albumartist": ["Low"],
+        "genre": ["Slowcore"],
+    }
+]
 
 
-def library(
-    method: str, query_filter: dict, limit: int | None = None, sort=None, **kwargs
-):
-    """AudioLibrary.GetSongs over SONGS for the rules mix_songs sends, in order."""
+def library(method: str, query_filter: dict, limit: int | None = None, **kwargs):
+    """AudioLibrary.GetSongs over SONGS for the rules a mix sends, in id order."""
 
     def keep(song: dict, rule: dict) -> bool:
         if "and" in rule:
             return all(keep(song, r) for r in rule["and"])
-        plays, days = PLAYS.get(song["songid"], (0, None))
-        if rule["field"] == "lastplayed":  # inthelast
-            return days is not None and days < int(rule["value"])
-        if rule["field"] == "playcount":  # is
-            return plays == int(rule["value"])
-        hit = bool(set(song[rule["field"]]) & set(rule["value"]))
+        values = rule["value"] if isinstance(rule["value"], list) else [rule["value"]]
+        hit = bool(set(song[rule["field"]]) & set(values))
         return hit if rule["operator"] == "is" else not hit
 
     songs = [s for s in SONGS if keep(s, query_filter)]
-    if sort["method"] == "playcount":  # descending
-        songs.sort(key=lambda s: PLAYS.get(s["songid"], (0,))[0], reverse=True)
     return {"result": {"songs": songs[:limit]}}
 
 
+def artists(songs: list[dict]) -> Counter:
+    return Counter(s["artist"][0] for s in songs)
+
+
 class Mix(unittest.TestCase):
-    def test_leaves_out_and_leans(self):
-        with mock.patch.object(mix, "json_call", library):
-            songs = mix.mix_songs(["Kyuss"], ["Stoner"], 10, exclude={0, 1, 8})
-        ids = [s["songid"] for s in songs]
-        self.assertEqual(len(ids), 10)
-        self.assertFalse({0, 1, 8} & set(ids))
-        self.assertEqual(sum(s["artist"] == ["Kyuss"] for s in songs), 2)  # 25 %
-
-    def test_similar_then_genres(self):
-        with mock.patch.object(mix, "json_call", library):
-            songs = mix.mix_songs(["Kyuss"], ["Stoner"], 10, similar=["Low"])
-        by = Counter(s["artist"][0] for s in songs)
-        self.assertEqual(by, {"Kyuss": 2, "Low": 5, "Sleep": 3})
-
-    def test_daily_similar_in_genres(self):
-        with mock.patch.object(mix, "json_call", library):
-            songs = mix.mix_songs(
-                ["Kyuss"],
-                ["Stoner"],
-                10,
-                share=0.2,
-                similar=["Low", "Sleep"],
-                played="30",
-            )
-        by = Counter(s["artist"][0] for s in songs)
-        # Low's songs are all Slowcore: none, where a mix without played takes two
-        self.assertEqual(by, {"Kyuss": 4, "Sleep": mix.SIMILAR_CAP})
-
-    def test_similar_capped(self):
-        with mock.patch.object(mix, "json_call", library):
-            songs = mix.mix_songs(["Kyuss"], [], 20, similar=["Sleep"])
-        by = Counter(s["artist"][0] for s in songs)
-        # capped, then topped up by the seed artist: all eight Kyuss songs
-        self.assertEqual(by, {"Kyuss": 8, "Sleep": mix.SIMILAR_CAP})
-
-    def test_played_lately_then_unplayed(self):
-        with mock.patch.object(mix, "json_call", library):
-            songs = mix.mix_songs(["Kyuss"], [], 10, share=0.6, played="30")
-        ids = [s["songid"] for s in songs]
-        # half of six: the most played in 30 days first (2 was 40 days ago)
-        self.assertEqual(ids[:3], [7, 0, 4])
-        self.assertLessEqual({*ids[3:6]}, {1, 3, 5, 6})  # then never played
-
-    def test_played_short_tops_up(self):
-        with mock.patch.object(mix, "json_call", library):
-            songs = mix.mix_songs(["Kyuss"], [], 8, share=1, played="30")
-        # three played lately, four never played, then the one played long ago
-        self.assertEqual([s["songid"] for s in songs][:3], [7, 0, 4])
-        self.assertEqual({s["songid"] for s in songs}, set(range(8)))
-
-    def test_played_a_fair_share_each(self):
-        with mock.patch.object(mix, "json_call", library):
-            songs = mix.mix_songs(["Kyuss", "Sleep"], [], 10, share=0.6, played="30")
-        ids = [s["songid"] for s in songs]
-        # three familiar, at most two each: Sleep's top two, then Kyuss's top one
-        self.assertEqual(ids[:3], [8, 9, 7])
-        by = Counter(s["artist"][0] for s in songs[3:6])  # three new, two at most
-        self.assertEqual(sorted(by.values()), [1, 2])
+    def setUp(self):
+        patcher = mock.patch.object(mix, "json_call", library)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_a_random_draw_leaves_id_order(self):
         # the fake answers in song id order, as Kodi does once artist is asked for
         mix.random.seed(1)
-        with mock.patch.object(mix, "json_call", library):
-            drawn = [s["songid"] for s in mix.random_songs({"and": []})]
-            top = mix.random_songs({"and": []}, 5, mix.MOST_PLAYED)
+        drawn = [s["songid"] for s in mix.random_songs({"and": []})]
         self.assertEqual(sorted(drawn), [s["songid"] for s in SONGS])
         self.assertNotEqual(drawn, sorted(drawn))
-        # a sort Kodi keeps comes as answered
-        self.assertEqual([s["songid"] for s in top], [8, 9, 10, 2, 11])
 
-    def test_artists_alone_without_genres(self):
-        with mock.patch.object(mix, "json_call", library):
-            songs = mix.mix_songs(["Low"], [], 10)
-        self.assertEqual({s["artist"][0] for s in songs}, {"Low"})
+    def test_leaves_out_and_leans(self):
+        songs = mix.mix_songs([SONGS[2]], 10, exclude={0, 1, 8})
+        self.assertEqual(len(songs), 10)
+        self.assertFalse({0, 1, 8} & {s["songid"] for s in songs})
+        self.assertEqual(artists(songs), {"Kyuss": 2, "Sleep": 8})  # 25 %, then Stoner
+
+    def test_similar_then_genres(self):
+        songs = mix.mix_songs([SONGS[2]], 10, similar=["Low"])
+        self.assertEqual(artists(songs), {"Kyuss": 2, "Low": 6, "Sleep": 2})
+
+    def test_similar_capped(self):
+        songs = mix.mix_songs([SONGS[2]], 20, similar=["Sleep"])
+        # capped, the genre has no one else, then topped up: all eight Kyuss songs
+        self.assertEqual(artists(songs), {"Kyuss": 8, "Sleep": mix.SIMILAR_CAP})
+
+    def test_by_an_artist_means_their_own_albums(self):
+        songs = mix.mix_songs([SONGS[2]], 20, similar=["Sleep"])
+        self.assertNotIn(43, {s["songid"] for s in songs})  # Kyuss guests on Low's
+        guest = SONGS[43]
+        self.assertEqual(mix.credits(guest), ["Low"])
+
+    def test_keep_holds_every_song_to_it(self):
+        keep = mix.genre_rule(["Stoner"])
+        songs = mix.mix_songs(
+            [SONGS[2]], 10, share=0.2, similar=["Low", "Sleep"], keep=keep
+        )
+        # Low's songs are all Slowcore: none
+        self.assertEqual(artists(songs), {"Kyuss": 4, "Sleep": mix.SIMILAR_CAP})
+
+    def test_familiar_seeds_first_in_their_order(self):
+        seeds = [SONGS[7], SONGS[0], SONGS[4]]
+        songs = mix.mix_songs(seeds, 10, share=0.6, familiar=3)
+        kyuss = [s["songid"] for s in songs if s["artist"] == ["Kyuss"]]
+        self.assertEqual(kyuss[:3], [7, 0, 4])
+        self.assertEqual(len(kyuss), 6)
+
+    def test_a_fair_share_each(self):
+        seeds = [SONGS[8], SONGS[9], SONGS[10], SONGS[7]]  # Sleep thrice, Kyuss once
+        songs = mix.mix_songs(seeds, 6, share=1, familiar=3)
+        # three each: Sleep's three seeds, then Kyuss's, though Sleep has 27 more
+        self.assertEqual([s["songid"] for s in songs][:3], [8, 9, 10])
+        self.assertEqual(artists(songs), {"Kyuss": 3, "Sleep": 3})
+
+    def test_artists_alone_without_others_in_genre(self):
+        songs = mix.mix_songs([SONGS[38]], 10)
+        self.assertEqual(artists(songs), {"Low": 6})
+
+    def test_keep_alone(self):  # a year's mix, or a genre with nothing played
+        songs = mix.mix_songs([], 10, keep=mix.genre_rule(["Slowcore"]))
+        self.assertEqual({s["songid"] for s in songs}, {38, 39, 40, 41, 42, 43})
+
+    def test_a_seed_with_no_genre_takes_its_artists(self):
+        seed = SONGS[2] | {"genre": []}
+        songs = mix.mix_songs([seed], 10)
+        self.assertEqual(artists(songs), {"Kyuss": 2, "Sleep": 8})
 
 
-PLAYED = [  # artistid, artist, genreid, genre, playcount
-    (1, "Kyuss", 10, "Stoner", 9),
-    (2, "Sleep", 10, "Stoner", 5),
-    (3, "Fu Manchu", 10, "Stoner", 4),
-    (1, "Kyuss", 11, "Desert", 9),  # led by Kyuss again: passed over
-    (2, "Sleep", 11, "Desert", 1),
-    (3, "Fu Manchu", 11, "Desert", 1),
-    (4, "Low", 12, "Slowcore", 3),
-    (5, "Codeine", 12, "Slowcore", 2),
-    (6, "Duster", 12, "Slowcore", 2),
-    (7, "Mogwai", 13, "Post-rock", 30),  # two artists only: no mix
-    (8, "Slint", 13, "Post-rock", 30),
-    (9, "Earth", 14, "Drone", 2),  # Sleep and Codeine seed a second mix
-    (2, "Sleep", 14, "Drone", 1),
-    (5, "Codeine", 14, "Drone", 1),
-]
+def played(*rows: tuple[int, str, str]) -> list[dict]:
+    """Played songs: (songid, artist, genres "A/B")."""
+    return [
+        {
+            "songid": n,
+            "file": f"/p/{n}.flac",
+            "artist": [a],
+            "albumartist": [a],
+            "genre": g.split("/"),
+        }
+        for n, a, g in rows
+    ]
 
 
-class Today(unittest.TestCase):
+PLAYED = played(
+    (1, "Kyuss", "Stoner/Desert"),
+    (2, "Kyuss", "Stoner/Desert"),
+    (3, "Sleep", "Stoner/Desert"),
+    (4, "Fu Manchu", "Stoner/Desert"),
+    (5, "Fu Manchu", "Stoner"),
+    (6, "Low", "Slowcore"),
+    (7, "Codeine", "Slowcore"),
+    (8, "Duster", "Slowcore"),
+    (9, "Mogwai", "Post-rock"),  # two artists only: no mix
+    (10, "Slint", "Post-rock"),
+    (11, "Mogwai", "Post-rock"),
+    (12, "Slint", "Post-rock"),
+    (13, "Mogwai", "Post-rock"),
+    (14, "Earth", "Drone"),  # one song seeds Stoner too: most of it is its own
+    (15, "Earth", "Drone"),
+    (16, "Sleep", "Drone/Stoner"),
+    (17, "Low", "Drone"),
+)
+
+
+class Daily(unittest.TestCase):
     def setUp(self):
-        rows = [
-            {
-                "artistid": [a],
-                "artist": [n],
-                "genreid": [g],
-                "genre": [gn],
-                "playcount": p,
-            }
-            for a, n, g, gn, p in PLAYED
-        ]
-        self.calls = mock.Mock(return_value={"result": {"songs": rows}})
-        # Library artists' genres, for _in_genre's GetArtists
-        self.genres = {"Om": {"Stoner", "Drone"}, "Yob": {"Stoner"}}
-        self.genres["Galaxie 500"] = {"Slowcore"}
-        self.in_genre = []
-
-        def library(method: str, query_filter: dict, **kwargs) -> dict:
-            if method == "AudioLibrary.GetSongs":
-                return self.calls(method, query_filter=query_filter, **kwargs)
-            genre, names = (rule["value"] for rule in query_filter["and"])
-            self.in_genre.append(genre)
-            artists = [n for n in names if genre in self.genres.get(n, ())]
-            return {"result": {"artists": [{"artist": n} for n in artists[::-1]]}}
-
         self.cache = {}
-        handler = mock.Mock()
-        handler.get.side_effect = lambda key: (
-            (self.cache[key], True) if key in self.cache else None
+        store = mock.Mock()
+        store.get.side_effect = lambda key: self.cache.get(key)
+        store.put.side_effect = lambda key, payload, ttl: self.cache.update(
+            {key: (payload, True)}
         )
-        handler.put.side_effect = lambda key, payload, ttl: self.cache.update(
-            {key: payload}
+        store.expire.side_effect = lambda key: self.cache.update(
+            {key: (self.cache[key][0], False)}
         )
-        self.like = {1: ["Sleep", "Om", "Kyuss"], 2: ["Om", "Yob"], 3: ["Yob", "Om"]}
-        self.similar = mock.Mock(
-            side_effect=lambda artistid, parent, owned: self.like.get(artistid, [])
+        self.like = ["Om", "Yob"]
+        self.similar = mock.Mock(side_effect=lambda names, parent: self.like)
+        self.draws = mock.Mock(
+            side_effect=lambda *a, **k: [{"songid": len(self.cache)}]
         )
         patches = (
-            mock.patch.object(mix, "json_call", library),
-            mock.patch.object(mix, "ApiCacheHandler", lambda: handler),
-            mock.patch.object(music, "similar_artists", self.similar),
-            mock.patch.object(music, "artist_names", lambda parent: {}),
+            mock.patch.object(mix, "ApiCacheHandler", lambda: store),
+            mock.patch.object(mix, "mix_songs", self.draws),
+            mock.patch.object(mix, "played_songs", lambda genres: PLAYED),
+            mock.patch.object(music, "similar_to", self.similar),
         )
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
 
-    def test_genres_by_plays(self):
-        mixes = mix.todays_mixes()
-        self.assertEqual([m["genre"] for m in mixes], ["Stoner", "Slowcore", "Drone"])
-        self.assertEqual(mixes[0]["artists"], ["Kyuss", "Sleep", "Fu Manchu"])
+    def test_genres_by_songs_played(self):
+        genres = [genre for genre, _ in mix.leading_genres(PLAYED)]
+        # Desert's songs all seed Stoner: passed over; Post-rock has two artists
+        self.assertEqual(genres, ["Stoner", "Drone", "Slowcore"])
 
-    def test_leads_alone_until_kept(self):
-        # the plugin's read: no lookups, nothing kept
-        self.assertEqual(mix.todays_mixes()[0]["similar"], [])
-        self.similar.assert_not_called()
-        self.assertEqual(self.cache, {})
+    def test_a_genre_mix_keeps_to_it_and_leans_on_its_leads(self):
+        seeds = mix.leading_genres(PLAYED)[0][1]
+        drawn = mix.genre_mix("Stoner", seeds)
+        self.similar.assert_called_with(["Kyuss", "Sleep", "Fu Manchu"], "mix")
+        kwargs = self.draws.call_args.kwargs
+        self.assertEqual(kwargs["keep"], mix.genre_rule(["Stoner"]))
+        self.assertEqual(kwargs["similar"], ["Om", "Yob"])
+        self.assertEqual(drawn["leads"], ["Kyuss", "Sleep", "Fu Manchu"])
 
-    def test_similar_fused_without_leads(self):
-        self.assertTrue(mix.keep_todays_mixes(lambda: True))
-        # Om is like all three leads, Yob like two; the leads themselves are left out
-        self.assertEqual(mix.todays_mixes()[0]["similar"], ["Om", "Yob"])
+    def test_kept_until_midnight_and_replayed(self):
+        first = mix.kept_mix("Stoner", PLAYED[:5])
+        ttl = mix.ApiCacheHandler().put.call_args.args[2]
+        self.assertLessEqual(ttl, 86401)
+        self.assertEqual(mix.kept_mix("Stoner"), first)  # the click: as the card's
+        self.assertEqual(self.draws.call_count, 1)
 
-    def test_similar_kept_to_the_genre(self):
-        self.like[1].append("Daft Punk")  # in the library, not in Stoner
-        self.assertTrue(mix.keep_todays_mixes(lambda: True))
-        stoner, slowcore, drone = mix.todays_mixes()
-        self.assertEqual(stoner["similar"], ["Om", "Yob"])  # in their order
-        self.assertEqual(drone["similar"], ["Om"])  # Sleep's Yob has no Drone
-        self.assertEqual(slowcore["similar"], [])
-        self.assertEqual(self.in_genre, ["Stoner", "Drone"])  # none asked for none
-
-    def test_each_seed_looked_up_once(self):
-        mix.keep_todays_mixes(lambda: True)
-        seeds = [call.args[0] for call in self.similar.call_args_list]
-        self.assertEqual(sorted(seeds), [1, 2, 3, 4, 5, 6, 9])  # Sleep, Codeine once
-
-    def test_second_pass_fills_a_miss(self):
-        self.like[4] = []  # Low's lookup unanswered: kept with what did answer
-        self.assertTrue(mix.keep_todays_mixes(lambda: True))
-        self.assertEqual(mix.todays_mixes()[1]["similar"], [])
-        self.like[4] = ["Galaxie 500"]
-        self.assertTrue(mix.keep_todays_mixes(lambda: True))  # changed: a new URL
-        self.assertEqual(mix.todays_mixes()[1]["similar"], ["Galaxie 500"])
-        self.assertFalse(mix.keep_todays_mixes(lambda: True))  # as kept
-        self.assertEqual(self.calls.call_count, 1)  # the kept leads, not today's
-
-    def test_stops_on_abort(self):
-        self.assertIsNone(mix.keep_todays_mixes(lambda: False))
-        self.similar.assert_not_called()
-        self.assertEqual(self.cache, {})
-
-    def test_abort_during_the_last_lead_keeps_nothing(self):
-        alive = mock.Mock(side_effect=[True] * 7 + [False])  # 7 leads, then the save
-        self.assertIsNone(mix.keep_todays_mixes(alive))
-        self.assertEqual(self.similar.call_count, 7)
-        self.assertEqual(self.cache, {})
-
-    def test_a_lead_gone_from_the_library_has_none(self):
-        def similar(artistid: int, parent: str, owned: dict) -> list[str]:
-            if artistid == 2:  # Sleep: artist_identity finds no details
-                raise KeyError("result")
-            return self.like.get(artistid, [])
-
-        self.similar.side_effect = similar
-        self.assertTrue(mix.keep_todays_mixes(lambda: True))
-        self.assertEqual(mix.todays_mixes()[0]["similar"], ["Om", "Yob"])  # 1 and 3
-
-    def test_outage_during_the_second_pass_keeps_the_first(self):
-        self.assertTrue(mix.keep_todays_mixes(lambda: True))
-        first = mix.todays_mixes()
-
-        def down(artistid: int, parent: str, owned: dict) -> list[str]:
-            raise KeyError("result")  # GetArtistDetails: the database failed to open
-
-        self.similar.side_effect = down
-        self.assertFalse(mix.keep_todays_mixes(lambda: True))  # as kept: same URL
-        self.assertEqual(mix.todays_mixes(), first)
-
-    def test_a_gone_lead_keeps_its_mix_while_another_fills(self):
-        self.like[4] = []  # Low's lookup unanswered on the first pass
-        self.assertTrue(mix.keep_todays_mixes(lambda: True))
-        first = mix.todays_mixes()
-        self.like[4] = ["Galaxie 500"]  # answers now
-
-        def similar(artistid: int, parent: str, owned: dict) -> list[str]:
-            if artistid == 2:  # Sleep, a Stoner and a Drone lead, gone since
-                raise KeyError("result")
-            return self.like.get(artistid, [])
-
-        self.similar.side_effect = similar
-        self.assertTrue(mix.keep_todays_mixes(lambda: True))
-        stoner, slowcore, drone = mix.todays_mixes()
-        self.assertEqual((stoner, drone), (first[0], first[2]))  # as kept
-        self.assertEqual(slowcore["similar"], ["Galaxie 500"])  # filled
-
-    def test_no_plays_keeps_nothing(self):
-        self.calls.return_value = {"result": {"songs": []}}
-        self.assertIsNone(mix.keep_todays_mixes(lambda: True))
-
-    def test_held_for_the_day(self):
-        mix.keep_todays_mixes(lambda: True)
-        mix.todays_mixes()
-        self.assertEqual(self.calls.call_count, 1)
+    def test_redrawn_once_similar_answers_otherwise(self):
+        kept = mix.kept_mix("Stoner", PLAYED[:5])
+        mix.recheck_similar("Stoner", kept)  # as drawn: still fresh
+        self.assertEqual(mix.kept_mix("Stoner"), kept)
+        self.like = ["Om", "Yob", "Weedeater"]  # a lead looked up at the click
+        mix.recheck_similar("Stoner", kept)
+        self.assertNotEqual(mix.kept_mix("Stoner"), kept)
+        self.assertEqual(self.draws.call_count, 2)
 
 
 class Card(unittest.TestCase):
@@ -322,52 +249,50 @@ class Card(unittest.TestCase):
         32841: "%s and more.",
     }
 
-    def card(self, similar: list[str]) -> mock.Mock:
-        today = {
-            "genreid": 10,
-            "genre": "Stoner",
-            "artistids": [1, 2, 3],
-            "artists": ["Kyuss", "Sleep", "Fu Manchu"],
-            "similar": similar,
-        }
+    def card(self, names: list[str]) -> mock.Mock:
+        songs = [{"artist": [n], "albumartist": [n]} for n in names]
+        kept = {"songs": songs + songs[:2], "leads": names[:3], "similar": []}
         rows = [  # the library's order, not the mix's; Om has no thumb
             {"artist": n, "art": {"thumb": f"{n}.jpg"} if n != "Om" else {}}
-            for n in sorted([*today["artists"], *similar])
+            for n in sorted(names)
         ]
         with (
             mock.patch.object(music, "ListItem") as list_item,
             mock.patch.object(
                 music, "json_call", return_value={"result": {"artists": rows}}
             ),
+            mock.patch.object(music, "genre_ids", lambda: {"Stoner": 10}),
             mock.patch.object(music, "ADDON") as addon,
         ):
             addon.getLocalizedString = self.STRINGS.get
-            path, _, folder = music.mix_card(today)
+            [(path, _, folder)] = music.mix_cards([("Stoner", kept)])
         self.assertEqual((path, folder), ("musicdb://genres/10/", True))
         return list_item.return_value
 
-    def test_artists_leads_first(self):
-        li = self.card(["Om", "Yob", "Weedeater", "Sunn", "Earth", "Boris", "Melvins"])
+    def test_artists_in_play_order(self):
+        li = self.card(
+            ["Kyuss", "Om", "Sleep", "Yob", "Earth", "Boris", "Sunn", "Low", "Melvins"]
+        )
         props = li.setProperties.call_args.args[0]
         self.assertEqual(
             props["Artist_Description"],
-            "Kyuss, Sleep, Fu Manchu, Om, Yob, Weedeater, Sunn, Earth and more.",
+            "Kyuss, Om, Sleep, Yob, Earth, Boris, Sunn, Low and more.",
         )
-        self.assertEqual(props["eyebrow"], f"Daily mix · {mix.MIX_SIZE} songs")
+        self.assertEqual(props["eyebrow"], "Daily mix · 11 songs")  # the list's count
+        self.assertEqual(props["mix_genreid"], "10")
         art = li.setArt.call_args.args[0]
         self.assertEqual(
-            [art["square"], art["square1"], art["square2"], art["square3"]],
-            ["Kyuss.jpg", "Sleep.jpg", "Fu Manchu.jpg", "Yob.jpg"],
+            [art["square"], art["square1"], art["square2"]],
+            ["Kyuss.jpg", "Sleep.jpg", "Yob.jpg"],
         )
         li.getMusicInfoTag.return_value.setGenres.assert_called_with(["Stoner"])
 
     def test_eight_or_fewer_and_no_more(self):
-        for similar, described in (
-            (["Om"], "Kyuss, Sleep, Fu Manchu and Om."),
-            ([*"ABCDE"], "Kyuss, Sleep, Fu Manchu, A, B, C, D and E."),
+        for names, described in (
+            (["Kyuss", "Sleep", "Om"], "Kyuss, Sleep and Om."),
+            ([*"ABCDEFGH"], "A, B, C, D, E, F, G and H."),
         ):
-            li = self.card(similar)
-            props = li.setProperties.call_args.args[0]
+            props = self.card(names).setProperties.call_args.args[0]
             self.assertEqual(props["Artist_Description"], described)
 
     def test_slides_capped(self):
@@ -392,6 +317,10 @@ class Playlist:
         self.properties = properties
 
 
+PLAYING = {"songid": 5, "artist": ["Kyuss"], "artistid": [1]}
+PLAYING |= {"albumartist": ["Kyuss"], "genre": ["Stoner"]}
+
+
 class EndlessQueue(unittest.TestCase):
     def grow(self, size: int, position: int) -> tuple[Playlist, object, mock.Mock]:
         playlist = Playlist(size)
@@ -408,6 +337,7 @@ class EndlessQueue(unittest.TestCase):
                 "add_songs",
                 lambda pl, songs, **props: [pl.add(s["file"], props) for s in songs],
             ),
+            mock.patch.object(music, "similar_artists", lambda *a: ["Sleep"]),
             mock.patch.object(
                 player,
                 "mix_songs",
@@ -418,13 +348,14 @@ class EndlessQueue(unittest.TestCase):
                 ),
             ) as mixed,
         ):
-            monitor._extend_queue(["Kyuss"], [], ["Stoner"])
+            monitor._extend_queue(PLAYING)
         return playlist, monitor, mixed
 
     def test_grows_below_ten_left(self):
         playlist, monitor, mixed = self.grow(20, 10)  # 9 left
         self.assertEqual(playlist.size(), 30)
-        self.assertEqual(mixed.call_args.args[3], set(range(20)))  # none queued again
+        self.assertEqual(mixed.call_args.args[:3], ([PLAYING], 10, set(range(20))))
+        self.assertEqual(mixed.call_args.kwargs, {"similar": ["Sleep"]})
         self.assertEqual(monitor._dial_queue, player._queue_key(playlist))
         self.assertEqual(monitor._queue_songs[0], monitor._dial_queue)
         self.assertIn(109, monitor._queue_songs[1])

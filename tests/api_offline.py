@@ -233,6 +233,16 @@ class ListenBrainzTest(Base):
         self.assertEqual(listenbrainz.top_recordings(GORILLAZ), top)
         self.assertEqual(len(self.net.requests), 1)
 
+    def test_cache_only_serves_stale_and_fetches_nothing(self):
+        self.net.answers = [FIXTURE]
+        top = listenbrainz.top_recordings(GORILLAZ)
+        self.tick(15 * DAY)  # stale
+        with cache.cache_only():
+            self.assertEqual(listenbrainz.top_recordings(GORILLAZ), top)
+            self.assertEqual(listenbrainz.top_recordings(QOTSA), [])  # not fetched
+        self.assertEqual(len(self.net.requests), 1)
+        self.assertFalse(cache._offline)  # released
+
     def test_empty_cached_three_days(self):
         self.net.answers = [b"[]"]
         self.assertEqual(listenbrainz.top_recordings(GORILLAZ), [])

@@ -16,6 +16,7 @@ from xbmc import Monitor, getLocalizedString
 from xbmcgui import Window, getCurrentWindowDialogId, getCurrentWindowId
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
+from resources.lib.apis.cache import cache_only
 from resources.lib.plugin.geometry import PlacementOpts
 from resources.lib.plugin.helpers import (
     DataHandler,
@@ -58,7 +59,7 @@ from resources.lib.plugin.music import (
     dial_item,
     library_item,
     library_rows,
-    mix_card,
+    mix_cards,
     rank_albums,
     rank_songs,
     similar_artists,
@@ -74,7 +75,7 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.mix import MIXES_WANTED, todays_mixes
+from resources.lib.shared.mix import kept_mix, leading_genres, played_songs
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
@@ -1753,13 +1754,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def daily_mixes(self) -> list[DirectoryItem] | None:
         """
-        Today's mixes from your listening, a card per leading genre, the same all
-        day (shared.mix.todays_mixes); the skin's click starts one (start_mix). Tells
-        the service a skin shows them, so it works out their similar artists.
+        A card per genre you played most lately (shared.mix.leading_genres), its mix
+        drawn once a day and kept (kept_mix), similar artists from the cache alone;
+        the skin's click plays it (start_mix type=daily).
         """
-        window_property(MIXES_WANTED, value="true")
         set_plugincontent(category=ADDON.getLocalizedString(32837))
-        return [mix_card(mix) for mix in todays_mixes()[: self.limit]] or None
+        with cache_only():
+            mixes = [
+                (genre, kept_mix(genre, seeds))
+                for genre, seeds in leading_genres(played_songs())[: self.limit]
+            ]
+        return mix_cards(mixes) if mixes else None  # none until there are plays
 
     @log.duration
     def random_genre(self) -> list[DirectoryItem] | None:

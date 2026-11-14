@@ -165,39 +165,37 @@ content is `songs`.
 ## `daily_mixes`
 
 Up to six mix cards made from the songs you played in the last 30 days. Each card is
-one genre: the genres are ranked by the plays of those songs, and each needs three
-artists in it. Its three most played artists lead it; a genre whose first artist
-already leads a card is passed over, so the cards differ.
+one genre: the genres with the most of those songs, each with songs by at least three
+artists. A genre most of whose songs already make a card is passed over, so the cards
+differ.
 
-A call sets `Window(home).Property(daily_mixes_wanted)`. This tells the helper's
-background service that the skin shows the mixes. The service then looks up each lead
-artist's similar artists (as [`similar_music`](#similar_music) does), keeps those with
-songs in the card's genre, and keeps the day's mixes in the helper's cache. From then
-on the cards don't move while today's plays change what was played last. The service
-looks once more about 15 minutes later, to fill what the first look missed, then not
-until the next day. Until the service has kept the day, each call works the cards out
-again from your plays, with lead artists only and no network requests.
+Each card's mix is the genre's [`start_mix`](../script/actions.md#start_mix), drawn
+the first time the card is listed in a day and kept in the helper's cache until
+midnight, one entry for each genre. So the card names what will play, and a click
+plays exactly that. Which cards there are, and their order, is worked out again on
+every call, so a genre you start playing today gets its card the next time the list
+loads. A call makes no network requests: the similar artists are the ones already
+saved (from a Start mix, the endless queue or an info screen). When a click finds a
+lead artist's similar artists have changed since (it asks Deezer and ListenBrainz
+once playback has started), the card's mix is drawn again on the next load.
 
-Each time the kept mixes change, the service sets
-`Window(home).Property(daily_mixes_version)` to a new value. Put it in the path, so the
-list refetches with the similar artists.
-
-Each card's label is *Genre* mix, its `Label2` its lead artists, joined with `, `, and
-its `Genre` the genre. `ListItem.Property(eyebrow)` is a short heading, "Daily mix · 50
-songs". `ListItem.Property(Artist_Description)` names its first eight artists, leads then
-similar ones, as "A, B and C." or "A, …, H and more.". Its art is those artists'
-thumbs as square multiart (`square`, `square1` …, up to 25), with
-`DefaultMusicGenres.png` as the icon.
+Each card's label is *Genre* mix and its `Genre` the genre.
+`ListItem.Property(eyebrow)` is a short heading with the mix's real length, "Daily mix ·
+50 songs". `ListItem.Property(Artist_Description)` names its first eight artists, in
+the order they play, as "A, B and C." or "A, …, H and more.". Its art is those
+artists' thumbs as square multiart (`square`, `square1` …, up to 25), in the same
+order, with `DefaultMusicGenres.png` as the icon.
 `ListItem.Property(mix_genreid)` holds the genre's id. A card's path opens the genre
 (`musicdb://genres/<id>/`). To play the mix instead, give the list a click that runs
-[`start_mix`](../script/actions.md#start_mix) with `type=daily`:
+[`start_mix`](../script/actions.md#start_mix) with `type=daily`. Put the day in the
+path, so the list refetches after midnight:
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | — | Most cards to return. |
 
 ```xml
-<content sortby="userpreference">plugin://script.copacetic.helper/?info=daily_mixes&amp;v=$INFO[Window(home).Property(daily_mixes_version)]</content>
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=daily_mixes&amp;day=$INFO[System.Date(dd)]</content>
 <onclick>RunScript(script.copacetic.helper,action=start_mix,type=daily,id=$INFO[ListItem.Property(mix_genreid)])</onclick>
 ```
 
