@@ -526,7 +526,7 @@ class TmdbTest(Base):
         item = transform.tmdb_to_canonical("tvshow", 1399)
         self.assertEqual(item["Title"], "Game of Thrones")
         self.assertEqual(item["Writers"], ["David Benioff", "D. B. Weiss"])
-        self.assertEqual(item["Year"], 2011)
+        self.assertNotIn("Year", item)  # nothing reads it: not mapped
         self.assertTrue(item["Trailer"].endswith("video_id=trailer-key"))
         self.assertEqual(self.tmdb_row(), (item, 7 * DAY))
         request = self.net.requests[0]

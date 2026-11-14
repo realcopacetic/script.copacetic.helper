@@ -71,7 +71,7 @@ def tmdb_to_canonical(
     if tmdb_id <= 0:
         log.debug(f"tmdb_to_canonical → invalid {tmdb_id=} for {kind=}")
         return {}
-    if kind == "episode":  # no episode lookup: never the show's Title, Plot or Year
+    if kind == "episode":  # no episode lookup: never the show's Title or Plot
         show = tmdb_to_canonical(
             "tvshow", tmdb_id, None, language, append_artwork, cache_only
         )
