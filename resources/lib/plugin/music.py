@@ -69,6 +69,7 @@ K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
 # Music, new albums included (coding-notes audits/2026-11-12-music-popularity.md)
 WEIGHTS = {"deezer": 2.0, "listenbrainz": 1.0}
 OVERLAP = 3  # song titles in common that identify an artist with no album in common
+SINGLE = 4  # a release with fewer of the artist's songs yields to a same-year album
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
 _DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
@@ -235,16 +236,18 @@ def fused(rankings: Iterable[tuple[float, Iterable]]) -> Counter:
 def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
     """
     A lookup from a ranking row to a library song: by recording MBID, else title and
-    album title, else title; the earliest release of several, the fuller album of two
-    the same year (not the single).
+    album title, else title; the earliest release of several, a single after an album
+    of the same year.
 
     :param songs: Library songs with album, albumid, musicbrainztrackid, title, year.
     :return: find(mbid, title, album="") giving the song or None.
     """
     size = Counter(song["albumid"] for song in songs)
     by_mbid, by_album, by_title = {}, {}, {}
-    # undated last; a single released with its album after the album
-    for song in sorted(songs, key=lambda s: (s["year"] or 9999, -size[s["albumid"]])):
+    # undated last; among full albums (editions, live) the scan order stands
+    for song in sorted(
+        songs, key=lambda s: (s["year"] or 9999, size[s["albumid"]] < SINGLE)
+    ):
         key = title_key(song["title"])
         by_mbid.setdefault(song["musicbrainztrackid"], song)
         by_album.setdefault((key, title_key(song["album"])), song)
