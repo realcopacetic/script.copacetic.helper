@@ -22,7 +22,7 @@ from resources.lib.service.trailer import (
     trailer_source,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.mix import lead_id, mix_songs
+from resources.lib.shared.mix import genre_rule, lead_id, mix_songs
 from resources.lib.shared.speed_dial import (
     SpeedDial,
     clear_properties,
@@ -556,8 +556,8 @@ class PlayerMonitor(Player):
     def _extend_queue(self, song: dict) -> bool:
         """
         Endless queue: once fewer than QUEUE_LOW songs follow the playing one, append
-        QUEUE_GROWTH from a mix seeded by it, none already queued, each with
-        ListItem.Property(added_from) naming its artists for the "why this song" line.
+        QUEUE_GROWTH from a mix seeded by it, none queued, kept to a genre mix's genre,
+        each with ListItem.Property(added_from) naming its artists ("why this song").
 
         :param song: The playing song: songid, artist, artistid, albumartist, genre.
         :return: True when the queue grew.
@@ -578,16 +578,20 @@ class PlayerMonitor(Player):
         from resources.lib.plugin.music import similar_artists
 
         queued = self._queue_ids()
+        # A genre or daily mix's songs carry its genre, and so do those grown from them
+        genre = infolabel("MusicPlayer.Property(mix_genre)")
         # a ListenBrainz wait runs queued callbacks: a skip's onAVStarted can land here
         self._growing = True
         try:
             similar = similar_artists(lead_id(song), "endless_queue")
-            songs = mix_songs([song], QUEUE_GROWTH, queued, similar=similar)
+            keep = genre_rule([genre]) if genre else None
+            songs = mix_songs([song], QUEUE_GROWTH, queued, similar=similar, keep=keep)
         finally:
             self._growing = False
         if not songs:
             return False
-        add_songs(playlist, songs, added_from=" / ".join(song["artist"]))
+        added_from = " / ".join(song["artist"])
+        add_songs(playlist, songs, added_from=added_from, mix_genre=genre)
         if condition("Window.IsActive(musicplaylist)"):
             # A Python add sends no GUI_MSG_PLAYLIST_CHANGED, as Kodi's own add does
             log.execute("Container.Refresh")

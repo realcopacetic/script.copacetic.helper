@@ -1261,7 +1261,9 @@ while Deezer and ListenBrainz answer; later ones read the saved answers.
   with the ones you played most lately the likeliest (a play's weight halves every
   seven days) and those heard in the last three days last; the similar
   artists are those of the three you played most. With nothing played in it, the
-  mix is the genre's songs alone. It is drawn afresh each time.
+  mix is the genre's songs alone. It is drawn afresh each time. Its songs carry
+  `ListItem.Property(mix_genre)`, so the
+  [endless queue](../service/player.md#endless-queue) keeps to the genre.
 - **Daily:** a [`daily_mixes`](../plugins/library.md#daily_mixes) card's mix, by its
   genre's id: the genre's mix as the card drew it today, so it plays what the card
   names. With none kept (the cache was cleared, or the day turned since the card

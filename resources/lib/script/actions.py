@@ -1215,7 +1215,8 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
             mix = kept_mix(genre)
         if mix["songs"]:  # none: Kodi starts nothing
             mark_source(None)
-            play_files(mix["songs"])
+            # the Endless queue reads it from the playing song to keep to the genre
+            play_files(mix["songs"], mix_genre=genre)
         if type == "daily":
             recheck_similar(genre, mix)
         return

@@ -385,7 +385,9 @@ PLAYING |= {"albumartist": ["Kyuss"], "genre": ["Stoner"]}
 
 
 class EndlessQueue(unittest.TestCase):
-    def grow(self, size: int, position: int) -> tuple[Playlist, object, mock.Mock]:
+    def grow(
+        self, size: int, position: int, genre: str = ""
+    ) -> tuple[Playlist, object, mock.Mock]:
         playlist = Playlist(size)
         monitor = object.__new__(player.PlayerMonitor)
         monitor._queue_songs = (player._queue_key(playlist), set(range(size)))
@@ -401,6 +403,8 @@ class EndlessQueue(unittest.TestCase):
                 lambda pl, songs, **props: [pl.add(s["file"], props) for s in songs],
             ),
             mock.patch.object(music, "similar_artists", lambda *a: ["Sleep"]),
+            # MusicPlayer.Property(mix_genre): the playing song's
+            mock.patch.object(player, "infolabel", lambda label: genre),
             mock.patch.object(
                 player,
                 "mix_songs",
@@ -418,11 +422,17 @@ class EndlessQueue(unittest.TestCase):
         playlist, monitor, mixed = self.grow(20, 10)  # 9 left
         self.assertEqual(playlist.size(), 30)
         self.assertEqual(mixed.call_args.args[:3], ([PLAYING], 10, set(range(20))))
-        self.assertEqual(mixed.call_args.kwargs, {"similar": ["Sleep"]})
+        self.assertEqual(mixed.call_args.kwargs, {"similar": ["Sleep"], "keep": None})
         self.assertEqual(monitor._dial_queue, player._queue_key(playlist))
         self.assertEqual(monitor._queue_songs[0], monitor._dial_queue)
         self.assertIn(109, monitor._queue_songs[1])
-        self.assertEqual(playlist.properties, {"added_from": "Kyuss"})
+        self.assertEqual(playlist.properties, {"added_from": "Kyuss", "mix_genre": ""})
+
+    def test_a_genre_mix_grows_in_its_genre(self):
+        playlist, _, mixed = self.grow(50, 41, genre="Stoner")
+        self.assertEqual(mixed.call_args.kwargs["keep"], mix.genre_rule(["Stoner"]))
+        # carried on, so the next growth keeps to it too
+        self.assertEqual(playlist.properties["mix_genre"], "Stoner")
 
     def test_ten_left_holds(self):
         playlist, _, mixed = self.grow(20, 9)
