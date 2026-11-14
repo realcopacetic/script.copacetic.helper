@@ -116,6 +116,8 @@ _VIDEO_METHODS = {
     "set": "MovieSet",
 }  # VideoLibrary.Get{…}s / Get{…}Details per library type
 _MUSIC_NAMES = {"album": "album", "artist": "artist", "song": "title"}  # name field
+# TMDb's show status as _show_news's show_status: no more episodes, or more to come
+_SHOW_STATUS = {"Canceled": "ended", "Ended": "ended", "Returning Series": "returning"}
 
 
 def _video_details(
@@ -1247,8 +1249,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
         """
         An unfinished show's or season's next_episode (as next_up) and next_runtime,
-        and a show's new, from one GetEpisodes call; a fully watched show's next_air
-        and next_air_episode.
+        and a show's new, from one GetEpisodes call; a fully watched show's
+        _show_news.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :return: Properties for the progress item; none for other types.
@@ -1268,7 +1270,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         watched = to_int(labels["Property(WatchedEpisodes)"])
         left = to_int(labels["Property(UnwatchedEpisodes)"])
         if dbtype == "tvshow" and watched and not left:  # fully watched
-            return self._next_air()
+            return self._show_news(to_int(labels["DBID"]))
 
         # No library id (a plugin's item): tvshowid 0 would ask for every show. A
         # favourite's season (a helper item) has a DBID but no TvShowDBID, only
@@ -1356,22 +1358,45 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         fmt = "%Y-%m-%d %H:%M:%S" if field == "dateadded" else "%Y-%m-%d"
         return f"{datetime.now() - timedelta(days=days):{fmt}}"
 
-    def _next_air(self) -> dict[str, str]:
+    def _show_news(self, show_id: int) -> dict[str, str]:
         """
-        The focused show's next air date, in date_format (strftime, default "%d %b";
-        %b is Kodi's short month name), and episode code from the TMDb cache, never
-        fetched here. Nothing is looked up with TMDb off.
+        A fully watched show's news from the TMDb cache, never fetched here: its last
+        aired episode if the library lacks it, its next air date in date_format
+        (strftime, default "%d %b"; %b is Kodi's short month) and whether it ended.
 
-        :return: next_air and next_air_episode; empty if none is cached or it is past.
+        :param show_id: Library id of the show, for the episodes the library has.
+        :return: new_episode, next_air, next_air_episode, show_status; empty if unknown.
         """
         # No art: the art entry while fresh, else a fresh art-less one, else stale art
         # first (renewed by the metadata serve with TMDb multiart on; off, an older art
         # entry can win until the art-less one is renewed on the next focus)
         tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
         props = tmdb["properties"] if tmdb else {}
+        news = {
+            "new_episode": "",
+            "next_air": "",
+            "next_air_episode": "",
+            "show_status": _SHOW_STATUS.get(props.get("tmdb_status"), ""),
+        }
+        # Specials left out, as next_episode does. An entry cached before these were
+        # kept (7-day TTL) has none; show_id 0 (a plugin's item) would ask every show
+        season = to_int(props.get("tmdb_last_air_season"))
+        if show_id and season > 0:
+            episode = int(props["tmdb_last_air_episode"])
+            owned = fetch_raw(
+                "VideoLibrary.GetEpisodes",
+                "episode",
+                [],
+                sort=None,
+                parent="progressbar",
+                params={"tvshowid": show_id, "season": season},
+                properties=["episode"],
+            )
+            if episode not in {ep["episode"] for ep in owned}:
+                news["new_episode"] = f"{season}x{episode:02d}"
         iso = props.get("tmdb_next_air_date")
         if not iso or (day := date.fromisoformat(iso)) < date.today():
-            return {"next_air": "", "next_air_episode": ""}
+            return news
         # An entry cached before the numbers were kept (7-day TTL) has the date alone
         episode = props.get("tmdb_next_air_episode")
         # strftime's %b is the C locale's (English): Kodi's own (51-62) follow its
@@ -1379,7 +1404,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # Windows encodes its format with the locale codec
         month = getLocalizedString(50 + day.month)
         fmt = self.params.get("date_format", "%d %b")
-        return {
+        return news | {
             "next_air": month.join(day.strftime(part) for part in fmt.split("%b")),
             "next_air_episode": (
                 f"{int(props['tmdb_next_air_season'])}x{int(episode):02d}"

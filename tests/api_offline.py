@@ -75,6 +75,7 @@ from resources.lib.shared.text import fit_lines  # noqa: E402
 FIXTURES = HELPER / "tests" / "fixtures"
 FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
 TMDB_TV = (FIXTURES / "tmdb_tv_1399.json").read_bytes()
+NEWS = ("new_episode", "next_air", "next_air_episode", "show_status")  # _show_news
 DEEZER_SEARCH = (FIXTURES / "deezer_search_qotsa.json").read_bytes()
 DEEZER_TOP = (FIXTURES / "deezer_top_1177.json").read_bytes()
 DEEZER_QUOTA = (
@@ -690,7 +691,12 @@ class TmdbTest(Base):
     def test_next_air_reads_the_cache_only(self):
         day = date.today() + timedelta(days=30)
         next_ep = {"air_date": str(day), "episode_number": 1, "season_number": 3}
-        tv = json.loads(TMDB_TV) | {"next_episode_to_air": next_ep}
+        last_ep = {"air_date": "2024-01-01", "episode_number": 8, "season_number": 2}
+        tv = json.loads(TMDB_TV) | {
+            "next_episode_to_air": next_ep,
+            "last_episode_to_air": last_ep,
+            "status": "Returning Series",
+        }
         handler = object.__new__(handlers.PluginHandlers)
         handler.params, handler.dbtype = {}, ""
         handler.target_item = "Container(50).ListItem"
@@ -700,15 +706,22 @@ class TmdbTest(Base):
             mock.patch("resources.lib.apis.tmdb.context.infolabel", label),
             mock.patch.object(handlers, "getLocalizedString", "#{}".format),
         ):
-            empty = {"next_air": "", "next_air_episode": ""}
-            self.assertEqual(handler._next_air(), empty)  # nothing cached: no request
+            empty = dict.fromkeys(NEWS, "")
+            self.assertEqual(handler._show_news(7), empty)  # nothing cached: no request
             self.assertEqual(self.net.requests, [])
             self.net.answers = [json.dumps(tv).encode()]  # the metadata serve's fetch
-            transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
+            item = transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
+            last = {"tmdb_last_air_season": "2", "tmdb_last_air_episode": "8"}
+            self.assertLessEqual(last.items(), item["properties"].items())
             self.tick(8 * DAY)  # stale, still served
             when = f"{day:%d} #{50 + day.month}"  # Kodi's short month: 51 is Jan
-            shown = {"next_air": when, "next_air_episode": "3x01"}
-            self.assertEqual(handler._next_air(), shown)
+            shown = empty | {
+                "next_air": when,
+                "next_air_episode": "3x01",
+                "show_status": "returning",
+            }
+            # 0, a plugin's show: its episodes aren't looked up
+            self.assertEqual(handler._show_news(0), shown)
         self.assertEqual(len(self.net.requests), 1)
 
     def test_next_air_off_looks_nothing_up(self):
@@ -718,15 +731,15 @@ class TmdbTest(Base):
         labels = {"DBType": "tvshow", "DBID": "7"}  # no UniqueID(tmdb): a TVDB show
         label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
         rpc = mock.Mock(return_value="{}")
-        empty = {"next_air": "", "next_air_episode": ""}
+        empty = dict.fromkeys(NEWS, "")
         with (
             mock.patch("resources.lib.apis.tmdb.context.infolabel", label),
             mock.patch.object(sys.modules["xbmc"], "executeJSONRPC", rpc, create=True),
         ):
-            self.assertEqual(handler._next_air(), empty)
+            self.assertEqual(handler._show_news(7), empty)
             rpc.assert_not_called()  # no uniqueid lookup
             self.settings = {"tmdb_access_token": "v3key"}  # on: looks the id up
-            self.assertEqual(handler._next_air(), empty)  # no cache: still empty
+            self.assertEqual(handler._show_news(7), empty)  # no cache: still empty
         self.assertEqual(rpc.call_count, 1)
 
     def test_refused_token_warns_once(self):
@@ -2153,6 +2166,35 @@ class ProgressbarTest(unittest.TestCase):
             counts["Property(UnwatchedEpisodes)"] = left
             self.assertNotIn("next_air", self.prop_all(**show | counts))
         self.assertEqual(len(asks), 10)
+
+    def test_show_news(self):
+        props = {}
+        self.handler._get_tmdb_item = lambda **kwargs: {"properties": props}
+        show = {"DBType": "tvshow", "DBID": "7", "Property(WatchedEpisodes)": "9"}
+        show["Property(UnwatchedEpisodes)"] = "0"  # fully watched
+        for status, shown in (
+            ("Ended", "ended"),
+            ("Canceled", "ended"),
+            ("Returning Series", "returning"),
+            ("In Production", ""),
+        ):
+            props["tmdb_status"] = status
+            self.assertEqual(self.prop("show_status", **show), shown)
+        self.assertEqual(self.calls, [])  # no last aired episode: no lookup
+        last = {"tmdb_last_air_season": "3", "tmdb_last_air_episode": "1"}
+        props |= last
+        self.assertEqual(self.prop("new_episode", **show), "")  # the library has 3x01
+        asked = {"tvshowid": 7, "season": 3, "properties": ["episode"]}
+        self.assertEqual(self.calls[-1], asked)
+        props["tmdb_last_air_episode"] = "2"
+        self.assertEqual(self.prop("new_episode", **show), "3x02")
+        props["tmdb_last_air_season"] = "4"  # a season the library lacks
+        self.assertEqual(self.prop("new_episode", **show), "4x02")
+        calls = len(self.calls)
+        props["tmdb_last_air_season"] = "0"  # a special, as next_episode leaves out
+        self.assertEqual(self.prop("new_episode", **show), "")
+        self.assertEqual(self.prop("new_episode", **show | {"DBID": ""}), "")
+        self.assertEqual(len(self.calls), calls)
 
 
 TIDB = {

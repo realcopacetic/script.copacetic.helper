@@ -29,6 +29,9 @@ TMDB_PROPERTIES = {
             "overview",
             "tagline",
             "created_by",
+            "status",
+            ("last_episode_number", ("last_episode_to_air", "episode_number")),
+            ("last_episode_season", ("last_episode_to_air", "season_number")),
             ("next_episode_air_date", ("next_episode_to_air", "air_date")),
             ("next_episode_number", ("next_episode_to_air", "episode_number")),
             ("next_episode_season", ("next_episode_to_air", "season_number")),
@@ -79,6 +82,14 @@ TMDB_FIELD_MAP = {
         "kind": "image_list",
         "limit": 10,
     },
+    "last_episode_number": {
+        "target": "property",
+        "label": "tmdb_last_air_episode",
+    },
+    "last_episode_season": {
+        "target": "property",
+        "label": "tmdb_last_air_season",
+    },
     "name": {
         "target": "info",
         "label": "Title",
@@ -107,6 +118,10 @@ TMDB_FIELD_MAP = {
     "season_overview": {
         "target": "info",
         "label": "Plot",
+    },
+    "status": {
+        "target": "property",
+        "label": "tmdb_status",
     },
     "tagline": {
         "target": "info",
