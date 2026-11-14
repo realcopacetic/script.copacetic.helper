@@ -404,6 +404,21 @@ class Card(unittest.TestCase):
         self.assertEqual(len(li.setArt.call_args.args[0]), music.MIX_SLIDES + 1)
 
 
+class Similar(unittest.TestCase):
+    def test_a_mix_matches_album_artists_whatever_the_setting(self):
+        rows = {"result": {"artists": [{"artist": "Om"}]}}
+        calls = mock.Mock(return_value=rows)
+        with mock.patch.object(music, "json_call", calls):
+            self.assertEqual(
+                music.artist_names("mix", album_artists=True), {"om": "Om"}
+            )
+            self.assertEqual(
+                calls.call_args.kwargs["params"], {"albumartistsonly": True}
+            )
+            music.artist_names("similar_music")  # the similar rails: Kodi's setting
+            self.assertIsNone(calls.call_args.kwargs["params"])
+
+
 class Seed(unittest.TestCase):
     def test_an_artist_opens_with_one_of_ten_not_just_heard(self):
         from resources.lib.script import actions
@@ -465,6 +480,7 @@ class EndlessQueue(unittest.TestCase):
                 lambda pl, songs, **props: [pl.add(s["file"], props) for s in songs],
             ),
             mock.patch.object(music, "similar_artists", lambda *a: ["Sleep"]),
+            mock.patch.object(music, "artist_names", lambda *a, **k: {}),
             # MusicPlayer.Property(mix_genre): the playing song's
             mock.patch.object(player, "infolabel", lambda label: genre),
             mock.patch.object(

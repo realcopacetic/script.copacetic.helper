@@ -1231,11 +1231,16 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     dbid = to_int(id or infolabel("ListItem.DBID"))
     if not (seed := _mix_seed(type, dbid)):
         return
-    from resources.lib.plugin.music import similar_artists
+    from resources.lib.plugin.music import artist_names, similar_artists
 
     mark_source(dial_entry(type, dbid))
-    # an artist's own, as its top song may be on a collaboration
-    similar = similar_artists(dbid if type == "artist" else lead_id(seed), "start_mix")
+    # an artist's own, as its top song may be on a collaboration; album artists
+    # alone, as a mix plays an artist's own albums
+    similar = similar_artists(
+        dbid if type == "artist" else lead_id(seed),
+        "start_mix",
+        artist_names("start_mix", album_artists=True),
+    )
     songs = mix_songs([seed], MIX_SIZE - 1, {seed["songid"]}, SEED_SHARE[type], similar)
     play_files([seed, *songs])
 

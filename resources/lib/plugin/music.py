@@ -397,17 +397,21 @@ def library_rows(
     return rows.get("result", {}).get(f"{type}s", [])
 
 
-def artist_names(parent: str) -> dict[str, str]:
+def artist_names(parent: str, album_artists: bool = False) -> dict[str, str]:
     """
-    Every library artist's name by its folded form.
+    Every library artist's name by its folded form, as Kodi's *Show song and album
+    artists* setting lists them, or album artists alone (a mix's: their own albums).
 
     :param parent: Caller name for logging.
+    :param album_artists: Album artists alone, whatever the setting.
     :return: {fold(name): name}.
     """
-    return {
-        fold(row["artist"]): row["artist"]
-        for row in library_rows("artist", None, None, None, parent, [])
-    }
+    rows = json_call(
+        "AudioLibrary.GetArtists",
+        params={"albumartistsonly": True} if album_artists else None,
+        parent=parent,
+    )["result"].get("artists", [])
+    return {fold(row["artist"]): row["artist"] for row in rows}
 
 
 def similar_artists(
@@ -465,7 +469,7 @@ def similar_to(names: list[str], parent: str) -> list[str]:
         params={"albumartistsonly": False},
         parent=parent,
     )["result"].get("artists", [])
-    owned = artist_names(parent)
+    owned = artist_names(parent, album_artists=True)
     scores = fused((1, similar_artists(row["artistid"], parent, owned)) for row in rows)
     return [artist for artist, _ in scores.most_common() if artist not in names]
 

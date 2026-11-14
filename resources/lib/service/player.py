@@ -575,7 +575,7 @@ class PlayerMonitor(Player):
         playlist = PlayList(PLAYLIST_MUSIC)
         if self._growing or position < 0 or playlist.size() - position - 1 >= QUEUE_LOW:
             return False
-        from resources.lib.plugin.music import similar_artists
+        from resources.lib.plugin.music import artist_names, similar_artists
 
         queued = self._queue_ids()
         # A genre or daily mix's songs carry its genre, and so do those grown from them
@@ -583,7 +583,8 @@ class PlayerMonitor(Player):
         # a ListenBrainz wait runs queued callbacks: a skip's onAVStarted can land here
         self._growing = True
         try:
-            similar = similar_artists(lead_id(song), "endless_queue")
+            owned = artist_names("endless_queue", album_artists=True)
+            similar = similar_artists(lead_id(song), "endless_queue", owned)
             keep = genre_rule([genre]) if genre else None
             songs = mix_songs([song], QUEUE_GROWTH, queued, similar=similar, keep=keep)
         finally:
