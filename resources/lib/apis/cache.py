@@ -62,6 +62,9 @@ def cached(
             log.debug(f"{source} → queued {slot - now:.1f}s {key}")
             if Monitor().waitForAbort(slot - now):
                 return payload
+            payload, fresh = cache.get(key) or (payload, False)
+            if fresh:  # another plugin call fetched it while this one waited
+                return payload
     try:
         payload = fetch()
     except (HttpError, LookupError, TypeError, AttributeError, ValueError) as exc:

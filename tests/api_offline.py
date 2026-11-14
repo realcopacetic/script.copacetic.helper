@@ -323,6 +323,15 @@ class ListenBrainzTest(Base):
         self.assertEqual(len(self.net.requests), 3)
         self.assertEqual(self.now - start, 2)
 
+    def test_queued_call_takes_what_another_stored(self):
+        window = sys.modules["xbmcgui"].Window()
+        window.setProperty(listenbrainz.NEXT_CALL, f"{self.now + 1}")
+        top = [["mbid", "Feel Good Inc."]]
+        key = f"listenbrainz:top-recordings:{GORILLAZ}"
+        patch(self, (self, "tick", lambda s: self.cache.put(key, top, 14 * DAY)))
+        self.assertEqual(listenbrainz.top_recordings(GORILLAZ), top)
+        self.assertEqual(self.net.requests, [])
+
     def test_queue_past_max_wait_skips(self):
         self.net.answers = [FIXTURE]
         window = sys.modules["xbmcgui"].Window()
