@@ -770,3 +770,28 @@ msgstr ""
 msgctxt "#32841"
 msgid "%s and more."
 msgstr ""
+
+#: /resources/lib/plugin/handlers.py — popularity_label: an artist in Deezer's chart today
+msgctxt "#32995"
+msgid "Charting"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py — popularity_label: an artist with a million Deezer fans or more
+msgctxt "#32996"
+msgid "Popular"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py — popularity_label: a song's place in its artist's Top songs (%d 1 to 10)
+msgctxt "#32997"
+msgid "#%d song"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py — popularity_label: the album leading Discography's popularity order
+msgctxt "#32998"
+msgid "Most popular album"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: an artist's place in the library's plays (%d 1 to 10)
+msgctxt "#32999"
+msgid "Your #%d artist"
+msgstr ""

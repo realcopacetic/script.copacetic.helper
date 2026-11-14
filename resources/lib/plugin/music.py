@@ -70,6 +70,9 @@ K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
 WEIGHTS = {"deezer": 2.0, "listenbrainz": 1.0}
 OVERLAP = 3  # song titles in common that identify an artist with no album in common
 SINGLE = 4  # a release with fewer different songs yields to a same-year album
+# Music info's word for how popular an item is, never a raw number (N13, Ash 14 Nov)
+PLACES = 10  # "#2 song", "Your #3 artist": only within the first ten
+POPULAR = 1_000_000  # Deezer fans an artist needs to read "Popular"
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
 _DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
@@ -172,21 +175,6 @@ def mix_card(mix: dict) -> DirectoryItem:
         }
     )
     return f"musicdb://genres/{mix['genreid']}/", li, True
-
-
-def compact_count(count: int) -> str:
-    """
-    A count to two significant figures with K, M or B once that reaches 1000,
-    else as is: 87, 994, 1K (995), 310K, 1.2M.
-
-    :param count: Non-negative count.
-    :return: Compact text.
-    """
-    rounded = float(f"{count:.2g}")
-    for power, suffix in ((9, "B"), (6, "M"), (3, "K")):
-        if rounded >= 10**power:
-            return f"{rounded / 10**power:g}{suffix}"
-    return f"{count}"
 
 
 @lru_cache(maxsize=4096)
@@ -310,6 +298,21 @@ def scored_songs(
     return fused((weight, keys(rows)) for weight, rows in rankings), shown
 
 
+def _by_score(scores: Counter, songs: Iterable[dict]) -> list[dict]:
+    """
+    Songs by their title's score, then their play count, most first.
+
+    :param scores: Score per title_key.
+    :param songs: Library songs with playcount and title.
+    :return: Sorted songs.
+    """
+    return sorted(
+        songs,
+        key=lambda song: (scores[title_key(song["title"])], song["playcount"]),
+        reverse=True,
+    )
+
+
 def rank_songs(rankings: list[tuple[float, list]], songs: list[dict]) -> list[dict]:
     """
     Songs by their fused score over rankings, then played songs, most played first;
@@ -325,24 +328,38 @@ def rank_songs(rankings: list[tuple[float, list]], songs: list[dict]) -> list[di
     played = filter(itemgetter("playcount"), songs)  # most played; earliest release
     for song in sorted(played, key=lambda s: (-s["playcount"], s["year"] or 9999)):
         shown.setdefault(title_key(song["title"]), song)
-    return sorted(
-        shown.values(),
-        key=lambda song: (scores[title_key(song["title"])], song["playcount"]),
-        reverse=True,
-    )
+    return _by_score(scores, shown.values())
 
 
-def rank_albums(
-    rankings: list[tuple[float, list]], songs: list[dict], albums: list[dict]
-) -> list[dict]:
+def song_place(
+    rankings: list[tuple[float, list]], songs: list[dict], title: str
+) -> int:
     """
-    Albums by the summed Top songs scores of their songs over rankings, then the
-    unranked; newest first among equals. Only these albums' songs stand for a title.
+    A title's place in Top songs (rank_songs), counting only songs a ranking scores:
+    a played song topping the list up takes no place.
+
+    :param rankings: (weight, [recording MBID, title, …] rows best first) pairs.
+    :param songs: Library songs with ALBUM_SONG_PROPERTIES and playcount.
+    :param title: The song's title.
+    :return: 1 to PLACES; 0 when lower or unscored.
+    """
+    scores, shown = scored_songs(rankings, songs)
+    ranked = [title_key(song["title"]) for song in _by_score(scores, shown.values())]
+    key = title_key(title)
+    return ranked.index(key) + 1 if key in ranked[:PLACES] else 0
+
+
+def album_credit(
+    rankings: list[tuple[float, list]], songs: list[dict], albums: list[dict]
+) -> Counter:
+    """
+    Each album's summed Top songs scores of its songs over rankings; only these
+    albums' songs stand for a title.
 
     :param rankings: (weight, [recording MBID, title, …] rows best first) pairs.
     :param songs: Library songs with ALBUM_SONG_PROPERTIES.
-    :param albums: Library albums with albumid and year.
-    :return: Ranked albums, all of them.
+    :param albums: Library albums with albumid.
+    :return: Score per albumid; 0 for an album no ranking credits.
     """
     ids = {album["albumid"] for album in albums}
     songs = [song for song in songs if song["albumid"] in ids]
@@ -350,6 +367,22 @@ def rank_albums(
     credit = Counter()
     for key, song in shown.items():
         credit[song["albumid"]] += scores[key]
+    return credit
+
+
+def rank_albums(
+    rankings: list[tuple[float, list]], songs: list[dict], albums: list[dict]
+) -> list[dict]:
+    """
+    Albums by the summed Top songs scores of their songs over rankings (album_credit),
+    then the unranked; newest first among equals.
+
+    :param rankings: (weight, [recording MBID, title, …] rows best first) pairs.
+    :param songs: Library songs with ALBUM_SONG_PROPERTIES.
+    :param albums: Library albums with albumid and year.
+    :return: Ranked albums, all of them.
+    """
+    credit = album_credit(rankings, songs, albums)
     return sorted(
         sorted(albums, key=itemgetter("year"), reverse=True),
         key=lambda album: credit[album["albumid"]],
@@ -401,6 +434,28 @@ def artist_names(parent: str) -> dict[str, str]:
         fold(row["artist"]): row["artist"]
         for row in library_rows("artist", None, None, None, parent, [])
     }
+
+
+def artist_places(parent: str) -> list[int]:
+    """
+    The library's most played artists, by their songs' summed play counts (a duet
+    counts for each); worked out once a day.
+
+    :param parent: Caller name for logging.
+    :return: Up to PLACES library artist ids, most played first.
+    """
+    from resources.lib.apis.cache import DAY, cached
+
+    def count() -> list[int]:
+        plays = Counter()
+        played = {"field": "playcount", "operator": "greaterthan", "value": "0"}
+        for song in library_rows(
+            "song", played, None, None, parent, ["artistid", "playcount"]
+        ):
+            plays.update(dict.fromkeys(song["artistid"], song["playcount"]))
+        return [artistid for artistid, _ in plays.most_common(PLACES)]
+
+    return cached("library:artist-places", count, (DAY, DAY)) or []
 
 
 def similar_artists(
