@@ -62,11 +62,11 @@ Kodi ends a plugin path's options at its first `|`, so an art URL carrying heade
 (`…|User-Agent=…`, from an add-on) loses its headers and cuts every param after it.
 Put the fixed options first, the art URLs after them (the most needed first) and free
 text last. `clearlogo_source` names the infolabel the logo comes from
-(`Container(50).ListItem.Art(clearlogo)`; empty for none), as a fixed option: the
-helper reads the logo from it, headers kept, in place of `clearlogo_url`, which then
-only changes the path when the logo changes. `icon_source` does the same for
-`icon_url`; with it, a call cut before `icon_darken_label` measures the item's own
-label (`ListItem.Label` of `target`'s item) in its place. With a dialog on top (it
+(`Container(50).ListItem.Art(clearlogo)`; empty to keep `clearlogo_url`), as a fixed
+option: the helper reads the logo from it, headers kept, in place of `clearlogo_url`,
+which then only changes the path when the logo changes. `icon_source` does the same for
+`icon_url`; with it, a call with no `icon_darken_label` (left out, or cut off) measures
+the item's own label (`ListItem.Label` of `target`'s item) in its place. With a dialog on top (it
 would answer the reads) the URLs stand, and a call cut before them goes on without
 that image.
 
@@ -108,8 +108,8 @@ Replace `<prefix>` with `clearlogo`, `background` or `icon`.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `<prefix>_url` | image path or URL | — | The image to process. Required for anything to happen to this image. |
-| `clearlogo_source` | an infolabel, e.g. `Container(50).ListItem.Art(clearlogo)`; empty for no logo | — | Where the logo is read, headers kept, in place of `clearlogo_url` (which still changes the path when the logo changes). Put it before the art URLs; see above for a dialog on top. |
-| `icon_source` | an infolabel, e.g. `Container(50).ListItem(0).Art(poster)`; empty to keep `icon_url` | — | As `clearlogo_source`, for `icon_url`. A call cut before `icon_darken_label` uses the item's own label as the band label. |
+| `clearlogo_source` | an infolabel, e.g. `Container(50).ListItem.Art(clearlogo)`; empty to keep `clearlogo_url` | — | Where the logo is read, headers kept, in place of `clearlogo_url` (which still changes the path when the logo changes). Put it before the art URLs; see above for a dialog on top. |
+| `icon_source` | an infolabel, e.g. `Container(50).ListItem(0).Art(poster)`; empty to keep `icon_url` | — | As `clearlogo_source`, for `icon_url`. A call with no `icon_darken_label` (left out, or cut off) uses the item's own label as the band label. |
 | `clearlogo_crop` | `true`, `false` | `false` | Crop the clearlogo to its visible (non-transparent) area. |
 | `clearlogo_fit` | `W,H` | — | The box the cropped logo is drawn in. Sets the height of the `clearlogo_fit_ids` controls to the logo's height in that box, as [reposition](reposition.md)'s `fit`: `round(W × clearlogo_height ÷ clearlogo_width)`, never more than `H`; the width is not changed. It is set before the result is returned, while the container still shows its old items: a logo that blanks while the container updates (`Container(id).IsUpdating`) never draws in the wrong box, but one that keeps the last result's logo draws it in the new box until the call lands. Needs `clearlogo_crop=true`. A superseded call still runs to the end, so nothing is sized when the call aborts, has no crop, or at its end fails the focus guard, has a `visit` that is no longer live, or (with no `focus_ids` and no `target=item`) has focus on another control than when it started, or the window it started in (the active window; its info dialog with `target=item` or `dialog=true`) is not topmost when the call ends: another window took over, or a modal dialog is over it, whenever it opened (the busy spinner and a closing dialog included). See also `clearlogo_fit_key`. |
 | `clearlogo_fit_key` | `<DBType>:<DBID>` of the call's item, e.g. `$INFO[ListItem.DBType]:$INFO[ListItem.DBID]` | — | Size only if the item (`target`'s, or the window's own with `target=item`) still has this key when the call ends. A `target=item` call has no focus guard, so this is its only item check. Items with no DBType or DBID (keyed `:`) are not told apart. |
