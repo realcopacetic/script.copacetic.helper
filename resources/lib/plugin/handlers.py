@@ -813,7 +813,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         }
         if reads and topmost_window_id() == window_id:
             if "icon_url" in reads and "icon_darken_label" not in params:
-                reads["icon_darken_label"] = f"{self.target_item}.Label"
+                reads["icon_darken_label"] = (
+                    "Player.Title" if self.player else f"{self.target_item}.Label"
+                )
             params = params | {param: infolabel(info) for param, info in reads.items()}
         art_opts = {
             art_type: ArtOpts.from_params(params, art_type)
