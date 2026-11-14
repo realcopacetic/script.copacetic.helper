@@ -1244,7 +1244,10 @@ compilation or soundtrack, a song counts for all its artists). Each artist gets 
 fair share of that part. The rest are random songs by their
 [similar artists](../plugins/library.md#similar_music) in your library, at most six
 by any one of them, then songs by other artists that share the seeds' genres; what
-they leave short is the seeds' artists' own songs. A seed with no genre takes the
+they leave short is the seeds' artists' own songs. Songs you heard in the last three
+days (from the start of the day three days back, as Kodi counts it) come in only when
+the others run short, so a mix doesn't replay yesterday's; a song you skipped or never
+reached isn't counted as heard. A seed with no genre takes the
 genres of its artists' albums. The first mix for an artist can take a few seconds
 while Deezer and ListenBrainz answer; later ones read the saved answers.
 
@@ -1256,7 +1259,7 @@ while Deezer and ListenBrainz answer; later ones read the saved answers.
   and every song of the mix is of the genre. About 15 of the 50 are by the artists
   you played in it, the first half of those the seeds themselves, drawn at random
   with the ones you played most lately the likeliest (a play's weight halves every
-  seven days); the similar
+  seven days) and those heard in the last three days last; the similar
   artists are those of the three you played most. With nothing played in it, the
   mix is the genre's songs alone. It is drawn afresh each time.
 - **Daily:** a [`daily_mixes`](../plugins/library.md#daily_mixes) card's mix, by its

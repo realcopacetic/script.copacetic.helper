@@ -2,8 +2,8 @@
 
 import random
 from collections import Counter, defaultdict
-from collections.abc import Collection, Iterable, Sequence
-from datetime import datetime, time, timedelta
+from collections.abc import Collection, Iterable, Iterator, Sequence
+from datetime import date, datetime, time, timedelta
 from math import ceil
 from operator import itemgetter
 
@@ -20,6 +20,7 @@ DAILY_MIXES = 6
 DAILY_SEEDS = 3  # artists a genre's played songs need to make a daily mix; its leads
 DAILY_WINDOW = "30"  # days of plays the daily mixes read
 HALF_LIFE = 7  # days for a play's weight to halve (N88; Ash, 14 Nov)
+HEARD = 3  # days a song just heard is drawn only once the rest run short (Ash, 14 Nov)
 RANDOM = {"method": "random"}
 SONG_PROPERTIES = ["file", "artist", "albumartist", "genre"]
 
@@ -144,8 +145,8 @@ def mix_songs(
 ) -> list[dict]:
     """
     A mix grown from seed songs: about share by the artists they count for (the first
-    familiar of it the seeds themselves), then similar artists', SIMILAR_CAP each, then
-    their genres' (else their artists'), or keep's; what's short, by the artists.
+    familiar of it the seeds themselves), then similar artists', then their genres'
+    (else their artists'), or keep's; songs heard in HEARD days fill only what's short.
 
     :param seeds: Song dicts with artist, albumartist and genre; none for keep alone.
     :param size: Most songs.
@@ -159,28 +160,34 @@ def mix_songs(
     exclude = {*exclude}
 
     def take(
-        songs: Sequence[dict], count: int, cap: int = 0, tally: Counter | None = None
+        songs: Iterable[dict], count: int, cap: int = 0, tally: Counter | None = None
     ) -> list[dict]:
         taken, tally = [], Counter() if tally is None else tally
+        if count <= 0:  # before songs is read: pick's draw is lazy
+            return taken
         for song in songs:
-            if len(taken) == count:
-                break
             artist = song["artist"][0]
             if song["songid"] in exclude or cap and tally[artist] >= cap:
                 continue
             tally[artist] += 1
             exclude.add(song["songid"])
             taken.append(song)
+            if len(taken) == count:
+                break
         return taken
+
+    def drawn(rule: dict, limit: int) -> Iterator[dict]:
+        # Songs not just heard (or never played) first; the rest only when short
+        for heard in ("notinthelast", "inthelast"):
+            when = {"field": "lastplayed", "operator": heard, "value": str(HEARD)}
+            yield from random_songs({"and": [rule, when]}, limit)
 
     def pick(
         rule: dict, count: int, cap: int = 0, tally: Counter | None = None
     ) -> list[dict]:
-        if count <= 0:  # a limit of 0 would fetch every song
-            return []
         # Over-fetch by the exclusions, as many of them may come up; thrice for a cap
         limit = count * (3 if cap else 1) + len(exclude)
-        return take(random_songs(rule, limit), count, cap, tally)
+        return take(drawn(rule, limit), count, cap, tally)
 
     def by(names: Sequence[str]) -> dict:  # their own albums' songs, within keep
         rule = {"field": "albumartist", "operator": "is", "value": [*names]}
@@ -225,14 +232,19 @@ def recency(song: dict) -> float:
 def by_weight(songs: Sequence[dict]) -> list[dict]:
     """
     Songs in a weighted random order, each as likely to come first as its recency
-    (Efraimidis and Spirakis's key): the newest listening likeliest first.
+    (Efraimidis and Spirakis's key), those heard in HEARD days after the rest: what
+    a mix played yesterday seeds today's without coming back in it.
 
     :param songs: Song dicts with lastplayed.
     :return: The songs reordered.
     """
-    return sorted(
-        songs, key=lambda s: random.random() ** (1 / recency(s)), reverse=True
-    )
+    # Kodi's inthelast: after the date HEARD days back, as text ("lastplayed > '…'")
+    heard = f"{date.today() - timedelta(days=HEARD)}"
+
+    def key(song: dict) -> tuple[bool, float]:
+        return song["lastplayed"] <= heard, random.random() ** (1 / recency(song))
+
+    return sorted(songs, key=key, reverse=True)
 
 
 def leading_genres(played: Sequence[dict]) -> list[tuple[str, list[dict]]]:

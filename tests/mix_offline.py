@@ -11,7 +11,7 @@ Run from the helper root: python tests/mix_offline.py
 
 import sys
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import tempfile
 import unittest
 from pathlib import Path
@@ -62,12 +62,28 @@ SONGS += [
 ]
 
 
+def ago(days: float) -> str:
+    """A lastplayed as Kodi gives it, days ago."""
+    return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
+
+
+# Kyuss's songs 0-3 heard yesterday, Sleep's 8 a week ago; the rest never played
+for song in SONGS:
+    song["lastplayed"] = ""
+for n, days in {0: 1, 1: 1, 2: 1, 3: 1, 8: 7}.items():
+    SONGS[n]["lastplayed"] = ago(days)
+
+
 def library(method: str, query_filter: dict, limit: int | None = None, **kwargs):
     """AudioLibrary.GetSongs over SONGS for the rules a mix sends, in id order."""
 
     def keep(song: dict, rule: dict) -> bool:
         if "and" in rule:
             return all(keep(song, r) for r in rule["and"])
+        if rule["field"] == "lastplayed":  # as Omega: after the date, or NULL for not
+            since = f"{date.today() - timedelta(days=int(rule['value']))}"
+            within = song["lastplayed"] > since
+            return within if rule["operator"] == "inthelast" else not within
         values = rule["value"] if isinstance(rule["value"], list) else [rule["value"]]
         hit = bool(set(song[rule["field"]]) & set(values))
         return hit if rule["operator"] == "is" else not hit
@@ -114,6 +130,24 @@ class Mix(unittest.TestCase):
         guest = SONGS[43]
         self.assertEqual(mix.credits(guest), ["Low"])
 
+    def test_songs_just_heard_drawn_last(self):
+        calls = mock.Mock(side_effect=library)
+        with mock.patch.object(mix, "json_call", calls):
+            songs = mix.mix_songs([SONGS[7]], 3, {7}, share=1)
+        # Kyuss's 4-6, not 0-3 heard yesterday; the heard query never ran
+        self.assertEqual({s["songid"] for s in songs}, {4, 5, 6})
+        self.assertEqual(calls.call_count, 1)
+        songs = mix.mix_songs([SONGS[7]], 7, {7}, share=1)
+        kyuss = [s["songid"] for s in songs]
+        self.assertEqual({*kyuss[:3]}, {4, 5, 6})  # then, short, the heard ones
+        self.assertEqual({*kyuss[3:]}, {0, 1, 2, 3})
+
+    def test_heard_a_week_ago_draws_as_unheard(self):
+        songs = mix.mix_songs(
+            [], 30, keep={"field": "artist", "operator": "is", "value": "Sleep"}
+        )
+        self.assertIn(8, {s["songid"] for s in songs})
+
     def test_keep_holds_every_song_to_it(self):
         keep = mix.genre_rule(["Stoner"])
         songs = mix.mix_songs(
@@ -148,11 +182,6 @@ class Mix(unittest.TestCase):
         seed = SONGS[2] | {"genre": []}
         songs = mix.mix_songs([seed], 10)
         self.assertEqual(artists(songs), {"Kyuss": 2, "Sleep": 8})
-
-
-def ago(days: float) -> str:
-    """A lastplayed as Kodi gives it, days ago."""
-    return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
 
 
 def played(*rows: tuple) -> list[dict]:
@@ -234,9 +263,20 @@ class Daily(unittest.TestCase):
 
     def test_by_weight_the_newest_likeliest_first(self):
         mix.random.seed(2)
-        songs = played((1, "Low", "Slowcore", 0), (2, "Low", "Slowcore", 28))
+        songs = played((1, "Low", "Slowcore", 4), (2, "Low", "Slowcore", 32))
         firsts = Counter(mix.by_weight(songs)[0]["songid"] for _ in range(2000))
         self.assertAlmostEqual(firsts[1] / 2000, 1 / (1 + 0.5**4), delta=0.02)
+
+    def test_by_weight_the_just_heard_last(self):
+        songs = played(
+            (1, "Low", "Slowcore", 0),
+            (2, "Low", "Slowcore", 2.9),
+            (3, "Low", "Slowcore", 4),  # past the window: before the heard
+            (4, "Low", "Slowcore", 20),
+        )
+        for _ in range(50):
+            order = [s["songid"] for s in mix.by_weight(songs)]
+            self.assertEqual({*order[:2]}, {3, 4})
 
     def test_a_genre_mix_keeps_to_it_and_leans_on_its_leads(self):
         seeds = dict(mix.leading_genres(PLAYED))["Stoner"]
