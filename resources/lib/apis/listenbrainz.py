@@ -106,26 +106,6 @@ def top_recordings(mbid: str) -> list[list[str]]:
     )
 
 
-def top_release_groups(mbid: str) -> list[list[str]]:
-    """
-    Artist mbid's release groups (albums, singles, EPs), most listened first.
-
-    :param mbid: Artist MusicBrainz id.
-    :return: [release group MBID, title] pairs, possibly empty.
-    """
-    return (
-        _cached(
-            f"listenbrainz:top-release-groups:{mbid}",
-            f"popularity/top-release-groups-for-artist/{mbid}",
-            lambda rows: [
-                [row["release_group_mbid"], row["release_group"]["name"]]
-                for row in rows
-            ],
-        )
-        or []
-    )
-
-
 def similar_artists(mbid: str) -> list[str]:
     """
     Names of artists like artist mbid: LB Radio's closest ("easy") mode, a random
