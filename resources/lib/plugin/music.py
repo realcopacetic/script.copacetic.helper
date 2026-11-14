@@ -129,16 +129,16 @@ def details_item(
 
 def mix_cards(mixes: list[tuple[str, dict]]) -> list[DirectoryItem]:
     """
-    Daily mixes as cards: "<genre> mix", its genre, an eyebrow with its count, its
-    artists in play order (MIX_NAMES named, MIX_SLIDES thumbs as square multiart).
-    A card opens the genre; a skin's click plays its mix (start_mix type=daily).
+    Daily mixes as cards, named by their most played genre: "<genre> mix", that
+    genre, an eyebrow with its count, its artists in play order (MIX_NAMES named,
+    MIX_SLIDES thumbs). Opens that genre; a skin's click plays it (start_mix daily).
 
-    :param mixes: (genre, kept_mix dict) pairs.
+    :param mixes: (card, kept_mix dict) pairs.
     :return: (path, ListItem, is_folder) per card.
     """
     names = {
-        genre: [*dict.fromkeys(credits(song)[0] for song in mix["songs"])]
-        for genre, mix in mixes
+        key: [*dict.fromkeys(credits(song)[0] for song in mix["songs"])]
+        for key, mix in mixes
     }
     thumbs = {
         row["artist"]: row["art"]["thumb"]
@@ -156,8 +156,8 @@ def mix_cards(mixes: list[tuple[str, dict]]) -> list[DirectoryItem]:
         if "thumb" in row["art"]
     }
     ids, cards = genre_ids(), []
-    for genre, mix in mixes:
-        artists = names[genre]
+    for key, mix in mixes:
+        artists, genre = names[key], mix["genres"][0]
         slides = [thumbs[name] for name in artists if name in thumbs][:MIX_SLIDES]
         if artists[MIX_NAMES:]:
             described = ADDON.getLocalizedString(32841) % ", ".join(artists[:MIX_NAMES])

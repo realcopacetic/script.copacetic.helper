@@ -75,7 +75,7 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.mix import kept_mix, leading_genres, played_songs
+from resources.lib.shared.mix import kept_mix, leading_cards, played_songs
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
@@ -1754,15 +1754,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def daily_mixes(self) -> list[DirectoryItem] | None:
         """
-        A card per genre you played most lately (shared.mix.leading_genres), its mix
-        drawn once a day and kept (kept_mix), similar artists from the cache alone;
+        A card per genre bucket you played most lately (shared.mix.leading_cards), its
+        mix drawn once a day and kept (kept_mix), similar artists from the cache alone;
         the skin's click plays it (start_mix type=daily).
         """
         set_plugincontent(category=ADDON.getLocalizedString(32837))
         with cache_only():
             mixes = [
-                (genre, kept_mix(genre, seeds))
-                for genre, seeds in leading_genres(played_songs())[: self.limit]
+                (key, kept_mix(key, seeds))
+                for key, seeds in leading_cards(played_songs())[: self.limit]
             ]
         return mix_cards(mixes) if mixes else None  # none until there are plays
 

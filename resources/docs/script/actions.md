@@ -1266,12 +1266,14 @@ while Deezer and ListenBrainz answer; later ones read the saved answers.
   seven days) and those heard in the last three days last; the similar
   artists are those of the three you played most. With nothing played in it, the
   mix is the genre's songs alone. It is drawn afresh each time. Its songs carry
-  `ListItem.Property(mix_genre)`, so the
+  `ListItem.Property(mix_genres)`, the genre as a JSON list, so the
   [endless queue](../service/player.md#endless-queue) keeps to the genre.
 - **Daily:** a [`daily_mixes`](../plugins/library.md#daily_mixes) card's mix, by its
-  genre's id: the genre's mix as the card drew it today, so it plays what the card
-  names. With none kept (the cache was cleared, or the day turned since the card
-  loaded), it draws the genre's mix and keeps it for the card.
+  genre's id: the mix of that genre's bucket as the card drew it today, so it plays
+  what the card names. With none kept (the cache was cleared, or the day turned since
+  the card loaded), it draws the bucket's mix, a genre mix on every library genre in
+  the bucket, and keeps it for the card. Its songs carry the bucket's genres in
+  `mix_genres`.
 - **Year:** 50 random songs of that year, at most three by any one artist while
   others have songs.
 

@@ -578,21 +578,21 @@ class PlayerMonitor(Player):
         from resources.lib.plugin.music import artist_names, similar_artists
 
         queued = self._queue_ids()
-        # A genre or daily mix's songs carry its genre, and so do those grown from them
-        genre = infolabel("MusicPlayer.Property(mix_genre)")
+        # A genre or daily mix's songs carry its genres (JSON), and so do their growths
+        genres = infolabel("MusicPlayer.Property(mix_genres)")
         # a ListenBrainz wait runs queued callbacks: a skip's onAVStarted can land here
         self._growing = True
         try:
             owned = artist_names("endless_queue", album_artists=True)
             similar = similar_artists(lead_id(song), "endless_queue", owned)
-            keep = genre_rule([genre]) if genre else None
+            keep = genre_rule(json.loads(genres)) if genres else None
             songs = mix_songs([song], QUEUE_GROWTH, queued, similar=similar, keep=keep)
         finally:
             self._growing = False
         if not songs:
             return False
         added_from = " / ".join(song["artist"])
-        add_songs(playlist, songs, added_from=added_from, mix_genre=genre)
+        add_songs(playlist, songs, added_from=added_from, mix_genres=genres)
         if condition("Window.IsActive(musicplaylist)"):
             # A Python add sends no GUI_MSG_PLAYLIST_CHANGED, as Kodi's own add does
             log.execute("Container.Refresh")

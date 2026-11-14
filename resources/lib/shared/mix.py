@@ -8,6 +8,7 @@ from functools import reduce
 from math import ceil
 from operator import itemgetter
 
+from resources.lib.shared.genres import genre_bucket
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import json_call
 
@@ -84,6 +85,27 @@ def genre_ids() -> dict[str, int]:
     """
     rows = json_call("AudioLibrary.GetGenres", parent="mix")["result"].get("genres", [])
     return {row["label"]: row["genreid"] for row in rows}
+
+
+def card(genre: str) -> str:
+    """
+    The daily mix card a genre's songs seed: its bucket (shared.genres), else the
+    genre itself, as a tag no bucket's rows find.
+
+    :param genre: Genre name.
+    :return: Bucket or genre name.
+    """
+    return genre_bucket(genre) or genre
+
+
+def card_genres(key: str) -> list[str]:
+    """
+    The library's genres in a card: a bucket's, or the one genre.
+
+    :param key: Card (card).
+    :return: Genre names.
+    """
+    return [genre for genre in genre_ids() if card(genre) == key]
 
 
 def credits(song: dict) -> list[str]:
@@ -282,19 +304,19 @@ def by_weight(songs: Sequence[dict]) -> list[dict]:
     return sorted(songs, key=key, reverse=True)
 
 
-def leading_genres(played: Sequence[dict]) -> list[tuple[str, list[dict]]]:
+def leading_cards(played: Sequence[dict]) -> list[tuple[str, list[dict]]]:
     """
-    The DAILY_MIXES genres with most weight (recency) in the songs played lately,
-    the last played first, each with its songs (its mix's seeds); a genre needs
-    DAILY_SEEDS artists and yields when most of its weight already seeds another.
+    The DAILY_MIXES cards (card) with most weight (recency) in the songs played
+    lately, the last played first, each with its songs (its mix's seeds); a card
+    needs DAILY_SEEDS artists and yields when most of its weight seeds another.
 
     :param played: Songs played in DAILY_WINDOW days (played_songs).
-    :return: (genre, seed songs) pairs.
+    :return: (card, seed songs) pairs.
     """
     seeds, weight = defaultdict(list), {s["songid"]: recency(s) for s in played}
     for song in played:
-        for genre in song["genre"]:
-            seeds[genre].append(song)
+        for key in dict.fromkeys(map(card, song["genre"])):
+            seeds[key].append(song)
 
     def weighed(songs: Iterable[dict]) -> float:
         return sum(weight[song["songid"]] for song in songs)
@@ -316,15 +338,15 @@ def leading_genres(played: Sequence[dict]) -> list[tuple[str, list[dict]]]:
     )
 
 
-def genre_mix(genre: str, seeds: Sequence[dict]) -> dict:
+def genre_mix(genres: Sequence[str], seeds: Sequence[dict]) -> dict:
     """
-    A genre's mix, the same draw for a card and Start mix: seeded by the songs you
-    played in it, the newest likeliest first (by_weight), leaning on their artists,
-    similar to the DAILY_SEEDS most played.
+    A mix kept to genres (a card's, or a genre node's one), the same draw for a card
+    and Start mix: seeded by the songs you played in them, the newest likeliest first
+    (by_weight), leaning on their artists, similar to the DAILY_SEEDS most played.
 
-    :param genre: Genre name.
-    :param seeds: Songs played in it lately (played_songs); none for its songs alone.
-    :return: Mix dict: songs in play order, leads and the similar artists drawn with.
+    :param genres: Genre names.
+    :param seeds: Songs played in them lately (played_songs); none for their songs.
+    :return: Mix dict: songs in play order, leads, similar artists, genres by plays.
     """
     from resources.lib.plugin.music import similar_to
 
@@ -336,50 +358,53 @@ def genre_mix(genre: str, seeds: Sequence[dict]) -> dict:
         MIX_SIZE,
         share=DAILY_ARTIST_SHARE,
         similar=similar,
-        keep=genre_rule([genre]),
+        keep=genre_rule(genres),
         familiar=round(MIX_SIZE * DAILY_ARTIST_SHARE) // 2,
     )
-    return {"songs": songs, "leads": leads, "similar": similar}
+    played = Counter(genre for song in seeds for genre in song["genre"])
+    genres = sorted(genres, key=played.__getitem__, reverse=True)
+    return {"songs": songs, "leads": leads, "similar": similar, "genres": genres}
 
 
-def _mix_key(genre: str) -> str:
+def _mix_key(key: str) -> str:
     """
-    A genre's kept mix's api_cache key: one row a genre, replaced in place.
+    A card's kept mix's api_cache key: one row a card, replaced in place.
 
-    :param genre: Genre name.
+    :param key: Card (card).
     :return: Key.
     """
-    return f"library:mix:{genre}"
+    return f"library:mix:{key}"
 
 
-def kept_mix(genre: str, seeds: Sequence[dict] | None = None) -> dict:
+def kept_mix(key: str, seeds: Sequence[dict] | None = None) -> dict:
     """
-    A genre's mix as kept until midnight, so a card names what its click plays;
-    drawn (genre_mix) and kept when there's none fresh.
+    A card's mix as kept until midnight, so a card names what its click plays;
+    drawn (genre_mix, its genres) and kept when there's none fresh.
 
-    :param genre: Genre name.
+    :param key: Card (card).
     :param seeds: Songs played in it lately, if in hand; else read for a draw.
     :return: Mix dict (genre_mix).
     """
-    store, key = ApiCacheHandler(), _mix_key(genre)
-    if (hit := store.get(key)) and hit[1]:
+    store, cache_key = ApiCacheHandler(), _mix_key(key)
+    if (hit := store.get(cache_key)) and hit[1]:
         return hit[0]
-    mix = genre_mix(genre, played_songs([genre]) if seeds is None else seeds)
+    genres = card_genres(key)
+    mix = genre_mix(genres, played_songs(genres) if seeds is None else seeds)
     now = datetime.now()
     midnight = datetime.combine(now.date() + timedelta(days=1), time())
-    store.put(key, mix, int((midnight - now).total_seconds()) + 1)
+    store.put(cache_key, mix, int((midnight - now).total_seconds()) + 1)
     return mix
 
 
-def recheck_similar(genre: str, mix: dict) -> None:
+def recheck_similar(key: str, mix: dict) -> None:
     """
     Marks a kept mix stale when its leads' similar artists answer otherwise now, as
     a script may look up what the plugin had no cache for: the next rail load redraws.
 
-    :param genre: Genre name.
+    :param key: Card (card).
     :param mix: Its kept mix dict.
     """
     from resources.lib.plugin.music import similar_to
 
     if mix["leads"] and similar_to(mix["leads"], "start_mix") != mix["similar"]:
-        ApiCacheHandler().expire(_mix_key(genre))
+        ApiCacheHandler().expire(_mix_key(key))

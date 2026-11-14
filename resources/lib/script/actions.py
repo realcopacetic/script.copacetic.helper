@@ -27,6 +27,7 @@ from resources.lib.shared.utilities import (
 from resources.lib.shared.mix import (
     MIX_SIZE,
     SEED_SHARE,
+    card,
     genre_ids,
     genre_mix,
     heard,
@@ -1204,24 +1205,24 @@ def shuffle_artist(id: str = "", **kwargs: str) -> None:
 def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     """
     Plays a mix grown from seed songs (shared.mix.mix_songs): a song, or one of an
-    album's or artist's; a genre's played lately (genre_mix; daily, its card's kept
-    list); a year's songs alone.
+    album's or artist's; a genre's played lately (genre_mix; daily, the kept list of
+    the genre's card, its bucket); a year's songs alone.
 
     :param id: Library ID (defaults to ListItem.DBID); the year for year.
     :param type: song, album, artist, genre, year or daily (id a genre ID).
     """
     if type in ("genre", "daily"):
         genre = {v: k for k, v in genre_ids().items()}[to_int(id)]
-        if type == "genre":  # drawn afresh each time
-            mix = genre_mix(genre, played_songs([genre]))
+        if type == "genre":  # the genre alone, drawn afresh each time
+            mix = genre_mix([genre], played_songs([genre]))
         else:  # the card's list, so it plays what the card named
-            mix = kept_mix(genre)
+            mix = kept_mix(key := card(genre))
         if mix["songs"]:  # none: Kodi starts nothing
             mark_source(None)
-            # the Endless queue reads it from the playing song to keep to the genre
-            play_files(mix["songs"], mix_genre=genre)
+            # the Endless queue reads them from the playing song to keep to them
+            play_files(mix["songs"], mix_genres=json.dumps(mix["genres"]))
         if type == "daily":
-            recheck_similar(genre, mix)
+            recheck_similar(key, mix)
         return
     if type == "year":
         if songs := mix_songs([], MIX_SIZE, keep=_year_rule(id)):

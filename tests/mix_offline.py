@@ -3,9 +3,10 @@ Offline checks for mixes (shared/mix.py) and the endless queue (service/player.p
 with Kodi's library faked: a random draw leaves the song id order Kodi lists it in;
 a mix grown from seed songs leaves out what it's told, leans on the artists they
 count for (their own albums), plays its familiar seeds first and keeps to keep;
-daily mixes: genres by songs played, kept until midnight and replayed as kept,
+daily mixes: genre buckets by songs played, kept until midnight and replayed as kept,
 redrawn once a lead's similar artists answer otherwise; the cards name the list's
-artists in play order; the queue grows below ten songs left, only from the queue.
+artists in play order; a card's click plays its bucket, a genre node's its genre;
+the queue grows below ten songs left, only from the queue, kept to a mix's genres.
 Run from the helper root: python tests/mix_offline.py
 """
 
@@ -259,6 +260,7 @@ PLAYED = played(
     (16, "Sleep", "Drone/Stoner"),
     (17, "Low", "Drone"),
 )
+GENRES = ["Stoner", "Desert", "Slowcore", "Post-rock", "Drone"]  # the library's
 
 
 class Daily(unittest.TestCase):
@@ -281,16 +283,18 @@ class Daily(unittest.TestCase):
             mock.patch.object(mix, "ApiCacheHandler", lambda: store),
             mock.patch.object(mix, "mix_songs", self.draws),
             mock.patch.object(mix, "played_songs", lambda genres: PLAYED),
+            mock.patch.object(mix, "genre_ids", lambda: dict.fromkeys(GENRES, 1)),
             mock.patch.object(music, "similar_to", self.similar),
         )
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
 
-    def test_genres_by_weight_the_last_played_first(self):
-        genres = [genre for genre, _ in mix.leading_genres(PLAYED)]
-        # Desert's songs all seed Stoner: passed over; Post-rock has two artists
-        self.assertEqual(genres, ["Slowcore", "Stoner", "Drone"])
+    def test_cards_by_weight_the_last_played_first(self):
+        cards = [key for key, _ in mix.leading_cards(PLAYED)]
+        # Slowcore and Post-rock share a bucket: one card of five artists; Desert's
+        # songs all seed Stoner (no bucket: a card of its own), so it is passed over
+        self.assertEqual(cards, ["PostRock", "Stoner", "Ambient"])
 
     def test_the_newest_listening_leads(self):  # N88: a month of hip hop, then this
         rap = [(n, f"MC{n % 4}", "Hip Hop", 25) for n in range(20)]
@@ -299,8 +303,8 @@ class Daily(unittest.TestCase):
             (21, "MC1", "Hip Hop/Classical", 25),
         ]
         bach = [(30 + n, f"Composer{n % 3}", "Classical", 0) for n in range(6)]
-        genres = [genre for genre, _ in mix.leading_genres(played(*rap, *bach))]
-        self.assertEqual(genres, ["Classical", "Hip Hop"])  # its rappers don't block it
+        cards = [key for key, _ in mix.leading_cards(played(*rap, *bach))]
+        self.assertEqual(cards, ["Classical", "HipHop"])  # its rappers don't block it
 
     def test_by_weight_the_newest_likeliest_first(self):
         mix.random.seed(2)
@@ -320,13 +324,20 @@ class Daily(unittest.TestCase):
             self.assertEqual({*order[:2]}, {3, 4})
 
     def test_a_genre_mix_keeps_to_it_and_leans_on_its_leads(self):
-        seeds = dict(mix.leading_genres(PLAYED))["Stoner"]
-        drawn = mix.genre_mix("Stoner", seeds)
+        seeds = dict(mix.leading_cards(PLAYED))["Stoner"]
+        drawn = mix.genre_mix(["Stoner"], seeds)
         self.similar.assert_called_with(["Kyuss", "Sleep", "Fu Manchu"], "mix")
         kwargs = self.draws.call_args.kwargs
         self.assertEqual(kwargs["keep"], mix.genre_rule(["Stoner"]))
         self.assertEqual(kwargs["similar"], ["Om", "Yob"])
         self.assertEqual(drawn["leads"], ["Kyuss", "Sleep", "Fu Manchu"])
+
+    def test_a_cards_mix_keeps_to_its_buckets_genres_most_played_first(self):
+        drawn = mix.kept_mix("PostRock", dict(mix.leading_cards(PLAYED))["PostRock"])
+        rule = mix.genre_rule(["Slowcore", "Post-rock"])  # the library's, in its order
+        self.assertEqual(self.draws.call_args.kwargs["keep"], rule)
+        self.assertEqual(drawn["genres"], ["Post-rock", "Slowcore"])  # the card's name
+        self.assertEqual(mix.card_genres("Desert"), ["Desert"])  # in no bucket: itself
 
     def test_kept_until_midnight_and_replayed(self):
         first = mix.kept_mix("Stoner", PLAYED[:5])
@@ -356,6 +367,7 @@ class Card(unittest.TestCase):
     def card(self, names: list[str]) -> mock.Mock:
         songs = [{"artist": [n], "albumartist": [n]} for n in names]
         kept = {"songs": songs + songs[:2], "leads": names[:3], "similar": []}
+        kept["genres"] = ["Stoner", "Desert"]  # named by the first, the most played
         rows = [  # the library's order, not the mix's; Om has no thumb
             {"artist": n, "art": {"thumb": f"{n}.jpg"} if n != "Om" else {}}
             for n in sorted(names)
@@ -365,11 +377,11 @@ class Card(unittest.TestCase):
             mock.patch.object(
                 music, "json_call", return_value={"result": {"artists": rows}}
             ),
-            mock.patch.object(music, "genre_ids", lambda: {"Stoner": 10}),
+            mock.patch.object(music, "genre_ids", lambda: {"Desert": 9, "Stoner": 10}),
             mock.patch.object(music, "ADDON") as addon,
         ):
             addon.getLocalizedString = self.STRINGS.get
-            [(path, _, folder)] = music.mix_cards([("Stoner", kept)])
+            [(path, _, folder)] = music.mix_cards([("Rock", kept)])
         self.assertEqual((path, folder), ("musicdb://genres/10/", True))
         return list_item.return_value
 
@@ -440,6 +452,34 @@ class Seed(unittest.TestCase):
         self.assertEqual(kwargs["query_filter"], rule)  # their own albums
 
 
+class Click(unittest.TestCase):
+    def start(self, type: str) -> tuple[mock.Mock, mock.Mock, mock.Mock]:
+        from resources.lib.script import actions
+
+        drawn = {"songs": [{"file": "/m/1.flac"}], "genres": ["Post-rock", "Slowcore"]}
+        with (
+            mock.patch.object(actions, "genre_ids", lambda: {"Slowcore": 3}),
+            mock.patch.object(actions, "kept_mix", return_value=drawn) as kept,
+            mock.patch.object(actions, "genre_mix", return_value=drawn) as fresh,
+            mock.patch.object(actions, "played_songs", lambda genres: []),
+            mock.patch.object(actions, "play_files") as play,
+            mock.patch.object(actions, "mark_source"),
+            mock.patch.object(actions, "recheck_similar"),
+        ):
+            actions.start_mix(id="3", type=type)
+        return kept, fresh, play
+
+    def test_a_card_plays_its_buckets_kept_mix(self):
+        kept, _, play = self.start("daily")
+        kept.assert_called_with("PostRock")  # Slowcore's card
+        genres = play.call_args.kwargs["mix_genres"]
+        self.assertEqual(genres, '["Post-rock", "Slowcore"]')
+
+    def test_a_genre_node_stays_exact(self):
+        _, fresh, _ = self.start("genre")
+        self.assertEqual(fresh.call_args.args[0], ["Slowcore"])
+
+
 class Playlist:
     """The music playlist: items by path; add appends."""
 
@@ -463,7 +503,7 @@ PLAYING |= {"albumartist": ["Kyuss"], "genre": ["Stoner"]}
 
 class EndlessQueue(unittest.TestCase):
     def grow(
-        self, size: int, position: int, genre: str = ""
+        self, size: int, position: int, genres: str = ""
     ) -> tuple[Playlist, object, mock.Mock]:
         playlist = Playlist(size)
         monitor = object.__new__(player.PlayerMonitor)
@@ -481,8 +521,8 @@ class EndlessQueue(unittest.TestCase):
             ),
             mock.patch.object(music, "similar_artists", lambda *a: ["Sleep"]),
             mock.patch.object(music, "artist_names", lambda *a, **k: {}),
-            # MusicPlayer.Property(mix_genre): the playing song's
-            mock.patch.object(player, "infolabel", lambda label: genre),
+            # MusicPlayer.Property(mix_genres): the playing song's
+            mock.patch.object(player, "infolabel", lambda label: genres),
             mock.patch.object(
                 player,
                 "mix_songs",
@@ -504,13 +544,15 @@ class EndlessQueue(unittest.TestCase):
         self.assertEqual(monitor._dial_queue, player._queue_key(playlist))
         self.assertEqual(monitor._queue_songs[0], monitor._dial_queue)
         self.assertIn(109, monitor._queue_songs[1])
-        self.assertEqual(playlist.properties, {"added_from": "Kyuss", "mix_genre": ""})
+        self.assertEqual(playlist.properties, {"added_from": "Kyuss", "mix_genres": ""})
 
-    def test_a_genre_mix_grows_in_its_genre(self):
-        playlist, _, mixed = self.grow(50, 41, genre="Stoner")
-        self.assertEqual(mixed.call_args.kwargs["keep"], mix.genre_rule(["Stoner"]))
-        # carried on, so the next growth keeps to it too
-        self.assertEqual(playlist.properties["mix_genre"], "Stoner")
+    def test_a_genre_mix_grows_in_its_genres(self):
+        kept = '["Post-rock", "Slowcore"]'  # a card's: its bucket's
+        playlist, _, mixed = self.grow(50, 41, genres=kept)
+        rule = mix.genre_rule(["Post-rock", "Slowcore"])
+        self.assertEqual(mixed.call_args.kwargs["keep"], rule)
+        # carried on, so the next growth keeps to them too
+        self.assertEqual(playlist.properties["mix_genres"], kept)
 
     def test_ten_left_holds(self):
         playlist, _, mixed = self.grow(20, 9)

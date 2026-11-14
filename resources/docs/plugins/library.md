@@ -165,15 +165,19 @@ content is `songs`.
 ## `daily_mixes`
 
 Up to six mix cards made from the songs you played in the last 30 days. Each card is
-one genre, with songs by at least three artists. A song counts for its genres by how
+one genre bucket (Hip Hop, Post-rock, Ambient …: the buckets of a skin's genre icons,
+[`music_genres`](../builders/02-mappings.md#music_genres--the-helpers-genre-buckets)),
+with songs by at least three artists; a genre in no bucket is a card of its own. A
+song counts for its genres' buckets by how
 lately you played it: fully today, half a week ago, a quarter two weeks ago. The six
-genres with the most make the cards, and the genre you played last comes first, so
-something new you've been playing leads over what you played for years. A genre most
+buckets with the most make the cards, and the one you played last comes first, so
+something new you've been playing leads over what you played for years. A bucket most
 of whose weight already makes a card is passed over, so the cards differ.
 
-Each card's mix is the genre's [`start_mix`](../script/actions.md#start_mix), drawn
+Each card's mix is a [`start_mix`](../script/actions.md#start_mix) on all the
+library's genres in its bucket, drawn
 the first time the card is listed in a day and kept in the helper's cache until
-midnight, one entry for each genre. So the card names what will play, and a click
+midnight, one entry for each bucket. So the card names what will play, and a click
 plays exactly that. Which cards there are, and their order, is worked out again on
 every call, so a genre you start playing today gets its card the next time the list
 loads. A call makes no network requests: the similar artists are the ones already
@@ -181,13 +185,14 @@ saved (from a Start mix, the endless queue or an info screen). When a click find
 lead artist's similar artists have changed since (it asks Deezer and ListenBrainz
 once playback has started), the card's mix is drawn again on the next load.
 
-Each card's label is *Genre* mix and its `Genre` the genre.
+Each card is named by the genre of its bucket you played most: its label is *Genre*
+mix and its `Genre` that genre, so a skin's genre icon shows the bucket's.
 `ListItem.Property(eyebrow)` is a short heading with the mix's real length, "Daily mix ·
 50 songs". `ListItem.Property(Artist_Description)` names its first eight artists, in
 the order they play, as "A, B and C." or "A, …, H and more.". Its art is those
 artists' thumbs as square multiart (`square`, `square1` …, up to 25), in the same
 order, with `DefaultMusicGenres.png` as the icon.
-`ListItem.Property(mix_genreid)` holds the genre's id. A card's path opens the genre
+`ListItem.Property(mix_genreid)` holds that genre's id. A card's path opens the genre
 (`musicdb://genres/<id>/`). To play the mix instead, give the list a click that runs
 [`start_mix`](../script/actions.md#start_mix) with `type=daily`. Put the day in the
 path, so the list refetches after midnight:

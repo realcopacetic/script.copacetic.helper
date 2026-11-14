@@ -31,9 +31,10 @@ python tests/soundtracks_offline.py
 # Mixes and the endless queue (shared/mix.py, service/player.py) with the library
 # faked: a random draw out of Kodi's song id order; a mix from seed songs leaving out
 # what it's told, leaning a fair share on its artists' own albums, familiar seeds
-# first, kept to a genre or year; daily mixes by songs played, kept until midnight,
-# redrawn when similar artists answer otherwise; the cards in play order; the queue
-# growing below ten songs left and staying the same queue
+# first, kept to a genre or year; daily mixes a genre bucket a card, by songs played,
+# kept until midnight, redrawn when similar artists answer otherwise; the cards in
+# play order; a card's click plays its bucket, a genre node's mix its genre alone;
+# the queue growing below ten songs left, kept to a mix's genres, the same queue
 python tests/mix_offline.py
 
 # Genre buckets (shared/genres.py): any case, a whole ListItem.Genre of several genres
