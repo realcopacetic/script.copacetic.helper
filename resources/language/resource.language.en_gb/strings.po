@@ -180,7 +180,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32121"
-msgid "Adds Top songs, listener counts and Discography popularity order. Paste the token from listenbrainz.org/settings. Sends the item's MusicBrainz ID and token to ListenBrainz. Empty: nothing sent."
+msgid "Adds Top songs, Discography popularity order and similar artists (the similar rails, Start mix, the endless queue and daily mixes). Paste the token from listenbrainz.org/settings. Sends the artist's MusicBrainz ID and token to ListenBrainz. Empty: nothing sent."
 msgstr ""
 
 #: /resources/settings.xml
@@ -320,17 +320,17 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32134"
-msgid "Forget every saved ListenBrainz answer (top songs, top albums, listener counts), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
+msgid "Forget every saved ListenBrainz answer (top songs, similar artists), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32136"
-msgid "Forget every saved Deezer answer (matched artists, top tracks), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
+msgid "Forget every saved Deezer answer (matched artists, top tracks, similar artists, today's chart), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32138"
-msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz. Sends the artist's name to Deezer; no account needed. Off: nothing sent."
+msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist from your plays."
 msgstr ""
 
 #: /resources/settings.xml
