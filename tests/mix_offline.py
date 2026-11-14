@@ -1,6 +1,7 @@
 """
 Offline checks for mixes (shared/mix.py) and the endless queue (service/player.py)
-with Kodi's library faked: a mix leaves out what it's told, leans on its artists (a
+with Kodi's library faked: a random draw leaves the song id order Kodi lists it in;
+a mix leaves out what it's told, leans on its artists (a
 daily one on their songs played lately, then the unplayed); today's mixes rank
 genres by plays, pass over a lead already leading, are the leads alone until the
 service keeps them with the artists like their leads in their genre (a lookup a
@@ -129,7 +130,18 @@ class Mix(unittest.TestCase):
         # three familiar, at most two each: Sleep's top two, then Kyuss's top one
         self.assertEqual(ids[:3], [8, 9, 7])
         by = Counter(s["artist"][0] for s in songs[3:6])  # three new, two at most
-        self.assertEqual(by, {"Kyuss": 2, "Sleep": 1})
+        self.assertEqual(sorted(by.values()), [1, 2])
+
+    def test_a_random_draw_leaves_id_order(self):
+        # the fake answers in song id order, as Kodi does once artist is asked for
+        mix.random.seed(1)
+        with mock.patch.object(mix, "json_call", library):
+            drawn = [s["songid"] for s in mix.random_songs({"and": []})]
+            top = mix.random_songs({"and": []}, 5, mix.MOST_PLAYED)
+        self.assertEqual(sorted(drawn), [s["songid"] for s in SONGS])
+        self.assertNotEqual(drawn, sorted(drawn))
+        # a sort Kodi keeps comes as answered
+        self.assertEqual([s["songid"] for s in top], [8, 9, 10, 2, 11])
 
     def test_artists_alone_without_genres(self):
         with mock.patch.object(mix, "json_call", library):

@@ -29,7 +29,7 @@ python tests/artwork_serve_offline.py
 python tests/soundtracks_offline.py
 
 # Mixes and the endless queue (shared/mix.py, service/player.py) with the library
-# faked: exclusions and the artists' share (a daily mix's: played lately, then
+# faked: a random draw out of Kodi's song id order, exclusions and the artists' share (a daily mix's: played lately, then
 # unplayed), today's mixes by plays, leads alone until kept with their similar
 # artists (a second pass fills a miss) and held for the day, the queue growing
 # below ten songs left and staying the same queue

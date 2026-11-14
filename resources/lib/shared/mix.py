@@ -39,7 +39,7 @@ def random_songs(
     :param sort: JSON-RPC sort.
     :return: Song dicts with songid, file, artist and genre.
     """
-    return json_call(
+    songs = json_call(
         "AudioLibrary.GetSongs",
         properties=["file", "artist", "genre"],
         sort=sort,
@@ -47,6 +47,8 @@ def random_songs(
         query_filter=query_filter,
         parent="music",
     )["result"].get("songs", [])
+    # Kodi draws at random but lists the draw by song id once artists are asked for
+    return random.sample(songs, len(songs)) if sort is RANDOM else songs
 
 
 def artist_genres(artists: list[str]) -> list[str]:
