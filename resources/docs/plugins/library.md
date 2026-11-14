@@ -420,7 +420,8 @@ A song matches a ListenBrainz recording by its MusicBrainz recording id
 punctuation and a trailing `(feat. …)`, `[Remaster]` or ` - Live` part are ignored.
 Deezer has no MusicBrainz ids, so its tracks match by title (Deezer's title without
 its version, such as "(Album Version)"). Each title appears once, from its earliest
-dated release unless a recording id matched another. The path returns nothing when
+dated release (of two the same year, the album holding more of the artist's songs, so
+not a single) unless a recording id matched another. The path returns nothing when
 no source answers for the artist or no song matches, so a list never holds the play
 counts alone. The items are music library songs, as in [`genre_music`](#genre_music);
 the container's content is `songs`.
@@ -453,12 +454,12 @@ An older answer is shown while a source is unreachable. **Clear addon cache** fo
 them all; *Cache › Clear TMDb / ListenBrainz / Deezer data* forget one source's, and
 **Refresh cached data** one artist's.
 ListenBrainz requests are spaced at least a second apart across all plugin calls, as
-ListenBrainz asks: a call inside that second waits its turn, then takes the answer
-another call stored meanwhile rather than asking again (an artist's info opens several
-at once, and Top songs and Discography ask the same list). When the queue is more than
-three seconds long, the call shows the saved answer or nothing, and the next open
-fetches. Deezer needs no spacing: a first open of an artist makes two requests
-(search and top tracks), later opens none until the week is up. The log has one
+ListenBrainz asks: a call inside that second waits its turn, then takes the answer if
+another call has stored it by then (Top songs and Discography ask the same list).
+When the queue is more than three seconds long, the call shows the saved answer or
+nothing, and the next open fetches. Deezer needs no spacing: a first open of an
+artist makes two requests (search and top tracks) for each rail that asks before the
+other has stored them, later opens none until the week is up. The log has one
 `api_cache →` line per lookup (miss, fresh, stale or stored, with its size); with the
 add-on setting **Include json call/response logs** on, the payload follows it.
 
@@ -480,10 +481,13 @@ most popular first, then the albums no source ranks, newest first. It ranks with
 album holding the song `top_songs` would show (the earliest release, unless a
 ListenBrainz MBID matched), and albums go by their total, so the two rails agree.
 Another edition of an album, or a live album, gets credit only through a matched MBID.
+Only the listed albums' songs count: a hit first released on a compilation the list
+leaves out credits the listed album that holds it.
 
 With neither source on, no MusicBrainz id for ListenBrainz alone, or no answer, all
-albums come newest first; with neither on nothing is sent. Same answers, cache and
-spacing as `top_songs`, so an artist's second rail asks nothing.
+albums come newest first (with ListenBrainz alone, the artist's songs aren't read);
+with neither on nothing is sent. Same answers, cache and spacing as `top_songs`: once one rail has stored
+them, the other asks nothing.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

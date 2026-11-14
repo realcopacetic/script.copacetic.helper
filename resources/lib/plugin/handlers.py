@@ -2060,11 +2060,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return items[: self.limit] or None
 
     @staticmethod
-    def _artist_songs(
-        artistid: int,
-        properties: list[str] = SONG_RANK_PROPERTIES,
-        parent: str = "top_songs",
-    ) -> list[dict]:
+    def _artist_songs(artistid: int, properties: list[str], parent: str) -> list[dict]:
         """
         A library artist's songs, for ranking.
 
@@ -2094,6 +2090,40 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         key = deezer.artist_key(mbid, name)
         return deezer.top_tracks(key, name, lambda rows: deezer_match(songs(), rows))
 
+    def _popularity(
+        self, artistid: int, properties: list[str], parent: str
+    ) -> tuple[list[tuple[float, list]], list[dict]]:
+        """
+        A library artist's popularity rankings from the sources that are on, and its
+        songs, for Top songs and Discography alike; ([], []) when none can rank.
+
+        :param artistid: Library artist id.
+        :param properties: Song properties to fetch.
+        :param parent: Caller name for logging.
+        :return: ((weight, rows) pairs, song rows).
+        """
+        from resources.lib.apis import deezer, listenbrainz
+
+        on_deezer = deezer.enabled()
+        name, mbid = artist_identity(artistid, parent)
+        listens = partial(listenbrainz.top_recordings, mbid)
+        if not (mbid and listenbrainz.enabled()):
+            listens = list
+        # Deezer first when on (ListenBrainz may queue); else ListenBrainz before the
+        # songs, so an artist it doesn't know costs no song read
+        recordings = None if on_deezer else listens()
+        if not (
+            (on_deezer or recordings)
+            and (songs := self._artist_songs(artistid, properties, parent))
+        ):
+            return [], []
+        tracks = self._deezer_tracks(name, mbid, lambda: songs) if on_deezer else []
+        if recordings is None:
+            recordings = listens()
+        # ListenBrainz first in the ranking, so an MBID match claims its title
+        rankings = [(WEIGHTS["listenbrainz"], recordings), (WEIGHTS["deezer"], tracks)]
+        return rankings, songs
+
     @log.duration
     def top_songs(self) -> list[DirectoryItem] | None:
         """
@@ -2105,24 +2135,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.apis import deezer, listenbrainz
 
-        on_deezer, on_listenbrainz = deezer.enabled(), listenbrainz.enabled()
-        if not ((on_deezer or on_listenbrainz) and self._require("id")):
+        if not ((deezer.enabled() or listenbrainz.enabled()) and self._require("id")):
             return
-        artistid = int(self.dbid)
-        name, mbid = artist_identity(artistid, "top_songs")
-        listens = partial(listenbrainz.top_recordings, mbid)
-        if not (mbid and on_listenbrainz):
-            listens = list
-        # Deezer first when on (ListenBrainz may queue); else ListenBrainz before the
-        # songs, so an artist it doesn't know costs no song read
-        recordings = None if on_deezer else listens()
-        if not ((on_deezer or recordings) and (songs := self._artist_songs(artistid))):
+        rankings, songs = self._popularity(
+            int(self.dbid), SONG_RANK_PROPERTIES, "top_songs"
+        )
+        if not songs:
             return
-        tracks = self._deezer_tracks(name, mbid, lambda: songs) if on_deezer else []
-        if recordings is None:
-            recordings = listens()
-        # ListenBrainz first in the ranking, so an MBID match claims its title
-        rankings = [(WEIGHTS["listenbrainz"], recordings), (WEIGHTS["deezer"], tracks)]
         set_plugincontent(content="songs")
         rows = rank_songs(rankings, songs)[: self.limit]
         return [library_item(row, "song") for row in rows] or None
@@ -2154,19 +2173,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not condition("System.GetBool(musiclibrary.showcompilationartists)"):
             albums = [album for album in albums if artistid in album["artistid"]]
         rankings, songs = [], []
-        on_deezer, on_listenbrainz = deezer.enabled(), listenbrainz.enabled()
-        if albums and (on_deezer or on_listenbrainz):
-            name, mbid = artist_identity(artistid, "discography")
-            songs = self._artist_songs(artistid, ALBUM_SONG_PROPERTIES, "discography")
-            tracks = self._deezer_tracks(name, mbid, lambda: songs) if on_deezer else []
+        if albums and (deezer.enabled() or listenbrainz.enabled()):
             # Top songs' own lists and order, so the two rails agree
-            recordings = []
-            if mbid and on_listenbrainz:
-                recordings = listenbrainz.top_recordings(mbid)
-            rankings = [
-                (WEIGHTS["listenbrainz"], recordings),
-                (WEIGHTS["deezer"], tracks),
-            ]
+            rankings, songs = self._popularity(
+                artistid, ALBUM_SONG_PROPERTIES, "discography"
+            )
         set_plugincontent(content="albums")
         rows = rank_albums(rankings, songs, albums)[: self.limit]
         return [library_item(row, "album") for row in rows] or None

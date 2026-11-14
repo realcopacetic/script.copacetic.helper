@@ -1106,6 +1106,23 @@ class BlendTest(unittest.TestCase):
         ranked = rank_albums([(1, [["", "Mono", "Alive"]])], live, albums)
         self.assertEqual(ranked[0]["albumid"], 8)
 
+    def test_same_year_single_yields_to_its_album(self):
+        single = qotsa(30, "Mono", "Mono", 10, 2026)  # scanned before the album
+        albums = [*QOTSA_ALBUMS, album(10, "Mono", 2026)]
+        ranked = rank_albums([(1, [["", "Mono"]])], [single, *QOTSA_SONGS], albums)
+        self.assertEqual(ranked[0]["albumid"], 8)
+        self.assertEqual(
+            rank_songs([(1, [["", "Mono"]])], [single, *QOTSA_SONGS])[0],
+            QOTSA_SONGS[14],
+        )
+
+    def test_hidden_album_leaves_credit_to_a_shown_one(self):
+        # a compilation left out of the list doesn't take the title's credit
+        guest = qotsa(30, "The Way You Used to Do", "Cracker Island", 9, 2001)
+        rows = [["", "The Way You Used to Do"]]
+        ranked = rank_albums([(1, rows)], [guest, *QOTSA_SONGS], QOTSA_ALBUMS)
+        self.assertEqual(ranked[0]["albumid"], 6)
+
     def test_artist_match(self):
         def accept(rows, songs=QOTSA_SONGS):
             return deezer_match(songs, rows)
@@ -1475,6 +1492,15 @@ class QotsaRailsTest(Base):
         self.handler.top_songs()
         self.assertEqual(self.handler.discography(), [2, 8, 3, 1, 5, 6, 4, 7])
         self.assertEqual(len(self.net.requests), 3)  # both lists cached: no request
+
+    def test_discography_listenbrainz_without_answer_reads_no_songs(self):
+        self.handler.limit = None
+        self.mbids = [""]  # untagged: nothing to ask
+        self.assertEqual(self.handler.discography(), [8, 7, 6, 5, 4, 3, 2, 1])
+        self.mbids, self.net.answers = [QOTSA], [b"[]"]  # an empty answer
+        self.assertEqual(self.handler.discography(), [8, 7, 6, 5, 4, 3, 2, 1])
+        self.assertEqual(len(self.net.requests), 1)
+        self.assertNotIn("AudioLibrary.GetSongs", self.calls)
 
     def test_no_songs_no_request(self):
         self.settings["deezer"] = True
