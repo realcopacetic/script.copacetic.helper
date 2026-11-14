@@ -36,6 +36,11 @@ python tests/soundtracks_offline.py
 # growing below ten songs left and staying the same queue
 python tests/mix_offline.py
 
+# Genre buckets (shared/genres.py): any case, a whole ListItem.Genre of several genres
+# (the first row found), exceptions before the keywords they'd fall to, unknown
+# genres; the builder's music_genres mapping, a row a term in order
+python tests/genre_offline.py
+
 # Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,
 # unless a tile has no other image free
 python tests/multiart_offline.py
