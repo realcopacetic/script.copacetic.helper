@@ -1116,6 +1116,17 @@ class BlendTest(unittest.TestCase):
             QOTSA_SONGS[14],
         )
 
+    def test_same_year_editions_keep_scan_order(self):
+        titles = ["Insignificant Other", "Mono", "Easy Street", "It's Only Love", "X"]
+        deluxe = [
+            qotsa(40 + n, t, "Perfecth (Deluxe)", 11, 2026)
+            for n, t in enumerate(titles)
+        ]
+        albums = [*QOTSA_ALBUMS, album(11, "Perfecth (Deluxe)", 2026)]
+        for songs, first in ((deluxe + QOTSA_SONGS, 11), (QOTSA_SONGS + deluxe, 8)):
+            ranked = rank_albums([(1, [["", "Mono"]])], songs, albums)
+            self.assertEqual(ranked[0]["albumid"], first)
+
     def test_hidden_album_leaves_credit_to_a_shown_one(self):
         # a compilation left out of the list doesn't take the title's credit
         guest = qotsa(30, "The Way You Used to Do", "Cracker Island", 9, 2001)
