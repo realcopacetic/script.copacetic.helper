@@ -1127,6 +1127,27 @@ class BlendTest(unittest.TestCase):
             ranked = rank_albums([(1, [["", "Mono"]])], songs, albums)
             self.assertEqual(ranked[0]["albumid"], first)
 
+    def test_singles_count_songs_by_title(self):
+        # a remix EP of one title is a single too: the earlier single, scanned first
+        single = qotsa(30, "Mono", "Mono", 10, 2025)
+        ep = [
+            qotsa(50 + n, f"Mono (Remix {n})", "Mono (Remixes)", 12, 2025)
+            for n in range(5)
+        ]
+        albums = [
+            *QOTSA_ALBUMS,
+            album(10, "Mono", 2025),
+            album(12, "Mono (Remixes)", 2025),
+        ]
+        ranked = rank_albums([(1, [["", "Mono"]])], [single, *ep, *QOTSA_SONGS], albums)
+        self.assertEqual(ranked[0]["albumid"], 10)
+        # a 4-track maxi-single of three songs yields to its same-year album
+        titles = ["Mono", "Mono (Radio Edit)", "Wicked Ways", "Sunday Morning"]
+        maxi = [qotsa(60 + n, t, "Mono", 10, 2026) for n, t in enumerate(titles)]
+        albums = [*QOTSA_ALBUMS, album(10, "Mono", 2026)]
+        ranked = rank_albums([(1, [["", "Mono"]])], [*maxi, *QOTSA_SONGS], albums)
+        self.assertEqual(ranked[0]["albumid"], 8)
+
     def test_hidden_album_leaves_credit_to_a_shown_one(self):
         # a compilation left out of the list doesn't take the title's credit
         guest = qotsa(30, "The Way You Used to Do", "Cracker Island", 9, 2001)

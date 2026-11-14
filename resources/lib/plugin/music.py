@@ -69,7 +69,7 @@ K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
 # Music, new albums included (coding-notes audits/2026-11-12-music-popularity.md)
 WEIGHTS = {"deezer": 2.0, "listenbrainz": 1.0}
 OVERLAP = 3  # song titles in common that identify an artist with no album in common
-SINGLE = 4  # a release with fewer of the artist's songs yields to a same-year album
+SINGLE = 4  # a release with fewer different songs yields to a same-year album
 _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 # Speed dial rows above the Move rows: (action, addon string, types without it)
 _DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
@@ -242,7 +242,8 @@ def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
     :param songs: Library songs with album, albumid, musicbrainztrackid, title, year.
     :return: find(mbid, title, album="") giving the song or None.
     """
-    size = Counter(song["albumid"] for song in songs)
+    # different songs per release, so a remix EP of one title stays a single
+    size = Counter(a for a, _ in {(s["albumid"], title_key(s["title"])) for s in songs})
     by_mbid, by_album, by_title = {}, {}, {}
     # undated last; among full albums (editions, live) the scan order stands
     for song in sorted(
