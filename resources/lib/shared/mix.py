@@ -4,6 +4,7 @@ import random
 from collections import Counter, defaultdict
 from collections.abc import Collection, Iterable, Iterator, Sequence
 from datetime import date, datetime, time, timedelta
+from functools import reduce
 from math import ceil
 from operator import itemgetter
 
@@ -15,6 +16,7 @@ MIX_SIZE = 50
 # audits/2026-11-12-music-popularity.md); Ash, 12 Nov
 SEED_SHARE = {"song": 0.25, "album": 0.35, "artist": 0.35}
 SIMILAR_CAP = 6  # most songs of a mix by any one similar artist
+FILL_CAP = 3  # and by any one artist of its genre fill, while others have songs
 DAILY_ARTIST_SHARE = 0.3  # a genre's mix leans harder on the artists you played in it
 DAILY_MIXES = 6
 DAILY_SEEDS = 3  # artists a genre's played songs need to make a daily mix; its leads
@@ -121,17 +123,50 @@ def artist_genres(artists: list[str]) -> list[str]:
     return [*dict.fromkeys(g for song in songs for g in song["genre"])]
 
 
+def heard(song: dict) -> bool:
+    """
+    Whether a song was played in the last HEARD days, as Kodi's inthelast counts
+    them: after the date HEARD days back, compared as text ("lastplayed > '…'").
+
+    :param song: Song dict with lastplayed ("" if never played).
+    :return: Heard lately.
+    """
+    return song["lastplayed"] > f"{date.today() - timedelta(days=HEARD)}"
+
+
 def spread(own: list, others: list) -> list:
     """
-    Spreads own evenly through others, keeping the order of each.
+    Spreads own evenly through the gaps of others (before, between, after) from a
+    random start (Spotify's offset), keeping the order of each; one a gap, as they fit.
 
-    :param own: Items to spread.
+    :param own: Items to spread; at least one.
     :param others: Items to spread them through.
     :return: Merged list.
     """
-    step = (len(others) + 1) / (len(own) + 1)
-    keyed = [*enumerate(others), *((n * step - 0.5, s) for n, s in enumerate(own, 1))]
+    # gap j is the keys in (j - 1, j): before others[j], or after the last
+    step, start = (len(others) + 1) / len(own), random.random()
+    keyed = [
+        *enumerate(others),
+        *(((n + start) * step - 1, s) for n, s in enumerate(own)),
+    ]
     return [s for _, s in sorted(keyed, key=itemgetter(0))]
+
+
+def shuffled(songs: list[dict]) -> list[dict]:
+    """
+    Songs in random order with every artist's spread through the rest, the artist
+    with most songs last: its songs are spaced exactly, and no two of anyone's meet
+    while another's can come between.
+
+    :param songs: Song dicts with artist.
+    :return: The songs in play order.
+    """
+    by_artist = defaultdict(list)
+    for song in random.sample(songs, len(songs)):
+        by_artist[song["artist"][0]].append(song)
+    return reduce(
+        lambda mixed, own: spread(own, mixed), sorted(by_artist.values(), key=len), []
+    )
 
 
 def mix_songs(
@@ -144,9 +179,9 @@ def mix_songs(
     familiar: int = 0,
 ) -> list[dict]:
     """
-    A mix grown from seed songs: about share by the artists they count for (the first
-    familiar of it the seeds themselves), then similar artists', then their genres'
-    (else their artists'), or keep's; songs heard in HEARD days fill only what's short.
+    A mix grown from seed songs: about share by their artists (the seeds first), then
+    similar artists', then their genres' (else their artists') or keep's, each capped
+    and spread (shuffled); songs heard in HEARD days fill only what's short.
 
     :param seeds: Song dicts with artist, albumartist and genre; none for keep alone.
     :param size: Most songs.
@@ -154,7 +189,7 @@ def mix_songs(
     :param share: Fraction of the songs by the seeds' artists.
     :param similar: Library artist names like the seeds' artists.
     :param keep: A songs rule every song must meet (a genre's, a year's); None to roam.
-    :param familiar: Most seeds to play as they are, in their order.
+    :param familiar: Most of the seeds themselves to take, in their order.
     :return: Song dicts in play order.
     """
     exclude = {*exclude}
@@ -178,8 +213,8 @@ def mix_songs(
 
     def drawn(rule: dict, limit: int) -> Iterator[dict]:
         # Songs not just heard (or never played) first; the rest only when short
-        for heard in ("notinthelast", "inthelast"):
-            when = {"field": "lastplayed", "operator": heard, "value": str(HEARD)}
+        for operator in ("notinthelast", "inthelast"):
+            when = {"field": "lastplayed", "operator": operator, "value": str(HEARD)}
             yield from random_songs({"and": [rule, when]}, limit)
 
     def pick(
@@ -206,15 +241,17 @@ def mix_songs(
         cap, theirs = ceil(want / len(artists)), Counter()  # a fair share each
         own = take(seeds, min(familiar, want), cap, theirs)
         own += pick(by(artists), want - len(own), cap, theirs)
-    others = pick(by(similar), size - len(own), SIMILAR_CAP) if similar else []
+    songs = own + (pick(by(similar), size - len(own), SIMILAR_CAP) if similar else [])
+    uncapped = [by(artists)] if artists else []
     if fill:
         names = [*artists, *similar]
         strangers = {"field": "albumartist", "operator": "isnot", "value": names}
         rule = {"and": [fill, strangers]} if names else fill
-        others += pick(rule, size - len(own) - len(others))
-    if artists:  # what the others left short
-        own += pick(by(artists), size - len(own) - len(others))
-    return spread(own, random.sample(others, len(others)))
+        songs += pick(rule, size - len(songs), FILL_CAP)
+        uncapped.append(rule)
+    for rule in uncapped:  # what the caps left short: the artists' own, then the fill's
+        songs += pick(rule, size - len(songs))
+    return shuffled(songs)
 
 
 def recency(song: dict) -> float:
@@ -238,11 +275,9 @@ def by_weight(songs: Sequence[dict]) -> list[dict]:
     :param songs: Song dicts with lastplayed.
     :return: The songs reordered.
     """
-    # Kodi's inthelast: after the date HEARD days back, as text ("lastplayed > '…'")
-    heard = f"{date.today() - timedelta(days=HEARD)}"
 
     def key(song: dict) -> tuple[bool, float]:
-        return song["lastplayed"] <= heard, random.random() ** (1 / recency(song))
+        return not heard(song), random.random() ** (1 / recency(song))
 
     return sorted(songs, key=key, reverse=True)
 

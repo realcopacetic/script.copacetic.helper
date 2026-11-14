@@ -29,6 +29,7 @@ from resources.lib.shared.mix import (
     SEED_SHARE,
     genre_ids,
     genre_mix,
+    heard,
     kept_mix,
     lead_id,
     mix_songs,
@@ -1095,8 +1096,8 @@ def _year_rule(year: str) -> dict:
 
 def _mix_seed(type: str, dbid: int) -> dict | None:
     """
-    The song a mix starts from: the song itself, or one of the five most played
-    songs of the album, or of the artist's own albums.
+    The song a mix starts from: the song itself, or one of the album's (or the
+    artist's own albums') ten most played, those heard lately left out while any remain.
 
     :param type: song, album or artist.
     :param dbid: Library ID of the item.
@@ -1121,15 +1122,17 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
         query_filter = {"field": "albumartist", "operator": "is", "value": name}
     else:
         query_filter = {"albumid": dbid}
+    # Ten, as Kodi breaks a play count tie by track number: for an artist hardly
+    # played, five would be the same closing tracks every time
     top = json_call(
         "AudioLibrary.GetSongs",
-        properties=properties,
+        properties=[*properties, "lastplayed"],
         sort={"method": "playcount", "order": "descending"},
-        limit=5,
+        limit=10,
         query_filter=query_filter,
         parent="start_mix",
     )["result"].get("songs")
-    return random.choice(top) if top else None
+    return random.choice([s for s in top if not heard(s)] or top) if top else None
 
 
 @action

@@ -1243,8 +1243,11 @@ guest spot, or a song they only wrote or produced, doesn't count as theirs (on a
 compilation or soundtrack, a song counts for all its artists). Each artist gets a
 fair share of that part. The rest are random songs by their
 [similar artists](../plugins/library.md#similar_music) in your library, at most six
-by any one of them, then songs by other artists that share the seeds' genres; what
-they leave short is the seeds' artists' own songs. Songs you heard in the last three
+by any one of them, then songs by other artists that share the seeds' genres, at most
+three by any one of them; what they leave short is the seeds' artists' own songs, then
+more of the genres'. The songs are then shuffled with each artist's spread evenly
+through the rest from a random start, so the same artist rarely plays twice in a row
+(the artist with most songs never does). Songs you heard in the last three
 days (from the start of the day three days back, as Kodi counts it) come in only when
 the others run short, so a mix doesn't replay yesterday's; a song you skipped or never
 reached isn't counted as heard. A seed with no genre takes the
@@ -1252,9 +1255,10 @@ genres of its artists' albums. The first mix for an artist can take a few second
 while Deezer and ListenBrainz answer; later ones read the saved answers.
 
 - **Song, album or artist:** the seed is one song, played first. For a song, that is
-  the song itself. For an album, or the artist's own albums, it is one of its five
-  most played songs, picked at random. About a quarter of the mix (a song's) or a
-  third (an album's or artist's) is by its artists, spread evenly through it.
+  the song itself. For an album, or the artist's own albums, it is one of its ten
+  most played songs, picked at random from those you haven't heard in the last three
+  days while any are left. About a quarter of the mix (a song's) or a third (an
+  album's or artist's) is by its artists.
 - **Genre:** the seeds are the songs of the genre you played in the last 30 days,
   and every song of the mix is of the genre. About 15 of the 50 are by the artists
   you played in it, the first half of those the seeds themselves, drawn at random
@@ -1268,7 +1272,8 @@ while Deezer and ListenBrainz answer; later ones read the saved answers.
   genre's id: the genre's mix as the card drew it today, so it plays what the card
   names. With none kept (the cache was cleared, or the day turned since the card
   loaded), it draws the genre's mix and keeps it for the card.
-- **Year:** 50 random songs of that year.
+- **Year:** 50 random songs of that year, at most three by any one artist while
+  others have songs.
 
 If the album or artist has no songs, or the song is not found, nothing changes: what
 was playing carries on. A genre, year or daily mix with no songs changes nothing too.

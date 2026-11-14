@@ -9,9 +9,11 @@ artists in play order; the queue grows below ten songs left, only from the queue
 Run from the helper root: python tests/mix_offline.py
 """
 
+import random
 import sys
 from collections import Counter
 from datetime import date, datetime, timedelta
+from operator import itemgetter
 import tempfile
 import unittest
 from pathlib import Path
@@ -60,6 +62,18 @@ SONGS += [
         "genre": ["Slowcore"],
     }
 ]
+# Songs 44-63: Stoner's other artists, four songs each
+OTHERS = ["Om", "Yob", "Fu Manchu", "Weedeater", "Monster Magnet"]
+SONGS += [
+    {
+        "songid": 44 + n,
+        "file": f"/m/{44 + n}.flac",
+        "artist": [OTHERS[n // 4]],
+        "albumartist": [OTHERS[n // 4]],
+        "genre": ["Stoner"],
+    }
+    for n in range(20)
+]
 
 
 def ago(days: float) -> str:
@@ -75,7 +89,10 @@ for n, days in {0: 1, 1: 1, 2: 1, 3: 1, 8: 7}.items():
 
 
 def library(method: str, query_filter: dict, limit: int | None = None, **kwargs):
-    """AudioLibrary.GetSongs over SONGS for the rules a mix sends, in id order."""
+    """
+    AudioLibrary.GetSongs over SONGS for the rules a mix sends, as Omega answers a
+    random sort: a random draw of limit, listed in song id order.
+    """
 
     def keep(song: dict, rule: dict) -> bool:
         if "and" in rule:
@@ -89,7 +106,8 @@ def library(method: str, query_filter: dict, limit: int | None = None, **kwargs)
         return hit if rule["operator"] == "is" else not hit
 
     songs = [s for s in SONGS if keep(s, query_filter)]
-    return {"result": {"songs": songs[:limit]}}
+    drawn = random.sample(songs, min(limit or len(songs), len(songs)))
+    return {"result": {"songs": sorted(drawn, key=itemgetter("songid"))}}
 
 
 def artists(songs: list[dict]) -> Counter:
@@ -109,20 +127,41 @@ class Mix(unittest.TestCase):
         self.assertEqual(sorted(drawn), [s["songid"] for s in SONGS])
         self.assertNotEqual(drawn, sorted(drawn))
 
+    def assertFill(self, by: Counter, count: int) -> None:
+        """count songs of Stoner's fill, FILL_CAP at most by any one artist."""
+        self.assertEqual(sum(by[a] for a in ["Sleep", *OTHERS]), count)
+        self.assertLessEqual(max(by[a] for a in ["Sleep", *OTHERS]), mix.FILL_CAP)
+
     def test_leaves_out_and_leans(self):
         songs = mix.mix_songs([SONGS[2]], 10, exclude={0, 1, 8})
         self.assertEqual(len(songs), 10)
         self.assertFalse({0, 1, 8} & {s["songid"] for s in songs})
-        self.assertEqual(artists(songs), {"Kyuss": 2, "Sleep": 8})  # 25 %, then Stoner
+        by = artists(songs)
+        self.assertEqual(by["Kyuss"], 2)  # 25 %, then Stoner
+        self.assertFill(by, 8)
 
     def test_similar_then_genres(self):
-        songs = mix.mix_songs([SONGS[2]], 10, similar=["Low"])
-        self.assertEqual(artists(songs), {"Kyuss": 2, "Low": 6, "Sleep": 2})
+        by = artists(mix.mix_songs([SONGS[2]], 10, similar=["Low"]))
+        self.assertEqual((by["Kyuss"], by["Low"]), (2, 6))
+        self.assertFill(by, 2)
 
     def test_similar_capped(self):
-        songs = mix.mix_songs([SONGS[2]], 20, similar=["Sleep"])
-        # capped, the genre has no one else, then topped up: all eight Kyuss songs
-        self.assertEqual(artists(songs), {"Kyuss": 8, "Sleep": mix.SIMILAR_CAP})
+        by = artists(mix.mix_songs([SONGS[2]], 20, similar=["Sleep"]))
+        self.assertEqual((by["Kyuss"], by["Sleep"]), (5, mix.SIMILAR_CAP))
+        self.assertEqual(sum(by[a] for a in OTHERS), 9)
+
+    def test_caps_short_topped_up_by_the_artists_then_the_fill(self):
+        by = artists(mix.mix_songs([SONGS[2]], 40, similar=["Sleep"]))
+        # Kyuss's 8 (of 10 wanted), Sleep 6, the others 3 each; then the fill's
+        # uncapped: the others' fourth songs. All the library has for it, short of 40
+        self.assertEqual(by, {"Kyuss": 8, "Sleep": 6} | dict.fromkeys(OTHERS, 4))
+
+    def test_the_artist_with_most_spaced_exactly(self):
+        songs = [{"songid": n, "artist": [a]} for n, a in enumerate("AAAAAABBBCCC")]
+        for _ in range(50):
+            order = [s["artist"][0] for s in mix.shuffled(songs)]
+            self.assertNotIn(("A", "A"), set(zip(order, order[1:])))
+            self.assertEqual(Counter(order), {"A": 6, "B": 3, "C": 3})
 
     def test_by_an_artist_means_their_own_albums(self):
         songs = mix.mix_songs([SONGS[2]], 20, similar=["Sleep"])
@@ -137,10 +176,11 @@ class Mix(unittest.TestCase):
         # Kyuss's 4-6, not 0-3 heard yesterday; the heard query never ran
         self.assertEqual({s["songid"] for s in songs}, {4, 5, 6})
         self.assertEqual(calls.call_count, 1)
-        songs = mix.mix_songs([SONGS[7]], 7, {7}, share=1)
-        kyuss = [s["songid"] for s in songs]
-        self.assertEqual({*kyuss[:3]}, {4, 5, 6})  # then, short, the heard ones
-        self.assertEqual({*kyuss[3:]}, {0, 1, 2, 3})
+        with mock.patch.object(mix, "json_call", calls):
+            songs = mix.mix_songs([SONGS[7]], 7, {7}, share=1)
+        # short: then the heard ones
+        self.assertEqual({s["songid"] for s in songs}, set(range(7)))
+        self.assertEqual(calls.call_count, 3)
 
     def test_heard_a_week_ago_draws_as_unheard(self):
         songs = mix.mix_songs(
@@ -153,21 +193,21 @@ class Mix(unittest.TestCase):
         songs = mix.mix_songs(
             [SONGS[2]], 10, share=0.2, similar=["Low", "Sleep"], keep=keep
         )
-        # Low's songs are all Slowcore: none
-        self.assertEqual(artists(songs), {"Kyuss": 4, "Sleep": mix.SIMILAR_CAP})
+        by = artists(songs)  # Low's songs are all Slowcore: none
+        self.assertEqual((by["Kyuss"], by["Sleep"], by["Low"]), (2, 6, 0))
+        self.assertEqual({g for s in songs for g in s["genre"]}, {"Stoner"})
 
-    def test_familiar_seeds_first_in_their_order(self):
-        seeds = [SONGS[7], SONGS[0], SONGS[4]]
-        songs = mix.mix_songs(seeds, 10, share=0.6, familiar=3)
-        kyuss = [s["songid"] for s in songs if s["artist"] == ["Kyuss"]]
-        self.assertEqual(kyuss[:3], [7, 0, 4])
-        self.assertEqual(len(kyuss), 6)
+    def test_familiar_seeds_taken_first(self):
+        seeds = [SONGS[7], SONGS[0], SONGS[4], SONGS[5]]
+        songs = mix.mix_songs(seeds, 10, share=0.3, familiar=3)
+        self.assertEqual({7, 0, 4} & {s["songid"] for s in songs}, {7, 0, 4})
+        self.assertEqual(artists(songs)["Kyuss"], 3)
 
     def test_a_fair_share_each(self):
         seeds = [SONGS[8], SONGS[9], SONGS[10], SONGS[7]]  # Sleep thrice, Kyuss once
         songs = mix.mix_songs(seeds, 6, share=1, familiar=3)
         # three each: Sleep's three seeds, then Kyuss's, though Sleep has 27 more
-        self.assertEqual([s["songid"] for s in songs][:3], [8, 9, 10])
+        self.assertLessEqual({8, 9, 10}, {s["songid"] for s in songs})
         self.assertEqual(artists(songs), {"Kyuss": 3, "Sleep": 3})
 
     def test_artists_alone_without_others_in_genre(self):
@@ -180,8 +220,9 @@ class Mix(unittest.TestCase):
 
     def test_a_seed_with_no_genre_takes_its_artists(self):
         seed = SONGS[2] | {"genre": []}
-        songs = mix.mix_songs([seed], 10)
-        self.assertEqual(artists(songs), {"Kyuss": 2, "Sleep": 8})
+        by = artists(mix.mix_songs([seed], 10))
+        self.assertEqual(by["Kyuss"], 2)
+        self.assertFill(by, 8)  # Stoner, from Kyuss's albums
 
 
 def played(*rows: tuple) -> list[dict]:
@@ -361,6 +402,27 @@ class Card(unittest.TestCase):
     def test_slides_capped(self):
         li = self.card([f"A{n:02}" for n in range(30)])
         self.assertEqual(len(li.setArt.call_args.args[0]), music.MIX_SLIDES + 1)
+
+
+class Seed(unittest.TestCase):
+    def test_an_artist_opens_with_one_of_ten_not_just_heard(self):
+        from resources.lib.script import actions
+
+        top = [{"songid": n, "lastplayed": ago(5 if n == 9 else 1)} for n in range(10)]
+        calls = mock.Mock(return_value={"result": {"songs": top}})
+        with (
+            mock.patch.object(actions, "json_call", calls),
+            mock.patch.object(music, "artist_identity", lambda *a: ("Kyuss", "")),
+        ):
+            seeds = {actions._mix_seed("artist", 1)["songid"] for _ in range(20)}
+            top[9]["lastplayed"] = ago(1)  # all heard: any of the ten
+            later = {actions._mix_seed("artist", 1)["songid"] for _ in range(200)}
+        self.assertEqual(seeds, {9})
+        self.assertEqual(later, set(range(10)))
+        kwargs = calls.call_args.kwargs
+        self.assertEqual(kwargs["limit"], 10)
+        rule = {"field": "albumartist", "operator": "is", "value": "Kyuss"}
+        self.assertEqual(kwargs["query_filter"], rule)  # their own albums
 
 
 class Playlist:
