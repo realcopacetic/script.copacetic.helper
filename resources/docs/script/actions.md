@@ -59,7 +59,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 |---|---|
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
 | [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
-| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz or Deezer |
+| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz, Deezer or TheIntroDB |
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
@@ -262,7 +262,8 @@ not touched. Also in the helper's settings, under *Library*.
 
 Deletes the helper's processed artwork (blurred, cropped and text images) and resets
 its artwork lookup database. It also empties the saved answers from web services
-(TMDb, ListenBrainz, Deezer), so they are fetched again, and the saved text truncations,
+(TMDb, ListenBrainz, Deezer, TheIntroDB) and today's saved daily mixes, so they are
+worked out again, and the saved text truncations,
 then compacts the database file. A notification shows how much space was saved.
 Images are made again the next time they are needed.
 
@@ -1250,12 +1251,15 @@ Kodi's shuffle turned off.
 - **Daily:** one of today's mixes, as the [`daily_mixes`](../plugins/library.md#daily_mixes)
   cards show them, by its genre's id: 50 songs, about 15 of them by its three lead
   artists, spread through their similar artists' songs in the genre, then the rest
-  of the genre. If the day has turned since the card
+  of the genre. Of the lead artists' songs, about half are the ones you played most
+  in the last 30 days and the rest are ones you have never played, shared fairly
+  between the three. The similar artists come from the background service's
+  [daily mixes pass](../service/index.md#the-poll-loop); until it has run, the rest
+  is the genre's other songs. If the day has turned since the card
   loaded and that genre leads no mix today, it plays the genre's own mix.
 
 If the album or artist has no songs, or the song is not found, nothing changes: what
-was playing carries on. A genre or year with no songs clears the playlists and plays
-nothing.
+was playing carries on. A genre, year or daily mix with no songs changes nothing too.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
