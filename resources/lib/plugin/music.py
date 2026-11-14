@@ -56,7 +56,13 @@ _PROPERTIES = {
     "yearsactive",
 }
 ALBUM_RANK_PROPERTIES = [*_DETAILS["album"][1], "art", "artistid"]
-SONG_RANK_PROPERTIES = [*_DETAILS["song"][1], "art", "musicbrainztrackid", "playcount"]
+SONG_RANK_PROPERTIES = [
+    *_DETAILS["song"][1],
+    "albumid",
+    "art",
+    "musicbrainztrackid",
+    "playcount",
+]
 ALBUM_SONG_PROPERTIES = ["album", "albumid", "musicbrainztrackid", "title", "year"]
 K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
 # What's streamed now counts double all-time listening: closest to Spotify and YouTube
@@ -229,13 +235,16 @@ def fused(rankings: Iterable[tuple[float, Iterable]]) -> Counter:
 def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
     """
     A lookup from a ranking row to a library song: by recording MBID, else title and
-    album title, else title; the earliest release of several.
+    album title, else title; the earliest release of several, the fuller album of two
+    the same year (not the single).
 
-    :param songs: Library songs with album, musicbrainztrackid, title and year.
+    :param songs: Library songs with album, albumid, musicbrainztrackid, title, year.
     :return: find(mbid, title, album="") giving the song or None.
     """
+    size = Counter(song["albumid"] for song in songs)
     by_mbid, by_album, by_title = {}, {}, {}
-    for song in sorted(songs, key=lambda song: song["year"] or 9999):  # undated last
+    # undated last; a single released with its album after the album
+    for song in sorted(songs, key=lambda s: (s["year"] or 9999, -size[s["albumid"]])):
         key = title_key(song["title"])
         by_mbid.setdefault(song["musicbrainztrackid"], song)
         by_album.setdefault((key, title_key(song["album"])), song)
@@ -282,7 +291,7 @@ def scored_songs(
     the earliest release unless an MBID matched.
 
     :param rankings: (weight, [recording MBID, title, …] rows best first) pairs.
-    :param songs: Library songs with album, musicbrainztrackid, title and year.
+    :param songs: Library songs with album, albumid, musicbrainztrackid, title, year.
     :return: (score per title_key, song per title_key).
     """
     find, shown = song_finder(songs), {}
@@ -324,13 +333,15 @@ def rank_albums(
 ) -> list[dict]:
     """
     Albums by the summed Top songs scores of their songs over rankings, then the
-    unranked; newest first among equals.
+    unranked; newest first among equals. Only these albums' songs stand for a title.
 
     :param rankings: (weight, [recording MBID, title, …] rows best first) pairs.
     :param songs: Library songs with ALBUM_SONG_PROPERTIES.
     :param albums: Library albums with albumid and year.
     :return: Ranked albums, all of them.
     """
+    ids = {album["albumid"] for album in albums}
+    songs = [song for song in songs if song["albumid"] in ids]
     scores, shown = scored_songs(rankings, songs)
     credit = Counter()
     for key, song in shown.items():
