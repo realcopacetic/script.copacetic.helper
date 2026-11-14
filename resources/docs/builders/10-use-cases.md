@@ -265,7 +265,7 @@ The skin has several places that show "the current item": the media view (**prim
   },
   "metadata": {
     "primary":   { "listitem": "ListItem",                 "updating": "$EXP[container_updating_views]", "window": "videos" },
-    "secondary": { "listitem": "Container(3100).ListItem", "hasfocus": "Control.HasFocus(3100) | Control.HasFocus(4100)", "updating": "Container(3100).IsUpdating" }
+    "secondary": { "listitem": "Container(3100).ListItem", "hasfocus": "Control.HasFocus(3100) | Control.HasFocus(4100) | Control.HasFocus(4605)", "updating": "Container(3100).IsUpdating" }
   }
 }
 ```
