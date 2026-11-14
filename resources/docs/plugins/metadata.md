@@ -130,6 +130,8 @@ With `enrich_with_tmdb=true`, these come from TMDb:
 | `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path: trailers, then teasers, then other video types; official over unofficial; then the newest | same | — |
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |
 | `ListItem.Property(tmdb_next_air_season)`, `ListItem.Property(tmdb_next_air_episode)` | — | next episode's season and episode number | — |
+| `ListItem.Property(tmdb_last_air_season)`, `ListItem.Property(tmdb_last_air_episode)` | — | last aired episode's season and episode number | — |
+| `ListItem.Property(tmdb_status)` | — | status as TMDb writes it, e.g. `Returning Series`, `Ended`, `Canceled` | — |
 
 With `tmdb_art=true`, TMDb's image lists are cached with these numbered art keys:
 
