@@ -59,6 +59,7 @@ class ArtworkServe(unittest.TestCase):
             ICON_SOURCE: ICON,
             "Container(50).CurrentItem": "3",
             "Container(50).ListItem.Label": "Title",
+            "Player.Title": "Song",
         }
         handler = handlers.PluginHandlers(
             {
@@ -158,6 +159,10 @@ class ArtworkServe(unittest.TestCase):
         out = self.serve({"clearlogo_source": SOURCE, "icon_source": ICON_SOURCE})
         self.assertEqual((out["logo"], out["icon"]), (LOGO, ICON))
         self.assertEqual(out["label"], "Title")
+
+    def test_player_icon_source_cut_reads_the_title(self):
+        out = self.serve({"target": "player", "icon_source": ICON_SOURCE})
+        self.assertEqual((out["icon"], out["label"]), (ICON, "Song"))
 
     def test_icon_source_keeps_a_label_that_arrived(self):
         params = {"icon_source": ICON_SOURCE, "icon_darken_label": "Title • 2024"}

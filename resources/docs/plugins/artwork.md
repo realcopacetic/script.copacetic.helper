@@ -66,9 +66,9 @@ text last. `clearlogo_source` names the infolabel the logo comes from
 option: the helper reads the logo from it, headers kept, in place of `clearlogo_url`,
 which then only changes the path when the logo changes. `icon_source` does the same for
 `icon_url`; with it, a call with no `icon_darken_label` (left out, or cut off) measures
-the item's own label (`ListItem.Label` of `target`'s item) in its place. With a dialog on top (it
-would answer the reads) the URLs stand, and a call cut before them goes on without
-that image.
+the item's own label (`ListItem.Label` of `target`'s item, `Player.Title` for
+`target=player`) in its place. With a dialog on top (it would answer the reads) the
+URLs stand, and a call cut before them goes on without that image.
 
 A URL can be any image Kodi can draw: a library or local path, a web URL, or art
 embedded in a music or video file (`image://music@…/`, `image://video@…/`, as an
