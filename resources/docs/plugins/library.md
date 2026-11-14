@@ -165,9 +165,11 @@ content is `songs`.
 ## `daily_mixes`
 
 Up to six mix cards made from the songs you played in the last 30 days. Each card is
-one genre: the genres with the most of those songs, each with songs by at least three
-artists. A genre most of whose songs already make a card is passed over, so the cards
-differ.
+one genre, with songs by at least three artists. A song counts for its genres by how
+lately you played it: fully today, half a week ago, a quarter two weeks ago. The six
+genres with the most make the cards, and the genre you played last comes first, so
+something new you've been playing leads over what you played for years. A genre most
+of whose weight already makes a card is passed over, so the cards differ.
 
 Each card's mix is the genre's [`start_mix`](../script/actions.md#start_mix), drawn
 the first time the card is listed in a day and kept in the helper's cache until

@@ -2,7 +2,7 @@
 
 import random
 from collections import Counter, defaultdict
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from datetime import datetime, time, timedelta
 from math import ceil
 from operator import itemgetter
@@ -19,6 +19,7 @@ DAILY_ARTIST_SHARE = 0.3  # a genre's mix leans harder on the artists you played
 DAILY_MIXES = 6
 DAILY_SEEDS = 3  # artists a genre's played songs need to make a daily mix; its leads
 DAILY_WINDOW = "30"  # days of plays the daily mixes read
+HALF_LIFE = 7  # days for a play's weight to halve (N88; Ash, 14 Nov)
 RANDOM = {"method": "random"}
 SONG_PROPERTIES = ["file", "artist", "albumartist", "genre"]
 
@@ -209,37 +210,70 @@ def mix_songs(
     return spread(own, random.sample(others, len(others)))
 
 
+def recency(song: dict) -> float:
+    """
+    A played song's weight: 1 played now, halving every HALF_LIFE days since (Kodi
+    keeps one date a song, so a song counts once).
+
+    :param song: Song dict with lastplayed.
+    :return: Weight.
+    """
+    age = datetime.now() - datetime.fromisoformat(song["lastplayed"])
+    return 0.5 ** (age / timedelta(days=HALF_LIFE))
+
+
+def by_weight(songs: Sequence[dict]) -> list[dict]:
+    """
+    Songs in a weighted random order, each as likely to come first as its recency
+    (Efraimidis and Spirakis's key): the newest listening likeliest first.
+
+    :param songs: Song dicts with lastplayed.
+    :return: The songs reordered.
+    """
+    return sorted(
+        songs, key=lambda s: random.random() ** (1 / recency(s)), reverse=True
+    )
+
+
 def leading_genres(played: Sequence[dict]) -> list[tuple[str, list[dict]]]:
     """
-    The genres of the songs played lately that make a daily mix, most songs first,
-    each with its songs (the mix's seeds); a genre needs DAILY_SEEDS artists, and one
-    most of whose songs already seed a chosen genre is passed over.
+    The DAILY_MIXES genres with most weight (recency) in the songs played lately,
+    the last played first, each with its songs (its mix's seeds); a genre needs
+    DAILY_SEEDS artists and yields when most of its weight already seeds another.
 
     :param played: Songs played in DAILY_WINDOW days (played_songs).
-    :return: Up to DAILY_MIXES (genre, seed songs) pairs.
+    :return: (genre, seed songs) pairs.
     """
-    seeds = defaultdict(list)
+    seeds, weight = defaultdict(list), {s["songid"]: recency(s) for s in played}
     for song in played:
         for genre in song["genre"]:
             seeds[genre].append(song)
+
+    def weighed(songs: Iterable[dict]) -> float:
+        return sum(weight[song["songid"]] for song in songs)
+
     chosen, seeding = [], set()
-    for genre in sorted(seeds, key=lambda g: len(seeds[g]), reverse=True):
+    for genre in sorted(seeds, key=lambda g: weighed(seeds[g]), reverse=True):
         songs = seeds[genre]
-        shared = sum(song["songid"] in seeding for song in songs)
+        shared = weighed(song for song in songs if song["songid"] in seeding)
         artists = {artist for song in songs for artist in credits(song)}
-        if len(artists) < DAILY_SEEDS or shared > len(songs) / 2:
+        if len(artists) < DAILY_SEEDS or shared > weighed(songs) / 2:
             continue
         seeding.update(song["songid"] for song in songs)
         chosen.append((genre, songs))
         if len(chosen) == DAILY_MIXES:
             break
-    return chosen
+    # the genre you're on now leads (N88), "YYYY-MM-DD HH:MM:SS" sorting as dates
+    return sorted(
+        chosen, key=lambda pair: max(s["lastplayed"] for s in pair[1]), reverse=True
+    )
 
 
 def genre_mix(genre: str, seeds: Sequence[dict]) -> dict:
     """
     A genre's mix, the same draw for a card and Start mix: seeded by the songs you
-    played in it, leaning on their artists, similar to the DAILY_SEEDS most played.
+    played in it, the newest likeliest first (by_weight), leaning on their artists,
+    similar to the DAILY_SEEDS most played.
 
     :param genre: Genre name.
     :param seeds: Songs played in it lately (played_songs); none for its songs alone.
@@ -251,7 +285,7 @@ def genre_mix(genre: str, seeds: Sequence[dict]) -> dict:
     leads = [artist for artist, _ in counts.most_common(DAILY_SEEDS)]
     similar = similar_to(leads, "mix") if leads else []
     songs = mix_songs(
-        seeds,
+        by_weight(seeds),
         MIX_SIZE,
         share=DAILY_ARTIST_SHARE,
         similar=similar,

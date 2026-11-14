@@ -1254,7 +1254,9 @@ while Deezer and ListenBrainz answer; later ones read the saved answers.
   third (an album's or artist's) is by its artists, spread evenly through it.
 - **Genre:** the seeds are the songs of the genre you played in the last 30 days,
   and every song of the mix is of the genre. About 15 of the 50 are by the artists
-  you played in it, the first half of those the seeds themselves; the similar
+  you played in it, the first half of those the seeds themselves, drawn at random
+  with the ones you played most lately the likeliest (a play's weight halves every
+  seven days); the similar
   artists are those of the three you played most. With nothing played in it, the
   mix is the genre's songs alone. It is drawn afresh each time.
 - **Daily:** a [`daily_mixes`](../plugins/library.md#daily_mixes) card's mix, by its

@@ -11,6 +11,7 @@ Run from the helper root: python tests/mix_offline.py
 
 import sys
 from collections import Counter
+from datetime import datetime, timedelta
 import tempfile
 import unittest
 from pathlib import Path
@@ -149,8 +150,13 @@ class Mix(unittest.TestCase):
         self.assertEqual(artists(songs), {"Kyuss": 2, "Sleep": 8})
 
 
-def played(*rows: tuple[int, str, str]) -> list[dict]:
-    """Played songs: (songid, artist, genres "A/B")."""
+def ago(days: float) -> str:
+    """A lastplayed as Kodi gives it, days ago."""
+    return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
+
+
+def played(*rows: tuple) -> list[dict]:
+    """Played songs: (songid, artist, genres "A/B"[, days ago, 2 by default])."""
     return [
         {
             "songid": n,
@@ -158,8 +164,9 @@ def played(*rows: tuple[int, str, str]) -> list[dict]:
             "artist": [a],
             "albumartist": [a],
             "genre": g.split("/"),
+            "lastplayed": ago(days[0] if days else 2),
         }
-        for n, a, g in rows
+        for n, a, g, *days in rows
     ]
 
 
@@ -171,7 +178,7 @@ PLAYED = played(
     (5, "Fu Manchu", "Stoner"),
     (6, "Low", "Slowcore"),
     (7, "Codeine", "Slowcore"),
-    (8, "Duster", "Slowcore"),
+    (8, "Duster", "Slowcore", 0),  # the last played: its card leads
     (9, "Mogwai", "Post-rock"),  # two artists only: no mix
     (10, "Slint", "Post-rock"),
     (11, "Mogwai", "Post-rock"),
@@ -210,13 +217,29 @@ class Daily(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
 
-    def test_genres_by_songs_played(self):
+    def test_genres_by_weight_the_last_played_first(self):
         genres = [genre for genre, _ in mix.leading_genres(PLAYED)]
         # Desert's songs all seed Stoner: passed over; Post-rock has two artists
-        self.assertEqual(genres, ["Stoner", "Drone", "Slowcore"])
+        self.assertEqual(genres, ["Slowcore", "Stoner", "Drone"])
+
+    def test_the_newest_listening_leads(self):  # N88: a month of hip hop, then this
+        rap = [(n, f"MC{n % 4}", "Hip Hop", 25) for n in range(20)]
+        rap += [
+            (20, "MC0", "Hip Hop/Classical", 25),
+            (21, "MC1", "Hip Hop/Classical", 25),
+        ]
+        bach = [(30 + n, f"Composer{n % 3}", "Classical", 0) for n in range(6)]
+        genres = [genre for genre, _ in mix.leading_genres(played(*rap, *bach))]
+        self.assertEqual(genres, ["Classical", "Hip Hop"])  # its rappers don't block it
+
+    def test_by_weight_the_newest_likeliest_first(self):
+        mix.random.seed(2)
+        songs = played((1, "Low", "Slowcore", 0), (2, "Low", "Slowcore", 28))
+        firsts = Counter(mix.by_weight(songs)[0]["songid"] for _ in range(2000))
+        self.assertAlmostEqual(firsts[1] / 2000, 1 / (1 + 0.5**4), delta=0.02)
 
     def test_a_genre_mix_keeps_to_it_and_leans_on_its_leads(self):
-        seeds = mix.leading_genres(PLAYED)[0][1]
+        seeds = dict(mix.leading_genres(PLAYED))["Stoner"]
         drawn = mix.genre_mix("Stoner", seeds)
         self.similar.assert_called_with(["Kyuss", "Sleep", "Fu Manchu"], "mix")
         kwargs = self.draws.call_args.kwargs
