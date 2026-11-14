@@ -232,6 +232,8 @@ Each song added carries `ListItem.Property(added_from)`: the seed song's artists
 joined with ` / `. Read it as `MusicPlayer.Property(added_from)` while the song plays,
 or on a list of the queue, for a "because you played" line. If the music playlist
 window is open, it is refreshed, since a song added from Python doesn't refresh it.
+`player_album_path` is set again once the queue grows, so a queue that was exactly
+the album's songs now gets the album's path.
 
 It does nothing in party mode (Kodi fills that queue itself), with repeat all on (the
 queue loops), for a song outside the library (there is no seed), and when Kodi isn't
