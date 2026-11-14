@@ -8,7 +8,7 @@ import sys
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta
-from functools import cached_property, partial
+from functools import cache, cached_property, partial
 from operator import itemgetter
 from typing import Any, Callable
 
@@ -49,10 +49,12 @@ from resources.lib.plugin.library import (
 from resources.lib.plugin.music import (
     ALBUM_RANK_PROPERTIES,
     ALBUM_SONG_PROPERTIES,
+    POPULAR,
     SONG_RANK_PROPERTIES,
     WEIGHTS,
+    album_credit,
     artist_identity,
-    compact_count,
+    artist_places,
     deezer_match,
     details_item,
     dial_item,
@@ -62,6 +64,7 @@ from resources.lib.plugin.music import (
     rank_albums,
     rank_songs,
     similar_artists,
+    song_place,
 )
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
@@ -118,6 +121,7 @@ _VIDEO_METHODS = {
 _MUSIC_NAMES = {"album": "album", "artist": "artist", "song": "title"}  # name field
 # TMDb's show status as _show_news's show_status: no more episodes, or more to come
 _SHOW_STATUS = {"Canceled": "ended", "Ended": "ended", "Returning Series": "returning"}
+_LABEL = "popularity_label"  # the handler's name: its item's path, its calls' parent
 
 
 def _video_details(
@@ -2187,18 +2191,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not self._require("id"):
             return
         artistid = int(self.dbid)
-        albums = library_rows(
-            "album",
-            {"artistid": artistid},
-            None,
-            None,
-            "discography",
-            ALBUM_RANK_PROPERTIES,
-        )
-        # as the artist's folder: albums it only features on need Kodi's "Show song
-        # and album artists" (JSON-RPC's artistid filter takes song artists too)
-        if not condition("System.GetBool(musiclibrary.showcompilationartists)"):
-            albums = [album for album in albums if artistid in album["artistid"]]
+        albums = self._artist_albums(artistid, "discography")
         rankings, songs = [], []
         if albums and (deezer.enabled() or listenbrainz.enabled()):
             # Top songs' own lists and order, so the two rails agree
@@ -2209,35 +2202,120 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         rows = rank_albums(rankings, songs, albums)[: self.limit]
         return [library_item(row, "album") for row in rows] or None
 
+    @staticmethod
+    def _artist_albums(artistid: int, parent: str) -> list[dict]:
+        """
+        A library artist's albums as its folder shows them: albums it only features on
+        need Kodi's "Show song and album artists" (the artistid filter takes song
+        artists too).
+
+        :param artistid: Library artist id.
+        :param parent: Caller name for logging.
+        :return: Album rows with ALBUM_RANK_PROPERTIES, possibly empty.
+        """
+        albums = library_rows(
+            "album", {"artistid": artistid}, None, None, parent, ALBUM_RANK_PROPERTIES
+        )
+        if condition("System.GetBool(musiclibrary.showcompilationartists)"):
+            return albums
+        return [album for album in albums if artistid in album["artistid"]]
+
     @log.duration
-    def listeners(self) -> list[DirectoryItem] | None:
+    def popularity_label(self) -> list[DirectoryItem] | None:
         """
-        One item whose listeners property is ListenBrainz's listener count for
-        library artist, album or song ``self.dbid``, compact ("1.2M").
+        One item labelled with how popular library artist, album or song ``self.dbid``
+        is, never a number: with Deezer on "Charting" or "Popular", "#2 song" or "Most
+        popular album"; with it off, an artist's place in your plays ("Your #3 artist").
 
-        :return: List of one directory item, or None if unknown or access off.
+        :return: List of one directory item, or None with no label.
         """
-        from resources.lib.apis import listenbrainz
+        from resources.lib.apis import deezer
 
-        if not (
-            self.dbtype in MUSIC_TYPES
-            and listenbrainz.enabled()
-            and self._require("id")
-        ):
+        if not (self.dbtype in MUSIC_TYPES and self._require("id")):
             return
-        entity, mbid = listenbrainz.musicbrainz_id(
-            self.dbtype, int(self.dbid), "listeners"
-        )
-        if not (mbid and (count := listenbrainz.listeners(entity, mbid))):
+        dbid = int(self.dbid)
+        if deezer.enabled():
+            words = {
+                "album": self._album_word,
+                "artist": self._artist_word,
+                "song": self._song_word,
+            }
+            label = words[self.dbtype](dbid)
+        elif self.dbtype == "artist" and dbid in (places := artist_places(_LABEL)):
+            label = ADDON.getLocalizedString(32999) % (places.index(dbid) + 1)
+        else:  # an album's or song's word without Deezer: not decided (N13)
             return
-        return set_items(
-            [
-                {
-                    "file": plugin_path("listeners"),
-                    "properties": {"listeners": compact_count(count)},
-                }
-            ]
-        )
+        if label:
+            return set_items([{"file": plugin_path(_LABEL), "label": label}])
+
+    def _artist_word(self, artistid: int) -> str:
+        """
+        "Charting" for an artist in Deezer's artist chart today, else "Popular" with
+        POPULAR Deezer fans or more; nothing below, so no artist reads as unpopular.
+
+        :param artistid: Library artist id.
+        :return: The word, or "" for none.
+        """
+        from resources.lib.apis import deezer
+
+        name, mbid = artist_identity(artistid, _LABEL)
+        songs = cache(lambda: self._artist_songs(artistid, ["album", "title"], _LABEL))
+        key = deezer.artist_key(mbid, name)
+        match = deezer.artist_match(key, name, lambda rows: deezer_match(songs(), rows))
+        if not match:
+            return ""
+        if match[0] in deezer.chart():
+            return ADDON.getLocalizedString(32995)
+        return ADDON.getLocalizedString(32996) if match[1] >= POPULAR else ""
+
+    def _album_word(self, albumid: int) -> str:
+        """
+        "Most popular album" for the album that leads Discography's popularity order;
+        none for a compilation, whose first artist is Various Artists.
+
+        :param albumid: Library album id.
+        :return: The word, or "" for none.
+        """
+        album = self._music_details("album", albumid, ["artistid", "compilation"])
+        if album["compilation"]:
+            return ""
+        artistid = album["artistid"][0]
+        albums = self._artist_albums(artistid, _LABEL)
+        rankings, songs = self._popularity(artistid, ALBUM_SONG_PROPERTIES, _LABEL)
+        credit = album_credit(rankings, songs, albums)
+        if credit[albumid] and credit[albumid] == max(credit.values()):
+            return ADDON.getLocalizedString(32998)
+        return ""
+
+    def _song_word(self, songid: int) -> str:
+        """
+        "#2 song": the song's place in its first artist's Top songs, within PLACES.
+
+        :param songid: Library song id.
+        :return: The word, or "" for none.
+        """
+        song = self._music_details("song", songid, ["artistid", "title"])
+        properties = [*ALBUM_SONG_PROPERTIES, "playcount"]
+        rankings, songs = self._popularity(song["artistid"][0], properties, _LABEL)
+        place = song_place(rankings, songs, song["title"])
+        return ADDON.getLocalizedString(32997) % place if place else ""
+
+    @staticmethod
+    def _music_details(type: str, dbid: int, properties: list[str]) -> dict:
+        """
+        A library album's or song's details, for popularity_label.
+
+        :param type: album or song.
+        :param dbid: Library id.
+        :param properties: Properties to fetch.
+        :return: The details object.
+        """
+        return json_call(
+            DETAILS[type],
+            properties=properties,
+            params={f"{type}id": dbid},
+            parent=_LABEL,
+        )["result"][f"{type}details"]
 
     @log.duration
     def soundtracks(self) -> list[DirectoryItem] | None:
