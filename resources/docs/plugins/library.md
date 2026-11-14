@@ -420,8 +420,9 @@ A song matches a ListenBrainz recording by its MusicBrainz recording id
 punctuation and a trailing `(feat. …)`, `[Remaster]` or ` - Live` part are ignored.
 Deezer has no MusicBrainz ids, so its tracks match by title (Deezer's title without
 its version, such as "(Album Version)"). Each title appears once, from its earliest
-dated release (a single, with fewer than four of the artist's songs, after an album of
-the same year) unless a recording id matched another. The path returns nothing when
+dated release (a single, with fewer than four different songs, after an album of the
+same year; two same-year albums in the order the library returns them) unless a
+recording id matched another. The path returns nothing when
 no source answers for the artist or no song matches, so a list never holds the play
 counts alone. The items are music library songs, as in [`genre_music`](#genre_music);
 the container's content is `songs`.
@@ -480,10 +481,11 @@ most popular first, then the albums no source ranks, newest first. It ranks with
 `top_songs`' sources, settings and blend: each song's `top_songs` score counts for the
 album holding the song `top_songs` would show (the earliest release, unless a
 ListenBrainz MBID matched), and albums go by their total, so the two rails agree.
-Another edition of an album, or a live album, gets credit only through a matched MBID,
-or when the listed albums hold no other copy. Only the listed albums' songs count: a
-hit first released on a compilation the list leaves out credits the listed album that
-holds it.
+A later edition of an album, or a later live album, gets credit only through a
+matched MBID, or when the listed albums hold no other copy. One from the same year
+can take it (the first the library returns, and ahead of a single: Deezer's rows
+match by title only). Only the listed albums' songs count: a hit first released on a
+compilation the list leaves out credits the listed album that holds it.
 
 With neither source on, no MusicBrainz id for ListenBrainz alone, or no answer, all
 albums come newest first (with ListenBrainz alone, the artist's songs aren't read);
