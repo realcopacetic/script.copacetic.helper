@@ -56,11 +56,11 @@ library infolabels and artwork, so your existing layouts work with them.
 - TV shows are folders, with the path `videodb://tvshows/titles/<DBID>/`, so
   selecting one opens the show as in the library. Other video items are not folders;
   their path is the library file path.
-- Music albums (`random_albums`, `genre_music`, `discography`, `soundtracks`) carry
+- Music albums (`random_albums`, `genre_music`, `similar_music`, `discography`, `soundtracks`) carry
   the album's artist credit in `ListItem.Artist`, as Kodi's own album items do, for
   example `JAY-Z & Kanye West`. So it matches `ListItem.AlbumArtist` on the album's
   songs. Songs carry their artist names joined with ` / `.
-- Music artists (`random_genre` and `genre_music` with artists) carry the details Kodi's
+- Music artists (`random_genre`, `genre_music` and `similar_music` with artists) carry the details Kodi's
   own artist items carry as properties: `ListItem.Property(artist_type)` (for example
   `Person` or `Group`), `artist_born`, `artist_died`, `artist_formed`,
   `artist_disbanded` and `artist_yearsactive`. Use `artist_type` to choose between born
@@ -167,12 +167,24 @@ content is `songs`.
 Up to six mix cards made from the songs you played in the last 30 days. Each card is
 one genre: the genres are ranked by the plays of those songs, and each needs three
 artists in it. Its three most played artists lead it; a genre whose first artist
-already leads a card is passed over, so the cards differ. The cards are worked out on
-the day's first call and kept in the helper's cache for the day, so they don't move
-while today's plays change what was played last.
+already leads a card is passed over, so the cards differ.
 
-Each card's label is *Genre* mix and its `Label2` its lead artists, joined with `, `.
-`ListItem.Property(Artist_Description)` names its first eight artists, leads then
+A call sets `Window(home).Property(daily_mixes_wanted)`. This tells the helper's
+background service that the skin shows the mixes. The service then looks up each lead
+artist's similar artists (as [`similar_music`](#similar_music) does), keeps those with
+songs in the card's genre, and keeps the day's mixes in the helper's cache. From then
+on the cards don't move while today's plays change what was played last. The service
+looks once more about 15 minutes later, to fill what the first look missed, then not
+until the next day. Until the service has kept the day, each call works the cards out
+again from your plays, with lead artists only and no network requests.
+
+Each time the kept mixes change, the service sets
+`Window(home).Property(daily_mixes_version)` to a new value. Put it in the path, so the
+list refetches with the similar artists.
+
+Each card's label is *Genre* mix, its `Label2` its lead artists, joined with `, `, and
+its `Genre` the genre. `ListItem.Property(eyebrow)` is a short heading, "Daily mix · 50
+songs". `ListItem.Property(Artist_Description)` names its first eight artists, leads then
 similar ones, as "A, B and C." or "A, …, H and more.". Its art is those artists'
 thumbs as square multiart (`square`, `square1` …, up to 25), with
 `DefaultMusicGenres.png` as the icon.
@@ -185,7 +197,7 @@ thumbs as square multiart (`square`, `square1` …, up to 25), with
 | `limit` | whole number | — | Most cards to return. |
 
 ```xml
-<content sortby="userpreference">plugin://script.copacetic.helper/?info=daily_mixes</content>
+<content sortby="userpreference">plugin://script.copacetic.helper/?info=daily_mixes&amp;v=$INFO[Window(home).Property(daily_mixes_version)]</content>
 <onclick>RunScript(script.copacetic.helper,action=start_mix,type=daily,id=$INFO[ListItem.Property(mix_genreid)])</onclick>
 ```
 
@@ -303,7 +315,7 @@ itself left out.
   them is credited on. Random order, as [`random_albums`](#random_albums)
   (`randomise=`), `exclude_value` left out.
 
-Fewer than `limit` are topped up from [`genre_music`](#genre_music) with the same
+Fewer than `limit` (or any number, with no `limit`) are topped up from [`genre_music`](#genre_music) with the same
 `label`, `exclude_value` and `randomise`, and the artist's album genres. With no `id`
 (an item outside the library), a compilation album, no similar artist in the
 library, or neither source on, it is `genre_music` alone. The
@@ -315,7 +327,7 @@ same similar artists.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `type` | `artist`, `album`, `song` | required | What to list |
-| `id` | the seed's `DBID` | required | The artist (album or song with `seed`) |
+| `id` | the seed's `DBID` | — | The artist (album or song with `seed`). Without it, `genre_music` alone |
 | `seed` | `artist`, `album`, `song` | `artist` | What `id` is |
 | `label` | genres, ` / ` joined | — | Genres for the top-up |
 | `exclude_value` | a name | — | Leaves one out of the top-up |
