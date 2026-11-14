@@ -453,8 +453,9 @@ An older answer is shown while a source is unreachable. **Clear addon cache** fo
 them all; *Cache › Clear TMDb / ListenBrainz / Deezer data* forget one source's, and
 **Refresh cached data** one artist's.
 ListenBrainz requests are spaced at least a second apart across all plugin calls, as
-ListenBrainz asks: a call inside that second waits its turn (an artist's info opens
-three at once, so the last fills about two seconds in). When the queue is more than
+ListenBrainz asks: a call inside that second waits its turn, then takes the answer
+another call stored meanwhile rather than asking again (an artist's info opens several
+at once, and Top songs and Discography ask the same list). When the queue is more than
 three seconds long, the call shows the saved answer or nothing, and the next open
 fetches. Deezer needs no spacing: a first open of an artist makes two requests
 (search and top tracks), later opens none until the week is up. The log has one
