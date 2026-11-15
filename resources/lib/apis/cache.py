@@ -76,8 +76,9 @@ def cached(
         wait = failure_ttl(exc)
         if exc.status == 429 and queue and exc.code != ONE_MEDIA:
             home.setProperty(queue, f"{slot + wait}")
-        # A call racing this one may have stored an answer meanwhile: it stands
-        if (row := cache.get(key)) and row[1]:
+        # A racing call's fresh answer stands; its failure row holds the same stale
+        # read as this call's payload, so that one is simply stored again
+        if (row := cache.get(key)) and row[1] and row[0] != payload:
             return row[0]
         cache.put(key, payload, wait)  # keeps a stale answer, else a negative one
         return payload

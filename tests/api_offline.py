@@ -1271,6 +1271,16 @@ class DeezerTest(Base):
         self.assertEqual(cache.cached(key, fetch, (DAY, DAY)), match)
         self.assertEqual(self.deezer_row(f"match:{QOTSA}"), (match, 90 * DAY))
 
+    def test_failure_stores_its_own_over_a_racing_failure(self):
+        key = f"deezer:match:{QOTSA}"
+
+        def fetch():  # a sibling failed first and stored the same empty read
+            self.cache.put(key, None, 300)
+            raise http.HttpError(429)
+
+        self.assertIsNone(cache.cached(key, fetch, (DAY, DAY)))
+        self.assertEqual(self.deezer_row(f"match:{QOTSA}"), (None, 60))  # 429's wait
+
     def test_quota_answer_is_an_error(self):
         self.net.answers = [DEEZER_QUOTA]
         self.assertEqual(self.top(), [])
