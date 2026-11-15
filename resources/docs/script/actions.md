@@ -1255,10 +1255,12 @@ genres of its artists' albums. The first mix for an artist can take a few second
 while Deezer and ListenBrainz answer; later ones read the saved answers.
 
 - **Song, album or artist:** the seed is one song, played first. For a song, that is
-  the song itself. For an album, or the artist's own albums, it is one of its ten
-  most played songs, picked at random from those you haven't heard in the last three
-  days while any are left. About a quarter of the mix (a song's) or a third (an
-  album's or artist's) is by its artists.
+  the song itself. For an album, or the artist's own albums (any song they're
+  credited on, for an artist with no album of their own), it is one of its ten most
+  played songs, picked at random from those you haven't heard in the last three days
+  while any are left. About a quarter of the mix (a song's) or a third (an album's or
+  artist's) is by its artists, and a similar artist who is also one of them gets no
+  second share.
 - **Genre:** the seeds are the songs of the genre you played in the last 30 days,
   and every song of the mix is of the genre. About 15 of the 50 are by the artists
   you played in it, the first half of those the seeds themselves, drawn at random
@@ -1269,11 +1271,16 @@ while Deezer and ListenBrainz answer; later ones read the saved answers.
   `ListItem.Property(mix_genres)`, the genre as a JSON list, so the
   [endless queue](../service/player.md#endless-queue) keeps to the genre.
 - **Daily:** a [`daily_mixes`](../plugins/library.md#daily_mixes) card's mix, by its
-  genre's id: the mix of that genre's bucket as the card drew it today, so it plays
-  what the card names. With none kept (the cache was cleared, or the day turned since
-  the card loaded), it draws the bucket's mix, a genre mix on every library genre in
-  the bucket, and keeps it for the card. Its songs carry the bucket's genres in
+  genre's id: the mix of that genre's bucket as the card drew it, so it plays what
+  the card names, even past midnight or after the mix was marked for a redraw: only
+  the list loading again draws the card anew. With none kept (the cache was
+  cleared), it draws the bucket's mix, a genre mix on every library genre in the
+  bucket, and keeps it for the card. Its songs carry the bucket's genres in
   `mix_genres`.
+
+A genre or daily mix starts playing from the saved similar artists alone; Deezer and
+ListenBrainz are asked once it plays, for the next mix. A genre gone from the library
+since its item or card loaded plays nothing.
 - **Year:** 50 random songs of that year, at most three by any one artist while
   others have songs.
 

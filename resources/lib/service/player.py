@@ -502,6 +502,7 @@ class PlayerMonitor(Player):
         self._record_speed_dial(songid)
         if (
             songid > 0
+            and item  # Player.GetItem answered
             and condition(ENDLESS_QUEUE)
             and self._extend_queue(item | {"songid": songid})
         ):
@@ -577,19 +578,23 @@ class PlayerMonitor(Player):
             return False
         from resources.lib.plugin.music import artist_names, similar_artists
 
-        queued = self._queue_ids()
+        queued, queue = self._queue_ids(), _queue_key(playlist)
         # A genre or daily mix's songs carry its genres (JSON), and so do their growths
         genres = infolabel("MusicPlayer.Property(mix_genres)")
         # a ListenBrainz wait runs queued callbacks: a skip's onAVStarted can land here
         self._growing = True
         try:
-            owned = artist_names("endless_queue", album_artists=True)
-            similar = similar_artists(lead_id(song), "endless_queue", owned)
+            if artistid := lead_id(song):
+                owned = artist_names("endless_queue", album_artists=True)
+                similar = similar_artists(artistid, "endless_queue", owned)
+            else:  # a song with no artist ids
+                similar = []
             keep = genre_rule(json.loads(genres)) if genres else None
             songs = mix_songs([song], QUEUE_GROWTH, queued, similar=similar, keep=keep)
         finally:
             self._growing = False
-        if not songs:
+        # Another queue started while it drew (a mix, an album): it isn't this one's
+        if not songs or _queue_key(playlist) != queue:
             return False
         added_from = " / ".join(song["artist"])
         add_songs(playlist, songs, added_from=added_from, mix_genres=genres)

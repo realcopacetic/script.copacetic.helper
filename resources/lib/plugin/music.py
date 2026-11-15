@@ -454,13 +454,18 @@ def similar_artists(
     return [owned[key] for key in ranked if key in owned]
 
 
-def similar_to(names: list[str], parent: str) -> list[str]:
+def similar_to(
+    names: list[str],
+    parent: str,
+    owned: Callable[[], dict[str, str]] | None = None,
+) -> list[str]:
     """
     Library artists like all of these library artists, fused (similar_artists each),
     the artists themselves left out: a genre mix's, from its leads.
 
     :param names: Library artist names.
     :param parent: Caller name for logging.
+    :param owned: Returns artist_names(album_artists=True), shared; None to fetch it.
     :return: Library artist names, closest first.
     """
     rows = json_call(
@@ -469,7 +474,7 @@ def similar_to(names: list[str], parent: str) -> list[str]:
         params={"albumartistsonly": False},
         parent=parent,
     )["result"].get("artists", [])
-    owned = artist_names(parent, album_artists=True)
+    owned = owned() if owned else artist_names(parent, album_artists=True)
     scores = fused((1, similar_artists(row["artistid"], parent, owned)) for row in rows)
     return [artist for artist, _ in scores.most_common() if artist not in names]
 

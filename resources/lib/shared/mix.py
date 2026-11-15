@@ -2,7 +2,7 @@
 
 import random
 from collections import Counter, defaultdict
-from collections.abc import Collection, Iterable, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
 from datetime import date, datetime, time, timedelta
 from functools import reduce
 from math import ceil
@@ -119,14 +119,14 @@ def credits(song: dict) -> list[str]:
     return [a for a in song["albumartist"] if a in song["artist"]] or song["artist"]
 
 
-def lead_id(song: dict) -> int:
+def lead_id(song: dict) -> int | None:
     """
     The library id of the first artist a song counts for (credits).
 
     :param song: Song dict with artist, artistid and albumartist.
-    :return: Artist id.
+    :return: Artist id; None when the song lists no ids for its artists.
     """
-    return dict(zip(song["artist"], song["artistid"]))[credits(song)[0]]
+    return dict(zip(song["artist"], song["artistid"])).get(credits(song)[0])
 
 
 def artist_genres(artists: list[str]) -> list[str]:
@@ -252,6 +252,7 @@ def mix_songs(
 
     leads = Counter(artist for song in seeds for artist in credits(song))
     artists = [artist for artist, _ in leads.most_common()]
+    similar = [artist for artist in similar if artist not in leads]  # no second share
     fill = keep
     if seeds and not keep:  # the seeds' genres, else their artists'
         genres = [*dict.fromkeys(g for song in seeds for g in song["genre"])]
@@ -338,7 +339,11 @@ def leading_cards(played: Sequence[dict]) -> list[tuple[str, list[dict]]]:
     )
 
 
-def genre_mix(genres: Sequence[str], seeds: Sequence[dict]) -> dict:
+def genre_mix(
+    genres: Sequence[str],
+    seeds: Sequence[dict],
+    owned: Callable[[], dict[str, str]] | None = None,
+) -> dict:
     """
     A mix kept to genres (a card's, or a genre node's one), the same draw for a card
     and Start mix: seeded by the songs you played in them, the newest likeliest first
@@ -346,13 +351,14 @@ def genre_mix(genres: Sequence[str], seeds: Sequence[dict]) -> dict:
 
     :param genres: Genre names.
     :param seeds: Songs played in them lately (played_songs); none for their songs.
+    :param owned: Returns the album artists' names (similar_to), when draws share it.
     :return: Mix dict: songs in play order, leads, similar artists, genres by plays.
     """
     from resources.lib.plugin.music import similar_to
 
     counts = Counter(artist for song in seeds for artist in credits(song))
     leads = [artist for artist, _ in counts.most_common(DAILY_SEEDS)]
-    similar = similar_to(leads, "mix") if leads else []
+    similar = similar_to(leads, "mix", owned) if leads else []
     songs = mix_songs(
         by_weight(seeds),
         MIX_SIZE,
@@ -368,43 +374,68 @@ def genre_mix(genres: Sequence[str], seeds: Sequence[dict]) -> dict:
 
 def _mix_key(key: str) -> str:
     """
-    A card's kept mix's api_cache key: one row a card, replaced in place.
+    A card's kept mix's api_cache key: one row a card, replaced in place; v2, as a
+    row drawn before cards were buckets has no genres.
 
     :param key: Card (card).
     :return: Key.
     """
-    return f"library:mix:{key}"
+    return f"library:mix:v2:{key}"
 
 
-def kept_mix(key: str, seeds: Sequence[dict] | None = None) -> dict:
+def kept_mix(
+    key: str,
+    seeds: Sequence[dict] | None = None,
+    owned: Callable[[], dict[str, str]] | None = None,
+    stale: bool = False,
+) -> dict:
     """
-    A card's mix as kept until midnight, so a card names what its click plays;
-    drawn (genre_mix, its genres) and kept when there's none fresh.
+    A card's mix as kept, drawn (genre_mix, its genres) and kept until midnight when
+    there's none fresh; with stale, any kept row is played: the click, as only a rail
+    load redraws a card, so the click plays what its card names.
 
     :param key: Card (card).
     :param seeds: Songs played in it lately, if in hand; else read for a draw.
+    :param owned: Returns the album artists' names, shared by a rail's draws.
+    :param stale: Take a kept row whatever its age; draw only when there is none.
     :return: Mix dict (genre_mix).
     """
     store, cache_key = ApiCacheHandler(), _mix_key(key)
-    if (hit := store.get(cache_key)) and hit[1]:
+    if (hit := store.get(cache_key)) and (hit[1] or stale):
         return hit[0]
     genres = card_genres(key)
-    mix = genre_mix(genres, played_songs(genres) if seeds is None else seeds)
-    now = datetime.now()
-    midnight = datetime.combine(now.date() + timedelta(days=1), time())
-    store.put(cache_key, mix, int((midnight - now).total_seconds()) + 1)
+    mix = genre_mix(genres, played_songs(genres) if seeds is None else seeds, owned)
+    if (hit := store.get(cache_key)) and hit[1]:  # another call kept one meanwhile
+        return hit[0]
+    midnight = datetime.combine(date.today() + timedelta(days=1), time())
+    store.put(
+        cache_key, mix, int(midnight.timestamp() - datetime.now().timestamp()) + 1
+    )
     return mix
+
+
+def look_up_similar(mix: dict) -> bool:
+    """
+    Looks a mix's leads' similar artists up, network allowed (after playback starts,
+    as the draw read the cache alone), so the cache holds them for the next draw.
+
+    :param mix: Mix dict (genre_mix).
+    :return: Whether they answer otherwise than the mix was drawn with.
+    """
+    from resources.lib.plugin.music import similar_to
+
+    return (
+        bool(mix["leads"]) and similar_to(mix["leads"], "start_mix") != mix["similar"]
+    )
 
 
 def recheck_similar(key: str, mix: dict) -> None:
     """
-    Marks a kept mix stale when its leads' similar artists answer otherwise now, as
-    a script may look up what the plugin had no cache for: the next rail load redraws.
+    Marks a card's kept mix stale when its leads' similar artists answer otherwise
+    now (look_up_similar): the next rail load redraws it, and the card with it.
 
     :param key: Card (card).
     :param mix: Its kept mix dict.
     """
-    from resources.lib.plugin.music import similar_to
-
-    if mix["leads"] and similar_to(mix["leads"], "start_mix") != mix["similar"]:
-        ApiCacheHandler().expire(_mix_key(key))
+    if look_up_similar(mix):
+        ApiCacheHandler().put(_mix_key(key), mix, 0)  # this key alone, kept stale

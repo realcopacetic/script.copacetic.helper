@@ -183,7 +183,8 @@ every call, so a genre you start playing today gets its card the next time the l
 loads. A call makes no network requests: the similar artists are the ones already
 saved (from a Start mix, the endless queue or an info screen). When a click finds a
 lead artist's similar artists have changed since (it asks Deezer and ListenBrainz
-once playback has started), the card's mix is drawn again on the next load.
+once playback has started), the card's mix is drawn again on the next load; until
+then the card and its click keep the list it named.
 
 Each card is named by the genre of its bucket you played most: its label is *Genre*
 mix and its `Genre` that genre, so a skin's genre icon shows the bucket's.

@@ -8,7 +8,7 @@ import sys
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta
-from functools import cached_property, partial
+from functools import cache, cached_property, partial
 from operator import itemgetter
 from typing import Any, Callable
 
@@ -53,6 +53,7 @@ from resources.lib.plugin.music import (
     SONG_RANK_PROPERTIES,
     WEIGHTS,
     artist_identity,
+    artist_names,
     compact_count,
     deezer_match,
     details_item,
@@ -1759,9 +1760,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         the skin's click plays it (start_mix type=daily).
         """
         set_plugincontent(category=ADDON.getLocalizedString(32837))
+        # the album artists, read once and only if a card is drawn
+        owned = cache(partial(artist_names, "daily_mixes", album_artists=True))
         with cache_only():
             mixes = [
-                (key, kept_mix(key, seeds))
+                (key, kept_mix(key, seeds, owned))
                 for key, seeds in leading_cards(played_songs())[: self.limit]
             ]
         return mix_cards(mixes) if mixes else None  # none until there are plays
