@@ -156,7 +156,7 @@ def apply_tmdb_transform(name: str, value: Any) -> Any:
     """
     Apply a named TMDb transform function to a value.
 
-    :param name: Transform identifier (for example, "year_from_date").
+    :param name: Transform identifier (for example, "pick_best_trailer").
     :param value: Raw value extracted from TMDb JSON.
     :return: Transformed value, or original value if unknown or invalid.
     """
