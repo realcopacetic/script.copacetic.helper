@@ -54,13 +54,13 @@ from resources.lib.plugin.music import (
     WEIGHTS,
     album_credit,
     artist_identity,
-    artist_places,
     deezer_match,
     details_item,
     dial_item,
     library_item,
     library_rows,
     mix_card,
+    play_places,
     rank_albums,
     rank_songs,
     similar_artists,
@@ -2229,7 +2229,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         One item labelled with how popular library artist, album or song ``self.dbid``
         is, never a number: with Deezer on "Charting" or "Popular", "#2 song" or "Most
-        popular album"; with it off, an artist's place in your plays ("Your #3 artist").
+        popular album"; with it off, by your plays ("Your #3 artist").
 
         :return: List of one directory item, or None with no label.
         """
@@ -2245,12 +2245,26 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "song": self._song_word,
             }
             label = words[self.dbtype](dbid)
-        elif self.dbtype == "artist" and dbid in (places := artist_places(_LABEL)):
-            label = ADDON.getLocalizedString(32999) % (places.index(dbid) + 1)
-        else:  # an album's or song's word without Deezer: not decided (N13)
-            return
+        else:
+            label = self._play_word(dbid)
         if label:
             return set_items([{"file": plugin_path(_LABEL), "label": label}])
+
+    def _play_word(self, dbid: int) -> str:
+        """
+        With Deezer off, by the library's play counts: "Your #3 artist" within PLACES,
+        "Your most played album" for the one album; a song's word isn't decided (N13).
+
+        :param dbid: Library id of the ``self.dbtype`` item.
+        :return: The word, or "" for none.
+        """
+        if self.dbtype == "song" or dbid not in (
+            places := play_places(_LABEL)[self.dbtype]
+        ):
+            return ""
+        if self.dbtype == "album":
+            return ADDON.getLocalizedString(32994)
+        return ADDON.getLocalizedString(32999) % (places.index(dbid) + 1)
 
     def _artist_word(self, artistid: int) -> str:
         """

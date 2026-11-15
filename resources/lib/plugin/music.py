@@ -436,26 +436,31 @@ def artist_names(parent: str) -> dict[str, str]:
     }
 
 
-def artist_places(parent: str) -> list[int]:
+def play_places(parent: str) -> dict[str, list[int]]:
     """
-    The library's most played artists, by their songs' summed play counts (a duet
-    counts for each); worked out once a day.
+    The library's most played artists and its most played album, by their songs'
+    summed play counts (a duet counts for each artist); worked out once a day.
 
     :param parent: Caller name for logging.
-    :return: Up to PLACES library artist ids, most played first.
+    :return: {"artist": up to PLACES ids, most played first, "album": [its id]}.
     """
     from resources.lib.apis.cache import DAY, cached
 
-    def count() -> list[int]:
-        plays = Counter()
+    def count() -> dict[str, list[int]]:
+        artists, albums = Counter(), Counter()
         played = {"field": "playcount", "operator": "greaterthan", "value": "0"}
         for song in library_rows(
-            "song", played, None, None, parent, ["artistid", "playcount"]
+            "song", played, None, None, parent, ["albumid", "artistid", "playcount"]
         ):
-            plays.update(dict.fromkeys(song["artistid"], song["playcount"]))
-        return [artistid for artistid, _ in plays.most_common(PLACES)]
+            artists.update(dict.fromkeys(song["artistid"], song["playcount"]))
+            albums[song["albumid"]] += song["playcount"]
+        (first, plays), (_, runner_up) = [*albums.most_common(2), (0, 0), (0, 0)][:2]
+        return {
+            "artist": [artistid for artistid, _ in artists.most_common(PLACES)],
+            "album": [first] if plays > runner_up else [],  # a tie leads nothing
+        }
 
-    return cached("library:artist-places", count, (DAY, DAY)) or []
+    return cached("library:play-places", count, (DAY, DAY))
 
 
 def similar_artists(
