@@ -1716,10 +1716,18 @@ class PopularityLabelTest(Base):
         for credit, shown in (
             ({2: 0.5, 8: 0.2}, "Most popular album"),
             ({2: 0.5, 8: 0.5}, None),  # a tie: Discography's newer first isn't a lead
-            ({2: 0.5}, None),  # the only credited album: no ranking
+            ({2: 0.5}, "Most popular album"),  # every top song on it: the rest score 0
+            ({}, None),  # nothing credited
         ):
             patch(self, (handlers, "album_credit", lambda *a, c=credit: Counter(c)))
             self.assertEqual(self.label("album", 2), shown)
+        one = [album(2, "Songs for the Deaf", 2002)]  # an artist's only album
+        patch(
+            self,
+            (handlers, "album_credit", lambda *a: Counter({2: 0.5})),
+            (handlers.PluginHandlers, "_artist_albums", lambda *a: one),
+        )
+        self.assertIsNone(self.label("album", 2))
 
     def test_album_unranked_says_nothing(self):
         self.net.answers = [URLError("offline")]
