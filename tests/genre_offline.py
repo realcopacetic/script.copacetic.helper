@@ -1,18 +1,23 @@
 """
 Offline checks for the genre buckets (shared/genres.py): any case, a whole
 ListItem.Genre of several genres, exceptions before the terms they'd fall to,
-unknown genres; and the builder's music_genres mapping, a row a term in order.
+MusicBrainz subgenres by their parent's bucket, unknown genres; every MusicBrainz
+genre as the last snapshot left it; the music_genres mapping, a row a term in order.
 Run from the helper root: python tests/genre_offline.py
 """
 
+import json
 import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+HELPER = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(HELPER))
 
 from resources.lib.shared import genres  # noqa: E402
 from resources.lib.shared.genres import genre_bucket  # noqa: E402
+
+FIXTURE = HELPER / "tests/fixtures/genre_buckets.json"  # genre_snapshot.py writes it
 
 
 class Lookup(unittest.TestCase):
@@ -31,9 +36,19 @@ class Lookup(unittest.TestCase):
         self.assertEqual(genre_bucket("Happy Hardcore"), "Electronic")  # not Hardcore
         self.assertIsNone(genre_bucket("Maskanda"))  # not ska's: the fallback
 
+    def test_a_subgenre_takes_its_parents_bucket(self):
+        self.assertEqual(genre_bucket("Phonk"), "HipHop")  # subgenre of hip hop
+        self.assertEqual(genre_bucket("No Wave"), "Rock")  # not wave's Electronic
+        self.assertIsNone(genre_bucket("Doina"))  # in none, though oi is Punk
+
     def test_unknown(self):
-        self.assertIsNone(genre_bucket("Zeuhl-adjacent Yodel"))
+        self.assertIsNone(genre_bucket("Zzyzx"))
         self.assertIsNone(genre_bucket(""))
+
+    def test_every_musicbrainz_genre_as_the_snapshot_left_it(self):
+        table = json.loads(FIXTURE.read_text())
+        changed = {g: b for g, b in table.items() if genre_bucket(g) != b}
+        self.assertEqual(changed, {}, "the rules changed: run tests/genre_snapshot.py")
 
 
 class Mapping(unittest.TestCase):

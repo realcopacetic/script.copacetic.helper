@@ -38,9 +38,14 @@ python tests/soundtracks_offline.py
 python tests/mix_offline.py
 
 # Genre buckets (shared/genres.py): any case, a whole ListItem.Genre of several genres
-# (the first row found), exceptions before the keywords they'd fall to, unknown
-# genres; the builder's music_genres mapping, a row a term in order
+# (the first row found), exceptions before the keywords they'd fall to, MusicBrainz
+# subgenres by their parent's bucket, unknown genres; every MusicBrainz genre as the
+# last snapshot left it (fixtures/genre_buckets.json); the music_genres mapping
 python tests/genre_offline.py
+
+# By hand, when MusicBrainz adds genres or EXCEPTIONS/KEYWORDS change (network, an hour
+# or more at MusicBrainz's request a second): rewrites SUBGENRES and the fixture
+python tests/genre_snapshot.py
 
 # Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,
 # unless a tile has no other image free

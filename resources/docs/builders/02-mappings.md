@@ -228,7 +228,8 @@ Spread one mapping's inputs across as many files as you like — they all share 
 A static mapping the addon builds from `resources/lib/shared/genres.py`, the same table the [daily mixes](../plugins/library.md#daily_mixes) group their cards by. Its items are the terms a genre icon tests, in the order to test them, each `{genre_keyword}`; its `metadata` gives each term's `genre_bucket`: a bucket name (`HipHop`, `PostRock` …), or `none` for a genre that should show the skin's fallback. Kodi picks the first row whose term `ListItem.Genre` contains, so the order does the work:
 
 1. exceptions: genres a later, shorter term would file wrongly (`dancehall` before `dance`, `wassoulou` before `soul`);
-2. each bucket's terms, narrow buckets before the broad ones they split from (Blues before Rock, Techno before Electronic).
+2. each bucket's terms, narrow buckets before the broad ones they split from (Blues before Rock, Techno before Electronic);
+3. MusicBrainz genres no term finds, by the bucket of the genre MusicBrainz lists them as a subgenre of (`phonk` under Hip Hop), the longest first so none is found inside another (`no wave` before `wave`), and `none` for a genre in no bucket that holds one of their names (`doina`, which holds `oi`). From a snapshot `tests/genre_snapshot.py` refreshes by hand; `tests/genre_offline.py` checks every MusicBrainz genre still gets its bucket.
 
 One template row gives a skin its icon cascade, a block so a `none` term keeps its place:
 
