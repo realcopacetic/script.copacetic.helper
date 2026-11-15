@@ -225,25 +225,26 @@ Spread one mapping's inputs across as many files as you like — they all share 
 
 ## `music_genres` — the helper's genre buckets
 
-A static mapping the addon builds from `resources/lib/shared/genres.py`, the same table the [daily mixes](../plugins/library.md#daily_mixes) group their cards by. Its items are the terms a genre icon tests, in the order to test them, each `{genre_keyword}`; its `metadata` gives each term's `genre_bucket`: a bucket name (`HipHop`, `PostRock` …), or `none` for a genre that should show the skin's fallback. Kodi picks the first row whose term `ListItem.Genre` contains, so the order does the work:
+A static mapping the addon builds from `resources/lib/shared/genres.py`, the same table the [daily mixes](../plugins/library.md#daily_mixes) group their cards by. Its items are the terms a genre icon tests, in the order to test them, each `{genre_keyword}`; its `metadata` gives each term's `genre_bucket`, a bucket name (`HipHop`, `PostRock` …) or `none` for a genre that should show the skin's fallback, and its `genre_match`, how to test it. Kodi takes the first row that matches, so the order does the work:
 
-1. exceptions: genres a later, shorter term would file wrongly (`dancehall` before `dance`, `wassoulou` before `soul`);
-2. each bucket's terms, narrow buckets before the broad ones they split from (Blues before Rock, Techno before Electronic);
-3. MusicBrainz genres no term finds, by the bucket of the genre MusicBrainz lists them as a subgenre of (`phonk` under Hip Hop), the longest first so none is found inside another (`no wave` before `wave`), and `none` for a genre in no bucket that holds one of their names (`doina`, which holds `oi`). From a snapshot `tests/genre_snapshot.py` refreshes by hand; `tests/genre_offline.py` checks every MusicBrainz genre still gets its bucket.
+1. exceptions (`contains`, found anywhere in `ListItem.Genre`): genres a later, shorter term would file wrongly (`dancehall` before `dance`, `wassoulou` before `soul`);
+2. each bucket's keywords (`contains`), narrow buckets before the broad ones they split from (Blues before Rock, Techno before Electronic);
+3. MusicBrainz genres no term finds (`tag`, a whole tag only, so `oi` is not found in "Choir"), by the bucket of the genre MusicBrainz lists them as a subgenre of (`phonk` under Hip Hop). From a snapshot `tests/genre_snapshot.py` refreshes by hand; `tests/genre_offline.py` checks every MusicBrainz genre still gets its bucket.
 
-One template row gives a skin its icon cascade, a block so a `none` term keeps its place:
+A template block gives a skin its icon cascade. A `tag` row tests the whole tag between Kodi's default music `itemseparator`, ` / ` (a skin whose users change it gets these rows only for an item with one genre); its `String.Contains` comes first, false for nearly every row, so the four tag tests run only on a hit:
 
 ```json
 "values": [
   [
-    { "filter": "not equals({genre_bucket}, none)", "condition": "String.Contains(ListItem.Genre,{genre_keyword})", "value": "icons/genres/{genre_bucket}.png" },
-    { "filter": "equals({genre_bucket}, none)", "condition": "String.Contains(ListItem.Genre,{genre_keyword})", "value": "icons/MusicNote.png" }
+    { "filter": "equals({genre_match}, contains) + not equals({genre_bucket}, none)", "condition": "String.Contains(ListItem.Genre,{genre_keyword})", "value": "icons/genres/{genre_bucket}.png" },
+    { "filter": "equals({genre_bucket}, none)", "condition": "String.Contains(ListItem.Genre,{genre_keyword})", "value": "icons/MusicNote.png" },
+    { "filter": "equals({genre_match}, tag)", "condition": "String.Contains(ListItem.Genre,{genre_keyword}) + [String.IsEqual(ListItem.Genre,{genre_keyword}) | String.StartsWith(ListItem.Genre,{genre_keyword} /) | String.EndsWith(ListItem.Genre,/ {genre_keyword}) | String.Contains(ListItem.Genre,/ {genre_keyword} /)]", "value": "icons/genres/{genre_bucket}.png" }
   ],
   { "value": "icons/MusicNote.png" }
 ]
 ```
 
-A template that borrows the list with `items_from` reads the bucket as `{@music_genres:{genre_keyword}.genre_bucket}`. Bucket names are generic and the icons are the skin's: a skin ships an image per bucket it shows, or its own `music_genres`.
+Kodi trims a param's outer spaces (`CUtil::SplitParams`), hence `phonk /` for `"phonk / "`. A template that borrows the list with `items_from` reads a term's fields as `{@music_genres:{genre_keyword}.genre_bucket}`. Bucket names are generic and the icons are the skin's: a skin ships an image per bucket it shows, or its own `music_genres`.
 
 ---
 

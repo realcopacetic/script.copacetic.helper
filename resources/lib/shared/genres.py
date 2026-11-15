@@ -1,11 +1,12 @@
 # author: realcopacetic
 """
 Music genre buckets: a skin's genre icons and the daily mixes' cards. A genre's
-bucket is the first row with a term found in it (lower case): EXCEPTIONS, KEYWORDS,
-then the MusicBrainz genres no term finds, by their parent's bucket (SUBGENRES).
+bucket is the first row with a term found in it (lower case): EXCEPTIONS, KEYWORDS;
+else a MusicBrainz genre no term finds, a whole tag, by its parent's (SUBGENRES).
 """
 
 from functools import cache
+from string import ascii_lowercase, ascii_uppercase
 
 # Genres a later, shorter keyword would mis-file (dancehall and dance, rave hardcore
 # and punk hardcore, wassoulou and soul): their bucket, or None for the fallback
@@ -171,56 +172,63 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 
+TAG_SEPARATOR = " / "  # Kodi's music itemseparator by default, joining ListItem.Genre
+# Kodi lower-cases ASCII alone (StringUtils::ToLower, ToLowerAscii)
+_LOWER = str.maketrans(ascii_uppercase, ascii_lowercase)
+
+
 def rows() -> list[tuple[str | None, tuple[str, ...]]]:
     """
-    Every row in the order a genre is tried: EXCEPTIONS, KEYWORDS, then SUBGENRES,
-    the longest first, so none is found inside another ("wave" in "no wave").
+    The rows found anywhere in a genre's text, in order: EXCEPTIONS, then KEYWORDS.
 
     :return: (bucket, terms) pairs.
     """
-    subgenres = sorted(SUBGENRES, key=len, reverse=True)
-    return [
-        *EXCEPTIONS,
-        *KEYWORDS.items(),
-        *((SUBGENRES[genre], (genre,)) for genre in subgenres),
-    ]
+    return [*EXCEPTIONS, *KEYWORDS.items()]
 
 
 @cache
 def genre_bucket(genre: str) -> str | None:
     """
-    A genre's bucket, as the skin's icon rows pick it: a tag, or a whole
-    ListItem.Genre ("Indie Rock / Alternative": the first row found in any).
+    A genre's bucket, as the skin's icon rows pick it, for a tag or a whole
+    ListItem.Genre: the first row found in it, else the first SUBGENRES tag in it.
 
-    :param genre: Genre text.
+    :param genre: Genre text ("Indie Rock / Alternative": Indie's row, the first).
     :return: Bucket name; None for none.
     """
-    text = genre.lower()
-    return next((b for b, terms in _ROWS if any(t in text for t in terms)), None)
+    text = genre.translate(_LOWER)
+    if row := next(((b,) for b, terms in _ROWS if any(t in text for t in terms)), ()):
+        return row[0]
+    tags = {*text.split(TAG_SEPARATOR)}
+    return next((bucket for name, bucket in SUBGENRES.items() if name in tags), None)
 
 
 def genre_mapping() -> dict:
     """
-    The builder's music_genres mapping: every row's terms in order, each with its
-    bucket (genre_bucket metadata, "none" for the fallback), for a skin's icon rows.
+    The builder's music_genres mapping: the rows' terms (genre_match contains), then
+    SUBGENRES (tag, a whole tag), each with its genre_bucket ("none": the fallback).
 
     :return: Static mapping definition.
     """
-    pairs = [(term, bucket or "none") for bucket, terms in _ROWS for term in terms]
+    found = [(term, bucket or "none") for bucket, terms in _ROWS for term in terms]
+    terms = {term: ("contains", bucket) for term, bucket in found}
+    terms |= {name: ("tag", bucket) for name, bucket in SUBGENRES.items()}
     return {
         "mode": "static",
-        "items": [term for term, _ in pairs],
-        "metadata": {term: {"genre_bucket": bucket} for term, bucket in pairs},
+        "items": [*terms],
+        "metadata": {
+            term: {"genre_match": match, "genre_bucket": bucket}
+            for term, (match, bucket) in terms.items()
+        },
         "placeholders": {"key": "genre_keyword"},
     }
 
 
 # MusicBrainz genres no EXCEPTIONS or KEYWORDS term finds, by the bucket of their
-# "subgenre of" genres (the first in KEYWORDS order); None for one in no bucket that
-# holds another's name ("doina" and "oi"). Written by tests/genre_snapshot.py.
+# "subgenre of" genres (the first in KEYWORDS order), each matched as a whole tag
+# only ("oi" is not in "Choir"). Written by tests/genre_snapshot.py.
 # --- generated: tests/genre_snapshot.py ---
 # MusicBrainz, 2026-11-15
-SUBGENRES: dict[str, str | None] = {
+SUBGENRES: dict[str, str] = {
     "2 tone": "Ska",
     "3-step": "Electronic",
     "aak": "Classical",
@@ -234,7 +242,6 @@ SUBGENRES: dict[str, str | None] = {
     "alté": "World",
     "amapiano": "Electronic",
     "ambrosian chant": "Classical",
-    "american gamelan": None,
     "american primitive guitar": "Folk",
     "amigacore": "Electronic",
     "aor": "Rock",
@@ -313,13 +320,11 @@ SUBGENRES: dict[str, str | None] = {
     "cape breton fiddling": "Celtic",
     "capriccio": "Classical",
     "changa tuki": "Electronic",
-    "chanson québécoise": None,
     "chap hop": "Comedy",
     "character piece": "Classical",
     "chicha": "Latin",
     "chopped and screwed": "HipHop",
     "chopper": "HipHop",
-    "chotis madrileño": None,
     "chèo": "Musical",
     "circus march": "Classical",
     "close harmony": "Country",
@@ -333,11 +338,9 @@ SUBGENRES: dict[str, str | None] = {
     "concerto for orchestra": "Classical",
     "concerto grosso": "Classical",
     "conducted improvisation": "Experimental",
-    "contenance angloise": None,
     "coupé-décalé": "Electronic",
     "cruise": "Electronic",
     "crunk": "HipHop",
-    "crunkcore": None,
     "csárdás": "Folk",
     "cubatón": "Latin",
     "cuddlecore": "Pop",
@@ -366,7 +369,6 @@ SUBGENRES: dict[str, str | None] = {
     "divertissement": "Classical",
     "dixieland": "Jazz",
     "doble paso": "Latin",
-    "doina": None,
     "dongjing": "Classical",
     "donk": "Electronic",
     "donosti sound": "Indie",
@@ -388,7 +390,6 @@ SUBGENRES: dict[str, str | None] = {
     "eurobeat": "Electronic",
     "expressionism": "Classical",
     "extratone": "Electronic",
-    "fado de coimbra": None,
     "fahrtenlied": "Folk",
     "fairy tale": "SpokenWord",
     "falak": "Folk",
@@ -400,7 +401,6 @@ SUBGENRES: dict[str, str | None] = {
     "fon leb": "Classical",
     "freakbeat": "Rock",
     "free car music": "HipHop",
-    "free improvisation": None,
     "free tekno": "Techno",
     "freestyle": "Electronic",
     "frenchcore": "Electronic",
@@ -500,7 +500,6 @@ SUBGENRES: dict[str, str | None] = {
     "jersey sound": "Electronic",
     "jesus music": "Pop",
     "jiuta": "Classical",
-    "joik": None,
     "jovem guarda": "Rock",
     "jug band": "Blues",
     "juke": "Electronic",
@@ -541,7 +540,6 @@ SUBGENRES: dict[str, str | None] = {
     "ländlermusik": "Folk",
     "mad": "Experimental",
     "madchester": "Electronic",
-    "maddahi": None,
     "madrigal": "Classical",
     "mahori": "Classical",
     "makina": "Techno",
@@ -555,8 +553,6 @@ SUBGENRES: dict[str, str | None] = {
     "manyao": "Electronic",
     "marabi": "Jazz",
     "march": "Classical",
-    "marching band": None,
-    "marchinha": None,
     "marinera": "Folk",
     "marinera norteña": "Folk",
     "mashcore": "Electronic",
@@ -579,11 +575,8 @@ SUBGENRES: dict[str, str | None] = {
     "mobb music": "HipHop",
     "mod": "Rock",
     "mod revival": "Rock",
-    "moda de viola": None,
     "modern creative": "Jazz",
     "modern hardtek": "Electronic",
-    "modern laiko": None,
-    "modinha": None,
     "moe song": "Pop",
     "monodrama": "Classical",
     "mood kayō": "Pop",
@@ -694,7 +687,6 @@ SUBGENRES: dict[str, str | None] = {
     "purple sound": "Bass",
     "pásztordal": "Folk",
     "pìobaireachd": "Classical",
-    "qasidah modern": None,
     "queercore": "Punk",
     "quiet storm": "Soul",
     "rabbit song": "Folk",
@@ -789,7 +781,6 @@ SUBGENRES: dict[str, str | None] = {
     "tallava": "Folk",
     "tamborzão": "Funk",
     "tammurriata": "Folk",
-    "taoist ritual music": None,
     "tape music": "Experimental",
     "tappa": "Classical",
     "tarana": "Classical",
@@ -809,13 +800,10 @@ SUBGENRES: dict[str, str | None] = {
     "thumri": "Classical",
     "timba": "Latin",
     "tin pan alley": "Pop",
-    "toada de boi": None,
     "toccata": "Classical",
     "tonada asturiana": "Folk",
     "totalism": "Classical",
     "township bubblegum": "Electronic",
-    "tradi-moderne congolais": None,
-    "tradi-moderne ivoirien": None,
     "tragédie en musique": "Classical",
     "trampská hudba": "Folk",
     "tread": "HipHop",

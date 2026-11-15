@@ -18,12 +18,16 @@ from resources.lib.shared import genres  # noqa: E402
 from resources.lib.shared.genres import genre_bucket  # noqa: E402
 
 FIXTURE = HELPER / "tests/fixtures/genre_buckets.json"  # genre_snapshot.py writes it
+REGGAE = {"genre_bucket": "Reggae"}
 
 
 class Lookup(unittest.TestCase):
     def test_any_case(self):
         for genre in ("hip hop", "Hip Hop", "HIP HOP", "Hip-Hop"):
             self.assertEqual(genre_bucket(genre), "HipHop")
+        # ASCII alone, as Kodi lower-cases (StringUtils::ToLower)
+        self.assertEqual(genre_bucket("Forró"), "Latin")
+        self.assertIsNone(genre_bucket("FORRÓ"))
 
     def test_several_genres_the_first_row_found(self):
         # Indie's row comes before Alternative's and Rock's, as the icon picks it
@@ -41,6 +45,39 @@ class Lookup(unittest.TestCase):
         self.assertEqual(genre_bucket("No Wave"), "Rock")  # not wave's Electronic
         self.assertIsNone(genre_bucket("Doina"))  # in none, though oi is Punk
 
+    def test_a_subgenre_as_a_whole_tag_only(self):
+        self.assertEqual(genre_bucket("Oi"), "Punk")
+        self.assertEqual(genre_bucket("Phonk / Gqom"), "Electronic")  # gqom's row first
+        self.assertEqual(genre_bucket("Soul / Phonk"), "Soul")  # keywords first
+        self.assertEqual(genre_bucket("Drift Phonk"), "Electronic")  # its own row
+        self.assertIsNone(genre_bucket("Brazilian Phonk Mix"))  # not a whole tag
+
+    def test_common_tags_take_no_subgenres_bucket(self):
+        # each holds a short subgenre name: oi, rage, plugg, mod, rave, isa, mass …
+        for tag in (
+            "Choir",
+            "Voice",
+            "Noir",
+            "Garage",
+            "Unplugged",
+            "Modern",
+            "Modal",
+            "Travel",
+            "Improvisation",
+            "Massive",
+            "Nomad",
+            "Retrowave",
+            "Vocal",
+            "Instrumental",
+            "Visual",
+            "Clubbing",
+            "Surfing",
+            "Marching",
+            "Snapshot",
+            "Lieder / Choir",
+        ):
+            self.assertIsNone(genre_bucket(tag), tag)
+
     def test_unknown(self):
         self.assertIsNone(genre_bucket("Zzyzx"))
         self.assertIsNone(genre_bucket(""))
@@ -55,11 +92,14 @@ class Mapping(unittest.TestCase):
     def test_a_row_a_term_in_order(self):
         mapping = genres.genre_mapping()
         terms = [t for _, row in genres.rows() for t in row]
-        self.assertEqual(mapping["items"], terms)
-        self.assertEqual(len(terms), len({*terms}))  # metadata is keyed by term
-        bucket = {t: mapping["metadata"][t]["genre_bucket"] for t in terms}
-        self.assertEqual(bucket["dancehall"], "Reggae")
-        self.assertEqual(bucket["maskanda"], "none")
+        self.assertEqual(mapping["items"], [*terms, *genres.SUBGENRES])
+        self.assertEqual(len(mapping["items"]), len({*mapping["items"]}))  # by term
+        meta = mapping["metadata"]
+        self.assertEqual(meta["dancehall"], {"genre_match": "contains"} | REGGAE)
+        self.assertEqual(meta["maskanda"]["genre_bucket"], "none")
+        self.assertEqual(
+            meta["phonk"], {"genre_match": "tag", "genre_bucket": "HipHop"}
+        )
         self.assertLess(terms.index("dancehall"), terms.index("dance"))
 
     def test_the_skins_47_buckets(self):

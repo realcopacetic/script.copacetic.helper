@@ -44,8 +44,9 @@ python tests/mix_offline.py
 python tests/genre_offline.py
 
 # By hand, when MusicBrainz adds genres or EXCEPTIONS/KEYWORDS change (network, an hour
-# or more at MusicBrainz's request a second): rewrites SUBGENRES and the fixture
-python tests/genre_snapshot.py
+# or more at MusicBrainz's request a second): rewrites SUBGENRES and the fixture; with
+# --cache the pages are kept, so a rules change reruns in a second without the network
+python tests/genre_snapshot.py [--cache /tmp/mb-genres]
 
 # Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,
 # unless a tile has no other image free
