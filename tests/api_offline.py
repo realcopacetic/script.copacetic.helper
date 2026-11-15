@@ -1631,6 +1631,9 @@ class PopularityLabelTest(Base):
         self.handler.params = {"info": "popularity_label", "id": f"{dbid}"}
         self.handler.dbtype, self.handler.dbid = type, f"{dbid}"
         items = self.handler.popularity_label()
+        if items:  # it says whose word it is, for the skin to match
+            whose = {"dbid": f"{dbid}", "dbtype": type}
+            self.assertEqual(items[0]["properties"], whose)
         return items and items[0]["label"]
 
     def urls(self):
