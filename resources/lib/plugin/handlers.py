@@ -2247,8 +2247,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             label = words[self.dbtype](dbid)
         else:
             label = self._play_word(dbid)
-        if label:
-            return set_items([{"file": plugin_path(_LABEL), "label": label}])
+        if label:  # whose word: a skin shows it only on that item, not the last one's
+            whose = {"dbid": self.dbid, "dbtype": self.dbtype}
+            item = {"file": plugin_path(_LABEL), "label": label, "properties": whose}
+            return set_items([item])
 
     def _play_word(self, dbid: int) -> str:
         """

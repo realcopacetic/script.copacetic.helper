@@ -560,7 +560,10 @@ none.
 
 Not a listing: one item whose `ListItem.Label` says how popular a library artist,
 album or song is, in a word or a place, never a number. With nothing to say there is
-no item, so a missing label never reads as a verdict.
+no item, so a missing label never reads as a verdict. Its
+`ListItem.Property(dbid)` and `ListItem.Property(dbtype)` name the item the word is
+for: a container keeps the last item's word until the new answer lands (seconds,
+cold), so show it only while they match `ListItem.DBID` and `ListItem.DBType`.
 
 With **Rank music with Deezer** on:
 
