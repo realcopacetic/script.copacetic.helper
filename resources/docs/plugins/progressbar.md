@@ -82,7 +82,7 @@ One list item in the helper container:
 | `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
 | `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDb data predates it (see below). |
-| `ListItem.Property(new_episode)` | A fully watched TV show: TMDb's last aired episode when the library doesn't have it, e.g. `3x05`. A notice only: nothing to play. |
+| `ListItem.Property(new_episode)` | A fully watched TV show: TMDb's last aired episode when it is later than the library's newest, e.g. `3x05`. A notice only: nothing to play. |
 | `ListItem.Property(show_status)` | A fully watched TV show: `ended` (TMDb's *Ended* or *Canceled*) or `returning` (*Returning Series*); empty for TMDb's other states. |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
@@ -94,7 +94,7 @@ for them too. The library calls they add, per focus:
 | Focused item | Calls | Which |
 |---|---|---|
 | Show or season with episodes left, started or not (a favourite's season too) | 1 | `GetEpisodes` |
-| Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDb id, only with a TMDb token and no `UniqueID(tmdb)`; `GetEpisodes` of one season, only when TMDb's cached data has a last aired episode |
+| Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDb id, only with a TMDb token and no `UniqueID(tmdb)`; `GetEpisodes` for the newest episode, only when TMDb's cached data has a last aired episode |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
 | Watched or part-watched film or episode, fully watched or Specials season, set, plugin item | 0 | |
@@ -149,8 +149,10 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   set; any other show makes no lookup for them. TMDb's next episode air date, season
   and number, its last aired episode and its status, read from the add-on's cache
   only; this path never asks TMDb. `new_episode` costs one `VideoLibrary.GetEpisodes`
-  call for that episode's season, to see whether the library has it; a special
-  (season 0) is left out, as `next_episode` leaves it out. The [metadata](metadata.md#tmdb-lookups)
+  call for the library's newest episode outside the specials (sorted `episode`,
+  descending, limit 1), and is set only when TMDb's is later: an episode missing
+  mid-run, or one TMDb numbers differently (TVDB order, episode groups), is no news.
+  A special (season 0) is left out, as `next_episode` leaves it out. The [metadata](metadata.md#tmdb-lookups)
   plugin fills the cache when called with `enrich_with_tmdb=true`. Until it has, and
   once the date is past, both are empty. An entry cached by an older version of the
   add-on holds the date alone (or no last aired episode and status), so

@@ -1887,6 +1887,12 @@ class ProgressbarTest(unittest.TestCase):
             self.calls.append(params)
             season = params.get("season")  # none: the whole show
             rows = [ep for ep in self.episodes if season in (None, ep["season"])]
+            if "sort" in params:  # _show_news's newest: specials filtered out
+                rows = sorted(
+                    (ep for ep in rows if ep["season"] > 0),
+                    key=lambda ep: (ep["season"], ep["episode"]),
+                    reverse=True,
+                )[: params["limits"]["end"]]
             return json.dumps({"result": {"episodes": rows}})
 
         patch(
@@ -2230,15 +2236,21 @@ class ProgressbarTest(unittest.TestCase):
             props["tmdb_status"] = status
             self.assertEqual(self.prop("show_status", **show), shown)
         self.assertEqual(self.calls, [])  # no last aired episode: no lookup
+        # The library's newest outside the specials is 3x01
         last = {"tmdb_last_air_season": "3", "tmdb_last_air_episode": "1"}
         props |= last
-        self.assertEqual(self.prop("new_episode", **show), "")  # the library has 3x01
-        asked = {"tvshowid": 7, "season": 3, "properties": ["episode"]}
-        self.assertEqual(self.calls[-1], asked)
+        self.assertEqual(self.prop("new_episode", **show), "")
+        asked = self.calls[-1]
+        self.assertEqual(
+            (asked["tvshowid"], asked["limits"]), (7, {"start": 0, "end": 1})
+        )
+        self.assertEqual(asked["sort"], {"method": "episode", "order": "descending"})
         props["tmdb_last_air_episode"] = "2"
         self.assertEqual(self.prop("new_episode", **show), "3x02")
+        props |= {"tmdb_last_air_season": "2", "tmdb_last_air_episode": "12"}
+        self.assertEqual(self.prop("new_episode", **show), "")  # missing, but older
         props["tmdb_last_air_season"] = "4"  # a season the library lacks
-        self.assertEqual(self.prop("new_episode", **show), "4x02")
+        self.assertEqual(self.prop("new_episode", **show), "4x12")
         calls = len(self.calls)
         props["tmdb_last_air_season"] = "0"  # a special, as next_episode leaves out
         self.assertEqual(self.prop("new_episode", **show), "")
