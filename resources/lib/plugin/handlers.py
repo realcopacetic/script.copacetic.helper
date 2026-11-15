@@ -1382,21 +1382,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "next_air_episode": "",
             "show_status": _SHOW_STATUS.get(props.get("tmdb_status"), ""),
         }
-        # Specials left out, as next_episode does. An entry cached before these were
-        # kept (7-day TTL) has none; show_id 0 (a plugin's item) would ask every show
+        # Only past the library's newest: an episode missing mid-run, or numbered
+        # another way (TVDB's order), is no news. Specials left out, as next_episode
+        # does. An entry cached before these were kept (7-day TTL) has none; show_id
+        # 0 (a plugin's item) would ask every show
         season = to_int(props.get("tmdb_last_air_season"))
         if show_id and season > 0:
             episode = int(props["tmdb_last_air_episode"])
-            owned = fetch_raw(
+            newest = fetch_raw(  # "episode" sorts by season, then episode
                 "VideoLibrary.GetEpisodes",
                 "episode",
-                [],
-                sort=None,
+                [{"field": "season", "operator": "greaterthan", "value": "0"}],
+                sort={"method": "episode", "order": "descending"},
                 parent="progressbar",
-                params={"tvshowid": show_id, "season": season},
-                properties=["episode"],
+                params={"tvshowid": show_id},
+                limit=1,
+                properties=["episode", "season"],
             )
-            if episode not in {ep["episode"] for ep in owned}:
+            have = next(((ep["season"], ep["episode"]) for ep in newest), (0, 0))
+            if (season, episode) > have:
                 news["new_episode"] = f"{season}x{episode:02d}"
         iso = props.get("tmdb_next_air_date")
         if not iso or (day := date.fromisoformat(iso)) < date.today():
