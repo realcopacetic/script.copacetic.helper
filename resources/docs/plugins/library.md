@@ -571,14 +571,15 @@ With **Rank music with Deezer** on:
 | Song | *#2 song* | Its place in its first artist's [`top_songs`](#top_songs), within the first 10; songs only topping the list up by play count take no place |
 | Album | *Most popular album* | It leads its first artist's [`discography`](#discography) by popularity (a compilation never) |
 
-With Deezer off, an artist reads *Your #3 artist*: its place among the library's
-artists by the summed play counts of their songs, within the first 10. Albums and
-songs get no label then.
+With Deezer off, the library's play counts speak instead, summed over each one's
+songs: an artist reads *Your #3 artist*, its place among the library's artists within
+the first 10, and the library's most played album reads *Your most played album*
+(none on a tie). Songs get no label then.
 
 It uses `top_songs`' own lists and cache, so on an artist whose Top songs or
 Discography has loaded it sends nothing. The chart is one request a day for the
 whole library (`deezer:chart:artists`), asked only for an artist Deezer matched; the
-library's play counts are read once a day (`library:artist-places`).
+library's play counts are read once a day (`library:play-places`).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

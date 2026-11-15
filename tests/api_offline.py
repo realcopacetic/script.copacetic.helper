@@ -1575,6 +1575,7 @@ def deezer_chart(*ids):
 
 # popularity_label's strings, as en_gb words them
 WORDS = {
+    32994: "Your most played album",
     32995: "Charting",
     32996: "Popular",
     32997: "#%d song",
@@ -1590,10 +1591,10 @@ class PopularityLabelTest(Base):
         super().setUp()
         self.settings.update(listenbrainz_token="", deezer=True)
         self.calls, self.song, self.compilation = [], QOTSA_SONGS[0], False
-        self.plays = [  # artist 7 leads on 60 plays; a duet counts for both
-            {"artistid": [7], "playcount": 50},
-            {"artistid": [4, 7], "playcount": 10},
-            {"artistid": [4], "playcount": 5},
+        self.plays = [  # artist 7 leads on 60 plays, a duet counting for both; album 3
+            {"albumid": 3, "artistid": [7], "playcount": 50},
+            {"albumid": 2, "artistid": [4, 7], "playcount": 10},
+            {"albumid": 2, "artistid": [4], "playcount": 5},
         ]
 
         def rpc(request):
@@ -1715,16 +1716,31 @@ class PopularityLabelTest(Base):
         self.assertEqual(self.label("artist", 4), "Your #2 artist")
         self.assertEqual(self.label("artist", 7), "Your #1 artist")
         self.assertIsNone(self.label("artist", 9))  # never played
+        self.assertEqual(self.label("album", 3), "Your most played album")
+        self.assertIsNone(self.label("album", 2))  # second
+        self.assertIsNone(self.label("song", 1))  # not decided: no word, no call
         self.assertEqual(self.calls, ["AudioLibrary.GetSongs"])  # kept for the day
-        self.assertEqual(self.row("artist-places", "library:"), ([7, 4], DAY))
+        places = {"artist": [7, 4], "album": [3]}
+        self.assertEqual(self.row("play-places", "library:"), (places, DAY))
         self.assertEqual(self.net.requests, [])
-        for type in ("album", "song"):  # not decided: no word, no call
-            self.assertIsNone(self.label(type, 2))
-        self.assertEqual(len(self.calls), 1)
+
+    def test_deezer_off_no_most_played_album_on_a_tie(self):
+        self.settings["deezer"] = False
+        self.plays[0]["playcount"] = 15  # album 3 and album 2 on 15 plays each
+        self.assertIsNone(self.label("album", 3))
+        self.assertIsNone(self.label("album", 2))
+        self.cache.clear_all()
+        self.plays = self.plays[:1]  # one played album leads alone
+        self.assertEqual(self.label("album", 3), "Your most played album")
+        self.cache.clear_all()
+        self.plays = []  # nothing played
+        self.assertIsNone(self.label("artist", 7))
 
     def test_deezer_off_only_the_first_ten(self):
         self.settings["deezer"] = False
-        self.plays = [{"artistid": [n], "playcount": 100 - n} for n in range(20)]
+        self.plays = [
+            {"albumid": n, "artistid": [n], "playcount": 100 - n} for n in range(20)
+        ]
         self.assertEqual(self.label("artist", PLACES - 1), f"Your #{PLACES} artist")
         self.assertIsNone(self.label("artist", PLACES))
 
