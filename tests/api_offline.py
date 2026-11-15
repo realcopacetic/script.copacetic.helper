@@ -24,6 +24,7 @@ import sys
 import tempfile
 import time
 import unittest
+from collections import Counter
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest import mock
@@ -1706,6 +1707,16 @@ class PopularityLabelTest(Base):
         calls = len(self.calls)
         self.assertIsNone(self.label("album", 2))
         self.assertEqual(self.calls[calls:], ["AudioLibrary.GetAlbumDetails"])
+
+    def test_album_leads_alone_over_another(self):
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
+        for credit, shown in (
+            ({2: 0.5, 8: 0.2}, "Most popular album"),
+            ({2: 0.5, 8: 0.5}, None),  # a tie: Discography's newer first isn't a lead
+            ({2: 0.5}, None),  # the only credited album: no ranking
+        ):
+            patch(self, (handlers, "album_credit", lambda *a, c=credit: Counter(c)))
+            self.assertEqual(self.label("album", 2), shown)
 
     def test_album_unranked_says_nothing(self):
         self.net.answers = [URLError("offline")]

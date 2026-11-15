@@ -2288,8 +2288,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _album_word(self, albumid: int) -> str:
         """
-        "Most popular album" for the album that leads Discography's popularity order;
-        none for a compilation, whose first artist is Various Artists.
+        "Most popular album" for the album that leads Discography's popularity order
+        alone, over another credited one; none for a compilation (Various Artists).
 
         :param albumid: Library album id.
         :return: The word, or "" for none.
@@ -2300,8 +2300,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         artistid = album["artistid"][0]
         albums = self._artist_albums(artistid, _LABEL)
         rankings, songs = self._popularity(artistid, ALBUM_SONG_PROPERTIES, _LABEL)
+        # Credited albums only: it must lead alone, and one album is no ranking
         credit = album_credit(rankings, songs, albums)
-        if credit[albumid] and credit[albumid] == max(credit.values()):
+        ranked = sorted(credit.values(), reverse=True)
+        if len(ranked) > 1 and credit[albumid] == ranked[0] > ranked[1]:
             return ADDON.getLocalizedString(32998)
         return ""
 
