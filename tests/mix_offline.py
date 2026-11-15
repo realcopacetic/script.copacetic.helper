@@ -281,6 +281,14 @@ class Daily(unittest.TestCase):
         store.put.side_effect = lambda key, payload, ttl: self.cache.update(
             {key: (payload, ttl > 0)}
         )
+
+        def expire_held(key, payload):  # as the table: only while it holds payload
+            held = self.cache.get(key, (None,))[0] == payload
+            if held:
+                self.cache[key] = (payload, False)
+            return held
+
+        store.expire_held.side_effect = expire_held
         self.store = store
         self.like = ["Om", "Yob"]
         self.similar = mock.Mock(
@@ -369,11 +377,20 @@ class Daily(unittest.TestCase):
         self.like = ["Om", "Yob", "Weedeater"]  # a lead looked up at the click
         mix.recheck_similar("Stoner", kept)
         self.store.expire.assert_not_called()  # no LIKE pattern: this key alone
+        self.store.put.assert_called_once()  # marked in place, not written back
         # a second click before the rail reloads still plays what the card names
         self.assertEqual(mix.kept_mix("Stoner", stale=True), kept)
         self.assertEqual(self.draws.call_count, 1)
         self.assertNotEqual(mix.kept_mix("Stoner"), kept)  # the rail's load redraws
         self.assertEqual(self.draws.call_count, 2)
+
+    def test_a_row_redrawn_since_the_click_stays_fresh(self):
+        clicked = mix.kept_mix("Stoner", PLAYED[:5])
+        newer = {"songs": [{"songid": 99}], "genres": ["Stoner"]}
+        self.cache["library:mix:v2:Stoner"] = (newer, True)  # a rail load redrew it
+        self.like = ["Weedeater"]
+        mix.recheck_similar("Stoner", clicked)
+        self.assertEqual(mix.kept_mix("Stoner"), newer)
 
     def test_a_click_with_no_row_draws_and_keeps_it(self):
         drawn = mix.kept_mix("Stoner", stale=True)
@@ -399,26 +416,37 @@ class Card(unittest.TestCase):
         32841: "%s and more.",
     }
 
-    def card(self, names: list[str]) -> mock.Mock:
+    def cards(self, names: list[str], genres: list[str]) -> tuple[list, mock.Mock]:
         songs = [{"artist": [n], "albumartist": [n]} for n in names]
         kept = {"songs": songs + songs[:2], "leads": names[:3], "similar": []}
-        kept["genres"] = ["Stoner", "Desert"]  # named by the first, the most played
+        kept["genres"] = genres  # named by the first still in the library
         rows = [  # the library's order, not the mix's; Om has no thumb
             {"artist": n, "art": {"thumb": f"{n}.jpg"} if n != "Om" else {}}
             for n in sorted(names)
         ]
+        library = {"Desert": 9, "Stoner": 10, "Phonk": 11}
         with (
             mock.patch.object(music, "ListItem") as list_item,
             mock.patch.object(
                 music, "json_call", return_value={"result": {"artists": rows}}
             ),
-            mock.patch.object(music, "genre_ids", lambda: {"Desert": 9, "Stoner": 10}),
+            mock.patch.object(music, "genre_ids", lambda: library),
             mock.patch.object(music, "ADDON") as addon,
         ):
             addon.getLocalizedString = self.STRINGS.get
-            [(path, _, folder)] = music.mix_cards([("Rock", kept)])
+            return music.mix_cards([("Rock", kept)]), list_item.return_value
+
+    def card(self, names: list[str]) -> mock.Mock:
+        [(path, _, folder)], li = self.cards(names, ["Stoner", "Desert"])
         self.assertEqual((path, folder), ("musicdb://genres/10/", True))
-        return list_item.return_value
+        return li
+
+    def test_named_by_a_genre_still_in_the_library_with_its_bucket(self):
+        [(path, _, _)], li = self.cards(["Kyuss"], ["Cleaned", "Phonk"])
+        self.assertEqual(path, "musicdb://genres/11/")
+        props = li.setProperties.call_args.args[0]
+        self.assertEqual((props["mix_genreid"], props["mix_bucket"]), ("11", "HipHop"))
+        self.assertEqual(self.cards(["Kyuss"], ["Cleaned"])[0], [])  # all gone: none
 
     def test_artists_in_play_order(self):
         li = self.card(
@@ -431,6 +459,7 @@ class Card(unittest.TestCase):
         )
         self.assertEqual(props["eyebrow"], "Daily mix · 11 songs")  # the list's count
         self.assertEqual(props["mix_genreid"], "10")
+        self.assertEqual(props["mix_bucket"], "")  # Stoner: in no bucket
         art = li.setArt.call_args.args[0]
         self.assertEqual(
             [art["square"], art["square1"], art["square2"]],
@@ -489,15 +518,20 @@ class Seed(unittest.TestCase):
     def test_an_artist_with_no_album_of_their_own_opens_with_a_credit(self):
         from resources.lib.script import actions
 
-        guest = {"songid": 7, "lastplayed": ""}
+        guest = {"songid": 7, "lastplayed": "", "artist": ["Jay-Z", "Frank"]}
+        guest["albumartist"] = ["Jay-Z"]  # Frank guesting on Jay-Z's album
         answers = [{"result": {}}, {"result": {"songs": [guest]}}]
         calls = mock.Mock(side_effect=answers)
         with (
             mock.patch.object(actions, "json_call", calls),
             mock.patch.object(music, "artist_identity", lambda *a: ("Frank", "")),
         ):
-            self.assertEqual(actions._mix_seed("artist", 4), guest)
+            seed = actions._mix_seed("artist", 4)
         self.assertEqual(calls.call_args.kwargs["query_filter"], {"artistid": 4})
+        self.assertEqual(seed["songid"], 7)
+        self.assertEqual(
+            mix.credits(seed), ["Frank"]
+        )  # his mix leans on him, not Jay-Z
 
 
 class Click(unittest.TestCase):

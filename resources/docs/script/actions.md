@@ -1277,12 +1277,12 @@ while Deezer and ListenBrainz answer; later ones read the saved answers.
   cleared), it draws the bucket's mix, a genre mix on every library genre in the
   bucket, and keeps it for the card. Its songs carry the bucket's genres in
   `mix_genres`.
+- **Year:** 50 random songs of that year, at most three by any one artist while
+  others have songs.
 
 A genre or daily mix starts playing from the saved similar artists alone; Deezer and
 ListenBrainz are asked once it plays, for the next mix. A genre gone from the library
 since its item or card loaded plays nothing.
-- **Year:** 50 random songs of that year, at most three by any one artist while
-  others have songs.
 
 If the album or artist has no songs, or the song is not found, nothing changes: what
 was playing carries on. A genre, year or daily mix with no songs changes nothing too.

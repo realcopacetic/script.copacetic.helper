@@ -407,10 +407,9 @@ def kept_mix(
     mix = genre_mix(genres, played_songs(genres) if seeds is None else seeds, owned)
     if (hit := store.get(cache_key)) and hit[1]:  # another call kept one meanwhile
         return hit[0]
-    midnight = datetime.combine(date.today() + timedelta(days=1), time())
-    store.put(
-        cache_key, mix, int(midnight.timestamp() - datetime.now().timestamp()) + 1
-    )
+    now = datetime.now()
+    midnight = datetime.combine(now.date() + timedelta(days=1), time())
+    store.put(cache_key, mix, int(midnight.timestamp() - now.timestamp()) + 1)
     return mix
 
 
@@ -437,5 +436,5 @@ def recheck_similar(key: str, mix: dict) -> None:
     :param key: Card (card).
     :param mix: Its kept mix dict.
     """
-    if look_up_similar(mix):
-        ApiCacheHandler().put(_mix_key(key), mix, 0)  # this key alone, kept stale
+    if look_up_similar(mix):  # this key alone, and only while it still holds this mix
+        ApiCacheHandler().expire_held(_mix_key(key), mix)

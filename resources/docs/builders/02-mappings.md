@@ -244,7 +244,7 @@ A template block gives a skin its icon cascade. A `tag` row tests the whole tag 
 ]
 ```
 
-Kodi trims a param's outer spaces (`CUtil::SplitParams`), hence `phonk /` for `"phonk / "`. A template that borrows the list with `items_from` reads a term's fields as `{@music_genres:{genre_keyword}.genre_bucket}`. Bucket names are generic and the icons are the skin's: a skin ships an image per bucket it shows, or its own `music_genres`.
+Kodi trims a param's outer spaces (`CUtil::SplitParams`), hence `phonk /` for `"phonk / "`. A template that borrows the list with `items_from` reads a term's fields as `{@music_genres:{genre_keyword}.genre_bucket}`. A daily mix card needs none of this: it names its bucket in `ListItem.Property(mix_bucket)` ([daily_mixes](../plugins/library.md#daily_mixes)). Bucket names are generic and the icons are the skin's: a skin ships an image per bucket it shows, or its own `music_genres`.
 
 ---
 

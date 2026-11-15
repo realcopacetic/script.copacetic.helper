@@ -12,6 +12,7 @@ from xbmcgui import ListItem
 
 from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag, joined
+from resources.lib.shared.genres import genre_bucket
 from resources.lib.shared.mix import credits, genre_ids
 from resources.lib.shared.utilities import ADDON, fold, json_call
 
@@ -129,9 +130,9 @@ def details_item(
 
 def mix_cards(mixes: list[tuple[str, dict]]) -> list[DirectoryItem]:
     """
-    Daily mixes as cards, named by their most played genre: "<genre> mix", that
-    genre, an eyebrow with its count, its artists in play order (MIX_NAMES named,
-    MIX_SLIDES thumbs). Opens that genre; a skin's click plays it (start_mix daily).
+    Daily mixes as cards, named by their most played genre still in the library:
+    "<genre> mix", that genre and its bucket, an eyebrow with its count, its artists in
+    play order (MIX_NAMES named, MIX_SLIDES thumbs). Opens that genre; a click plays it.
 
     :param mixes: (card, kept_mix dict) pairs.
     :return: (path, ListItem, is_folder) per card.
@@ -157,7 +158,10 @@ def mix_cards(mixes: list[tuple[str, dict]]) -> list[DirectoryItem]:
     }
     ids, cards = genre_ids(), []
     for key, mix in mixes:
-        artists, genre = names[key], mix["genres"][0]
+        # its most played genre still in the library (a clean drops some); else no card
+        if not (genre := next((g for g in mix["genres"] if g in ids), None)):
+            continue
+        artists = names[key]
         slides = [thumbs[name] for name in artists if name in thumbs][:MIX_SLIDES]
         if artists[MIX_NAMES:]:
             described = ADDON.getLocalizedString(32841) % ", ".join(artists[:MIX_NAMES])
@@ -174,6 +178,7 @@ def mix_cards(mixes: list[tuple[str, dict]]) -> list[DirectoryItem]:
             {
                 "Artist_Description": described,
                 "eyebrow": ADDON.getLocalizedString(32839) % len(mix["songs"]),
+                "mix_bucket": genre_bucket(genre) or "",  # a skin's icon, by name
                 "mix_genreid": str(ids[genre]),
             }
         )

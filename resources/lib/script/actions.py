@@ -1100,7 +1100,8 @@ def _year_rule(year: str) -> dict:
 def _mix_seed(type: str, dbid: int) -> dict | None:
     """
     The song a mix starts from: the song itself, or one of the album's (or the
-    artist's own albums') ten most played, those heard lately left out while any remain.
+    artist's own albums', else their credits', albumartist the artist so it counts for
+    them) ten most played, those heard lately left out while any remain.
 
     :param type: song, album or artist.
     :param dbid: Library ID of the item.
@@ -1123,10 +1124,11 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
 
         name = artist_identity(dbid, "start_mix")[0]
         own = {"field": "albumartist", "operator": "is", "value": name}
-        filters = (own, {"artistid": dbid})  # else any song they're credited on
+        # else any song they're credited on, counted for them, not its album's lead
+        filters = ((own, {}), ({"artistid": dbid}, {"albumartist": [name]}))
     else:
-        filters = ({"albumid": dbid},)
-    for query_filter in filters:
+        filters = (({"albumid": dbid}, {}),)
+    for query_filter, credited in filters:
         # Ten, as Kodi breaks a play count tie by track number: for an artist hardly
         # played, five would be the same closing tracks every time
         if top := json_call(
@@ -1137,7 +1139,7 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
             query_filter=query_filter,
             parent="start_mix",
         )["result"].get("songs"):
-            return random.choice([s for s in top if not heard(s)] or top)
+            return random.choice([s for s in top if not heard(s)] or top) | credited
     return None
 
 

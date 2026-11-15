@@ -193,6 +193,10 @@ mix and its `Genre` that genre, so a skin's genre icon shows the bucket's.
 the order they play, as "A, B and C." or "A, …, H and more.". Its art is those
 artists' thumbs as square multiart (`square`, `square1` …, up to 25), in the same
 order, with `DefaultMusicGenres.png` as the icon.
+`ListItem.Property(mix_bucket)` names the card's bucket (empty for a genre in none),
+so a skin can show its icon by name, `icons/genres/$INFO[ListItem.Property(mix_bucket)].png`,
+without testing the genre. A card whose genres have all left the library (a clean)
+is left out until the next draw.
 `ListItem.Property(mix_genreid)` holds that genre's id. A card's path opens the genre
 (`musicdb://genres/<id>/`). To play the mix instead, give the list a click that runs
 [`start_mix`](../script/actions.md#start_mix) with `type=daily`. Put the day in the

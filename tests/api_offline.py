@@ -233,6 +233,17 @@ class ListenBrainzTest(Base):
         self.assertEqual(listenbrainz.top_recordings(GORILLAZ), top)
         self.assertEqual(len(self.net.requests), 1)
 
+    def test_expire_held_leaves_a_newer_answer_fresh(self):
+        mine, newer = {"songs": [1], "name": "Forró"}, {"songs": [2]}
+        self.cache.put("library:mix:v2:Rock_", mine, 60)
+        self.cache.put("library:mix:v2:Rocks", mine, 60)  # a LIKE "_" would catch it
+        self.assertTrue(self.cache.expire_held("library:mix:v2:Rock_", mine))
+        self.assertEqual(self.cache.get("library:mix:v2:Rock_"), (mine, False))
+        self.assertEqual(self.cache.get("library:mix:v2:Rocks"), (mine, True))
+        self.cache.put("library:mix:v2:Rock_", newer, 60)  # a rail redrew meanwhile
+        self.assertFalse(self.cache.expire_held("library:mix:v2:Rock_", mine))
+        self.assertEqual(self.cache.get("library:mix:v2:Rock_"), (newer, True))
+
     def test_cache_only_serves_stale_and_fetches_nothing(self):
         self.net.answers = [FIXTURE]
         top = listenbrainz.top_recordings(GORILLAZ)
