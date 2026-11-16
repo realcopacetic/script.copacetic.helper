@@ -2,8 +2,9 @@
 Offline checks for the web API layer: apis/http.py, the api_cache table,
 apis/cache.py and apis/listenbrainz.py (TTLs, stale-on-failure, rate limit),
 apis/deezer.py (artist match, TTLs, Deezer's error answers, its chart),
-apis/theintrodb.py (the ids tried in turn, best segment, TTLs, clearing), the
-blended ranking of top_songs and discography, music info's popularity words
+apis/theintrodb.py (the ids tried in turn, best segment, TTLs, clearing),
+apis/lrclib.py (the search fallback's nearest hit, payload shapes, TTLs, clearing),
+the blended ranking of top_songs and discography, music info's popularity words
 (popularity_label), the TMDb client and cache (apis/tmdb), and the plugin URL parser
 (shared/parser.py).
 
@@ -14,7 +15,9 @@ browser on 10 Nov 2026 and trimmed to the fields the helper reads), Deezer's cha
 shape (hand-written from its live answer, 14 Nov 2026), a TMDb /tv/{id} answer in TMDb's shape
 (tests/fixtures/tmdb_tv_1399.json, hand-written: no token here), Deezer's error
 shape (hand-written), TheIntroDB's v4 /media shape (hand-written from its npm
-client's docs) or the failure under test. Run from the helper root:
+client's docs), recorded LRCLIB answers (tests/fixtures/lrclib_*.json, Feel Good
+Inc., fetched 16 Nov 2026, trimmed to the fields the helper reads and four lines
+of lyrics) or the failure under test. Run from the helper root:
 python tests/api_offline.py
 """
 
@@ -52,6 +55,7 @@ from resources.lib.apis import (
     deezer,
     http,
     listenbrainz,
+    lrclib,
     theintrodb,
 )  # noqa: E402
 from resources.lib.apis.tmdb import transform  # noqa: E402
@@ -2493,6 +2497,120 @@ class TheIntroDbTest(Base):
             (actions.ADDON, "getLocalizedString", lambda id: "%s"),
         )
         actions.clear_api_cache(source="theintrodb")
+        self.assertIsNone(self.cache.get(self.key()))
+
+
+LRCLIB_GET = json.loads((FIXTURES / "lrclib_get_feel_good_inc.json").read_bytes())
+LRCLIB_SEARCH = json.loads((FIXTURES / "lrclib_search_feel_good_inc.json").read_bytes())
+# LRCLIB's 404 body, as lrclib.net answered on 16 Nov 2026
+LRCLIB_404 = (
+    b'{"message":"Failed to find specified track","name":"TrackNotFound",'
+    b'"statusCode":404}'
+)
+SONG = ("Gorillaz", "Feel Good Inc.", "Demon Days", 223)
+
+
+class LrclibTest(Base):
+    def setUp(self):
+        super().setUp()
+        self.settings["lrclib"] = True
+
+    def lookup(self, seconds=223):
+        return lrclib.lyrics(*SONG[:3], seconds)
+
+    def key(self, seconds=223):
+        return f"lrclib:lyrics:Gorillaz|Feel Good Inc.|Demon Days|{seconds}"
+
+    def test_synced_hit_cached_half_a_year(self):
+        self.assertTrue(lrclib.enabled())
+        self.net.answers = [json.dumps(LRCLIB_GET).encode()]
+        found = self.lookup()
+        self.assertEqual(
+            found,
+            {
+                "synced": [
+                    [1470, "Feel good"],
+                    [7050, "Sha, sha-ba-da, sha-ba-da-ca, feel good"],
+                    [10060, "Sha, sha-ba-da, sha-ba-da-ca, feel good"],
+                    [13160, "Sha, sha-ba-da, sha-ba-da-ca, feel good"],
+                ],
+                "plain": None,  # synced lines carry it
+                "instrumental": False,
+            },
+        )
+        self.assertEqual(self.row(self.key(), ""), (found, 180 * DAY))
+        self.assertEqual(
+            self.net.requests[0].full_url,
+            "https://lrclib.net/api/get?track_name=Feel+Good+Inc.&artist_name=Gorillaz"
+            "&album_name=Demon+Days&duration=223",
+        )
+        self.assertIsNone(self.net.requests[0].get_header("Authorization"))
+        self.tick(179 * DAY)
+        self.assertEqual(self.lookup(), found)
+        self.assertEqual(len(self.net.requests), 1)
+
+    def test_plain_instrumental_and_empty(self):
+        plain = dict(LRCLIB_GET, syncedLyrics=None)
+        instrumental = dict(plain, plainLyrics=None, instrumental=True)
+        empty = dict(instrumental, instrumental=False)
+        self.net.answers = [
+            json.dumps(r).encode() for r in (plain, instrumental, empty)
+        ]
+        found = self.lookup(1)
+        self.assertEqual(found["plain"], LRCLIB_GET["plainLyrics"])
+        self.assertEqual((found["synced"], found["instrumental"]), (None, False))
+        self.assertEqual(
+            self.lookup(2), {"synced": None, "plain": None, "instrumental": True}
+        )
+        self.assertEqual(self.row(self.key(2), ""), (self.lookup(2), 180 * DAY))
+        self.assertEqual(self.lookup(3), {})
+        self.assertEqual(self.row(self.key(3), ""), ({}, 30 * DAY))
+
+    def test_404_takes_the_nearest_search_hit(self):
+        self.net.answers = [
+            http_error(404, body=LRCLIB_404),
+            json.dumps(LRCLIB_SEARCH).encode(),
+        ]
+        found = self.lookup(218)  # Demon Days (219) and iTunes Session (217) tie
+        self.assertEqual(found["synced"][0], [2680, "Feel good"])  # the first of them
+        self.assertEqual(
+            self.net.requests[1].full_url,
+            "https://lrclib.net/api/search?track_name=Feel+Good+Inc."
+            "&artist_name=Gorillaz",
+        )
+        self.assertEqual(self.row(self.key(218), ""), (found, 180 * DAY))
+
+    def test_synced_first_among_equally_near(self):
+        hits = [dict(h) for h in LRCLIB_SEARCH]
+        hits[2]["syncedLyrics"] = None  # Demon Days, 219: plain only
+        self.net.answers = [http_error(404), json.dumps(hits).encode()]
+        self.assertEqual(self.lookup(218)["synced"][0], [6130, "Feel good"])
+
+    def test_no_near_hit_is_the_404(self):
+        self.net.answers = [http_error(404), json.dumps(LRCLIB_SEARCH).encode()]
+        self.assertIsNone(self.lookup(230))  # the nearest, 219, is 11 s off
+        self.assertEqual(self.row(self.key(230), ""), (None, 7 * DAY))
+        self.net.answers = [http_error(404), b"[]"]
+        self.assertIsNone(self.lookup(100))
+        self.assertEqual(len(self.net.requests), 4)
+
+    def test_offline_and_odd_answers(self):
+        self.net.answers = [URLError("offline"), http_error(404), b'{"x": 1}']
+        self.assertIsNone(self.lookup())
+        self.assertEqual(self.row(self.key(), ""), (None, 300))
+        self.assertIsNone(self.lookup(1))  # a search answer of another shape
+        self.assertEqual(self.row(self.key(1), ""), (None, 300))
+
+    def test_clear(self):
+        self.net.answers = [json.dumps(LRCLIB_GET).encode()]
+        self.lookup()
+        dialog = mock.Mock(**{"return_value.yesno.return_value": True})
+        patch(
+            self,
+            (actions.xbmcgui, "Dialog", dialog),
+            (actions.ADDON, "getLocalizedString", lambda id: "%s"),
+        )
+        actions.clear_api_cache(source="lrclib")
         self.assertIsNone(self.cache.get(self.key()))
 
 

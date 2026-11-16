@@ -314,6 +314,21 @@ msgid "Clear TheIntroDB data"
 msgstr ""
 
 #: /resources/settings.xml
+msgctxt "#32042"
+msgid "LRCLIB"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32043"
+msgid "Find lyrics with LRCLIB"
+msgstr ""
+
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32044"
+msgid "Clear LRCLIB data"
+msgstr ""
+
+#: /resources/settings.xml
 msgctxt "#32133"
 msgid "Forget every saved TMDb answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
 msgstr ""
@@ -341,6 +356,16 @@ msgstr ""
 #: /resources/settings.xml
 msgctxt "#32141"
 msgid "Forget every saved TheIntroDB answer (intro, recap and credits times), so each is fetched again when next played. One film or show: Refresh cached data in its context menu."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32143"
+msgid "Lyrics for the playing song, when it has no .lrc file beside it and none in its tags, for the skin's lyrics. They come from LRCLIB (lrclib.net), sent the song's title, artist, album and length; no account needed. Off: nothing sent, and only .lrc files and tags are used."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32144"
+msgid "Forget every saved LRCLIB answer (song lyrics), so each is fetched again when next played."
 msgstr ""
 
 

@@ -77,6 +77,7 @@ API_SOURCES = {
     "listenbrainz": ("ListenBrainz", 32034),
     "deezer": ("Deezer", 32036),
     "theintrodb": ("TheIntroDB", 32041),
+    "lrclib": ("LRCLIB", 32044),
 }
 WAVEFORM = "visualization.waveform"
 # 250 points a line (the fewest: calmer than 0, no resampling), lines in the skin's
@@ -185,7 +186,7 @@ def clear_api_cache(source: str, **kwargs: str) -> None:
     After a yes/no, forget every saved answer from one web API, so each is fetched
     again when next needed.
 
-    :param source: tmdb, listenbrainz, deezer or theintrodb.
+    :param source: tmdb, listenbrainz, deezer, theintrodb or lrclib.
     """
     from resources.lib.shared.sqlite import ApiCacheHandler
 
