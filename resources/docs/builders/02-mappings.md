@@ -8,7 +8,7 @@ A mapping is a named list plus what each item on it knows about itself. Every bu
 
 ## Where they live
 
-Mappings come from your skin: `extras/templates/mappings/*.json`. The addon ships none. Each file is an object of mapping name → definition, and a file can hold several mappings. If two files define the same name, the file that sorts last wins.
+Mappings come from your skin: `extras/templates/mappings/*.json`. The addon ships one, [`music_genres`](#music_genres--the-helpers-genre-buckets), which a skin mapping of that name replaces. Each file is an object of mapping name → definition, and a file can hold several mappings. If two files define the same name, the file that sorts last wins.
 
 ```json
 {
@@ -220,6 +220,31 @@ Spread one mapping's inputs across as many files as you like — they all share 
 `"mapping": "none"` means no loop values: one pass, for templates that only need an `index`, `range` or `items` loop. Any name that isn't a defined mapping behaves the same way, silently, so check the spelling. A JSON input file with no `"mapping"` key is skipped entirely. An includes XML file with no `<mapping>` element uses `none`.
 
 **Token fallback across entries.** When a label, description, or onclick token isn't on the highlighted entry, it falls back to the first *other* entry in the same mapping that has it (the highlighted entry always wins on collision). Handy for mappings where each entry carries different fields — a button on one row can read a flag stored on another. Editor-side only: build templates never fall back across entries, so a `{token}` in an includes or variables template still needs to exist on the entry being expanded.
+
+---
+
+## `music_genres` — the helper's genre buckets
+
+A static mapping the addon builds from `resources/lib/shared/genres.py`, the same table the [daily mixes](../plugins/library.md#daily_mixes) group their cards by. Its items are the terms a genre icon tests, in the order to test them, each `{genre_keyword}`; its `metadata` gives each term's `genre_bucket`, a bucket name (`HipHop`, `PostRock` …) or `none` for a genre that should show the skin's fallback, and its `genre_match`, how to test it. Kodi takes the first row that matches, so the order does the work:
+
+1. exceptions (`contains`, found anywhere in `ListItem.Genre`): genres a later, shorter term would file wrongly (`dancehall` before `dance`, `wassoulou` before `soul`);
+2. each bucket's keywords (`contains`), narrow buckets before the broad ones they split from (Blues before Rock, Techno before Electronic);
+3. MusicBrainz genres no term finds (`tag`, a whole tag only, so `oi` is not found in "Choir"), by the bucket of the genre MusicBrainz lists them as a subgenre of (`phonk` under Hip Hop). From a snapshot `tests/genre_snapshot.py` refreshes by hand; `tests/genre_offline.py` checks every MusicBrainz genre still gets its bucket.
+
+A template block gives a skin its icon cascade. A `tag` row tests the whole tag between Kodi's default music `itemseparator`, ` / ` (a skin whose users change it gets these rows only for an item with one genre); its `String.Contains` comes first, false for nearly every row, so the four tag tests run only on a hit:
+
+```json
+"values": [
+  [
+    { "filter": "equals({genre_match}, contains) + not equals({genre_bucket}, none)", "condition": "String.Contains(ListItem.Genre,{genre_keyword})", "value": "icons/genres/{genre_bucket}.png" },
+    { "filter": "equals({genre_bucket}, none)", "condition": "String.Contains(ListItem.Genre,{genre_keyword})", "value": "icons/MusicNote.png" },
+    { "filter": "equals({genre_match}, tag)", "condition": "String.Contains(ListItem.Genre,{genre_keyword}) + [String.IsEqual(ListItem.Genre,{genre_keyword}) | String.StartsWith(ListItem.Genre,{genre_keyword} /) | String.EndsWith(ListItem.Genre,/ {genre_keyword}) | String.Contains(ListItem.Genre,/ {genre_keyword} /)]", "value": "icons/genres/{genre_bucket}.png" }
+  ],
+  { "value": "icons/MusicNote.png" }
+]
+```
+
+Kodi trims a param's outer spaces (`CUtil::SplitParams`), hence `phonk /` for `"phonk / "`. A template that borrows the list with `items_from` reads a term's fields as `{@music_genres:{genre_keyword}.genre_bucket}`. A daily mix card needs none of this: it names its bucket in `ListItem.Property(mix_bucket)` ([daily_mixes](../plugins/library.md#daily_mixes)). Bucket names are generic and the icons are the skin's: a skin ships an image per bucket it shows, or its own `music_genres`.
 
 ---
 

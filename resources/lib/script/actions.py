@@ -12,6 +12,7 @@ import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
+from resources.lib.apis.cache import cache_only
 from resources.lib.service.trailer import (
     TrailerZoomController,
     enter_fullscreen,
@@ -25,14 +26,19 @@ from resources.lib.shared.utilities import (
     SKINXML,
 )
 from resources.lib.shared.mix import (
-    DAILY_ARTIST_SHARE,
-    DAILY_WINDOW,
     MIX_SIZE,
     SEED_SHARE,
-    artist_genres,
+    card,
+    genre_ids,
+    genre_mix,
+    heard,
+    kept_mix,
+    lead_id,
+    look_up_similar,
     mix_songs,
+    played_songs,
     random_songs,
-    todays_mixes,
+    recheck_similar,
 )
 from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.speed_dial import entry as dial_entry
@@ -1125,33 +1131,48 @@ def _year_rule(year: str) -> dict:
 
 def _mix_seed(type: str, dbid: int) -> dict | None:
     """
-    The song a mix starts from: the song itself, or one of the five most
-    played songs of the album or artist.
+    The song a mix starts from: the song itself, or one of the album's (or the
+    artist's own albums', else their credits', albumartist the artist so it counts for
+    them) ten most played, those heard lately left out while any remain.
 
     :param type: song, album or artist.
     :param dbid: Library ID of the item.
-    :return: Song dict with songid, file, artist, artistid and genre, or None.
+    :return: Song dict (file, artist, artistid, albumartist, genre), or None.
     """
+    properties = ["file", "artist", "artistid", "albumartist", "genre"]
     if type == "song":
         return (
             json_call(
                 "AudioLibrary.GetSongDetails",
-                properties=["file", "artist", "artistid", "genre"],
+                properties=properties,
                 params={"songid": dbid},
                 parent="start_mix",
             )
             .get("result", {})
             .get("songdetails")
         )
-    top = json_call(
-        "AudioLibrary.GetSongs",
-        properties=["file", "artist", "artistid", "genre"],
-        sort={"method": "playcount", "order": "descending"},
-        limit=5,
-        query_filter={_LIBRARY_ITEMS[type]: dbid},
-        parent="start_mix",
-    )["result"].get("songs")
-    return random.choice(top) if top else None
+    if type == "artist":  # not a guest spot on another's album, while they have one
+        from resources.lib.plugin.music import artist_identity
+
+        name = artist_identity(dbid, "start_mix")[0]
+        own = {"field": "albumartist", "operator": "is", "value": name}
+        # else any song they're credited on, counted for them, not its album's lead
+        filters = ((own, {}), ({"artistid": dbid}, {"albumartist": [name]}))
+    else:
+        filters = (({"albumid": dbid}, {}),)
+    for query_filter, credited in filters:
+        # Ten, as Kodi breaks a play count tie by track number: for an artist hardly
+        # played, five would be the same closing tracks every time
+        if top := json_call(
+            "AudioLibrary.GetSongs",
+            properties=[*properties, "lastplayed"],
+            sort={"method": "playcount", "order": "descending"},
+            limit=10,
+            query_filter=query_filter,
+            parent="start_mix",
+        )["result"].get("songs"):
+            return random.choice([s for s in top if not heard(s)] or top) | credited
+    return None
 
 
 @action
@@ -1222,52 +1243,50 @@ def shuffle_artist(id: str = "", **kwargs: str) -> None:
 @action
 def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
     """
-    Plays a random mix. A genre or year mix is its own songs, a daily one today's
-    mix of a genre; a song, album or artist mix is a seed song, SEED_SHARE by its
-    artists, the rest by similar artists, then of its genres (else its artists').
+    Plays a mix grown from seed songs (shared.mix.mix_songs): a song, or one of an
+    album's or artist's; a genre's played lately (genre_mix; daily, the kept list of
+    the genre's card, its bucket); a year's songs alone.
 
     :param id: Library ID (defaults to ListItem.DBID); the year for year.
     :param type: song, album, artist, genre, year or daily (id a genre ID).
     """
-    if type == "daily":
-        mix = next((m for m in todays_mixes() if m["genreid"] == to_int(id)), None)
-        if not mix:  # the day turned since its card loaded: the genre's own mix
-            start_mix(id=id, type="genre")
-        elif songs := mix_songs(
-            mix["artists"],
-            [mix["genre"]],
-            MIX_SIZE,
-            share=DAILY_ARTIST_SHARE,
-            similar=mix["similar"],
-            played=DAILY_WINDOW,
-        ):
+    if type in ("genre", "daily"):
+        # None: the genre left the library since its item or card loaded
+        if not (genre := {v: k for k, v in genre_ids().items()}.get(to_int(id))):
+            return
+        with cache_only():  # play first; the similar artists are looked up after
+            if type == "genre":  # the genre alone, drawn afresh each time
+                mix = genre_mix([genre], played_songs([genre]))
+            else:  # the card's list, kept or stale, so it plays what the card names
+                mix = kept_mix(key := card(genre), stale=True)
+        if mix["songs"]:  # none: Kodi starts nothing
             mark_source(None)
-            play_files(songs)
+            # the Endless queue reads them from the playing song to keep to them
+            play_files(mix["songs"], mix_genres=json.dumps(mix["genres"]))
+        if type == "daily":
+            recheck_similar(key, mix)
+        else:
+            look_up_similar(mix)
         return
-    if type in ("genre", "year"):
-        rule = {"genreid": to_int(id)} if type == "genre" else _year_rule(id)
-        if songs := random_songs(rule, MIX_SIZE):  # none: Kodi starts nothing
+    if type == "year":
+        if songs := mix_songs([], MIX_SIZE, keep=_year_rule(id)):
             mark_source(None)
             play_files(songs)
         return
     dbid = to_int(id or infolabel("ListItem.DBID"))
     if not (seed := _mix_seed(type, dbid)):
         return
-    from resources.lib.plugin.music import similar_artists
+    from resources.lib.plugin.music import artist_names, similar_artists
 
     mark_source(dial_entry(type, dbid))
-    genres = seed["genre"] or artist_genres(seed["artist"])
-    # an artist's own, as its top song may be another's it features on
-    artistid = dbid if type == "artist" else seed["artistid"][0]
-    similar = similar_artists(artistid, "start_mix")
-    songs = mix_songs(
-        seed["artist"],
-        genres,
-        MIX_SIZE - 1,
-        {seed["songid"]},
-        SEED_SHARE[type],
-        similar,
-    )
+    # an artist's own, as its top song may be on a collaboration; album artists
+    # alone, as a mix plays an artist's own albums
+    if artistid := dbid if type == "artist" else lead_id(seed):
+        owned = artist_names("start_mix", album_artists=True)
+        similar = similar_artists(artistid, "start_mix", owned)
+    else:  # a song with no artist ids
+        similar = []
+    songs = mix_songs([seed], MIX_SIZE - 1, {seed["songid"]}, SEED_SHARE[type], similar)
     play_files([seed, *songs])
 
 
