@@ -106,6 +106,17 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(lrc.parse("Feel good\n\nCity's breaking down"), [])
         self.assertEqual(lrc.parse(""), [])
 
+    def test_plain_drops_tags_keeps_verses(self):
+        text = (
+            "[ar:Gorillaz]\r\n[length: 03:43]\r\n[Chorus]\r\n  Feel good  \r\n\r\n"
+            "[00:01,50]City's [00:02,00]breaking\r\n[Verse 1: 2-D]\r\n[re:]"
+        )
+        self.assertEqual(
+            lrc.plain(text),
+            "[Chorus]\nFeel good\n\nCity's breaking\n[Verse 1: 2-D]",
+        )
+        self.assertEqual(lrc.plain("[ar:Gorillaz]\n[ti:Feel Good Inc]\n\n"), "")
+
 
 class Kodi(unittest.TestCase):
     """Infolabels, conditions and Home properties as dicts; builtins and asks."""
@@ -147,12 +158,31 @@ class Kodi(unittest.TestCase):
 
 
 class SourcesTest(Kodi):
-    def song_file(self, lrc_text=None):
+    def song_file(self, lrc_text=None, encoding="utf-8-sig"):
         folder = Path(tempfile.mkdtemp())
         (folder / "Feel Good Inc.flac").touch()
         if lrc_text is not None:
-            (folder / "Feel Good Inc.lrc").write_bytes(lrc_text.encode("utf-8-sig"))
+            (folder / "Feel Good Inc.lrc").write_bytes(lrc_text.encode(encoding))
         return str(folder / "Feel Good Inc.flac")
+
+    def test_sidecar_encodings(self):
+        text = "[00:01.00]Café, señor\n[00:02.00]Ünder"
+        lines = [[1000, "Café, señor"], [2000, "Ünder"]]
+        for encoding in ("utf-8", "utf-8-sig", "utf-16", "utf-16-be", "cp1252"):
+            if encoding == "utf-16-be":  # Python's utf-16-be writes no mark
+                path = self.song_file()
+                lrc_path = Path(path).with_suffix(".lrc")
+                lrc_path.write_bytes(b"\xfe\xff" + text.encode(encoding))
+            else:
+                path = self.song_file(text, encoding)
+            self.assertEqual(lyrics.find(path), ("file", lines, None, False), encoding)
+
+    def test_a_sidecar_of_only_tags_falls_through(self):
+        self.labels["MusicPlayer.Lyrics"] = "[00:02.00]embedded"
+        path = self.song_file("[ar:Gorillaz]\n[ti:Feel Good Inc]\n[by:someone]\n")
+        self.assertEqual(lyrics.find(path)[:2], ("embedded", [[2000, "embedded"]]))
+        unsupported = self.song_file("[ar:Gorillaz]\n[00:01,50]Feel good\n")
+        self.assertEqual(lyrics.find(unsupported), ("file", None, "Feel good", False))
 
     def test_song_tags_and_length(self):
         self.assertEqual(lyrics.song(), SONG)
