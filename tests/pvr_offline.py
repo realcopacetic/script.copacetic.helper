@@ -1,0 +1,374 @@
+"""
+Offline checks for the live channel list's guide (plugin/pvr.py and the broadcasts
+handler): programmes from the one on air on, start and end as local clock times,
+time left to the end by the clock, the state icon's order, and the handler's calls;
+and the smart select on a later programme (script/actions.py pvr_smart_select).
+Run from the helper root:
+python tests/pvr_offline.py
+"""
+
+import os
+import sys
+import tempfile
+import time
+import unittest
+from datetime import datetime, timezone
+from pathlib import Path
+from unittest import mock
+
+from build_offline import HELPER, install_stubs
+
+STAGE = Path(tempfile.mkdtemp())
+install_stubs(HELPER, STAGE, STAGE, verbose=False)
+vars(sys.modules["xbmc"]).update(  # imported names; nothing here calls them
+    Monitor=None,
+    getCacheThumbName=None,
+    getLocalizedString=None,
+    AudioStreamDetail=None,
+    SubtitleStreamDetail=None,
+    VideoStreamDetail=None,
+)
+sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
+sys.path.insert(0, str(HELPER))
+os.environ["TZ"] = "Europe/London"
+time.tzset()
+
+from resources.lib.plugin import handlers, pvr  # noqa: E402
+from resources.lib.script import actions  # noqa: E402
+
+
+def row(n: int, start: str, end: str, **flags) -> dict:
+    """A PVR.GetBroadcasts row with BROADCAST_FIELDS, every flag off unless given."""
+    return {
+        "broadcastid": n,
+        "label": f"Programme {n}",
+        "title": f"Programme {n}",
+        "thumbnail": f"https://x/{n}.jpg",
+        "starttime": start,
+        "endtime": end,
+        "runtime": 60,
+        "isactive": False,
+        "wasactive": False,
+        "hastimer": False,
+        "hastimerrule": False,
+        "hasreminder": False,
+        "hasrecording": False,
+    } | flags
+
+
+# 16 Nov 2026 is GMT; 16 Jul 2026 is BST (UTC+1)
+PAST = row(1, "2026-11-16 19:00:00", "2026-11-16 20:00:00", wasactive=True)
+NOW = row(2, "2026-11-16 20:00:00", "2026-11-16 21:30:00", runtime=90, isactive=True)
+LATER = row(3, "2026-11-16 21:30:00", "2026-11-16 22:00:00", runtime=30)
+CLOCK = datetime(2026, 11, 16, 20, 51, 30, tzinfo=timezone.utc)
+
+
+class Items(unittest.TestCase):
+    """broadcast_items: what each guide row carries."""
+
+    def items(
+        self, *rows: dict, logo: str = "image://logo.png/", now: datetime = CLOCK
+    ) -> list[dict]:
+        return pvr.broadcast_items(list(rows), 7, logo, now)
+
+    def test_from_the_one_on_air(self):
+        self.assertEqual(
+            [i["label"] for i in self.items(PAST, NOW, LATER)],
+            ["Programme 2", "Programme 3"],
+        )
+
+    def test_times_local_without_seconds(self):
+        props = self.items(NOW)[0]["properties"]
+        self.assertEqual((props["start"], props["end"]), ("20:00", "21:30"))
+        summer = row(4, "2026-07-16 20:00:00", "2026-07-16 21:00:00")
+        props = self.items(summer)[0]["properties"]
+        self.assertEqual((props["start"], props["end"]), ("21:00", "22:00"))
+
+    def test_time_left_to_the_end_by_the_clock_on_air_only(self):
+        now, later = (i["properties"] for i in self.items(NOW, LATER))
+        # 20:51:30 to 21:30: 38.5 minutes, rounded up
+        self.assertEqual((now["on_air"], now["time_left"]), ("true", "39m"))
+        self.assertEqual((later["on_air"], later["time_left"]), ("", ""))
+        long = row(5, "2026-11-16 20:00:00", "2026-11-16 23:51:30", isactive=True)
+        self.assertEqual(self.items(long)[0]["properties"]["time_left"], "3h")
+
+    def test_time_left_empty_once_ended(self):
+        # a timeshifted channel: on air on the playing time, ended by the clock
+        late = datetime(2026, 11, 16, 21, 40, tzinfo=timezone.utc)
+        props = self.items(NOW, now=late)[0]["properties"]
+        self.assertEqual((props["on_air"], props["time_left"]), ("true", ""))
+
+    def test_parental_lock_kodis_label_no_image(self):
+        item = self.items(NOW | {"label": "Parental locked"})[0]
+        self.assertEqual((item["label"], item["art"]["thumb"]), ("Parental locked", ""))
+
+    def test_no_favourite_in_the_menu(self):
+        props = self.items(LATER)[0]["properties"]
+        self.assertEqual(props["hide_add_remove_favourite"], "true")
+
+    def test_rows_name_their_channel_and_broadcast(self):
+        now, later = self.items(NOW, LATER)
+        self.assertEqual(now["properties"]["channelid"], 7)
+        self.assertEqual(later["properties"]["runtime"], 30)
+        self.assertNotEqual(now["file"], later["file"])
+
+    def test_art_thumb_the_programme_icon_the_logo(self):
+        self.assertEqual(
+            self.items(NOW)[0]["art"],
+            {"icon": "image://logo.png/", "thumb": "https://x/2.jpg"},
+        )
+        self.assertEqual(
+            self.items(NOW, logo="")[0]["art"]["icon"], "DefaultTVShows.png"
+        )
+
+    def test_series_from_a_rule(self):
+        ruled = row(6, LATER["starttime"], LATER["endtime"], hastimerrule=True)
+        self.assertEqual(self.items(ruled)[0]["properties"]["series"], "true")
+        self.assertEqual(self.items(LATER)[0]["properties"]["series"], "")
+
+
+class State(unittest.TestCase):
+    """broadcast_state: first true wins, as the guide grid's icon."""
+
+    def test_order(self):
+        cases = [
+            ({}, ""),
+            ({"hasrecording": True}, "recorded"),
+            ({"hastimer": True}, "timer"),
+            ({"hastimer": True, "isactive": True}, "recording"),
+            ({"hastimer": True, "hasreminder": True, "isactive": True}, "reminder"),
+            ({"hastimer": True, "hasrecording": True}, "timer"),
+        ]
+        for flags, state in cases:
+            with self.subTest(flags=flags):
+                self.assertEqual(pvr.broadcast_state(LATER | flags), state)
+
+
+class Handler(unittest.TestCase):
+    """PluginHandlers.broadcasts with json_call stubbed."""
+
+    def serve(self, params: dict, broadcasts: list | None) -> tuple[list, list]:
+        calls = []
+
+        def json_call(method, properties=None, params=None, parent=None):
+            calls.append((method, params))
+            if method == "PVR.GetBroadcasts":
+                return {"result": {"broadcasts": broadcasts}} if broadcasts else {}
+            return {"result": {"channeldetails": {"thumbnail": "image://logo/"}}}
+
+        with mock.patch.multiple(
+            handlers, json_call=json_call, set_items=lambda items: items
+        ):
+            items = handlers.PluginHandlers(
+                {"info": "broadcasts"} | params
+            ).broadcasts()
+        return items, calls
+
+    def test_channel_id_as_int_both_calls(self):
+        items, calls = self.serve({"channelid": "12"}, [NOW, LATER])
+        self.assertEqual(
+            calls,
+            [
+                ("PVR.GetBroadcasts", {"channelid": 12}),
+                ("PVR.GetChannelDetails", {"channelid": 12}),
+            ],
+        )
+        self.assertEqual(items[0]["art"]["icon"], "image://logo/")
+
+    def test_limit(self):
+        items, _ = self.serve({"channelid": "12", "limit": "1"}, [PAST, NOW, LATER])
+        self.assertEqual([i["label"] for i in items], ["Programme 2"])
+
+    def test_no_programmes_no_logo_call(self):
+        items, calls = self.serve({"channelid": "12"}, None)
+        self.assertIsNone(items)
+        self.assertEqual([m for m, _ in calls], ["PVR.GetBroadcasts"])
+
+    def test_no_channel_no_call(self):
+        items, calls = self.serve({}, [NOW])
+        self.assertIsNone(items)
+        self.assertEqual(calls, [])
+
+
+class SmartSelect(unittest.TestCase):
+    """pvr_smart_select with JSON-RPC, the dialogs and builtins stubbed."""
+
+    def select(
+        self,
+        choices: list[int],
+        *,
+        recordable: bool = True,
+        result: str = "OK",
+        when: bool = True,
+        **flags,
+    ) -> dict:
+        """
+        Run the action on broadcast 9, answering each yes/no with the next choice.
+
+        :param choices: yesnocustom answers in turn (-1 Back, 0 No, 1 Yes).
+        :param recordable: Whether its client supports recordings and timers.
+        :param result: What PVR.AddTimer and PVR.ToggleTimer answer.
+        :param when: Whether the skin's switch condition holds.
+        :param flags: Its fields (isactive, hastimer, hasreminder, hastimerrule).
+        :return: dialogs, calls, builtins, ok, stamp and busy as the action left them.
+        """
+        seen = {
+            "dialogs": [],
+            "calls": [],
+            "builtins": [],
+            "ok": [],
+            "stamp": None,
+            "busy": "set",
+        }
+        details = {
+            "label": "News",
+            "clientid": 3,
+            "isactive": False,
+            "hastimer": False,
+            "hasreminder": False,
+            "hastimerrule": False,
+        } | flags
+        answers = iter(choices)
+
+        def json_call(method, properties=None, params=None, item=None, parent=None):
+            reads = [m for m, _ in seen["calls"]].count("PVR.GetBroadcastDetails")
+            seen["calls"].append((method, params or item))
+            if method == "PVR.GetBroadcastDetails":
+                # Kodi's timers catch up on the third read: the first, then two waits
+                flipped = details["hastimer"] ^ (reads > 1)
+                return {"result": {"broadcastdetails": details | {"hastimer": flipped}}}
+            if method == "PVR.GetClients":
+                client = {"supportsrecordings": recordable, "supportstimers": True}
+                return {
+                    "result": {"clients": [{"clientid": 2}, {"clientid": 3} | client]}
+                }
+            return {"result": result}
+
+        def yesnocustom(heading, message, custom, no, yes):
+            seen["dialogs"].append((heading, message, no, yes))
+            return next(answers)
+
+        def window_property(key, value=False, window_id=10000):
+            self.assertEqual(window_id, 10608)
+            seen["stamp" if key == "pvrosd_guide_timers" else "busy"] = value
+
+        dialog = mock.Mock(yesnocustom=yesnocustom, ok=lambda *a: seen["ok"].append(a))
+        with (
+            mock.patch.multiple(
+                actions,
+                json_call=json_call,
+                window_property=window_property,
+                condition=lambda c: when,
+            ),
+            mock.patch.object(actions.xbmcgui, "Dialog", lambda: dialog),
+            mock.patch.object(actions.xbmc, "getLocalizedString", str, create=True),
+            mock.patch.object(
+                actions.xbmc,
+                "Monitor",
+                lambda: mock.Mock(waitForAbort=lambda s: False),
+                create=True,
+            ),
+            mock.patch.object(actions.log, "execute", seen["builtins"].append),
+        ):
+            actions.pvr_smart_select(
+                "9",
+                switch="SetFocus(11)|Action(Select,pvrosdchannels)",
+                channelid="4",
+                when="Window.IsActive(pvrosdchannels)",
+                stamp="pvrosd_guide_timers",
+                busy="pvrosd_smart_select",
+                window_id="10608",
+            )
+        return seen
+
+    def methods(self, seen: dict) -> list:
+        return [m for m, _ in seen["calls"]]
+
+    def test_record_or_switch_as_kodi(self):
+        seen = self.select([0])
+        self.assertEqual(seen["dialogs"], [("19096", "19302", "264", "19165")])
+        self.assertIn(
+            ("PVR.AddTimer", {"broadcastid": 9, "reminder": False}), seen["calls"]
+        )
+        self.assertTrue(seen["stamp"])
+
+    def test_reminder_where_the_channel_cant_record(self):
+        seen = self.select([0], recordable=False)
+        self.assertEqual(seen["dialogs"], [("19096", "19344", "826", "19165")])
+        self.assertIn(
+            ("PVR.AddTimer", {"broadcastid": 9, "reminder": True}), seen["calls"]
+        )
+
+    def test_switch_runs_the_skins_builtins(self):
+        seen = self.select([1])
+        self.assertEqual(
+            seen["builtins"], ["SetFocus(11)", "Action(Select,pvrosdchannels)"]
+        )
+        self.assertNotIn("PVR.AddTimer", self.methods(seen))
+        self.assertIsNone(seen["stamp"])
+
+    def test_switch_plays_the_channel_once_the_list_moved_on(self):
+        seen = self.select([1], when=False)
+        self.assertEqual(seen["builtins"], [])
+        self.assertIn(("Player.Open", {"channelid": 4}), seen["calls"])
+
+    def test_on_air_by_now_switches_without_asking(self):
+        seen = self.select([], isactive=True)
+        self.assertEqual(seen["dialogs"], [])
+        self.assertEqual(
+            seen["builtins"], ["SetFocus(11)", "Action(Select,pvrosdchannels)"]
+        )
+
+    def test_back_does_nothing(self):
+        seen = self.select([-1])
+        self.assertEqual(
+            self.methods(seen), ["PVR.GetBroadcastDetails", "PVR.GetClients"]
+        )
+        self.assertEqual(seen["builtins"], [])
+
+    def test_every_run_clears_busy(self):
+        for choices, flags in (
+            ([-1], {}),
+            ([1], {}),
+            ([0], {}),
+            ([], {"isactive": True}),
+            ([0, -1], {"hastimer": True, "hastimerrule": True}),
+        ):
+            with self.subTest(choices=choices, flags=flags):
+                self.assertFalse(self.select(choices, **flags)["busy"])
+
+    def test_a_timer_offers_delete_never_a_second(self):
+        seen = self.select([0], hastimer=True)
+        self.assertEqual(seen["dialogs"], [("19096", "19034", "19060", "19165")])
+        self.assertNotIn("PVR.AddTimer", self.methods(seen))
+        self.assertIn(
+            ("PVR.ToggleTimer", {"broadcastid": 9, "timerrule": False}), seen["calls"]
+        )
+        self.assertTrue(seen["stamp"])
+
+    def test_a_reminder_offers_delete_reminder(self):
+        seen = self.select([-1], hastimer=True, hasreminder=True)
+        self.assertEqual(seen["dialogs"][0][2], "827")
+
+    def test_a_rules_timer_asks_only_this_or_all(self):
+        seen = self.select([0, 1], hastimer=True, hastimerrule=True)
+        self.assertEqual(seen["dialogs"][1], ("122", "840\n\nNews", "841", "593"))
+        self.assertIn(
+            ("PVR.ToggleTimer", {"broadcastid": 9, "timerrule": True}), seen["calls"]
+        )
+        seen = self.select([0, -1], hastimer=True, hastimerrule=True)
+        self.assertNotIn("PVR.ToggleTimer", self.methods(seen))
+
+    def test_a_failed_delete_says_so_and_stamps_nothing(self):
+        seen = self.select([0], hastimer=True, result="")
+        self.assertEqual(seen["ok"], [("257", "19110")])
+        self.assertIsNone(seen["stamp"])
+
+    def test_waits_for_kodis_timers_before_the_stamp(self):
+        seen = self.select([0])
+        reads = self.methods(seen).count("PVR.GetBroadcastDetails")
+        self.assertEqual(reads, 3)  # the first, then until hastimer flips
+
+
+if __name__ == "__main__":
+    unittest.main()
