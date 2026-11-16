@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from xbmc import Monitor
+
 from resources.lib.apis import http
 from resources.lib.apis.cache import DAY, FAILURES, cached
 from resources.lib.apis.http import HttpError
@@ -16,6 +18,7 @@ API = "https://lrclib.net/api"
 TTL_HIT, TTL_EMPTY = 180 * DAY, 30 * DAY
 NEAR = 2  # seconds a search hit's length may sit from the file's
 SEARCH = ("track_name", "artist_name")  # /search's fallback query: no album or length
+TIMEOUT = 3  # seconds a request waits: one fits inside Kodi's 5 s for a script's exit
 
 
 def enabled() -> bool:
@@ -45,16 +48,22 @@ def _fetch(params: dict[str, Any]) -> dict[str, Any]:
 
     :param params: /get's query.
     :return: _shape's payload.
-    :raises HttpError: On a failure, or a 404 no search hit is near.
+    :raises HttpError: On a failure, a 404 no search hit is near, or Kodi exiting
+        before the search (status None: the 5-minute wait, not a 7-day miss).
     """
     try:
-        return _shape(http.get_json(f"{API}/get", params))
+        return _shape(http.get_json(f"{API}/get", params, timeout=TIMEOUT))
     except HttpError as exc:
         if exc.status != 404:
             raise
+        # Kodi waits on a script's threads at exit and kills it after 5 s
+        if Monitor().abortRequested():
+            raise HttpError(None) from None
         seconds = params["duration"]
         best = min(
-            http.get_json(f"{API}/search", {k: params[k] for k in SEARCH}),
+            http.get_json(
+                f"{API}/search", {k: params[k] for k in SEARCH}, timeout=TIMEOUT
+            ),
             key=lambda hit: (abs(hit["duration"] - seconds), not hit["syncedLyrics"]),
             default={"duration": seconds + NEAR + 1},
         )

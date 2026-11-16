@@ -127,10 +127,11 @@ class Net:
     """Stands in for urlopen: each call pops the next answer, recording requests."""
 
     def __init__(self):
-        self.answers, self.requests = [], []
+        self.answers, self.requests, self.timeouts = [], [], []
 
     def __call__(self, request, timeout):
         self.requests.append(request)
+        self.timeouts.append(timeout)
         answer = self.answers.pop(0)
         if isinstance(answer, Exception):
             raise answer
@@ -2514,6 +2515,19 @@ class LrclibTest(Base):
     def setUp(self):
         super().setUp()
         self.settings["lrclib"] = True
+        self.exiting = False
+        patch(self, (lrclib, "Monitor", lambda: self))
+
+    def abortRequested(self):
+        return self.exiting
+
+    def test_no_search_once_kodi_exits(self):
+        self.exiting = True
+        self.net.answers = [http_error(404), json.dumps(LRCLIB_SEARCH).encode()]
+        self.assertIsNone(self.lookup(218))
+        self.assertEqual(len(self.net.requests), 1)
+        self.assertEqual(self.row(self.key(218), ""), (None, 300))  # not a 7-day miss
+        self.assertEqual(self.net.timeouts, [lrclib.TIMEOUT])
 
     def lookup(self, seconds=223):
         return lrclib.lyrics(*SONG[:3], seconds)
