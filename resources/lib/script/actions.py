@@ -1617,6 +1617,17 @@ def skip_segment(seek: str, **kwargs: str) -> None:
 
 
 @action
+def lyrics_seek(time: str, **kwargs: str) -> None:
+    """
+    OK on a browsed lyric line: seek the playing song to it, a line at 0 too.
+    The service's lists follow on its next pass.
+
+    :param time: Milliseconds, the line's ListItem.Property(time).
+    """
+    xbmc.Player().seekTime(to_int(time) / 1000)
+
+
+@action
 def listenbrainz_test(**kwargs: str) -> None:
     """
     Verify the configured ListenBrainz token by making a test request.

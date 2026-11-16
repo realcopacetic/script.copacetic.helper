@@ -3,7 +3,8 @@ Offline checks for lyrics: the LRC parser (shared/lrc.py); the service's sources
 order (a .lrc beside the song, its tags, LRCLIB), what it publishes, how it steps
 the visualisation's follow list (3510) and the music OSD's browse list (3511) by
 their selected item, and the player monitor's poller hook (service/lyrics.py,
-service/player.py). Infolabels and conditions are dicts; nothing reaches the network.
+service/player.py); the info=lyrics plugin path and the lyrics_seek action.
+Infolabels and conditions are dicts; nothing reaches the network.
 Run from the helper root: python tests/lyrics_offline.py
 """
 
@@ -18,15 +19,17 @@ from build_offline import HELPER, install_stubs
 
 STAGE = Path(tempfile.mkdtemp())
 install_stubs(HELPER, STAGE, STAGE, verbose=False)
-vars(sys.modules["xbmc"]).update(
+vars(sys.modules["xbmc"]).update(  # imported names; a test that calls one patches it
     Player=object,
     InfoTagVideo=None,
-    Monitor=None,  # imported by apis/cache; never called here
+    Monitor=None,
+    getCacheThumbName=None,
     getLocalizedString=None,
     VideoStreamDetail=None,
     AudioStreamDetail=None,
     SubtitleStreamDetail=None,
 )
+sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
 
 
 class File:
@@ -48,6 +51,8 @@ class File:
 sys.modules["xbmcvfs"].File = File
 sys.path.insert(0, str(HELPER))
 
+from resources.lib.plugin import handlers  # noqa: E402
+from resources.lib.script import actions  # noqa: E402
 from resources.lib.service import lyrics, player  # noqa: E402
 from resources.lib.shared import lrc  # noqa: E402
 
@@ -372,6 +377,50 @@ class PollerHookTest(Kodi):
         self.monitor._lyrics, self.playing = None, False  # a video
         self.assertEqual(self.monitor.watch_lyrics(), 1)
         self.assertEqual(len(self.lookups), 1)
+
+
+class PluginAndActionTest(unittest.TestCase):
+    def setUp(self):
+        self.home = sys.modules["xbmcgui"].Window(10000)
+        self.addCleanup(self.home.clearProperty, lyrics.LINES)
+        patcher = patch.object(handlers, "set_items", list)  # the items as dicts
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_one_item_per_line(self):
+        self.home.setProperty(lyrics.LINES, json.dumps(LINES))
+        items = object.__new__(handlers.PluginHandlers).lyrics()
+        self.assertEqual(
+            items,
+            [
+                {
+                    "file": "plugin://script.copacetic.helper/lyrics/0",
+                    "label": "Feel good",
+                    "properties": {"index": 0, "time": 1470, "gap": ""},
+                },
+                {
+                    "file": "plugin://script.copacetic.helper/lyrics/1",
+                    "label": "Sha, sha-ba-da",
+                    "properties": {"index": 1, "time": 7050, "gap": ""},
+                },
+                {
+                    "file": "plugin://script.copacetic.helper/lyrics/2",
+                    "label": "",
+                    "properties": {"index": 2, "time": 10060, "gap": "true"},
+                },
+            ],
+        )
+        self.home.clearProperty(lyrics.LINES)  # plain, none, or not playing
+        self.assertIsNone(object.__new__(handlers.PluginHandlers).lyrics())
+
+    def test_seek_to_a_line(self):
+        seeks = []
+        player_ = type("Player", (), {"seekTime": lambda self, s: seeks.append(s)})
+        with patch.object(actions.xbmc, "Player", player_, create=True):
+            actions.lyrics_seek(time="65300")
+            actions.lyrics_seek(time="0")
+        self.assertEqual(seeks, [65.3, 0.0])
+        self.assertIs(actions.REGISTRY["lyrics_seek"], actions.lyrics_seek)
 
 
 if __name__ == "__main__":
