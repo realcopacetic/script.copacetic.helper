@@ -770,3 +770,12 @@ msgstr ""
 msgctxt "#32841"
 msgid "%s and more."
 msgstr ""
+
+#: /addon.xml — the context menu, for an album
+msgctxt "#32842"
+msgid "Mark as played"
+msgstr ""
+
+msgctxt "#32843"
+msgid "Mark as unplayed"
+msgstr ""

@@ -45,7 +45,8 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `btn_id` | control id | `target_id + 2` | Button id. |
 | `img_id` | control id | `target_id + 3` | Image id. |
 | `img_h` | whole number | the bar height | Height of the image. |
-| `new_days` | whole number | `30` | How long an item stays `new`: a film was added, or an episode (for a show, its newest unwatched one, specials included) first aired, at most this many days ago. |
+| `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
+| `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, or an episode (for a show, its newest unwatched one, specials included) first aired, at most this many days ago. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
 | `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDb data `next_air` and `next_air_episode` read, as in [TMDb lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -67,19 +68,45 @@ The first rule that matches wins:
    `VideoLibrary.GetMovieSetDetails`.
 4. Otherwise: 0.
 
+An album skips these rules; see [Albums](#albums).
+
+## Albums
+
+A library album (`ListItem.DBType` `album`) is measured from its songs, with one
+`AudioLibrary.GetSongs` call made before the bar moves. Its own
+`ListItem.PlayCount` is no use: Kodi gives an album the rounded average of its songs'
+play counts. A song counts as heard when it has a play count and its last play falls
+within `album_days`. Kodi counts a song as played once 90% of it has played
+(`audio` `playcountminimumpercent` in advancedsettings), so a skipped song isn't
+heard.
+
+- **Part-heard** (some of its running time heard within `album_days`, not all): the
+  value is the share of the running time heard, and the album gets a film's labels:
+  `ListItem.Duration` is its length, the resume point is the time heard, `time_left`
+  is the length still to hear and `ListItem.EndTimeResume` the time it would end.
+  Listening again a year later counts afresh.
+- **Heard through, or untouched within `album_days`:** 0, no bar.
+- **New:** `new` is `true` for an album none of whose songs has ever played that
+  was added within `new_days`. That costs one `AudioLibrary.GetAlbumDetails` call.
+
+The serve also writes the focused album's id to `Window(home).Property(album_played)`
+when every song has played and none is part-heard, or to `album_unplayed` when none
+has, and clears the other. The context menu's
+[Mark as played and Mark as unplayed](../script/actions.md#mark_album) read them.
+
 ## What you get back
 
 One list item in the helper container:
 
 | Infolabel | Value |
 |---|---|
-| `ListItem.PercentPlayed` | The value above, 0–100, set as the resume point: in seconds for a part-watched movie or episode with a runtime (see below), otherwise out of 100. |
-| `ListItem.Duration`, `ListItem.EndTimeResume` | A part-watched movie or episode with a runtime: its runtime, and the time it would end if resumed now, e.g. `22:30` (Kodi's own label, kept current). Empty or meaningless for anything else, so test `time_left` first. |
+| `ListItem.PercentPlayed` | The value above, 0–100, set as the resume point: in seconds for a part-watched movie or episode with a runtime, or a part-heard album (see below), otherwise out of 100. |
+| `ListItem.Duration`, `ListItem.EndTimeResume` | A part-watched movie or episode with a runtime, or a part-heard album: its runtime, and the time it would end if resumed now, e.g. `22:30` (Kodi's own label, kept current). Empty or meaningless for anything else, so test `time_left` first. |
 | `ListItem.Property(unwatchedepisodes)` | `ListItem.Property(UnwatchedEpisodes)` of the focused item. For a set, the number of unwatched movies. Empty when the item is watched. |
-| `ListItem.Property(time_left)` | A part-watched movie or episode: the runtime left, rounded up to the minute, e.g. `1h 23m`, `1h` or `48m`. |
+| `ListItem.Property(time_left)` | A part-watched movie or episode, or a part-heard album: the runtime left, rounded up to the minute, e.g. `1h 23m`, `1h` or `48m`. |
 | `ListItem.Property(next_episode)` | A TV show or season with unwatched episodes, started or not: the lowest unwatched episode outside the specials, e.g. `2x10` (`1x01` for a show not yet begun, `3x01` for a Season 3 not yet begun). |
 | `ListItem.Property(next_runtime)` | That episode's library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
-| `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`. |
+| `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`; or for an album none of whose songs has played, added within `new_days`. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
 | `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDb data predates it (see below). |
 
@@ -95,10 +122,11 @@ for them too. The library calls they add, per focus:
 | Fully watched show | 0 or 1 | `GetTVShowDetails` for its TMDb id, only with a TMDb token and no `UniqueID(tmdb)` |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
+| Album none of whose songs has played | 1 | `GetAlbumDetails` (`dateadded`) |
 | Watched or part-watched film or episode, fully watched or Specials season, set, plugin item | 0 | |
 
-A movie set's value itself costs one `GetMovieSetDetails` call (rule 3 above), made
-before the bar moves.
+A movie set's value itself costs one `GetMovieSetDetails` call (rule 3 above), and an
+album's one `GetSongs` call, both made before the bar moves.
 
 To see the cost on your device, turn on *Troubleshooting → Enable extra debug logs*
 in the add-on's settings and look for `PluginHandlers → progressbar took … seconds`

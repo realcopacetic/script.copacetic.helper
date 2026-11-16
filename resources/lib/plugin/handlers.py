@@ -1199,10 +1199,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         target_id = to_int(self.params.get("target_id"), None)
+        since = datetime.now() - timedelta(
+            days=to_int(self.params.get("album_days"), 14)
+        )
         pb = ProgressBarManager(
             target=self.target_item,
             base_id=target_id,
             window_id=self.window_id,
+            album_since=f"{since:%Y-%m-%d %H:%M:%S}",
         )
         resume, unwatched = pb.calculate()
         # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)
@@ -1239,8 +1243,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     hours_minutes(math.ceil((secs - position) / 60)) if secs else ""
                 ),
                 **self._show_context(pb.infolabels),
-                **self._unwatched_new(pb.infolabels, resume),
+                **self._unwatched_new(pb, resume),
             }
+            if pb.infolabels["DBType"] == "album":
+                # For the context menu's Mark as played / unplayed (addon.xml)
+                state, dbid = pb.album[2], pb.infolabels["DBID"]
+                window_property("album_played", value=dbid if state == "played" else "")
+                window_property(
+                    "album_unplayed", value=dbid if state == "unplayed" else ""
+                )
 
         return set_items([item], tag_applier=apply_videoinfotag)
 
@@ -1320,27 +1331,37 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "new": "true" if new else "",
         }
 
-    def _unwatched_new(self, labels: dict[str, str], resume: float) -> dict[str, str]:
+    def _unwatched_new(self, pb: ProgressBarManager, resume: float) -> dict[str, str]:
         """
-        A film's or episode's new: no resume point or play count, and a film added or
-        an episode aired within new_days (one Get…Details call: ListItem.DateAdded and
-        ListItem.Premiered are regional dates).
+        A film's, episode's or album's new: unwatched or never played, and a film or
+        album added or an episode aired within new_days (one Get…Details call:
+        ListItem.DateAdded and ListItem.Premiered are regional dates).
 
-        :param labels: The focused item's infolabels, as ProgressBarManager read them.
+        :param pb: The focused item's ProgressBarManager.
         :param resume: Progress from ProgressBarManager.calculate: 0 for unwatched.
         :return: The new property; none for other types, or a started or watched item.
         """
         # No library id (a plugin's item): nothing to look up
         if (
-            (dbtype := labels["DBType"]) not in ("movie", "episode")
+            (dbtype := pb.infolabels["DBType"]) not in ("movie", "episode", "album")
             or resume
-            or not (dbid := to_int(labels["DBID"]))
+            or not (dbid := to_int(pb.infolabels["DBID"]))
         ):
             return {}
         # An episode by air date: a show added late, or a binge, isn't new. Empty (not
         # aired, or unknown) sorts first; a future date (a pre-release file) is new
         field = "firstaired" if dbtype == "episode" else "dateadded"
-        item = _video_details(dbtype, dbid, [field], "progressbar")
+        if dbtype != "album":
+            item = _video_details(dbtype, dbid, [field], "progressbar")
+        elif pb.album[2] == "unplayed":
+            response = json_call(
+                method="AudioLibrary.GetAlbumDetails",
+                params={"albumid": dbid, "properties": [field]},
+                parent="progressbar",
+            )
+            item = response.get("result", {}).get("albumdetails")
+        else:
+            return {}
         new = item and item[field] >= self._new_since(field)  # None: an error answer
         return {"new": "true" if new else ""}
 
