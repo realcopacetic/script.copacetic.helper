@@ -38,6 +38,12 @@ PROPS = (
     *NEIGHBOURS,
     "lyrics_state",
 )
+# The last song's eyebrow words go with its state while this one is looked up
+SEARCHING = {
+    "lyrics_source": "",
+    "lyrics_instrumental": "",
+    "lyrics_state": "searching",
+}
 
 
 def clear() -> None:
@@ -138,7 +144,8 @@ def lookup() -> "Lyrics":
 
     :return: Lyrics to follow; with no lines unless synced.
     """
-    window_property("lyrics_state", value="searching")
+    for key, value in SEARCHING.items():
+        window_property(key, value=value)
     source, synced, plain, instrumental = find(infolabel("Player.Filenameandpath"))
     props = {
         LINES: json.dumps(synced) if synced else "",

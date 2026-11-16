@@ -544,7 +544,11 @@ class PlayerMonitor(Player):
             | {f"player_artistid_{i}": str(a) for i, a in enumerate(artistids[:3], 1)}
         )
         # Before the queue grows, which may wait on ListenBrainz
-        self._lyrics = lyrics.lookup() if condition(lyrics.ENABLED) else None
+        if condition(lyrics.ENABLED):
+            self._lyrics = lyrics.lookup()
+        else:  # the last song's, if the setting went off since its pass
+            self._lyrics = None
+            lyrics.clear()
         self._record_speed_dial(songid)
         if (
             songid > 0
