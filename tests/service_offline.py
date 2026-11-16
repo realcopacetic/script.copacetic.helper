@@ -4,7 +4,8 @@ a build that raises is logged, and the player monitor, slideshow and helper_acti
 still start; helper_speed_dial follows the skin naming info=speed_dial; each skin
 keeps its own runtime state; a script rebuild sets and clears helper_reloading, and
 the editor close and delete_orphans reload only when the build wrote (or for a host
-open once the session has closed), else clear it.
+open once the session has closed), else clear it. Under the screensaver only lyrics
+follow, while audio plays.
 Run from the helper root: python tests/service_offline.py
 """
 
@@ -612,6 +613,29 @@ class ReloadGate(unittest.TestCase):
 
     def test_rebuild_action_always_reloads(self):
         self.assertEqual(self.outcome(actions.rebuild, False), (True, True, False))
+
+
+class LyricsUnderTheScreensaver(unittest.TestCase):
+    def test_only_lyrics_follow_while_audio_plays(self):
+        service = object.__new__(monitor.Monitor)
+        service.idle, service.skin = True, ("skin", "1")
+        service.player_monitor = Mock(
+            **{
+                "isPlayingAudio.side_effect": [True, False],
+                "watch_lyrics.return_value": 0.2,
+            }
+        )
+        waits = []
+        service.waitForAbort = waits.append
+        service.abortRequested = Mock(side_effect=[False, False, True])
+        service.poller, service._deactivate = Mock(), Mock()
+        with (
+            patch.object(monitor, "skin_path", lambda: "skin"),
+            patch.object(monitor, "skin_version", lambda skin: "1"),
+        ):
+            service._run()
+        self.assertEqual(waits, [0.2, 2])  # a song, then nothing playing
+        service.poller.assert_not_called()
 
 
 if __name__ == "__main__":
