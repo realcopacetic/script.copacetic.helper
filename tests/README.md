@@ -83,9 +83,10 @@ python tests/segments_offline.py
 python tests/pvr_offline.py
 
 # Lyrics (shared/lrc.py, service/lyrics.py): the LRC parser; the sources in order (a
-# .lrc beside the song, its tags, LRCLIB) and the next song's prefetch; what is
-# published, lines before their state; the follow (3510) and browse (3511) lists
-# stepped by their own selected item, so a missed step is made up; the poller hook;
+# .lrc beside the song in any encoding, its tags, LRCLIB off the service thread) and
+# the next song's prefetch, one request per song; what is published, lines before
+# their state; the follow (3510) and browse (3511) lists put on the line by their own
+# selected item, a queued move never added to; the poller hook;
 # the info=lyrics plugin path (an item per line) and the lyrics_seek action
 python tests/lyrics_offline.py
 

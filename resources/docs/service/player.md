@@ -229,7 +229,8 @@ with the song. It never shows a notification and never takes focus. The sources,
 order, the first with any winning:
 
 1. **A `.lrc` file** of the same name beside the song (`Song.flac` and `Song.lrc`),
-   read through Kodi's file system, so shares work too; not for a stream.
+   read through Kodi's file system, so shares work too; not for a stream. UTF-8 and
+   UTF-16 (with its byte order mark) are read as such, anything else as Windows-1252.
 2. **The song's tags**: the lyrics Kodi reads from the file when it plays
    (`MusicPlayer.Lyrics`). Lyrics with LRC time stamps are synced; without, plain.
 3. **[LRCLIB](https://lrclib.net)**, a free, open lyrics database, while the
@@ -243,16 +244,24 @@ order, the first with any winning:
 LRC files can have several time stamps on a line, `[mm:ss]`, `[mm:ss.xx]` or
 `[mm:ss.xxx]` stamps, an `[offset:]` tag and metadata tags (ignored); an empty
 stamped line is a gap between verses. Enhanced LRC's word stamps (`<mm:ss.xx>`)
-are removed.
+are removed. Text with no stamps the service can time is plain, less any LRC tags
+and stamps (a lyric's own `[Chorus]` stays); a `.lrc` with nothing else in it holds
+no lyrics, and the next source is tried.
 
-Each song is looked up when it starts (`lyrics_state` reads `searching` meanwhile),
-and the next song in the queue is fetched from LRCLIB in the background, so it is
-ready when it starts. Turning the setting on mid-song looks the song up then; off
-clears everything. The properties stay up until the next song's are ready, and clear
-when playback stops or a video starts.
+Each song is looked up when it starts (`lyrics_state` reads `searching` meanwhile,
+`lyrics_source` and `lyrics_instrumental` empty). A `.lrc`, the tags or a saved
+LRCLIB answer show at once; a request to LRCLIB runs in the background and its
+answer shows within 0.2 seconds of arriving, so nothing else the service does waits
+on it. The next song in the queue is asked for in the background too, so it is ready
+when it starts; only an answer is saved then, so a failed request can't hide that
+song's lyrics, and one song is never asked for twice at once. Turning the setting on
+mid-song looks the song up then; off clears everything. The properties stay up until
+the next song's are ready, and clear when playback stops or a video starts.
 
-**What LRCLIB is sent.** The song's title, artist, album and length. No account or
-key is needed; requests carry the helper's name and project page, as LRCLIB asks.
+**What LRCLIB is sent.** The song's title, artist, album and length, for the playing
+song and the next one in the queue (even when that one has lyrics of its own). No
+account or key is needed; requests carry the helper's name and project page, as
+LRCLIB asks.
 The setting is `lrclib` in the helper's settings, on by default: off, nothing is
 sent and only `.lrc` files and tags are used. A skin can test for it with
 `Addon.SettingBool(script.copacetic.helper,lrclib)`. *Cache › Clear LRCLIB data*
@@ -274,10 +283,13 @@ one item per synced line, in order. The label is the line's text, empty for a ga
 the properties are `index` (from 0), `time` (milliseconds) and `gap` (`true` on an
 empty line). Plain lyrics list nothing: show `lyrics_plain` in a textbox.
 
-**Following the song.** On each line's time the service moves one list to the
-current line with `Control.Move(<id>,<lines>)`, by the distance from the list's own
-selected item (`Container(<id>).CurrentItem`), so a step that missed is made up on
-the next line; after a seek it jumps. Give the lists these ids:
+**Following the song.** On each line's time, and every 0.2 seconds while the
+visualisation shows, the service puts one list on the current line when it isn't,
+with `Control.Move(<id>,<lines>)` by the distance from the list's own selected item
+(`Container(<id>).CurrentItem`). A step a dialog took, a list reloaded or shown again
+(a new song, the OSD reopening) and a seek are put right within 0.2 seconds. A move
+is given half a second to land before the list is moved again, so one step never
+lands twice. Lyrics follow under a dim screensaver too. Give the lists these ids:
 
 | Id | List | Moved |
 |---|---|---|
