@@ -400,9 +400,28 @@ class LrclibTest(Kodi):
             lyrics.lookup(self.aborted)
         self.assertEqual((self.asked, self.props["lyrics_state"]), ([], "none"))
 
-    def test_kodi_exiting_stops_a_request_quietly(self):
+    def test_no_new_request_once_kodi_exits(self):
+        self.running = False
+        self.labels |= QUEUED | {"MusicPlayer.Lyrics": LRC}
+        lyrics.lookup(self.aborted)
+        self.labels |= dict(zip(TAGS, ("Blur", "Song 2", "Blur", "02:02")))
+        self.labels |= {"MusicPlayer.Lyrics": "", "MusicPlayer.offset(1).Title": ""}
+        found = lyrics.lookup(self.aborted)  # Song 2 takes over its prefetch
         self.exiting = True
+        lyrics._fetches[NEXT].run()  # it ends in Aborted
+        self.assertEqual(found.tick(0.0), lyrics.ASKING_WAIT)
+        self.assertEqual(lyrics._fetches, {})  # no new request started
+        self.assertEqual(found.tick(0.2), 1)
+        self.assertEqual(self.props["lyrics_state"], "none")
+        lyrics.lookup(self.aborted)  # the setting turned on in the last pass
+        self.assertEqual(lyrics._fetches, {})
+        self.assertEqual(self.asked, [("prefetch", NEXT)])
+
+    def test_kodi_exiting_stops_a_request_quietly(self):
+        self.running = False
         found = lyrics.lookup(self.aborted)
+        self.exiting = True  # while the request is out
+        lyrics._fetches[SONG].run()
         self.assertEqual((self.asked, self.errors), ([("lyrics", SONG)], []))
         self.assertEqual(lyrics._fetches, {})  # the thread ended: Kodi needn't wait
         self.assertEqual(found.tick(0.0), 1)

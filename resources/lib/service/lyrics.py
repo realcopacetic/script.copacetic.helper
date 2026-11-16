@@ -183,7 +183,7 @@ class Fetch(Thread):
 
     def __init__(self, song: Song, ask: Callable, aborted: Callable[[], bool]) -> None:
         """
-        Start the lookup.
+        Start the lookup, unless Kodi is exiting: then it reads as done, with none.
 
         :param song: (artist, title, album, seconds).
         :param ask: lrclib.lyrics for the playing song, lrclib.prefetch for the next.
@@ -191,6 +191,8 @@ class Fetch(Thread):
         """
         super().__init__(daemon=True)
         self.song, self.ask, self.aborted, self.found = song, ask, aborted, None
+        if aborted():  # Kodi is exiting: no thread for it to wait on; found stays None
+            return
         _fetches[song] = self
         self.start()
 
