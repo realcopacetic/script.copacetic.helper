@@ -6,8 +6,9 @@ import os
 import sqlite3
 import time
 from bisect import bisect_right
+from collections.abc import Callable, Sequence
 from threading import Thread
-from typing import Any, Callable
+from typing import Any
 
 import xbmcvfs
 
@@ -260,7 +261,7 @@ class Lyrics:
     neighbours and steps the skin's list in view to it.
     """
 
-    def __init__(self, lines: list[list] = (), fetch: Fetch | None = None) -> None:
+    def __init__(self, lines: Sequence[list] = (), fetch: Fetch | None = None) -> None:
         """
         Hold the lines' times, or the LRCLIB lookup that brings them; lookup has
         published the state before the first line.
@@ -271,9 +272,8 @@ class Lyrics:
         self.times = [ms for ms, _ in lines]
         self.fetch = fetch
         self.index = -1  # the line published
-        self.moved = (
-            None  # (list, item it moves to, monotonic deadline) of the last move
-        )
+        # (list, item it moves to, monotonic deadline) of the last move
+        self.moved = None
 
     def tick(self, now: float) -> float:
         """
@@ -303,25 +303,27 @@ class Lyrics:
             self.index = index
             for key, value in around(index).items():
                 window_property(key, value=value)
-        self._step(index)
+        shown = condition(SHOWN)  # read once: each condition waits on the GUI
+        self._step(index, shown)
         if index + 1 == len(self.times) or condition("Player.Paused"):
             wait = 1
         else:
             wait = max(MIN_WAIT, (self.times[index + 1] - ms) / 1000)
-        return min(wait, SHOWN_WAIT if condition(SHOWN) else 1)
+        return min(wait, SHOWN_WAIT if shown else 1)
 
-    def _step(self, index: int) -> None:
+    def _step(self, index: int, shown: bool) -> None:
         """
         Put the list in view on the line whenever it isn't (a step a dialog took, a
         list reloaded or shown again), by its distance from the selected item: the
         OSD's browse list unless it has focus, else the visualisation's follow list.
 
         :param index: The current line; -1 before the first (the first item then).
+        :param shown: The visualisation is the active window.
         """
         if condition("Window.IsActive(musicosd)"):
             target = 0 if condition(f"Control.HasFocus({BROWSE})") else BROWSE
         else:
-            target = FOLLOW if condition(SHOWN) else 0
+            target = FOLLOW if shown else 0
         # Read in the topmost modal dialog: none under another one, as Control.Move
         if not (
             target and (count := to_int(infolabel(f"Container({target}).NumItems")))
