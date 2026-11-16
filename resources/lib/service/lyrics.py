@@ -11,7 +11,7 @@ import xbmcvfs
 
 from resources.lib.apis import lrclib
 from resources.lib.shared import logger as log
-from resources.lib.shared.lrc import parse
+from resources.lib.shared.lrc import LINES, parse
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -21,7 +21,6 @@ from resources.lib.shared.utilities import (
 
 ENABLED = "Skin.HasSetting(lyrics)"
 FOLLOW, BROWSE = 3510, 3511  # the visualisation's follow list, the music OSD's browse
-LINES = "lyrics_lines"  # the synced lines as JSON, for the plugin's info=lyrics
 NEIGHBOURS = {"lyrics_m2": -2, "lyrics_m1": -1} | {
     f"lyrics_p{n}": n for n in range(1, 6)
 }
