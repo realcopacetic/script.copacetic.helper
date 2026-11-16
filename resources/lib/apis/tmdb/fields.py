@@ -9,14 +9,9 @@ TMDB_PROPERTIES = {
         "endpoint": "/movie/{id}",
         "append": ["images", "videos"],
         "fields": [
-            "original_title",
             "title",
             "overview",
             "tagline",
-            "release_date",
-            "runtime",
-            "budget",
-            "revenue",
             "backdrop_path",
             "poster_path",
             ("images_backdrops", ("images", "backdrops")),
@@ -31,11 +26,12 @@ TMDB_PROPERTIES = {
         "append": ["images", "videos"],
         "fields": [
             "name",
-            "original_name",
             "overview",
             "tagline",
             "created_by",
-            "first_air_date",
+            "status",
+            ("last_episode_number", ("last_episode_to_air", "episode_number")),
+            ("last_episode_season", ("last_episode_to_air", "season_number")),
             ("next_episode_air_date", ("next_episode_to_air", "air_date")),
             ("next_episode_number", ("next_episode_to_air", "episode_number")),
             ("next_episode_season", ("next_episode_to_air", "season_number")),
@@ -63,24 +59,10 @@ TMDB_FIELD_MAP = {
         "label": "fanart",
         "kind": "image",
     },
-    "budget": {
-        "target": "property",
-        "label": "tmdb_budget",
-    },
     "created_by": {
         "target": "info",
         "label": "Writers",
         "transform": "extract_creator_names",
-    },
-    "episode_run_time": {
-        "target": "info",
-        "label": "Duration",
-        "transform": "first_runtime_from_list",
-    },
-    "first_air_date": {
-        "target": "info",
-        "label": "Year",
-        "transform": "year_from_date",
     },
     "images_backdrops": {
         "target": "art",
@@ -100,6 +82,14 @@ TMDB_FIELD_MAP = {
         "kind": "image_list",
         "limit": 10,
     },
+    "last_episode_number": {
+        "target": "property",
+        "label": "tmdb_last_air_episode",
+    },
+    "last_episode_season": {
+        "target": "property",
+        "label": "tmdb_last_air_season",
+    },
     "name": {
         "target": "info",
         "label": "Title",
@@ -116,14 +106,6 @@ TMDB_FIELD_MAP = {
         "target": "property",
         "label": "tmdb_next_air_season",
     },
-    "original_name": {
-        "target": "info",
-        "label": "OriginalTitle",
-    },
-    "original_title": {
-        "target": "info",
-        "label": "OriginalTitle",
-    },
     "overview": {
         "target": "info",
         "label": "Plot",
@@ -133,22 +115,13 @@ TMDB_FIELD_MAP = {
         "label": "poster",
         "kind": "image",
     },
-    "release_date": {
-        "target": "info",
-        "label": "Year",
-        "transform": "year_from_date",
-    },
-    "revenue": {
-        "target": "property",
-        "label": "tmdb_revenue",
-    },
-    "runtime": {
-        "target": "info",
-        "label": "Duration",
-    },
     "season_overview": {
         "target": "info",
         "label": "Plot",
+    },
+    "status": {
+        "target": "property",
+        "label": "tmdb_status",
     },
     "tagline": {
         "target": "info",
@@ -173,8 +146,6 @@ TMDB_FIELD_MAP = {
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 YOUTUBE_PLUGIN_BASE = "plugin://plugin.video.youtube/play/?video_id="
 TMDB_TRANSFORMS = (
-    "year_from_date",
-    "first_runtime_from_list",
     "pick_best_trailer",
     "list_top_trailers",
     "extract_creator_names",
@@ -185,7 +156,7 @@ def apply_tmdb_transform(name: str, value: Any) -> Any:
     """
     Apply a named TMDb transform function to a value.
 
-    :param name: Transform identifier (for example, "year_from_date").
+    :param name: Transform identifier (for example, "pick_best_trailer").
     :param value: Raw value extracted from TMDb JSON.
     :return: Transformed value, or original value if unknown or invalid.
     """
@@ -228,43 +199,6 @@ def extract_creator_names(value: Any) -> list[str]:
         if isinstance(name, str) and name:
             names.append(name)
     return names
-
-
-def year_from_date(value: Any) -> int:
-    """
-    Convert a 'YYYY-MM-DD' or 'YYYY' date string into an integer year.
-
-    :param value: Raw date string from TMDb JSON.
-    :return: Parsed year as an int, or 0 if parsing fails.
-    """
-    if not isinstance(value, str) or not value:
-        return 0
-
-    year = value.split("-")[0]
-    try:
-        return int(year)
-    except ValueError:
-        return 0
-
-
-def first_runtime_from_list(value: Any) -> int:
-    """
-    Extract the first runtime value (in minutes) from a list or scalar.
-
-    :param value: List of runtimes or a single runtime value.
-    :return: First runtime as an int, or 0 if conversion fails.
-    """
-    if isinstance(value, (list, tuple)) and value:
-        first = value[0]
-        try:
-            return int(first)
-        except (TypeError, ValueError):
-            return 0
-
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
 
 
 def _top_trailers(value: Any) -> list[str]:
