@@ -9,6 +9,7 @@ Run from the helper root: python tests/lyrics_offline.py
 """
 
 import json
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -123,21 +124,27 @@ class Kodi(unittest.TestCase):
 
     def setUp(self):
         self.labels, self.conditions, self.props = dict(TAGS), set(), {}
-        self.order, self.builtins, self.asked, self.threads = [], [], [], []
-        self.lrclib = {}  # LRCLIB's payload by song
+        self.order, self.builtins, self.asked, self.errors = [], [], [], []
+        self.lrclib, self.cache = {}, {}  # by song: LRCLIB's payload, (payload, fresh)
+        self.running = True  # a Fetch runs as it starts, here and now
         for target, name, value in (
             (lyrics, "infolabel", lambda key: self.labels.get(key, "")),
             (lyrics, "condition", lambda key: key in self.conditions),
             (lyrics, "window_property", self.prop),
             (lyrics.log, "execute", self.builtins.append),
+            (lyrics.log, "exception", self.errors.append),
             (lyrics.lrclib, "enabled", lambda: True),
-            (lyrics.lrclib, "lyrics", self.ask),
-            (lyrics, "Thread", self.thread),
+            (lyrics.lrclib, "lyrics", lambda *song: self.ask("lyrics", song)),
+            (lyrics.lrclib, "prefetch", lambda *song: self.ask("prefetch", song)),
+            (lyrics.lrclib, "saved", lambda *song: self.cache.get(song)),
+            (lyrics.Fetch, "start", lambda fetch: self.running and fetch.run()),
+            (lyrics.Fetch, "is_alive", lambda fetch: fetch.song in lyrics._fetches),
             (player, "condition", lambda key: key in self.conditions),
         ):
             patcher = patch.object(target, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.addCleanup(lyrics._fetches.clear)
 
     def prop(self, key, value=""):
         self.order.append(key)
@@ -146,15 +153,11 @@ class Kodi(unittest.TestCase):
         else:
             self.props.pop(key, None)
 
-    def ask(self, *song):
-        self.asked.append(song)
-        return self.lrclib.get(song)
-
-    def thread(self, target, args, daemon):
-        """A Thread that runs its target on start, here and now."""
-        self.assertTrue(daemon)
-        self.threads.append(args)
-        return type("Thread", (), {"start": lambda thread: target(*args)})()
+    def ask(self, kind, song):
+        self.asked.append((kind, song))
+        if isinstance(found := self.lrclib.get(song), Exception):
+            raise found
+        return found
 
 
 class SourcesTest(Kodi):
@@ -199,31 +202,15 @@ class SourcesTest(Kodi):
         self.assertEqual(lyrics.find(path)[:2], ("embedded", [[2000, "embedded"]]))
         self.assertEqual(self.asked, [])
 
-    def test_embedded_plain_then_lrclib(self):
+    def test_embedded_plain_else_none(self):
         path = self.song_file()
         self.labels["MusicPlayer.Lyrics"] = "\r\nFeel good\r\n\r\nCity's breaking\r\n"
         self.assertEqual(
             lyrics.find(path), ("embedded", None, "Feel good\n\nCity's breaking", False)
         )
         self.labels["MusicPlayer.Lyrics"] = " "
-        self.lrclib[SONG] = {"synced": None, "plain": None, "instrumental": True}
-        self.assertEqual(lyrics.find(path), ("lrclib", None, None, True))
-        self.assertEqual(self.asked, [SONG])
-        self.lrclib[SONG] = {}  # LRCLIB holds the song with nothing
-        self.assertEqual(lyrics.find(path), ("", None, None, False))
-        self.assertEqual(lyrics.find(self.song_file("")), ("", None, None, False))
-
-    def test_lrclib_needs_consent_tags_and_length(self):
-        path = self.song_file()
-        with patch.object(lyrics.lrclib, "enabled", lambda: False):
-            self.assertEqual(lyrics.find(path), ("", None, None, False))
-        for label in (
-            "MusicPlayer.Artist",
-            "MusicPlayer.Title",
-            "MusicPlayer.Duration",
-        ):
-            with patch.dict(self.labels, {label: ""}):
-                self.assertEqual(lyrics.find(path)[0], "")
+        self.assertIsNone(lyrics.find(path))
+        self.assertIsNone(lyrics.find(self.song_file("")))
         self.assertEqual(self.asked, [])
 
 
@@ -235,11 +222,7 @@ class LookupTest(Kodi):
             "lyrics_instrumental": "true",
         }
         seen = []
-        with patch.object(
-            lyrics,
-            "find",
-            lambda path: seen.append(dict(self.props)) or ("", None, None, False),
-        ):
+        with patch.object(lyrics, "find", lambda path: seen.append(dict(self.props))):
             lyrics.lookup()
         self.assertEqual(seen, [{"lyrics_state": "searching"}])
 
@@ -281,11 +264,13 @@ class LookupTest(Kodi):
         )
         self.assertEqual(found.tick(5.0), 1)  # nothing to follow
         self.labels["MusicPlayer.Lyrics"] = ""
-        lyrics.lookup()
+        lyrics.lookup().tick(5.0)  # LRCLIB's answer (none) lands at a pass
         self.assertNotEqual(self.props.pop("lyrics_revision"), revision)
         self.assertEqual(self.props, {"lyrics_state": "none"})
         self.lrclib[SONG] = {"synced": None, "plain": None, "instrumental": True}
-        lyrics.lookup()
+        found = lyrics.lookup()
+        self.assertEqual(self.props, {"lyrics_state": "searching"})  # till a pass
+        self.assertEqual(found.tick(5.0), 1)
         self.props.pop("lyrics_revision")
         self.assertEqual(
             self.props,
@@ -296,25 +281,102 @@ class LookupTest(Kodi):
             },
         )
 
-    def test_prefetches_the_next_song(self):
-        self.labels |= {
-            "MusicPlayer.offset(1).Artist": "Blur",
-            "MusicPlayer.offset(1).Title": "Song 2",
-            "MusicPlayer.offset(1).Album": "Blur",
-            "MusicPlayer.offset(1).Duration": "02:02",
-        }
-        lyrics.lookup()
-        next_song = ("Blur", "Song 2", "Blur", 122)
-        self.assertEqual((self.asked, self.threads), ([SONG, next_song], [next_song]))
-        self.labels["MusicPlayer.offset(1).Title"] = ""  # the last song queued
-        lyrics.lookup()
-        self.assertEqual(self.asked[2:], [SONG])
-
     def test_clear(self):
         self.labels["MusicPlayer.Lyrics"] = LRC
         lyrics.lookup()
         lyrics.clear()
         self.assertEqual(self.props, {})
+
+
+NEXT = ("Blur", "Song 2", "Blur", 122)
+QUEUED = {
+    "MusicPlayer.offset(1).Artist": "Blur",
+    "MusicPlayer.offset(1).Title": "Song 2",
+    "MusicPlayer.offset(1).Album": "Blur",
+    "MusicPlayer.offset(1).Duration": "02:02",
+}
+
+
+class LrclibTest(Kodi):
+    def test_asked_off_the_service_thread(self):
+        self.running = False  # the request is out
+        self.lrclib[SONG] = {"synced": LINES, "plain": None, "instrumental": False}
+        found = lyrics.lookup()
+        self.assertEqual((self.asked, self.props), ([], {"lyrics_state": "searching"}))
+        self.assertEqual(found.tick(1.0), lyrics.ASKING_WAIT)
+        lyrics.lookup()  # the setting turned off and on again: the same request
+        self.assertEqual(list(lyrics._fetches), [SONG])
+        lyrics._fetches[SONG].run()  # it answers
+        self.assertAlmostEqual(found.tick(1.0), 0.47)
+        self.assertEqual(
+            (self.props["lyrics_state"], self.props["lyrics_source"]),
+            ("synced", "lrclib"),
+        )
+        self.assertEqual(
+            (found.times, self.asked), ([1470, 7050, 10060], [("lyrics", SONG)])
+        )
+
+    def test_a_fresh_cached_answer_shows_at_once(self):
+        self.cache[SONG] = (
+            {"synced": None, "plain": "Feel good", "instrumental": False},
+            True,
+        )
+        lyrics.lookup()
+        self.assertEqual(self.props["lyrics_plain"], "Feel good")
+        self.cache[SONG] = (None, True)  # a failure, still fresh: none, not asked
+        lyrics.lookup()
+        self.assertEqual(self.props["lyrics_state"], "none")
+        self.assertEqual(self.asked, [])
+        self.cache[SONG] = (None, False)
+        lyrics.lookup().tick(0.0)
+        self.assertEqual(self.asked, [("lyrics", SONG)])
+
+    def test_prefetches_the_next_song_once(self):
+        self.labels |= QUEUED | {"MusicPlayer.Lyrics": LRC}  # this one has its own
+        lyrics.lookup()
+        self.assertEqual(self.asked, [("prefetch", NEXT)])
+        self.cache[NEXT] = ({}, True)  # fetched already
+        lyrics.lookup()
+        self.labels["MusicPlayer.offset(1).Title"] = ""  # the last song queued
+        lyrics.lookup()
+        self.assertEqual(len(self.asked), 1)
+
+    def test_the_prefetch_in_flight_serves_its_start(self):
+        self.running = False
+        self.labels |= QUEUED | {"MusicPlayer.Lyrics": LRC}
+        lyrics.lookup()
+        self.labels |= dict(zip(TAGS, ("Blur", "Song 2", "Blur", "02:02")))
+        self.labels |= {"MusicPlayer.Lyrics": "", "MusicPlayer.offset(1).Title": ""}
+        found = lyrics.lookup()  # Song 2 starts while its prefetch is out
+        self.assertEqual(list(lyrics._fetches), [NEXT])
+        self.lrclib[NEXT] = {"synced": None, "plain": "Woo-hoo", "instrumental": False}
+        lyrics._fetches[NEXT].run()
+        found.tick(0.0)
+        self.assertEqual(self.asked, [("prefetch", NEXT)])  # one request
+        self.assertEqual(self.props["lyrics_plain"], "Woo-hoo")
+
+    def test_consent_tags_and_length(self):
+        for off in (
+            {"MusicPlayer.Artist": ""},
+            {"MusicPlayer.Title": ""},
+            {"MusicPlayer.Duration": ""},
+        ):
+            with patch.dict(self.labels, off):
+                lyrics.lookup()
+        with patch.object(lyrics.lrclib, "enabled", lambda: False):
+            lyrics.lookup()
+        self.assertEqual((self.asked, self.props["lyrics_state"]), ([], "none"))
+
+    def test_cache_failures_are_logged_as_unknown(self):
+        def broken(*song):
+            raise sqlite3.OperationalError("database is locked")
+
+        self.lrclib[SONG] = sqlite3.DatabaseError("database disk image is malformed")
+        with patch.object(lyrics.lrclib, "saved", broken):
+            found = lyrics.lookup()
+        self.assertEqual(found.tick(0.0), 1)
+        self.assertEqual(self.props["lyrics_state"], "none")
+        self.assertEqual(len(self.errors), 2)  # the read, then the request's write
 
 
 class StepTest(Kodi):
@@ -409,6 +471,17 @@ class PollerHookTest(Kodi):
         self.assertEqual(self.props["lyrics_index"], "0")
         self.monitor.watch_lyrics()
         self.assertEqual(len(self.lookups), 1)
+
+    def test_a_late_answer_lands_only_for_its_song(self):
+        self.running = False
+        self.labels["MusicPlayer.Lyrics"] = ""
+        self.conditions.add(lyrics.ENABLED)
+        self.assertEqual(self.monitor.watch_lyrics(), lyrics.ASKING_WAIT)
+        self.monitor._lyrics = False  # the next file started: its AV start looks up
+        self.lrclib[SONG] = {"synced": LINES, "plain": None, "instrumental": False}
+        lyrics._fetches[SONG].run()
+        self.assertEqual(self.monitor.watch_lyrics(), 1)
+        self.assertEqual(self.props, {"lyrics_state": "searching"})
 
     def test_off_clears_and_a_start_waits_for_its_av_start(self):
         self.conditions.add(lyrics.ENABLED)

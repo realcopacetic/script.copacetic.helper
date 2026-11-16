@@ -34,6 +34,10 @@ def cache_only() -> Iterator[None]:
         _offline = False
 
 
+# A failed request, or an answer of another shape than the fetch expects
+FAILURES = (HttpError, LookupError, TypeError, AttributeError, ValueError)
+
+
 def failure_ttl(exc: HttpError, invalid: int = TTL_INVALID) -> int:
     """
     Seconds before asking again after a failed request.
@@ -84,7 +88,7 @@ def cached(
                 return payload
     try:
         payload = fetch()
-    except (HttpError, LookupError, TypeError, AttributeError, ValueError) as exc:
+    except FAILURES as exc:
         if not isinstance(exc, HttpError):  # an answer of another shape
             log.warning(f"{source} → unexpected answer for {key}: {exc!r}")
             exc = HttpError(None)

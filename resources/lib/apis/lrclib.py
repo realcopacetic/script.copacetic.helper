@@ -3,9 +3,11 @@
 from typing import Any
 
 from resources.lib.apis import http
-from resources.lib.apis.cache import DAY, cached
+from resources.lib.apis.cache import DAY, FAILURES, cached
 from resources.lib.apis.http import HttpError
+from resources.lib.shared import logger as log
 from resources.lib.shared.lrc import parse
+from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import ADDON
 
 API = "https://lrclib.net/api"
@@ -72,14 +74,61 @@ def lyrics(artist: str, title: str, album: str, seconds: int) -> dict[str, Any] 
     :param seconds: Its length in whole seconds.
     :return: _shape's payload; empty when none, None when unknown or not fetched.
     """
-    params = {
+    key, params = _query(artist, title, album, seconds)
+    return cached(key, lambda: _fetch(params), (TTL_HIT, TTL_EMPTY))
+
+
+def saved(artist: str, title: str, album: str, seconds: int) -> tuple[Any, bool] | None:
+    """
+    A song's cached LRCLIB answer, fresh or not, with no request.
+
+    :param artist: The song's artist string.
+    :param title: Its title.
+    :param album: Its album; "" when none.
+    :param seconds: Its length in whole seconds.
+    :return: (payload, fresh), payload None for a failure; None when never asked.
+    """
+    return ApiCacheHandler().get(_query(artist, title, album, seconds)[0])
+
+
+def prefetch(
+    artist: str, title: str, album: str, seconds: int
+) -> dict[str, Any] | None:
+    """
+    A queued song's lyrics into the cache ahead of its start. Only an answer is
+    kept: after a failure (a 404 too) the song's start asks itself.
+
+    :param artist: The song's artist string.
+    :param title: Its title.
+    :param album: Its album; "" when none.
+    :param seconds: Its length in whole seconds.
+    :return: _shape's payload; None after a failure.
+    """
+    key, params = _query(artist, title, album, seconds)
+    try:
+        payload = _fetch(params)
+    except FAILURES as exc:
+        log.debug(f"lrclib → prefetch kept nothing for {key}: {exc!r}")
+        return None
+    ApiCacheHandler().put(key, payload, TTL_HIT if payload else TTL_EMPTY)
+    return payload
+
+
+def _query(
+    artist: str, title: str, album: str, seconds: int
+) -> tuple[str, dict[str, Any]]:
+    """
+    A song's api_cache key and /get query.
+
+    :param artist: The song's artist string.
+    :param title: Its title.
+    :param album: Its album; "" when none.
+    :param seconds: Its length in whole seconds.
+    :return: (key, params).
+    """
+    return f"lrclib:lyrics:{artist}|{title}|{album}|{seconds}", {
         "track_name": title,
         "artist_name": artist,
         "album_name": album,
         "duration": seconds,
     }
-    return cached(
-        f"lrclib:lyrics:{artist}|{title}|{album}|{seconds}",
-        lambda: _fetch(params),
-        (TTL_HIT, TTL_EMPTY),
-    )
