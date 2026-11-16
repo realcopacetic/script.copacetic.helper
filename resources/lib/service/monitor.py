@@ -257,13 +257,26 @@ class Monitor(xbmc.Monitor):
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
-        Kodi event hook: a new playlist_revision on each music queue edit while
-        active (a shuffle too), which the skin's queue rail puts in its path.
+        Kodi event hook while active: a new playlist_revision on each music queue
+        edit (a shuffle too), and progress_version on a song's update outside a scan.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
         :param data: Its data as JSON.
         """
+        if method == "AudioLibrary.OnUpdate":
+            # A play count or last played (a song heard, Like): 9010's album bar is
+            # served again, as AudioLibrary updates don't reach its video-tagged item
+            # (DirectoryProvider.cpp Announce). mark_album bumps once for all its songs
+            data = json.loads(data)
+            if (
+                self.player_monitor
+                and data.get("type") == "song"
+                and "transaction" not in data
+                and not infolabel("Window(home).Property(album_marking)")
+            ):
+                window_property("progress_version", value=str(time.monotonic_ns()))
+            return
         if not self.player_monitor or infolabel(
             "Window(home).Property(playlist_replacing)"
         ):

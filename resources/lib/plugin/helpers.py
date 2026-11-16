@@ -361,7 +361,7 @@ class ProgressBarManager:
         target: str,
         base_id: int,
         window_id: int,
-        album_since: str = "",
+        album_since: str,
     ) -> None:
         """
         Initialize default control IDs and sizing.
@@ -476,7 +476,8 @@ class ProgressBarManager:
             },
             parent=self.__class__.__name__,
         )
-        songs = response.get("result", {}).get("songs", [])
+        if not (songs := response.get("result", {}).get("songs")):
+            return 0, 0, ""  # an error answer: no state, so both menu items show
         # Unplayed songs keep their last played (CMusicDatabase::UpdateSong), so the
         # play count gates it; JSON-RPC's date strings sort as times
         played = [s for s in songs if s["playcount"]]

@@ -157,6 +157,14 @@ music queue that the service handles sets `playlist_revision` to a new number (s
 the table below). Kodi delivers these events late; those handled while the helper
 refills the queue are skipped, and those handled after it still count.
 
+### On song updates
+
+While a skin that opts in is active, each update of a library song outside a library
+scan sets `progress_version` to a new number (see the table below). A skin puts it in
+its progress bar URL, so an album's bar is served again after one of its songs is
+heard: Kodi's own refresh of a plugin container doesn't follow music library updates
+when its item is video-tagged, as the progress bar's item is.
+
 ### On playback events
 
 The player monitor handles playback start, stop, end and error, seeks, chapter jumps
@@ -184,6 +192,7 @@ back with the next play, speed dial change or slide.
 | `helper_reloading` | Just before the service reloads the skin after an in-place update, except during fullscreen video. Not on a start, a switch into the skin or a helper restart | `reload` | Your skin clears it once its window is ready after the reload; the service clears it if the reload is dropped or postponed | [Script actions](../script/actions.md#dynamic_settings_window) |
 | `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Cleared once the last number has landed, just before the `ReloadSkin()`; left set if the wait gives up after a minute | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
 | `playlist_revision` | Songs are added to, removed from or cleared out of the music queue (`Playlist.OnAdd`, `OnRemove`, `OnClear` for playlist 0), or it is shuffled or unshuffled (`Player.OnPropertyChanged` `shuffled`, player 0), while a skin that opts in is active. A move announces nothing: bump it from the skin where songs are moved. Not while the helper itself refills the queue (`playlist_replacing`, set by its play actions until the songs are in): the play that follows refetches the lists | A number that changes each time: put it in a queue list's path (`playlistmusic://?revision=…`), as Kodi's list providers refresh on play, resume and stop, not when the queue changes | Never | [On music queue edits](#on-music-queue-edits) |
+| `progress_version` | A library song is updated outside a scan (`AudioLibrary.OnUpdate`, type `song`, no `transaction`): a play count or last played after it is heard, a Like. Skipped while `album_marking` is set; [`mark_album`](../script/actions.md#mark_album) sets it once itself | A number that changes each time | Never | [Progress bar: albums](../plugins/progressbar.md#albums) |
 | `trailer_state` | A trailer starts, goes stale, nears its end or is retired | `playing`, `orphaned`, `fullscreen` | Playback stops, ends or fails; a real video starts, or the user's own media starts during a request | [Trailers](trailers.md) |
 | `trailer_file` | A requested trailer starts | The trailer's `Player.Filenameandpath` | As `trailer_state` | [Trailers](trailers.md) |
 | `trailer_flight` | A request that waited behind an earlier trailer is handed to Kodi (`play_trailer` sets it too) | The trailer Kodi is resolving or opening | Its audio and video are up, its stream fails to open, other media starts during its resolve, or the poll after it is cancelled as hung | [Trailers](trailers.md) |

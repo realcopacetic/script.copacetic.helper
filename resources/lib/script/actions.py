@@ -852,6 +852,7 @@ def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
     )
     mark = played == "true"
     now = time.strftime("%Y-%m-%d %H:%M:%S")
+    window_property("album_marking", value="true")  # the service skips each song
     for song in response.get("result", {}).get("songs", []):
         details = (
             {"playcount": max(song["playcount"], 1), "lastplayed": now}
@@ -863,6 +864,7 @@ def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
             params={"songid": song["songid"], **details},
             parent="mark_album",
         )
+    window_property("album_marking")
     window_property("album_played", value=str(album) if mark else "")
     window_property("album_unplayed", value="" if mark else str(album))
     window_property("progress_version", value=str(time.time_ns()))

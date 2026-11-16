@@ -125,8 +125,8 @@ the action named. In any other skin they are hidden.
 | Unlike | Library songs rated at or above `Skin.String(like_threshold)` | [`rate_song`](#rate_song) with `rating=0` |
 | Pin to speed dial | Library songs, artists and albums, and music playlists, that are not pinned in [speed dial](../plugins/speed_dial.md) | [`pin`](#pin) |
 | Unpin | Library songs, artists and albums, and music playlists, that are pinned in speed dial | [`unpin`](#unpin) |
-| Mark as played | Library albums that aren't played through (`album_played`, below) | [`mark_album`](#mark_album) with `played=true` |
-| Mark as unplayed | Library albums that aren't unplayed (`album_unplayed`, below) | [`mark_album`](#mark_album) |
+| Mark as played | Library albums (not disc or music video album nodes) that aren't played through (`album_played`, below) | [`mark_album`](#mark_album) with `played=true` |
+| Mark as unplayed | Library albums (not disc or music video album nodes) that aren't unplayed (`album_unplayed`, below) | [`mark_album`](#mark_album) |
 | Refresh cached data | Library films, sets, TV shows, seasons, episodes, music videos, artists, albums and songs | [`refresh_cached`](#refresh_cached) |
 
 On [speed dial](../plugins/speed_dial.md) items, Shuffle, Start mix and Unpin come
@@ -627,7 +627,8 @@ when its play count is cleared (`CMusicDatabase::UpdateSong`), so the progress b
 reads a song as heard only with a play count.
 
 The context menu's **Mark as played** and **Mark as unplayed** items run this action.
-Each shows on a library album unless the album is already so: the
+Each shows on a library album (not a disc node, nor a music video album node, whose id
+is a video library id) unless the album is already so: the
 [progress bar serve](../plugins/progressbar.md#albums) writes the focused album's id
 to `album_played` or `album_unplayed`, and the item compares it with
 `ListItem.DBID`. Where that serve doesn't run, both show.
@@ -637,8 +638,12 @@ to `album_played` or `album_unplayed`, and the item compares it with
 | `id` | album database id | `ListItem.DBID` | The album to mark |
 | `played` | `true`, anything else | — | `true` marks it played; anything else, unplayed |
 
-**Sets:** `Window(home).Property(album_played)` and `album_unplayed` (the album's id,
-or cleared), and `Window(home).Property(progress_version)`, a new token on every call
+Each song write is a full rewrite of its row and an `AudioLibrary.OnUpdate`, so a long
+album costs a moment and Home refreshes its widgets once per song.
+
+**Sets:** `Window(home).Property(album_marking)` while it writes (the service then skips
+each song's update), `album_played` and `album_unplayed` (the album's id, or cleared),
+and `Window(home).Property(progress_version)`, a new token on every call
 that a skin can put in its progress bar URL to have it served again.
 
 ## move_pin
