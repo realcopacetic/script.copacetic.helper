@@ -23,7 +23,8 @@ python tests/api_offline.py
 # and without a favourite's multiart_target; the icon from icon_source, a cut band
 # label the item's own; a held serve names its position (the
 # jumpbar's re-serve) only for a move that stamped no visit, by the guard's own read;
-# the TV guide's time left (epg_time_left) only while the URL's channel is on air
+# the TV guide's time left (epg_time_left) from the programme's start and runtime,
+# across midnight too, only while the URL's channel is on air and before its end
 python tests/artwork_serve_offline.py
 
 # Soundtrack title matching (plugin/soundtracks.py) against real album titles

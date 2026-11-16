@@ -6,9 +6,8 @@ import math
 import random
 import sys
 import time
-from bisect import bisect_left
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import cached_property, partial
 from operator import itemgetter
 from typing import Any, Callable
@@ -1415,12 +1414,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def epg_time_left(self) -> list[DirectoryItem] | None:
         """
-        The TV guide's focused programme's runtime left, as time_left: Kodi has it
-        only for the playing one. Bare ListItem is the guide's focused programme.
+        The TV guide's focused programme's time left to its end, as time_left: Kodi
+        has it only for the playing one. Bare ListItem is the guide's focused programme.
 
         :return: One item labelled with the channel, or None once it isn't on air there.
         """
-        if not self._require("channel", "runtime"):
+        if not self._require("channel"):
             return
         # One programme on air a channel: a cursor that moved on gets nothing
         channel = self.params["channel"]
@@ -1429,22 +1428,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             and infolabel("ListItem.ChannelNumberLabel") == channel
         ):
             return
-        # Progress is an int info with no label: bisected from Integer.IsGreaterOrEqual
-        progress = bisect_left(
-            range(1, 101),
-            True,
-            key=lambda p: not condition(
-                f"Integer.IsGreaterOrEqual(ListItem.Progress,{p})"
-            ),
+        # A guide item's path ends in its start in UTC (pvr://guide/0012/2026-11-16
+        # 20:00:00.epg): with the runtime, its end, and no regional time to parse
+        start = datetime.fromisoformat(
+            infolabel("ListItem.FileName").removesuffix(".epg")
         )
-        left = to_int(self.params["runtime"], 0) * (100 - progress) / 6000
+        end = start.replace(tzinfo=timezone.utc) + timedelta(
+            seconds=to_int(infolabel("ListItem.Duration(secs)"), 0)
+        )
+        left = math.ceil((end - datetime.now(timezone.utc)).total_seconds() / 60)
+        # On air follows a timeshifted channel's playback, which can run past the end
+        if left < 1:
+            return
         return set_items(
             [
                 {
                     "file": plugin_path("epg_time_left"),
                     "label": channel,
                     "properties": {
-                        "time_left": hours_minutes(math.ceil(left)),
+                        "time_left": hours_minutes(left),
                         "visit": self.params.get("visit", ""),
                     },
                 }

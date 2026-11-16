@@ -3,7 +3,8 @@ Offline checks for the artwork serve (PluginHandlers.artwork) with Kodi's reads
 stubbed and the image work faked: the logo from clearlogo_source, with and without
 a favourite's multiart_target, and the icon from icon_source (a cut band label the
 item's own); a held serve names its position only for a move that stamped no visit;
-the TV guide's time left (epg_time_left) only while the URL's channel is on air.
+the TV guide's time left (epg_time_left) from the programme's start and runtime,
+across midnight too, only while the URL's channel is on air and before its end.
 Run from the helper root:
 python tests/artwork_serve_offline.py
 """
@@ -11,6 +12,7 @@ python tests/artwork_serve_offline.py
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -289,43 +291,71 @@ class HeldNaming(unittest.TestCase):
 
 
 class EpgTimeLeft(unittest.TestCase):
-    """The guide's focused programme: on air on channel 101, 37 % through."""
+    """The guide's focused programme, on channel 101, against a fixed clock."""
 
-    def serve(self, channel: str, on_air: bool = True) -> list | None:
+    def serve(
+        self,
+        channel: str = "101",
+        now: str = "2026-11-16 20:22:05",
+        start: str = "2026-11-16 20:00:00",
+        runtime: int = 3600,
+        on_air: bool = True,
+    ) -> list | None:
         """
-        Run epg_time_left() for an hour-long programme on the URL's channel.
+        Run epg_time_left() with Kodi's reads and the clock (UTC) stubbed.
 
         :param channel: The URL's channel.
-        :param on_air: Whether the focused programme is on air.
+        :param now: The clock.
+        :param start: The programme's start, as its path holds it.
+        :param runtime: The programme's runtime in seconds.
+        :param on_air: Whether Kodi has the programme on air.
         :return: What it returned.
         """
-        progress = "Integer.IsGreaterOrEqual(ListItem.Progress,"
-        handler = handlers.PluginHandlers(
-            {"channel": channel, "runtime": "3600", "visit": "20:14:05"}
-        )
+        labels = {
+            "ListItem.ChannelNumberLabel": "101",
+            "ListItem.FileName": f"{start}.epg",
+            "ListItem.Duration(secs)": str(runtime),
+        }
+
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime.fromisoformat(now).replace(tzinfo=tz)
+
+        handler = handlers.PluginHandlers({"channel": channel, "visit": "20:14:05"})
         with mock.patch.multiple(
             handlers,
-            infolabel={"ListItem.ChannelNumberLabel": "101"}.get,
-            condition=lambda cond: (
-                int(cond.removeprefix(progress)[:-1]) <= 37
-                if cond.startswith(progress)
-                else on_air
-            ),
+            infolabel=labels.get,
+            condition=lambda cond: on_air,
+            datetime=Clock,
             set_items=lambda items: items,
             plugin_path=lambda name: name,
         ):
             return handler.epg_time_left()
 
     def test_time_left(self):
-        (item,) = self.serve("101")
+        (item,) = self.serve()
         self.assertEqual(item["label"], "101")
         self.assertEqual(item["properties"], {"time_left": "38m", "visit": "20:14:05"})
 
+    def test_over_an_hour(self):
+        (item,) = self.serve(now="2026-11-16 20:00:30", runtime=7200)
+        self.assertEqual(item["properties"]["time_left"], "2h")
+
+    def test_across_midnight(self):
+        (item,) = self.serve(
+            now="2026-11-17 00:05:00", start="2026-11-16 23:30:00", runtime=5400
+        )
+        self.assertEqual(item["properties"]["time_left"], "55m")
+
     def test_moved_to_another_channel(self):
-        self.assertIsNone(self.serve("102"))
+        self.assertIsNone(self.serve(channel="102"))
 
     def test_no_longer_on_air(self):
-        self.assertIsNone(self.serve("101", on_air=False))
+        self.assertIsNone(self.serve(on_air=False))
+
+    def test_timeshifted_past_its_end(self):
+        self.assertIsNone(self.serve(now="2026-11-16 21:00:10"))
 
 
 if __name__ == "__main__":
