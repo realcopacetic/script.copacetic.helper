@@ -22,7 +22,7 @@ from resources.lib.service.trailer import (
     trailer_source,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.mix import artist_genres, mix_songs
+from resources.lib.shared.mix import genre_rule, lead_id, mix_songs
 from resources.lib.shared.speed_dial import (
     SpeedDial,
     clear_properties,
@@ -476,7 +476,10 @@ class PlayerMonitor(Player):
         songid = tag.getDbId()
         query = json_call(
             "Player.GetItem",
-            params={"playerid": 0, "properties": ["albumid", "artist", "artistid"]},
+            params={
+                "playerid": 0,
+                "properties": ["albumartist", "albumid", "artist", "artistid", "genre"],
+            },
             parent="now_playing_song",
         )
         item = query.get("result", {}).get("item", {})
@@ -499,8 +502,9 @@ class PlayerMonitor(Player):
         self._record_speed_dial(songid)
         if (
             songid > 0
+            and item  # Player.GetItem answered
             and condition(ENDLESS_QUEUE)
-            and self._extend_queue(artists, artistids, tag.getGenres())
+            and self._extend_queue(item | {"songid": songid})
         ):
             if not self.isPlayingAudio() or self.getMusicInfoTag().getDbId() != songid:
                 return  # the next song published its own while the queue grew
@@ -550,17 +554,13 @@ class PlayerMonitor(Player):
             self._queue_songs = (queue, ids)
         return self._queue_songs[1]
 
-    def _extend_queue(
-        self, artists: list[str], artistids: list[int], genres: list[str]
-    ) -> bool:
+    def _extend_queue(self, song: dict) -> bool:
         """
         Endless queue: once fewer than QUEUE_LOW songs follow the playing one, append
-        QUEUE_GROWTH from a mix seeded by it, none already queued, each with
-        ListItem.Property(added_from) naming its artists for the "why this song" line.
+        QUEUE_GROWTH from a mix seeded by it, none queued, kept to a genre mix's genre,
+        each with ListItem.Property(added_from) naming its artists ("why this song").
 
-        :param artists: The playing song's artists.
-        :param artistids: Their library ids.
-        :param genres: Its genres.
+        :param song: The playing song: songid, artist, artistid, albumartist, genre.
         :return: True when the queue grew.
         """
         # -1 unless playing from the music queue (a song played alone is a queue of 1)
@@ -576,22 +576,28 @@ class PlayerMonitor(Player):
         playlist = PlayList(PLAYLIST_MUSIC)
         if self._growing or position < 0 or playlist.size() - position - 1 >= QUEUE_LOW:
             return False
-        from resources.lib.plugin.music import similar_artists
+        from resources.lib.plugin.music import artist_names, similar_artists
 
-        queued = self._queue_ids()
-        genres = genres or artist_genres(artists)
+        queued, queue = self._queue_ids(), _queue_key(playlist)
+        # A genre or daily mix's songs carry its genres (JSON), and so do their growths
+        genres = infolabel("MusicPlayer.Property(mix_genres)")
         # a ListenBrainz wait runs queued callbacks: a skip's onAVStarted can land here
         self._growing = True
         try:
-            similar = (
-                similar_artists(artistids[0], "endless_queue") if artistids else []
-            )
-            songs = mix_songs(artists, genres, QUEUE_GROWTH, queued, similar=similar)
+            if artistid := lead_id(song):
+                owned = artist_names("endless_queue", album_artists=True)
+                similar = similar_artists(artistid, "endless_queue", owned)
+            else:  # a song with no artist ids
+                similar = []
+            keep = genre_rule(json.loads(genres)) if genres else None
+            songs = mix_songs([song], QUEUE_GROWTH, queued, similar=similar, keep=keep)
         finally:
             self._growing = False
-        if not songs:
+        # Another queue started while it drew (a mix, an album): it isn't this one's
+        if not songs or _queue_key(playlist) != queue:
             return False
-        add_songs(playlist, songs, added_from=" / ".join(artists))
+        added_from = " / ".join(song["artist"])
+        add_songs(playlist, songs, added_from=added_from, mix_genres=genres)
         if condition("Window.IsActive(musicplaylist)"):
             # A Python add sends no GUI_MSG_PLAYLIST_CHANGED, as Kodi's own add does
             log.execute("Container.Refresh")

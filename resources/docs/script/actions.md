@@ -262,7 +262,7 @@ not touched. Also in the helper's settings, under *Library*.
 
 Deletes the helper's processed artwork (blurred, cropped and text images) and resets
 its artwork lookup database. It also empties the saved answers from web services
-(TMDb, ListenBrainz, Deezer, TheIntroDB) and today's saved daily mixes, so they are
+(TMDb, ListenBrainz, Deezer, TheIntroDB) and the daily mix cards' kept mixes, so they are
 worked out again, and the saved text truncations,
 then compacts the database file. A notification shows how much space was saved.
 Images are made again the next time they are needed.
@@ -1237,26 +1237,52 @@ first, so music or video that is playing carries on until the new songs are read
 Then the playlists are cleared and the mix plays in order from its first song, with
 Kodi's shuffle turned off.
 
-- **Song, album or artist:** the mix starts with one song. For a song, that is the
-  song itself. For an album or artist, it is one of its five most played songs,
-  picked at random. About a quarter of the mix (a song's) or a third (an album's or
-  artist's) is by the same artist, spread evenly through it. The rest are random
-  songs by its [similar artists](../plugins/library.md#similar_music) in your
-  library, at most six by any one of them, then songs by other artists that share
-  the first song's genres; what they leave short is the artist's own songs. A first
-  song with no genre takes the genres of its artist's other songs. The first mix for
-  an artist can take a few seconds while Deezer and ListenBrainz answer; later ones
-  read the saved answers.
-- **Genre or year:** 50 random songs of that genre or year.
-- **Daily:** one of today's mixes, as the [`daily_mixes`](../plugins/library.md#daily_mixes)
-  cards show them, by its genre's id: 50 songs, about 15 of them by its three lead
-  artists, spread through their similar artists' songs in the genre, then the rest
-  of the genre. Of the lead artists' songs, about half are the ones you played most
-  in the last 30 days and the rest are ones you have never played, shared fairly
-  between the three. The similar artists come from the background service's
-  [daily mixes pass](../service/index.md#the-poll-loop); until it has run, the rest
-  is the genre's other songs. If the day has turned since the card
-  loaded and that genre leads no mix today, it plays the genre's own mix.
+Every mix grows the same way from one or more seed songs. Part of it is by the
+artists the seeds belong to: an artist's songs are those on their own albums, so a
+guest spot, or a song they only wrote or produced, doesn't count as theirs (on a
+compilation or soundtrack, a song counts for all its artists). Each artist gets a
+fair share of that part. The rest are random songs by their
+[similar artists](../plugins/library.md#similar_music) in your library, at most six
+by any one of them, then songs by other artists that share the seeds' genres, at most
+three by any one of them; what they leave short is the seeds' artists' own songs, then
+more of the genres'. The songs are then shuffled with each artist's spread evenly
+through the rest from a random start, so the same artist rarely plays twice in a row
+(the artist with most songs never does). Songs you heard in the last three
+days (from the start of the day three days back, as Kodi counts it) come in only when
+the others run short, so a mix doesn't replay yesterday's; a song you skipped or never
+reached isn't counted as heard. A seed with no genre takes the
+genres of its artists' albums. The first mix for an artist can take a few seconds
+while Deezer and ListenBrainz answer; later ones read the saved answers.
+
+- **Song, album or artist:** the seed is one song, played first. For a song, that is
+  the song itself. For an album, or the artist's own albums (any song they're
+  credited on, for an artist with no album of their own), it is one of its ten most
+  played songs, picked at random from those you haven't heard in the last three days
+  while any are left. About a quarter of the mix (a song's) or a third (an album's or
+  artist's) is by its artists, and a similar artist who is also one of them gets no
+  second share.
+- **Genre:** the seeds are the songs of the genre you played in the last 30 days,
+  and every song of the mix is of the genre. About 15 of the 50 are by the artists
+  you played in it, the first half of those the seeds themselves, drawn at random
+  with the ones you played most lately the likeliest (a play's weight halves every
+  seven days) and those heard in the last three days last; the similar
+  artists are those of the three you played most. With nothing played in it, the
+  mix is the genre's songs alone. It is drawn afresh each time. Its songs carry
+  `ListItem.Property(mix_genres)`, the genre as a JSON list, so the
+  [endless queue](../service/player.md#endless-queue) keeps to the genre.
+- **Daily:** a [`daily_mixes`](../plugins/library.md#daily_mixes) card's mix, by its
+  genre's id: the mix of that genre's bucket as the card drew it, so it plays what
+  the card names, even past midnight or after the mix was marked for a redraw: only
+  the list loading again draws the card anew. With none kept (the cache was
+  cleared), it draws the bucket's mix, a genre mix on every library genre in the
+  bucket, and keeps it for the card. Its songs carry the bucket's genres in
+  `mix_genres`.
+- **Year:** 50 random songs of that year, at most three by any one artist while
+  others have songs.
+
+A genre or daily mix starts playing from the saved similar artists alone; Deezer and
+ListenBrainz are asked once it plays, for the next mix. A genre gone from the library
+since its item or card loaded plays nothing.
 
 If the album or artist has no songs, or the song is not found, nothing changes: what
 was playing carries on. A genre, year or daily mix with no songs changes nothing too.

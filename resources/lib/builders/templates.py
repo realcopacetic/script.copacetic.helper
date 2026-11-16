@@ -8,6 +8,7 @@ folders. Falls back to source on cache miss.
 """
 
 from resources.lib.shared import logger as log
+from resources.lib.shared.genres import genre_mapping
 from resources.lib.shared.json import JSONHandler, JSONMerger
 from resources.lib.shared.utilities import (
     ADDON,
@@ -90,7 +91,8 @@ def load_template_data(base_folder: str) -> tuple[dict, dict, dict]:
 def load_template_data_from_source(base_folder: str) -> tuple[dict, dict, dict]:
     """
     Walk source template folders directly. Used by the build pipeline (which
-    writes a fresh cache after) and as the cache-miss fallback.
+    writes a fresh cache after) and as the cache-miss fallback. The helper's
+    music_genres comes first, so a skin's own of that name wins.
 
     :param base_folder: Skin extras builders folder root.
     :return: (mappings, configs_data, controls_data) as nested dicts.
@@ -104,7 +106,10 @@ def load_template_data_from_source(base_folder: str) -> tuple[dict, dict, dict]:
     mappings_merger = JSONMerger(
         base_folder=base_folder, subfolders=[MAPPINGS_FOLDER], grouping_key=None
     )
-    mappings = dict(mappings_merger.yield_merged_data())
+    mappings = {
+        "music_genres": genre_mapping(),
+        **dict(mappings_merger.yield_merged_data()),
+    }
     configs_data = _templates_by_mapping(base_folder, CONFIGS_FOLDER)
     controls_data = _templates_by_mapping(base_folder, CONTROLS_FOLDER)
     return mappings, configs_data, controls_data
