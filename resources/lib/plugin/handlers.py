@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import random
 import sys
@@ -2446,6 +2447,34 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             params={f"{type}id": dbid},
             parent=_LABEL,
         )["result"][f"{type}details"]
+
+    @log.duration
+    def lyrics(self) -> list[DirectoryItem] | None:
+        """
+        One item per synced lyric line of the playing song, as the service published
+        them; the path's revision refetches. A path per line keeps a list's line
+        selected through a refresh, as Kodi finds it again by path.
+
+        :return: List of directory items for Kodi, or None if none.
+        """
+        from resources.lib.service.lyrics import LINES
+
+        lines = json.loads(Window(10000).getProperty(LINES) or "[]")
+        return (
+            set_items(
+                {
+                    "file": plugin_path(f"lyrics/{index}"),
+                    "label": text,
+                    "properties": {
+                        "index": index,
+                        "time": ms,
+                        "gap": "" if text else "true",
+                    },
+                }
+                for index, (ms, text) in enumerate(lines)
+            )
+            or None
+        )
 
     @log.duration
     def soundtracks(self) -> list[DirectoryItem] | None:
