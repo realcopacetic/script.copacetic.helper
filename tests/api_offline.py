@@ -2601,6 +2601,29 @@ class LrclibTest(Base):
         self.assertIsNone(self.lookup(1))  # a search answer of another shape
         self.assertEqual(self.row(self.key(1), ""), (None, 300))
 
+    def test_prefetch_keeps_answers_only(self):
+        self.assertIsNone(lrclib.saved(*SONG))
+        self.net.answers = [URLError("offline"), http_error(404), b"[]"]
+        self.assertIsNone(lrclib.prefetch(*SONG))
+        self.assertIsNone(lrclib.prefetch(*SONG))  # nothing near: the 404
+        self.assertIsNone(self.cache.get(self.key()))  # the start asks itself
+        self.net.answers = [json.dumps(LRCLIB_GET).encode()]
+        found = lrclib.prefetch(*SONG)
+        self.assertEqual(found["synced"][0], [1470, "Feel good"])
+        self.assertEqual(self.row(self.key(), ""), (found, 180 * DAY))
+        self.assertEqual(lrclib.saved(*SONG), (found, True))
+        self.assertEqual(self.lookup(), found)  # the start: no request
+        self.assertEqual(len(self.net.requests), 4)
+        empty = dict(LRCLIB_GET, syncedLyrics=None, plainLyrics=None)
+        self.net.answers = [json.dumps(empty).encode()]
+        self.assertEqual(lrclib.prefetch(*SONG[:3], 1), {})
+        self.assertEqual(self.row(self.key(1), ""), ({}, 30 * DAY))
+
+    def test_a_failed_prefetch_hides_nothing(self):
+        self.net.answers = [URLError("offline"), json.dumps(LRCLIB_GET).encode()]
+        lrclib.prefetch(*SONG)
+        self.assertEqual(self.lookup()["synced"][0], [1470, "Feel good"])
+
     def test_clear(self):
         self.net.answers = [json.dumps(LRCLIB_GET).encode()]
         self.lookup()

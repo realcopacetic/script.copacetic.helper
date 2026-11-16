@@ -3,10 +3,11 @@
 import codecs
 import json
 import os
+import sqlite3
 import time
 from bisect import bisect_right
 from threading import Thread
-from typing import Any
+from typing import Any, Callable
 
 import xbmcvfs
 
@@ -44,6 +45,13 @@ SEARCHING = {
     "lyrics_instrumental": "",
     "lyrics_state": "searching",
 }
+ASKING_WAIT = 0.2  # seconds between passes while LRCLIB is asked: its answer shows soon
+Song = tuple[str, str, str, int]  # (artist, title, album, seconds)
+Found = tuple[
+    str, list | None, str | None, bool
+]  # (source, synced, plain, instrumental)
+NONE: Found = ("", None, None, False)
+_fetches: dict[Song, "Fetch"] = {}  # LRCLIB lookups in flight, by song
 
 
 def clear() -> None:
@@ -100,29 +108,13 @@ def _sidecar(path: str) -> str:
         return data.decode("cp1252", "replace")
 
 
-def _ask(artist: str, title: str, album: str, seconds: int) -> dict[str, Any] | None:
+def find(path: str) -> Found | None:
     """
-    LRCLIB's lyrics for a song, while LRCLIB is on and the song's artist, title
-    and length are known.
-
-    :param artist: The song's artist string.
-    :param title: Its title.
-    :param album: Its album; "" when none.
-    :param seconds: Its length in whole seconds; 0 when unknown.
-    :return: lrclib.lyrics' payload; None when not asked or unknown.
-    """
-    if lrclib.enabled() and artist and title and seconds:
-        return lrclib.lyrics(artist, title, album, seconds)
-    return None
-
-
-def find(path: str) -> tuple[str, list | None, str | None, bool]:
-    """
-    The playing song's lyrics from the first source holding any: a .lrc beside it,
-    its tags (Kodi reads them from the file at play), then LRCLIB.
+    The playing song's lyrics from a .lrc beside it, else its tags (Kodi reads them
+    from the file at play).
 
     :param path: The playing file.
-    :return: (source, synced lines, plain text, instrumental); source "" for none.
+    :return: (source, synced lines, plain text, instrumental); None when neither has any.
     """
     for source, text in (
         ("file", _sidecar(path)),
@@ -132,35 +124,122 @@ def find(path: str) -> tuple[str, list | None, str | None, bool]:
             return source, synced, None, False
         if text := plain(text):  # a .lrc of only tags holds none
             return source, None, text, False
-    if found := _ask(*song()):
-        return "lrclib", found["synced"], found["plain"], found["instrumental"]
-    return "", None, None, False
+    return None
 
 
-def lookup() -> "Lyrics":
+def _wanted(song: Song) -> bool:
     """
-    Publish the playing song's lyrics, searching meanwhile, then fetch the next
-    queued song's from LRCLIB in the background, for its start.
+    True when LRCLIB may be asked for a song: it is on, and the song's artist,
+    title and length are known.
 
-    :return: Lyrics to follow; with no lines unless synced.
+    :param song: (artist, title, album, seconds).
     """
-    for key, value in SEARCHING.items():
-        window_property(key, value=value)
-    source, synced, plain, instrumental = find(infolabel("Player.Filenameandpath"))
+    artist, title, _, seconds = song
+    return bool(lrclib.enabled() and artist and title and seconds)
+
+
+def _saved(song: Song) -> tuple[Any, bool]:
+    """
+    LRCLIB's cached answer for a song, read on the service thread (no request).
+
+    :param song: (artist, title, album, seconds).
+    :return: (payload, fresh); (None, False) when never asked, or the cache fails.
+    """
+    try:
+        return lrclib.saved(*song) or (None, False)
+    except sqlite3.Error:
+        log.exception(f"lyrics → the LRCLIB cache failed for {song}")
+        return None, False
+
+
+def _found(payload: dict[str, Any] | None) -> Found:
+    """
+    An LRCLIB payload as find's tuple.
+
+    :param payload: lrclib.lyrics' payload.
+    :return: (source, synced lines, plain text, instrumental); NONE for none.
+    """
+    if not payload:
+        return NONE
+    return "lrclib", payload["synced"], payload["plain"], payload["instrumental"]
+
+
+class Fetch(Thread):
+    """
+    A song's LRCLIB lookup off the service thread, the only one in flight for that
+    song (in _fetches until done); found holds its payload once it has ended.
+    """
+
+    def __init__(self, song: Song, ask: Callable) -> None:
+        """
+        Start the lookup.
+
+        :param song: (artist, title, album, seconds).
+        :param ask: lrclib.lyrics for the playing song, lrclib.prefetch for the next.
+        """
+        super().__init__(daemon=True)
+        self.song, self.ask, self.found = song, ask, None
+        _fetches[song] = self
+        self.start()
+
+    def run(self) -> None:
+        """Ask; a cache failure is logged and found stays None."""
+        try:
+            self.found = self.ask(*self.song)
+        except sqlite3.Error:
+            log.exception(f"lyrics → the LRCLIB cache failed for {self.song}")
+        finally:
+            del _fetches[self.song]
+
+
+def publish(
+    source: str, synced: list | None, text: str | None, instrumental: bool
+) -> list:
+    """
+    Publish a song's lyrics: the lines before the revision that refetches them, the
+    state, which shows them, last.
+
+    :param source: file, embedded or lrclib; "" for none.
+    :param synced: [[ms, text], ...]; None unless synced.
+    :param text: The plain text; None unless plain.
+    :param instrumental: LRCLIB marks the song instrumental.
+    :return: The synced lines; empty unless synced.
+    """
     props = {
         LINES: json.dumps(synced) if synced else "",
         "lyrics_revision": f"{time.monotonic_ns()}",
         "lyrics_source": source,
-        "lyrics_plain": plain,
+        "lyrics_plain": text,
         "lyrics_instrumental": "true" if instrumental else "",
-        "lyrics_state": "synced" if synced else "plain" if plain else "none",
+        "lyrics_state": "synced" if synced else "plain" if text else "none",
     }
     if synced:
         props |= around(-1)
     for key in PROPS:
         window_property(key, value=props.get(key) or "")
-    Thread(target=_ask, args=song("MusicPlayer.offset(1)."), daemon=True).start()
-    return Lyrics(synced or [])
+    return synced or []
+
+
+def lookup() -> "Lyrics":
+    """
+    Publish the playing song's lyrics from a .lrc, its tags or LRCLIB's cache, else
+    ask LRCLIB on a thread for the poller to publish; and ask ahead for the next song.
+
+    :return: Lyrics to follow; with no lines unless synced, or LRCLIB's on the way.
+    """
+    for key, value in SEARCHING.items():
+        window_property(key, value=value)
+    found, fetch = find(infolabel("Player.Filenameandpath")), None
+    playing, queued = song(), song("MusicPlayer.offset(1).")
+    if not found and _wanted(playing):
+        payload, fresh = _saved(playing)
+        if fresh:
+            found = _found(payload)
+        else:  # the next song's prefetch may still be out: it serves
+            fetch = _fetches.get(playing) or Fetch(playing, lrclib.lyrics)
+    if _wanted(queued) and queued not in _fetches and not _saved(queued)[1]:
+        Fetch(queued, lrclib.prefetch)
+    return Lyrics(fetch=fetch) if fetch else Lyrics(publish(*(found or NONE)))
 
 
 class Lyrics:
@@ -169,23 +248,32 @@ class Lyrics:
     neighbours and steps the skin's list in view to it.
     """
 
-    def __init__(self, lines: list[list]) -> None:
+    def __init__(self, lines: list[list] = (), fetch: Fetch | None = None) -> None:
         """
-        Hold the lines' times; lookup has published the state before the first.
+        Hold the lines' times, or the LRCLIB lookup that brings them; lookup has
+        published the state before the first line.
 
         :param lines: [[ms, text], ...]; empty unless synced.
+        :param fetch: The song's LRCLIB lookup, published at the first pass after it.
         """
         self.times = [ms for ms, _ in lines]
+        self.fetch = fetch
         self.index = -1  # the line published
         self.stepped = None  # (list, line, its item count) last stepped for
 
     def tick(self, now: float) -> float:
         """
-        Poller step: publish the line at the playhead, step the list in view.
+        Poller step: publish LRCLIB's answer once in, then the line at the playhead,
+        and step the list in view.
 
         :param now: The playhead in seconds.
         :return: Seconds to the next line, at most 1 (1 while paused or after the last).
         """
+        if self.fetch:
+            if self.fetch.is_alive():
+                return ASKING_WAIT
+            self.times = [ms for ms, _ in publish(*_found(self.fetch.found))]
+            self.fetch = None
         if not self.times:
             return 1
         ms = now * 1000
