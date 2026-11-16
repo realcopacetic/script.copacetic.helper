@@ -127,6 +127,7 @@ class Kodi(unittest.TestCase):
         self.order, self.builtins, self.asked, self.errors = [], [], [], []
         self.lrclib, self.cache = {}, {}  # by song: LRCLIB's payload, (payload, fresh)
         self.running = True  # a Fetch runs as it starts, here and now
+        self.exiting = False  # Kodi asked the service to stop
         for target, name, value in (
             (lyrics, "infolabel", lambda key: self.labels.get(key, "")),
             (lyrics, "condition", lambda key: key in self.conditions),
@@ -134,8 +135,8 @@ class Kodi(unittest.TestCase):
             (lyrics.log, "execute", self.builtins.append),
             (lyrics.log, "exception", self.errors.append),
             (lyrics.lrclib, "enabled", lambda: True),
-            (lyrics.lrclib, "lyrics", lambda *song: self.ask("lyrics", song)),
-            (lyrics.lrclib, "prefetch", lambda *song: self.ask("prefetch", song)),
+            (lyrics.lrclib, "lyrics", lambda *args: self.ask("lyrics", *args)),
+            (lyrics.lrclib, "prefetch", lambda *args: self.ask("prefetch", *args)),
             (lyrics.lrclib, "saved", lambda *song: self.cache.get(song)),
             (lyrics.Fetch, "start", lambda fetch: self.running and fetch.run()),
             (lyrics.Fetch, "is_alive", lambda fetch: fetch.song in lyrics._fetches),
@@ -153,11 +154,19 @@ class Kodi(unittest.TestCase):
         else:
             self.props.pop(key, None)
 
-    def ask(self, kind, song):
-        self.asked.append((kind, song))
+    def ask(self, kind, *args):
+        """lrclib.lyrics or prefetch: the song's answer, Aborted once Kodi exits."""
+        *song, aborted = args
+        self.asked.append((kind, song := tuple(song)))
+        if aborted():
+            raise lyrics.lrclib.Aborted
         if isinstance(found := self.lrclib.get(song), Exception):
             raise found
         return found
+
+    def aborted(self):
+        """The service thread's Monitor.abortRequested."""
+        return self.exiting
 
 
 class SourcesTest(Kodi):
@@ -229,12 +238,12 @@ class LookupTest(Kodi):
         }
         seen = []
         with patch.object(lyrics, "find", lambda path: seen.append(dict(self.props))):
-            lyrics.lookup()
+            lyrics.lookup(self.aborted)
         self.assertEqual(seen, [{"lyrics_state": "searching"}])
 
     def test_synced_lines_before_their_state(self):
         self.labels["MusicPlayer.Lyrics"] = LRC
-        found = lyrics.lookup()
+        found = lyrics.lookup(self.aborted)
         self.assertEqual(self.order, [*lyrics.SEARCHING, *lyrics.PROPS])
         self.assertEqual(json.loads(self.props.pop("lyrics_lines")), LINES)
         self.assertTrue(self.props.pop("lyrics_revision"))
@@ -258,7 +267,7 @@ class LookupTest(Kodi):
     def test_plain_none_and_instrumental_clear_the_rest(self):
         self.props = dict.fromkeys(lyrics.PROPS, "old")
         self.labels["MusicPlayer.Lyrics"] = "Feel good"
-        found = lyrics.lookup()
+        found = lyrics.lookup(self.aborted)
         revision = self.props.pop("lyrics_revision")
         self.assertEqual(
             self.props,
@@ -270,11 +279,11 @@ class LookupTest(Kodi):
         )
         self.assertEqual(found.tick(5.0), 1)  # nothing to follow
         self.labels["MusicPlayer.Lyrics"] = ""
-        lyrics.lookup().tick(5.0)  # LRCLIB's answer (none) lands at a pass
+        lyrics.lookup(self.aborted).tick(5.0)  # LRCLIB's answer (none) lands at a pass
         self.assertNotEqual(self.props.pop("lyrics_revision"), revision)
         self.assertEqual(self.props, {"lyrics_state": "none"})
         self.lrclib[SONG] = {"synced": None, "plain": None, "instrumental": True}
-        found = lyrics.lookup()
+        found = lyrics.lookup(self.aborted)
         self.assertEqual(self.props, {"lyrics_state": "searching"})  # till a pass
         self.assertEqual(found.tick(5.0), 1)
         self.props.pop("lyrics_revision")
@@ -289,7 +298,7 @@ class LookupTest(Kodi):
 
     def test_clear(self):
         self.labels["MusicPlayer.Lyrics"] = LRC
-        lyrics.lookup()
+        lyrics.lookup(self.aborted)
         lyrics.clear()
         self.assertEqual(self.props, {})
 
@@ -307,10 +316,12 @@ class LrclibTest(Kodi):
     def test_asked_off_the_service_thread(self):
         self.running = False  # the request is out
         self.lrclib[SONG] = {"synced": LINES, "plain": None, "instrumental": False}
-        found = lyrics.lookup()
+        found = lyrics.lookup(self.aborted)
         self.assertEqual((self.asked, self.props), ([], {"lyrics_state": "searching"}))
         self.assertEqual(found.tick(1.0), lyrics.ASKING_WAIT)
-        lyrics.lookup()  # the setting turned off and on again: the same request
+        lyrics.lookup(
+            self.aborted
+        )  # the setting turned off and on again: the same request
         self.assertEqual(list(lyrics._fetches), [SONG])
         lyrics._fetches[SONG].run()  # it answers
         self.assertAlmostEqual(found.tick(1.0), 0.47)
@@ -327,33 +338,33 @@ class LrclibTest(Kodi):
             {"synced": None, "plain": "Feel good", "instrumental": False},
             True,
         )
-        lyrics.lookup()
+        lyrics.lookup(self.aborted)
         self.assertEqual(self.props["lyrics_plain"], "Feel good")
         self.cache[SONG] = (None, True)  # a failure, still fresh: none, not asked
-        lyrics.lookup()
+        lyrics.lookup(self.aborted)
         self.assertEqual(self.props["lyrics_state"], "none")
         self.assertEqual(self.asked, [])
         self.cache[SONG] = (None, False)
-        lyrics.lookup().tick(0.0)
+        lyrics.lookup(self.aborted).tick(0.0)
         self.assertEqual(self.asked, [("lyrics", SONG)])
 
     def test_prefetches_the_next_song_once(self):
         self.labels |= QUEUED | {"MusicPlayer.Lyrics": LRC}  # this one has its own
-        lyrics.lookup()
+        lyrics.lookup(self.aborted)
         self.assertEqual(self.asked, [("prefetch", NEXT)])
         self.cache[NEXT] = ({}, True)  # fetched already
-        lyrics.lookup()
+        lyrics.lookup(self.aborted)
         self.labels["MusicPlayer.offset(1).Title"] = ""  # the last song queued
-        lyrics.lookup()
+        lyrics.lookup(self.aborted)
         self.assertEqual(len(self.asked), 1)
 
     def test_the_prefetch_in_flight_serves_its_start(self):
         self.running = False
         self.labels |= QUEUED | {"MusicPlayer.Lyrics": LRC}
-        lyrics.lookup()
+        lyrics.lookup(self.aborted)
         self.labels |= dict(zip(TAGS, ("Blur", "Song 2", "Blur", "02:02")))
         self.labels |= {"MusicPlayer.Lyrics": "", "MusicPlayer.offset(1).Title": ""}
-        found = lyrics.lookup()  # Song 2 starts while its prefetch is out
+        found = lyrics.lookup(self.aborted)  # Song 2 starts while its prefetch is out
         self.assertEqual(list(lyrics._fetches), [NEXT])
         self.lrclib[NEXT] = {"synced": None, "plain": "Woo-hoo", "instrumental": False}
         lyrics._fetches[NEXT].run()
@@ -364,10 +375,10 @@ class LrclibTest(Kodi):
     def test_a_failed_prefetch_its_start_took_over_is_asked_again(self):
         self.running = False
         self.labels |= QUEUED | {"MusicPlayer.Lyrics": LRC}
-        lyrics.lookup()
+        lyrics.lookup(self.aborted)
         self.labels |= dict(zip(TAGS, ("Blur", "Song 2", "Blur", "02:02")))
         self.labels |= {"MusicPlayer.Lyrics": "", "MusicPlayer.offset(1).Title": ""}
-        found = lyrics.lookup()  # Song 2 starts while its prefetch is out
+        found = lyrics.lookup(self.aborted)  # Song 2 starts while its prefetch is out
         lyrics._fetches[NEXT].run()  # and it fails (offline, or a 404)
         self.assertEqual(found.tick(0.0), lyrics.ASKING_WAIT)
         self.assertEqual(self.props["lyrics_state"], "searching")  # not "none"
@@ -384,10 +395,17 @@ class LrclibTest(Kodi):
             {"MusicPlayer.Duration": ""},
         ):
             with patch.dict(self.labels, off):
-                lyrics.lookup()
+                lyrics.lookup(self.aborted)
         with patch.object(lyrics.lrclib, "enabled", lambda: False):
-            lyrics.lookup()
+            lyrics.lookup(self.aborted)
         self.assertEqual((self.asked, self.props["lyrics_state"]), ([], "none"))
+
+    def test_kodi_exiting_stops_a_request_quietly(self):
+        self.exiting = True
+        found = lyrics.lookup(self.aborted)
+        self.assertEqual((self.asked, self.errors), ([("lyrics", SONG)], []))
+        self.assertEqual(lyrics._fetches, {})  # the thread ended: Kodi needn't wait
+        self.assertEqual(found.tick(0.0), 1)
 
     def test_cache_failures_are_logged_as_unknown(self):
         def broken(*song):
@@ -395,7 +413,7 @@ class LrclibTest(Kodi):
 
         self.lrclib[SONG] = sqlite3.DatabaseError("database disk image is malformed")
         with patch.object(lyrics.lrclib, "saved", broken):
-            found = lyrics.lookup()
+            found = lyrics.lookup(self.aborted)
         self.assertEqual(found.tick(0.0), 1)
         self.assertEqual(self.props["lyrics_state"], "none")
         self.assertEqual(len(self.errors), 2)  # the read, then the request's write
@@ -497,6 +515,15 @@ class StepTest(Kodi):
 
 
 class PollerHookTest(Kodi):
+    def abortRequested(self):
+        """The player monitor's own Monitor, made on the service thread."""
+        return self.exiting
+
+    def test_lookups_get_the_service_threads_abort(self):
+        self.conditions.add(lyrics.ENABLED)
+        self.monitor.watch_lyrics()
+        self.assertEqual(self.lookups, [self.abortRequested])
+
     def setUp(self):
         super().setUp()
         self.monitor = object.__new__(player.PlayerMonitor)
@@ -505,9 +532,12 @@ class PollerHookTest(Kodi):
         self.monitor.isPlayingAudio = lambda: self.playing
         self.monitor.getTime = lambda: 6.5
         self.labels["MusicPlayer.Lyrics"] = LRC
+        self.monitor._monitor = self  # its abortRequested
         lookup = lyrics.lookup
         patcher = patch.object(
-            lyrics, "lookup", lambda: self.lookups.append(1) or lookup()
+            lyrics,
+            "lookup",
+            lambda aborted: self.lookups.append(aborted) or lookup(aborted),
         )
         patcher.start()
         self.addCleanup(patcher.stop)
