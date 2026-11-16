@@ -1,6 +1,8 @@
 # author: realcopacetic
 
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any, Callable
 
 from xbmc import Monitor
@@ -15,6 +17,21 @@ DAY = 86400
 TTL_INVALID, TTL_DOWN = 7 * DAY, 300
 # TheIntroDB's 429 for one film or episode: its wait holds that key, not the queue
 ONE_MEDIA = "specific_media_usage_limit_exceeded"
+_offline = False  # cache_only holds it: answers come from the cache alone
+
+
+@contextmanager
+def cache_only() -> Iterator[None]:
+    """
+    While held, cached answers whatever their age and fetches nothing: for a plugin
+    call (its own interpreter) that must not wait on the network.
+    """
+    global _offline
+    _offline = True
+    try:
+        yield
+    finally:
+        _offline = False
 
 
 def failure_ttl(exc: HttpError, invalid: int = TTL_INVALID) -> int:
@@ -36,9 +53,9 @@ def cached(
     key: str, fetch: Callable[[], Any], ttl: tuple[int, int], queue: str = ""
 ) -> Any:
     """
-    The answer for key, fetched when stale and cached per answer kind; a failure,
-    or an answer of another shape, keeps a stale answer, or one a racing call stored.
-    With a queue, one request a second across plugin calls.
+    The answer for key, fetched when stale (never under cache_only) and cached per
+    answer kind; a failure, or an answer of another shape, keeps a stale answer, or
+    a different one a racing call stored. With a queue, one request a second.
 
     :param key: api_cache key, "<source>:<kind>:<id>".
     :param fetch: Returns the shaped payload; raises HttpError.
@@ -48,7 +65,7 @@ def cached(
     """
     cache = ApiCacheHandler()
     payload, fresh = cache.get(key) or (None, False)
-    if fresh:
+    if fresh or _offline:
         return payload
     source = key.partition(":")[0]
     if queue:

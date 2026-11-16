@@ -411,6 +411,25 @@ class ApiCacheHandler(SQLiteHandler):
                 (int(time.time()) - 1, *patterns),
             ).rowcount
 
+    def expire_held(self, key: str, payload: Any) -> bool:
+        """
+        Mark key's row stale while it still holds payload, so an answer another call
+        stored since stays fresh; a second past now, as expire.
+
+        :param key: Cache key, exactly.
+        :param payload: The answer the caller has (get, or what it put).
+        :return: Whether the row was marked.
+        """
+        held = json.dumps(payload, separators=(",", ":"))
+        with self._conn as conn:
+            return bool(
+                conn.execute(
+                    f"UPDATE {self.TABLE_NAME} SET expires_at = ? "
+                    "WHERE key = ? AND payload = ?",
+                    (int(time.time()) - 1, key, held),
+                ).rowcount
+            )
+
     def prune(self, grace: int = 86400 * 30) -> None:
         """
         Delete rows expired more than grace seconds ago.

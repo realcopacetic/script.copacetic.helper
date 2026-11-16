@@ -4,8 +4,6 @@ import json
 import sqlite3
 import sys
 import time
-from datetime import date, datetime, timedelta
-from threading import Thread
 
 import xbmc
 
@@ -15,7 +13,6 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.templates import cache_is_current
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.shared import logger as log
-from resources.lib.shared.mix import MIXES_WANTED, keep_todays_mixes
 from resources.lib.shared.speed_dial import release_refresh, skin_uses_speed_dial
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
@@ -45,10 +42,6 @@ RELOAD_COVER_SECS = 0.2
 # Edits to a queue: Kodi's list providers refresh on play, resume and stop, not on these
 # (nor on a shuffle, a Player.OnPropertyChanged; a move announces nothing).
 PLAYLIST_EDITS = {"Playlist.OnAdd", "Playlist.OnRemove", "Playlist.OnClear"}
-# Seconds to the next pass at today's mixes after one that kept nothing, failed or
-# raised, and to a day's second pass: past a failed lookup's 5 minutes
-MIXES_RETRY = 900
-MIXES_PROPERTY = "daily_mixes_version"  # Daily mixes rails put it in their URL
 
 
 class Monitor(xbmc.Monitor):
@@ -64,9 +57,6 @@ class Monitor(xbmc.Monitor):
         self.skin = None, None
         self.reload_due = False
         self.prune_due = 0.0  # wall-clock time of the next API cache prune
-        self.mixes_due = 0.0  # and of the next pass at today's mixes
-        self.mixes_day = None  # the day the last pass that kept a day kept
-        self.mixes = None  # the thread of the last pass
         self.player_monitor = None
         self.slideshow = None
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
@@ -283,42 +273,13 @@ class Monitor(xbmc.Monitor):
         log.debug_logging.cache_clear()
         pin_dev_reset()
 
-    def _keep_mixes(self) -> None:
-        """
-        Thread: keeps today's mixes with their similar artists (network lookups, off
-        the plugin's path), a new rail URL when they changed; the second pass that
-        keeps a day fills what the first missed, then the next is at midnight.
-        """
-        today = date.today()  # before the work, which may cross midnight
-        try:
-            changed = keep_todays_mixes(lambda: not self.abortRequested())
-        except (sqlite3.OperationalError, KeyError) as e:  # locked, or a JSON error
-            log.warning(f"{self.__class__.__name__} → Daily mixes: {e!r}")
-            changed = None
-        second = changed is not None and self.mixes_day == today
-        if changed is not None:  # a day is kept: only then does a pass count
-            self.mixes_day = today
-        if changed:
-            window_property(MIXES_PROPERTY, value=f"{time.time()}")
-        midnight = datetime.combine(today + timedelta(days=1), datetime.min.time())
-        retry = time.time() + MIXES_RETRY
-        self.mixes_due = midnight.timestamp() if second else retry
-
     def poller(self) -> None:
         """
         Polling loop: trailer session watchdog, seek offset expiry, Play next's
         switch-off, skip segments, global slideshow and held speed dial refreshes,
-        plus a daily API cache prune and today's mixes, in the background.
+        plus a daily API cache prune.
         """
-        if (
-            (now := time.time()) >= self.mixes_due
-            and not (self.mixes and self.mixes.is_alive())
-            and infolabel(f"Window(home).Property({MIXES_WANTED})")
-        ):
-            self.mixes_due = now + MIXES_RETRY  # the pass moves it; a raise can't
-            self.mixes = Thread(target=self._keep_mixes, daemon=True)
-            self.mixes.start()
-        if now >= self.prune_due:  # runs on through suspend
+        if (now := time.time()) >= self.prune_due:  # runs on through suspend
             try:
                 ApiCacheHandler().prune()
             except sqlite3.OperationalError as e:  # locked past its timeout
