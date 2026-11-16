@@ -67,9 +67,9 @@ class Monitor(xbmc.Monitor):
 
     def _run(self) -> None:
         """
-        Service loop: follow every change of the loaded skin's folder, and a new version
-        in the same folder unless it's empty (Kodi unregisters a skin it is installing);
-        poll each second while it opts in and the screensaver is off, else every 2 s.
+        Service loop: follow the loaded skin's folder, and a new version in it unless
+        empty (Kodi unregisters a skin it is installing); while it opts in, poll at
+        most 1 s apart (lyrics only under the screensaver), else every 2 s.
         """
         while not self.abortRequested():
             skin = skin_path()
@@ -78,6 +78,9 @@ class Monitor(xbmc.Monitor):
                 self._follow(skin, version)
             if self.player_monitor and not self.idle:
                 self.poller()
+            elif self.player_monitor and self.player_monitor.isPlayingAudio():
+                # A dim screensaver leaves the visualisation's lyrics in view
+                self.waitForAbort(self.player_monitor.watch_lyrics())
             else:
                 self.waitForAbort(2)
         # A profile switch keeps Home's properties: release the active state too.
