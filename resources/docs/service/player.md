@@ -231,6 +231,13 @@ the rest by its similar artists, then sharing its genres), with no song
 already queued. It only adds, so the queue and any list of it just grow; a shuffled
 queue plays them after the songs it already had.
 
+After a genre or daily mix the queue keeps to its genres for as long as it grows:
+the mix's songs carry `ListItem.Property(mix_genres)`, a JSON list of the genre's
+name (a daily mix: every library genre in its card's bucket), and every song the
+queue adds to them is of those genres and carries it on. After anything else (a
+song, album or artist mix, an album, a playlist) it is free to wander wherever the
+songs playing lead it. A narrow genre that runs out of songs simply stops growing.
+
 Each song added carries `ListItem.Property(added_from)`: the seed song's artists,
 joined with ` / `. Read it as `MusicPlayer.Property(added_from)` while the song plays,
 or on a list of the queue, for a "because you played" line. If the music playlist

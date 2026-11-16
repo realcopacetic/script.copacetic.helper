@@ -12,7 +12,8 @@ from xbmcgui import ListItem
 
 from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag, joined
-from resources.lib.shared.mix import MIX_SIZE
+from resources.lib.shared.genres import genre_bucket
+from resources.lib.shared.mix import credits, genre_ids
 from resources.lib.shared.utilities import ADDON, fold, json_call
 
 _DETAILS = {
@@ -130,51 +131,62 @@ def details_item(
     return library_item(details, type) if details else None
 
 
-def mix_card(mix: dict) -> DirectoryItem:
+def mix_cards(mixes: list[tuple[str, dict]]) -> list[DirectoryItem]:
     """
-    A daily mix as a card: "<genre> mix", its genre, an eyebrow, its first MIX_NAMES
-    artists as description and their thumbs as square multiart, leads first. It
-    opens the genre; a skin's click starts the mix (start_mix).
+    Daily mixes as cards, named by their most played genre still in the library:
+    "<genre> mix", that genre and its bucket, an eyebrow with its count, its artists in
+    play order (MIX_NAMES named, MIX_SLIDES thumbs). Opens that genre; a click plays it.
 
-    :param mix: A todays_mixes dict.
-    :return: (path, ListItem, is_folder).
+    :param mixes: (card, kept_mix dict) pairs.
+    :return: (path, ListItem, is_folder) per card.
     """
-    names = [*mix["artists"], *mix["similar"]]
+    names = {
+        key: [*dict.fromkeys(credits(song)[0] for song in mix["songs"])]
+        for key, mix in mixes
+    }
     thumbs = {
         row["artist"]: row["art"]["thumb"]
         for row in json_call(
             "AudioLibrary.GetArtists",
             properties=["art"],
-            query_filter={"field": "artist", "operator": "is", "value": names},
+            query_filter={
+                "field": "artist",
+                "operator": "is",
+                "value": [*{name for artists in names.values() for name in artists}],
+            },
             params={"albumartistsonly": False},
             parent="daily_mixes",
         )["result"].get("artists", [])
         if "thumb" in row["art"]
     }
-    slides = [thumbs[name] for name in names if name in thumbs][:MIX_SLIDES]
-    if names[MIX_NAMES:]:
-        described = ADDON.getLocalizedString(32841) % ", ".join(names[:MIX_NAMES])
-    else:
-        *first, last = names
-        described = ADDON.getLocalizedString(32840) % (", ".join(first), last)
-    li = ListItem(
-        ADDON.getLocalizedString(32838) % mix["genre"],
-        ", ".join(mix["artists"]),
-        offscreen=True,
-    )
-    li.setArt(
-        {f"square{n or ''}": url for n, url in enumerate(slides)}
-        | {"icon": "DefaultMusicGenres.png"}
-    )
-    li.getMusicInfoTag().setGenres([mix["genre"]])
-    li.setProperties(
-        {
-            "Artist_Description": described,
-            "eyebrow": ADDON.getLocalizedString(32839) % MIX_SIZE,
-            "mix_genreid": str(mix["genreid"]),
-        }
-    )
-    return f"musicdb://genres/{mix['genreid']}/", li, True
+    ids, cards = genre_ids(), []
+    for key, mix in mixes:
+        # its most played genre still in the library (a clean drops some); else no card
+        if not (genre := next((g for g in mix["genres"] if g in ids), None)):
+            continue
+        artists = names[key]
+        slides = [thumbs[name] for name in artists if name in thumbs][:MIX_SLIDES]
+        if artists[MIX_NAMES:]:
+            described = ADDON.getLocalizedString(32841) % ", ".join(artists[:MIX_NAMES])
+        else:
+            *first, last = artists
+            described = ADDON.getLocalizedString(32840) % (", ".join(first), last)
+        li = ListItem(ADDON.getLocalizedString(32838) % genre, offscreen=True)
+        li.setArt(
+            {f"square{n or ''}": url for n, url in enumerate(slides)}
+            | {"icon": "DefaultMusicGenres.png"}
+        )
+        li.getMusicInfoTag().setGenres([genre])
+        li.setProperties(
+            {
+                "Artist_Description": described,
+                "eyebrow": ADDON.getLocalizedString(32839) % len(mix["songs"]),
+                "mix_bucket": genre_bucket(genre) or "",  # a skin's icon, by name
+                "mix_genreid": str(ids[genre]),
+            }
+        )
+        cards.append((f"musicdb://genres/{ids[genre]}/", li, True))
+    return cards
 
 
 @lru_cache(maxsize=4096)
@@ -423,17 +435,21 @@ def library_rows(
     return rows.get("result", {}).get(f"{type}s", [])
 
 
-def artist_names(parent: str) -> dict[str, str]:
+def artist_names(parent: str, album_artists: bool = False) -> dict[str, str]:
     """
-    Every library artist's name by its folded form.
+    Every library artist's name by its folded form, as Kodi's *Show song and album
+    artists* setting lists them, or album artists alone (a mix's: their own albums).
 
     :param parent: Caller name for logging.
+    :param album_artists: Album artists alone, whatever the setting.
     :return: {fold(name): name}.
     """
-    return {
-        fold(row["artist"]): row["artist"]
-        for row in library_rows("artist", None, None, None, parent, [])
-    }
+    rows = json_call(
+        "AudioLibrary.GetArtists",
+        params={"albumartistsonly": True} if album_artists else None,
+        parent=parent,
+    )["result"].get("artists", [])
+    return {fold(row["artist"]): row["artist"] for row in rows}
 
 
 def play_places(parent: str) -> dict[str, list[int]]:
@@ -501,6 +517,31 @@ def similar_artists(
     owned = owned or artist_names(parent)
     ranked = sorted(scores, key=scores.get, reverse=True)
     return [owned[key] for key in ranked if key in owned]
+
+
+def similar_to(
+    names: list[str],
+    parent: str,
+    owned: Callable[[], dict[str, str]] | None = None,
+) -> list[str]:
+    """
+    Library artists like all of these library artists, fused (similar_artists each),
+    the artists themselves left out: a genre mix's, from its leads.
+
+    :param names: Library artist names.
+    :param parent: Caller name for logging.
+    :param owned: Returns artist_names(album_artists=True), shared; None to fetch it.
+    :return: Library artist names, closest first.
+    """
+    rows = json_call(
+        "AudioLibrary.GetArtists",
+        query_filter={"field": "artist", "operator": "is", "value": names},
+        params={"albumartistsonly": False},
+        parent=parent,
+    )["result"].get("artists", [])
+    owned = owned() if owned else artist_names(parent, album_artists=True)
+    scores = fused((1, similar_artists(row["artistid"], parent, owned)) for row in rows)
+    return [artist for artist, _ in scores.most_common() if artist not in names]
 
 
 def dial_item(entry: dict, offsets: tuple[int, ...] | None) -> DirectoryItem | None:
