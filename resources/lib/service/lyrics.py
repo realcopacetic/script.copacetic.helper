@@ -26,7 +26,17 @@ FOLLOW, BROWSE = 3510, 3511  # the visualisation's follow list, the music OSD's 
 NEIGHBOURS = {"lyrics_m2": -2, "lyrics_m1": -1} | {
     f"lyrics_p{n}": n for n in range(1, 6)
 }
-MIN_WAIT = 0.05  # seconds: a playhead that stalls just before a line can't spin
+# Seconds: a playhead stalled just before a line (buffering) polls up to 20 times a
+# second until it moves, not faster
+MIN_WAIT = 0.05
+SHOWN = "Window.IsActive(visualisation)"
+# Seconds between passes while the visualisation shows. Kodi runs the service's
+# callbacks inside the poller's wait without ending it (Monitor::waitForAbort), so a
+# list reloaded or shown again (a new song, the OSD reopening) is put right this soon
+SHOWN_WAIT = 0.2
+# Seconds a posted Control.Move has to land (Kodi runs it on the GUI thread) before
+# the list is read as missed and moved again
+SETTLE = 0.5
 # Written in this order: the lines before the revision that refetches them, the
 # state, which shows them, last
 PROPS = (
@@ -259,7 +269,9 @@ class Lyrics:
         self.times = [ms for ms, _ in lines]
         self.fetch = fetch
         self.index = -1  # the line published
-        self.stepped = None  # (list, line, its item count) last stepped for
+        self.moved = (
+            None  # (list, item it moves to, monotonic deadline) of the last move
+        )
 
     def tick(self, now: float) -> float:
         """
@@ -267,7 +279,8 @@ class Lyrics:
         and step the list in view.
 
         :param now: The playhead in seconds.
-        :return: Seconds to the next line, at most 1 (1 while paused or after the last).
+        :return: Seconds to the next line (1 while paused or after the last), at most
+            1, or 0.2 while the visualisation shows.
         """
         if self.fetch:
             if self.fetch.is_alive():
@@ -283,27 +296,38 @@ class Lyrics:
                 window_property(key, value=value)
         self._step(index)
         if index + 1 == len(self.times) or condition("Player.Paused"):
-            return 1
-        return min(1, max(MIN_WAIT, (self.times[index + 1] - ms) / 1000))
+            wait = 1
+        else:
+            wait = max(MIN_WAIT, (self.times[index + 1] - ms) / 1000)
+        return min(wait, SHOWN_WAIT if condition(SHOWN) else 1)
 
     def _step(self, index: int) -> None:
         """
-        Move the list in view to the line by its distance from the list's selected
-        item, so a step that missed is made up: the OSD's browse list unless it has
-        focus, else the visualisation's follow list.
+        Put the list in view on the line whenever it isn't (a step a dialog took, a
+        list reloaded or shown again), by its distance from the selected item: the
+        OSD's browse list unless it has focus, else the visualisation's follow list.
 
         :param index: The current line; -1 before the first (the first item then).
         """
         if condition("Window.IsActive(musicosd)"):
             target = 0 if condition(f"Control.HasFocus({BROWSE})") else BROWSE
         else:
-            target = FOLLOW if condition("Window.IsActive(visualisation)") else 0
+            target = FOLLOW if condition(SHOWN) else 0
         # Read in the topmost modal dialog: none under another one, as Control.Move
-        count = target and to_int(infolabel(f"Container({target}).NumItems"))
-        if (key := (target, index, count)) == self.stepped:
+        if not (
+            target and (count := to_int(infolabel(f"Container({target}).NumItems")))
+        ):
             return
-        self.stepped = key
-        if count:  # one still filling steps once filled: a new key
-            selected = to_int(infolabel(f"Container({target}).CurrentItem")) - 1
-            if delta := max(index, 0) - selected:
-                log.execute(f"Control.Move({target},{delta})")
+        selected = to_int(infolabel(f"Container({target}).CurrentItem")) - 1
+        if (
+            self.moved
+            and self.moved[0] == target
+            and self.moved[1] != selected
+            and time.monotonic() < self.moved[2]
+        ):
+            return  # the last move is still queued: another now would add to it
+        self.moved = None
+        line = min(max(index, 0), count - 1)  # within a list still the last song's
+        if line != selected:
+            log.execute(f"Control.Move({target},{line - selected})")
+            self.moved = target, line, time.monotonic() + SETTLE

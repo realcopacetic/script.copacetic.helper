@@ -386,6 +386,10 @@ class StepTest(Kodi):
         for target in (3510, 3511):
             self.list(target, 10, 1)
         self.lyrics = lyrics.Lyrics([[1000 * s, f"line {s}"] for s in range(2, 12)])
+        self.clock = 100.0
+        patcher = patch.object(lyrics.time, "monotonic", lambda: self.clock)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def list(self, target, count, current):
         """A list's NumItems and CurrentItem; empty with no items, as Kodi reads."""
@@ -393,25 +397,47 @@ class StepTest(Kodi):
         self.labels[f"Container({target}).CurrentItem"] = f"{current}" if count else ""
 
     def test_steps_by_the_lists_own_position(self):
-        self.assertAlmostEqual(self.lyrics.tick(1.25), 0.75)  # before the first line
+        self.lyrics.tick(1.25)  # before the first line
         self.assertEqual((self.builtins, self.props), ([], {}))  # lookup published -1
-        self.assertAlmostEqual(self.lyrics.tick(2.0), 1)
+        self.lyrics.tick(2.0)
         self.assertEqual(self.builtins, [])  # line 0 is the list's first item
         self.assertEqual(
             (self.props["lyrics_index"], self.props["lyrics_p5"]), ("0", "5")
         )
         self.lyrics.tick(3.5)
         self.assertEqual(self.builtins, ["Control.Move(3510,1)"])
-        self.lyrics.tick(3.6)  # the move is queued: the list still reads item 1
+        self.clock += 0.2
+        self.lyrics.tick(4.0)  # the move is queued: the list still reads item 1
         self.assertEqual(len(self.builtins), 1)
+        self.clock += 0.5
         self.lyrics.tick(6.0)  # a modal dialog took that step: made up now
         self.assertEqual(self.builtins[-1], "Control.Move(3510,4)")
         self.list(3510, 10, 5)
-        self.lyrics.tick(2.5)  # a seek back
+        self.lyrics.tick(2.5)  # a seek back, once that move landed
         self.assertEqual(self.builtins[-1], "Control.Move(3510,-4)")
         self.assertEqual(self.props["lyrics_m2"], "-2")
 
+    def test_a_list_shown_again_is_put_right_at_the_next_pass(self):
+        self.lyrics.tick(6.0)
+        self.list(3510, 10, 5)  # Kodi ran it
+        self.lyrics.tick(6.2)
+        self.list(3510, 10, 1)  # reloaded, or the window opened again, on line 0
+        self.lyrics.tick(6.4)  # the same line
+        self.assertEqual(
+            self.builtins, ["Control.Move(3510,4)", "Control.Move(3510,4)"]
+        )
+        self.list(3510, 3, 1)  # the last song's shorter list: no wrap past its end
+        self.lyrics.tick(6.6)  # that move is still queued: nothing on top of it
+        self.assertEqual(len(self.builtins), 2)
+        self.clock += 1
+        self.lyrics.tick(6.8)
+        self.assertEqual(self.builtins[-1], "Control.Move(3510,2)")
+
     def test_waits(self):
+        self.assertAlmostEqual(self.lyrics.tick(1.9), 0.1)
+        self.assertEqual(self.lyrics.tick(1.0), lyrics.SHOWN_WAIT)
+        self.conditions.discard("Window.IsActive(visualisation)")
+        self.assertAlmostEqual(self.lyrics.tick(1.0), 1)
         self.assertAlmostEqual(self.lyrics.tick(2.999), lyrics.MIN_WAIT)
         self.conditions.add("Player.Paused")
         self.assertEqual(self.lyrics.tick(4.5), 1)
@@ -434,6 +460,7 @@ class StepTest(Kodi):
         self.lyrics.tick(5.5)
         self.assertEqual(len(self.builtins), 2)
         self.conditions.discard("Control.HasFocus(3511)")  # back to the buttons
+        self.clock += 2
         self.lyrics.tick(5.6)
         self.assertEqual(self.builtins[-1], "Control.Move(3511,-4)")
         self.conditions -= {
