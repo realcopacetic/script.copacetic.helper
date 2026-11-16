@@ -100,6 +100,7 @@ def install_stubs(
         log=log,
         getCondVisibility=lambda condition: False,
         getInfoLabel=lambda label: "",
+        getRegion=lambda key: {"time": "%H:%M:%S"}.get(key, ""),
         executebuiltin=lambda action, wait=False: log(f"builtin: {action}"),
     )
     _module("xbmcaddon", Addon=Addon)

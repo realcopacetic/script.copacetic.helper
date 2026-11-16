@@ -55,6 +55,12 @@ python tests/service_offline.py
 # chapters taking over on entry, and what is published as the playhead moves
 python tests/segments_offline.py
 
+# The live channel list's guide (plugin/pvr.py, info=broadcasts) with JSON-RPC
+# stubbed: programmes from the one on air, start and end as local clock times
+# (Europe/London, GMT and BST), time left from Kodi's progress, the state icon's
+# order, and the handler's calls (none without a channel, no logo call without rows)
+python tests/pvr_offline.py
+
 # Clean names (shared/utilities.py clean_name) against a port of Kodi's CleanString:
 # a film's title and year; an episode's show, 1x07 and title in the scene, Sonarr,
 # underscore and title-less forms

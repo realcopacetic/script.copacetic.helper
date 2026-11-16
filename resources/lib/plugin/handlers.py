@@ -63,6 +63,7 @@ from resources.lib.plugin.music import (
     rank_songs,
     similar_artists,
 )
+from resources.lib.plugin.pvr import BROADCAST_FIELDS, broadcast_items
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.plugin.soundtracks import (
@@ -1880,6 +1881,43 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         with ThreadPoolExecutor(max_workers=8) as pool:
             items = pool.map(lambda pair: dial_item(*pair), SpeedDial().items())
         return [item for item in items if item][: self.limit] or None
+
+    @log.duration
+    def broadcasts(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of PVR channel ``channelid``'s programmes from the one on
+        air, for the live channel list's guide: Kodi's own lists the playing one's.
+
+        :return: List of directory items for Kodi, or None if none.
+        """
+        if not self._require("channelid"):
+            return
+        params = {"channelid": int(self.params["channelid"])}
+        broadcasts = (
+            json_call(
+                "PVR.GetBroadcasts",
+                properties=BROADCAST_FIELDS,
+                params=params,
+                parent="broadcasts",
+            )
+            .get("result", {})
+            .get("broadcasts")
+        )
+        if not broadcasts:
+            return
+        logo = (
+            json_call(
+                "PVR.GetChannelDetails",
+                properties=["thumbnail"],
+                params=params,
+                parent="broadcasts",
+            )
+            .get("result", {})
+            .get("channeldetails", {})
+            .get("thumbnail", "")
+        )
+        items = broadcast_items(broadcasts, params["channelid"], logo)
+        return set_items(items[: self.limit]) or None
 
     @log.duration
     def cast(self) -> list[DirectoryItem] | None:
