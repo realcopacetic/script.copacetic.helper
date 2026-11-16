@@ -10,6 +10,9 @@ STAMPS = re.compile(r"(?:\[\d+:\d{1,2}(?:[.:]\d{1,3})?\])+")
 STAMP = re.compile(r"\[(\d+):(\d{1,2})(?:[.:](\d{1,3}))?\]")
 OFFSET = re.compile(r"\[offset:\s*([+-]?\d+)\s*\]", re.IGNORECASE)
 WORD = re.compile(r"<\d+:\d{1,2}(?:[.:]\d{1,3})?>")  # enhanced LRC's word stamps
+# LRC's tags ([ar:...], [offset:...]: lowercase keys) and stamps, timed or not; a
+# lyric's own [Chorus] or [Verse 1: Name] has neither form
+TAG = re.compile(r"\[(?:[a-z#]+:[^\]]*|\d+[:.,][\d:.,]*)\]")
 
 
 def parse(text: str) -> list[list[int | str]]:
@@ -33,3 +36,18 @@ def parse(text: str) -> list[list[int | str]]:
     return sorted(
         ([max(ms - offset, 0), words] for ms, words in lines), key=itemgetter(0)
     )
+
+
+def plain(text: str) -> str:
+    """
+    Lyrics parse() can't time, as plain text: LRC tags and stamps taken out, a line
+    of nothing else dropped, blank lines between verses kept.
+
+    :param text: Lyrics, from a .lrc or tags.
+    :return: The text; "" when nothing else is left.
+    """
+    return "\n".join(
+        bare
+        for line in text.splitlines()
+        if (bare := TAG.sub("", line).strip()) or not TAG.search(line)
+    ).strip()

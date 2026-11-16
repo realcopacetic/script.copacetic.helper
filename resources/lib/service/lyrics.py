@@ -1,5 +1,6 @@
 # author: realcopacetic
 
+import codecs
 import json
 import os
 import time
@@ -11,7 +12,7 @@ import xbmcvfs
 
 from resources.lib.apis import lrclib
 from resources.lib.shared import logger as log
-from resources.lib.shared.lrc import LINES, parse
+from resources.lib.shared.lrc import LINES, parse, plain
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -74,7 +75,8 @@ def song(prefix: str = "MusicPlayer.") -> tuple[str, str, str, int]:
 
 def _sidecar(path: str) -> str:
     """
-    The text of a .lrc of the same name beside the playing file.
+    The text of a .lrc of the same name beside the playing file: UTF-16 by its byte
+    order mark, else UTF-8, else Windows-1252.
 
     :param path: The playing file.
     :return: Its text; "" for none, or a stream.
@@ -83,7 +85,13 @@ def _sidecar(path: str) -> str:
     if condition("Player.IsInternetStream") or not xbmcvfs.exists(lrc):
         return ""
     with xbmcvfs.File(lrc) as file:
-        return file.readBytes().decode("utf-8-sig", "replace")
+        data = file.readBytes()
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return data.decode("utf-16", "replace")
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:  # an older file: Windows-1252, as most Western ones
+        return data.decode("cp1252", "replace")
 
 
 def _ask(artist: str, title: str, album: str, seconds: int) -> dict[str, Any] | None:
@@ -114,9 +122,10 @@ def find(path: str) -> tuple[str, list | None, str | None, bool]:
         ("file", _sidecar(path)),
         ("embedded", infolabel("MusicPlayer.Lyrics")),
     ):
-        if text := "\n".join(text.strip().splitlines()):
-            synced = parse(text)
-            return source, synced or None, None if synced else text, False
+        if synced := parse(text):
+            return source, synced, None, False
+        if text := plain(text):  # a .lrc of only tags holds none
+            return source, None, text, False
     if found := _ask(*song()):
         return "lrclib", found["synced"], found["plain"], found["instrumental"]
     return "", None, None, False
