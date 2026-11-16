@@ -382,13 +382,13 @@ class PollerHookTest(Kodi):
 class PluginAndActionTest(unittest.TestCase):
     def setUp(self):
         self.home = sys.modules["xbmcgui"].Window(10000)
-        self.addCleanup(self.home.clearProperty, lyrics.LINES)
+        self.addCleanup(self.home.clearProperty, lrc.LINES)
         patcher = patch.object(handlers, "set_items", list)  # the items as dicts
         patcher.start()
         self.addCleanup(patcher.stop)
 
     def test_one_item_per_line(self):
-        self.home.setProperty(lyrics.LINES, json.dumps(LINES))
+        self.home.setProperty(lrc.LINES, json.dumps(LINES))
         items = object.__new__(handlers.PluginHandlers).lyrics()
         self.assertEqual(
             items,
@@ -410,7 +410,7 @@ class PluginAndActionTest(unittest.TestCase):
                 },
             ],
         )
-        self.home.clearProperty(lyrics.LINES)  # plain, none, or not playing
+        self.home.clearProperty(lrc.LINES)  # plain, none, or not playing
         self.assertIsNone(object.__new__(handlers.PluginHandlers).lyrics())
 
     def test_seek_to_a_line(self):

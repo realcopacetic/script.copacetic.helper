@@ -81,6 +81,7 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
+from resources.lib.shared.lrc import LINES
 from resources.lib.shared.mix import kept_mix, leading_cards, played_songs
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
@@ -2457,8 +2458,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if none.
         """
-        from resources.lib.service.lyrics import LINES
-
         lines = json.loads(Window(10000).getProperty(LINES) or "[]")
         return (
             set_items(

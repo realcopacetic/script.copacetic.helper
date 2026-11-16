@@ -3,6 +3,8 @@
 import re
 from operator import itemgetter
 
+LINES = "lyrics_lines"  # Home property: the service's synced lines as JSON, for plugins
+
 # A line's leading time stamps: [mm:ss], [mm:ss.xx] or [mm:ss.xxx], some writers' colon
 STAMPS = re.compile(r"(?:\[\d+:\d{1,2}(?:[.:]\d{1,3})?\])+")
 STAMP = re.compile(r"\[(\d+):(\d{1,2})(?:[.:](\d{1,3}))?\]")
