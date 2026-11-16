@@ -73,6 +73,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`info_back`](#info_back) | Steps back along the infoscreen trail |
 | [`info_swap`](#info_swap) | Reopens the info dialog on an item Kodi swapped into it |
 | [`listenbrainz_test`](#listenbrainz_test) | Checks the ListenBrainz token |
+| [`mark_album`](#mark_album) | Marks every song on an album played or unplayed |
 | [`move_pin`](#move_pin) | Moves a pinned speed dial entry up or down |
 | [`pin`](#pin) | Pins a music item to the front of speed dial |
 | [`play_album`](#play_album) | Plays an album |
@@ -125,6 +126,8 @@ the action named. In any other skin they are hidden.
 | Unlike | Library songs rated at or above `Skin.String(like_threshold)` | [`rate_song`](#rate_song) with `rating=0` |
 | Pin to speed dial | Library songs, artists and albums, and music playlists, that are not pinned in [speed dial](../plugins/speed_dial.md) | [`pin`](#pin) |
 | Unpin | Library songs, artists and albums, and music playlists, that are pinned in speed dial | [`unpin`](#unpin) |
+| Mark as played | Library albums (not disc or music video album nodes) that aren't played through (`album_played`, below) | [`mark_album`](#mark_album) with `played=true` |
+| Mark as unplayed | Library albums (not disc or music video album nodes) that aren't unplayed (`album_unplayed`, below) | [`mark_album`](#mark_album) |
 | Refresh cached data | Library films, sets, TV shows, seasons, episodes, music videos, artists, albums and songs | [`refresh_cached`](#refresh_cached) |
 
 On [speed dial](../plugins/speed_dial.md) items, Shuffle, Start mix and Unpin come
@@ -613,6 +616,36 @@ No parameters.
 ```
 
 ---
+
+## mark_album
+
+Marks every song on a library album played or unplayed, as Kodi's own *Mark as
+watched* does for videos. Played: each song's play count becomes at least 1 and its
+last played becomes now, so the album counts as heard through in the
+[progress bar](../plugins/progressbar.md#albums) and moves up Kodi's recently played
+albums. Unplayed: each song's play count becomes 0. Kodi keeps a song's last played
+when its play count is cleared (`CMusicDatabase::UpdateSong`), so the progress bar
+reads a song as heard only with a play count.
+
+The context menu's **Mark as played** and **Mark as unplayed** items run this action.
+Each shows on a library album (not a disc node, nor a music video album node, whose id
+is a video library id) unless the album is already so: the
+[progress bar serve](../plugins/progressbar.md#albums) writes the focused album's id
+to `album_played` or `album_unplayed`, and the item compares it with
+`ListItem.DBID`. Where that serve doesn't run, both show.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | album database id | `ListItem.DBID` | The album to mark |
+| `played` | `true`, anything else | — | `true` marks it played; anything else, unplayed |
+
+Each song write is a full rewrite of its row and an `AudioLibrary.OnUpdate`, so a long
+album costs a moment and Home refreshes its widgets once per song.
+
+**Sets:** `Window(home).Property(album_played)` and `album_unplayed` (the album's id,
+or cleared). The service then sets `progress_version` once for the songs' updates
+([On song updates](../service/index.md#on-song-updates)), which a skin puts in its
+progress bar URL to have the bar served again.
 
 ## move_pin
 

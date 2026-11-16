@@ -1006,6 +1006,38 @@ def pvr_smart_select(
 
 
 @action
+def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
+    """
+    Marks every song on an album played (a play count of at least 1, last played
+    now) or unplayed (play count 0); the service then has its bar served again.
+
+    :param id: Album ID (defaults to ListItem.DBID).
+    :param played: "true" marks it played; anything else, unplayed.
+    """
+    album = to_int(id or infolabel("ListItem.DBID"))
+    response = json_call(
+        "AudioLibrary.GetSongs",
+        params={"filter": {"albumid": album}, "properties": ["playcount"]},
+        parent="mark_album",
+    )
+    mark = played == "true"
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    for song in response.get("result", {}).get("songs", []):
+        details = (
+            {"playcount": max(song["playcount"], 1), "lastplayed": now}
+            if mark
+            else {"playcount": 0}
+        )
+        json_call(
+            "AudioLibrary.SetSongDetails",
+            params={"songid": song["songid"], **details},
+            parent="mark_album",
+        )
+    window_property("album_played", value=str(album) if mark else "")
+    window_property("album_unplayed", value="" if mark else str(album))
+
+
+@action
 def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
     """
     Sets a song's user rating; Kodi updates the playing song's tag itself. Then

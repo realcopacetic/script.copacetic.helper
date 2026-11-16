@@ -771,6 +771,15 @@ msgctxt "#32841"
 msgid "%s and more."
 msgstr ""
 
+#: /addon.xml — the context menu, for an album
+msgctxt "#32842"
+msgid "Mark as played"
+msgstr ""
+
+msgctxt "#32843"
+msgid "Mark as unplayed"
+msgstr ""
+
 #: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: the album with the library's most plays
 msgctxt "#32994"
 msgid "Your most played album"

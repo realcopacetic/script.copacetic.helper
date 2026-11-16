@@ -4,6 +4,7 @@ import json
 import sqlite3
 import sys
 import time
+from threading import Timer
 
 import xbmc
 
@@ -21,6 +22,7 @@ from resources.lib.shared.utilities import (
     condition,
     dev_reset_due,
     infolabel,
+    json_call,
     notify_build_failed,
     pin_dev_reset,
     reset_dev_state,
@@ -59,6 +61,7 @@ class Monitor(xbmc.Monitor):
         self.prune_due = 0.0  # wall-clock time of the next API cache prune
         self.player_monitor = None
         self.slideshow = None
+        self.song_bump = None  # a pending progress_version bump
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
         self._run()
 
@@ -112,7 +115,7 @@ class Monitor(xbmc.Monitor):
         path, version = self.skin
         log.info(f"{self.__class__.__name__} → Active in {path}, version {version}")
         self._builder_elements()
-        self.player_monitor = PlayerMonitor()
+        self.player_monitor = PlayerMonitor(song_closed=self._song_closed)
         self.slideshow = Slideshow()
         window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
         window_property(ACTIVE_PROPERTY, value="true")
@@ -121,6 +124,8 @@ class Monitor(xbmc.Monitor):
         """Leaving the skin: hide the context items, release the monitors."""
         window_property(ACTIVE_PROPERTY)
         window_property(SPEED_DIAL_PROPERTY)
+        if self.song_bump:
+            self.song_bump.cancel()
         self.player_monitor.release()
         self.slideshow.clear()
         self.player_monitor = self.slideshow = None
@@ -247,13 +252,24 @@ class Monitor(xbmc.Monitor):
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
-        Kodi event hook: a new playlist_revision on each music queue edit while
-        active (a shuffle too), which the skin's queue rail puts in its path.
+        Kodi event hook while active: a new playlist_revision on each music queue
+        edit (a shuffle too), and progress_version after song updates outside a scan.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
         :param data: Its data as JSON.
         """
+        if method == "AudioLibrary.OnUpdate":
+            # Music updates don't reach 9010's video-tagged item (DirectoryProvider.cpp
+            # Announce): re-serve an album's bar once per burst, as Kodi queues them
+            data = json.loads(data)
+            if (
+                self.player_monitor
+                and data.get("type") == "song"
+                and "transaction" not in data
+            ):
+                self._song_update()
+            return
         if not self.player_monitor or infolabel(
             "Window(home).Property(playlist_replacing)"
         ):
@@ -267,6 +283,42 @@ class Monitor(xbmc.Monitor):
             return
         if edited:
             window_property("playlist_revision", value=str(time.monotonic_ns()))
+
+    def _song_closed(self) -> None:
+        """
+        A library song closed: PAPlayer saves its play count in a job once its stream
+        has drained (PAPlayer.cpp CloseFileCB), so wait out a crossfade, and 2 s more.
+        """
+        response = json_call(
+            "Settings.GetSettingValue",
+            params={"setting": "musicplayer.crossfade"},
+            parent="song_closed",
+        )
+        self._song_update(response.get("result", {}).get("value", 0) + 2)
+
+    def _song_update(self, delay: float = 0.5) -> None:
+        """
+        One album bar re-serve (_album_bump) after the last of a burst of song updates
+        and closes; an update (after the write) replaces a close's longer wait.
+
+        :param delay: Seconds to wait.
+        """
+        if self.song_bump:
+            self.song_bump.cancel()
+        self.song_bump = Timer(delay, self._album_bump)
+        self.song_bump.daemon = True
+        self.song_bump.start()
+
+    def _album_bump(self) -> None:
+        """
+        Timer: a new progress_version, which the skin's progress bar URL carries,
+        unless 9010 on top serves a film's or show's bar (no blink); read now.
+        """
+        if condition(
+            "!String.StartsWith(Container(9010).ListItem.FileNameAndPath,plugin://)"
+            " | String.IsEqual(Container(9010).ListItem.Property(album),true)"
+        ):
+            window_property("progress_version", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:
         """Kodi event hook: re-read debug_logging, pin a new reset to this skin."""

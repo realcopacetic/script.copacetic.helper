@@ -361,6 +361,7 @@ class ProgressBarManager:
         target: str,
         base_id: int,
         window_id: int,
+        album_since: str,
     ) -> None:
         """
         Initialize default control IDs and sizing.
@@ -368,10 +369,12 @@ class ProgressBarManager:
         :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
         :param base_id: Base group ID that wraps the bar/btn; sub-controls default to +1/+2/+3/+4.
         :param window_id: Window that holds the controls.
+        :param album_since: Earliest last played ("YYYY-MM-DD HH:MM:SS") an album counts.
         """
 
         self.window = Window(window_id)
         self.target = target
+        self.album_since = album_since
         self.base_id = base_id
         self.progress_id = base_id + 1
         self.btn_id = base_id + 2
@@ -395,6 +398,10 @@ class ProgressBarManager:
 
         :return: (percent [0-100], unwatched label as string)
         """
+
+        if self.infolabels["DBType"] == "album":
+            heard, total, _ = self.album
+            return (heard / total * 100 if heard else 0), ""
 
         unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
         for p in [
@@ -437,14 +444,52 @@ class ProgressBarManager:
 
     def runtime(self, percent: float) -> int:
         """
-        Runtime in seconds of a part-watched movie or episode, as Duration(secs).
+        Runtime in seconds of a part-watched movie or episode, as Duration(secs), or
+        a part-heard album's length.
 
         :param percent: Progress from calculate().
         :return: The runtime; 0 for other items, or when Kodi has none.
         """
-        if 0 < percent < 100 and self.infolabels["DBType"] in ("movie", "episode"):
+        if not 0 < percent < 100:
+            return 0
+        if (dbtype := self.infolabels["DBType"]) == "album":
+            return self.album[1]
+        if dbtype in ("movie", "episode"):
             return to_int(infolabel(f"{self.target}.Duration(secs)"))
         return 0
+
+    @cached_property
+    def album(self) -> tuple[int, int, str]:
+        """
+        The focused album's seconds heard since album_since, its length, and "played"
+        or "unplayed" (every song or none ever played) when it isn't part-heard.
+
+        :return: (heard, total, state); heard 0 unless some but not all is recent.
+        """
+        if not (album_id := to_int(self.infolabels["DBID"])):
+            return 0, 0, ""
+        response = json_call(
+            method="AudioLibrary.GetSongs",
+            params={
+                "filter": {"albumid": album_id},
+                "properties": ["duration", "lastplayed", "playcount"],
+            },
+            parent=self.__class__.__name__,
+        )
+        if not (songs := response.get("result", {}).get("songs")):
+            return 0, 0, ""  # an error answer: no state, so both menu items show
+        # Unplayed songs keep their last played (CMusicDatabase::UpdateSong), so the
+        # play count gates it; JSON-RPC's date strings sort as times
+        played = [s for s in songs if s["playcount"]]
+        heard = sum(
+            s["duration"] for s in played if s["lastplayed"] >= self.album_since
+        )
+        total = sum(s["duration"] for s in songs)
+        if 0 < heard < total:
+            return heard, total, ""
+        if not played:
+            return 0, total, "unplayed"
+        return 0, total, "played" if len(played) == len(songs) else ""
 
     def update(
         self,

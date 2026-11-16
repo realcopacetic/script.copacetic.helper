@@ -5,7 +5,7 @@ import random
 import time
 from contextlib import suppress
 from functools import cached_property
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote
 
 from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Player, PlayList
@@ -147,12 +147,16 @@ class PlayerMonitor(Player):
     Player monitor for operations to be performed on playback start/stop.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, song_closed: Callable[[], None]) -> None:
         """
         Initialise player monitor and helpers; publish the speed dial pins and,
         when the skin is entered mid-playback, the playing file's properties.
+
+        :param song_closed: Called when a library song stops or gives way to the next.
         """
         super().__init__()
+        self._song_closed = song_closed
+        self._song = False  # a library song plays: its close may have counted it
         self.zoom = TrailerZoomController()
         self._published = set()
         self._dial_queue = None
@@ -223,6 +227,7 @@ class PlayerMonitor(Player):
         started inside its wait drops it, or Kodi plays the trailer in its place.
         """
         _publish_seek()  # Next or a new item sends no stop
+        self._close_song()
         self._segments, self._starts = None, self._starts + 1  # the last file's
         segments.clear()
         if (source := take_source()) is not False:
@@ -308,11 +313,22 @@ class PlayerMonitor(Player):
 
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
+        self._close_song()
         self._cleanup()
 
     def onPlayBackEnded(self) -> None:
         """Cleanup managed window properties when playback ends naturally."""
+        self._close_song()
         self._cleanup()
+
+    def _close_song(self) -> None:
+        """
+        A library song closed: Kodi saves its play count soon after (OnPlayerCloseFile)
+        but announces it only for a musicdb:// play, so tell the service either way.
+        """
+        if self._song:
+            self._song = False
+            self._song_closed()
 
     def onPlayBackError(self) -> None:
         """
@@ -474,6 +490,7 @@ class PlayerMonitor(Player):
         """
         tag = self.getMusicInfoTag()
         songid = tag.getDbId()
+        self._song = songid > 0
         query = json_call(
             "Player.GetItem",
             params={
