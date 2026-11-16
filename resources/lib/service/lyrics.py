@@ -101,7 +101,7 @@ def song(prefix: str = "MusicPlayer.") -> tuple[str, str, str, int]:
 def _sidecar(path: str) -> str:
     """
     The text of a .lrc of the same name beside the playing file: UTF-16 by its byte
-    order mark, else UTF-8, else GB18030, else Windows-1252.
+    order mark, else UTF-8, else Windows-1252.
 
     :param path: The playing file.
     :return: Its text; "" for none, or a stream.
@@ -113,12 +113,10 @@ def _sidecar(path: str) -> str:
         data = file.readBytes()
     if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
         return data.decode("utf-16", "replace")
-    for encoding in ("utf-8-sig", "gb18030"):  # GB18030: the older Chinese .lrc files
-        try:
-            return data.decode(encoding)
-        except UnicodeDecodeError:
-            pass
-    return data.decode("cp1252", "replace")  # an older Western file
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:  # an older file: Windows-1252, as most Western ones
+        return data.decode("cp1252", "replace")
 
 
 def find(path: str) -> Found | None:

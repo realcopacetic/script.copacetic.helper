@@ -230,8 +230,8 @@ order, the first with any winning:
 
 1. **A `.lrc` file** of the same name beside the song (`Song.flac` and `Song.lrc`),
    read through Kodi's file system, so shares work too; not for a stream. UTF-8 and
-   UTF-16 (with its byte order mark) are read as such, then GB18030 (older Chinese
-   files), anything else as Windows-1252.
+   UTF-16 (with its byte order mark) are read as such, anything else as Windows-1252
+   (older Chinese, Japanese or Korean files in their own encodings come out garbled).
 2. **The song's tags**: the lyrics Kodi reads from the file when it plays
    (`MusicPlayer.Lyrics`). Lyrics with LRC time stamps are synced; without, plain.
 3. **[LRCLIB](https://lrclib.net)**, a free, open lyrics database, while the
