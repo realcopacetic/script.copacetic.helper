@@ -1245,13 +1245,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 **self._show_context(pb.infolabels),
                 **self._unwatched_new(pb, resume),
             }
-            # The service re-serves an album's bar on song updates (service/monitor.py);
-            # the context menu's Mark as played / unplayed read its state (addon.xml)
-            album = pb.infolabels["DBType"] == "album"
-            dbid = pb.infolabels["DBID"] if album else ""
-            window_property("progress_album", value=dbid)
-            if album:
-                state = pb.album[2]
+            # For the service, which re-serves an album's bar on song updates
+            # (service/monitor.py), and the context menu's Mark items (addon.xml)
+            if pb.infolabels["DBType"] == "album":
+                state, dbid = pb.album[2], pb.infolabels["DBID"]
+                item["properties"]["album"] = "true"
                 window_property("album_played", value=dbid if state == "played" else "")
                 window_property(
                     "album_unplayed", value=dbid if state == "unplayed" else ""

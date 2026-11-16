@@ -132,6 +132,8 @@ class Monitor(xbmc.Monitor):
         """Leaving the skin: hide the context items, release the monitors."""
         window_property(ACTIVE_PROPERTY)
         window_property(SPEED_DIAL_PROPERTY)
+        if self.song_bump:
+            self.song_bump.cancel()
         self.player_monitor.release()
         self.slideshow.clear()
         self.player_monitor = self.slideshow = None
@@ -266,25 +268,17 @@ class Monitor(xbmc.Monitor):
         :param data: Its data as JSON.
         """
         if method == "AudioLibrary.OnUpdate":
-            # A library song heard, a Like, Mark as played: 9010's album bar is served
-            # again, as AudioLibrary updates don't reach its video-tagged item
-            # (DirectoryProvider.cpp Announce). Only while it serves an album, and once
-            # for a burst (Kodi queues the announcements, so they trail the writes)
+            # Music updates don't reach 9010's video-tagged item (DirectoryProvider.cpp
+            # Announce): re-serve an album's bar once per burst, as Kodi queues them
             data = json.loads(data)
             if (
                 self.player_monitor
                 and data.get("type") == "song"
                 and "transaction" not in data
-                and infolabel("Window(home).Property(progress_album)")
             ):
                 if self.song_bump:
                     self.song_bump.cancel()
-                self.song_bump = Timer(
-                    0.5,
-                    window_property,
-                    ("progress_version",),
-                    {"value": str(time.monotonic_ns())},
-                )
+                self.song_bump = Timer(0.5, self._album_bump)
                 self.song_bump.daemon = True
                 self.song_bump.start()
             return
@@ -301,6 +295,14 @@ class Monitor(xbmc.Monitor):
             return
         if edited:
             window_property("playlist_revision", value=str(time.monotonic_ns()))
+
+    def _album_bump(self) -> None:
+        """
+        Timer: a new progress_version, which the skin's progress bar URL carries, if
+        the window or dialog on top shows an album's bar (read now, not at the update).
+        """
+        if condition("String.IsEqual(Container(9010).ListItem.Property(album),true)"):
+            window_property("progress_version", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:
         """Kodi event hook: re-read debug_logging, pin a new reset to this skin."""

@@ -93,9 +93,9 @@ heard.
 - **New:** `new` is `true` for an album none of whose songs has ever played that
   was added within `new_days`. That costs one `AudioLibrary.GetAlbumDetails` call.
 
-Every serve writes `Window(home).Property(progress_album)`: the album's id, or empty
-for anything else; the service re-serves only while it is set. The serve also writes
-the focused album's id to `Window(home).Property(album_played)`
+An album's item also carries `ListItem.Property(album)` `true`: the service re-serves
+only while the bar on top has it. The serve also writes the focused album's id to
+`Window(home).Property(album_played)`
 when every song has played and none is part-heard, or to `album_unplayed` when none
 has, and clears the other. The context menu's
 [Mark as played and Mark as unplayed](../script/actions.md#mark_album) read them.
@@ -114,6 +114,7 @@ One list item in the helper container:
 | `ListItem.Property(next_runtime)` | That episode's library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
 | `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`; or for an album none of whose songs has played, added within `new_days`. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
+| `ListItem.Property(album)` | `true` for a library album; empty otherwise. |
 | `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDb data predates it (see below). |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
