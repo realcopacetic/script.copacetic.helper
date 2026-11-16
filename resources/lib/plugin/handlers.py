@@ -739,7 +739,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return self._artwork_held(guard.lost_to)
 
         # Read here, not passed in the URL: a "|" in the text would end Kodi's options
-        labels = (
+        cleaned = (
             {
                 "clean_label": markdown_label(
                     infolabel(label), self.params.get("clean_label_color")
@@ -748,25 +748,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if (label := self.params.get("clean_label"))
             else {}
         )
-        # A TV guide programme on air: its time left, which Kodi has only for the
-        # playing one. Progress is an int info with no label, so it is bisected from
-        # Integer.IsGreaterOrEqual; bare ListItem is the guide's focused programme,
-        # which must still be the URL's (one on air a channel): a move gets none.
-        if (
-            (runtime := to_int(self.params.get("epg_runtime"), 0))
-            and condition("ListItem.InProgress")
-            and infolabel("ListItem.ChannelNumberLabel")
-            == self.params.get("epg_channel")
-        ):
-            progress = bisect_left(
-                range(1, 101),
-                True,
-                key=lambda p: not condition(
-                    f"Integer.IsGreaterOrEqual(ListItem.Progress,{p})"
-                ),
-            )
-            left = runtime * (100 - progress) / 6000
-            labels["time_left"] = hours_minutes(math.ceil(left))
         # The window's own item or the playing song has no position, and a modal
         # dialog over the window would answer for it: no cursor stamp, no neighbours.
         current_position = (
@@ -853,11 +834,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 clear_label(self.params.get("multiart_fadelabel", ""))
                 for _, prop in self._bridge_props():
                     window_property(prop)
-            # A dialog item with no art still lands, so the page isn't held back; so
-            # does a guide programme's time left.
+            # A dialog item with no art still lands, so the page isn't held back.
             return (
-                set_items([{"file": plugin_path("artwork"), "properties": labels}])
-                if self.item or "time_left" in labels
+                set_items([{"file": plugin_path("artwork"), "properties": cleaned}])
+                if self.item
                 else None
             )
 
@@ -1004,7 +984,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                             else {}
                         )
                     )
-                    | labels,
+                    | cleaned,
                 }
             ]
         )
@@ -1428,6 +1408,45 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     "file": plugin_path("clean_name"),
                     "label": self.params.get("label", ""),
                     "properties": {f"clean_{k}": v for k, v in names.items()},
+                }
+            ]
+        )
+
+    @log.duration
+    def epg_time_left(self) -> list[DirectoryItem] | None:
+        """
+        The TV guide's focused programme's runtime left, as time_left: Kodi has it
+        only for the playing one. Bare ListItem is the guide's focused programme.
+
+        :return: One item labelled with the channel, or None once it isn't on air there.
+        """
+        if not self._require("channel", "runtime"):
+            return
+        # One programme on air a channel: a cursor that moved on gets nothing
+        channel = self.params["channel"]
+        if not (
+            condition("ListItem.InProgress")
+            and infolabel("ListItem.ChannelNumberLabel") == channel
+        ):
+            return
+        # Progress is an int info with no label: bisected from Integer.IsGreaterOrEqual
+        progress = bisect_left(
+            range(1, 101),
+            True,
+            key=lambda p: not condition(
+                f"Integer.IsGreaterOrEqual(ListItem.Progress,{p})"
+            ),
+        )
+        left = to_int(self.params["runtime"], 0) * (100 - progress) / 6000
+        return set_items(
+            [
+                {
+                    "file": plugin_path("epg_time_left"),
+                    "label": channel,
+                    "properties": {
+                        "time_left": hours_minutes(math.ceil(left)),
+                        "visit": self.params.get("visit", ""),
+                    },
                 }
             ]
         )

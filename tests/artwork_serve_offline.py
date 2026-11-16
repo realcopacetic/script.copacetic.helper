@@ -2,8 +2,8 @@
 Offline checks for the artwork serve (PluginHandlers.artwork) with Kodi's reads
 stubbed and the image work faked: the logo from clearlogo_source, with and without
 a favourite's multiart_target, and the icon from icon_source (a cut band label the
-item's own); a guide programme's time left, with and without art; a held serve names
-its position only for a move that stamped no visit.
+item's own); a held serve names its position only for a move that stamped no visit;
+the TV guide's time left (epg_time_left) only while the URL's channel is on air.
 Run from the helper root:
 python tests/artwork_serve_offline.py
 """
@@ -61,7 +61,6 @@ class ArtworkServe(unittest.TestCase):
             "Container(50).CurrentItem": "3",
             "Container(50).ListItem.Label": "Title",
             "Player.Title": "Song",
-            "ListItem.ChannelNumberLabel": "101",
         }
         handler = handlers.PluginHandlers(
             {
@@ -94,8 +93,6 @@ class ArtworkServe(unittest.TestCase):
             mock.patch.multiple(
                 handlers,
                 infolabel=lambda label: labels.get(label, ""),
-                condition=lambda cond: cond == "ListItem.InProgress"
-                or int(cond.rpartition(",")[2][:-1]) <= 37,
                 topmost_window_id=lambda: WINDOW if on_top else MENU,
                 focused_control_id=lambda window_id: 50,
                 window_property=lambda *a, **k: None,
@@ -184,22 +181,6 @@ class ArtworkServe(unittest.TestCase):
         out = self.serve({"icon_source": ICON_SOURCE}, on_top=False)
         self.assertEqual((out["icon"], out["label"]), (None, None))
         self.assertTrue(out["items"])
-
-    def test_epg_time_left(self):
-        out = self.serve({"epg_channel": "101", "epg_runtime": "3600"})
-        self.assertEqual(out["items"][0]["properties"]["time_left"], "38m")
-
-    def test_epg_time_left_without_art(self):
-        params = {"background_url": "", "epg_channel": "101", "epg_runtime": "3600"}
-        (item,) = self.serve(params)["items"]
-        self.assertEqual(item["properties"], {"time_left": "38m"})
-
-    def test_epg_moved_off_no_time_left(self):
-        out = self.serve({"epg_channel": "102", "epg_runtime": "3600"})
-        self.assertNotIn("time_left", out["items"][0]["properties"])
-
-    def test_no_art_no_epg_runtime(self):
-        self.assertIsNone(self.serve({"background_url": ""})["items"])
 
 
 class HeldNaming(unittest.TestCase):
@@ -305,6 +286,46 @@ class HeldNaming(unittest.TestCase):
     def test_identity_labels(self):
         params = {"identity_labels": "Container(50).ListItem.DBID"}
         self.assertEqual(self.hold(params), self.UNNAMED)
+
+
+class EpgTimeLeft(unittest.TestCase):
+    """The guide's focused programme: on air on channel 101, 37 % through."""
+
+    def serve(self, channel: str, on_air: bool = True) -> list | None:
+        """
+        Run epg_time_left() for an hour-long programme on the URL's channel.
+
+        :param channel: The URL's channel.
+        :param on_air: Whether the focused programme is on air.
+        :return: What it returned.
+        """
+        progress = "Integer.IsGreaterOrEqual(ListItem.Progress,"
+        handler = handlers.PluginHandlers(
+            {"channel": channel, "runtime": "3600", "visit": "20:14:05"}
+        )
+        with mock.patch.multiple(
+            handlers,
+            infolabel={"ListItem.ChannelNumberLabel": "101"}.get,
+            condition=lambda cond: (
+                int(cond.removeprefix(progress)[:-1]) <= 37
+                if cond.startswith(progress)
+                else on_air
+            ),
+            set_items=lambda items: items,
+            plugin_path=lambda name: name,
+        ):
+            return handler.epg_time_left()
+
+    def test_time_left(self):
+        (item,) = self.serve("101")
+        self.assertEqual(item["label"], "101")
+        self.assertEqual(item["properties"], {"time_left": "38m", "visit": "20:14:05"})
+
+    def test_moved_to_another_channel(self):
+        self.assertIsNone(self.serve("102"))
+
+    def test_no_longer_on_air(self):
+        self.assertIsNone(self.serve("101", on_air=False))
 
 
 if __name__ == "__main__":

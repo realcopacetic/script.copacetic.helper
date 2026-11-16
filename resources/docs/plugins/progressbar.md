@@ -162,3 +162,31 @@ The guard is checked before the value is worked out, before any control moves, a
 after the move (so before the library call of the context values). Once focus has
 moved on, the list item is still returned without the context values, and nothing
 else runs: no control moves if it hadn't yet, and no library call is made.
+
+---
+
+## `epg_time_left`
+
+Not the progress bar: one item whose `ListItem.Property(time_left)` is the runtime
+left of the TV guide's focused programme while it is on air, rounded up to the
+minute (`1h 23m`, `1h` or `48m`). Kodi has a time left only for the programme it is
+playing (`PVR.EpgEventRemainingTime`), so the helper works it out from `runtime` and
+`ListItem.Progress`, read as the call runs. In the guide window bare `ListItem` is
+the grid's focused programme, with a plain dialog such as the guide controls on top
+too.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `channel` | `$INFO[ListItem.ChannelNumberLabel]` | required | The programme's channel. One channel has one programme on air, so a call that runs after the cursor left that programme returns no item. Echoed as the item's label, so the skin can check the value is for the focused programme. |
+| `runtime` | seconds, `$INFO[ListItem.Duration(secs)]` | required | The programme's runtime |
+| `visit` | any text | empty | Echoed as `ListItem.Property(visit)`, so the skin can tell a value from this visit to the window from one it kept from the last. |
+
+`ListItem.Progress` is a whole percent, so the time can read up to 1 % of the runtime
+long. The value is fixed when the call returns. To count down, add a parameter that
+changes each minute, such as `$INFO[System.Time(hh:mm)]`: Kodi calls the path again
+when it changes. Pass the path only while the programme is on air, and leave Progress
+out of it, or Kodi calls it again at every percent.
+
+```xml
+<content>plugin://script.copacetic.helper/?info=epg_time_left&amp;channel=$INFO[ListItem.ChannelNumberLabel]&amp;runtime=$INFO[ListItem.Duration(secs)]&amp;visit=$INFO[Window(home).Property(pvrguide_visit)]&amp;minute=$INFO[System.Time(hh:mm)]</content>
+```
