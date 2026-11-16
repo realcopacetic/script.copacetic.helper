@@ -298,10 +298,13 @@ class Monitor(xbmc.Monitor):
 
     def _album_bump(self) -> None:
         """
-        Timer: a new progress_version, which the skin's progress bar URL carries, if
-        the window or dialog on top shows an album's bar (read now, not at the update).
+        Timer: a new progress_version, which the skin's progress bar URL carries,
+        unless 9010 on top serves a film's or show's bar (no blink); read now.
         """
-        if condition("String.IsEqual(Container(9010).ListItem.Property(album),true)"):
+        if condition(
+            "!String.StartsWith(Container(9010).ListItem.FileNameAndPath,plugin://)"
+            " | String.IsEqual(Container(9010).ListItem.Property(album),true)"
+        ):
             window_property("progress_version", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:
