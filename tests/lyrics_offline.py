@@ -180,6 +180,15 @@ class SourcesTest(Kodi):
                 path = self.song_file(text, encoding)
             self.assertEqual(lyrics.find(path), ("file", lines, None, False), encoding)
 
+    def test_a_chinese_sidecar_in_gbk(self):
+        path = self.song_file(
+            "[00:01.00]月亮代表我的心\n[00:05.50]你问我爱你有多深", "gbk"
+        )
+        self.assertEqual(
+            lyrics.find(path)[1],
+            [[1000, "月亮代表我的心"], [5500, "你问我爱你有多深"]],
+        )
+
     def test_a_sidecar_of_only_tags_falls_through(self):
         self.labels["MusicPlayer.Lyrics"] = "[00:02.00]embedded"
         path = self.song_file("[ar:Gorillaz]\n[ti:Feel Good Inc]\n[by:someone]\n")
