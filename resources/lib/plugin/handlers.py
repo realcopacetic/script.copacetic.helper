@@ -750,8 +750,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         # A TV guide programme on air: its time left, which Kodi has only for the
         # playing one. Progress is an int info with no label, so it is bisected from
-        # Integer.IsGreaterOrEqual; bare ListItem is the guide's focused programme.
-        if runtime := to_int(self.params.get("epg_runtime"), 0):
+        # Integer.IsGreaterOrEqual; bare ListItem is the guide's focused programme,
+        # which must still be the URL's (one on air a channel): a move gets none.
+        if (
+            (runtime := to_int(self.params.get("epg_runtime"), 0))
+            and condition("ListItem.InProgress")
+            and infolabel("ListItem.ChannelNumberLabel")
+            == self.params.get("epg_channel")
+        ):
             progress = bisect_left(
                 range(1, 101),
                 True,

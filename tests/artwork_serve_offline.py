@@ -61,6 +61,7 @@ class ArtworkServe(unittest.TestCase):
             "Container(50).CurrentItem": "3",
             "Container(50).ListItem.Label": "Title",
             "Player.Title": "Song",
+            "ListItem.ChannelNumberLabel": "101",
         }
         handler = handlers.PluginHandlers(
             {
@@ -93,7 +94,8 @@ class ArtworkServe(unittest.TestCase):
             mock.patch.multiple(
                 handlers,
                 infolabel=lambda label: labels.get(label, ""),
-                condition=lambda cond: int(cond.rpartition(",")[2][:-1]) <= 37,
+                condition=lambda cond: cond == "ListItem.InProgress"
+                or int(cond.rpartition(",")[2][:-1]) <= 37,
                 topmost_window_id=lambda: WINDOW if on_top else MENU,
                 focused_control_id=lambda window_id: 50,
                 window_property=lambda *a, **k: None,
@@ -184,12 +186,17 @@ class ArtworkServe(unittest.TestCase):
         self.assertTrue(out["items"])
 
     def test_epg_time_left(self):
-        out = self.serve({"epg_runtime": "3600"})
+        out = self.serve({"epg_channel": "101", "epg_runtime": "3600"})
         self.assertEqual(out["items"][0]["properties"]["time_left"], "38m")
 
     def test_epg_time_left_without_art(self):
-        (item,) = self.serve({"background_url": "", "epg_runtime": "3600"})["items"]
+        params = {"background_url": "", "epg_channel": "101", "epg_runtime": "3600"}
+        (item,) = self.serve(params)["items"]
         self.assertEqual(item["properties"], {"time_left": "38m"})
+
+    def test_epg_moved_off_no_time_left(self):
+        out = self.serve({"epg_channel": "102", "epg_runtime": "3600"})
+        self.assertNotIn("time_left", out["items"][0]["properties"])
 
     def test_no_art_no_epg_runtime(self):
         self.assertIsNone(self.serve({"background_url": ""})["items"])
