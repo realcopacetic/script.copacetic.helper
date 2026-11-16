@@ -124,8 +124,9 @@ for it; otherwise nothing else runs until a skin that opts in is active.
 ### The poll loop
 
 While the skin opts in and the screensaver is not active, the service runs a loop
-once a second, or at each lyric line's time while a song's synced
-[lyrics](player.md#lyrics) play. Each pass it:
+once a second; while a song's synced [lyrics](player.md#lyrics) play, at each line's
+time, and every 0.2 seconds while the visualisation shows or LRCLIB is being asked.
+Each pass it:
 
 1. checks the trailer session (see [Trailers](trailers.md));
 2. clears `player_seek_offset` and `player_seek_chapter` once Kodi's seek display is over (see
@@ -144,7 +145,9 @@ once a second, or at each lyric line's time while a song's synced
    turned on (see [Lyrics](player.md#lyrics)).
 
 When the screensaver starts, the loop pauses; when it stops, the loop resumes. While
-paused, or while the skin doesn't opt in, the service checks again every 2 seconds.
+paused, only lyrics carry on, while a song plays (a dim screensaver leaves them in
+view). Otherwise, while paused or while the skin doesn't opt in, the service checks
+again every 2 seconds.
 
 ### On music queue edits
 

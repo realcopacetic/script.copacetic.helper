@@ -360,7 +360,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32143"
-msgid "Lyrics for the playing song, when it has no .lrc file beside it and none in its tags, for the skin's lyrics. They come from LRCLIB (lrclib.net), sent the song's title, artist, album and length; no account needed. Off: nothing sent, and only .lrc files and tags are used."
+msgid "Lyrics for the playing song, when it has no .lrc file beside it and none in its tags, for the skin's lyrics. They come from LRCLIB (lrclib.net), sent the song's title, artist, album and length. The next song in the queue is asked ahead too, even when it has lyrics of its own. No account needed. Off: nothing sent, and only .lrc files and tags are used."
 msgstr ""
 
 #: /resources/settings.xml
