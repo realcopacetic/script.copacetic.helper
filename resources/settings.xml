@@ -83,6 +83,13 @@
 					<control type="toggle" />
 				</setting>
 			</group>
+			<group id="5" label="32042">
+				<setting id="lrclib" type="boolean" label="32043" help="32143">
+					<level>0</level>
+					<default>true</default>
+					<control type="toggle" />
+				</setting>
+			</group>
 		</category>
 		<category id="debug" label="32001" help="">
 			<group id="1" label="32002">
@@ -226,6 +233,16 @@
 					</constraints>
 					<control type="button" format="action">
 						<data>RunScript(script.copacetic.helper,action=clear_api_cache,source=theintrodb)</data>
+					</control>
+				</setting>
+				<setting id="cache_clear_lrclib" type="string" label="32044" help="32144">
+					<level>0</level>
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="button" format="action">
+						<data>RunScript(script.copacetic.helper,action=clear_api_cache,source=lrclib)</data>
 					</control>
 				</setting>
 			</group>
