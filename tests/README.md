@@ -15,7 +15,7 @@ python tests/skin_lint.py ../skin.copacetic2 [--window MyPics.xml ...] [--all] [
 # Artwork prepare + compose on synthetic posters: label rects, element step, colour, band alpha and ratio, palette PNG transparency, measure version, RGB PNG tRNS resize, timings (needs Pillow; reads the skin's fonts)
 python tests/artwork_check.py ../skin.copacetic2
 
-# Web API layer (http, api_cache, ListenBrainz, Deezer, TheIntroDB, the top_songs/discography blend, music info's popularity words, TMDb) against recorded answers, no network
+# Web API layer (http, api_cache, ListenBrainz, Deezer, TheIntroDB, LRCLIB, the top_songs/discography blend, music info's popularity words, TMDb) against recorded answers, no network
 python tests/api_offline.py
 
 # The artwork serve (plugin/handlers.py artwork()) with Kodi's reads stubbed: the logo
@@ -81,6 +81,12 @@ python tests/segments_offline.py
 # this or the rule) for an existing timer, the failed-delete dialog, the stamp after
 # Kodi's timers catch up, busy cleared on every way out
 python tests/pvr_offline.py
+
+# Lyrics (shared/lrc.py, service/lyrics.py): the LRC parser; the sources in order (a
+# .lrc beside the song, its tags, LRCLIB) and the next song's prefetch; what is
+# published, lines before their state; the follow (3510) and browse (3511) lists
+# stepped by their own selected item, so a missed step is made up; the poller hook
+python tests/lyrics_offline.py
 
 # Clean names (shared/utilities.py clean_name) against a port of Kodi's CleanString:
 # a film's title and year; an episode's show, 1x07 and title in the scene, Sonarr,

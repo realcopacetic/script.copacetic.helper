@@ -14,7 +14,7 @@ from xbmcgui import getCurrentWindowDialogId
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.helpers import IDENTITY_LOGO_BOX, size_identity
 from resources.lib.plugin.opts import ArtOpts
-from resources.lib.service import playnext, segments
+from resources.lib.service import lyrics, playnext, segments
 from resources.lib.service.trailer import (
     TrailerZoomController,
     enter_fullscreen,
@@ -167,6 +167,8 @@ class PlayerMonitor(Player):
         self._seek_at = 0.0  # the last seek's time; 0 clears one left by a restart
         self._successor = ""  # the file Play next queued after this episode
         self._segments = None  # the playing video's skip segments
+        # The playing song's lyrics; None not looked up, False until its AV start
+        self._lyrics = None
         self._starts = 0  # files started: a lookup lands only for its own file
         self._queue_songs = (None, set())  # music queue key, its song ids
         self._growing = False  # the endless queue is fetching its next songs
@@ -192,8 +194,9 @@ class PlayerMonitor(Player):
             window_property("trailer_flight")
         self._publish({})
         _publish_seek()
-        self._segments = None
+        self._segments = self._lyrics = None
         segments.clear()
+        lyrics.clear()
         self._clear_trailer_props()  # a flight still out is stopped when it lands
         clear_properties()
 
@@ -230,6 +233,7 @@ class PlayerMonitor(Player):
         self._close_song()
         self._segments, self._starts = None, self._starts + 1  # the last file's
         segments.clear()
+        self._lyrics = False  # the last song's stay up until this one's AV start
         if (source := take_source()) is not False:
             self._dial_source = (_queue_key(PlayList(PLAYLIST_MUSIC)), source)
         if not (flight := infolabel("Window(home).Property(trailer_flight)")):
@@ -310,6 +314,28 @@ class PlayerMonitor(Player):
             except RuntimeError:  # stopped since isPlayingVideo
                 return
             self._segments.tick(now)
+
+    def watch_lyrics(self) -> float:
+        """
+        Poller hook: follow the playing song's lyrics; the skin's lyrics setting
+        turned on mid-song looks them up, turned off clears them.
+
+        :return: Seconds to the poller's next pass: to the next line, at most 1.
+        """
+        if self._lyrics is False or not self.isPlayingAudio():
+            return 1
+        if not condition(lyrics.ENABLED):
+            if self._lyrics:
+                self._lyrics = None
+                lyrics.clear()
+            return 1
+        if self._lyrics is None:
+            self._lyrics = lyrics.lookup()
+        try:
+            now = self.getTime()
+        except RuntimeError:  # stopped since isPlayingAudio
+            return 1
+        return self._lyrics.tick(now)
 
     def onPlayBackStopped(self) -> None:
         """Clean up managed properties when playback is stopped by the user."""
@@ -401,6 +427,7 @@ class PlayerMonitor(Player):
                     type="movies",
                 )
         self._publish(props)
+        lyrics.clear()  # a song's, kept up to this start
         size_identity("seekbar")
         if condition("Window.IsVisible(videoosd)"):  # Next with the OSD up
             size_identity("videoosd")
@@ -484,8 +511,8 @@ class PlayerMonitor(Player):
 
     def _handle_audio_start(self) -> None:
         """
-        Publish music-related window properties on audio start.
-        Splits the player's artists and their ids into player_artist_1..3 and
+        Publish music-related window properties on audio start, and lyrics: the
+        player's artists and their ids split into player_artist_1..3 and
         player_artistid_1..3 for exact matching; the album's rail path; song id, genres.
         """
         tag = self.getMusicInfoTag()
@@ -516,6 +543,8 @@ class PlayerMonitor(Player):
             | {f"player_artist_{i}": a for i, a in enumerate(artists[:3], 1)}
             | {f"player_artistid_{i}": str(a) for i, a in enumerate(artistids[:3], 1)}
         )
+        # Before the queue grows, which may wait on ListenBrainz
+        self._lyrics = lyrics.lookup() if condition(lyrics.ENABLED) else None
         self._record_speed_dial(songid)
         if (
             songid > 0
@@ -871,7 +900,9 @@ class PlayerMonitor(Player):
             self._dropped_flight = False
             self._successor = ""
             self._segments, self._starts = None, self._starts + 1
+            self._lyrics = None
             segments.clear()
+            lyrics.clear()
             if landed := self._landed:  # the flight stopped before its AV start
                 self._landed = None
                 self._next_request(landed)
