@@ -124,7 +124,8 @@ for it; otherwise nothing else runs until a skin that opts in is active.
 ### The poll loop
 
 While the skin opts in and the screensaver is not active, the service runs a loop
-once a second. Each pass it:
+once a second, or at each lyric line's time while a song's synced
+[lyrics](player.md#lyrics) play. Each pass it:
 
 1. checks the trailer session (see [Trailers](trailers.md));
 2. clears `player_seek_offset` and `player_seek_chapter` once Kodi's seek display is over (see
@@ -135,9 +136,12 @@ once a second. Each pass it:
 5. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
    focus is no longer on a speed dial item (see
    [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list));
-6. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz, Deezer
-   and TheIntroDB answers in the add-on's `_lookup.db` that expired more than 30 days
-   ago. If the database is busy, it tries again an hour later.
+6. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz,
+   Deezer, TheIntroDB and LRCLIB answers in the add-on's `_lookup.db` that expired
+   more than 30 days ago. If the database is busy, it tries again an hour later;
+7. publishes the playing song's current lyric line and moves the lyric list in view
+   to it, or looks the song's lyrics up if the skin's `lyrics` setting was just
+   turned on (see [Lyrics](player.md#lyrics)).
 
 When the screensaver starts, the loop pauses; when it stops, the loop resumes. While
 paused, or while the skin doesn't opt in, the service checks again every 2 seconds.
@@ -176,8 +180,8 @@ All window properties are on the Home window (`10000`). In XML, read them with
 ### Window properties the service sets
 
 Whenever the active skin changes, and when the service stops, the service also clears
-`helper_active`, `helper_speed_dial` and the trailer session, `player_*`, `speed_dial_*`
-and `slideshow_*` properties below; `trailer_return`, `info_hop` and
+`helper_active`, `helper_speed_dial` and the trailer session, `player_*`, `lyrics_*`,
+`speed_dial_*` and `slideshow_*` properties below; `trailer_return`, `info_hop` and
 `trailer_played_item` are left. If the new skin opts in, `helper_active`,
 `helper_speed_dial` (if it uses speed dial), the pinned-item properties and, if
 something is playing, the `player_*` properties are set again at once. The others come
@@ -223,6 +227,9 @@ back with the next play, speed dial change or slide.
 | `player_songid` | A song starts | Song database id, for matching the others to `MusicPlayer.DBID` | As above | [Player properties](player.md) |
 | `player_seek_offset` | A seek with a jump finishes | The jump, signed (`+10:00`, `-00:30`) | 4 seconds after the seek once `Player.HasPerformedSeek(4)` is false; a chapter jump or speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
 | `player_seek_chapter` | A chapter jump finishes | The chapter it went to (`4`) | 4 seconds after the jump once `Player.HasPerformedSeek(4)` is false; any other seek or a speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
+| `lyrics_state`, `lyrics_source`, `lyrics_revision`, `lyrics_plain`, `lyrics_instrumental` | A song starts with the skin's `lyrics` on, or it is turned on mid-song | `searching`, then what was found, where from, and a new revision for the `info=lyrics` path | The setting is turned off; a video starts; playback stops, ends or fails and nothing else starts; the next song's replace them | [Lyrics](player.md#lyrics) |
+| `lyrics_index`, `lyrics_m2`, `lyrics_m1`, `lyrics_p1` … `lyrics_p5` | Synced lyrics play, at each line | The current line's index (`-1` before the first) and its neighbours' | As above | [Lyrics](player.md#lyrics) |
+| `lyrics_lines` | As `lyrics_state`, for synced lyrics | The lines as JSON, read by the `info=lyrics` path; not for the skin | As above | [Lyrics](player.md#lyrics) |
 | `speed_dial_version` | A song starts and the play changes what speed dial shows, or the poll loop releases `speed_dial_held` | A new number each time | Only when the active skin changes or the service stops | [Player properties](player.md#speed-dial) |
 | `speed_dial_held` | As `speed_dial_version`, but focus is on a speed dial item | The next `speed_dial_version` | The poll loop moves it to `speed_dial_version` | [Speed dial](../plugins/speed_dial.md#window-properties) |
 | `speed_dial_album1` … `speed_dial_album7`, `speed_dial_artist1` … `speed_dial_artist7`, `speed_dial_song1` … `speed_dial_song7`, `speed_dial_playlist` | The skin becomes active | Pinned ids by type and number of digits, or pinned playlist paths, joined with `\|` | Set again on every pin, unpin or move; empty when nothing matches | [Speed dial](../plugins/speed_dial.md#window-properties) |
@@ -258,6 +265,8 @@ when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes 
 | `playnext_enabled` | Skin setting (bool) | When a library episode starts | [Play next](playnext.md) |
 | `skip_segments` | Skin setting (bool) | When a video starts | [Player properties](player.md#skip-segments) |
 | `endless_queue` | Skin setting (bool) | When a library song starts | [Player properties](player.md#endless-queue) |
+| `lyrics` | Skin setting (bool) | When a song starts, and each poll while one plays | [Lyrics](player.md#lyrics) |
+| `3510`, `3511` | Container ids (`NumItems`, `CurrentItem`, focus) | At each lyric line, in the visualisation and the music OSD | [Lyrics](player.md#lyrics) |
 | `slideshow_source`, `slideshow2_source` | Skin string | Each poll | [Slideshow](slideshow.md) |
 | `slideshow_path`, `slideshow2_path` | Skin string | Each poll | [Slideshow](slideshow.md) |
 | `slideshow2` | Skin setting (bool) | Each poll | [Slideshow](slideshow.md) |
@@ -265,5 +274,6 @@ when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes 
 | `slideshow_interval` | Skin string | After each slide | [Slideshow](slideshow.md) |
 | `slideshow_artwork_params` | Window property | Before each slide | [Slideshow](slideshow.md) |
 
-The service expects no control ids of its own. The trailer feature uses the control
-ids your skin passes in `focus_ids`.
+The service expects no control ids of its own but the lyric lists' (`3510`, `3511`,
+see [Lyrics](player.md#lyrics)). The trailer feature uses the control ids your skin
+passes in `focus_ids`.

@@ -59,7 +59,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 |---|---|
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
 | [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
-| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz, Deezer or TheIntroDB |
+| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz, Deezer, TheIntroDB or LRCLIB |
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties a fadelabel control |
@@ -73,6 +73,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`info_back`](#info_back) | Steps back along the infoscreen trail |
 | [`info_swap`](#info_swap) | Reopens the info dialog on an item Kodi swapped into it |
 | [`listenbrainz_test`](#listenbrainz_test) | Checks the ListenBrainz token |
+| [`lyrics_seek`](#lyrics_seek) | Seeks the playing song to a lyric line |
 | [`mark_album`](#mark_album) | Marks every song on an album played or unplayed |
 | [`move_pin`](#move_pin) | Moves a pinned speed dial entry up or down |
 | [`pin`](#pin) | Pins a music item to the front of speed dial |
@@ -225,7 +226,7 @@ again the next time it is needed. For one item instead, use
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `source` | `tmdb`, `listenbrainz`, `deezer`, `theintrodb` | required | Which service's answers |
+| `source` | `tmdb`, `listenbrainz`, `deezer`, `theintrodb`, `lrclib` | required | Which service's answers |
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=clear_api_cache,source=listenbrainz)</onclick>
@@ -266,7 +267,7 @@ not touched. Also in the helper's settings, under *Library*.
 
 Deletes the helper's processed artwork (blurred, cropped and text images) and resets
 its artwork lookup database. It also empties the saved answers from web services
-(TMDb, ListenBrainz, Deezer, TheIntroDB) and the daily mix cards' kept mixes, so they are
+(TMDb, ListenBrainz, Deezer, TheIntroDB, LRCLIB) and the daily mix cards' kept mixes, so they are
 worked out again, and the saved text truncations,
 then compacts the database file. A notification shows how much space was saved.
 Images are made again the next time they are needed.
@@ -613,6 +614,22 @@ No parameters.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=listenbrainz_test)</onclick>
+```
+
+---
+
+## lyrics_seek
+
+Seeks the playing song to a lyric line: OK on a line of the
+[`info=lyrics`](../service/player.md#lyrics) list. Pass the line's `time`. A line at
+0 seeks to the start. The service's lists follow on its next pass.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `time` | Milliseconds | required | Where to seek to |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=lyrics_seek,time=$INFO[ListItem.Property(time)])</onclick>
 ```
 
 ---
