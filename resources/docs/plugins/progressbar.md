@@ -86,10 +86,10 @@ heard.
   is the length still to hear and `ListItem.EndTimeResume` the time it would end.
   Listening again a year later counts afresh.
 - **Heard through, or untouched within `album_days`:** 0, no bar.
-- **Kept current:** the bar is served again when one of its songs is heard from a
-  library window, or it is marked, if the skin puts the service's `progress_version`
-  in its URL (see [the service](../service/index.md#on-song-updates)): Kodi doesn't
-  refresh the video-tagged progress item on a music library update.
+- **Kept current:** the bar is served again when one of its songs is heard (from a
+  library window or a helper queue), or it is marked, if the skin puts the service's
+  `progress_version` in its URL (see [the service](../service/index.md#on-song-updates)):
+  Kodi doesn't refresh the video-tagged progress item on a music library update.
 - **New:** `new` is `true` for an album none of whose songs has ever played that
   was added within `new_days`. That costs one `AudioLibrary.GetAlbumDetails` call.
 

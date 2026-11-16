@@ -123,7 +123,7 @@ class Monitor(xbmc.Monitor):
         path, version = self.skin
         log.info(f"{self.__class__.__name__} → Active in {path}, version {version}")
         self._builder_elements()
-        self.player_monitor = PlayerMonitor()
+        self.player_monitor = PlayerMonitor(song_closed=self._song_update)
         self.slideshow = Slideshow()
         window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
         window_property(ACTIVE_PROPERTY, value="true")
@@ -276,11 +276,7 @@ class Monitor(xbmc.Monitor):
                 and data.get("type") == "song"
                 and "transaction" not in data
             ):
-                if self.song_bump:
-                    self.song_bump.cancel()
-                self.song_bump = Timer(0.5, self._album_bump)
-                self.song_bump.daemon = True
-                self.song_bump.start()
+                self._song_update()
             return
         if not self.player_monitor or infolabel(
             "Window(home).Property(playlist_replacing)"
@@ -295,6 +291,17 @@ class Monitor(xbmc.Monitor):
             return
         if edited:
             window_property("playlist_revision", value=str(time.monotonic_ns()))
+
+    def _song_update(self) -> None:
+        """
+        A song's play count or rating changed, or a library song closed: one album
+        bar re-serve half a second after the last of a burst (_album_bump).
+        """
+        if self.song_bump:
+            self.song_bump.cancel()
+        self.song_bump = Timer(0.5, self._album_bump)
+        self.song_bump.daemon = True
+        self.song_bump.start()
 
     def _album_bump(self) -> None:
         """
