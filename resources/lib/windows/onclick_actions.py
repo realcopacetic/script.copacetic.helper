@@ -34,13 +34,15 @@ def _browse_args(cfg: dict, default_type: str) -> tuple:
     )
 
 
-def browse(cfg: dict) -> str | list[str]:
+def browse(cfg: dict) -> str | list[str] | None:
     """
-    Show a browse dialog and return the selected path.
+    Show a browse dialog and return the chosen path (a list with
+    ``enableMultiple``), or None if cancelled.
     """
-    return Dialog().browse(
-        *_browse_args(cfg, "directories"), cfg.get("enableMultiple", False)
-    )
+    args = _browse_args(cfg, "directories")
+    # Kodi returns the default, or [] for several, on cancel (Dialog.cpp browse)
+    path = Dialog().browse(*args, cfg.get("enableMultiple", False))
+    return None if path in (args[-1], []) else path
 
 
 def browse_single(cfg: dict) -> str | None:
@@ -59,11 +61,12 @@ def browse_single(cfg: dict) -> str | None:
     return None if path == args[-1] else path
 
 
-def browse_multiple(cfg: dict) -> list[str]:
+def browse_multiple(cfg: dict) -> list[str] | None:
     """
-    Show a multi-select browse dialog and return chosen paths.
+    Show a multi-select browse dialog and return the chosen paths, or None
+    if cancelled (Kodi returns [] then; a confirm always has one path).
     """
-    return Dialog().browseMultiple(*_browse_args(cfg, "files"))
+    return Dialog().browseMultiple(*_browse_args(cfg, "files")) or None
 
 
 def browse_content(cfg: dict) -> dict | str | None:

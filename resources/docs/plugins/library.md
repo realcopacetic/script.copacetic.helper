@@ -412,7 +412,7 @@ reads no cache):
   a value saved at the old default, so existing installs switch it on too): Deezer
   needs no account; the
   helper sends the artist's name (a search) and a Deezer artist id, nothing else, and
-  keeps only ids, titles and album titles (no images or audio). A skin can test for
+  keeps only ids, an artist's fan count, titles and album titles (no images or audio). A skin can test for
   it with `Addon.SettingBool(script.copacetic.helper,deezer)`.
 
 A song matches a ListenBrainz recording by its MusicBrainz recording id
@@ -556,19 +556,33 @@ none.
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=soundtracks&amp;type=$INFO[ListItem.DBType]&amp;id=$INFO[ListItem.DBID]</content>
 ```
 
-## `listeners`
+## `popularity_label`
 
-Not a listing: one item whose `ListItem.Property(listeners)` is how many people
-[ListenBrainz](https://listenbrainz.org) counts as having listened to a library
-artist, album or song, to two significant figures (`87`, `310K`, `1.2M`). The number
-only; the skin adds the word. Same setting, cache and spacing as `top_songs`
-(two weeks for a count, three days when ListenBrainz has none).
+Not a listing: one item whose `ListItem.Label` says how popular a library artist,
+album or song is, in a word or a place, never a number. With nothing to say there is
+no item, so a missing label never reads as a verdict. Its
+`ListItem.Property(dbid)` and `ListItem.Property(dbtype)` name the item the word is
+for: a container keeps the last item's word until the new answer lands (seconds,
+cold), so show it only while they match `ListItem.DBID` and `ListItem.DBType`.
 
-It asks `POST /1/popularity/artist`, `/release-group` or `/recording` with the
-item's MusicBrainz id: an artist's `musicbrainzartistid`, an album's release group
-(`musicbrainzreleasegroupid`, so every edition counts) and a song's recording
-(`musicbrainztrackid`). Another type, no id in the library, no count from
-ListenBrainz or no token: no item.
+With **Rank music with Deezer** on:
+
+| Item | Label | When |
+|---|---|---|
+| Artist | *Charting* | Its Deezer artist is in Deezer's artist chart today (`/chart/0/artists`, 100 places) |
+| Artist | *Popular* | Otherwise, with 1,000,000 Deezer fans or more (`nb_fan`, from the artist search `top_songs` already makes) |
+| Song | *#2 song* | Its place in its first artist's [`top_songs`](#top_songs), within the first 10; songs only topping the list up by play count take no place |
+| Album | *Most popular album* | It leads its first artist's [`discography`](#discography) by popularity (a compilation never) |
+
+With Deezer off, the library's play counts speak instead, summed over each one's
+songs: an artist reads *Your #3 artist*, its place among the library's artists within
+the first 10, and the library's most played album reads *Your most played album*
+(none on a tie). Songs get no label then.
+
+It uses `top_songs`' own lists and cache, so on an artist whose Top songs or
+Discography has loaded it sends nothing. The chart is one request a day for the
+whole library (`deezer:chart:artists`), asked only for an artist Deezer matched; the
+library's play counts are read once a day (`library:play-places`).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
@@ -576,7 +590,7 @@ ListenBrainz or no token: no item.
 | `id` | the item's `DBID` | required | The item |
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=listeners&amp;type=$INFO[ListItem.DBType]&amp;id=$INFO[ListItem.DBID]</content>
+<content>plugin://script.copacetic.helper/?info=popularity_label&amp;type=$INFO[ListItem.DBType]&amp;id=$INFO[ListItem.DBID]</content>
 ```
 
 ---
