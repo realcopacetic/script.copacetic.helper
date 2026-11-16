@@ -6,6 +6,7 @@ import math
 import random
 import sys
 import time
+from bisect import bisect_left
 from collections import Counter
 from datetime import date, datetime, timedelta
 from functools import cached_property, partial
@@ -748,10 +749,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             else {}
         )
         # A TV guide programme on air: its time left, which Kodi has only for the
-        # playing one. Progress is read now, so the URL holds still while it ticks;
-        # bare ListItem is the guide's focused programme, under its Jump to too.
+        # playing one. Progress is an int info with no label, so it is bisected from
+        # Integer.IsGreaterOrEqual; bare ListItem is the guide's focused programme.
         if runtime := to_int(self.params.get("epg_runtime"), 0):
-            left = runtime * (100 - to_int(infolabel("ListItem.Progress"), 0)) / 6000
+            progress = bisect_left(
+                range(1, 101),
+                True,
+                key=lambda p: not condition(
+                    f"Integer.IsGreaterOrEqual(ListItem.Progress,{p})"
+                ),
+            )
+            left = runtime * (100 - progress) / 6000
             labels["time_left"] = hours_minutes(math.ceil(left))
         # The window's own item or the playing song has no position, and a modal
         # dialog over the window would answer for it: no cursor stamp, no neighbours.

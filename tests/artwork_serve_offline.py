@@ -61,7 +61,6 @@ class ArtworkServe(unittest.TestCase):
             "Container(50).CurrentItem": "3",
             "Container(50).ListItem.Label": "Title",
             "Player.Title": "Song",
-            "ListItem.Progress": "37",
         }
         handler = handlers.PluginHandlers(
             {
@@ -94,6 +93,7 @@ class ArtworkServe(unittest.TestCase):
             mock.patch.multiple(
                 handlers,
                 infolabel=lambda label: labels.get(label, ""),
+                condition=lambda cond: int(cond.rpartition(",")[2][:-1]) <= 37,
                 topmost_window_id=lambda: WINDOW if on_top else MENU,
                 focused_control_id=lambda window_id: 50,
                 window_property=lambda *a, **k: None,
