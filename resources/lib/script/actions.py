@@ -839,7 +839,7 @@ def info_back(**kwargs: str) -> None:
 def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
     """
     Marks every song on an album played (a play count of at least 1, last played
-    now) or unplayed (play count 0), then has the progress row serve it again.
+    now) or unplayed (play count 0); the service then has its bar served again.
 
     :param id: Album ID (defaults to ListItem.DBID).
     :param played: "true" marks it played; anything else, unplayed.
@@ -852,7 +852,6 @@ def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
     )
     mark = played == "true"
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-    window_property("album_marking", value="true")  # the service skips each song
     for song in response.get("result", {}).get("songs", []):
         details = (
             {"playcount": max(song["playcount"], 1), "lastplayed": now}
@@ -864,10 +863,8 @@ def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
             params={"songid": song["songid"], **details},
             parent="mark_album",
         )
-    window_property("album_marking")
     window_property("album_played", value=str(album) if mark else "")
     window_property("album_unplayed", value="" if mark else str(album))
-    window_property("progress_version", value=str(time.time_ns()))
 
 
 @action

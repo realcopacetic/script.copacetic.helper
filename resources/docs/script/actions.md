@@ -641,10 +641,10 @@ to `album_played` or `album_unplayed`, and the item compares it with
 Each song write is a full rewrite of its row and an `AudioLibrary.OnUpdate`, so a long
 album costs a moment and Home refreshes its widgets once per song.
 
-**Sets:** `Window(home).Property(album_marking)` while it writes (the service then skips
-each song's update), `album_played` and `album_unplayed` (the album's id, or cleared),
-and `Window(home).Property(progress_version)`, a new token on every call
-that a skin can put in its progress bar URL to have it served again.
+**Sets:** `Window(home).Property(album_played)` and `album_unplayed` (the album's id,
+or cleared). The service then sets `progress_version` once for the songs' updates
+([On song updates](../service/index.md#on-song-updates)), which a skin puts in its
+progress bar URL to have the bar served again.
 
 ## move_pin
 

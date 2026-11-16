@@ -5,7 +5,7 @@ import sqlite3
 import sys
 import time
 from datetime import date, datetime, timedelta
-from threading import Thread
+from threading import Thread, Timer
 
 import xbmc
 
@@ -69,6 +69,7 @@ class Monitor(xbmc.Monitor):
         self.mixes = None  # the thread of the last pass
         self.player_monitor = None
         self.slideshow = None
+        self.song_bump = None  # a pending progress_version bump
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
         self._run()
 
@@ -258,24 +259,34 @@ class Monitor(xbmc.Monitor):
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
         Kodi event hook while active: a new playlist_revision on each music queue
-        edit (a shuffle too), and progress_version on a song's update outside a scan.
+        edit (a shuffle too), and progress_version after song updates outside a scan.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
         :param data: Its data as JSON.
         """
         if method == "AudioLibrary.OnUpdate":
-            # A play count or last played (a song heard, Like): 9010's album bar is
-            # served again, as AudioLibrary updates don't reach its video-tagged item
-            # (DirectoryProvider.cpp Announce). mark_album bumps once for all its songs
+            # A library song heard, a Like, Mark as played: 9010's album bar is served
+            # again, as AudioLibrary updates don't reach its video-tagged item
+            # (DirectoryProvider.cpp Announce). Only while it serves an album, and once
+            # for a burst (Kodi queues the announcements, so they trail the writes)
             data = json.loads(data)
             if (
                 self.player_monitor
                 and data.get("type") == "song"
                 and "transaction" not in data
-                and not infolabel("Window(home).Property(album_marking)")
+                and infolabel("Window(home).Property(progress_album)")
             ):
-                window_property("progress_version", value=str(time.monotonic_ns()))
+                if self.song_bump:
+                    self.song_bump.cancel()
+                self.song_bump = Timer(
+                    0.5,
+                    window_property,
+                    ("progress_version",),
+                    {"value": str(time.monotonic_ns())},
+                )
+                self.song_bump.daemon = True
+                self.song_bump.start()
             return
         if not self.player_monitor or infolabel(
             "Window(home).Property(playlist_replacing)"

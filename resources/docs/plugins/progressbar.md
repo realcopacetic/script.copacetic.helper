@@ -86,14 +86,16 @@ heard.
   is the length still to hear and `ListItem.EndTimeResume` the time it would end.
   Listening again a year later counts afresh.
 - **Heard through, or untouched within `album_days`:** 0, no bar.
-- **Kept current:** the bar is served again when one of its songs is heard, if the
-  skin puts the service's `progress_version` in its URL (see
-  [the service](../service/index.md#on-song-updates)): Kodi doesn't refresh the
-  video-tagged progress item on a music library update.
+- **Kept current:** the bar is served again when one of its songs is heard from a
+  library window, or it is marked, if the skin puts the service's `progress_version`
+  in its URL (see [the service](../service/index.md#on-song-updates)): Kodi doesn't
+  refresh the video-tagged progress item on a music library update.
 - **New:** `new` is `true` for an album none of whose songs has ever played that
   was added within `new_days`. That costs one `AudioLibrary.GetAlbumDetails` call.
 
-The serve also writes the focused album's id to `Window(home).Property(album_played)`
+Every serve writes `Window(home).Property(progress_album)`: the album's id, or empty
+for anything else; the service re-serves only while it is set. The serve also writes
+the focused album's id to `Window(home).Property(album_played)`
 when every song has played and none is part-heard, or to `album_unplayed` when none
 has, and clears the other. The context menu's
 [Mark as played and Mark as unplayed](../script/actions.md#mark_album) read them.
