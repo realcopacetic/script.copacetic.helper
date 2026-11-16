@@ -39,6 +39,7 @@ class Main:
         fn = handlers.get(info)
         if not fn:
             log.debug(f"Ignoring unknown info: {self.info}")
+            self._additems([])  # an empty listing, not Kodi's "Error getting"
             return
 
         imports_ms = (time.perf_counter() - self._t0) * 1000 if self._t0 else -1

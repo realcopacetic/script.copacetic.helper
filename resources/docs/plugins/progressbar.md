@@ -168,25 +168,23 @@ else runs: no control moves if it hadn't yet, and no library call is made.
 ## `epg_time_left`
 
 Not the progress bar: one item whose `ListItem.Property(time_left)` is the time left
-until the TV guide's focused programme ends, while it is on air, rounded up to the
-minute (`1h 23m`, `1h` or `48m`). Kodi has a time left only for the programme it is
-playing (`PVR.EpgEventRemainingTime`), so the helper works it out as the call runs,
-from the programme's start and runtime against the clock:
+until a TV guide programme ends, rounded up to the minute (`1h 23m`, `1h` or `48m`).
+Kodi has a time left only for the programme it is playing (`PVR.EpgEventRemainingTime`),
+so the helper works it out from the URL alone, against the clock: nothing is read from
+the window, so a move while the call runs changes nothing.
 
-- **Start:** `ListItem.FileName`. A guide item's path is
+- **Start:** the end of the programme's path. A guide item's path is
   `pvr://guide/<epg id>/<start>.epg`, with the start in UTC as `YYYY-MM-DD HH:MM:SS`, so
   no regional time format is parsed.
 - **Runtime:** `ListItem.Duration(secs)`.
 
-In the guide window bare `ListItem` is the grid's focused programme, with a plain dialog
-such as the guide controls on top too.
-
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `channel` | `$INFO[ListItem.ChannelNumberLabel]` | required | The programme's channel. One channel has one programme on air, so a call that runs after the cursor left that programme returns no item. Echoed as the item's label, so the skin can check the value is for the focused programme. |
+| `programme` | `$INFO[ListItem.FolderPath]` | required | The programme's path, unique to it. Echoed as the item's label, so the skin can check the value is for the focused programme. |
+| `runtime` | `$INFO[ListItem.Duration(secs)]` | required | The programme's runtime in seconds. |
 | `visit` | any text | empty | Echoed as `ListItem.Property(visit)`, so the skin can tell a value from this visit to the window from one it kept from the last. |
 
-There's no item either when the clock is past the programme's end. Kodi keeps a
+There's no item when the clock is past the programme's end. Kodi keeps a
 timeshifted channel's programme on air by its playback time.
 
 The value is fixed when the call returns. To count down, add a parameter that changes
@@ -194,5 +192,5 @@ each minute, such as `$INFO[System.Time(hh:mm)]`: Kodi calls the path again when
 changes. Pass the path only while the programme is on air.
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=epg_time_left&amp;channel=$INFO[ListItem.ChannelNumberLabel]&amp;visit=$INFO[Window(home).Property(pvrguide_visit)]&amp;minute=$INFO[System.Time(hh:mm)]</content>
+<content>plugin://script.copacetic.helper/?info=epg_time_left&amp;programme=$INFO[ListItem.FolderPath]&amp;runtime=$INFO[ListItem.Duration(secs)]&amp;visit=$INFO[Window(home).Property(pvrguide_visit)]&amp;minute=$INFO[System.Time(hh:mm)]</content>
 ```

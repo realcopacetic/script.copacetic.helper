@@ -1414,27 +1414,21 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def epg_time_left(self) -> list[DirectoryItem] | None:
         """
-        The TV guide's focused programme's time left to its end, as time_left: Kodi
-        has it only for the playing one. Bare ListItem is the guide's focused programme.
+        A TV guide programme's time left to its end, as time_left: Kodi has it only for
+        the playing one. Works from the URL alone, so a move mid-call changes nothing.
 
-        :return: One item labelled with the channel, or None once it isn't on air there.
+        :return: One item labelled with the programme's path, or None after its end.
         """
-        if not self._require("channel"):
-            return
-        # One programme on air a channel: a cursor that moved on gets nothing
-        channel = self.params["channel"]
-        if not (
-            condition("ListItem.InProgress")
-            and infolabel("ListItem.ChannelNumberLabel") == channel
-        ):
+        if not self._require("programme", "runtime"):
             return
         # A guide item's path ends in its start in UTC (pvr://guide/0012/2026-11-16
         # 20:00:00.epg): with the runtime, its end, and no regional time to parse
+        programme = self.params["programme"]
         start = datetime.fromisoformat(
-            infolabel("ListItem.FileName").removesuffix(".epg")
+            programme.rpartition("/")[2].removesuffix(".epg")
         )
         end = start.replace(tzinfo=timezone.utc) + timedelta(
-            seconds=to_int(infolabel("ListItem.Duration(secs)"), 0)
+            seconds=to_int(self.params["runtime"])
         )
         left = math.ceil((end - datetime.now(timezone.utc)).total_seconds() / 60)
         # On air follows a timeshifted channel's playback, which can run past the end
@@ -1444,7 +1438,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             [
                 {
                     "file": plugin_path("epg_time_left"),
-                    "label": channel,
+                    "label": programme,
                     "properties": {
                         "time_left": hours_minutes(left),
                         "visit": self.params.get("visit", ""),

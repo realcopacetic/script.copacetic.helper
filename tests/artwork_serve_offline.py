@@ -291,51 +291,44 @@ class HeldNaming(unittest.TestCase):
 
 
 class EpgTimeLeft(unittest.TestCase):
-    """The guide's focused programme, on channel 101, against a fixed clock."""
+    """A guide programme from its URL, against a fixed clock (UTC)."""
 
     def serve(
         self,
-        channel: str = "101",
         now: str = "2026-11-16 20:22:05",
         start: str = "2026-11-16 20:00:00",
         runtime: int = 3600,
-        on_air: bool = True,
     ) -> list | None:
         """
-        Run epg_time_left() with Kodi's reads and the clock (UTC) stubbed.
+        Run epg_time_left() with the clock stubbed; it reads nothing from Kodi.
 
-        :param channel: The URL's channel.
         :param now: The clock.
         :param start: The programme's start, as its path holds it.
         :param runtime: The programme's runtime in seconds.
-        :param on_air: Whether Kodi has the programme on air.
         :return: What it returned.
         """
-        labels = {
-            "ListItem.ChannelNumberLabel": "101",
-            "ListItem.FileName": f"{start}.epg",
-            "ListItem.Duration(secs)": str(runtime),
-        }
 
         class Clock(datetime):
             @classmethod
             def now(cls, tz=None):
                 return datetime.fromisoformat(now).replace(tzinfo=tz)
 
-        handler = handlers.PluginHandlers({"channel": channel, "visit": "20:14:05"})
+        params = {
+            "programme": f"pvr://guide/0012/{start}.epg",
+            "runtime": str(runtime),
+            "visit": "20:14:05",
+        }
         with mock.patch.multiple(
             handlers,
-            infolabel=labels.get,
-            condition=lambda cond: on_air,
             datetime=Clock,
             set_items=lambda items: items,
             plugin_path=lambda name: name,
         ):
-            return handler.epg_time_left()
+            return handlers.PluginHandlers(params).epg_time_left()
 
     def test_time_left(self):
         (item,) = self.serve()
-        self.assertEqual(item["label"], "101")
+        self.assertEqual(item["label"], "pvr://guide/0012/2026-11-16 20:00:00.epg")
         self.assertEqual(item["properties"], {"time_left": "38m", "visit": "20:14:05"})
 
     def test_over_an_hour(self):
@@ -347,12 +340,6 @@ class EpgTimeLeft(unittest.TestCase):
             now="2026-11-17 00:05:00", start="2026-11-16 23:30:00", runtime=5400
         )
         self.assertEqual(item["properties"]["time_left"], "55m")
-
-    def test_moved_to_another_channel(self):
-        self.assertIsNone(self.serve(channel="102"))
-
-    def test_no_longer_on_air(self):
-        self.assertIsNone(self.serve(on_air=False))
 
     def test_timeshifted_past_its_end(self):
         self.assertIsNone(self.serve(now="2026-11-16 21:00:10"))
