@@ -738,7 +738,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return self._artwork_held(guard.lost_to)
 
         # Read here, not passed in the URL: a "|" in the text would end Kodi's options
-        cleaned = (
+        labels = (
             {
                 "clean_label": markdown_label(
                     infolabel(label), self.params.get("clean_label_color")
@@ -747,6 +747,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if (label := self.params.get("clean_label"))
             else {}
         )
+        # A TV guide programme on air: its time left, which Kodi has only for the
+        # playing one. Progress is read now, so the URL holds still while it ticks;
+        # bare ListItem is the guide's focused programme, under its Jump to too.
+        if runtime := to_int(self.params.get("epg_runtime"), 0):
+            left = runtime * (100 - to_int(infolabel("ListItem.Progress"), 0)) / 6000
+            labels["time_left"] = hours_minutes(math.ceil(left))
         # The window's own item or the playing song has no position, and a modal
         # dialog over the window would answer for it: no cursor stamp, no neighbours.
         current_position = (
@@ -833,10 +839,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 clear_label(self.params.get("multiart_fadelabel", ""))
                 for _, prop in self._bridge_props():
                     window_property(prop)
-            # A dialog item with no art still lands, so the page isn't held back.
+            # A dialog item with no art still lands, so the page isn't held back; so
+            # does a guide programme's time left.
             return (
-                set_items([{"file": plugin_path("artwork"), "properties": cleaned}])
-                if self.item
+                set_items([{"file": plugin_path("artwork"), "properties": labels}])
+                if self.item or "time_left" in labels
                 else None
             )
 
@@ -983,7 +990,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                             else {}
                         )
                     )
-                    | cleaned,
+                    | labels,
                 }
             ]
         )

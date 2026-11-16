@@ -21,7 +21,8 @@ python tests/api_offline.py
 # The artwork serve (plugin/handlers.py artwork()) with Kodi's reads stubbed: the logo
 # read from clearlogo_source (headers kept; the URL's under a menu, none if cut), with
 # and without a favourite's multiart_target; the icon from icon_source, a cut band
-# label the item's own; a held serve names its position (the
+# label the item's own; a guide programme's time left (epg_runtime), with and without
+# art; a held serve names its position (the
 # jumpbar's re-serve) only for a move that stamped no visit, by the guard's own read
 python tests/artwork_serve_offline.py
 

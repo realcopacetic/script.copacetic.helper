@@ -2,7 +2,8 @@
 Offline checks for the artwork serve (PluginHandlers.artwork) with Kodi's reads
 stubbed and the image work faked: the logo from clearlogo_source, with and without
 a favourite's multiart_target, and the icon from icon_source (a cut band label the
-item's own); a held serve names its position only for a move that stamped no visit.
+item's own); a guide programme's time left, with and without art; a held serve names
+its position only for a move that stamped no visit.
 Run from the helper root:
 python tests/artwork_serve_offline.py
 """
@@ -60,6 +61,7 @@ class ArtworkServe(unittest.TestCase):
             "Container(50).CurrentItem": "3",
             "Container(50).ListItem.Label": "Title",
             "Player.Title": "Song",
+            "ListItem.Progress": "37",
         }
         handler = handlers.PluginHandlers(
             {
@@ -180,6 +182,17 @@ class ArtworkServe(unittest.TestCase):
         out = self.serve({"icon_source": ICON_SOURCE}, on_top=False)
         self.assertEqual((out["icon"], out["label"]), (None, None))
         self.assertTrue(out["items"])
+
+    def test_epg_time_left(self):
+        out = self.serve({"epg_runtime": "3600"})
+        self.assertEqual(out["items"][0]["properties"]["time_left"], "38m")
+
+    def test_epg_time_left_without_art(self):
+        (item,) = self.serve({"background_url": "", "epg_runtime": "3600"})["items"]
+        self.assertEqual(item["properties"], {"time_left": "38m"})
+
+    def test_no_art_no_epg_runtime(self):
+        self.assertIsNone(self.serve({"background_url": ""})["items"])
 
 
 class HeldNaming(unittest.TestCase):
