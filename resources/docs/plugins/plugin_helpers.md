@@ -35,6 +35,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `multiart_tiles` | Fills several FadeLabels in an info dialog with the item's artwork, so they change one at a time. | [Artwork](artwork.md#multiart_tiles) |
 | `metadata` | Returns tidied details of the focused item, with optional TMDb details. | [Metadata](metadata.md) |
 | `progressbar` | Works out watched progress and context labels (time left, next episode, new, next air date) and places a progress bar. | [Progress Bar](progressbar.md) |
+| `epg_time_left` | Works out the time left of the TV guide's focused programme while it is on air. | [Progress Bar](progressbar.md#epg_time_left) |
 | `typewriter` | Types a label into a textbox one character at a time. | [Typewriter](typewriter.md) |
 | `text` | Draws text into a PNG image. | [Text Image](text.md) |
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |

@@ -2,7 +2,9 @@
 Offline checks for the artwork serve (PluginHandlers.artwork) with Kodi's reads
 stubbed and the image work faked: the logo from clearlogo_source, with and without
 a favourite's multiart_target, and the icon from icon_source (a cut band label the
-item's own); a held serve names its position only for a move that stamped no visit.
+item's own); a held serve names its position only for a move that stamped no visit;
+the TV guide's time left (epg_time_left) from the programme's start and runtime,
+across midnight too, only while the URL's channel is on air and before its end.
 Run from the helper root:
 python tests/artwork_serve_offline.py
 """
@@ -10,6 +12,7 @@ python tests/artwork_serve_offline.py
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -285,6 +288,61 @@ class HeldNaming(unittest.TestCase):
     def test_identity_labels(self):
         params = {"identity_labels": "Container(50).ListItem.DBID"}
         self.assertEqual(self.hold(params), self.UNNAMED)
+
+
+class EpgTimeLeft(unittest.TestCase):
+    """A guide programme from its URL, against a fixed clock (UTC)."""
+
+    def serve(
+        self,
+        now: str = "2026-11-16 20:22:05",
+        start: str = "2026-11-16 20:00:00",
+        runtime: int = 3600,
+    ) -> list | None:
+        """
+        Run epg_time_left() with the clock stubbed; it reads nothing from Kodi.
+
+        :param now: The clock.
+        :param start: The programme's start, as its path holds it.
+        :param runtime: The programme's runtime in seconds.
+        :return: What it returned.
+        """
+
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime.fromisoformat(now).replace(tzinfo=tz)
+
+        params = {
+            "programme": f"pvr://guide/0012/{start}.epg",
+            "runtime": str(runtime),
+            "visit": "20:14:05",
+        }
+        with mock.patch.multiple(
+            handlers,
+            datetime=Clock,
+            set_items=lambda items: items,
+            plugin_path=lambda name: name,
+        ):
+            return handlers.PluginHandlers(params).epg_time_left()
+
+    def test_time_left(self):
+        (item,) = self.serve()
+        self.assertEqual(item["label"], "pvr://guide/0012/2026-11-16 20:00:00.epg")
+        self.assertEqual(item["properties"], {"time_left": "38m", "visit": "20:14:05"})
+
+    def test_over_an_hour(self):
+        (item,) = self.serve(now="2026-11-16 20:00:30", runtime=7200)
+        self.assertEqual(item["properties"]["time_left"], "2h")
+
+    def test_across_midnight(self):
+        (item,) = self.serve(
+            now="2026-11-17 00:05:00", start="2026-11-16 23:30:00", runtime=5400
+        )
+        self.assertEqual(item["properties"]["time_left"], "55m")
+
+    def test_timeshifted_past_its_end(self):
+        self.assertIsNone(self.serve(now="2026-11-16 21:00:10"))
 
 
 if __name__ == "__main__":
