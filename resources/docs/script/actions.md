@@ -920,28 +920,45 @@ so they follow the user's language:
 | No timer, its client doesn't record | "Do you want to set a reminder for the selected programme or to switch to the current programme?" (19344) | Set reminder (826): `PVR.AddTimer` with `reminder` | Switch |
 | A timer or reminder already | "There is already a timer set for this event" (19034) | Delete timer (19060) / Delete reminder (827): `PVR.ToggleTimer` | Switch |
 
+- **On air by the time it runs:** it switches without asking, as Kodi's smart select does
+  for a current programme (`GUIWindowPVRGuide.cpp:473-477`).
 - **Back** does nothing.
-- **A timer a rule made** asks Kodi's next question first: "Do you want to delete only this
+- **A timer a rule made** asks Kodi's next question first: "Do you only want to delete this
   timer or also the timer rule that has scheduled it?" (840). "Only this" (841) or "All"
-  (593); Back cancels.
-- **A failed delete** shows Kodi's "Could not delete the timer…" (19110). Kodi itself shows
-  any error from adding one.
+  (593); Back cancels. Kodi asks it only when the rule allows deletion, which JSON-RPC
+  doesn't show. So "All" on a rule the backend won't delete ends in the next point's error.
+- **A failed delete** shows Kodi's "Could not delete the timer…" (19110).
+- **Adding:** Kodi itself shows any error from adding (`PVR.AddTimer` runs Kodi's own
+  add). A programme no timer type fits fails silently here, where Kodi's guide would
+  show "Timer creation failed. Unsupported timer type." (19094): JSON-RPC answers the same
+  failure for both.
 - **Editing a timer:** Kodi's own smart select opens the timer's settings here. JSON-RPC
   can't, so this offers deleting it instead, never a second timer.
 - **"Can record"** is Kodi's `CPVRChannel::CanRecord`: the programme's client supports
   recordings and timers (`PVR.GetClients`).
+- **Switch** runs the skin's builtins while `when` holds. Otherwise (the list moved on,
+  or the panel closed while the question was up) it plays `channelid` with
+  `Player.Open`, which switches channel through Kodi's PVR playback.
+- **One run at a time:** while one run's yes/no is up, a second run's yes/no returns No
+  at once, which would record or delete unasked. Have the skin set `busy` before the
+  `RunScript` and only run while it's empty; the action clears it as it ends, after the
+  wait for the timer.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `id` | a broadcastid | required | The programme (`ListItem.Property(broadcastid)` on `info=broadcasts` rows) |
-| `switch` | builtins separated by `\|` | required | Run in order after **Switch** |
-| `stamp` | a property name | none | Set to a fresh value once Kodi's timers show the change (it waits up to 2 s for the backend), so a list whose URL carries it refetches |
-| `window_id` | a window id | `10000` | The window holding `stamp` |
+| `switch` | builtins separated by `\|` | required | Run in order after **Switch** while `when` holds |
+| `channelid` | a channel id | required | Played by **Switch** when `when` doesn't hold |
+| `when` | a condition | `true` | Whether the skin's builtins still reach the programme's channel |
+| `stamp` | a property name | none | Set to a fresh value once Kodi's timers show the change (it waits up to 10 s for the backend), so a list whose URL carries it refetches |
+| `busy` | a property name | none | Cleared as the run ends, whatever the answer |
+| `window_id` | a window id | `10000` | The window holding `stamp` and `busy` |
 
-Example from Copacetic, the live channel list's guide (4719):
+Example from Copacetic, the live channel list's guide (4719; 10608 is `pvrosdchannels`):
 
 ```xml
-<onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air))">RunScript(script.copacetic.helper,action=pvr_smart_select,id=$INFO[Container(4719).ListItem.Property(broadcastid)],switch=ClearProperty(pvrosd_guide,pvrosdchannels)|SetFocus(11)|Action(Select,pvrosdchannels),stamp=pvrosd_guide_timers,window_id=10608)</onclick>
+<onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air)) + String.IsEmpty(Window(pvrosdchannels).Property(pvrosd_smart_select))">SetProperty(pvrosd_smart_select,1,pvrosdchannels)</onclick>
+<onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air)) + String.IsEmpty(Window(pvrosdchannels).Property(pvrosd_smart_select))">RunScript(script.copacetic.helper,action=pvr_smart_select,id=$INFO[Container(4719).ListItem.Property(broadcastid)],channelid=$INFO[Container(4719).ListItem.Property(channelid)],switch=ClearProperty(pvrosd_guide,pvrosdchannels)|SetFocus(11)|Action(Select,pvrosdchannels),when=…,stamp=pvrosd_guide_timers,busy=pvrosd_smart_select,window_id=10608)</onclick>
 ```
 
 ---

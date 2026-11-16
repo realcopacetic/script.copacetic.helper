@@ -7,7 +7,7 @@ import random
 import sys
 import time
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import cached_property, partial
 from operator import itemgetter
 from typing import Any, Callable
@@ -1916,7 +1916,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             .get("channeldetails", {})
             .get("thumbnail", "")
         )
-        items = broadcast_items(broadcasts, params["channelid"], logo)
+        items = broadcast_items(
+            broadcasts, params["channelid"], logo, datetime.now(timezone.utc)
+        )
         return set_items(items[: self.limit]) or None
 
     @log.duration

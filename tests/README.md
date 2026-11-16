@@ -57,12 +57,14 @@ python tests/segments_offline.py
 
 # The live channel list's guide (plugin/pvr.py, info=broadcasts) with JSON-RPC
 # stubbed: programmes from the one on air, start and end as local clock times
-# (Europe/London, GMT and BST), time left from Kodi's progress, the state icon's
-# order, and the handler's calls (none without a channel, no logo call without rows);
-# the smart select on a later programme (script/actions.py pvr_smart_select): Kodi's
-# strings per case, record or reminder by the client, Switch's builtins, Back, delete
-# (only this or the rule) for an existing timer, the failed-delete dialog, the stamp
-# after Kodi's timers catch up
+# (Europe/London, GMT and BST), time left to the end by the clock (empty once ended),
+# Kodi's label and no image when parental locked, no favourite in the menu, the state
+# icon's order, and the handler's calls (none without a channel, no logo call without
+# rows); the smart select on a later programme (script/actions.py pvr_smart_select):
+# Kodi's strings per case, record or reminder by the client, Switch's builtins or
+# Player.Open once the list moved on, on air switching unasked, Back, delete (only
+# this or the rule) for an existing timer, the failed-delete dialog, the stamp after
+# Kodi's timers catch up, busy cleared on every way out
 python tests/pvr_offline.py
 
 # Clean names (shared/utilities.py clean_name) against a port of Kodi's CleanString:
