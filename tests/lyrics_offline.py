@@ -355,6 +355,22 @@ class LrclibTest(Kodi):
         self.assertEqual(self.asked, [("prefetch", NEXT)])  # one request
         self.assertEqual(self.props["lyrics_plain"], "Woo-hoo")
 
+    def test_a_failed_prefetch_its_start_took_over_is_asked_again(self):
+        self.running = False
+        self.labels |= QUEUED | {"MusicPlayer.Lyrics": LRC}
+        lyrics.lookup()
+        self.labels |= dict(zip(TAGS, ("Blur", "Song 2", "Blur", "02:02")))
+        self.labels |= {"MusicPlayer.Lyrics": "", "MusicPlayer.offset(1).Title": ""}
+        found = lyrics.lookup()  # Song 2 starts while its prefetch is out
+        lyrics._fetches[NEXT].run()  # and it fails (offline, or a 404)
+        self.assertEqual(found.tick(0.0), lyrics.ASKING_WAIT)
+        self.assertEqual(self.props["lyrics_state"], "searching")  # not "none"
+        self.lrclib[NEXT] = {"synced": None, "plain": "Woo-hoo", "instrumental": False}
+        lyrics._fetches[NEXT].run()  # the start's own request
+        found.tick(0.2)
+        self.assertEqual(self.asked, [("prefetch", NEXT), ("lyrics", NEXT)])
+        self.assertEqual(self.props["lyrics_plain"], "Woo-hoo")
+
     def test_consent_tags_and_length(self):
         for off in (
             {"MusicPlayer.Artist": ""},

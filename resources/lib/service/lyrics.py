@@ -285,8 +285,15 @@ class Lyrics:
         if self.fetch:
             if self.fetch.is_alive():
                 return ASKING_WAIT
-            self.times = [ms for ms, _ in publish(*_found(self.fetch.found))]
-            self.fetch = None
+            fetch, self.fetch = self.fetch, None
+            if fetch.found is None and fetch.ask is lrclib.prefetch:
+                # The prefetch this start took over failed: ask for it now, as a
+                # start does, so a failure is cached and waited out
+                self.fetch = _fetches.get(fetch.song) or Fetch(
+                    fetch.song, lrclib.lyrics
+                )
+                return ASKING_WAIT
+            self.times = [ms for ms, _ in publish(*_found(fetch.found))]
         if not self.times:
             return 1
         ms = now * 1000
