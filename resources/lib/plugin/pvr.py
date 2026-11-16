@@ -88,6 +88,7 @@ def broadcast_items(broadcasts: list[dict], channelid: int, logo: str) -> list[d
                 "thumb": broadcast["thumbnail"],
             },
             "properties": {
+                "broadcastid": broadcast["broadcastid"],
                 "channelid": channelid,
                 "start": local_time(broadcast["starttime"], fmt),
                 "end": local_time(broadcast["endtime"], fmt),

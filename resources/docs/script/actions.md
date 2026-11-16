@@ -84,6 +84,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`player_stream`](#player_stream) | Steps the playing video's subtitle, audio or video stream, with no notification |
 | [`player_stream_refresh`](#player_stream_refresh) | Updates `player_subtitle_kind` after Kodi changed the subtitle itself |
 | [`playlist_goto`](#playlist_goto) | Plays the music queue from one of its songs |
+| [`pvr_smart_select`](#pvr_smart_select) | Kodi's guide "Smart select" for a later programme: record or switch |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
 | [`refresh_cached`](#refresh_cached) | Makes one library item's web answers and cached images come again |
@@ -902,6 +903,45 @@ Example from Copacetic, the music OSD's Playlist rail:
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=playlist_goto,position=$INFO[Container(3220).CurrentItem])</onclick>
+```
+
+---
+
+## pvr_smart_select
+
+Kodi's TV guide "Smart select" for a programme that hasn't started, for a list of
+programmes Kodi doesn't hold, such as [`info=broadcasts`](../plugins/broadcasts.md). Kodi's
+programme info can't open for those. The question and its buttons are Kodi's own strings,
+so they follow the user's language:
+
+| The programme | Dialog (heading "Smart select", 19096) | No button | Yes button |
+|---|---|---|---|
+| No timer, its client records | "Do you want to record the selected programme or to switch to the current programme?" (19302) | Record (264): `PVR.AddTimer` | Switch (19165) |
+| No timer, its client doesn't record | "Do you want to set a reminder for the selected programme or to switch to the current programme?" (19344) | Set reminder (826): `PVR.AddTimer` with `reminder` | Switch |
+| A timer or reminder already | "There is already a timer set for this event" (19034) | Delete timer (19060) / Delete reminder (827): `PVR.ToggleTimer` | Switch |
+
+- **Back** does nothing.
+- **A timer a rule made** asks Kodi's next question first: "Do you want to delete only this
+  timer or also the timer rule that has scheduled it?" (840). "Only this" (841) or "All"
+  (593); Back cancels.
+- **A failed delete** shows Kodi's "Could not delete the timer…" (19110). Kodi itself shows
+  any error from adding one.
+- **Editing a timer:** Kodi's own smart select opens the timer's settings here. JSON-RPC
+  can't, so this offers deleting it instead, never a second timer.
+- **"Can record"** is Kodi's `CPVRChannel::CanRecord`: the programme's client supports
+  recordings and timers (`PVR.GetClients`).
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | a broadcastid | required | The programme (`ListItem.Property(broadcastid)` on `info=broadcasts` rows) |
+| `switch` | builtins separated by `\|` | required | Run in order after **Switch** |
+| `stamp` | a property name | none | Set to a fresh value once Kodi's timers show the change (it waits up to 2 s for the backend), so a list whose URL carries it refetches |
+| `window_id` | a window id | `10000` | The window holding `stamp` |
+
+Example from Copacetic, the live channel list's guide (4719):
+
+```xml
+<onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air))">RunScript(script.copacetic.helper,action=pvr_smart_select,id=$INFO[Container(4719).ListItem.Property(broadcastid)],switch=ClearProperty(pvrosd_guide,pvrosdchannels)|SetFocus(11)|Action(Select,pvrosdchannels),stamp=pvrosd_guide_timers,window_id=10608)</onclick>
 ```
 
 ---

@@ -28,6 +28,7 @@ channel) and `PVR.GetChannelDetails` (its logo, skipped when there are no progra
 | `ListItem.Label` | The title. |
 | `ListItem.Art(thumb)` | The programme's own image (empty when it has none). |
 | `ListItem.Icon` | The channel's logo, else `DefaultTVShows.png`. |
+| `ListItem.Property(broadcastid)` | The programme's id, for JSON-RPC's `PVR.*` timer methods and [`pvr_smart_select`](../script/actions.md#pvr_smart_select). |
 | `ListItem.Property(channelid)` | The `channelid` asked for, so a skin can tell whose programmes it holds. |
 | `ListItem.Property(start)`, `(end)` | Start and end as local clock times in Kodi's time format, without seconds (as `ListItem.StartTime`). |
 | `ListItem.Property(runtime)` | Minutes. |
@@ -44,7 +45,8 @@ channel) and `PVR.GetChannelDetails` (its logo, skipped when there are no progra
 - **Not available** through JSON-RPC: a timer's error or conflict, and the broadcaster's
   flags (new, premiere, finale, live).
 - Each item's path is unique to its programme, so a refetch keeps the selected one.
-- The items are not playable and carry no info tag: give the container an `onclick`.
+- The items are not playable and carry no info tag: give the container an `onclick`
+  (for a later programme, [`pvr_smart_select`](../script/actions.md#pvr_smart_select)).
   Kodi's programme info can't be opened for them: its info dialogs take only items Kodi
   holds (`GUIContentUtils.cpp` `ShowInfoForItem`; `PVRGUIActionsUtils.cpp`
   `HasInfoForItem` has no guide-entry case).

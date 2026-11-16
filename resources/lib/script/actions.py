@@ -835,6 +835,134 @@ def info_back(**kwargs: str) -> None:
     _show_info(None)
 
 
+# PVR.GetBroadcastDetails fields the smart select reads
+_SMART_SELECT = ["title", "clientid", "hastimer", "hasreminder", "hastimerrule"]
+
+
+def _broadcast(id: str) -> dict:
+    """
+    A programme's title, client and timer state, by broadcastid.
+
+    :param id: The programme's broadcastid.
+    :return: PVR.GetBroadcastDetails' broadcastdetails.
+    """
+    return (
+        json_call(
+            "PVR.GetBroadcastDetails",
+            properties=_SMART_SELECT,
+            params={"broadcastid": int(id)},
+            parent="pvr_smart_select",
+        )
+        .get("result", {})
+        .get("broadcastdetails", {})
+    )
+
+
+def _can_record(clientid: int) -> bool:
+    """
+    Whether a programme's PVR client records, as CPVRChannel::CanRecord asks:
+    it supports recordings and timers.
+
+    :param clientid: The programme's PVR client id.
+    :return: True when the client records.
+    """
+    clients = json_call("PVR.GetClients", parent="pvr_smart_select")
+    return any(
+        client["clientid"] == clientid
+        and client["supportsrecordings"]
+        and client["supportstimers"]
+        for client in clients.get("result", {}).get("clients", [])
+    )
+
+
+def _delete_timer(id: str, broadcast: dict) -> bool:
+    """
+    Delete a programme's timer. One a rule made asks first, as Kodi's
+    ConfirmDeleteTimer: only this timer, or the rule and all it scheduled.
+
+    :param id: The programme's broadcastid.
+    :param broadcast: Its _broadcast details.
+    :return: True when Kodi deleted it.
+    """
+    text = xbmc.getLocalizedString
+    rule = False
+    if broadcast["hastimerrule"]:
+        choice = xbmcgui.Dialog().yesnocustom(
+            text(122), f"{text(840)}\n\n{broadcast['title']}", "", text(841), text(593)
+        )
+        if choice < 0:
+            return False
+        rule = choice == 1
+    result = json_call(
+        "PVR.ToggleTimer",
+        params={"broadcastid": int(id), "timerrule": rule},
+        parent="pvr_smart_select",
+    )
+    if result.get("result") == "OK":
+        return True
+    xbmcgui.Dialog().ok(text(257), text(19110))
+    return False
+
+
+def _await_timer(id: str, wanted: bool) -> None:
+    """
+    Wait up to 2 s for Kodi's timers to show a change: a backend's timer reaches
+    them only when the client next updates them.
+
+    :param id: The programme's broadcastid.
+    :param wanted: Whether the programme should now have a timer.
+    """
+    monitor = xbmc.Monitor()
+    for _ in range(10):
+        if _broadcast(id)["hastimer"] == wanted or monitor.waitForAbort(0.2):
+            return
+
+
+@action
+def pvr_smart_select(
+    id: str, switch: str, stamp: str = "", window_id: str = "10000", **kwargs: str
+) -> None:
+    """
+    Kodi's guide "Smart select" for a later programme: record (set a reminder where
+    the channel can't record) or switch. Kodi edits an existing timer, which
+    JSON-RPC can't, so then: delete it or switch.
+
+    :param id: The programme's broadcastid.
+    :param switch: Pipe-separated builtins that switch to its channel.
+    :param stamp: Window property set afresh once Kodi's timers show a change.
+    :param window_id: The window holding stamp.
+    """
+    text = xbmc.getLocalizedString
+    broadcast = _broadcast(id)
+    has_timer = broadcast["hastimer"]
+    record = not has_timer and _can_record(broadcast["clientid"])
+    if has_timer:
+        message, other = 19034, 827 if broadcast["hasreminder"] else 19060
+    else:
+        message, other = (19302, 264) if record else (19344, 826)
+    choice = xbmcgui.Dialog().yesnocustom(
+        text(19096), text(message), "", text(other), text(19165)
+    )
+    if choice == 1:
+        for builtin in switch.split("|"):
+            log.execute(builtin)
+        return
+    if choice != 0:
+        return
+    if has_timer:
+        changed = _delete_timer(id, broadcast)
+    else:
+        result = json_call(
+            "PVR.AddTimer",
+            params={"broadcastid": int(id), "reminder": not record},
+            parent="pvr_smart_select",
+        )
+        changed = result.get("result") == "OK"
+    if changed and stamp:
+        _await_timer(id, not has_timer)
+        window_property(stamp, str(time.time()), to_int(window_id, 10000))
+
+
 @action
 def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
     """
