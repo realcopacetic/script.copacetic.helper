@@ -1,8 +1,7 @@
 # author: realcopacetic
 
+from collections.abc import Callable
 from typing import Any
-
-from xbmc import Monitor
 
 from resources.lib.apis import http
 from resources.lib.apis.cache import DAY, FAILURES, cached
@@ -41,15 +40,20 @@ def _shape(record: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
-def _fetch(params: dict[str, Any]) -> dict[str, Any]:
+class Aborted(Exception):
+    """Kodi is exiting: a lookup stopped short; outside cache.FAILURES, so uncached."""
+
+
+def _fetch(params: dict[str, Any], aborted: Callable[[], bool]) -> dict[str, Any]:
     """
     GET /get, shaped; on a 404, the /search hit nearest the song's length within
     NEAR seconds, one with synced lyrics first.
 
     :param params: /get's query.
+    :param aborted: The service thread's Monitor.abortRequested.
     :return: _shape's payload.
-    :raises HttpError: On a failure, a 404 no search hit is near, or Kodi exiting
-        before the search (status None: the 5-minute wait, not a 7-day miss).
+    :raises HttpError: On a failure, or a 404 no search hit is near.
+    :raises Aborted: Kodi is exiting, before the search.
     """
     try:
         return _shape(http.get_json(f"{API}/get", params, timeout=TIMEOUT))
@@ -57,8 +61,8 @@ def _fetch(params: dict[str, Any]) -> dict[str, Any]:
         if exc.status != 404:
             raise
         # Kodi waits on a script's threads at exit and kills it after 5 s
-        if Monitor().abortRequested():
-            raise HttpError(None) from None
+        if aborted():
+            raise Aborted from None
         seconds = params["duration"]
         best = min(
             http.get_json(
@@ -72,7 +76,9 @@ def _fetch(params: dict[str, Any]) -> dict[str, Any]:
         return _shape(best)
 
 
-def lyrics(artist: str, title: str, album: str, seconds: int) -> dict[str, Any] | None:
+def lyrics(
+    artist: str, title: str, album: str, seconds: int, aborted: Callable[[], bool]
+) -> dict[str, Any] | None:
     """
     A song's lyrics on LRCLIB, by its tags and length, cached. No queue: LRCLIB
     sets no rate limit.
@@ -81,10 +87,12 @@ def lyrics(artist: str, title: str, album: str, seconds: int) -> dict[str, Any] 
     :param title: Its title.
     :param album: Its album; "" when none.
     :param seconds: Its length in whole seconds.
+    :param aborted: The service thread's Monitor.abortRequested.
     :return: _shape's payload; empty when none, None when unknown or not fetched.
+    :raises Aborted: Kodi is exiting; nothing cached.
     """
     key, params = _query(artist, title, album, seconds)
-    return cached(key, lambda: _fetch(params), (TTL_HIT, TTL_EMPTY))
+    return cached(key, lambda: _fetch(params, aborted), (TTL_HIT, TTL_EMPTY))
 
 
 def saved(artist: str, title: str, album: str, seconds: int) -> tuple[Any, bool] | None:
@@ -101,7 +109,7 @@ def saved(artist: str, title: str, album: str, seconds: int) -> tuple[Any, bool]
 
 
 def prefetch(
-    artist: str, title: str, album: str, seconds: int
+    artist: str, title: str, album: str, seconds: int, aborted: Callable[[], bool]
 ) -> dict[str, Any] | None:
     """
     A queued song's lyrics into the cache ahead of its start. Only an answer is
@@ -111,11 +119,13 @@ def prefetch(
     :param title: Its title.
     :param album: Its album; "" when none.
     :param seconds: Its length in whole seconds.
+    :param aborted: The service thread's Monitor.abortRequested.
     :return: _shape's payload; None after a failure.
+    :raises Aborted: Kodi is exiting; nothing cached.
     """
     key, params = _query(artist, title, album, seconds)
     try:
-        payload = _fetch(params)
+        payload = _fetch(params, aborted)
     except FAILURES as exc:
         log.debug(f"lrclib → prefetch kept nothing for {key}: {exc!r}")
         return None

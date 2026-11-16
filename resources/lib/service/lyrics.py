@@ -181,22 +181,25 @@ class Fetch(Thread):
     song (in _fetches until done); found holds its payload once it has ended.
     """
 
-    def __init__(self, song: Song, ask: Callable) -> None:
+    def __init__(self, song: Song, ask: Callable, aborted: Callable[[], bool]) -> None:
         """
         Start the lookup.
 
         :param song: (artist, title, album, seconds).
         :param ask: lrclib.lyrics for the playing song, lrclib.prefetch for the next.
+        :param aborted: abortRequested of a Monitor made on the service thread.
         """
         super().__init__(daemon=True)
-        self.song, self.ask, self.found = song, ask, None
+        self.song, self.ask, self.aborted, self.found = song, ask, aborted, None
         _fetches[song] = self
         self.start()
 
     def run(self) -> None:
-        """Ask; a cache failure is logged and found stays None."""
+        """Ask; Kodi exiting or a cache failure (logged) leaves found None."""
         try:
-            self.found = self.ask(*self.song)
+            self.found = self.ask(*self.song, self.aborted)
+        except lrclib.Aborted:
+            log.debug(f"lyrics → Kodi is exiting: stopped asking for {self.song}")
         except sqlite3.Error:
             log.exception(f"lyrics → the LRCLIB cache failed for {self.song}")
         finally:
@@ -231,11 +234,13 @@ def publish(
     return synced or []
 
 
-def lookup() -> "Lyrics":
+def lookup(aborted: Callable[[], bool]) -> "Lyrics":
     """
     Publish the playing song's lyrics from a .lrc, its tags or LRCLIB's cache, else
     ask LRCLIB on a thread for the poller to publish; and ask ahead for the next song.
 
+    :param aborted: abortRequested of a Monitor made on the service thread: one
+        made in a request's thread after Kodi's abort never hears it.
     :return: Lyrics to follow; with no lines unless synced, or LRCLIB's on the way.
     """
     for key, value in SEARCHING.items():
@@ -247,9 +252,9 @@ def lookup() -> "Lyrics":
         if fresh:
             found = _found(payload)
         else:  # the next song's prefetch may still be out: it serves
-            fetch = _fetches.get(playing) or Fetch(playing, lrclib.lyrics)
+            fetch = _fetches.get(playing) or Fetch(playing, lrclib.lyrics, aborted)
     if _wanted(queued) and queued not in _fetches and not _saved(queued)[1]:
-        Fetch(queued, lrclib.prefetch)
+        Fetch(queued, lrclib.prefetch, aborted)
     return Lyrics(fetch=fetch) if fetch else Lyrics(publish(*(found or NONE)))
 
 
@@ -290,7 +295,7 @@ class Lyrics:
                 # The prefetch this start took over failed: ask for it now, as a
                 # start does, so a failure is cached and waited out
                 self.fetch = _fetches.get(fetch.song) or Fetch(
-                    fetch.song, lrclib.lyrics
+                    fetch.song, lrclib.lyrics, fetch.aborted
                 )
                 return ASKING_WAIT
             self.times = [ms for ms, _ in publish(*_found(fetch.found))]

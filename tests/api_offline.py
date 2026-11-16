@@ -2516,21 +2516,26 @@ class LrclibTest(Base):
         super().setUp()
         self.settings["lrclib"] = True
         self.exiting = False
-        patch(self, (lrclib, "Monitor", lambda: self))
 
-    def abortRequested(self):
+    def aborted(self):
+        """The service thread's Monitor.abortRequested."""
         return self.exiting
 
-    def test_no_search_once_kodi_exits(self):
+    def test_no_search_and_nothing_cached_once_kodi_exits(self):
         self.exiting = True
-        self.net.answers = [http_error(404), json.dumps(LRCLIB_SEARCH).encode()]
-        self.assertIsNone(self.lookup(218))
-        self.assertEqual(len(self.net.requests), 1)
-        self.assertEqual(self.row(self.key(218), ""), (None, 300))  # not a 7-day miss
-        self.assertEqual(self.net.timeouts, [lrclib.TIMEOUT])
+        # A Monitor made now, in the request's thread, would never hear the abort
+        later = type("Monitor", (), {"abortRequested": lambda monitor: False})
+        patch(self, (sys.modules["xbmc"], "Monitor", later))
+        for ask in (lrclib.lyrics, lrclib.prefetch):
+            self.net.answers = [http_error(404), json.dumps(LRCLIB_SEARCH).encode()]
+            with self.assertRaises(lrclib.Aborted):
+                ask(*SONG[:3], 218, self.aborted)
+            self.assertIsNone(self.cache.get(self.key(218)))  # the restart asks
+        self.assertEqual(len(self.net.requests), 2)  # each /get, no /search
+        self.assertEqual(self.net.timeouts, [lrclib.TIMEOUT] * 2)
 
     def lookup(self, seconds=223):
-        return lrclib.lyrics(*SONG[:3], seconds)
+        return lrclib.lyrics(*SONG[:3], seconds, self.aborted)
 
     def key(self, seconds=223):
         return f"lrclib:lyrics:Gorillaz|Feel Good Inc.|Demon Days|{seconds}"
@@ -2618,11 +2623,11 @@ class LrclibTest(Base):
     def test_prefetch_keeps_answers_only(self):
         self.assertIsNone(lrclib.saved(*SONG))
         self.net.answers = [URLError("offline"), http_error(404), b"[]"]
-        self.assertIsNone(lrclib.prefetch(*SONG))
-        self.assertIsNone(lrclib.prefetch(*SONG))  # nothing near: the 404
+        self.assertIsNone(lrclib.prefetch(*SONG, self.aborted))
+        self.assertIsNone(lrclib.prefetch(*SONG, self.aborted))  # nothing near: the 404
         self.assertIsNone(self.cache.get(self.key()))  # the start asks itself
         self.net.answers = [json.dumps(LRCLIB_GET).encode()]
-        found = lrclib.prefetch(*SONG)
+        found = lrclib.prefetch(*SONG, self.aborted)
         self.assertEqual(found["synced"][0], [1470, "Feel good"])
         self.assertEqual(self.row(self.key(), ""), (found, 180 * DAY))
         self.assertEqual(lrclib.saved(*SONG), (found, True))
@@ -2630,12 +2635,12 @@ class LrclibTest(Base):
         self.assertEqual(len(self.net.requests), 4)
         empty = dict(LRCLIB_GET, syncedLyrics=None, plainLyrics=None)
         self.net.answers = [json.dumps(empty).encode()]
-        self.assertEqual(lrclib.prefetch(*SONG[:3], 1), {})
+        self.assertEqual(lrclib.prefetch(*SONG[:3], 1, self.aborted), {})
         self.assertEqual(self.row(self.key(1), ""), ({}, 30 * DAY))
 
     def test_a_failed_prefetch_hides_nothing(self):
         self.net.answers = [URLError("offline"), json.dumps(LRCLIB_GET).encode()]
-        lrclib.prefetch(*SONG)
+        lrclib.prefetch(*SONG, self.aborted)
         self.assertEqual(self.lookup()["synced"][0], [1470, "Feel good"])
 
     def test_clear(self):

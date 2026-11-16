@@ -8,7 +8,7 @@ from functools import cached_property
 from typing import Any, Callable
 from urllib.parse import quote
 
-from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Player, PlayList
+from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Monitor, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
 
 from resources.lib.art.editor import ImageEditor
@@ -169,6 +169,9 @@ class PlayerMonitor(Player):
         self._segments = None  # the playing video's skip segments
         # The playing song's lyrics; None not looked up, False until its AV start
         self._lyrics = None
+        # Made here, on the service thread: a Monitor hears Kodi's abort only if it
+        # exists when Kodi signals it, so a lyrics request's thread asks this one
+        self._monitor = Monitor()
         self._starts = 0  # files started: a lookup lands only for its own file
         self._queue_songs = (None, set())  # music queue key, its song ids
         self._growing = False  # the endless queue is fetching its next songs
@@ -330,7 +333,7 @@ class PlayerMonitor(Player):
                 lyrics.clear()
             return 1
         if self._lyrics is None:
-            self._lyrics = lyrics.lookup()
+            self._lyrics = lyrics.lookup(self._monitor.abortRequested)
         try:
             now = self.getTime()
         except RuntimeError:  # stopped since isPlayingAudio
@@ -545,7 +548,7 @@ class PlayerMonitor(Player):
         )
         # Before the queue grows, which may wait on ListenBrainz
         if condition(lyrics.ENABLED):
-            self._lyrics = lyrics.lookup()
+            self._lyrics = lyrics.lookup(self._monitor.abortRequested)
         else:  # the last song's, if the setting went off since its pass
             self._lyrics = None
             lyrics.clear()
