@@ -54,8 +54,8 @@ def cached(
 ) -> Any:
     """
     The answer for key, fetched when stale (never under cache_only) and cached per
-    answer kind; a failure, or an answer of another shape, keeps a stale answer. With
-    a queue, one request a second across plugin calls.
+    answer kind; a failure, or an answer of another shape, keeps a stale answer, or
+    a different one a racing call stored. With a queue, one request a second.
 
     :param key: api_cache key, "<source>:<kind>:<id>".
     :param fetch: Returns the shaped payload; raises HttpError.
@@ -93,6 +93,10 @@ def cached(
         wait = failure_ttl(exc)
         if exc.status == 429 and queue and exc.code != ONE_MEDIA:
             home.setProperty(queue, f"{slot + wait}")
+        # A racing call's fresh answer stands; its failure row holds the same stale
+        # read as this call's payload, so that one is simply stored again
+        if (row := cache.get(key)) and row[1] and row[0] != payload:
+            return row[0]
         cache.put(key, payload, wait)  # keeps a stale answer, else a negative one
         return payload
     cache.put(key, payload, ttl[0] if payload else ttl[1])

@@ -82,6 +82,8 @@ One list item in the helper container:
 | `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
 | `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDb data predates it (see below). |
+| `ListItem.Property(new_episode)` | A fully watched TV show: TMDb's last aired episode when it is later than the library's newest, e.g. `3x05`. A notice only: nothing to play. |
+| `ListItem.Property(show_status)` | A fully watched TV show: `ended` (TMDb's *Ended* or *Canceled*) or `returning` (*Returning Series*); empty for TMDb's other states. |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
 with `String.IsEmpty`. They are worked out after the bar has moved, so the bar is
@@ -92,7 +94,7 @@ for them too. The library calls they add, per focus:
 | Focused item | Calls | Which |
 |---|---|---|
 | Show or season with episodes left, started or not (a favourite's season too) | 1 | `GetEpisodes` |
-| Fully watched show | 0 or 1 | `GetTVShowDetails` for its TMDb id, only with a TMDb token and no `UniqueID(tmdb)` |
+| Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDb id, only with a TMDb token and no `UniqueID(tmdb)`; `GetEpisodes` for the newest episode, only when TMDb's cached data has a last aired episode |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
 | Watched or part-watched film or episode, fully watched or Specials season, set, plugin item | 0 | |
@@ -142,14 +144,20 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   episode with no air date is never new. `ListItem.DateAdded` and
   `ListItem.Premiered` can't stand in: they print the date in the region's short date
   format, which the user can change.
-- **`next_air`** and **`next_air_episode`**: only for a fully watched show (some
-  episodes watched, none left) with a TMDb token set; any other show makes no lookup
-  for them. TMDb's next episode air date, season and number, read from the add-on's
-  cache only; this path never asks TMDb. The [metadata](metadata.md#tmdb-lookups)
+- **`next_air`**, **`next_air_episode`**, **`new_episode`** and **`show_status`**:
+  only for a fully watched show (some episodes watched, none left) with a TMDb token
+  set; any other show makes no lookup for them. TMDb's next episode air date, season
+  and number, its last aired episode and its status, read from the add-on's cache
+  only; this path never asks TMDb. `new_episode` costs one `VideoLibrary.GetEpisodes`
+  call for the library's newest episode outside the specials (sorted `episode`,
+  descending, limit 1), and is set only when TMDb's is later: an episode missing
+  mid-run, or one TMDb numbers differently (TVDB order, episode groups), is no news.
+  A special (season 0) is left out, as `next_episode` leaves it out. The [metadata](metadata.md#tmdb-lookups)
   plugin fills the cache when called with `enrich_with_tmdb=true`. Until it has, and
   once the date is past, both are empty. An entry cached by an older version of the
-  add-on holds the date alone, so `next_air_episode` stays empty until a `metadata`
-  call fetches the show again, once the entry is 7 days old. The cache is kept per
+  add-on holds the date alone (or no last aired episode and status), so
+  `next_air_episode` (or `new_episode` and `show_status`) stays empty until a
+  `metadata` call fetches the show again, once the entry is 7 days old. The cache is kept per
   TMDb language, so a `metadata` call with a `language` fills it for a `progressbar`
   call with the same `language` only.
   A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its

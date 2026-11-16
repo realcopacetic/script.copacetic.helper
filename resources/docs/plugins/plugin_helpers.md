@@ -42,7 +42,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `favourite` | Returns the library item a favourite points to, with its details and artwork. | [Favourite](favourite.md) |
 | `in_progress`, `next_up`, `random_movies`, `random_tvshows`, `random_albums`, `rediscover`, `daily_mixes`, `random_genre`, `cast`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `genre_music`, `similar_music`, `top_songs`, `discography`, `soundtracks` | Fill a container with library items. | [Library Listings](library.md) |
 | `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |
-| `listeners` | Returns ListenBrainz's listener count for a library artist, album or song. | [Library Listings](library.md#listeners) |
+| `popularity_label` | Returns a word for how popular a library artist, album or song is ("Charting", "#2 song", "Your #3 artist"). | [Library Listings](library.md#popularity_label) |
 
 `progressbar` and `typewriter` share the [placement options](placement.md).
 

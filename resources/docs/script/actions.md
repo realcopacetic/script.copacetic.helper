@@ -972,9 +972,9 @@ seconds.
 - **Web answers** are marked out of date rather than deleted: a film's TMDb details
   and TheIntroDB skip times;
   for a TV show, season or episode, the show's and all its seasons'; for an artist,
-  album or song, its ListenBrainz answers (by its MusicBrainz id: an artist's top
-  songs, top albums and listener count); for an artist, also its Deezer match and
-  top tracks, so the next open searches Deezer again; for a TV show, season or
+  its ListenBrainz answers (by its MusicBrainz id: top songs and similar artists) and
+  its Deezer match, top tracks and related artists, so the next open searches Deezer
+  again (an album or song has none of its own); for a TV show, season or
   episode, also TheIntroDB's skip times for all the show's episodes. Each is fetched
   again when next needed, and the old answer still shows if that fetch fails (offline,
   service down).
