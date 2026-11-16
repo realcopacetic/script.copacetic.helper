@@ -323,8 +323,8 @@ class PlayerMonitor(Player):
 
     def _close_song(self) -> None:
         """
-        A library song closed: Kodi has saved its play count (OnPlayerCloseFile) but
-        announces it only for a musicdb:// play, so tell the service either way.
+        A library song closed: Kodi saves its play count soon after (OnPlayerCloseFile)
+        but announces it only for a musicdb:// play, so tell the service either way.
         """
         if self._song:
             self._song = False

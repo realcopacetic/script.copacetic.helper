@@ -24,6 +24,7 @@ from resources.lib.shared.utilities import (
     condition,
     dev_reset_due,
     infolabel,
+    json_call,
     notify_build_failed,
     pin_dev_reset,
     reset_dev_state,
@@ -123,7 +124,7 @@ class Monitor(xbmc.Monitor):
         path, version = self.skin
         log.info(f"{self.__class__.__name__} → Active in {path}, version {version}")
         self._builder_elements()
-        self.player_monitor = PlayerMonitor(song_closed=self._song_update)
+        self.player_monitor = PlayerMonitor(song_closed=self._song_closed)
         self.slideshow = Slideshow()
         window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
         window_property(ACTIVE_PROPERTY, value="true")
@@ -292,14 +293,28 @@ class Monitor(xbmc.Monitor):
         if edited:
             window_property("playlist_revision", value=str(time.monotonic_ns()))
 
-    def _song_update(self) -> None:
+    def _song_closed(self) -> None:
         """
-        A song's play count or rating changed, or a library song closed: one album
-        bar re-serve half a second after the last of a burst (_album_bump).
+        A library song closed: PAPlayer saves its play count in a job once its stream
+        has drained (PAPlayer.cpp CloseFileCB), so wait out a crossfade, and 2 s more.
+        """
+        response = json_call(
+            "Settings.GetSettingValue",
+            params={"setting": "musicplayer.crossfade"},
+            parent="song_closed",
+        )
+        self._song_update(response.get("result", {}).get("value", 0) + 2)
+
+    def _song_update(self, delay: float = 0.5) -> None:
+        """
+        One album bar re-serve (_album_bump) after the last of a burst of song updates
+        and closes; an update (after the write) replaces a close's longer wait.
+
+        :param delay: Seconds to wait.
         """
         if self.song_bump:
             self.song_bump.cancel()
-        self.song_bump = Timer(0.5, self._album_bump)
+        self.song_bump = Timer(delay, self._album_bump)
         self.song_bump.daemon = True
         self.song_bump.start()
 
