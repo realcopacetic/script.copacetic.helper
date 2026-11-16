@@ -228,10 +228,25 @@ class SourcesTest(Kodi):
 
 
 class LookupTest(Kodi):
+    def test_searching_clears_the_last_songs_source(self):
+        self.props = {
+            "lyrics_state": "none",
+            "lyrics_source": "lrclib",
+            "lyrics_instrumental": "true",
+        }
+        seen = []
+        with patch.object(
+            lyrics,
+            "find",
+            lambda path: seen.append(dict(self.props)) or ("", None, None, False),
+        ):
+            lyrics.lookup()
+        self.assertEqual(seen, [{"lyrics_state": "searching"}])
+
     def test_synced_lines_before_their_state(self):
         self.labels["MusicPlayer.Lyrics"] = LRC
         found = lyrics.lookup()
-        self.assertEqual(self.order, ["lyrics_state", *lyrics.PROPS])  # searching
+        self.assertEqual(self.order, [*lyrics.SEARCHING, *lyrics.PROPS])
         self.assertEqual(json.loads(self.props.pop("lyrics_lines")), LINES)
         self.assertTrue(self.props.pop("lyrics_revision"))
         self.assertEqual(
