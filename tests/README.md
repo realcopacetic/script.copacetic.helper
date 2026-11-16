@@ -15,7 +15,7 @@ python tests/skin_lint.py ../skin.copacetic2 [--window MyPics.xml ...] [--all] [
 # Artwork prepare + compose on synthetic posters: label rects, element step, colour, band alpha and ratio, palette PNG transparency, measure version, RGB PNG tRNS resize, timings (needs Pillow; reads the skin's fonts)
 python tests/artwork_check.py ../skin.copacetic2
 
-# Web API layer (http, api_cache, ListenBrainz, Deezer, TheIntroDB, the top_songs/discography blend, TMDb) against recorded answers, no network
+# Web API layer (http, api_cache, ListenBrainz, Deezer, TheIntroDB, the top_songs/discography blend, music info's popularity words, TMDb) against recorded answers, no network
 python tests/api_offline.py
 
 # The artwork serve (plugin/handlers.py artwork()) with Kodi's reads stubbed: the logo

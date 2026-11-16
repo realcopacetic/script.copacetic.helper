@@ -8,7 +8,7 @@ import sys
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta
-from functools import cached_property, partial
+from functools import cache, cached_property, partial
 from operator import itemgetter
 from typing import Any, Callable
 
@@ -49,19 +49,22 @@ from resources.lib.plugin.library import (
 from resources.lib.plugin.music import (
     ALBUM_RANK_PROPERTIES,
     ALBUM_SONG_PROPERTIES,
+    POPULAR,
     SONG_RANK_PROPERTIES,
     WEIGHTS,
+    album_credit,
     artist_identity,
-    compact_count,
     deezer_match,
     details_item,
     dial_item,
     library_item,
     library_rows,
     mix_card,
+    play_places,
     rank_albums,
     rank_songs,
     similar_artists,
+    song_place,
 )
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
@@ -116,6 +119,9 @@ _VIDEO_METHODS = {
     "set": "MovieSet",
 }  # VideoLibrary.Get{…}s / Get{…}Details per library type
 _MUSIC_NAMES = {"album": "album", "artist": "artist", "song": "title"}  # name field
+# TMDb's show status as _show_news's show_status: no more episodes, or more to come
+_SHOW_STATUS = {"Canceled": "ended", "Ended": "ended", "Returning Series": "returning"}
+_LABEL = "popularity_label"  # the handler's name: its item's path, its calls' parent
 
 
 def _video_details(
@@ -1260,8 +1266,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
         """
         An unfinished show's or season's next_episode (as next_up) and next_runtime,
-        and a show's new, from one GetEpisodes call; a fully watched show's next_air
-        and next_air_episode.
+        and a show's new, from one GetEpisodes call; a fully watched show's
+        _show_news.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :return: Properties for the progress item; none for other types.
@@ -1281,7 +1287,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         watched = to_int(labels["Property(WatchedEpisodes)"])
         left = to_int(labels["Property(UnwatchedEpisodes)"])
         if dbtype == "tvshow" and watched and not left:  # fully watched
-            return self._next_air()
+            return self._show_news(to_int(labels["DBID"]))
 
         # No library id (a plugin's item): tvshowid 0 would ask for every show. A
         # favourite's season (a helper item) has a DBID but no TvShowDBID, only
@@ -1379,22 +1385,49 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         fmt = "%Y-%m-%d %H:%M:%S" if field == "dateadded" else "%Y-%m-%d"
         return f"{datetime.now() - timedelta(days=days):{fmt}}"
 
-    def _next_air(self) -> dict[str, str]:
+    def _show_news(self, show_id: int) -> dict[str, str]:
         """
-        The focused show's next air date, in date_format (strftime, default "%d %b";
-        %b is Kodi's short month name), and episode code from the TMDb cache, never
-        fetched here. Nothing is looked up with TMDb off.
+        A fully watched show's news from the TMDb cache, never fetched here: its last
+        aired episode if the library lacks it, its next air date in date_format
+        (strftime, default "%d %b"; %b is Kodi's short month) and whether it ended.
 
-        :return: next_air and next_air_episode; empty if none is cached or it is past.
+        :param show_id: Library id of the show, for the episodes the library has.
+        :return: new_episode, next_air, next_air_episode, show_status; empty if unknown.
         """
         # No art: the art entry while fresh, else a fresh art-less one, else stale art
         # first (renewed by the metadata serve with TMDb multiart on; off, an older art
         # entry can win until the art-less one is renewed on the next focus)
         tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
         props = tmdb["properties"] if tmdb else {}
+        news = {
+            "new_episode": "",
+            "next_air": "",
+            "next_air_episode": "",
+            "show_status": _SHOW_STATUS.get(props.get("tmdb_status"), ""),
+        }
+        # Only past the library's newest: an episode missing mid-run, or numbered
+        # another way (TVDB's order), is no news. Specials left out, as next_episode
+        # does. An entry cached before these were kept (7-day TTL) has none; show_id
+        # 0 (a plugin's item) would ask every show
+        season = to_int(props.get("tmdb_last_air_season"))
+        if show_id and season > 0:
+            episode = int(props["tmdb_last_air_episode"])
+            newest = fetch_raw(  # "episode" sorts by season, then episode
+                "VideoLibrary.GetEpisodes",
+                "episode",
+                [{"field": "season", "operator": "greaterthan", "value": "0"}],
+                sort={"method": "episode", "order": "descending"},
+                parent="progressbar",
+                params={"tvshowid": show_id},
+                limit=1,
+                properties=["episode", "season"],
+            )
+            have = next(((ep["season"], ep["episode"]) for ep in newest), (0, 0))
+            if (season, episode) > have:
+                news["new_episode"] = f"{season}x{episode:02d}"
         iso = props.get("tmdb_next_air_date")
         if not iso or (day := date.fromisoformat(iso)) < date.today():
-            return {"next_air": "", "next_air_episode": ""}
+            return news
         # An entry cached before the numbers were kept (7-day TTL) has the date alone
         episode = props.get("tmdb_next_air_episode")
         # strftime's %b is the C locale's (English): Kodi's own (51-62) follow its
@@ -1402,7 +1435,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # Windows encodes its format with the locale codec
         month = getLocalizedString(50 + day.month)
         fmt = self.params.get("date_format", "%d %b")
-        return {
+        return news | {
             "next_air": month.join(day.strftime(part) for part in fmt.split("%b")),
             "next_air_episode": (
                 f"{int(props['tmdb_next_air_season'])}x{int(episode):02d}"
@@ -2185,18 +2218,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not self._require("id"):
             return
         artistid = int(self.dbid)
-        albums = library_rows(
-            "album",
-            {"artistid": artistid},
-            None,
-            None,
-            "discography",
-            ALBUM_RANK_PROPERTIES,
-        )
-        # as the artist's folder: albums it only features on need Kodi's "Show song
-        # and album artists" (JSON-RPC's artistid filter takes song artists too)
-        if not condition("System.GetBool(musiclibrary.showcompilationartists)"):
-            albums = [album for album in albums if artistid in album["artistid"]]
+        albums = self._artist_albums(artistid, "discography")
         rankings, songs = [], []
         if albums and (deezer.enabled() or listenbrainz.enabled()):
             # Top songs' own lists and order, so the two rails agree
@@ -2207,35 +2229,139 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         rows = rank_albums(rankings, songs, albums)[: self.limit]
         return [library_item(row, "album") for row in rows] or None
 
+    @staticmethod
+    def _artist_albums(artistid: int, parent: str) -> list[dict]:
+        """
+        A library artist's albums as its folder shows them: albums it only features on
+        need Kodi's "Show song and album artists" (the artistid filter takes song
+        artists too).
+
+        :param artistid: Library artist id.
+        :param parent: Caller name for logging.
+        :return: Album rows with ALBUM_RANK_PROPERTIES, possibly empty.
+        """
+        albums = library_rows(
+            "album", {"artistid": artistid}, None, None, parent, ALBUM_RANK_PROPERTIES
+        )
+        if condition("System.GetBool(musiclibrary.showcompilationartists)"):
+            return albums
+        return [album for album in albums if artistid in album["artistid"]]
+
     @log.duration
-    def listeners(self) -> list[DirectoryItem] | None:
+    def popularity_label(self) -> list[DirectoryItem] | None:
         """
-        One item whose listeners property is ListenBrainz's listener count for
-        library artist, album or song ``self.dbid``, compact ("1.2M").
+        One item labelled with how popular library artist, album or song ``self.dbid``
+        is, never a number: with Deezer on "Charting" or "Popular", "#2 song" or "Most
+        popular album"; with it off, by your plays ("Your #3 artist").
 
-        :return: List of one directory item, or None if unknown or access off.
+        :return: List of one directory item, or None with no label.
         """
-        from resources.lib.apis import listenbrainz
+        from resources.lib.apis import deezer
 
-        if not (
-            self.dbtype in MUSIC_TYPES
-            and listenbrainz.enabled()
-            and self._require("id")
+        if not (self.dbtype in MUSIC_TYPES and self._require("id")):
+            return
+        dbid = int(self.dbid)
+        if deezer.enabled():
+            words = {
+                "album": self._album_word,
+                "artist": self._artist_word,
+                "song": self._song_word,
+            }
+            label = words[self.dbtype](dbid)
+        else:
+            label = self._play_word(dbid)
+        if label:  # whose word: a skin shows it only on that item, not the last one's
+            whose = {"dbid": self.dbid, "dbtype": self.dbtype}
+            item = {"file": plugin_path(_LABEL), "label": label, "properties": whose}
+            return set_items([item])
+
+    def _play_word(self, dbid: int) -> str:
+        """
+        With Deezer off, by the library's play counts: "Your #3 artist" within PLACES,
+        "Your most played album" for the one album; a song's word isn't decided (N13).
+
+        :param dbid: Library id of the ``self.dbtype`` item.
+        :return: The word, or "" for none.
+        """
+        if self.dbtype == "song" or dbid not in (
+            places := play_places(_LABEL)[self.dbtype]
         ):
-            return
-        entity, mbid = listenbrainz.musicbrainz_id(
-            self.dbtype, int(self.dbid), "listeners"
-        )
-        if not (mbid and (count := listenbrainz.listeners(entity, mbid))):
-            return
-        return set_items(
-            [
-                {
-                    "file": plugin_path("listeners"),
-                    "properties": {"listeners": compact_count(count)},
-                }
-            ]
-        )
+            return ""
+        if self.dbtype == "album":
+            return ADDON.getLocalizedString(32994)
+        return ADDON.getLocalizedString(32999) % (places.index(dbid) + 1)
+
+    def _artist_word(self, artistid: int) -> str:
+        """
+        "Charting" for an artist in Deezer's artist chart today, else "Popular" with
+        POPULAR Deezer fans or more; nothing below, so no artist reads as unpopular.
+
+        :param artistid: Library artist id.
+        :return: The word, or "" for none.
+        """
+        from resources.lib.apis import deezer
+
+        name, mbid = artist_identity(artistid, _LABEL)
+        songs = cache(lambda: self._artist_songs(artistid, ["album", "title"], _LABEL))
+        key = deezer.artist_key(mbid, name)
+        match = deezer.artist_match(key, name, lambda rows: deezer_match(songs(), rows))
+        if not match:
+            return ""
+        if match[0] in deezer.chart():
+            return ADDON.getLocalizedString(32995)
+        return ADDON.getLocalizedString(32996) if match[1] >= POPULAR else ""
+
+    def _album_word(self, albumid: int) -> str:
+        """
+        "Most popular album" for the album that leads Discography's popularity order
+        alone, of two or more; none for a compilation (Various Artists).
+
+        :param albumid: Library album id.
+        :return: The word, or "" for none.
+        """
+        album = self._music_details("album", albumid, ["artistid", "compilation"])
+        if album["compilation"]:
+            return ""
+        artistid = album["artistid"][0]
+        albums = self._artist_albums(artistid, _LABEL)
+        rankings, songs = self._popularity(artistid, ALBUM_SONG_PROPERTIES, _LABEL)
+        # Over the artist's albums (uncredited 0), as Discography ranks them: it must
+        # lead alone, and an artist with one album has no ranking
+        credit = album_credit(rankings, songs, albums)
+        ranked = sorted((credit[album["albumid"]] for album in albums), reverse=True)
+        if len(ranked) > 1 and credit[albumid] == ranked[0] > ranked[1]:
+            return ADDON.getLocalizedString(32998)
+        return ""
+
+    def _song_word(self, songid: int) -> str:
+        """
+        "#2 song": the song's place in its first artist's Top songs, within PLACES.
+
+        :param songid: Library song id.
+        :return: The word, or "" for none.
+        """
+        song = self._music_details("song", songid, ["artistid", "title"])
+        properties = [*ALBUM_SONG_PROPERTIES, "playcount"]
+        rankings, songs = self._popularity(song["artistid"][0], properties, _LABEL)
+        place = song_place(rankings, songs, song["title"])
+        return ADDON.getLocalizedString(32997) % place if place else ""
+
+    @staticmethod
+    def _music_details(type: str, dbid: int, properties: list[str]) -> dict:
+        """
+        A library album's or song's details, for popularity_label.
+
+        :param type: album or song.
+        :param dbid: Library id.
+        :param properties: Properties to fetch.
+        :return: The details object.
+        """
+        return json_call(
+            DETAILS[type],
+            properties=properties,
+            params={f"{type}id": dbid},
+            parent=_LABEL,
+        )["result"][f"{type}details"]
 
     @log.duration
     def soundtracks(self) -> list[DirectoryItem] | None:
