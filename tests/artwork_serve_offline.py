@@ -345,5 +345,69 @@ class EpgTimeLeft(unittest.TestCase):
         self.assertIsNone(self.serve(now="2026-11-16 21:00:10"))
 
 
+class CoverSize(unittest.TestCase):
+    """The visualisation's serve publishes its song's cover size, keyed by its file."""
+
+    def publish(
+        self,
+        art: dict,
+        params: dict | None = None,
+        playing: str = "a.flac",
+        alive: bool = True,
+    ) -> list[tuple]:
+        """
+        Run _cover_size for a serve that started on a.flac and report its writes.
+
+        :param art: The serve's art.
+        :param params: The URL's params, the visualisation's by default.
+        :param playing: Player.Filenameandpath at the write.
+        :param alive: Whether the serve's guard holds.
+        :return: The window_property calls, in order.
+        """
+        writes = []
+        params = params or {"target": "player", "prop_key": "visualisation"}
+        handler = handlers.PluginHandlers(
+            {"info": "artwork", "icon_shape": "true"} | params
+        )
+        with mock.patch.multiple(
+            handlers,
+            infolabel=lambda label: playing,
+            window_property=lambda *a: writes.append(a),
+        ):
+            handler._cover_size(art, "a.flac", lambda: alive)
+        return writes
+
+    def test_large(self):
+        out = self.publish({"icon_width": "600", "icon_height": "700"})
+        self.assertEqual(
+            out,
+            [
+                ("cover_small_visualisation", False),
+                ("cover_file_visualisation", "a.flac"),
+            ],
+        )
+
+    def test_small_on_its_short_side(self):
+        out = self.publish({"icon_width": "900", "icon_height": "499"})
+        self.assertEqual(out[0], ("cover_small_visualisation", True))
+
+    def test_no_cover_is_small(self):
+        self.assertEqual(self.publish({})[0], ("cover_small_visualisation", True))
+
+    def test_song_moved_on(self):
+        self.assertEqual(self.publish({}, playing="b.flac"), [])
+
+    def test_guard_lost(self):
+        self.assertEqual(self.publish({}, alive=False), [])
+
+    def test_osd_serve_without_shape(self):
+        params = {"target": "player", "prop_key": "musicosd", "icon_shape": "false"}
+        self.assertEqual(self.publish({}, params), [])
+
+    def test_not_the_player(self):
+        params = {"target": "50", "prop_key": "9300"}
+        self.assertEqual(self.publish({}, params), [])
+
+
 if __name__ == "__main__":
     unittest.main()

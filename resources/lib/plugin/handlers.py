@@ -612,6 +612,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             ("icon_darken", f"icon_darken{suffix}"),
         ]
 
+    def _cover_size(
+        self, art: dict[str, str], played: str, alive: Callable[[], bool]
+    ) -> None:
+        """
+        Publish the playing song's cover size from a player icon_shape serve:
+        cover_small_<prop_key> (under 500 on its short side, or none), then its song,
+        cover_file_<prop_key>. Nothing once the song has moved on (a late serve).
+
+        :param art: The serve's art; empty for a song with no art.
+        :param played: Player.Filenameandpath when the serve started.
+        :param alive: The serve's guard.
+        """
+        if not (self.player and parse_bool(self.params.get("icon_shape"))):
+            return
+        if not alive() or infolabel("Player.Filenameandpath") != played:
+            return
+        key = self.params.get("prop_key", "")
+        size = min(to_int(art.get("icon_width"), 0), to_int(art.get("icon_height"), 0))
+        window_property(f"cover_small_{key}", size < 500)
+        window_property(f"cover_file_{key}", played)
+
     @property
     def _scope_prop(self) -> str:
         """
@@ -767,8 +788,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         # Songs outside the library share an empty DBID: their file doesn't (not the
         # guard's identity, whose queue position a shuffle moves mid-song)
+        played = infolabel("Player.Filenameandpath") if self.player else ""
         dbid = (
-            infolabel("Player.Filenameandpath") + infolabel("MusicPlayer.DBID")
+            played + infolabel("MusicPlayer.DBID")
             if self.player
             else infolabel(f"{self.identity_item}.DBID")
         )
@@ -844,6 +866,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 clear_label(self.params.get("multiart_fadelabel", ""))
                 for _, prop in self._bridge_props():
                     window_property(prop)
+                self._cover_size({}, played, alive)
             # A dialog item with no art still lands, so the page isn't held back.
             return (
                 set_items([{"file": plugin_path("artwork"), "properties": cleaned}])
@@ -899,6 +922,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         if art is None:
             return self._artwork_held(guard.lost_to)
+        self._cover_size(art, played, alive)
 
         # Sized before the list lands (no blank). A cancelled job still runs: size only
         # for the URL's item, in its window, still topmost (windows share control ids).
