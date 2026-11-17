@@ -283,6 +283,7 @@ class Skin:
         self.params = {}
         self.calls = defaultdict(lambda: (set(), set()))
         self.duplicates = defaultdict(list)
+        self.skipped = set()
         self.reached = set()
         self.media_info = defaultdict(set)
         self.loaded = []
@@ -372,18 +373,19 @@ class Skin:
     def dropped(self, call: Node | None, ref: str) -> bool:
         """
         True when expanding include ``call`` alone leaves ``ref`` nowhere: the param
-        reaches only includes Kodi skips, so Kodi never reads it.
+        reaches only the payload of includes Kodi skips, so Kodi never reads it.
         """
         if call is None:
             return False
         holder = Node("holder")
         holder.append(clone(call))
-        kept = self.findings, self.calls  # a trial expansion records nothing
+        kept = self.findings, self.calls, self.skipped  # a trial records nothing
         self.findings, self.calls = set(), defaultdict(lambda: (set(), set()))
+        self.skipped = set()
         self.expand(holder, budget=[BUDGET])
-        self.findings, self.calls = kept
         branches = (b for node in holder.iter() for b in getattr(node, "branch", ()))
-        texts = chain((value for _, value in values(holder)), branches)
+        texts = chain((value for _, value in values(holder)), branches, self.skipped)
+        self.findings, self.calls, self.skipped = kept
         return not any(ref in text for text in texts)
 
     def check_calls(self, root: Node) -> None:
@@ -458,8 +460,8 @@ class Skin:
     ) -> None:
         """
         Resolve includes under ``node`` in place like ``ResolveIncludes``:
-        ``<nested/>`` filled, params substituted, constant-false conditions
-        skipped, other conditions recorded, not evaluated.
+        ``<nested/>`` filled, params substituted, constant-false calls dropped (their
+        conditions kept in ``skipped``), other conditions recorded, not evaluated.
 
         :param node: Element whose include children are replaced.
         :param budget: Remaining expansions, shared to stop include blow-up.
@@ -472,11 +474,12 @@ class Skin:
         while index < len(node):
             call = node[index]
             name = include_name(call) if call.tag == "include" else None
-            if name is not None and skipped(call.get("condition", "")):
+            if name is not None and skipped(condition := call.get("condition", "")):
                 if keep:
                     index += 1  # Kodi steps past it; its payload is still resolved
-                else:
-                    del node[index]  # Kodi skips it before looking the name up
+                else:  # Kodi reads the condition, then skips it before the name
+                    self.skipped.add(f"{call.src} {condition}")
+                    del node[index]
                 continue
             if name not in self.defs["include"] or "file" in call.attrib:
                 if name is not None and "file" not in call.attrib:
@@ -664,10 +667,12 @@ class Skin:
         """
         root = clone(self.roots[name])
         self.check_calls(root)
+        self.skipped = set()
         self.expand(root, budget=[BUDGET])
         live = name not in MEDIA_WINDOWS
         queue, reached = [(root, live)], {}
-        for branch in {b for node in root.iter() for b in getattr(node, "branch", ())}:
+        branches = {b for node in root.iter() for b in getattr(node, "branch", ())}
+        for branch in branches | self.skipped:
             src, _, condition = branch.partition(" ")
             include = Node("include", {"condition": condition})
             include.src = src
