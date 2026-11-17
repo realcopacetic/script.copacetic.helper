@@ -804,7 +804,10 @@ class PlayerMonitor(Player):
             if self._trailer_ending():
                 # Full screen would freeze on a paused frame: rewind, then stop
                 self._pause_session()
-                self.seekTime(0)
+                try:
+                    self.seekTime(0)
+                except RuntimeError:  # stopped during the pause
+                    return
                 log.execute("PlayerControl(Stop)")
             return
         if state == "playing" and (self._trailer_is_stale() or self._trailer_ending()):
@@ -815,7 +818,11 @@ class PlayerMonitor(Player):
                 # Swallowed skin pause (queued toggles cancelling out)
                 self._pause_session()
                 return
-            if self.getTime() > 1 and condition("Player.SeekEnabled"):
+            try:
+                now = self.getTime()
+            except RuntimeError:  # stopped since _is_trailer_playback
+                return
+            if now > 1 and condition("Player.SeekEnabled"):
                 self.seekTime(0)  # a reap or a replacing trailer closes it here
                 return
             if condition("System.IdleTime(10)"):
@@ -897,7 +904,10 @@ class PlayerMonitor(Player):
         """
         if not self._is_trailer_playback():
             return False
-        return 0 < self.getTotalTime() - self.getTime() <= margin
+        try:
+            return 0 < self.getTotalTime() - self.getTime() <= margin
+        except RuntimeError:  # stopped since _is_trailer_playback
+            return False
 
     def _is_trailer_playback(self) -> bool:
         """
