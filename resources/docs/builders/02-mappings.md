@@ -34,6 +34,7 @@ Mappings come from your skin: `extras/templates/mappings/*.json`. The addon ship
 | `metadata` | No | Facts about each item, usable as `{tokens}` |
 | `tokens` | No | Shared snippets filled into every template that expands with this mapping — see below |
 | `parent_mapping` | No | Which mapping's entries own this one's — see [Includes → Parent and child lists](07-includes.md#parent-and-child-lists) |
+| `seed_with_parent` | No | `true`: a parent entry added or re-preset with no children here gets the items whose metadata `parent` names its item — see [Parent and child lists](07-includes.md#parent-and-child-lists) |
 | `skin_mirrors` | No | Field → skin-setting pairs kept in sync so skin XML can read a runtime value — see below |
 
 ---
