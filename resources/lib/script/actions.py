@@ -303,13 +303,16 @@ def clear_cache(**kwargs: str) -> None:
 
 
 @action
-def clear_label(id: int | str, **kwargs: str) -> None:
+def clear_label(id: str, **kwargs: str) -> None:
     """
-    Clear a fadelabel register. Sanctioned for window load only (the arriving
-    window owns the register); mid-session skin-side clears violate the
+    Clear fadelabel registers, one run for all. Sanctioned for window load only
+    (the arriving window owns them); mid-session skin-side clears violate the
     single-writer doctrine.
+
+    :param id: Control ids, comma-separated.
     """
-    _clear_label_util(id)
+    for label_id in id.split(","):
+        _clear_label_util(label_id)
 
 
 @action
