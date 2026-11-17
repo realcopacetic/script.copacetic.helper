@@ -582,19 +582,14 @@ class PollerHookTest(Kodi):
         self.assertEqual(self.monitor.watch_lyrics(), 1)
         self.assertEqual(self.props, {"lyrics_state": "searching"})
 
-    def test_a_song_the_endless_queue_adds_is_prefetched(self):
+    def start(self, grow):
+        """An audio start whose endless queue grows, as grow(song) does."""
         self.conditions |= {lyrics.ENABLED, player.ENDLESS_QUEUE}
         tag = SimpleNamespace(getDbId=lambda: 5, getGenres=list, getDisc=int)
         tag.getArtist = tag.getAlbumArtist = tag.getAlbum = str
         monitor = self.monitor
         monitor.getMusicInfoTag = lambda: tag
         monitor._publish = monitor._record_speed_dial = monitor._album_path = str
-
-        def grow(song):  # the last song queued: the lookup found none next
-            self.assertEqual(self.lookups, [self.abortRequested])
-            self.labels |= QUEUED
-            return True
-
         monitor._extend_queue = grow
         item = {"result": {"item": {"albumid": 0}}}
         with (
@@ -602,6 +597,19 @@ class PollerHookTest(Kodi):
             patch.object(player, "window_property", lambda *a, **k: None),
         ):
             monitor._handle_audio_start()
+
+    def test_a_song_the_endless_queue_adds_is_prefetched(self):
+        def grow(song):  # the last song queued: the lookup found none next
+            self.assertEqual(self.lookups, [self.abortRequested])
+            self.labels |= QUEUED
+            return True
+
+        self.start(grow)
+        self.assertEqual(self.asked, [("prefetch", NEXT)])
+
+    def test_a_growth_behind_the_next_song_asks_nothing_again(self):
+        self.labels |= QUEUED  # its prefetch fails: nothing is cached for it
+        self.start(lambda song: True)  # songs added after it
         self.assertEqual(self.asked, [("prefetch", NEXT)])
 
     def test_off_clears_and_a_start_waits_for_its_av_start(self):
