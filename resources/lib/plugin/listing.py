@@ -27,10 +27,7 @@ class PluginListing(object):
                 url = self._encode_url(info=item.get("info"), type=category)
                 items.append(self._make_item(item["name"], url))
 
-        set_plugincontent(
-            content="plugins",
-            category=ADDON.getAddonInfo("name"),
-        )
+        set_plugincontent(content="files", category=ADDON.getAddonInfo("name"))
         return items
 
     def _encode_url(self, **kwargs: str) -> str:
@@ -45,15 +42,13 @@ class PluginListing(object):
 
     def _make_item(self, label: str, url: str) -> tuple[str, ListItem, bool]:
         """
-        Creates and returns a ListItem tuple to the directory with proper art and info tags.
+        A folder item with no info tag, so skins read it as a plain folder.
 
         :param label: Display label for the ListItem.
         :param url: Plugin URL this item will trigger.
+        :return: (url, ListItem, True).
         """
         icon = f"special://home/addons/{ADDON_ID}/resources/icon.png"
         li_item = ListItem(label=label, offscreen=True)
-        tag = li_item.getVideoInfoTag()
-        tag.setTitle(label)
-        tag.setMediaType("video")
         li_item.setArt({"icon": "DefaultAddonVideo.png", "thumb": icon})
         return (url, li_item, True)
