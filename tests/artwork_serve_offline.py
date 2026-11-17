@@ -293,6 +293,7 @@ class HeldNaming(unittest.TestCase):
         on_top: bool = True,
         cursor: str | None = None,
         serve: bool = False,
+        key: str = "primary",
     ) -> tuple[str, str, str | None]:
         """
         Hold a serve of position 7 in view 50 and report Home's counts after.
@@ -303,7 +304,8 @@ class HeldNaming(unittest.TestCase):
         :param on_top: Whether the serve's window is topmost.
         :param cursor: The cursor stamp; None for 50/3/12/v1, empty for cleared.
         :param serve: Run artwork(), whose real guard reads lost_to, not the hold alone.
-        :return: (artwork_holds, artwork_holds_unstamped, artwork_held_primary).
+        :param key: The held name read back (artwork_held_<key>).
+        :return: (artwork_holds, artwork_holds_unstamped, artwork_held_<key>).
         """
         home = {
             "artwork_visit": visit,
@@ -351,7 +353,7 @@ class HeldNaming(unittest.TestCase):
         return (
             home["artwork_holds"],
             home["artwork_holds_unstamped"],
-            home.get("artwork_held_primary"),
+            home.get(f"artwork_held_{key}"),
         )
 
     NAMED, UNNAMED = ("5", "3", "7"), ("5", "2", None)
@@ -385,6 +387,11 @@ class HeldNaming(unittest.TestCase):
     def test_identity_labels(self):
         params = {"identity_labels": "Container(50).ListItem.DBID"}
         self.assertEqual(self.hold(params), self.UNNAMED)
+
+    def test_list_without_cursor_names_its_hold(self):
+        params = {"cursor_key": "", "hold_key": "editor_50"}  # the playlist editor
+        self.assertEqual(self.hold(params, cursor="", key="editor_50"), self.NAMED)
+        self.assertEqual(self.hold(params, serve=True, key="editor_50"), self.NAMED)
 
 
 class EpgTimeLeft(unittest.TestCase):
