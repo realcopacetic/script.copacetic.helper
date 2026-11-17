@@ -47,7 +47,8 @@ PROPS = (
     *(f"lyrics_{key}" for key in NEIGHBOURS),
     "lyrics_state",
 )
-# The last song's eyebrow words go with its state while this one is looked up
+# The last song's source and instrumental mark go with its state while this one is
+# looked up
 SEARCHING = {
     "lyrics_source": "",
     "lyrics_instrumental": "",
