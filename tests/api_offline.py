@@ -1849,22 +1849,24 @@ class ParserTest(unittest.TestCase):
 class PipeGuardTest(unittest.TestCase):
     """The Plot tab's guard ends in the label, which a "|" cuts (CURL::Parse)."""
 
-    def alive(self, label: str, live: str) -> tuple[str, bool]:
+    def alive(self, label: str, live: str, plot: str = "A plot.") -> tuple[str, bool]:
         """
-        Parse the plot render's URL options as Kodi passes them, then run its guard.
+        Parse the plot render's URL options as Kodi passes them, then run its guard
+        from the item at serve start (label) once the dialog's item is live.
 
-        :param label: The label the URL was built with.
-        :param live: The label the dialog's item has now.
+        :param label: The label the URL was built with, and the item's at serve start.
+        :param live: The label the dialog's item has when the guard is checked.
+        :param plot: The text param as the URL carries it.
         :return: The text param, and whether the guard holds.
         """
         query = (
             "?info=text&target=item"
             "&identity_labels=ListItem.DBType,ListItem.DBID,ListItem.Label"
-            f"&text=A plot.&focus_guard=movie,,{label}"
+            f"&text={plot}&focus_guard=movie,,{label}"
         ).partition("|")[0]
         handler = handlers.PluginHandlers(parse_plugin_argv(["p://", "1", query]))
         handler.__dict__["window_id"] = 12003
-        labels = {"ListItem.DBType": "movie", "ListItem.Label": live}
+        labels = {"ListItem.DBType": "movie", "ListItem.Label": label}
         with mock.patch.multiple(
             handlers,
             infolabel=lambda label: labels.get(label, ""),
@@ -1873,7 +1875,9 @@ class PipeGuardTest(unittest.TestCase):
             getCurrentWindowId=lambda: 10025,
             focused_control_id=lambda window_id: 4300,
         ):
-            return handler.params["text"], handler._guard().alive()
+            guard = handler._guard()
+            labels["ListItem.Label"] = live
+            return handler.params["text"], guard.alive()
 
     def test_label_with_a_pipe_keeps_text_and_guard(self):
         self.assertEqual(self.alive(*["Show | S01E02"] * 2), ("A plot.", True))
@@ -1884,6 +1888,11 @@ class PipeGuardTest(unittest.TestCase):
     def test_label_without_a_pipe(self):
         self.assertTrue(self.alive("Show", "Show")[1])
         self.assertFalse(self.alive("Show", "Other")[1])
+
+    def test_plot_with_a_pipe_guards_the_item_at_serve_start(self):
+        # The guard is cut off the URL: the item the serve started on stands in
+        self.assertEqual(self.alive("A", "A", "Act I | Act II"), ("Act I ", True))
+        self.assertFalse(self.alive("A", "B", "Act I | Act II")[1])
 
 
 class NextUpTest(unittest.TestCase):
