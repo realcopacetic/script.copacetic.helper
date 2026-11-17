@@ -3,7 +3,7 @@
 The helper runs a background service from the moment Kodi starts. It does work your
 skin doesn't have to ask for: it builds the skin's generated XML files, watches the
 player, plays and tidies up trailers, queues the next episode, tops up the music
-queue, and runs a background slideshow. It talks to
+queue, follows the playing song's lyrics, and runs a background slideshow. It talks to
 your skin through window properties on the Home window and reads skin settings and
 skin strings that your skin owns.
 
@@ -11,7 +11,8 @@ This page is the overview and the full list of everything the service sets and r
 Each feature has its own page:
 
 - [Trailers](trailers.md) — the trailer session that `action=play_trailer` starts.
-- [Player properties](player.md) — window properties for the item that is playing.
+- [Player properties](player.md) — window properties for the item that is playing,
+  and its [lyrics](player.md#lyrics).
 - [Play next](playnext.md) — queues the next episode of a TV show.
 - [Slideshow](slideshow.md) — a background slideshow of library fanart.
 
@@ -117,7 +118,7 @@ disabled), the service releases what it set. It clears `helper_active` and
 `helper_speed_dial`, so the context menu items hide. It stops the trailer it started,
 whether it is playing, paused or full screen (rewound first, so nothing is marked
 watched), clears the trailer,
-player, speed dial and slideshow properties, and detaches the player monitor. If the
+player, lyrics, speed dial and slideshow properties, and detaches the player monitor. If the
 new skin opts in, everything [starts again](#when-a-skin-that-opts-in-becomes-active)
 for it; otherwise nothing else runs until a skin that opts in is active.
 
@@ -142,7 +143,7 @@ Each pass it:
    more than 30 days ago. If the database is busy, it tries again an hour later;
 7. publishes the playing song's current lyric line and moves the lyric list in view
    to it, or looks the song's lyrics up if the skin's `lyrics` setting was just
-   turned on (see [Lyrics](player.md#lyrics)).
+   turned on, or clears them if it was turned off (see [Lyrics](player.md#lyrics)).
 
 When the screensaver starts, the loop pauses; when it stops, the loop resumes. While
 paused, only lyrics carry on, while a song plays (a dim screensaver leaves them in

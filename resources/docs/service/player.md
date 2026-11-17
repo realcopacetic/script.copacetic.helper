@@ -235,7 +235,8 @@ order, the first with any winning:
 2. **The song's tags**: the lyrics Kodi reads from the file when it plays
    (`MusicPlayer.Lyrics`). Lyrics with LRC time stamps are synced; without, plain.
 3. **[LRCLIB](https://lrclib.net)**, a free, open lyrics database, while the
-   helper's *LRCLIB* setting is on (the default). The service asks by the song's
+   helper's *LRCLIB* setting is on (the default), for a song whose title, artist
+   and length are known. The service asks by the song's
    title, artist, album and length (whole seconds); for a song it doesn't find, it
    searches once by title and artist and takes the result whose length is nearest
    the song's, within 2 seconds (synced lyrics first among equally near). Answers are
@@ -243,7 +244,7 @@ order, the first with any winning:
    one it doesn't know 7 days. Offline, the last answer is used.
 
 LRC files can have several time stamps on a line, `[mm:ss]`, `[mm:ss.xx]` or
-`[mm:ss.xxx]` stamps, an `[offset:]` tag and metadata tags (ignored); an empty
+`[mm:ss.xxx]` stamps (some writers use a colon: `[mm:ss:xx]`), an `[offset:]` tag and metadata tags (ignored); an empty
 stamped line is a gap between verses. Enhanced LRC's word stamps (`<mm:ss.xx>`)
 are removed. Text with no stamps the service can time is plain, less any LRC tags
 and stamps (a lyric's own `[Chorus]` stays); a `.lrc` with nothing else in it holds
@@ -276,13 +277,17 @@ forgets every saved answer.
 | `lyrics_index` | The current line's index (synced only); `-1` before the first line |
 | `lyrics_m2`, `lyrics_m1`, `lyrics_p1` ... `lyrics_p5` | The indices of the lines two above to five below the current one, to compare with `ListItem.Property(index)` for a fade by distance |
 | `lyrics_plain` | The whole text (plain only) |
-| `lyrics_instrumental` | `true` when LRCLIB marks the song instrumental (`lyrics_state` is then `none`) |
+| `lyrics_instrumental` | `true` when LRCLIB marks the song instrumental (with no lyrics, `lyrics_state` is then `none`) |
 
 **The lines** come from the plugin path
 `plugin://script.copacetic.helper/?info=lyrics&revision=$INFO[Window(home).Property(lyrics_revision)]`:
 one item per synced line, in order. The label is the line's text, empty for a gap;
-the properties are `index` (from 0), `time` (milliseconds) and `gap` (`true` on an
-empty line). Plain lyrics list nothing: show `lyrics_plain` in a textbox.
+the properties are `index` (from 0), `time` (milliseconds, with any `[offset:]`
+applied) and `gap` (`true` on an empty line). Plain lyrics list nothing: show
+`lyrics_plain` in a textbox. The path reads no parameter: `revision` only changes the
+path, so Kodi fetches it again. The lines come from
+`Window(home).Property(lyrics_lines)`, which the service sets; don't set or clear it
+from the skin.
 
 **Following the song.** On each line's time, and every 0.2 seconds while the
 visualisation shows, the service puts one list on the current line when it isn't,
