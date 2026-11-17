@@ -372,10 +372,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             getter = lambda: ",".join(infolabel(p) for p in labels).partition("|")[0]
         else:
             getter = lambda: infolabel(f"{self.identity_container}.CurrentItem")
-        # The song whose art the URL carries (song=); with none, the one playing now
-        expected = (
-            self.params.get("song", getter()) if self.player else self.expected_identity
-        )
+        # The identity the URL carries (song=, focus_guard=); with none, the one now: a
+        # "|" in an earlier param, such as a plot, cuts the guard off the URL
+        key = "song" if self.player else "focus_guard"
+        if (expected := self.params.get(key)) is None and labels:
+            expected = getter()
         return _FocusGuard(
             self.params.get("info", ""),
             expected,
