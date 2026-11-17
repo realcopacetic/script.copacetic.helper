@@ -1007,20 +1007,26 @@ def pvr_smart_select(
 
 
 @action
-def pvr_manager_back(focus: str, **kwargs: str) -> None:
+def pvr_manager_back(focus: str, busy: str, **kwargs: str) -> None:
     """
     Kodi's channel manager question for Back with unsaved edits, which Kodi discards:
     Yes clicks OK (4, save and close), No Cancel (6), Back refocuses what it left.
+    The answer is dropped if the manager is no longer the topmost dialog.
 
     :param focus: The control Back left.
+    :param busy: Property the skin set on the manager for this run, cleared as it ends.
     """
     text = xbmc.getLocalizedString
-    choice = xbmcgui.Dialog().yesnocustom(
-        text(20052), f"{text(19212)}\n{text(20103)}", ""
-    )
-    log.execute(
-        {-1: f"SetFocus({focus})", 0: "SendClick(6)", 1: "SendClick(4)"}[choice]
-    )
+    try:
+        choice = xbmcgui.Dialog().yesnocustom(
+            text(20052), f"{text(19212)}\n{text(20103)}", ""
+        )
+        if condition("Window.IsModalDialogTopmost(pvrchannelmanager)"):
+            log.execute(
+                {-1: f"SetFocus({focus})", 0: "SendClick(6)", 1: "SendClick(4)"}[choice]
+            )
+    finally:
+        window_property(busy, window_id=10604)  # WINDOW_DIALOG_PVR_CHANNEL_MANAGER
 
 
 @action

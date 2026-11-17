@@ -977,14 +977,23 @@ Kodi enables its Apply button (5) only while there are unsaved edits, so the ski
 gate on `Control.IsEnabled(5)`. The `onback` also needs a control id to move to: with
 builtins alone Kodi's Back carries on and closes the dialog before the question opens.
 
+A second press before the question opens would start a second run, so the skin sets a
+property on the manager with the first and gates on it; the action clears it as it ends,
+and acts on the answer only while the manager is still the topmost dialog. Gate the id
+on `Control.IsEnabled(5)` alone: Kodi reads it after the builtins have set the property.
+
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `focus` | a control id | required | Focused again when the question is cancelled |
+| `busy` | a property name | required | Set by the skin on `pvrchannelmanager` for this run; cleared as it ends |
 
 Example from Copacetic (4609 is a hidden button that only takes the move):
 
 ```xml
-<onback condition="Control.IsEnabled(5)">RunScript(script.copacetic.helper,action=pvr_manager_back,focus=20)</onback>
+<expression name="channelmanager_ask">Control.IsEnabled(5) + String.IsEmpty(Window(pvrchannelmanager).Property(pvrmanager_asking))</expression>
+
+<onback condition="$EXP[channelmanager_ask]">SetProperty(pvrmanager_asking,true,pvrchannelmanager)</onback>
+<onback condition="$EXP[channelmanager_ask]">RunScript(script.copacetic.helper,action=pvr_manager_back,focus=20,busy=pvrmanager_asking)</onback>
 <onback condition="Control.IsEnabled(5)">4609</onback>
 ```
 

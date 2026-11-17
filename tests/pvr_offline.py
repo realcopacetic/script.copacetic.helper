@@ -372,39 +372,65 @@ class SmartSelect(unittest.TestCase):
 
 
 class ManagerBack(unittest.TestCase):
-    """pvr_manager_back with the dialog and builtins stubbed."""
+    """pvr_manager_back with the dialog, builtins and window property stubbed."""
 
-    def back(self, choice: int) -> tuple[list, list]:
+    def back(self, choice: int, topmost: bool = True) -> dict:
         """
         Run the action from list 20, answering Kodi's question with choice.
 
         :param choice: The yesnocustom answer (-1 Back, 0 No, 1 Yes).
-        :return: The dialogs asked and the builtins run.
+        :param topmost: Whether the manager is still the topmost dialog after it.
+        :return: dialogs, conditions, builtins and busy as the action left them.
         """
-        dialogs, builtins = [], []
+        seen = {"dialogs": [], "conditions": [], "builtins": [], "busy": "true"}
 
         def yesnocustom(heading, message, custom):
-            dialogs.append((heading, message, custom))
+            seen["dialogs"].append((heading, message, custom))
             return choice
 
+        def condition(c):
+            seen["conditions"].append(c)
+            return topmost
+
+        def window_property(key, value=False, window_id=10000):
+            self.assertEqual((key, window_id), ("pvrmanager_asking", 10604))
+            seen["busy"] = value
+
         with (
+            mock.patch.multiple(
+                actions, condition=condition, window_property=window_property
+            ),
             mock.patch.object(
                 actions.xbmcgui, "Dialog", lambda: mock.Mock(yesnocustom=yesnocustom)
             ),
             mock.patch.object(actions.xbmc, "getLocalizedString", str, create=True),
-            mock.patch.object(actions.log, "execute", builtins.append),
+            mock.patch.object(actions.log, "execute", seen["builtins"].append),
         ):
-            actions.pvr_manager_back(focus="20")
-        return dialogs, builtins
+            actions.pvr_manager_back(focus="20", busy="pvrmanager_asking")
+        return seen
 
     def test_kodis_own_question(self):
-        dialogs, _ = self.back(1)
-        self.assertEqual(dialogs, [("20052", "19212\n20103", "")])
+        seen = self.back(1)
+        self.assertEqual(seen["dialogs"], [("20052", "19212\n20103", "")])
+        self.assertEqual(
+            seen["conditions"], ["Window.IsModalDialogTopmost(pvrchannelmanager)"]
+        )
 
     def test_yes_saves_and_closes_no_closes_back_stays(self):
-        self.assertEqual(self.back(1)[1], ["SendClick(4)"])
-        self.assertEqual(self.back(0)[1], ["SendClick(6)"])
-        self.assertEqual(self.back(-1)[1], ["SetFocus(20)"])
+        self.assertEqual(self.back(1)["builtins"], ["SendClick(4)"])
+        self.assertEqual(self.back(0)["builtins"], ["SendClick(6)"])
+        self.assertEqual(self.back(-1)["builtins"], ["SetFocus(20)"])
+
+    def test_nothing_once_the_manager_is_not_topmost(self):
+        for choice in (-1, 0, 1):
+            with self.subTest(choice=choice):
+                self.assertEqual(self.back(choice, topmost=False)["builtins"], [])
+
+    def test_every_run_clears_busy(self):
+        for choice in (-1, 0, 1):
+            for topmost in (True, False):
+                with self.subTest(choice=choice, topmost=topmost):
+                    self.assertFalse(self.back(choice, topmost)["busy"])
 
 
 if __name__ == "__main__":
