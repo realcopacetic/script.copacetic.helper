@@ -355,7 +355,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32138"
-msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist or Your most played album from your plays."
+msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your most played album or Your #2 song from your plays."
 msgstr ""
 
 #: /resources/settings.xml
@@ -845,7 +845,12 @@ msgctxt "#32843"
 msgid "Mark as unplayed"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: the album with the library's most plays
+#: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: a song's place in its artist's plays (%d 1 to 10)
+msgctxt "#32993"
+msgid "Your #%d song"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: the album with its artist's most plays
 msgctxt "#32994"
 msgid "Your most played album"
 msgstr ""

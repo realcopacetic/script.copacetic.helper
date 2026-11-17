@@ -69,9 +69,11 @@ from resources.lib.plugin.music import (  # noqa: E402
     deezer_match,
     fused,
     library_item,
+    play_place,
     rank_albums,
     rank_songs,
     song_place,
+    song_play_place,
     title_key,
 )
 from resources.lib.plugin.setter import apply_musicinfotag  # noqa: E402
@@ -1612,6 +1614,7 @@ def deezer_chart(*ids):
 
 # popularity_label's strings, as en_gb words them
 WORDS = {
+    32993: "Your #%d song",
     32994: "Your most played album",
     32995: "Charting",
     32996: "Popular",
@@ -1622,13 +1625,14 @@ WORDS = {
 
 
 class PopularityLabelTest(Base):
-    """Music info's word in place of a count (N13: decisions 1 C with B, 2 C)."""
+    """Music info's word in place of a count (N13: decisions 1 C with B, 2 C; N94 B)."""
 
     def setUp(self):
         super().setUp()
         self.settings.update(listenbrainz_token="", deezer=True)
         self.calls, self.song, self.compilation = [], QOTSA_SONGS[0], False
-        self.plays = [  # artist 7 leads on 60 plays, a duet counting for both; album 3
+        self.songs = QOTSA_SONGS  # Feel Good Hit… (Rated R) on 4 plays, It's Only… on 2
+        self.plays = [  # artist 7 leads on 60 plays, a duet counting for both
             {"albumid": 3, "artistid": [7], "playcount": 50},
             {"albumid": 2, "artistid": [4, 7], "playcount": 10},
             {"albumid": 2, "artistid": [4], "playcount": 5},
@@ -1652,7 +1656,7 @@ class PopularityLabelTest(Base):
                 return json.dumps({"result": {"albums": QOTSA_ALBUMS}})
             if params.get("filter", {}).get("field") == "playcount":
                 return json.dumps({"result": {"songs": self.plays}})
-            return json.dumps({"result": {"songs": QOTSA_SONGS}})
+            return json.dumps({"result": {"songs": self.songs}})
 
         patch(
             self,
@@ -1774,25 +1778,55 @@ class PopularityLabelTest(Base):
         self.assertEqual(self.label("artist", 4), "Your #2 artist")
         self.assertEqual(self.label("artist", 7), "Your #1 artist")
         self.assertIsNone(self.label("artist", 9))  # never played
-        self.assertEqual(self.label("album", 3), "Your most played album")
-        self.assertIsNone(self.label("album", 2))  # second
-        self.assertIsNone(self.label("song", 1))  # not decided: no word, no call
         self.assertEqual(self.calls, ["AudioLibrary.GetSongs"])  # kept for the day
-        places = {"artist": [7, 4], "album": [3]}
-        self.assertEqual(self.row("play-places", "library:"), (places, DAY))
+        self.assertEqual(self.row("artist-places", "library:"), ([7, 4], DAY))
         self.assertEqual(self.net.requests, [])
-
-    def test_deezer_off_no_most_played_album_on_a_tie(self):
-        self.settings["deezer"] = False
-        self.plays[0]["playcount"] = 15  # album 3 and album 2 on 15 plays each
-        self.assertIsNone(self.label("album", 3))
-        self.assertIsNone(self.label("album", 2))
-        self.cache.clear_all()
-        self.plays = self.plays[:1]  # one played album leads alone
-        self.assertEqual(self.label("album", 3), "Your most played album")
         self.cache.clear_all()
         self.plays = []  # nothing played
         self.assertIsNone(self.label("artist", 7))
+
+    def test_deezer_off_your_most_played_album(self):
+        self.settings["deezer"] = False
+        self.assertEqual(self.label("album", 1), "Your most played album")  # Rated R
+        self.assertIsNone(self.label("album", 8))  # second
+        self.assertIsNone(self.label("album", 2))  # unplayed
+        self.assertEqual(self.net.requests, [])
+        self.songs = [  # Rated R and Songs for the Deaf on 3 plays each: a tie
+            qotsa(1, "No One Knows", "Songs for the Deaf", 2, 2002, 3),
+            qotsa(5, "Feel Good Hit of the Summer", "Rated R", 1, 2000, 3),
+        ]
+        self.assertIsNone(self.label("album", 1))
+        self.compilation = True  # its first artist is Various Artists
+        calls = len(self.calls)
+        self.assertIsNone(self.label("album", 1))
+        self.assertEqual(self.calls[calls:], ["AudioLibrary.GetAlbumDetails"])
+
+    def test_deezer_off_your_song_place(self):
+        self.settings["deezer"] = False
+        self.song = QOTSA_SONGS[4]  # Feel Good Hit of the Summer
+        self.assertEqual(self.label("song", 5), "Your #1 song")
+        self.song = QOTSA_SONGS[16]  # It's Only Love
+        self.assertEqual(self.label("song", 17), "Your #2 song")
+        self.song = QOTSA_SONGS[0]  # No One Knows
+        self.assertIsNone(self.label("song", 1))  # unplayed
+        self.assertEqual(self.net.requests, [])
+        live = qotsa(18, "It's Only Love (Live)", "Live", 9, 2027, 3)
+        self.songs = [*QOTSA_SONGS, live]  # its versions: 5 plays, one song
+        self.song = live
+        self.assertEqual(self.label("song", 18), "Your #1 song")
+        self.song = QOTSA_SONGS[4]
+        self.assertEqual(self.label("song", 5), "Your #2 song")
+
+    def test_play_place(self):
+        plays = Counter({n: 100 - n for n in range(1, 13)})  # 1 leads
+        places = [play_place(plays, n) for n in (1, PLACES, PLACES + 1)]
+        self.assertEqual(places, [1, PLACES, 0])
+        self.assertEqual(play_place(Counter({1: 5}), 1), 0)  # one alone has no place
+        tie = Counter({1: 5, 2: 5, 3: 1})
+        self.assertEqual([play_place(tie, n) for n in (1, 2, 3)], [0, 0, 3])
+        self.assertEqual(play_place(Counter({1: 5, 2: 0}), 2), 0)  # unplayed
+        symbols = [song(1, "?!", 2000, 9), song(2, "Mono", 2000, 1)]
+        self.assertEqual(song_play_place(symbols, "?!"), 0)  # no title to place
 
     def test_deezer_off_only_the_first_ten(self):
         self.settings["deezer"] = False
