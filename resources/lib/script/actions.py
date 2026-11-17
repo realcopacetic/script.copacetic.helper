@@ -1501,16 +1501,26 @@ def _iso639_2(lang: str) -> str:
     return xbmc.convertLanguage(two, xbmc.ISO_639_2) or lang
 
 
-def _publish_subtitle(lang: str, kind: str) -> None:
+def _languages(lang: str) -> list[str]:
+    """
+    The skin's preferred subtitle languages, in order, as ISO 639-2/B codes.
+
+    :param lang: One language, or several with | between them (e.g. "eng|jpn").
+    :return: Their codes; empty for none.
+    """
+    return [_iso639_2(one) for one in lang.split("|") if one]
+
+
+def _publish_subtitle(langs: list[str], kind: str) -> None:
     """
     Writes player_subtitle_kind from the playing video's subtitle; empty with no
     video (a refresh while playback stops).
 
-    :param lang: Preferred ISO 639-2/B language code; empty for none.
+    :param langs: Preferred ISO 639-2/B language codes; empty for none.
     :param kind: Preferred subtitle type.
     """
     status = condition("Player.HasVideo") and subtitle_status(
-        *player_streams("subtitle"), lang, kind
+        *player_streams("subtitle"), langs, kind
     )
     window_property("player_subtitle_kind", value=status)
 
@@ -1539,15 +1549,15 @@ def chapter_focus(chapter: str, **kwargs: str) -> None:
 def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> None:
     """
     Steps the playing video's audio or video stream, wrapping, or its subtitles:
-    lang's preferred stream on and off (off when it has none), else each stream in
-    turn, then off. Sets streams directly, so Kodi shows no toast.
+    each preferred language's stream in turn, then off, else each stream in turn,
+    then off. Sets streams directly, so Kodi shows no toast.
 
     :param type: audio, subtitle or video.
-    :param lang: Preferred subtitle language: a code or English name (e.g. "en").
+    :param lang: Preferred subtitle languages, | between them (e.g. "en|jpn").
     :param kind: Preferred subtitle type: forced, full (default) or impaired.
     """
     player = xbmc.Player()
-    lang = _iso639_2(lang)
+    langs = _languages(lang)
     streams, current = player_streams(type)
     on = current["index"] if current else -1
     if type != "subtitle":
@@ -1558,19 +1568,20 @@ def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> N
         # A selected forced subtitle, shown or hidden, follows the new audio language
         # unseen (and may show); Kodi caches the subtitle index for 1 s
         if type == "audio" and not xbmc.Monitor().waitForAbort(1.1):
-            _publish_subtitle(lang, kind)
+            _publish_subtitle(langs, kind)
         return
-    if lang:
-        target = preferred_subtitle(streams, lang, kind)
-        if target and target["index"] == on:
-            target = None
+    if langs:
+        # The next language's stream after the one showing; the first if none is
+        picks = [s for one in langs if (s := preferred_subtitle(streams, one, kind))]
+        shown = next((i for i, s in enumerate(picks) if s["index"] == on), -1)
+        target = picks[shown + 1] if shown + 1 < len(picks) else None
     else:
         target = streams[on + 1] if on + 1 < len(streams) else None
     if target:
         player.setSubtitleStream(target["index"])  # also shows subtitles
     elif current:
         player.showSubtitles(False)
-    status = subtitle_status(streams, target, lang, kind)
+    status = subtitle_status(streams, target, langs, kind)
     window_property("player_subtitle_kind", value=status)
 
 
@@ -1580,10 +1591,10 @@ def player_stream_refresh(lang: str = "", kind: str = "", **kwargs: str) -> None
     Re-reads the playing video's subtitle into player_subtitle_kind, as Kodi
     raises no event when its dialogs or keys change it; empty with no video.
 
-    :param lang: Preferred subtitle language, as for player_stream.
+    :param lang: Preferred subtitle languages, as for player_stream.
     :param kind: Preferred subtitle type, as for player_stream.
     """
-    _publish_subtitle(_iso639_2(lang), kind)
+    _publish_subtitle(_languages(lang), kind)
 
 
 @action

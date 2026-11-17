@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import re
+from collections.abc import Sequence
 
 from resources.lib.shared.utilities import json_call
 
@@ -80,18 +81,22 @@ def preferred_subtitle(streams: list[dict], lang: str, kind: str) -> dict | None
 
 
 def subtitle_status(
-    streams: list[dict], current: dict | None, lang: str = "", kind: str = ""
+    streams: list[dict],
+    current: dict | None,
+    langs: Sequence[str] = (),
+    kind: str = "",
 ) -> str:
     """
     player_subtitle_kind's value: the showing stream's type; while off, "missing"
-    when lang is set and has no preferred stream, else "".
+    when languages are set and none has a preferred stream, else "".
 
     :param streams: The JSON-RPC subtitle streams.
     :param current: The stream showing, None while off.
-    :param lang: Preferred ISO 639-2/B language code; empty for none.
+    :param langs: Preferred ISO 639-2/B language codes; empty for none.
     :param kind: Preferred type, as for preferred_subtitle.
     :return: forced, full, impaired, missing or "".
     """
     if current:
         return subtitle_kind(current)
-    return "missing" if lang and not preferred_subtitle(streams, lang, kind) else ""
+    found = any(preferred_subtitle(streams, lang, kind) for lang in langs)
+    return "missing" if langs and not found else ""

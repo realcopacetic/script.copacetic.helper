@@ -212,11 +212,12 @@ Either way the dialog runs **before** anything is written — cancel and nothing
 
 ## Onclick
 
-A button's `onclick` names an action `type` plus options. Types are not case-sensitive; `browsesingle`, `browsemultiple` and `browseimage` are accepted spellings, and an unknown type runs `action` like `custom`. A dialog that returns an index (`select`) writes the matching value; cancelling writes nothing.
+A button's `onclick` names an action `type` plus options. Types are not case-sensitive; `browsesingle`, `browsemultiple` and `browseimage` are accepted spellings, and an unknown type runs `action` like `custom`. A dialog that returns an index (`select`) writes the matching value, one that returns several (`multiselect`) writes them joined; cancelling writes nothing.
 
 | Type | What happens |
 |---|---|
 | `select` | Choice dialog over the control's allowed values (shown with their labels) |
+| `multiselect` | Kodi's multi-select dialog over the allowed values, the stored ones ticked; writes the picks in the values' order joined by `separator`, or `empty` when none is ticked. The control's label2 lists their labels, comma-separated. |
 | `confirm` | Radiobutton and cycle only. Yes/no dialog (`heading`, `message`) that gates the control's own write: Yes → write, then the `yes` action list; No/cancel → nothing written, the `no` list runs if declared. With a `condition` (Rule Engine, against the highlighted entry), the dialog only appears when it is true; otherwise the write just happens. |
 | `browse_content` | The addon's content browser — returns a path plus extras (label, icon, target, …). `mode`: `widget` (default) or `menu`, which adds menu shortcuts and also returns `type`, `window` and `action`. In `menu` mode the video and music libraries also list **Playlists**, a target that opens the playlists folder in Kodi's own window, where its add items are (New smart playlist, and New playlist for music). When `sibling_fields` maps `item_type`, it also returns the plural type of the items the path lists (`albums`, `movies`, else `unknown`), read from one short listing; `depth: 1` reads it inside the first folder instead, for widgets that show a level below their path. In `widget` mode, `pictures: true` adds **Pictures** after the libraries: the profile's picture sources (Kodi's `Files.GetSources`), so a plain picture folder can be picked, e.g. for a slideshow. They list folders only (not playlists); with no picture sources, or a folder Kodi can't list (a share that's asleep or not shared), a notification says so and nothing is saved. |
 | `browse_image` | Kodi's image browser, opened at `folder` (required) |
@@ -274,9 +275,11 @@ Options the dialogs read, beyond `heading`:
 
 | Option | Used by | What it does |
 |---|---|---|
-| `items` | `select` | Values to offer instead of the control's allowed values |
+| `items` | `select`, `multiselect` | Values to offer instead of the control's allowed values |
 | `preselect` | `select` | Starting index. Default: the current value. |
-| `autoclose`, `useDetails` | `select` | Passed to Kodi's select dialog |
+| `autoclose`, `useDetails` | `select`, `multiselect` | Passed to Kodi's select dialog |
+| `separator` | `multiselect` | What joins the picks in the stored value. Default `\|` (a comma would split a `RunScript` parameter). |
+| `empty` | `multiselect` | A value left out of the list and stored when nothing is ticked, e.g. `none` |
 | `default` | `input`, `numeric`, `colorpicker`, browse types | Starting value |
 | `clearable` | `browse_single`, `browse_content` | `true` puts **None** at the top of the picker, which writes an empty value, as if never set (siblings keep theirs). The cursor starts below it. `browse_single` then shows a two-row list, None and Browse…, before Kodi's browser. Cancel still writes nothing. |
 | `shares`, `mask`, `useThumbs`, `treatAsFolder`, `enableMultiple` | browse types | Passed to Kodi's browse dialog (`shares` default `files`) |

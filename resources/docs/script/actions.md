@@ -889,7 +889,10 @@ OSD. It sets the stream directly, so Kodi shows no notification, as its own
   preferred stream is the first in that language of the type `kind` asks for. When
   there is none, it takes the other type below. When there is none of either, it
   turns subtitles off (if they are showing) and sets `player_subtitle_kind` to
-  `missing`, so the skin can say there are no preferred subtitles.
+  `missing`, so the skin can say there are no preferred subtitles. With several
+  languages (`eng|jpn`), each press steps to the next language's preferred stream, in
+  the order given, skipping a language with none, then off; `missing` only when none
+  of them has one.
 
   | `kind` | Looks for, in order |
   |---|---|
@@ -912,14 +915,14 @@ Hindi subtitle. `hi` works only before the language (`Film.hi.en.srt`).
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `type` | `subtitle`, `audio`, `video` | required | The stream to change |
-| `lang` | a language code or English name: `eng`, `en`, `deu`, `English` | none | The preferred subtitle language, read as the ISO 639-2/B code streams carry: `xbmc.convertLanguage` to ISO 639-1, then to 639-2, as Kodi compares languages, so `deu`, `fra` and `zho` read as `ger`, `fre` and `chi`. A language Kodi doesn't know is kept as given, so it finds nothing. Empty cycles every stream. With `type=audio`, used for the update after the step. |
+| `lang` | a language code or English name: `eng`, `en`, `deu`, `English`; several with `\|` between them: `eng\|jpn` | none | The preferred subtitle languages, each read as the ISO 639-2/B code streams carry: `xbmc.convertLanguage` to ISO 639-1, then to 639-2, as Kodi compares languages, so `deu`, `fra` and `zho` read as `ger`, `fre` and `chi`. A language Kodi doesn't know is kept as given, so it finds nothing. Empty cycles every stream. With `type=audio`, used for the update after the step. |
 | `kind` | `forced`, `full`, `impaired` | `full` | The preferred subtitle type, with `lang`. Empty counts as `full`. |
 
 **Sets** (for `type=subtitle`, and about a second after a `type=audio` step):
 
 | Property | Value |
 |---|---|
-| `player_subtitle_kind` | `forced`, `full` or `impaired` for the stream turned on. While off: `missing` when `lang` is set and has no preferred stream (with the fallback), otherwise empty |
+| `player_subtitle_kind` | `forced`, `full` or `impaired` for the stream turned on. While off: `missing` when `lang` is set and none of its languages has a preferred stream (with the fallback), otherwise empty |
 
 The service also sets it when a video starts, without a language, so never `missing`
 there. When the subtitle changes some other way (Kodi's subtitle settings dialog, a
@@ -947,7 +950,7 @@ playback stops), it empties the property.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `lang` | as [`player_stream`](#player_stream) | none | With subtitles off, `missing` when this language has no preferred stream |
+| `lang` | as [`player_stream`](#player_stream) | none | With subtitles off, `missing` when none of these languages has a preferred stream |
 | `kind` | as [`player_stream`](#player_stream) | `full` | The preferred type, with `lang` |
 
 **Sets:**
