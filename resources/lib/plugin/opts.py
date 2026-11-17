@@ -92,7 +92,7 @@ class ArtOpts:
     :param ratio: Contrast target for compose.
     :param element_colors: Candidate colours (hex) of an element drawn on the art.
     :param band_feather: The band's fade outside its rects, frame px.
-    :param band_inset: The change's right fade starts this far inside, frame px.
+    :param band_inset: The change's fade starts this far inside the label, frame px.
     :param palette: Return the palette for this art.
     :param shape: Return the art's size and whether its corners are opaque.
     """

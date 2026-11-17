@@ -246,7 +246,7 @@ class ColorDarken:
         :param area: The blur under the band, RGB.
         :param boxes: The label-clamped rects, in the area's pixels.
         :param margin: Fade length outside the boxes, px.
-        :param inset: How far inside the boxes the right-hand fade starts, px.
+        :param inset: How far inside the first box (the label's) the right fade starts.
         :param ratio: Contrast target.
         :param tints: Tint (hex) per candidate element colour (hex).
         :return: (chosen element colour, changed copy of the area).
@@ -261,8 +261,11 @@ class ColorDarken:
         }
         text = min(tables, key=lambda c: sum(map(mul, hist, tables[c][2])))
         lifts, table, _ = tables[text]
+        label, *others = boxes
         fade = reduce(
-            ImageChops.lighter, (ramp(area.size, box, margin, inset) for box in boxes)
+            ImageChops.lighter,
+            (ramp(area.size, box, margin) for box in others),
+            ramp(area.size, label, margin, inset),
         )
 
         def need(image: Image.Image) -> Image.Image:
