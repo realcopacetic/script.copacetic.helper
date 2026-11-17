@@ -681,11 +681,12 @@ class PlayerMonitor(Player):
         """
         held, self._dial_source = self._dial_source, False
         playlist = PlayList(PLAYLIST_MUSIC)
-        queue = _queue_key(playlist) or songid
-        # A held mark is for the queue its play started; another queue replaced it
-        source = held[1] if held and held[0] == queue else False
+        position, queue = playlist.getposition(), _queue_key(playlist) or songid
+        # A held mark is for the queue its play started: not another queue, nor a file
+        # played alone (PlayMedia leaves the queue in place, its position -1)
+        source = held[1] if held and held[0] == queue and position >= 0 else False
         if source is False:
-            advanced = queue == self._dial_queue and playlist.getposition() > 0
+            advanced = queue == self._dial_queue and position > 0
             if advanced or songid <= 0:
                 return
             source = queue_source(songid)
