@@ -5,6 +5,7 @@ from xbmc import PlayList
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import condition, infolabel, json_call
 
+ENABLED = "Skin.HasSetting(playnext_enabled)"
 PLAYLIST_VIDEO = 1
 WALK_PROPERTIES = ["file"]
 
@@ -17,7 +18,7 @@ def ensure_successor(dbid: int, tvshowid: int) -> str:
     :param tvshowid: Library tvshowid of its show.
     :return: The queued episode's file; empty when nothing was queued.
     """
-    if not condition("Skin.HasSetting(playnext_enabled)") or _successor_present():
+    if not condition(ENABLED) or _successor_present():
         return ""
     if successor := _next_episode(dbid, tvshowid):
         _append(successor["episodeid"])

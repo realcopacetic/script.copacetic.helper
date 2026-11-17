@@ -65,6 +65,12 @@ python tests/multiart_offline.py
 # host open once the session has closed), else clear it
 python tests/service_offline.py
 
+# Add-ons that clash (service/clashes.py) with Kodi's reads stubbed: asked once Home
+# settles; Switch off, Keep both and Back; answers applied at each entry without asking;
+# a feature turned off, a skin left or a reset gives the add-on back; the service
+# queues the check on entering a skin and gives add-ons back in any other
+python tests/clashes_offline.py
+
 # Skip segments (service/segments.py): chapter starts from Player.Chapters, TheIntroDB's
 # times snapped to chapter marks (another cut only on marks), the tick pattern, named
 # chapters taking over on entry, and what is published as the playhead moves

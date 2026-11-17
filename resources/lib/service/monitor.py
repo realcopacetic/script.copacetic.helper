@@ -13,6 +13,7 @@ from resources.lib.art.splash import bake_profiles
 from resources.lib.builders.build_elements import BuildElements, output_digests
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.templates import cache_is_current
+from resources.lib.service import clashes
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import release_refresh, skin_uses_speed_dial
@@ -91,9 +92,9 @@ class Monitor(xbmc.Monitor):
 
     def _follow(self, skin: str, version: str) -> None:
         """
-        Take a new (folder, version) key. A new folder (a switch) drops any due reload
-        and releases the active state; a new version in the same folder (an update)
-        keeps it, so a trailer plays on. Activates only with a readable version.
+        Take a new (folder, version) key. A switch drops any due reload and releases the
+        active state; an update keeps it, so a trailer plays on. Activates only with a
+        readable version; a skin that doesn't opt in gets back add-ons switched off.
 
         :param skin: Loaded skin's folder.
         :param version: Its registered version, "" when unreadable.
@@ -110,12 +111,14 @@ class Monitor(xbmc.Monitor):
             window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
         elif version and skin_uses_builder():
             self._activate()
+        elif version:
+            clashes.restore()
 
     def _activate(self) -> None:
         """
         Entering an opted-in skin: check the builder outputs (reloading if any
-        changed), start the player monitor and slideshow, bake the login screen's
-        blurs, then show the context items.
+        changed), start the player monitor and slideshow, bake the login blurs, show
+        the context items, then check add-ons that clash, queued behind any reload.
         """
         path, version = self.skin
         log.info(f"{self.__class__.__name__} → Active in {path}, version {version}")
@@ -125,6 +128,7 @@ class Monitor(xbmc.Monitor):
         Thread(target=bake_profiles, daemon=True).start()
         window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
         window_property(ACTIVE_PROPERTY, value="true")
+        log.execute("RunScript(script.copacetic.helper,action=check_clashes)")
 
     def _deactivate(self) -> None:
         """Leaving the skin: hide the context items, release the monitors."""
