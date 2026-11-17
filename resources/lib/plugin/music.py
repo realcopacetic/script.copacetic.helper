@@ -66,9 +66,9 @@ SONG_RANK_PROPERTIES = [
 ]
 ALBUM_SONG_PROPERTIES = ["album", "albumid", "musicbrainztrackid", "title", "year"]
 K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
-# What's streamed now counts double all-time listening: closest to Spotify and YouTube
-# Music, new albums included (coding-notes audits/2026-11-12-music-popularity.md)
-WEIGHTS = {"deezer": 2.0, "listenbrainz": 1.0}
+# What's streamed now counts four times all-time listening: closest to YouTube Music's
+# top 10s over six artists (N126, Ash 17 Nov; coding-notes audits/2026-11-17-deezer.md)
+WEIGHTS = {"deezer": 4.0, "listenbrainz": 1.0}
 OVERLAP = 3  # song titles in common that identify an artist with no album in common
 # Titles many albums share (title_key form): a ranking row matches them by MBID only
 GENERIC = frozenset({"interlude", "intro", "outro", "prelude", "skit", "untitled"})

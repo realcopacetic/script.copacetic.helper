@@ -317,7 +317,7 @@ from Deezer's related artists (`/artist/<id>/related`, in Deezer's order, on the
 artist `top_songs` found) and ListenBrainz's (LB Radio, `/1/lb-radio/artist/<MBID>`,
 its closest "easy" mode, 20 artists). LB Radio picks its artists at random from
 similarity bands and returns them unordered, so each counts as if at the middle place
-of its list. They are blended as `top_songs` blends (Deezer counts double) and matched
+of its list. They are blended as `top_songs` blends (Deezer counts four times) and matched
 to the library's artists by name (case, accents and punctuation aside), the artist
 itself left out.
 
@@ -391,11 +391,12 @@ most played first. Two sources rank them, each used when it is on:
 With both on, each source's list becomes places among the songs the library has
 (a source's songs the library lacks take no place; a title listed twice counts once,
 at its first place), and a song scores `weight / (10 + place)` in each list that has
-it, summed (reciprocal rank fusion). Deezer's weight is 2, ListenBrainz's 1: what is
-streamed now counts double all-time listening, which put the result closest to
-Spotify's and YouTube Music's own top 10s, a new album included, in a comparison over
-five artists (coding-notes `audits/2026-11-12-music-popularity.md`). Equal scores go
-by play count. With one on, its order stands.
+it, summed (reciprocal rank fusion). Deezer's weight is 4, ListenBrainz's 1: what is
+streamed now counts four times all-time listening, which put the result closest to
+YouTube Music's own top 10s in a comparison over six artists (41 of 55 titles, rank
+correlation .71; weight 2 matched 40, .66; coding-notes
+`audits/2026-11-17-deezer.md`). Equal scores go by play count. With one on, its order
+stands.
 
 **When a source is missing.** Each source counts only when it is on and answers:
 
