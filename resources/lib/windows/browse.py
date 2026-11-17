@@ -362,16 +362,6 @@ _PATH_SCHEMES = (
 _NO_USE_PATH = {
     "library://video/",
     "library://music/",
-    "special://videoplaylists/",
-    "special://musicplaylists/",
-}
-
-# library:// nodes that are navigable containers but not useful as widget paths.
-_NO_USE_PATH_XML = {
-    "library://video/playlists.xml/",
-    "library://music/playlists.xml/",
-    "library://video/files.xml/",
-    "library://music/files.xml/",
 }
 
 # Items suppressed from library listings — handled by dedicated top-level entries.
@@ -389,6 +379,12 @@ _SUPPRESS_ITEMS = {
 _PLAYLIST_NODES = {
     "library://video/playlists.xml/": "special://videoplaylists/",
     "library://music/playlists.xml/": "special://musicplaylists/",
+}
+
+# Those folders as targets take the icons their nodes name, not their media type's.
+_PLAYLIST_ICON = {
+    "special://videoplaylists/": "DefaultVideoPlaylists.png",
+    "special://musicplaylists/": "DefaultMusicPlaylists.png",
 }
 
 # library:// node paths (by suffix) whose contents are always flat media items.
@@ -653,7 +649,7 @@ def _build_result(path: str, label: str, mode: str) -> dict[str, str]:
         }
 
     content_type = _derive_type(path)
-    icon = _TYPE_ICON.get(content_type, "DefaultFolder.png")
+    icon = _PLAYLIST_ICON.get(path) or _TYPE_ICON.get(content_type, "DefaultFolder.png")
     window = _derive_window(content_type)
     result = {
         "path": path,
@@ -799,9 +795,7 @@ def _browse_level(path: str, heading: str, mode: str = "widget", folders: bool =
             and (not folders or _is_plain_folder(item))
         ]
 
-        suppress_use_path = mode == "widget" and (
-            path in _NO_USE_PATH or path in _NO_USE_PATH_XML
-        )
+        suppress_use_path = mode == "widget" and path in _NO_USE_PATH
         labels = [s["back"]]
         if not suppress_use_path:
             labels.append(s["use_this_path"])
