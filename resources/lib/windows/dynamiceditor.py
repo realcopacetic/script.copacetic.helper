@@ -53,6 +53,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.container_position = -1
         self.current_listitem = None
         self._prev_focus_id = -1
+        self._page_changed = False
         self._mgmt_buttons = []
         self._mgmt_ids = set()
         self._mgmt_map = {
@@ -404,6 +405,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         a_id = action.getId()
         current_focus = self.getFocusId()
         prev_focus = self._prev_focus_id
+        if self._page_changed and current_focus in self._handler_by_focus_id:
+            self._page_changed = False
+            self.clearProperty("page_changed")
 
         # Exit targets are only recorded by actions on host_focus; seeing
         # one ⇒ close, the exit router performs the window change.
@@ -493,6 +497,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             return
 
         self.container_position = idx
+        # The rail's Right reads it: the new page opens at its first row, scrolled up
+        if not self._page_changed:
+            self._page_changed = True
+            self.setProperty("page_changed", "true")
         self._update_mgmt_buttons()
         content_id = self._list_container.getListItem(idx).getProperty("content_id")
         if not content_id or content_id not in self.listitems:
