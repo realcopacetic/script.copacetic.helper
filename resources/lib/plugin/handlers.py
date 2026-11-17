@@ -1821,6 +1821,36 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             cards.append(ep)
         return cards
 
+    def seasons(self) -> list[DirectoryItem] | None:
+        """
+        Show ``id``'s seasons for the episodes view's season tabs, Specials last:
+        each item's path is its episodes' library folder.
+
+        :return: One item per season, or None without a show id.
+        """
+        if not self._require("id"):
+            return None
+        rows = (
+            json_call(
+                "VideoLibrary.GetSeasons",
+                properties=["season"],
+                params={"tvshowid": int(self.dbid)},
+                parent="seasons",
+            )
+            .get("result", {})
+            .get("seasons", [])
+        )
+        return set_items(
+            {
+                "file": f"videodb://tvshows/titles/{self.dbid}/{row['season']}/",
+                "label": row["label"],
+                "properties": {"season": row["season"]},
+            }
+            # -1 is Kodi's All seasons row; 0 (Specials) sorts after the rest
+            for row in sorted(rows, key=lambda r: (r["season"] == 0, r["season"]))
+            if row["season"] >= 0
+        )
+
     @log.duration
     def random_movies(self) -> list[DirectoryItem] | None:
         """

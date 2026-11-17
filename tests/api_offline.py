@@ -2038,6 +2038,28 @@ class NextUpTest(unittest.TestCase):
         self.assertEqual(len(self.calls), 2)
 
 
+class SeasonsTest(unittest.TestCase):
+    def test_specials_last_and_no_all_seasons(self):
+        rows = [
+            {"season": -1, "label": "All seasons"},
+            {"season": 0, "label": "Specials"},
+            {"season": 2, "label": "Season 2"},
+            {"season": 1, "label": "Season 1"},
+        ]
+        rpc = lambda request: json.dumps({"result": {"seasons": rows}})
+        patch(
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (handlers, "set_items", list),
+        )
+        handler = handlers.PluginHandlers({"info": "seasons", "id": "7"})
+        items = handler.seasons()
+        self.assertEqual(
+            [i["label"] for i in items], ["Season 1", "Season 2", "Specials"]
+        )
+        self.assertEqual(items[0]["file"], "videodb://tvshows/titles/7/1/")
+
+
 def days_ago(days):
     """A JSON-RPC dateadded string, days before now."""
     return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
