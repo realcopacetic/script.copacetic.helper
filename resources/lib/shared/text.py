@@ -147,9 +147,8 @@ def load_font(font_path: str) -> ImageFont.FreeTypeFont | None:
         log.warning(f"load_font → unreadable: {font_path}")
         return None
     try:
-        return ImageFont.truetype(
-            io.BytesIO(data), units_per_em(data), layout_engine=ImageFont.LAYOUT_BASIC
-        )
+        # 0 is basic layout: LAYOUT_BASIC up to Pillow 9, Layout.BASIC from 9.1 on
+        return ImageFont.truetype(io.BytesIO(data), units_per_em(data), layout_engine=0)
     except (OSError, StopIteration, struct.error):
         log.warning(f"load_font → not a valid font: {font_path}")
         return None
