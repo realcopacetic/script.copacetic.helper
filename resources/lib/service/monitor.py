@@ -124,7 +124,9 @@ class Monitor(xbmc.Monitor):
             log.info(f"{self.__class__.__name__} → Skin updated to version {version}")
             self._builder_elements()
             # An update may add or drop speed dial.
-            window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
+            window_property(
+                SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial() and "true"
+            )
         elif version and skin_uses_builder():
             self._activate()
         elif version:
@@ -142,7 +144,7 @@ class Monitor(xbmc.Monitor):
         self.player_monitor = PlayerMonitor(song_closed=self._song_closed)
         self.slideshow = Slideshow()
         Thread(target=bake_profiles, daemon=True).start()
-        window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
+        window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial() and "true")
         window_property(ACTIVE_PROPERTY, value="true")
         log.execute("RunScript(script.copacetic.helper,action=check_clashes)")
 

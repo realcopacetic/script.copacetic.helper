@@ -138,7 +138,7 @@ class BuildBoundary(unittest.TestCase):
         widgets.write_text('{"w": {"content": "plugin://x/?info=speed_dial&v=1"}}')
         self.addCleanup(widgets.unlink)
         self.follow(built(written=False), version="2")
-        self.assertEqual(window.getProperty(monitor.SPEED_DIAL_PROPERTY), "True")
+        self.assertEqual(window.getProperty(monitor.SPEED_DIAL_PROPERTY), "true")
         self.service._deactivate()
         self.assertEqual(window.getProperty(monitor.SPEED_DIAL_PROPERTY), "")
 
