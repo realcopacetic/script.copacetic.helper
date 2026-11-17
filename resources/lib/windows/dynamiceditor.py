@@ -130,16 +130,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._description_label = self.getControl(6)
         self._list_container = self.getControl(100)
 
-        # Colour contract: skin declares palette roles via hidden labels
-        color_map = {"focused": 420, "unfocused": 421}
-        defaults = {"focused": "FFFFFFFF", "unfocused": "80FFFFFF"}
-        self._colors = {}
-        for role, cid in color_map.items():
-            try:
-                value = self.getControl(cid).getLabel().strip()
-            except RuntimeError:
-                value = ""
-            self._colors[role] = value or defaults[role]
+        # Colour contract: hidden labels name the palette roles. getControl() wraps
+        # a skin label without its text, so read it as the topmost dialog's label.
+        color_map = {"focused": (420, "FFFFFFFF"), "unfocused": (421, "80FFFFFF")}
+        self._colors = {
+            role: infolabel(f"Control.GetLabel({cid})").strip() or default
+            for role, (cid, default) in color_map.items()
+        }
 
         # Build listitems and refresh list
         self._scan_controls()
