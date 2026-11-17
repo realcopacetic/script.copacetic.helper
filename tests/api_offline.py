@@ -6,7 +6,7 @@ apis/theintrodb.py (the ids tried in turn, best segment, TTLs, clearing),
 apis/lrclib.py (the search fallback's nearest hit, payload shapes, TTLs, clearing),
 the blended ranking of top_songs and discography, music info's popularity words
 (popularity_label), the TMDb client and cache (apis/tmdb), and the plugin URL parser
-(shared/parser.py).
+(shared/parser.py) with a focus guard cut at a "|".
 
 Network calls are replaced by recorded ListenBrainz answers
 (tests/fixtures/listenbrainz_*.json, Gorillaz, fetched Oct 2026), recorded Deezer
@@ -1844,6 +1844,46 @@ class ParserTest(unittest.TestCase):
             self.parse("?label=Tom %26 Jerry&tag=true%26&"),
             {"label": "Tom & Jerry", "tag": "true&"},
         )
+
+
+class PipeGuardTest(unittest.TestCase):
+    """The Plot tab's guard ends in the label, which a "|" cuts (CURL::Parse)."""
+
+    def alive(self, label: str, live: str) -> tuple[str, bool]:
+        """
+        Parse the plot render's URL options as Kodi passes them, then run its guard.
+
+        :param label: The label the URL was built with.
+        :param live: The label the dialog's item has now.
+        :return: The text param, and whether the guard holds.
+        """
+        query = (
+            "?info=text&target=item"
+            "&identity_labels=ListItem.DBType,ListItem.DBID,ListItem.Label"
+            f"&text=A plot.&focus_guard=movie,,{label}"
+        ).partition("|")[0]
+        handler = handlers.PluginHandlers(parse_plugin_argv(["p://", "1", query]))
+        handler.__dict__["window_id"] = 12003
+        labels = {"ListItem.DBType": "movie", "ListItem.Label": live}
+        with mock.patch.multiple(
+            handlers,
+            infolabel=lambda label: labels.get(label, ""),
+            topmost_window_id=lambda: 12003,
+            getCurrentWindowDialogId=lambda: 12003,
+            getCurrentWindowId=lambda: 10025,
+            focused_control_id=lambda window_id: 4300,
+        ):
+            return handler.params["text"], handler._guard().alive()
+
+    def test_label_with_a_pipe_keeps_text_and_guard(self):
+        self.assertEqual(self.alive(*["Show | S01E02"] * 2), ("A plot.", True))
+
+    def test_another_label_with_a_pipe_aborts(self):
+        self.assertFalse(self.alive("Show | S01E02", "Other | S01E02")[1])
+
+    def test_label_without_a_pipe(self):
+        self.assertTrue(self.alive("Show", "Show")[1])
+        self.assertFalse(self.alive("Show", "Other")[1])
 
 
 class NextUpTest(unittest.TestCase):

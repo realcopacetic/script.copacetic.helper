@@ -366,7 +366,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         labels = PLAYING_SONG if self.player else self.identity_labels
         if labels:
-            getter = lambda: ",".join(infolabel(p) for p in labels)
+            # A "|" ends a plugin URL's options, so a guard ending in a label holding
+            # one arrived cut there: the live identity is cut to match
+            getter = lambda: ",".join(infolabel(p) for p in labels).partition("|")[0]
         else:
             getter = lambda: infolabel(f"{self.identity_container}.CurrentItem")
         # The song whose art the URL carries (song=); with none, the one playing now
