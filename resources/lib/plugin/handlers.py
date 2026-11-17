@@ -1843,7 +1843,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         return set_items(
             {
-                "file": f"videodb://tvshows/titles/{show}/{row['season']}/",
+                # as Kodi's own season paths, so Back finds the season in its list
+                "file": f"videodb://tvshows/titles/{show}/{row['season']}/?tvshowid={show}",
                 "label": row["label"],
                 "properties": {
                     "current": "true" if str(row["season"]) == listed else ""
