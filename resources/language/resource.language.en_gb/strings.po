@@ -265,7 +265,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32119"
-msgid "Delete all processed artwork (blurred, cropped), reset the artwork lookup database and forget saved TMDB and ListenBrainz answers. Source artwork is unaffected."
+msgid "Delete all processed artwork (blurred, cropped, text images), reset the artwork lookup database, and forget saved web service answers (TMDb, ListenBrainz, Deezer, TheIntroDB, LRCLIB), the daily mix cards' kept mixes and saved text truncations. Source artwork is unaffected."
 msgstr ""
 
 #: /resources/settings.xml, /resources/lib/script/actions.py
