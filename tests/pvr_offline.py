@@ -2,7 +2,8 @@
 Offline checks for the live channel list's guide (plugin/pvr.py and the broadcasts
 handler): programmes from the one on air on, start and end as local clock times,
 time left to the end by the clock, the state icon's order, and the handler's calls;
-and the smart select on a later programme (script/actions.py pvr_smart_select).
+the smart select on a later programme (script/actions.py pvr_smart_select); and the
+channel manager's save question on Back (pvr_manager_back).
 Run from the helper root:
 python tests/pvr_offline.py
 """
@@ -368,6 +369,42 @@ class SmartSelect(unittest.TestCase):
         seen = self.select([0])
         reads = self.methods(seen).count("PVR.GetBroadcastDetails")
         self.assertEqual(reads, 3)  # the first, then until hastimer flips
+
+
+class ManagerBack(unittest.TestCase):
+    """pvr_manager_back with the dialog and builtins stubbed."""
+
+    def back(self, choice: int) -> tuple[list, list]:
+        """
+        Run the action from list 20, answering Kodi's question with choice.
+
+        :param choice: The yesnocustom answer (-1 Back, 0 No, 1 Yes).
+        :return: The dialogs asked and the builtins run.
+        """
+        dialogs, builtins = [], []
+
+        def yesnocustom(heading, message, custom):
+            dialogs.append((heading, message, custom))
+            return choice
+
+        with (
+            mock.patch.object(
+                actions.xbmcgui, "Dialog", lambda: mock.Mock(yesnocustom=yesnocustom)
+            ),
+            mock.patch.object(actions.xbmc, "getLocalizedString", str, create=True),
+            mock.patch.object(actions.log, "execute", builtins.append),
+        ):
+            actions.pvr_manager_back(focus="20")
+        return dialogs, builtins
+
+    def test_kodis_own_question(self):
+        dialogs, _ = self.back(1)
+        self.assertEqual(dialogs, [("20052", "19212\n20103", "")])
+
+    def test_yes_saves_and_closes_no_closes_back_stays(self):
+        self.assertEqual(self.back(1)[1], ["SendClick(4)"])
+        self.assertEqual(self.back(0)[1], ["SendClick(6)"])
+        self.assertEqual(self.back(-1)[1], ["SetFocus(20)"])
 
 
 if __name__ == "__main__":

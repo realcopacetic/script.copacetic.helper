@@ -86,6 +86,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`player_stream`](#player_stream) | Steps the playing video's subtitle, audio or video stream, with no notification |
 | [`player_stream_refresh`](#player_stream_refresh) | Updates `player_subtitle_kind` after Kodi changed the subtitle itself |
 | [`playlist_goto`](#playlist_goto) | Plays the music queue from one of its songs |
+| [`pvr_manager_back`](#pvr_manager_back) | Kodi's channel manager save question, for Back with unsaved edits |
 | [`pvr_smart_select`](#pvr_smart_select) | Kodi's guide "Smart select" for a later programme: record or switch |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
@@ -953,6 +954,38 @@ Example from Copacetic, the music OSD's Playlist rail:
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=playlist_goto,position=$INFO[Container(3220).CurrentItem])</onclick>
+```
+
+---
+
+## pvr_manager_back
+
+Kodi's channel manager (`DialogPVRChannelManager.xml`) asks "Save changes?" before it
+switches between TV and radio or opens the group manager, but Back closes it and
+discards the edits without a word (`OnDeinitWindow` only clears the list). Run from the
+skin's Back while there are edits, this asks Kodi's own question, in Kodi's words
+(heading 20052, lines 19212 and 20103, as `PromptAndSaveList`), and answers through the
+dialog's own buttons:
+
+| Answer | Then |
+|---|---|
+| Yes | `SendClick(4)`: Kodi's OK saves and closes |
+| No | `SendClick(6)`: Kodi's Cancel closes without saving |
+| Back | `SetFocus(focus)`: the dialog stays, edits kept |
+
+Kodi enables its Apply button (5) only while there are unsaved edits, so the skin can
+gate on `Control.IsEnabled(5)`. The `onback` also needs a control id to move to: with
+builtins alone Kodi's Back carries on and closes the dialog before the question opens.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `focus` | a control id | required | Focused again when the question is cancelled |
+
+Example from Copacetic (4609 is a hidden button that only takes the move):
+
+```xml
+<onback condition="Control.IsEnabled(5)">RunScript(script.copacetic.helper,action=pvr_manager_back,focus=20)</onback>
+<onback condition="Control.IsEnabled(5)">4609</onback>
 ```
 
 ---
