@@ -13,10 +13,10 @@ beside its channel list.
 </control>
 ```
 
-| Param | |
-|---|---|
-| `channelid` | The channel's id. A Kodi channel item carries it as `ListItem.Property(channelid)` (`FileItem.cpp`, `SetProperty("channelid", channel->ChannelID())`). Required. |
-| `limit` | The most programmes to return. |
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `channelid` | a channel id (whole number) | required | The channel. A Kodi channel item carries it as `ListItem.Property(channelid)` (`FileItem.cpp`, `SetProperty("channelid", channel->ChannelID())`). |
+| `limit` | whole number | all | The most programmes to return. |
 
 It makes two JSON-RPC calls: `PVR.GetBroadcasts` (every guide entry Kodi holds for the
 channel) and `PVR.GetChannelDetails` (its logo, skipped when there are no programmes).
@@ -25,8 +25,8 @@ channel) and `PVR.GetChannelDetails` (its logo, skipped when there are no progra
 
 | | |
 |---|---|
-| `ListItem.Label` | The title as Kodi shows it: "Parental locked" (19266) for a locked programme (`FileItem.cpp:125-135`). |
-| `ListItem.Art(thumb)` | The programme's own image (empty when it has none, or is parental locked). |
+| `ListItem.Label` | The title as Kodi shows it: "Parental locked" (19266) for a locked programme, and "No information available" (19055) for one with no title unless Kodi's setting to hide those is on (`FileItem.cpp:125-135`). |
+| `ListItem.Art(thumb)` | The programme's own image (empty when it has none, or its label isn't its title: parental locked, or no title). |
 | `ListItem.Icon` | The channel's logo, else `DefaultTVShows.png`. |
 | `ListItem.Property(broadcastid)` | The programme's id, for JSON-RPC's `PVR.*` timer methods and [`pvr_smart_select`](../script/actions.md#pvr_smart_select). |
 | `ListItem.Property(channelid)` | The `channelid` asked for, so a skin can tell whose programmes it holds. |
