@@ -123,7 +123,10 @@ def build_listitem(
     art = dict(item.get("art", {}))
     fallback = _DEFAULT_ICONS.get(media_type or "", "DefaultVideo.png")
     art.setdefault("icon", fallback)
-    art.setdefault("thumb", fallback)
+    # A library item's missing thumb stays Kodi's to find (local, embedded,
+    # extracted) and the skin's to fall back from, as on Kodi's own items.
+    if not item.get("DbId"):
+        art.setdefault("thumb", fallback)
     li.setArt(art)
 
     for key, value in (item.get("properties") or {}).items():
