@@ -311,7 +311,7 @@ not touched. Also in the helper's settings, under *Library*.
 
 ## clear_cache
 
-Deletes the helper's processed artwork (blurred, cropped and text images) and resets
+After a yes/no, deletes the helper's processed artwork (blurred, cropped and text images) and resets
 its artwork lookup database. It also empties the saved answers from web services
 (TMDb, ListenBrainz, Deezer, TheIntroDB, LRCLIB) and the daily mix cards' kept mixes, so they are
 worked out again, and the saved text truncations,

@@ -293,10 +293,13 @@ def _remove_art(
 @action
 def clear_cache(**kwargs: str) -> None:
     """
-    Delete processed artwork and reset the artwork lookup database; also forget saved
-    web service answers, the daily mix cards' kept mixes and saved text truncations.
+    After a yes/no, delete processed artwork and reset the artwork lookup database;
+    also forget saved web service answers, the daily mix cards' kept mixes and saved
+    text truncations.
     """
-    _clear_cache_util(**kwargs)
+    heading = ADDON.getLocalizedString(32019)
+    if xbmcgui.Dialog().yesno(heading, ADDON.getLocalizedString(32240)):
+        _clear_cache_util(**kwargs)
 
 
 @action

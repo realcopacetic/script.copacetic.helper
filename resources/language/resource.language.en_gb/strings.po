@@ -265,7 +265,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32119"
-msgid "Delete all processed artwork (blurred, cropped, text images), reset the artwork lookup database, and forget saved web service answers (TMDb, ListenBrainz, Deezer, TheIntroDB, LRCLIB), the daily mix cards' kept mixes and saved text truncations. Source artwork is unaffected."
+msgid "Delete all processed artwork (blurred, cropped, text images), reset the artwork lookup database, and forget saved web service answers (TMDb, ListenBrainz, Deezer, TheIntroDB, LRCLIB), the daily mix cards' kept mixes and saved text truncations. Asks first. Source artwork is unaffected."
 msgstr ""
 
 #: /resources/settings.xml, /resources/lib/script/actions.py
@@ -575,6 +575,11 @@ msgstr ""
 #: /resources/lib/service/clashes.py
 msgctxt "#32238"
 msgid "%(addon)s shows its own skip and next episode buttons over %(skin)s's. Switch it off while you use %(skin)s? It comes back on if you change skin."
+msgstr ""
+
+#: /resources/lib/script/actions.py
+msgctxt "#32240"
+msgid "Delete all processed artwork and forget every saved web service answer? Each is made or fetched again when next needed."
 msgstr ""
 
 
