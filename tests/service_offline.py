@@ -638,5 +638,46 @@ class LyricsUnderTheScreensaver(unittest.TestCase):
         service.poller.assert_not_called()
 
 
+class MultiLanguageSubtitles(unittest.TestCase):
+    """Several preferred subtitle languages: stored joined, stepped in turn."""
+
+    def test_a_joined_value_stands_only_with_a_separator(self):
+        from resources.lib.builders.runtime import allowed_value
+
+        config = {"items": ["none", "eng", "jpn"], "separator": "|"}
+        self.assertTrue(allowed_value("eng|jpn", config))
+        self.assertTrue(allowed_value("none", config))
+        self.assertFalse(allowed_value("eng|kor", config))
+        self.assertFalse(allowed_value("eng|jpn", {"items": ["eng", "jpn"]}))
+
+    def test_subtitles_step_through_the_languages_then_off(self):
+        def stream(index, language):
+            return {
+                "index": index,
+                "language": language,
+                "name": "",
+                "isforced": False,
+                "isimpaired": False,
+            }
+
+        streams = [stream(0, "fre"), stream(1, "jpn"), stream(2, "eng")]
+        shown = []
+        player = Mock(
+            setSubtitleStream=lambda i: shown.append(i),
+            showSubtitles=lambda on: shown.append(None),
+        )
+        with (
+            patch.object(actions.xbmc, "Player", lambda: player, create=True),
+            patch.object(actions, "_iso639_2", lambda lang: lang),
+            patch.object(actions, "window_property", lambda *a, **k: None),
+        ):
+            for current in (None, streams[2], streams[1]):  # off, English, Japanese
+                with patch.object(
+                    actions, "player_streams", lambda type, c=current: (streams, c)
+                ):
+                    actions.player_stream("subtitle", lang="eng|jpn")
+        self.assertEqual(shown, [2, 1, None])  # English, then Japanese, then off
+
+
 if __name__ == "__main__":
     unittest.main()

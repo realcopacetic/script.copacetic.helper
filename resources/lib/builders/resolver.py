@@ -177,6 +177,8 @@ class ConfigsResolver(_TemplateResolver):
         out = {"items": items}
         if labels:
             out["labels"] = labels
+        if separator := data.get("separator"):
+            out["separator"] = separator
 
         defaults_map = data.get("defaults") or {}
         if defaults_map:

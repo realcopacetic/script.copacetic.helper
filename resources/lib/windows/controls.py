@@ -270,7 +270,7 @@ class BaseControlHandler:
             return raw_label, ""
 
         cfg_labels = link.get("config", {}).get("labels", {})
-        separator = (self.control.get("onclick") or {}).get("separator")
+        separator = link.get("config", {}).get("separator")
         if separator and current and separator in current:  # a multiselect's values
             labels = (
                 cfg_labels.get(value, value) for value in current.split(separator)
@@ -544,7 +544,6 @@ class ButtonHandler(BaseControlHandler):
             "result_field",
             "folder",
             "kwargs",
-            "separator",
             "empty",
         )
 
@@ -569,8 +568,9 @@ class ButtonHandler(BaseControlHandler):
             for lbl in raw_labels
         ]
         current_value = self._get_setting_value()
-        if multiple:  # every chosen value, stored joined by the separator
-            chosen = (current_value or "").split(onclick.get("separator", "|"))
+        separator = link.get("config", {}).get("separator", "|")
+        if multiple:  # every chosen value, stored joined by the config's separator
+            chosen = (current_value or "").split(separator)
             preselect = [i for i, item in enumerate(items) if item in chosen]
         else:
             try:
@@ -586,6 +586,7 @@ class ButtonHandler(BaseControlHandler):
             "items": items,
             "display_items": display_items,
             "preselect": preselect,
+            "separator": separator,
             **{k: onclick[k] for k in optional if k in onclick},
         }
 
@@ -668,7 +669,7 @@ class ButtonHandler(BaseControlHandler):
                 result = items[result]
         elif isinstance(result, list) and onclick_type.lower() == "multiselect":
             chosen = (cfg["items"][i] for i in result)
-            result = cfg.get("separator", "|").join(chosen) or cfg.get("empty", "")
+            result = cfg["separator"].join(chosen) or cfg.get("empty", "")
 
         if result is not None:
             # Same-preset re-pick is a no-op — leave the entry untouched

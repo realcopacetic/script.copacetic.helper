@@ -38,6 +38,24 @@ RUNTIME_ID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "script.copacetic.helper")
 IDENTITY_FIELDS = frozenset({"runtime_id", "mapping_item", "parent"})
 
 
+def allowed_value(value: object, config: dict) -> bool:
+    """
+    Whether a stored value is one of a config's items, or several of them joined by
+    the config's separator (a multiselect's).
+
+    :param value: The stored field value.
+    :param config: The resolved config: items, and separator if it allows several.
+    :return: True when the value stands.
+    """
+    items = config.get("items", ())
+    if value in items:
+        return True
+    separator = config.get("separator")
+    return bool(separator and isinstance(value, str)) and all(
+        part in items for part in value.split(separator)
+    )
+
+
 class RuntimeStateManager:
     """
     Manages the skin's runtime state file plus configs and controls
@@ -316,9 +334,9 @@ class RuntimeStateManager:
                     render(template, sub, mode="name", registry=self.mappings)
                 except TokenError:
                     continue
-                if field in entry and entry[field] in self.configs.resolve(
-                    mapping_key, template, sub
-                ).get("items", ()):
+                if field in entry and allowed_value(
+                    entry[field], self.configs.resolve(mapping_key, template, sub)
+                ):
                     resolved[field] = entry[field]
                 elif field in metadata_strings:
                     resolved[field] = metadata_strings[field]
