@@ -2,7 +2,9 @@
 Offline checks for the artwork serve (PluginHandlers.artwork) with Kodi's reads
 stubbed and the image work faked: the logo from clearlogo_source, with and without
 a favourite's multiart_target, and the icon from icon_source (a cut band label the
-item's own); a held serve names its position only for a move that stamped no visit;
+item's own); a background read whole by a skin variable's name, standing only where it
+extends the URL's raw value (under a menu, only a non-empty one), a family outranking
+it; the parser keeps art URLs raw and url_decode_path leaves a bare URL; a held serve names its position only for a move that stamped no visit;
 the TV guide's time left (epg_time_left) from the programme's start and runtime,
 across midnight too, only while the URL's channel is on air and before its end.
 Run from the helper root:
@@ -33,7 +35,9 @@ sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.art import editor, multiart  # noqa: E402
-from resources.lib.plugin import handlers  # noqa: E402
+from resources.lib.plugin import handlers, opts  # noqa: E402
+from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
+from resources.lib.shared.utilities import url_decode_path  # noqa: E402
 
 WINDOW, MENU = 10025, 10106
 LOGO = "https://x/logo.png|User-Agent=k"
@@ -41,6 +45,8 @@ SOURCE = "Container(50).ListItem.Art(clearlogo)"
 ICON = "https://x/poster.jpg|User-Agent=k"
 ICON_SOURCE = "Container(50).ListItem(0).Art(poster)"
 FAMILY = {"multiart": "fav0.jpg", "multiart1": "fav1.jpg"}
+VAR = "art_background_primary"
+PLEX = "https://plex/photo/x.jpg?width=500&X-Plex-Token=a%2Bb"
 
 
 class ArtworkServe(unittest.TestCase):
@@ -60,6 +66,7 @@ class ArtworkServe(unittest.TestCase):
         labels = {
             SOURCE: LOGO,
             ICON_SOURCE: ICON,
+            f"$VAR[{VAR}]": PLEX,
             "Container(50).CurrentItem": "3",
             "Container(50).ListItem.Label": "Title",
             "Player.Title": "Song",
@@ -79,6 +86,7 @@ class ArtworkServe(unittest.TestCase):
         def images(jobs, art_opts, source):
             seen["logo"] = art_opts["clearlogo"].url
             seen["icon"] = art_opts["icon"].url
+            seen["background"] = art_opts["background"].url
             seen["label"] = art_opts["icon"].darken.label
             return {"background": "blur.png"}
 
@@ -125,8 +133,14 @@ class ArtworkServe(unittest.TestCase):
         self.assertTrue(out["items"])
 
     def test_source_over_a_header_less_url(self):
-        out = self.serve({"clearlogo_source": SOURCE, "clearlogo_url": "logo.png"})
+        url = LOGO.partition("|")[0]  # the URL's value, cut at Kodi's "|"
+        out = self.serve({"clearlogo_source": SOURCE, "clearlogo_url": url})
         self.assertEqual(out["logo"], LOGO)
+
+    def test_a_read_the_url_disagrees_with_stands_down(self):
+        # the label moved on since Kodi built the URL (or a dialog answered)
+        out = self.serve({"clearlogo_source": SOURCE, "clearlogo_url": "logo.png"})
+        self.assertEqual(out["logo"], "logo.png")
 
     def test_empty_source_no_logo(self):
         out = self.serve({"clearlogo_source": ""})
@@ -169,7 +183,7 @@ class ArtworkServe(unittest.TestCase):
 
     def test_icon_source_keeps_a_label_that_arrived(self):
         params = {"icon_source": ICON_SOURCE, "icon_darken_label": "Title • 2024"}
-        out = self.serve(params | {"icon_url": "poster.jpg"})
+        out = self.serve(params | {"icon_url": "https://x/poster.jpg"})
         self.assertEqual((out["icon"], out["label"]), (ICON, "Title • 2024"))
 
     def test_empty_icon_source_keeps_the_url(self):
@@ -183,6 +197,60 @@ class ArtworkServe(unittest.TestCase):
         out = self.serve({"icon_source": ICON_SOURCE}, on_top=False)
         self.assertEqual((out["icon"], out["label"]), (None, None))
         self.assertTrue(out["items"])
+
+    def plex(self, on_top: bool = True, **params: str) -> dict:
+        """Serve the URL Kodi passes for the Plex fanart, parsed as main.py does."""
+        query = f"?info=artwork&background_var={VAR}&background_url={PLEX}"
+        parsed = parse_plugin_argv(["plugin://x/", "1", query], raw=opts.ART_URLS)
+        return self.serve(parsed | params, on_top)
+
+    def test_a_variable_read_whole(self):
+        self.assertEqual(self.plex()["background"], PLEX)
+
+    def test_under_a_menu_a_read_the_url_vouches_for(self):
+        self.assertEqual(self.plex(on_top=False)["background"], PLEX)
+
+    def test_under_a_menu_an_empty_url_reads_nothing(self):
+        out = self.serve({"background_var": VAR, "background_url": ""}, on_top=False)
+        self.assertNotIn("background", out)  # no art: no image work at all
+
+    def test_a_family_outranks_the_background_read(self):
+        fav = {"multiart_target": "9040", "multiart": "fanart"}
+        self.assertEqual(self.plex(**fav)["background"], "fav0.jpg")
+
+
+class ArtUrls(unittest.TestCase):
+    """The parser, the reads and url_decode_path keep an art URL as Kodi holds it."""
+
+    def test_the_parser_keeps_art_urls_raw(self):
+        query = f"?background_url={PLEX}&label=a%20b"
+        parsed = parse_plugin_argv(["plugin://x/", "1", query], raw=opts.ART_URLS)
+        self.assertEqual(parsed["background_url"], PLEX.partition("&")[0])
+        self.assertEqual(parsed["label"], "a b")
+
+    def test_reads_by_infolabel_or_variable_name(self):
+        params = {"clearlogo_source": SOURCE, "icon_var": "v", "background_var": ""}
+        self.assertEqual(
+            opts.art_reads(params),
+            {"clearlogo_url": SOURCE, "icon_url": "$VAR[v]"},
+        )
+
+    def test_a_source_outranks_a_variable(self):
+        params = {"icon_source": ICON_SOURCE, "icon_var": "v"}
+        self.assertEqual(opts.art_reads(params), {"icon_url": ICON_SOURCE})
+
+    def test_a_read_must_extend_the_urls_value(self):
+        read = {f"$VAR[{VAR}]": PLEX}.get
+        params = {"background_var": VAR, "background_url": "https://plex/other.jpg"}
+        self.assertEqual(opts.read_art_urls(params, read, on_top=True), {})
+
+    def test_a_bare_url_is_kodis_key_as_it_stands(self):
+        self.assertEqual(url_decode_path(PLEX), PLEX)
+        self.assertEqual(url_decode_path("/media/a%20b.jpg"), "/media/a%20b.jpg")
+
+    def test_a_wrapped_url_unwraps(self):
+        wrapped = "image://https%3a%2f%2fx%2fa%20b.jpg/"
+        self.assertEqual(url_decode_path(wrapped), "https://x/a b.jpg")
 
 
 class HeldNaming(unittest.TestCase):

@@ -7,9 +7,10 @@ import xbmcplugin
 
 from resources.lib.plugin.handlers import PluginHandlers
 from resources.lib.plugin.listing import PluginListing
+from resources.lib.plugin.opts import ART_URLS
 from resources.lib.plugin.registry import LOG_TAG, collect_info_handlers
 from resources.lib.shared import logger as log
-from resources.lib.shared.parser import parse_params
+from resources.lib.shared.parser import parse_plugin_argv
 
 
 class Main:
@@ -28,8 +29,11 @@ class Main:
             self.run_listing()
 
     def _parse_argv(self) -> dict[str, str]:
-        """Parse argv using parser (handles both plugin/script styles)."""
-        return parse_params(sys.argv, mode="plugin")
+        """
+        Parse the plugin argv. Art URLs stay as Kodi passed them: the form its
+        texture cache keys them by, and the one their whole reads extend.
+        """
+        return parse_plugin_argv(sys.argv, raw=ART_URLS)
 
     def run_handler(self) -> None:
         """Dispatch a plugin handler (from ?info=...) and emit its items."""

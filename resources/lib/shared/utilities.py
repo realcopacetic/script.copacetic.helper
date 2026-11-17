@@ -552,18 +552,22 @@ def url_decode_path(path: str) -> str:
     """
     The path Kodi caches and opens an image by: a plain image:// wrapper unwraps to
     its file; a typed one (music@, video@) or a transform (a picture's thumb) is kept
-    whole, in CURL::Encode's encoding.
+    whole, in CURL::Encode's encoding; a bare path stands as it is.
 
-    :param path: Image path, encoded or (as a plugin param arrives) decoded once.
+    :param path: Image path, wrapped or bare, as Kodi holds it.
     :return: Decoded file path, or the wrapper as Kodi stores it.
     """
+    # TextureDatabase.cpp UnwrapImageURL: only image:// is unwrapped, a bare path is
+    # the key as it stands (a %20 in a web URL is part of it)
+    if not path.startswith("image://"):
+        return path
     body, transform, options = (
         path.removeprefix("image://").removesuffix("/").partition("/transform?")
     )
     kind, at, file = body.partition("@")
     if not (at and kind.isidentifier()):
         kind, file = "", body
-    if path.startswith("image://") and (kind or transform):
+    if kind or transform:
         raw = file.encode() if "/" in file else urllib.unquote_to_bytes(file)
         encoded = "".join(chr(b) if b in URL_SAFE else f"%{b:02x}" for b in raw)
         tail = transform and f"transform?{options}"
