@@ -135,6 +135,7 @@ class Kodi(unittest.TestCase):
             (lyrics, "window_property", self.prop),
             (lyrics.log, "execute", self.builtins.append),
             (lyrics.log, "exception", self.errors.append),
+            (lyrics, "skin_font", lambda name: None),  # no skin: nothing long
             (lyrics.lrclib, "enabled", lambda: True),
             (lyrics.lrclib, "lyrics", lambda *args: self.ask("lyrics", *args)),
             (lyrics.lrclib, "prefetch", lambda *args: self.ask("prefetch", *args)),
@@ -296,6 +297,19 @@ class LookupTest(Kodi):
                 "lyrics_instrumental": "true",
             },
         )
+
+    def test_long_lines_overflow_two_lines_at_660(self):
+        metric = type("Metric", (), {"getlength": lambda self, text: 30 * len(text)})
+        with (
+            patch.object(lyrics, "skin_font", lambda name: ("f", 53)),
+            patch.object(lyrics, "load_font", lambda path: object()),
+            patch.object(lyrics, "KodiMetric", lambda *args: metric()),
+        ):
+            # 22 characters a line at 30 px: 44 fit in two, a 45th wraps to a third
+            self.assertEqual(
+                lyrics.long_lines([[0, "word " * 8], [1, "word " * 9], [2, ""]]),
+                [1],
+            )
 
     def test_clear(self):
         self.labels["MusicPlayer.Lyrics"] = LRC
@@ -630,12 +644,14 @@ class PluginAndActionTest(unittest.TestCase):
     def setUp(self):
         self.home = sys.modules["xbmcgui"].Window(10000)
         self.addCleanup(self.home.clearProperty, lrc.LINES)
+        self.addCleanup(self.home.clearProperty, lrc.LONG)
         patcher = patch.object(handlers, "set_items", list)  # the items as dicts
         patcher.start()
         self.addCleanup(patcher.stop)
 
     def test_one_item_per_line(self):
         self.home.setProperty(lrc.LINES, json.dumps(LINES))
+        self.home.setProperty(lrc.LONG, "[1]")
         items = object.__new__(handlers.PluginHandlers).lyrics()
         self.assertEqual(
             items,
@@ -647,6 +663,7 @@ class PluginAndActionTest(unittest.TestCase):
                         "index": 0,
                         "time": 1470,
                         "gap": "",
+                        "long": "",
                         "m2": -2,
                         "m1": -1,
                         "p1": 1,
@@ -663,6 +680,7 @@ class PluginAndActionTest(unittest.TestCase):
                         "index": 1,
                         "time": 7050,
                         "gap": "",
+                        "long": "true",
                         "m2": -1,
                         "m1": 0,
                         "p1": 2,
@@ -679,6 +697,7 @@ class PluginAndActionTest(unittest.TestCase):
                         "index": 2,
                         "time": 10060,
                         "gap": "true",
+                        "long": "",
                         "m2": 0,
                         "m1": 1,
                         "p1": 3,

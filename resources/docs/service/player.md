@@ -287,7 +287,9 @@ forgets every saved answer; **Refresh cached data** one library song's (see
 `plugin://script.copacetic.helper/?info=lyrics&revision=$INFO[Window(home).Property(lyrics_revision)]`:
 one item per synced line, in order. The label is the line's text, empty for a gap;
 the properties are `index` (from 0), `time` (milliseconds, with any `[offset:]`
-applied), `gap` (`true` on an empty line) and `m2`, `m1`, `p1` ... `p5` (the
+applied), `gap` (`true` on an empty line), `long` (`true` when the line needs more than
+two lines of the skin's `title_identity` font at 660 px, as Kodi wraps it, so a skin
+can draw it smaller in its playing line's box) and `m2`, `m1`, `p1` ... `p5` (the
 indexes two above to five below this line). The last are for a fade by distance from
 the selected line while the list is browsed: compare a row's
 `ListItem.Property(index)` with `Container(<id>).ListItem.Property(m1)` and so on.

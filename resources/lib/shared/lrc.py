@@ -4,6 +4,7 @@ import re
 from operator import itemgetter
 
 LINES = "lyrics_lines"  # Home property: the service's synced lines as JSON, for plugins
+LONG = "lyrics_long"  # Home property: those too long for the playing line's box, JSON
 # A line's neighbours by offset, for the skin's distance fade: the service publishes
 # the playing line's as lyrics_<key>, the info=lyrics items carry their own
 NEIGHBOURS = {"m2": -2, "m1": -1} | {f"p{n}": n for n in range(1, 6)}
