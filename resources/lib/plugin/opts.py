@@ -1,10 +1,51 @@
 # author: realcopacetic
 
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Callable, Mapping
 
 from resources.lib.art import policy
 from resources.lib.shared.utilities import parse_bool, to_float, to_int
+
+ART_TYPES = ("clearlogo", "background", "icon")
+ART_URLS = frozenset(f"{art}_url" for art in ART_TYPES)
+
+
+def art_reads(params: Mapping[str, str]) -> dict[str, str]:
+    """
+    The label each art URL is read from, so it arrives whole: an infolabel
+    (``{art}_source``) or a skin variable by its name (``{art}_var``).
+
+    :param params: Plugin parameters.
+    :return: ``{art}_url`` → label for ``xbmc.getInfoLabel``.
+    """
+    reads = {}
+    for art in ART_TYPES:
+        if source := params.get(f"{art}_source"):
+            reads[f"{art}_url"] = source
+        elif name := params.get(f"{art}_var"):
+            reads[f"{art}_url"] = f"$VAR[{name}]"
+    return reads
+
+
+def read_art_urls(
+    params: Mapping[str, str], read: Callable[[str], str], on_top: bool
+) -> dict[str, str]:
+    """
+    Each art URL read whole, where it extends the value in the plugin URL, which Kodi
+    built in the window: Python reads in the topmost dialog's. Under a dialog
+    (``on_top`` False) only a non-empty value can vouch for a read.
+
+    :param params: Plugin parameters, art URLs as Kodi passed them.
+    :param read: Label reader (``xbmc.getInfoLabel``).
+    :param on_top: Whether the serve's window is the topmost.
+    :return: ``{art}_url`` → the URL read, for each read that stands.
+    """
+    urls = {}
+    for param, label in art_reads(params).items():
+        value = params.get(param, "")
+        if (on_top or value) and (url := read(label)).startswith(value):
+            urls[param] = url
+    return urls
 
 
 @dataclass(frozen=True, slots=True)

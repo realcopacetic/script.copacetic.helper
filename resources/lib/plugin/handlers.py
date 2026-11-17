@@ -775,7 +775,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.art.editor import ImageEditor
         from resources.lib.art.multiart import seed_multiart
         from resources.lib.art.policy import ART_PROCESS_MAP
-        from resources.lib.plugin.opts import ArtOpts
+        from resources.lib.plugin.opts import ART_TYPES, ArtOpts, read_art_urls
 
         imported = time.perf_counter()
         guard = self._guard(through_info=True)
@@ -827,6 +827,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         multiart_type = self.params.get("multiart")
         params = self.params
         alive = guard.alive
+        family = {}
         # multiart_target: the family's own item when the focused one only stands
         # for it (a favourite's library item, 9040); identity stays the focused one.
         # Read before the image jobs: a seeded family's first slide is the backdrop,
@@ -843,29 +844,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 return self._artwork_held(guard.lost_to)
             multiart_dict = self._multiart_dict(multiart_item, multiart_type)
             if len(multiart_dict) > 1:  # seed_multiart seeds only then
-                params = params | {"background_url": multiart_dict["multiart"]}
-        # Kodi ends a plugin URL's options at its first "|" (art headers): the logo and
-        # icon are read by the infolabels the skin names, headers kept, and a band label
-        # cut off after them is the item's own. A dialog on top would answer the reads,
-        # so then the URL's stand, or none if cut: a hold could outlast the dialog (an
-        # info rail's URL rests through it).
-        reads = {
-            param: info
-            for param, info in (
-                ("clearlogo_url", params.get("clearlogo_source")),
-                ("icon_url", params.get("icon_source")),
-            )
-            if info
-        }
-        if reads and topmost_window_id() == window_id:
-            if "icon_url" in reads and "icon_darken_label" not in params:
-                reads["icon_darken_label"] = (
+                family = {"background_url": multiart_dict["multiart"]}
+        # Kodi ends a plugin URL's options at its first "|" (art headers), and the
+        # parser a value at a raw URL's own "&KEY=": each art URL is read whole by the
+        # label the skin names (read_art_urls), headers kept, and a band label cut off
+        # after the icon's is the item's own. A dialog on top would answer the reads,
+        # so then only a read the URL's value vouches for stands: a hold could outlast
+        # the dialog (an info rail's URL rests through it).
+        on_top = topmost_window_id() == window_id
+        params = params | read_art_urls(params, infolabel, on_top) | family
+        if on_top and params.get("icon_source") and "icon_darken_label" not in params:
+            params = params | {
+                "icon_darken_label": infolabel(
                     "Player.Title" if self.player else f"{self.target_item}.Label"
                 )
-            params = params | {param: infolabel(info) for param, info in reads.items()}
+            }
         art_opts = {
-            art_type: ArtOpts.from_params(params, art_type)
-            for art_type in ("clearlogo", "background", "icon")
+            art_type: ArtOpts.from_params(params, art_type) for art_type in ART_TYPES
         }
         jobs = {
             art_type: [p for p in processes if opts.enabled(p)]
