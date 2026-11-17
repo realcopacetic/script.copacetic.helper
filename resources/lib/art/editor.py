@@ -238,7 +238,7 @@ class ImageEditor:
             )
             row = {
                 policy.ART_FIELD_CACHE_KEY: ctx.cache_key,
-                policy.ART_FIELD_SOURCE_URL: base_ctx.source_url,
+                policy.ART_FIELD_SOURCE_URL: base_ctx.decoded_url,  # however passed
                 policy.ART_FIELD_PROCESS: process,
                 "cached_file_hash": base_ctx.cached_file_hash,
                 **(expected or {}),
@@ -359,7 +359,7 @@ class ImageEditor:
             policy.filter_db_payload(
                 {
                     policy.ART_FIELD_CACHE_KEY: ctx.cache_key,
-                    policy.ART_FIELD_SOURCE_URL: base_ctx.source_url,
+                    policy.ART_FIELD_SOURCE_URL: base_ctx.decoded_url,
                     policy.ART_FIELD_PROCESS: "band",
                     policy.ART_FIELD_HASH: base_ctx.cached_file_hash,
                     **(expected or {}),
