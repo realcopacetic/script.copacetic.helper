@@ -270,10 +270,27 @@ class RuntimeStateManager:
             repeats[item] += 1
         return entries
 
+    def default_children(self, child_mapping: str, parent_item: str) -> list[str]:
+        """
+        A parent item's default children: the child mapping's items whose metadata
+        ``parent`` names it, in ``default_order`` (else ``items``) order.
+
+        :param child_mapping: Child mapping key.
+        :param parent_item: The parent entry's mapping_item.
+        :return: Child mapping_items in order.
+        """
+        mapping = self.mappings[child_mapping]
+        metadata = mapping.get("metadata", {})
+        return [
+            item
+            for item in mapping.get("default_order") or mapping["items"]
+            if metadata.get(item, {}).get("parent") == parent_item
+        ]
+
     def _seed_children(self, state: dict, mapping_key: str, entry: dict) -> None:
         """
         Give a new or re-preset entry with no children in a ``seed_with_parent``
-        mapping the children whose metadata ``parent`` names its item.
+        mapping its default children.
 
         :param state: Full runtime state dict, mutated in place.
         :param mapping_key: The entry's mapping key.
@@ -288,11 +305,9 @@ class RuntimeStateManager:
             rows = state.setdefault(key, [])
             if any(row.get("parent") == parent_id for row in rows):
                 continue
-            metadata = mapping.get("metadata", {})
             rows.extend(
                 {**self._build_default_entry(key, item), "parent": parent_id}
-                for item in mapping.get("default_order") or mapping["items"]
-                if metadata.get(item, {}).get("parent") == entry["mapping_item"]
+                for item in self.default_children(key, entry["mapping_item"])
             )
 
     def resolved_entry(self, mapping_key: str, index: int) -> dict:
@@ -944,11 +959,12 @@ class RuntimeStateManager:
     def delete_orphans(self, child_mapping: str, require_parent: bool = False) -> int:
         """
         Remove entries in ``child_mapping`` whose ``parent`` is absent from
-        its declared parent mapping. No-op for mappings without one.
+        its declared parent mapping, then their own children in turn (a menu
+        item's group widgets' tabs). No-op for mappings without one.
 
         :param child_mapping: Mapping key whose entries are inspected.
         :param require_parent: Remove entries lacking a parent entirely.
-        :return: Number of entries removed.
+        :return: Number of entries removed, descendants included.
         """
         parent_mapping = self.mappings.get(child_mapping, {}).get("parent_mapping")
         if not parent_mapping:
@@ -966,4 +982,9 @@ class RuntimeStateManager:
         if removed:
             state[child_mapping] = cleaned
             self._write_and_invalidate(state)
+            removed += sum(
+                self.delete_orphans(key)
+                for key, mapping in self.mappings.items()
+                if mapping.get("parent_mapping") == child_mapping
+            )
         return removed
