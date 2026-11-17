@@ -203,6 +203,19 @@ def numeric(cfg: dict) -> str | None:
     return result if result != "" else None
 
 
+def multiselect(cfg: dict) -> list[int] | None:
+    """
+    Show a multi-select dialog and return the chosen indexes, or None if cancelled.
+    """
+    return Dialog().multiselect(
+        cfg["heading"],
+        cfg["display_items"],
+        cfg.get("autoclose", 0),
+        cfg.get("preselect", []),
+        cfg.get("useDetails", False),
+    )
+
+
 def select(cfg: dict) -> int:
     """
     Show a selection dialog and return the chosen index.

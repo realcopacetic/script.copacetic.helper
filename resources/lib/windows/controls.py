@@ -270,6 +270,12 @@ class BaseControlHandler:
             return raw_label, ""
 
         cfg_labels = link.get("config", {}).get("labels", {})
+        separator = (self.control.get("onclick") or {}).get("separator")
+        if separator and current and separator in current:  # a multiselect's values
+            labels = (
+                cfg_labels.get(value, value) for value in current.split(separator)
+            )
+            return raw_label, ", ".join(labels)
         meta = (
             self.runtime_manager.mappings[self.mapping_key]
             .get("metadata", {})
@@ -498,6 +504,7 @@ class ButtonHandler(BaseControlHandler):
 
     ACTIONS = {
         "select": onclick_actions.select,
+        "multiselect": onclick_actions.multiselect,
         "browse": onclick_actions.browse,
         "browse_single": onclick_actions.browse_single,
         "browse_multiple": onclick_actions.browse_multiple,
@@ -537,10 +544,14 @@ class ButtonHandler(BaseControlHandler):
             "result_field",
             "folder",
             "kwargs",
+            "separator",
+            "empty",
         )
 
         # Fetch items, then resolve display labels from config labels, metadata, or title-case
         items = onclick.get("items") or self._allowed_items()
+        if multiple := onclick.get("type", "").lower() == "multiselect":
+            items = [item for item in items if item != onclick.get("empty")]
         link = self._active_link()
         cfg_labels = link.get("config", {}).get("labels", {})
 
@@ -558,10 +569,14 @@ class ButtonHandler(BaseControlHandler):
             for lbl in raw_labels
         ]
         current_value = self._get_setting_value()
-        try:
-            preselect = items.index(current_value)
-        except ValueError:
-            preselect = 0
+        if multiple:  # every chosen value, stored joined by the separator
+            chosen = (current_value or "").split(onclick.get("separator", "|"))
+            preselect = [i for i, item in enumerate(items) if item in chosen]
+        else:
+            try:
+                preselect = items.index(current_value)
+            except ValueError:
+                preselect = 0
 
         return {
             "heading": onclick.get("heading", ""),
@@ -651,6 +666,9 @@ class ButtonHandler(BaseControlHandler):
             items = cfg["items"]
             if 0 <= result < len(items):
                 result = items[result]
+        elif isinstance(result, list) and onclick_type.lower() == "multiselect":
+            chosen = (cfg["items"][i] for i in result)
+            result = cfg.get("separator", "|").join(chosen) or cfg.get("empty", "")
 
         if result is not None:
             # Same-preset re-pick is a no-op — leave the entry untouched
