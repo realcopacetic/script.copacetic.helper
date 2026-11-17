@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import re
 import sys
 import time
 from collections import Counter
@@ -293,6 +294,10 @@ class _FocusGuard:
             return False
 
         return True
+
+
+# A library show's titles path: its id, then the listed season, if any
+_TITLES_PATH = re.compile(r"videodb://tvshows/titles/(\d+)/(?:(-?\d+)/)?")
 
 
 class PluginHandlers(metaclass=PluginInfoRegistry):
@@ -1833,18 +1838,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def seasons(self) -> list[DirectoryItem] | None:
         """
-        Show ``id``'s seasons for the episodes view's season tabs, Specials last:
-        each item's path is its episodes' library folder.
+        The seasons of the show listed at ``path`` (a library titles path), Specials
+        last, for the season tabs; the listed season carries property current.
 
-        :return: One item per season, or None without a show id.
+        :return: One item per season, or None for a path that is no show's.
         """
-        if not self._require("id"):
+        if not (found := _TITLES_PATH.match(self.params.get("path", ""))):
             return None
+        show, listed = found.groups()
         rows = (
             json_call(
                 "VideoLibrary.GetSeasons",
                 properties=["season"],
-                params={"tvshowid": int(self.dbid)},
+                params={"tvshowid": int(show)},
                 parent="seasons",
             )
             .get("result", {})
@@ -1852,9 +1858,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         return set_items(
             {
-                "file": f"videodb://tvshows/titles/{self.dbid}/{row['season']}/",
+                "file": f"videodb://tvshows/titles/{show}/{row['season']}/",
                 "label": row["label"],
-                "properties": {"season": row["season"]},
+                "properties": {
+                    "current": "true" if str(row["season"]) == listed else ""
+                },
             }
             # -1 is Kodi's All seasons row; 0 (Specials) sorts after the rest
             for row in sorted(rows, key=lambda r: (r["season"] == 0, r["season"]))

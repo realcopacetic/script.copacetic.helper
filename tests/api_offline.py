@@ -2140,25 +2140,36 @@ class NextUpTest(unittest.TestCase):
 
 
 class SeasonsTest(unittest.TestCase):
-    def test_specials_last_and_no_all_seasons(self):
-        rows = [
-            {"season": -1, "label": "All seasons"},
-            {"season": 0, "label": "Specials"},
-            {"season": 2, "label": "Season 2"},
-            {"season": 1, "label": "Season 1"},
-        ]
-        rpc = lambda request: json.dumps({"result": {"seasons": rows}})
+    rows = [
+        {"season": -1, "label": "All seasons"},
+        {"season": 0, "label": "Specials"},
+        {"season": 2, "label": "Season 2"},
+        {"season": 1, "label": "Season 1"},
+    ]
+
+    def seasons(self, path):
+        rpc = lambda request: json.dumps({"result": {"seasons": self.rows}})
         patch(
             self,
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
             (handlers, "set_items", list),
         )
-        handler = handlers.PluginHandlers({"info": "seasons", "id": "7"})
-        items = handler.seasons()
+        return handlers.PluginHandlers({"info": "seasons", "path": path}).seasons()
+
+    def test_specials_last_no_all_seasons_and_the_listed_one_current(self):
+        items = self.seasons("videodb://tvshows/titles/7/2/?tvshowid=7")
         self.assertEqual(
             [i["label"] for i in items], ["Season 1", "Season 2", "Specials"]
         )
         self.assertEqual(items[0]["file"], "videodb://tvshows/titles/7/1/")
+        self.assertEqual([i["properties"]["current"] for i in items], ["", "true", ""])
+
+    def test_flattened_or_other_paths(self):
+        # -2 is Kodi's flattened listing: no tab is current
+        items = self.seasons("videodb://tvshows/titles/7/-2/")
+        self.assertFalse(any(i["properties"]["current"] for i in items))
+        self.assertIsNone(self.seasons("videodb://recentlyaddedepisodes/"))
+        self.assertIsNone(self.seasons(""))
 
 
 def days_ago(days):
