@@ -431,9 +431,11 @@ A song matches a ListenBrainz recording by its MusicBrainz recording id
 (`musicbrainztrackid`, Picard's "MusicBrainz Track Id"), else by title: case, accents,
 punctuation and a trailing `(feat. …)`, `[Remaster]` or ` - Live` part are ignored.
 Deezer has no MusicBrainz ids, so its tracks match by title (Deezer's title without
-its version, such as "(Album Version)"). A title many albums share (Intro, Interlude,
-Outro, Prelude, Skit, Untitled) matches by recording id only, so a new album's "Intro"
-never ranks an older one. Each title appears once, from its earliest
+its version, such as "(Album Version)"); a title Deezer censored ("Ni\*\*as in Paris")
+matches the one library title it fits, each `*` one letter, and none when two fit. A
+title many albums share (Intro, Interlude, Outro, Prelude, Skit, Untitled) matches by
+recording id only, so a new album's "Intro" never ranks an older one. Each title
+appears once, from its earliest
 dated release (a single, with fewer than four different songs, after an album of the
 same year; two same-year albums in the order the library returns them) unless a
 recording id matched another. The path returns nothing when
@@ -449,7 +451,11 @@ fewer), or one song title and an album title, is taken. When none is and the lib
 artist has fewer than three song titles, too few to tell, the most followed is taken
 if it has more than ten times the fans of the next same-named artist and more than
 1,000: a library artist with a song or two that aren't among its top tracks still
-gets its Deezer lists, at the risk of a namesake's for one Deezer doesn't have. An
+gets its Deezer lists, at the risk of a namesake's for one Deezer doesn't have.
+Failing both, the most followed one's releases (`/artist/<id>/albums`, its first 100)
+are read, one request: their album titles count with its top tracks' albums, so one
+song title in common and a library album among its releases take it (a library
+holding only an album outside the artist's top tracks); an album alone never does. An
 artist whose name has no letters or digits ("!!!") isn't looked up. Its id is kept, keyed by the artist's
 MusicBrainz id, else by its name, so later opens skip the search; **Refresh cached
 data** on the artist searches again (a different pick needs a changed library or
