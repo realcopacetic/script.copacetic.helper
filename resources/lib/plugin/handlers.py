@@ -81,7 +81,7 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.lrc import LINES
+from resources.lib.shared.lrc import LINES, NEIGHBOURS
 from resources.lib.shared.mix import kept_mix, leading_cards, played_songs
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
@@ -2453,8 +2453,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def lyrics(self) -> list[DirectoryItem] | None:
         """
         One item per synced lyric line of the playing song, as the service published
-        them; the path's revision refetches. A path per line keeps a list's line
-        selected through a refresh, as Kodi finds it again by path.
+        them, with its neighbours' indexes; the path's revision refetches. A path per
+        line keeps a list's line selected through a refresh.
 
         :return: List of directory items for Kodi, or None if none.
         """
@@ -2468,7 +2468,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         "index": index,
                         "time": ms,
                         "gap": "" if text else "true",
-                    },
+                    }
+                    | {key: index + step for key, step in NEIGHBOURS.items()},
                 }
                 for index, (ms, text) in enumerate(lines)
             )
