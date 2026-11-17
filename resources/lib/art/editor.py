@@ -32,8 +32,6 @@ if TYPE_CHECKING:
 
     from resources.lib.art.processor import ImageProcessor
 
-BAND_VERSION = 4  # in the band's cache token: raise it when the band's output changes
-
 PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
     "crop": {
         "folder": CROPS,
@@ -62,6 +60,7 @@ PROCESS_SPEC = {  # suffix: the format the process writes, whatever the source's
             policy.ART_FIELD_ELEMENT_COLORS,
         ),
         "require": (policy.ART_FIELD_PROCESSED, policy.ART_FIELD_ELEMENT_COLOR),
+        "version": 4,  # in the band's cache token: raise it when its output changes
     },
 }
 ORIENTATION = 0x0112  # EXIF tag Kodi turns a picture upright by, to draw and cache it
@@ -326,10 +325,9 @@ class ImageEditor:
         spec = PROCESS_SPEC["band"]
         # fade and version are in the token: a new band is a new file Kodi loads
         expected = {
-            **(self._expected_from_spec(spec, opts=opts) or {}),
+            **self._expected_from_spec(spec, opts=opts),
             "feather": opts.band_feather,
             "inset": opts.band_inset,
-            "version": BAND_VERSION,
         }
         ctx = self.cache_manager.with_process_variant(
             base_ctx,
