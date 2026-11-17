@@ -613,11 +613,11 @@ class RuntimeStateManager:
                 log.debug(f"{self.__class__.__name__} → format_metadata fallback: {e}")
                 formatted = template
 
-        return (
-            infolabel(formatted)
-            if localize and isinstance(formatted, str) and formatted.startswith("$")
-            else formatted
-        )
+        if not localize or not isinstance(formatted, str):
+            return formatted
+        # Again after formatting, for a $LOCALIZE inside a substituted value
+        formatted = expand_localize(formatted)
+        return infolabel(formatted) if formatted.startswith("$") else formatted
 
     @staticmethod
     def literal(text: str) -> str:

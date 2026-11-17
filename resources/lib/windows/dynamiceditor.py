@@ -200,13 +200,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             for fid in h.focus_ids:
                 self._handler_by_focus_id[fid] = h
 
-        # Set initial focus and refresh UI
+        # Empty list (e.g. filtered view with no children): a governed one adds.
         if not self.listitems and self._has_governor:
-            # Empty list (e.g. filtered view with no children) — auto-add
             self._on_add()
-            if not self.listitems:
-                self.close()
-                return
+        # Still empty after a cancelled add, or no state row yet with no tab strip
+        # to focus: no key could reach the window to close it.
+        if not self.listitems and (self._has_governor or not self.host_focus):
+            self.close()
+            return
 
         if self.listitems:
             # Focus lands on the skin-declared host_focus, else on the list.
@@ -246,10 +247,16 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         Rebuild listitem entries from runtime state, optionally filtered by parent.
         """
-        # The template wins for the keys it sets: a stored label or icon reaches
-        # the row through its {token}, never as a template of its own.
+        # A stored label, icon or description reaches the row only through the
+        # template's {token}, never as a template of its own: blank before **tpl.
         self.listitems = {
-            entry["runtime_id"]: {**entry, **tpl, "runtime_index": source_idx}
+            entry["runtime_id"]: {
+                **entry,
+                "description": "",
+                "icon": "",
+                **tpl,
+                "runtime_index": source_idx,
+            }
             for tpl in self._runtime_tpls.values()
             for source_idx, entry in self.runtime_manager.live_rows(tpl["mapping"])
             if not self.parent_filter or entry.get("parent") == self.parent_filter
