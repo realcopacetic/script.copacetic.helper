@@ -100,7 +100,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`set_search_query`](#set_search_query) | Copies an edit control's text into a window property |
 | [`shuffle`](#shuffle) | Plays an artist, album, genre, year or music playlist, shuffled |
 | [`shuffle_artist`](#shuffle_artist) | Plays all of an artist's songs, shuffled |
-| [`size_identity`](#size_identity) | Sizes the video OSD's or seek bar dialog's logo control to the playing item's logo |
+| [`size_identity`](#size_identity) | Sizes the video OSD's, seek bar dialog's or full-screen info's logo control to the playing item's logo |
 | [`skip_segment`](#skip_segment) | Seeks past the intro, recap or credits in play |
 | [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year, or a daily mix card's |
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
@@ -1513,13 +1513,14 @@ Example from Copacetic, in the video OSD:
 
 ## size_identity
 
-Sizes control `4045` in the video OSD or the seek bar dialog to the playing item's
-logo, as the service does when a video starts, then sets `player_identity_<window>`.
+Sizes control `4045` in the video OSD, the seek bar dialog or full-screen info to the
+playing item's logo (full-screen info's by height), as the service does when a video
+starts, then sets `player_identity_<window>`.
 See [Identity and clean names](../service/player.md#identity-and-clean-names).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `window` | `videoosd`, `seekbar` | `videoosd` | Which window's logo control |
+| `window` | `videoosd`, `seekbar`, `fullscreeninfo` | `videoosd` | Which window's logo control |
 
 Examples from Copacetic. The video OSD sizes only when it isn't sized for this logo yet;
 the seek bar dialog, opened when video goes full screen (and after a skin reload), sizes

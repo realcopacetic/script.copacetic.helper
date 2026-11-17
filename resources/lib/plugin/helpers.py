@@ -37,10 +37,17 @@ _WHOLE_GENRES = frozenset({"album", "artist", "song", "musicvideo"})
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
 _CLAMP_VERSION = "5"
 
-# The identity lockup's logo (osd.xml blk_osd_identity) and its box, W x H
+# The identity lockup's logo (osd.xml blk_osd_identity) and its box, W x H; full-screen
+# info's logo (DialogFullScreenInfo.xml, same id) fits its own box by height instead
 IDENTITY_LOGO_ID = 4045
 IDENTITY_LOGO_BOX = (600, 90)
-IDENTITY_WINDOWS = {"seekbar": 10115, "videoosd": 12901}  # the windows that mount it
+INFO_LOGO_BOX = (840, 200)
+# The windows that mount it: id, and the logo side sized (player_clearlogo_<side>)
+IDENTITY_WINDOWS = {
+    "seekbar": (10115, "width"),
+    "videoosd": (12901, "width"),
+    "fullscreeninfo": (10142, "height"),
+}
 
 # Skin authoring resolution; Kodi rasterises fonts at size * ScreenHeight / height.
 _SKIN_WIDTH = 1920
@@ -103,13 +110,15 @@ def reposition_control(
 def size_identity(window: str) -> None:
     """
     Fit a window's identity logo control to the playing item's logo, so the label
-    beside it follows, then stamp the window sized for that logo.
+    beside it or the lines under it follow, then stamp the window sized for it.
 
-    :param window: seekbar or videoosd, as in player_identity_<window>.
+    :param window: seekbar, videoosd or fullscreeninfo, as in player_identity_<window>.
     """
-    width = to_int(infolabel("Window(home).Property(player_clearlogo_width)"))
-    window_id = IDENTITY_WINDOWS[window]
-    if width and not reposition_control(IDENTITY_LOGO_ID, w=width, window_id=window_id):
+    window_id, side = IDENTITY_WINDOWS[window]
+    size = to_int(infolabel(f"Window(home).Property(player_clearlogo_{side})"))
+    if size and not reposition_control(
+        IDENTITY_LOGO_ID, window_id=window_id, **{side[0]: size}  # w= or h=
+    ):
         return  # unsized: the label stays hidden rather than beside the wrong width
     logo = infolabel("Window(home).Property(player_clearlogo)")
     window_property(f"player_identity_{window}", value=logo)

@@ -12,7 +12,7 @@ from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Monitor, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
 
 from resources.lib.art.editor import ImageEditor
-from resources.lib.plugin.helpers import IDENTITY_LOGO_BOX, size_identity
+from resources.lib.plugin.helpers import IDENTITY_LOGO_BOX, INFO_LOGO_BOX, size_identity
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.service import lyrics, playnext, segments
 from resources.lib.service.trailer import (
@@ -435,8 +435,9 @@ class PlayerMonitor(Player):
         self._publish(props)
         lyrics.clear()  # a song's, kept up to this start
         size_identity("seekbar")
-        if condition("Window.IsVisible(videoosd)"):  # Next with the OSD up
-            size_identity("videoosd")
+        for window in ("videoosd", "fullscreeninfo"):  # Next with either up
+            if condition(f"Window.IsVisible({window})"):
+                size_identity(window)
         segments.clear()  # after the props: a lookup's wait never holds them back
         # The lookup's queue wait runs callbacks queued meanwhile, a next file's
         # start among them: the answer lands only if no other file started
@@ -452,12 +453,13 @@ class PlayerMonitor(Player):
 
     def _identity(self, tag: InfoTagVideo, path: str) -> dict[str, str]:
         """
-        The identity lockup's logo, cropped, with its width in the lockup's box; for
-        a file outside the library whose title is its file name, a clean name.
+        The identity lockup's logo, cropped, with its width in the lockup's box and its
+        height in full-screen info's; for a file outside the library whose title is its
+        file name, a clean name.
 
         :param tag: The playing video's info tag.
         :param path: The playing file.
-        :return: player_clearlogo(_width) and player_clean_* properties, if any.
+        :return: player_clearlogo(_width, _height) and player_clean_* properties.
         """
         props = {}
         if tag.getDbId() <= 0:  # VideoPlayer.Title: tag, else label, else file name
@@ -481,11 +483,15 @@ class PlayerMonitor(Player):
             },
         )
         box_w, box_h = IDENTITY_LOGO_BOX
+        info_w, info_h = INFO_LOGO_BOX
         w, h = (to_int(art.get(f"clearlogo_{k}")) for k in ("width", "height"))
         return props | {
             "player_clearlogo": art.get("clearlogo") or logo,
             "player_clearlogo_width": str(
                 min(box_w, round(box_h * w / h)) if h else box_w
+            ),
+            "player_clearlogo_height": str(
+                min(info_h, round(info_w * h / w)) if w else info_h
             ),
         }
 
