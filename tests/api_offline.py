@@ -1530,7 +1530,8 @@ class QotsaRailsTest(Base):
     def test_blend(self):
         self.settings["deezer"] = True
         self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, QOTSA_LISTENS]
-        self.assertEqual(self.handler.top_songs(), [1, 2, 6, 8, 3])
+        # Deezer x4: its #3, the new album's Insignificant Other, passes Make It Wit Chu
+        self.assertEqual(self.handler.top_songs(), [1, 2, 6, 14, 8])
         self.assertIn("listenbrainz", self.net.requests[2].full_url)  # Deezer first
 
     def test_deezer_down_listenbrainz_alone(self):
@@ -1558,7 +1559,7 @@ class QotsaRailsTest(Base):
         self.settings["deezer"] = True
         self.handler.limit = None
         self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, QOTSA_LISTENS]
-        # Deezer's double weight lifts Perfecth's three songs over Lullabies
+        # Deezer's weight lifts Perfecth's three songs over Lullabies
         self.assertEqual(self.handler.discography(), [2, 8, 3, 1, 5, 6, 4, 7])
         self.assertEqual(self.calls.count("AudioLibrary.GetSongs"), 1)
         self.assertIn("top-recordings-for-artist", self.net.requests[2].full_url)
