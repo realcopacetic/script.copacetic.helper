@@ -935,6 +935,8 @@ class SliderExHandler(SliderHandler):
             if focused_control_id == self.button_id:
                 self.request_focus_change(self.instance.getId())
             else:
+                # A mouse click (read as Select) has moved the slider itself: keep it
+                super()._on_interact(focused_control_id, a_id)
                 self.request_focus_change(self.button_instance.getId())
             return
         if focused_control_id == self.instance.getId():
