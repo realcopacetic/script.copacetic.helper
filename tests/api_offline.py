@@ -2643,6 +2643,16 @@ class LrclibTest(Base):
         lrclib.prefetch(*SONG, self.aborted)
         self.assertEqual(self.lookup()["synced"][0], [1470, "Feel good"])
 
+    def test_refresh_cached_expires_the_song(self):
+        self.net.answers = [json.dumps(LRCLIB_GET).encode()]
+        found = self.lookup()
+        details = dict(zip(("displayartist", "title", "album", "duration"), SONG))
+        patch(self, (library, "_details", lambda *args: details))
+        patterns = library.api_patterns("song", 7)
+        self.assertEqual(patterns, [self.key()])
+        self.assertEqual(self.cache.expire(*patterns), 1)
+        self.assertEqual(lrclib.saved(*SONG), (found, False))
+
     def test_clear(self):
         self.net.answers = [json.dumps(LRCLIB_GET).encode()]
         self.lookup()
