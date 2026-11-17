@@ -42,8 +42,9 @@ library infolabels and artwork, so your existing layouts work with them.
 - Every item has its `DBType` set (`movie`, `episode`, `tvshow` or `musicvideo`),
   its `DBID`, and the usual infolabels: `Title`, `Plot`, `Year`, `Genre`, `Rating`,
   `PlayCount`, `LastPlayed`, `PercentPlayed` (from the resume point) and so on.
-- `ListItem.Art(...)` holds the library artwork. When an item has no `icon` or
-  `thumb`, Kodi's default icon for its type is used.
+- `ListItem.Art(...)` holds the library artwork. When an item has no `icon`, Kodi's
+  default icon for its type is used. A missing `thumb` stays empty for Kodi to fill
+  (local, embedded or extracted art), as on Kodi's own library items.
 - Episodes and TV shows also have `ListItem.Property(tvshowid)`. Episodes carry the
   show's `Studio` and `MPAA`.
 - TV shows carry the episode counts Kodi's own library items have:
@@ -91,9 +92,9 @@ them. A show with only unwatched specials left is skipped. The list offers Kodi'
 
 The episodes carry the **show's** artwork, as `ListItem.Art(tvshow.poster)`,
 `ListItem.Art(tvshow.fanart)` and so on. Kodi adds the episode's own library artwork
-when it loads the item, so `ListItem.Art(thumb)` is the episode's thumbnail
-(`DefaultTVShows.png` if it has none). `ListItem.Art(fanart)` is empty unless the
-episode has fanart of its own: use `tvshow.fanart`.
+when it loads the item, so `ListItem.Art(thumb)` is the episode's thumbnail (empty
+if it has none; `ListItem.Icon` is then `DefaultTVShows.png`). `ListItem.Art(fanart)`
+is empty unless the episode has fanart of its own: use `tvshow.fanart`.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
