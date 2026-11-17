@@ -4,6 +4,7 @@ import copy
 
 import xbmcgui
 from xbmcgui import (
+    ACTION_MOUSE_LEFT_CLICK,
     ACTION_MOVE_DOWN,
     ACTION_MOVE_UP,
     ACTION_NAV_BACK,
@@ -402,7 +403,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object.
         """
+        # A mouse click acts as Select: the window has no onClick.
         a_id = action.getId()
+        if a_id == ACTION_MOUSE_LEFT_CLICK:
+            a_id = ACTION_SELECT_ITEM
         current_focus = self.getFocusId()
         prev_focus = self._prev_focus_id
         if self._page_changed and current_focus in self._handler_by_focus_id:
