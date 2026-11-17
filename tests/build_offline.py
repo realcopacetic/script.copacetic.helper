@@ -53,6 +53,7 @@ def install_stubs(
     roots = {
         f"special://profile/addon_data/{addon_id}/": out,
         "special://profile/": out / "profile",
+        "special://masterprofile/": out / "masterprofile",
         "special://skin/": stage,
     }
     counts = dict.fromkeys(LEVELS, 0)

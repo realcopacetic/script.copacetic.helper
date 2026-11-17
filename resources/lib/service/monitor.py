@@ -4,11 +4,12 @@ import json
 import sqlite3
 import sys
 import time
-from threading import Timer
+from threading import Thread, Timer
 
 import xbmc
 
 from resources.lib.art.slideshow import Slideshow
+from resources.lib.art.splash import bake_profiles
 from resources.lib.builders.build_elements import BuildElements, output_digests
 from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.templates import cache_is_current
@@ -113,13 +114,16 @@ class Monitor(xbmc.Monitor):
     def _activate(self) -> None:
         """
         Entering an opted-in skin: check the builder outputs (reloading if any
-        changed), start the player monitor and slideshow, then show the context items.
+        changed), start the player monitor and slideshow, bake the login screen's
+        blurs when it is on, then show the context items.
         """
         path, version = self.skin
         log.info(f"{self.__class__.__name__} → Active in {path}, version {version}")
         self._builder_elements()
         self.player_monitor = PlayerMonitor(song_closed=self._song_closed)
         self.slideshow = Slideshow()
+        if condition("System.HasLoginScreen"):
+            Thread(target=bake_profiles, daemon=True).start()
         window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial())
         window_property(ACTIVE_PROPERTY, value="true")
 

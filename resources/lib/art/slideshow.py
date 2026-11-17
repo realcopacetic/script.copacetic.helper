@@ -6,6 +6,7 @@ from urllib.parse import parse_qsl, quote
 
 from resources.lib.art import policy
 from resources.lib.art.editor import ImageEditor
+from resources.lib.art.splash import save_splash
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
@@ -78,6 +79,7 @@ class Slideshow:
         self.slot = infolabel("Window(home).Property(slideshow_slot)") or "b"
         self.shown = None  # the current slide's (item, fanart)
         self.query = ""  # the params its darken was measured by
+        self.splash_due = True  # the session's first slide is the next splash's
 
     def tick(self) -> None:
         """
@@ -132,6 +134,8 @@ class Slideshow:
             if slide := self._process(item, fanart, query):
                 self._publish(slide)
                 self.shown, self.query = (item, fanart), query
+                if self.splash_due:
+                    self.splash_due = not save_splash(self.image_processor, fanart)
             elif (end := time.monotonic()) - start >= self.RETRY_WITHIN:
                 self.next_slide_at = end + interval  # rest a whole interval after it
             elif self.art:
