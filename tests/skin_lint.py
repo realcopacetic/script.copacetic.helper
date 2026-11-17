@@ -869,7 +869,7 @@ def window_metadata(skin: Path) -> dict[str, dict[str, str]]:
     Builder windows and their metadata, from ``mappings_windows.json``.
 
     :param skin: Skin root directory.
-    :return: {window: metadata}; empty if the skin has no mappings (C1).
+    :return: {window: metadata}; empty if the skin has no mappings.
     """
     path = skin / "extras/templates/mappings/mappings_windows.json"
     if not path.exists():
@@ -883,7 +883,7 @@ def media_families(skin: Path) -> tuple[str, ...]:
     windows: the ``mappings_windows.json`` windows with ``mode`` ``media``.
 
     :param skin: Skin root directory.
-    :return: Suffixes such as ``_videos``; none if the skin has no mappings (C1).
+    :return: Suffixes such as ``_videos``; none if the skin has no mappings.
     """
     return tuple(
         f"_{w}" for w, meta in window_metadata(skin).items() if meta["mode"] == "media"
@@ -893,13 +893,14 @@ def media_families(skin: Path) -> tuple[str, ...]:
 def window_families(skin: Path) -> tuple[str, ...]:
     """
     Name suffixes of the generated per-window and per-scope definitions: one for each
-    ``mappings_windows.json`` window and each ``scope`` they name.
+    ``mappings_windows.json`` window and each ``scope`` they name (C1 names none).
 
     :param skin: Skin root directory.
-    :return: Suffixes such as ``_home``, ``_widgets``; none without mappings (C1).
+    :return: Suffixes such as ``_home``, ``_widgets``; none without mappings.
     """
-    names = {
-        name for w, meta in window_metadata(skin).items() for name in (w, meta["scope"])
+    metadata = window_metadata(skin)
+    names = set(metadata) | {
+        meta["scope"] for meta in metadata.values() if "scope" in meta
     }
     return tuple(f"_{name}" for name in sorted(names))
 
