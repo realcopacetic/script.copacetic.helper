@@ -64,7 +64,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz, Deezer, TheIntroDB or LRCLIB |
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
-| [`clear_label`](#clear_label) | Empties a fadelabel control |
+| [`clear_label`](#clear_label) | Empties one or more fadelabel controls |
 | [`container_reset`](#container_reset) | Selects a container's first item, or another, without focusing it |
 | [`delete_orphans`](#delete_orphans) | Removes builder entries whose parent entry is gone |
 | [`dialog_textviewer`](#dialog_textviewer) | Shows an infolabel's text in Kodi's text viewer |
@@ -333,16 +333,16 @@ Empties a **fadelabel** control in the current window. Use it in `<onload>`, so 
 window kept in memory does not show its last text for a moment when it opens again. Not
 in `<onunload>`: the script runs once the next window is current.
 
-Nothing happens if the id is not a positive number. The control must exist in the
-current window (the window itself, also while a dialog is open). It only works on
-fadelabel controls.
+Nothing happens for an id that is not a positive number. Each control must exist in
+the current window (the window itself, also while a dialog is open). It only works on
+fadelabel controls. Several ids, comma-separated, are emptied in one script run.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `id` | control id | required | The fadelabel to empty |
+| `id` | control ids, comma-separated | required | The fadelabels to empty |
 
 ```xml
-<onload>RunScript(script.copacetic.helper,action=clear_label,id=1500)</onload>
+<onload>RunScript(script.copacetic.helper,action=clear_label,id=1500,1501)</onload>
 ```
 
 ---
