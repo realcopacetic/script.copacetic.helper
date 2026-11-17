@@ -169,7 +169,7 @@ one genre bucket (Hip Hop, Post-rock, Ambient …: the buckets of a skin's genre
 [`music_genres`](../builders/02-mappings.md#music_genres--the-helpers-genre-buckets)),
 with songs by at least three artists; a genre in no bucket is a card of its own. A
 song counts for its genres' buckets by how
-lately you played it: fully today, half a week ago, a quarter two weeks ago. The six
+lately you played it: fully today, half as much a week ago, a quarter two weeks ago. The six
 buckets with the most make the cards, and the one you played last comes first, so
 something new you've been playing leads over what you played for years. A bucket most
 of whose weight already makes a card is passed over, so the cards differ.
@@ -582,7 +582,7 @@ With **Rank music with Deezer** on:
 | Artist | *Charting* | Its Deezer artist is in Deezer's artist chart today (`/chart/0/artists`, 100 places) |
 | Artist | *Popular* | Otherwise, with 1,000,000 Deezer fans or more (`nb_fan`, from the artist search `top_songs` already makes) |
 | Song | *#2 song* | Its place in its first artist's [`top_songs`](#top_songs), within the first 10; songs only topping the list up by play count take no place |
-| Album | *Most popular album* | It leads its first artist's [`discography`](#discography) by popularity (a compilation never) |
+| Album | *Most popular album* | It leads its first artist's [`discography`](#discography) by popularity, alone, ahead of at least one other album of the artist's (a compilation never) |
 
 With Deezer off, the library's play counts speak instead, summed over each one's
 songs: an artist reads *Your #3 artist*, its place among the library's artists within
