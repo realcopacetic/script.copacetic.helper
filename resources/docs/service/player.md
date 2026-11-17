@@ -267,7 +267,8 @@ LRCLIB asks.
 The setting is `lrclib` in the helper's settings, on by default: off, nothing is
 sent and only `.lrc` files and tags are used. A skin can test for it with
 `Addon.SettingBool(script.copacetic.helper,lrclib)`. *Cache › Clear LRCLIB data*
-forgets every saved answer.
+forgets every saved answer; **Refresh cached data** one library song's (see
+[`refresh_cached`](../script/actions.md#refresh_cached)).
 
 | Property | Value |
 |---|---|

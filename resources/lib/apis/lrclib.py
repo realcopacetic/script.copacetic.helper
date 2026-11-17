@@ -105,7 +105,7 @@ def saved(artist: str, title: str, album: str, seconds: int) -> tuple[Any, bool]
     :param seconds: Its length in whole seconds.
     :return: (payload, fresh), payload None for a failure; None when never asked.
     """
-    return ApiCacheHandler().get(_query(artist, title, album, seconds)[0])
+    return ApiCacheHandler().get(song_key(artist, title, album, seconds))
 
 
 def prefetch(
@@ -133,6 +133,19 @@ def prefetch(
     return payload
 
 
+def song_key(artist: str, title: str, album: str, seconds: int) -> str:
+    """
+    A song's api_cache key; refresh_cached builds it from the library's details.
+
+    :param artist: The song's artist string.
+    :param title: Its title.
+    :param album: Its album; "" when none.
+    :param seconds: Its length in whole seconds.
+    :return: The key.
+    """
+    return f"lrclib:lyrics:{artist}|{title}|{album}|{seconds}"
+
+
 def _query(
     artist: str, title: str, album: str, seconds: int
 ) -> tuple[str, dict[str, Any]]:
@@ -145,7 +158,7 @@ def _query(
     :param seconds: Its length in whole seconds.
     :return: (key, params).
     """
-    return f"lrclib:lyrics:{artist}|{title}|{album}|{seconds}", {
+    return song_key(artist, title, album, seconds), {
         "track_name": title,
         "artist_name": artist,
         "album_name": album,

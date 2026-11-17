@@ -149,9 +149,9 @@ def _details(type: str, dbid: int, *properties: str) -> dict:
 
 def api_patterns(type: str, dbid: int) -> list[str]:
     """
-    LIKE patterns for an item's api_cache rows: a movie's TMDb rows; for a show,
-    season or episode its show's and seasons' TMDb rows and episodes' TheIntroDB rows;
-    an artist's ListenBrainz rows and Deezer match, top tracks and related artists.
+    LIKE patterns for an item's api_cache rows: a movie's TMDb and TheIntroDB rows; a
+    show's, season's or episode's show, seasons (TMDb) and episodes (TheIntroDB); an
+    artist's ListenBrainz and Deezer rows; a song's LRCLIB lyrics.
 
     :param type: A DETAILS key.
     :param dbid: The item's library id.
@@ -164,6 +164,13 @@ def api_patterns(type: str, dbid: int) -> list[str]:
         mbid = artist["musicbrainzartistid"][0]  # [""] when untagged
         key = deezer.artist_key(mbid, artist["artist"])
         return [*([f"listenbrainz:%:{mbid}"] if mbid else []), *deezer.patterns(key)]
+    if type == "song":
+        from resources.lib.apis import lrclib
+
+        # the tags MusicPlayer.Artist/Title/Album/Duration read (song.strArtistDisp)
+        tags = ("displayartist", "title", "album", "duration")
+        song = _details(type, dbid, *tags)
+        return [lrclib.song_key(*(song[tag] for tag in tags))]
     if type in ("season", "episode"):
         type, dbid = "tvshow", _details(type, dbid, "tvshowid")["tvshowid"]
     if type not in ("movie", "tvshow"):
