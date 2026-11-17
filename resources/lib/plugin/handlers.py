@@ -155,6 +155,7 @@ def _video_details(
 
 _INFO_OPEN = " | ".join(f"Window.IsVisible({wid})" for wid in INFO_DIALOGS)
 _SERVE_DIALOGS = (*INFO_DIALOGS, 10120)  # and the music OSD, whose rails serve alike
+_TRAILER_PENDING = "String.IsEqual(Window(home).Property(trailer_state),pending)"
 
 
 def _info_open() -> bool:
@@ -413,13 +414,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Wait up to a second, and up to five more behind the busy dialog, for the
         serve's info dialog to be topmost: under a menu, ListItem reads miss it.
 
-        :return: False when it never was, it closed, or Kodi is exiting.
+        :return: False if it never was, it closed, Kodi exits, or busy with no guard.
         """
-        monitor, left, busy_left = Monitor(), 10, 50
+        monitor, left, busy_left, swap = Monitor(), 10, 50, False
         while (top := topmost_window_id()) != self._info_window:
-            # Kodi's own Information swaps the item behind the busy dialog
+            # Kodi's own Information swaps the item behind the busy dialog; a
+            # trailer's resolve shows it too (service/player.py), swapping nothing
             if top == 10138:
                 busy_left -= 1
+                swap |= not condition(_TRAILER_PENDING)
             else:
                 left -= 1
             if (
@@ -428,7 +431,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 or monitor.waitForAbort(0.1)
             ):
                 return False
-        return True
+        # Behind the busy dialog the item may have swapped: a run whose guard a "|" cut
+        # off would guard the new item (_guard reads it now), so it stops instead
+        return (
+            not swap or self.expected_identity is not None or not self.identity_labels
+        )
 
     def _item_key(self, item: str | None = None) -> str:
         """

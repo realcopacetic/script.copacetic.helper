@@ -1894,6 +1894,40 @@ class PipeGuardTest(unittest.TestCase):
         self.assertEqual(self.alive("A", "A", "Act I | Act II"), ("Act I ", True))
         self.assertFalse(self.alive("A", "B", "Act I | Act II")[1])
 
+    def on_top(self, plot: str, cover: int, trailer: bool = False) -> bool:
+        """
+        Run _info_on_top while one other window (cover) is topmost for a moment.
+
+        :param plot: The text param as the URL carries it.
+        :param cover: The window over the info dialog: 10138 busy, else a menu.
+        :param trailer: Whether a trailer is resolving (trailer_state pending).
+        :return: What it returned.
+        """
+        query = (
+            "?info=text&target=item&identity_labels=ListItem.Label"
+            f"&text={plot}&focus_guard=A"
+        ).partition("|")[0]
+        handler = handlers.PluginHandlers(parse_plugin_argv(["p://", "1", query]))
+        handler.__dict__["_info_window"] = 12003
+        tops = iter((cover, cover, 12003))
+        with mock.patch.multiple(
+            handlers,
+            topmost_window_id=lambda: next(tops),
+            condition=lambda expression: trailer or "trailer_state" not in expression,
+            Monitor=lambda: mock.Mock(waitForAbort=lambda timeout: False),
+        ):
+            return handler._info_on_top()
+
+    def test_busy_wait_stops_a_run_whose_guard_was_cut_off(self):
+        # Kodi's Information swaps the item behind the busy dialog
+        self.assertFalse(self.on_top("Act I | Act II", 10138))
+        self.assertTrue(self.on_top("Act I | Act II", 10106))
+        self.assertTrue(self.on_top("A plot.", 10138))
+
+    def test_busy_wait_for_a_trailer_swaps_nothing(self):
+        # A trailer's resolve shows the busy dialog over the info screen
+        self.assertTrue(self.on_top("Act I | Act II", 10138, trailer=True))
+
 
 class NextUpTest(unittest.TestCase):
     shows = [
