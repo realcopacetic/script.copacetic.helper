@@ -81,7 +81,8 @@ python tests/segments_offline.py
 # this or the rule) for an existing timer, the failed-delete dialog, the stamp after
 # Kodi's timers catch up, busy cleared on every way out; the channel manager's Back
 # (script/actions.py pvr_manager_back): Kodi's own question, Yes OK 4, No Cancel 6,
-# Back refocusing what it left
+# Back refocusing what it left, nothing once the manager isn't topmost, busy cleared on
+# every way out
 python tests/pvr_offline.py
 
 # Lyrics (shared/lrc.py, service/lyrics.py): the LRC parser; the sources in order (a
