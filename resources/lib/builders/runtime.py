@@ -270,6 +270,31 @@ class RuntimeStateManager:
             repeats[item] += 1
         return entries
 
+    def _seed_children(self, state: dict, mapping_key: str, entry: dict) -> None:
+        """
+        Give a new or re-preset entry with no children in a ``seed_with_parent``
+        mapping the children whose metadata ``parent`` names its item.
+
+        :param state: Full runtime state dict, mutated in place.
+        :param mapping_key: The entry's mapping key.
+        :param entry: The parent entry just inserted or rebuilt.
+        """
+        parent_id = entry["runtime_id"]
+        for key, mapping in self.mappings.items():
+            if not mapping.get("seed_with_parent"):
+                continue
+            if mapping.get("parent_mapping") != mapping_key:
+                continue
+            rows = state.setdefault(key, [])
+            if any(row.get("parent") == parent_id for row in rows):
+                continue
+            metadata = mapping.get("metadata", {})
+            rows.extend(
+                {**self._build_default_entry(key, item), "parent": parent_id}
+                for item in mapping.get("default_order") or mapping["items"]
+                if metadata.get(item, {}).get("parent") == entry["mapping_item"]
+            )
+
     def resolved_entry(self, mapping_key: str, index: int) -> dict:
         """
         Return the entry at ``index`` with config-field defaults layered in
@@ -715,6 +740,7 @@ class RuntimeStateManager:
             lst.append(new_entry)
         else:
             lst.insert(index, new_entry)
+        self._seed_children(state, mapping_key, new_entry)
         self._resolve_parent_refs(state)
         self._write_and_invalidate(state)
         return new_entry
@@ -795,6 +821,7 @@ class RuntimeStateManager:
         fresh = self._build_default_entry(mapping_key, mapping_item)
         fresh.update(preserve)
         mapping_list[index] = fresh
+        self._seed_children(state, mapping_key, fresh)
         self._resolve_parent_refs(state)
         self._write_and_invalidate(state)
         return fresh

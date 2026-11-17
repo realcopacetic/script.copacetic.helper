@@ -144,6 +144,8 @@ In the child mapping (`widgets`), declare `"parent_mapping": "mainmenu"`, and gi
 
 When the entry is created, that name is swapped for the movies menu entry's permanent id (only when `parent_mapping` is declared). From then on the link is by id — reorder either list, rename labels, nothing breaks. `{parent}` is now a token in any dynamic template for the widgets mapping.
 
+With `"seed_with_parent": true` on the child mapping, a parent entry the editor adds, or switches to another item, gets those children too when it has none. Copacetic's `tabs` uses it so a new group widget starts with one tab, and its `tabs_items_{parent}` include always exists.
+
 ### 2. The parent announces itself; the child checks
 
 Two halves of one handshake. The menu template writes each row's id onto its listitem (that's the `<property>` line in the menu example above):
