@@ -59,6 +59,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 |---|---|
 | [`bake_profiles`](#bake_profiles) | Blurs each profile's picture again for a login screen and the splash after it |
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
+| [`check_clashes`](#check_clashes) | Switches off the add-ons the user chose to for clashing with the skin's features, and asks about new ones |
 | [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
 | [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz, Deezer, TheIntroDB or LRCLIB |
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
@@ -93,6 +94,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
 | [`refresh_cached`](#refresh_cached) | Makes one library item's web answers and cached images come again |
 | [`remove_broken_art`](#remove_broken_art) | Removes artwork links that are gone (web images and files) from the library |
+| [`reset_clashes`](#reset_clashes) | Switches back on the add-ons switched off for clashing, and asks about each again |
 | [`roll_seed`](#roll_seed) | Writes a fresh random number to a window property |
 | [`search_backspace`](#search_backspace) | Rewrites `search_query` from the on-screen keys' log, deletes included |
 | [`seed_keyboard_layout`](#seed_keyboard_layout) | Fills the `keyboard` mapping from a Kodi keyboard layout |
@@ -220,6 +222,24 @@ the list opens: a script still running as it closes can write after its unload.
   <info>Window(home).Property(player_chapter_focus)</info>
   <righttexture>common/white.png</righttexture>
 </control>
+```
+
+---
+
+## check_clashes
+
+Switches off each add-on the user chose to switch off for doing a job one of the
+helper's features does, while that feature is on, and switches one back on once its
+features are all off. Then, once Home settles, asks about each such add-on not asked
+about yet. Runs only while a skin that opts in is active; the service runs it each
+time one becomes active. See
+[Add-ons that clash](../service/index.md#add-ons-that-clash) for the add-ons and
+the rules.
+
+No parameters.
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=check_clashes)</onclick>
 ```
 
 ---
@@ -1219,6 +1239,21 @@ No parameters.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=remove_broken_art)</onclick>
+```
+
+---
+
+## reset_clashes
+
+Switches back on every add-on the helper switched off for
+[clashing](../service/index.md#add-ons-that-clash), forgets every answer, shows a
+notification, then in a skin that opts in asks about each again once Home settles.
+Also in the helper's settings, under *Troubleshooting*.
+
+No parameters.
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=reset_clashes)</onclick>
 ```
 
 ---

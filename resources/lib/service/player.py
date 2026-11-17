@@ -305,7 +305,7 @@ class PlayerMonitor(Player):
         Poller hook: Play next switched off during an episode drops the successor
         it queued, so playback ends with the episode.
         """
-        if self._successor and not condition("Skin.HasSetting(playnext_enabled)"):
+        if self._successor and not condition(playnext.ENABLED):
             playnext.withdraw(self._successor)
             self._successor = ""
 

@@ -329,6 +329,16 @@ msgid "Clear LRCLIB data"
 msgstr ""
 
 #: /resources/settings.xml
+msgctxt "#32045"
+msgid "Other add-ons"
+msgstr ""
+
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32046"
+msgid "Ask again about add-ons that clash"
+msgstr ""
+
+#: /resources/settings.xml
 msgctxt "#32133"
 msgid "Forget every saved TMDb answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
 msgstr ""
@@ -366,6 +376,11 @@ msgstr ""
 #: /resources/settings.xml
 msgctxt "#32144"
 msgid "Forget every saved LRCLIB answer (song lyrics), so each is fetched again when next played."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32146"
+msgid "Switches back on each add-on the helper switched off for doing a job the skin already does (lyrics, next episode prompts, skip buttons), and asks about each again the next time Home opens."
 msgstr ""
 
 
@@ -535,6 +550,31 @@ msgstr ""
 #: /resources/lib/script/actions.py
 msgctxt "#32233"
 msgid "Waveform couldn't be switched on: the background stays as it is"
+msgstr ""
+
+#: /resources/lib/service/clashes.py
+msgctxt "#32234"
+msgid "Switch off"
+msgstr ""
+
+#: /resources/lib/service/clashes.py
+msgctxt "#32235"
+msgid "Keep both"
+msgstr ""
+
+#: /resources/lib/service/clashes.py
+msgctxt "#32236"
+msgid "%(addon)s opens its own lyrics over %(skin)s's. Switch it off while you use %(skin)s? It comes back on if you change skin."
+msgstr ""
+
+#: /resources/lib/service/clashes.py
+msgctxt "#32237"
+msgid "%(addon)s shows its own next episode prompt as well as %(skin)s's Play next. It also covers episodes from other add-ons, which Play next doesn't. Switch it off while you use %(skin)s? It comes back on if you change skin."
+msgstr ""
+
+#: /resources/lib/service/clashes.py
+msgctxt "#32238"
+msgid "%(addon)s shows its own skip and next episode buttons over %(skin)s's. Switch it off while you use %(skin)s? It comes back on if you change skin."
 msgstr ""
 
 

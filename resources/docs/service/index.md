@@ -106,7 +106,9 @@ interrupted. In order:
    [context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu),
    and, if the skin's templates or `16x9/` XML name `info=speed_dial`,
    `helper_speed_dial`, which shows Pin to speed dial and Unpin among them. A skin
-   update checks for `info=speed_dial` again.
+   update checks for `info=speed_dial` again. Then it queues
+   `action=check_clashes` behind any reload (see
+   [Add-ons that clash](#add-ons-that-clash)).
 4. The poll loop starts, and with it the slideshow.
 
 ### When the active skin changes, or the service stops
@@ -120,7 +122,9 @@ whether it is playing, paused or full screen (rewound first, so nothing is marke
 watched), clears the trailer,
 player, lyrics, speed dial and slideshow properties, and detaches the player monitor. If the
 new skin opts in, everything [starts again](#when-a-skin-that-opts-in-becomes-active)
-for it; otherwise nothing else runs until a skin that opts in is active.
+for it; otherwise the add-ons the helper switched off for
+[clashing](#add-ons-that-clash) are switched back on, and nothing else runs until a
+skin that opts in is active.
 
 ### The poll loop
 
@@ -175,6 +179,37 @@ the close of the songs the helper queues by file path (mixes, speed dial,
 
 The player monitor handles playback start, stop, end and error, seeks, chapter jumps
 and speed changes while a skin that opts in is active, including while the screensaver pauses the poll loop.
+
+## Add-ons that clash
+
+Some add-ons do a job the helper's features do, and with both on, both show:
+
+| Add-on | What it does twice | Feature (skin setting) |
+|---|---|---|
+| CU LRC Lyrics (`script.cu.lrclyrics`) | Opens its own lyrics window | [Lyrics](player.md#lyrics) (`lyrics`) |
+| Up Next (`service.upnext`) | Shows its own next episode prompt; it also covers other add-ons' episodes, which Play next doesn't | [Play next](playnext.md) (`playnext_enabled`) |
+| TheIntroDB (`plugin.video.tidb`) | Shows its own skip and next episode buttons, or skips on its own | [Skip segments](player.md#skip-segments) (`skip_segments`) or Play next |
+
+The helper never switches one off without asking. Each time a skin that opts in
+becomes active, the service runs `action=check_clashes`, queued behind any reload of
+the skin. For each add-on that is enabled while a feature it clashes with is on:
+
+- **Not asked about yet:** once Home has been on top for 2 seconds with no dialog over
+  it or the screensaver, a yes/no names the add-on and the skin. *Switch off* switches
+  it off (Kodi stops its service with it); *Keep both* leaves it. Back asks again the
+  next time. If the skin is left first, nothing is asked.
+- ***Switch off* chosen:** it is switched off again without asking, also if the user
+  switched it back on meanwhile.
+- ***Keep both* chosen:** it is never asked about again.
+
+An add-on the helper switched off is switched back on when its features are all off
+(at the next entry), and whenever a skin that doesn't opt in becomes active. Kodi
+exiting leaves it off for the next start. A feature turned on mid-session is checked
+the next time the skin becomes active. The answers and what is switched off are kept
+in `clashes.json` in the add-on's profile folder. *Ask again about add-ons that clash*
+in the helper's settings (*Troubleshooting*) runs
+[`reset_clashes`](../script/actions.md#reset_clashes): it switches them back on,
+forgets every answer and asks again.
 
 ## Full contract
 
@@ -266,10 +301,10 @@ when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes 
 | `info_current` | Window property | When a trailer goes full screen | [Trailers](trailers.md#full-screen) |
 | `trailer_flight`, `trailer_pending_since` | Window property | On playback start, and each poll | [Trailers](trailers.md) |
 | `trailer_file` | Window property | Each poll | [Trailers](trailers.md) |
-| `playnext_enabled` | Skin setting (bool) | When a library episode starts | [Play next](playnext.md) |
-| `skip_segments` | Skin setting (bool) | When a video starts | [Player properties](player.md#skip-segments) |
+| `playnext_enabled` | Skin setting (bool) | When a library episode starts; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Play next](playnext.md) |
+| `skip_segments` | Skin setting (bool) | When a video starts; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Player properties](player.md#skip-segments) |
 | `endless_queue` | Skin setting (bool) | When a library song starts | [Player properties](player.md#endless-queue) |
-| `lyrics` | Skin setting (bool) | When a song starts, and each poll while one plays | [Lyrics](player.md#lyrics) |
+| `lyrics` | Skin setting (bool) | When a song starts, and each poll while one plays; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Lyrics](player.md#lyrics) |
 | `3510`, `3511` | Container ids (`NumItems`, `CurrentItem`, focus) | At each lyric line, in the visualisation and the music OSD | [Lyrics](player.md#lyrics) |
 | `slideshow_source`, `slideshow2_source` | Skin string | Each poll | [Slideshow](slideshow.md) |
 | `slideshow_path`, `slideshow2_path` | Skin string | Each poll | [Slideshow](slideshow.md) |
