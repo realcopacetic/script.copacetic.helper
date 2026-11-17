@@ -60,6 +60,7 @@ from resources.lib.shared import lrc  # noqa: E402
 
 LRC = "[ar:Gorillaz]\n[00:01.47]Feel good\n[00:07.05]Sha, sha-ba-da\n[00:10.06]\n"
 LINES = [[1470, "Feel good"], [7050, "Sha, sha-ba-da"], [10060, ""]]
+INTRO = [[0, ""], *LINES]  # as published: a gap for the intro before 00:01.47
 SONG = ("Gorillaz", "Feel Good Inc.", "Demon Days", 223)
 TAGS = {
     "MusicPlayer.Artist": "Gorillaz",
@@ -247,7 +248,7 @@ class LookupTest(Kodi):
         self.labels["MusicPlayer.Lyrics"] = LRC
         found = lyrics.lookup(self.aborted)
         self.assertEqual(self.order, [*lyrics.SEARCHING, *lyrics.PROPS])
-        self.assertEqual(json.loads(self.props.pop("lyrics_lines")), LINES)
+        self.assertEqual(json.loads(self.props.pop("lyrics_lines")), INTRO)
         self.assertTrue(self.props.pop("lyrics_revision"))
         self.assertEqual(
             self.props,
@@ -264,7 +265,12 @@ class LookupTest(Kodi):
                 "lyrics_p5": "4",
             },
         )
-        self.assertEqual(found.times, [1470, 7050, 10060])
+        self.assertEqual(found.times, [0, 1470, 7050, 10060])
+
+    def test_only_an_intro_gets_a_gap(self):
+        self.assertEqual(lyrics.publish("file", [[0, "Go"]], None, False), [[0, "Go"]])
+        gap = [[500, ""], [1470, "Go"]]  # opens on an empty stamp: one gap, not two
+        self.assertEqual(lyrics.publish("file", gap, None, False), gap)
 
     def test_plain_none_and_instrumental_clear_the_rest(self):
         self.props = dict.fromkeys(lyrics.PROPS, "old")
@@ -345,7 +351,7 @@ class LrclibTest(Kodi):
             ("synced", "lrclib"),
         )
         self.assertEqual(
-            (found.times, self.asked), ([1470, 7050, 10060], [("lyrics", SONG)])
+            (found.times, self.asked), ([0, 1470, 7050, 10060], [("lyrics", SONG)])
         )
 
     def test_a_fresh_cached_answer_shows_at_once(self):
@@ -581,7 +587,7 @@ class PollerHookTest(Kodi):
         self.assertEqual((self.lookups, self.props), ([], {}))
         self.conditions.add(lyrics.ENABLED)
         self.assertAlmostEqual(self.monitor.watch_lyrics(), 0.55)  # to 00:07.05
-        self.assertEqual(self.props["lyrics_index"], "0")
+        self.assertEqual(self.props["lyrics_index"], "1")  # after the intro's gap
         self.monitor.watch_lyrics()
         self.assertEqual(len(self.lookups), 1)
 
