@@ -57,6 +57,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 
 | Action | What it does |
 |---|---|
+| [`bake_profiles`](#bake_profiles) | Blurs each profile's picture again for a login screen and the splash after it |
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
 | [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
 | [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz, Deezer, TheIntroDB or LRCLIB |
@@ -154,6 +155,30 @@ so they show the right way round in any list, not only in speed dial.
 
 Each item passes the clicked item's database id (the year itself for a year), its
 type and its path to the action.
+
+---
+
+## bake_profiles
+
+Blurs each profile's picture (radius 50, through the helper's art cache) into
+`special://masterprofile/addon_data/script.copacetic.helper/login/<profile name>.jpg`, the
+master profile's add-on data because a login screen runs as the master profile. A
+profile gone, renamed or without a picture loses its file, and a profile whose name
+holds `\ / : * ? " < > |` gets none. The service does it on every start, after each
+login; call it as Kodi's Profiles window closes, so a picture changed there shows at the
+next logout. Files are rewritten only when they change, and this profile's cached copy
+of a changed file is dropped (Kodi rechecks a cached file at most once a day).
+
+The service also writes `.../splash.jpg` from the first slideshow slide of each session,
+the same blur, for a splash to show at the next start. A skin reads both by path; a
+missing file draws nothing, so pair them with the texture's `fallback`:
+
+```xml
+<!-- SettingsProfile.xml -->
+<onunload>RunScript(script.copacetic.helper,action=bake_profiles)</onunload>
+<!-- the login screen's background: the focused profile's blur, else the last session's -->
+<texture fallback="special://masterprofile/addon_data/script.copacetic.helper/splash.jpg">$INFO[Container(52).ListItem.Label,special://masterprofile/addon_data/script.copacetic.helper/login/,.jpg]</texture>
+```
 
 ---
 
