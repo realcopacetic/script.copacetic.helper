@@ -127,6 +127,14 @@ def _reload_skin() -> None:
 
 
 @action
+def bake_profiles(**kwargs: str) -> None:
+    """Bake the login screen's profile blurs again, as the Profiles window closes."""
+    from resources.lib.art.splash import bake_profiles as bake
+
+    bake()
+
+
+@action
 def clean_image_cache(**kwargs: str) -> None:
     """
     After a yes/no on what was found, remove this device's cached images that no
