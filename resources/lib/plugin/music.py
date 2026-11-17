@@ -456,31 +456,59 @@ def artist_names(parent: str, album_artists: bool = False) -> dict[str, str]:
     return {fold(row["artist"]): row["artist"] for row in rows}
 
 
-def play_places(parent: str) -> dict[str, list[int]]:
+def artist_places(parent: str) -> list[int]:
     """
-    The library's most played artists and its most played album, by their songs'
-    summed play counts (a duet counts for each artist); worked out once a day.
+    The library's most played artists, by their songs' summed play counts (a duet
+    counts for each); worked out once a day.
 
     :param parent: Caller name for logging.
-    :return: {"artist": up to PLACES ids, most played first, "album": [its id]}.
+    :return: Up to PLACES library artist ids, most played first.
     """
     from resources.lib.apis.cache import DAY, cached
 
-    def count() -> dict[str, list[int]]:
-        artists, albums = Counter(), Counter()
+    def count() -> list[int]:
+        plays = Counter()
         played = {"field": "playcount", "operator": "greaterthan", "value": "0"}
         for song in library_rows(
-            "song", played, None, None, parent, ["albumid", "artistid", "playcount"]
+            "song", played, None, None, parent, ["artistid", "playcount"]
         ):
-            artists.update(dict.fromkeys(song["artistid"], song["playcount"]))
-            albums[song["albumid"]] += song["playcount"]
-        (first, plays), (_, runner_up) = [*albums.most_common(2), (0, 0), (0, 0)][:2]
-        return {
-            "artist": [artistid for artistid, _ in artists.most_common(PLACES)],
-            "album": [first] if plays > runner_up else [],  # a tie leads nothing
-        }
+            plays.update(dict.fromkeys(song["artistid"], song["playcount"]))
+        return [artistid for artistid, _ in plays.most_common(PLACES)]
 
-    return cached("library:play-places", count, (DAY, DAY))
+    return cached("library:artist-places", count, (DAY, DAY))
+
+
+def play_place(plays: Counter, key: int | str) -> int:
+    """
+    A key's place by plays among two or more, within PLACES: only a clear one, so
+    none when it is unplayed or another key has as many plays (a tie).
+
+    :param plays: Plays per key, unplayed keys at 0.
+    :param key: The item's key.
+    :return: 1 to PLACES; 0 otherwise.
+    """
+    counts = sorted(plays.values(), reverse=True)
+    count = plays[key]
+    if len(counts) < 2 or not count or counts.count(count) > 1:
+        return 0
+    place = counts.index(count) + 1
+    return place if place <= PLACES else 0
+
+
+def song_play_place(songs: list[dict], title: str) -> int:
+    """
+    A title's place among songs' titles by plays (play_place), its versions' plays
+    summed as one song.
+
+    :param songs: Library songs with playcount and title.
+    :param title: The song's title.
+    :return: 1 to PLACES; 0 otherwise.
+    """
+    plays = Counter()
+    for song in songs:
+        plays[title_key(song["title"])] += song["playcount"]
+    del plays[""]  # titles of symbols only: no one song
+    return play_place(plays, title_key(title))
 
 
 def similar_artists(

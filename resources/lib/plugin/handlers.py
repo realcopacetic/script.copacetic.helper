@@ -58,17 +58,19 @@ from resources.lib.plugin.music import (
     album_credit,
     artist_identity,
     artist_names,
+    artist_places,
     deezer_match,
     details_item,
     dial_item,
     library_item,
     library_rows,
     mix_cards,
-    play_places,
+    play_place,
     rank_albums,
     rank_songs,
     similar_artists,
     song_place,
+    song_play_place,
 )
 from resources.lib.plugin.pvr import BROADCAST_FIELDS, broadcast_items
 from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
@@ -2378,7 +2380,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         One item labelled with how popular library artist, album or song ``self.dbid``
         is, never a number: with Deezer on "Charting" or "Popular", "#2 song" or "Most
-        popular album"; with it off, by your plays ("Your #3 artist").
+        popular album"; with it off, by your plays ("Your #3 artist", "Your #2 song").
 
         :return: List of one directory item, or None with no label.
         """
@@ -2386,36 +2388,71 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         if not (self.dbtype in MUSIC_TYPES and self._require("id")):
             return
-        dbid = int(self.dbid)
         if deezer.enabled():
             words = {
                 "album": self._album_word,
                 "artist": self._artist_word,
                 "song": self._song_word,
             }
-            label = words[self.dbtype](dbid)
         else:
-            label = self._play_word(dbid)
+            words = {
+                "album": self._played_album,
+                "artist": self._played_artist,
+                "song": self._played_song,
+            }
+        label = words[self.dbtype](int(self.dbid))
         if label:  # whose word: a skin shows it only on that item, not the last one's
             whose = {"dbid": self.dbid, "dbtype": self.dbtype}
             item = {"file": plugin_path(_LABEL), "label": label, "properties": whose}
             return set_items([item])
 
-    def _play_word(self, dbid: int) -> str:
+    @staticmethod
+    def _played_artist(artistid: int) -> str:
         """
-        With Deezer off, by the library's play counts: "Your #3 artist" within PLACES,
-        "Your most played album" for the one album; a song's word isn't decided (N13).
+        With Deezer off, "Your #3 artist": its place by the library's plays, within
+        PLACES.
 
-        :param dbid: Library id of the ``self.dbtype`` item.
+        :param artistid: Library artist id.
         :return: The word, or "" for none.
         """
-        if self.dbtype == "song" or dbid not in (
-            places := play_places(_LABEL)[self.dbtype]
-        ):
+        if artistid not in (places := artist_places(_LABEL)):
             return ""
-        if self.dbtype == "album":
-            return ADDON.getLocalizedString(32994)
-        return ADDON.getLocalizedString(32999) % (places.index(dbid) + 1)
+        return ADDON.getLocalizedString(32999) % (places.index(artistid) + 1)
+
+    def _played_album(self, albumid: int) -> str:
+        """
+        With Deezer off, "Your most played album" for the album that leads its first
+        artist's albums by their songs' summed plays, clearly (play_place); none for a
+        compilation (Various Artists).
+
+        :param albumid: Library album id.
+        :return: The word, or "" for none.
+        """
+        album = self._music_details("album", albumid, ["artistid", "compilation"])
+        if album["compilation"]:
+            return ""
+        artistid = album["artistid"][0]
+        albums = self._artist_albums(artistid, _LABEL)
+        plays = Counter(dict.fromkeys(map(itemgetter("albumid"), albums), 0))
+        for song in self._artist_songs(artistid, ["albumid", "playcount"], _LABEL):
+            if song["albumid"] in plays:  # not a song it features on outside them
+                plays[song["albumid"]] += song["playcount"]
+        if play_place(plays, albumid) != 1:
+            return ""
+        return ADDON.getLocalizedString(32994)
+
+    def _played_song(self, songid: int) -> str:
+        """
+        With Deezer off, "Your #2 song": its title's place among its first artist's
+        song titles by plays, within PLACES and clear (song_play_place).
+
+        :param songid: Library song id.
+        :return: The word, or "" for none.
+        """
+        song = self._music_details("song", songid, ["artistid", "title"])
+        songs = self._artist_songs(song["artistid"][0], ["playcount", "title"], _LABEL)
+        place = song_play_place(songs, song["title"])
+        return ADDON.getLocalizedString(32993) % place if place else ""
 
     def _artist_word(self, artistid: int) -> str:
         """
