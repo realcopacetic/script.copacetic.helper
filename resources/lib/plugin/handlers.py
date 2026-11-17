@@ -2274,7 +2274,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         from resources.lib.apis import deezer
 
         key = deezer.artist_key(mbid, name)
-        return deezer.top_tracks(key, name, lambda rows: deezer_match(songs(), rows))
+        return deezer.top_tracks(key, name, lambda *args: deezer_match(songs(), *args))
 
     def _popularity(
         self, artistid: int, properties: list[str], parent: str
@@ -2467,7 +2467,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         name, mbid = artist_identity(artistid, _LABEL)
         songs = cache(lambda: self._artist_songs(artistid, ["album", "title"], _LABEL))
         key = deezer.artist_key(mbid, name)
-        match = deezer.artist_match(key, name, lambda rows: deezer_match(songs(), rows))
+        match = deezer.artist_match(
+            key, name, lambda *args: deezer_match(songs(), *args)
+        )
         if not match:
             return ""
         if match[0] in deezer.chart():

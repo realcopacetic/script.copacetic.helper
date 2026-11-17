@@ -7,7 +7,7 @@ from resources.lib.apis import http
 from resources.lib.apis.cache import DAY, cached
 from resources.lib.apis.http import HttpError
 from resources.lib.shared.sqlite import ApiCacheHandler
-from resources.lib.shared.utilities import ADDON, fold
+from resources.lib.shared.utilities import ADDON, VERSION, fold
 
 API = "https://api.deezer.com/"
 TTL_ARTIST, TTL_NO_ARTIST, TTL_TOP, TTL_NO_TOP = 90 * DAY, 7 * DAY, 7 * DAY, DAY
@@ -74,22 +74,26 @@ def _top(artist: int) -> list[list[str]]:
     ]
 
 
-def _releases(artist: int) -> list[list[str]]:
+def _releases(artist: int, folded: str) -> list[str]:
     """
-    A Deezer artist's first 100 releases, as rows with an album title and no title.
+    Titles of a Deezer artist's first 100 releases but singles, compilations and
+    self-titled ones, which a namesake shares as easily as an album.
 
     :param artist: Deezer artist id.
-    :return: ["", "", album title] rows.
+    :param folded: The artist's folded name.
+    :return: Release titles.
     """
     rows = get_json(f"artist/{artist}/albums", limit=100)["data"][:100]
     return [
-        ["", "", title[:TITLE]]
+        title[:TITLE]
         for row in rows
-        if isinstance(title := row["title"], str)
+        if row["record_type"] not in ("single", "compile")
+        and isinstance(title := row["title"], str)
+        and fold(VERSION.sub("", title)) != folded  # "Genesis - Live" too
     ]
 
 
-def _artist(key: str, name: str, accept: Callable[[list], bool | None]) -> tuple:
+def _artist(key: str, name: str, accept: Callable[..., bool | None]) -> tuple:
     """
     A library artist's Deezer artist: the first of its most followed namesakes whose
     top tracks accept takes; else the most followed, if far ahead (LEAD, FANS) with
@@ -97,7 +101,7 @@ def _artist(key: str, name: str, accept: Callable[[list], bool | None]) -> tuple
 
     :param key: artist_key of the library artist.
     :param name: Its name, searched for.
-    :param accept: Whether a candidate's rows (top tracks, releases) are the artist's.
+    :param accept: accept(top rows, releases=list): whether they are the artist's.
     :return: ([Deezer id, fans] or None, {id: top rows} fetched by this search).
     """
     accepted = {}
@@ -124,9 +128,10 @@ def _artist(key: str, name: str, accept: Callable[[list], bool | None]) -> tuple
         if tops and (artist := int(named[0]["id"])) in tops:
             fans = [row["nb_fan"] for row in named[:2]]
             # Too few library titles to rule them out: the most followed, if far
-            # ahead; else its releases may hold a library album its top 100 misses
+            # ahead; else its releases (read only if a title is shared) may hold a
+            # library album its top 100 misses
             if (unsure and fans[0] > max(LEAD * sum(fans[1:]), FANS)) or accept(
-                tops[artist] + _releases(artist)
+                tops[artist], lambda: _releases(artist, folded)
             ):
                 accepted[artist] = tops[artist]
                 return [artist, int(fans[0])]
@@ -137,14 +142,14 @@ def _artist(key: str, name: str, accept: Callable[[list], bool | None]) -> tuple
 
 
 def artist_match(
-    key: str, name: str, accept: Callable[[list], bool | None]
+    key: str, name: str, accept: Callable[..., bool | None]
 ) -> list[int] | None:
     """
     A library artist's Deezer artist and following (_artist finds it).
 
     :param key: artist_key of the library artist.
     :param name: Its name, searched for.
-    :param accept: Whether a candidate's top-track rows are this artist's.
+    :param accept: accept(top rows, releases=list): whether they are the artist's.
     :return: [Deezer id, fans]; None with no match.
     """
     return _artist(key, name, accept)[0]
@@ -170,15 +175,13 @@ def chart() -> list[int]:
     )
 
 
-def top_tracks(
-    key: str, name: str, accept: Callable[[list], bool | None]
-) -> list[list]:
+def top_tracks(key: str, name: str, accept: Callable[..., bool | None]) -> list[list]:
     """
     A library artist's Deezer top tracks (_artist finds its Deezer artist).
 
     :param key: artist_key of the library artist.
     :param name: Its name, searched for.
-    :param accept: Whether a candidate's top-track rows are this artist's.
+    :param accept: accept(top rows, releases=list): whether they are the artist's.
     :return: ["", title, album title] rows; empty for a name of symbols only.
     """
     match, accepted = _artist(key, name, accept)
@@ -195,13 +198,13 @@ def top_tracks(
     )
 
 
-def related(key: str, name: str, accept: Callable[[list], bool | None]) -> list[str]:
+def related(key: str, name: str, accept: Callable[..., bool | None]) -> list[str]:
     """
     Names of a library artist's related Deezer artists, closest first.
 
     :param key: artist_key of the library artist.
     :param name: Its name, searched for.
-    :param accept: Whether a candidate's top-track rows are this artist's.
+    :param accept: accept(top rows, releases=list): whether they are the artist's.
     :return: Artist names, possibly empty.
     """
     if not (match := _artist(key, name, accept)[0]):

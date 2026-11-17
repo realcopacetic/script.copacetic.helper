@@ -41,6 +41,8 @@ TEMPS = str(Path(ADDONDATA) / "temp")
 LOOKUPS = str(Path(ADDONDATA) / "_lookup.db")
 # The id of the skin a pending "Reset on next start" is for (pin_dev_reset).
 DEV_RESET = Path(ADDONDATA, "dev_reset.txt")
+# A title's version part, dropped for matching: "(feat. …)", "[Remaster]", " - Live"
+VERSION = re.compile(r"(?<=\S)\s*[(\[].*|\s+-\s.*")
 
 # DBType: details method; its id and result keys are f"{type}id", f"{type}details"
 DETAILS = {

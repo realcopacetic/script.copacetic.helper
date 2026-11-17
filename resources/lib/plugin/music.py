@@ -14,7 +14,7 @@ from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag, joined
 from resources.lib.shared.genres import genre_bucket
 from resources.lib.shared.mix import credits
-from resources.lib.shared.utilities import ADDON, fold, json_call
+from resources.lib.shared.utilities import ADDON, VERSION, fold, json_call
 
 _DETAILS = {
     "album": (
@@ -66,7 +66,6 @@ SONG_RANK_PROPERTIES = [
 ]
 ALBUM_SONG_PROPERTIES = ["album", "albumid", "musicbrainztrackid", "title", "year"]
 K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
-_VERSION = re.compile(r"(?<=\S)\s*[(\[].*|\s+-\s.*")  # "(feat. …)", " - Live" and on
 # What's streamed now counts four times all-time listening: closest to YouTube Music's
 # top 10s over six artists (N126, Ash 17 Nov; coding-notes audits/2026-11-17-deezer.md)
 WEIGHTS = {"deezer": 4.0, "listenbrainz": 1.0}
@@ -202,7 +201,7 @@ def title_key(title: str) -> str:
     :param title: Song title.
     :return: Matching key.
     """
-    return fold(_VERSION.sub("", title.casefold()))
+    return fold(VERSION.sub("", title.casefold()))
 
 
 def uncensored(title: str, keys: Iterable[str]) -> str | None:
@@ -212,12 +211,14 @@ def uncensored(title: str, keys: Iterable[str]) -> str | None:
 
     :param title: Song title.
     :param keys: title_key keys to look in.
-    :return: That key; None for a title without *, or no key or several.
+    :return: That key; None for a title without * or of * alone, or no key or several.
     """
     if "*" not in title:
         return None
-    pieces = _VERSION.sub("", title.casefold()).split("*")
-    pattern = re.compile(".".join(map(fold, pieces)))
+    pieces = [*map(fold, VERSION.sub("", title.casefold()).split("*"))]
+    if not any(pieces):  # "***" would fit any title that long
+        return None
+    pattern = re.compile(".".join(pieces))
     found = [key for key in keys if pattern.fullmatch(key)]
     return found[0] if len(found) == 1 else None
 
@@ -290,14 +291,17 @@ def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
     return find
 
 
-def deezer_match(songs: list[dict], rows: list) -> bool | None:
+def deezer_match(
+    songs: list[dict], rows: list, releases: Callable[[], list[str]] = list
+) -> bool | None:
     """
-    Whether a Deezer artist's rows are this library artist's: OVERLAP song titles in
-    common (all of them, for fewer; censored ones too), or one and an album title,
-    which a release row (no title) can give.
+    Whether a Deezer artist's top tracks are this library artist's: OVERLAP song
+    titles in common (all of them, for fewer; censored ones too), or one and an album
+    title, from the tracks or else its releases (one named like a library song aside).
 
     :param songs: The library artist's songs with album and title.
-    :param rows: ["", title, album title] rows; a release's title is empty.
+    :param rows: ["", title, album title] top-track rows.
+    :param releases: Gives its release titles; called only with a title in common.
     :return: True for a match; None for none from fewer than OVERLAP titles.
     """
     titles = {title_key(song["title"]) for song in songs} - {""}
@@ -310,6 +314,7 @@ def deezer_match(songs: list[dict], rows: list) -> bool | None:
     if shared and (
         shared >= min(OVERLAP, len(titles))
         or not albums.isdisjoint(title_key(album) for *_, album in rows)
+        or not albums.isdisjoint({*map(title_key, releases())} - titles)
     ):
         return True
     return None if len(titles) < OVERLAP else False
@@ -560,7 +565,7 @@ def similar_artists(
         related = deezer.related(
             deezer.artist_key(mbid, name),
             name,
-            lambda rows: deezer_match(songs(), rows),
+            lambda *args: deezer_match(songs(), *args),
         )
         scores = fused([(WEIGHTS["deezer"], map(fold, related))])
     if mbid and listenbrainz.enabled():
