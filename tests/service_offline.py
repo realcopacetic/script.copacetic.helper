@@ -5,7 +5,7 @@ still start; helper_speed_dial follows the skin naming info=speed_dial; each ski
 keeps its own runtime state; a script rebuild sets and clears helper_reloading, and
 the editor close and delete_orphans reload only when the build wrote (or for a host
 open once the session has closed), else clear it. Under the screensaver only lyrics
-follow, while audio plays.
+follow, while audio plays. played_version moves only for a counted play.
 Run from the helper root: python tests/service_offline.py
 """
 
@@ -613,6 +613,34 @@ class ReloadGate(unittest.TestCase):
 
     def test_rebuild_action_always_reloads(self):
         self.assertEqual(self.outcome(actions.rebuild, False), (True, True, False))
+
+
+class PlayedVersion(unittest.TestCase):
+    """played_version moves only when a closed song's play count changed."""
+
+    def bumped(self, closed: dict, counts: dict) -> list:
+        service = object.__new__(monitor.Monitor)
+        service.closed = closed
+        details = lambda method, params, parent: {  # noqa: E731
+            "result": {"songdetails": {"playcount": counts[params["songid"]]}}
+        }
+        with (
+            patch.object(monitor, "condition", lambda expression: False),
+            patch.object(monitor, "json_call", details),
+            patch.object(monitor, "window_property") as prop,
+        ):
+            service._album_bump()
+        self.assertEqual(service.closed, {})
+        return [c.args[0] for c in prop.call_args_list]
+
+    def test_a_counted_play_bumps(self):
+        self.assertEqual(self.bumped({7: 3}, {7: 4}), ["played_version"])
+
+    def test_a_skipped_song_does_not(self):
+        self.assertEqual(self.bumped({7: 3}, {7: 3}), [])
+
+    def test_one_counted_of_a_burst_bumps_once(self):
+        self.assertEqual(self.bumped({7: 3, 8: 0}, {7: 3, 8: 1}), ["played_version"])
 
 
 class LyricsUnderTheScreensaver(unittest.TestCase):

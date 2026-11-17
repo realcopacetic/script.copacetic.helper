@@ -48,6 +48,21 @@ RELOAD_COVER_SECS = 0.2
 PLAYLIST_EDITS = {"Playlist.OnAdd", "Playlist.OnRemove", "Playlist.OnClear"}
 
 
+def _play_count(songid: int) -> int | None:
+    """
+    A library song's play count, as Kodi has it now.
+
+    :param songid: Library song id.
+    :return: Its play count; None if unread.
+    """
+    response = json_call(
+        "AudioLibrary.GetSongDetails",
+        params={"properties": ["playcount"], "songid": songid},
+        parent="song_closed",
+    )
+    return response.get("result", {}).get("songdetails", {}).get("playcount")
+
+
 class Monitor(xbmc.Monitor):
     """
     Background service monitor. All work is gated on the active skin opting in
@@ -64,6 +79,7 @@ class Monitor(xbmc.Monitor):
         self.player_monitor = None
         self.slideshow = None
         self.song_bump = None  # a pending progress_version bump
+        self.closed = {}  # songs closed since the last bump: id → start play count
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
         self._run()
 
@@ -294,11 +310,15 @@ class Monitor(xbmc.Monitor):
         if edited:
             window_property("playlist_revision", value=str(time.monotonic_ns()))
 
-    def _song_closed(self) -> None:
+    def _song_closed(self, songid: int, playcount: int | None) -> None:
         """
         A library song closed: PAPlayer saves its play count in a job once its stream
         has drained (PAPlayer.cpp CloseFileCB), so wait out a crossfade, and 2 s more.
+
+        :param songid: Its library id.
+        :param playcount: Its play count when it started; None if unread.
         """
+        self.closed.setdefault(songid, playcount)
         response = json_call(
             "Settings.GetSettingValue",
             params={"setting": "musicplayer.crossfade"},
@@ -322,13 +342,17 @@ class Monitor(xbmc.Monitor):
     def _album_bump(self) -> None:
         """
         Timer: a new progress_version, which the skin's progress bar URL carries,
-        unless 9010 on top serves a film's or show's bar (no blink); read now.
+        unless 9010 on top serves a film's or show's bar (no blink); read now. Then a
+        new played_version if a closed song's play counted (unannounced by real path).
         """
         if condition(
             "!String.StartsWith(Container(9010).ListItem.FileNameAndPath,plugin://)"
             " | String.IsEqual(Container(9010).ListItem.Property(album),true)"
         ):
             window_property("progress_version", value=str(time.monotonic_ns()))
+        closed = [self.closed.popitem() for _ in range(len(self.closed))]
+        if any(_play_count(songid) != count for songid, count in closed):
+            window_property("played_version", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:
         """Kodi event hook: re-read debug_logging, pin a new reset to this skin."""

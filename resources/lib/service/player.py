@@ -147,16 +147,16 @@ class PlayerMonitor(Player):
     Player monitor for operations to be performed on playback start/stop.
     """
 
-    def __init__(self, song_closed: Callable[[], None]) -> None:
+    def __init__(self, song_closed: Callable[[int, int | None], None]) -> None:
         """
         Initialise player monitor and helpers; publish the speed dial pins and,
         when the skin is entered mid-playback, the playing file's properties.
 
-        :param song_closed: Called when a library song stops or gives way to the next.
+        :param song_closed: Takes a closed library song's id and start play count.
         """
         super().__init__()
         self._song_closed = song_closed
-        self._song = False  # a library song plays: its close may have counted it
+        self._song = None  # the playing library song: (id, play count at its start)
         self.zoom = TrailerZoomController()
         self._published = set()
         self._dial_queue = None
@@ -355,9 +355,9 @@ class PlayerMonitor(Player):
         A library song closed: Kodi saves its play count soon after (OnPlayerCloseFile)
         but announces it only for a musicdb:// play, so tell the service either way.
         """
-        if self._song:
-            self._song = False
-            self._song_closed()
+        if song := self._song:
+            self._song = None
+            self._song_closed(*song)
 
     def onPlayBackError(self) -> None:
         """
@@ -529,16 +529,23 @@ class PlayerMonitor(Player):
         """
         tag = self.getMusicInfoTag()
         songid = tag.getDbId()
-        self._song = songid > 0
         query = json_call(
             "Player.GetItem",
             params={
                 "playerid": 0,
-                "properties": ["albumartist", "albumid", "artist", "artistid", "genre"],
+                "properties": [
+                    "albumartist",
+                    "albumid",
+                    "artist",
+                    "artistid",
+                    "genre",
+                    "playcount",
+                ],
             },
             parent="now_playing_song",
         )
         item = query.get("result", {}).get("item", {})
+        self._song = (songid, item.get("playcount")) if songid > 0 else None
         artists = item.get("artist", [])
         artistids = item.get("artistid", [])
         self._publish(
