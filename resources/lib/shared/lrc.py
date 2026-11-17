@@ -4,6 +4,9 @@ import re
 from operator import itemgetter
 
 LINES = "lyrics_lines"  # Home property: the service's synced lines as JSON, for plugins
+# A line's neighbours by offset, for the skin's distance fade: the service publishes
+# the playing line's as lyrics_<key>, the info=lyrics items carry their own
+NEIGHBOURS = {"m2": -2, "m1": -1} | {f"p{n}": n for n in range(1, 6)}
 
 # A line's leading time stamps: [mm:ss], [mm:ss.xx] or [mm:ss.xxx], some writers' colon
 STAMPS = re.compile(r"(?:\[\d+:\d{1,2}(?:[.:]\d{1,3})?\])+")

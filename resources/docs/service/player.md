@@ -284,7 +284,13 @@ forgets every saved answer; **Refresh cached data** one library song's (see
 `plugin://script.copacetic.helper/?info=lyrics&revision=$INFO[Window(home).Property(lyrics_revision)]`:
 one item per synced line, in order. The label is the line's text, empty for a gap;
 the properties are `index` (from 0), `time` (milliseconds, with any `[offset:]`
-applied) and `gap` (`true` on an empty line). Plain lyrics list nothing: show
+applied), `gap` (`true` on an empty line) and `m2`, `m1`, `p1` ... `p5` (the
+indexes two above to five below this line). The last are for a fade by distance from
+the selected line while the list is browsed: compare a row's
+`ListItem.Property(index)` with `Container(<id>).ListItem.Property(m1)` and so on.
+Kodi reads `Container(<id>).ListItem(<offset>)` from the selected item whatever the
+offset when it is compared inside a list's layout, so it can't do this. Plain lyrics
+list nothing: show
 `lyrics_plain` in a textbox. The path reads no parameter: `revision` only changes the
 path, so Kodi fetches it again. The lines come from
 `Window(home).Property(lyrics_lines)`, which the service sets; don't set or clear it
