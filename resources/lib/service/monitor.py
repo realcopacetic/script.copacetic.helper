@@ -157,17 +157,17 @@ class Monitor(xbmc.Monitor):
         requested, rebuild, reload.
         """
         adopt_shared_state()  # first, so a dev reset clears what it adopts
-        pin_dev_reset()  # one turned on outside a builder skin, or before this helper
-        dev_mode = ADDON.getSettingBool("dev_mode")
 
-        if dev_mode and dev_reset_due():
-            reset_dev_state()
-            log.info(
-                f"{self.__class__.__name__} → Dev reset consumed — "
-                f"outputs and runtime_state cleared"
-            )
-
-        if dev_mode:
+        if ADDON.getSettingBool("dev_mode"):
+            # One turned on outside a builder skin, or before this helper: only a
+            # check that can use it claims it.
+            pin_dev_reset()
+            if dev_reset_due():
+                reset_dev_state()
+                log.info(
+                    f"{self.__class__.__name__} → Dev reset consumed — "
+                    f"outputs and runtime_state cleared"
+                )
             BuildElements().run()
             self._reload()
             return
