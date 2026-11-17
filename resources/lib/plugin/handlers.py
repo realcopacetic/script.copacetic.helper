@@ -695,24 +695,29 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _name_unstamped_hold(self) -> None:
         """
-        A hold on a move that stamped no visit (the jumpbar): name the held position
-        (artwork_held_<cursor_key>) and count it (artwork_holds_unstamped). 9300's URL
-        carries the count only on that position, so only a return serves again.
+        A hold on a move that stamped no visit (the jumpbar, a list with no cursor):
+        name the held position (artwork_held_<cursor_key or hold_key>) and count it
+        (artwork_holds_unstamped). The URL carries the count only on that position.
         """
-        cursor_key = self.params.get("cursor_key")
         position = self.expected_identity
         # Identity labels guard something other than a position. The cursor's
         # container must be in this window: absent in another (Back to Home over a
-        # trailer), where the guard read another window's item.
-        cursor = f"Window(home).Property(artwork_cursor_{cursor_key})"
-        scope = ArtworkIdentity.parse(infolabel(cursor)).scope if cursor_key else ""
+        # trailer), where the guard read another window's item. A list with no
+        # cursor names its hold itself (hold_key), in its own target.
+        if key := self.params.get("hold_key"):
+            scope = self.target
+        elif key := self.params.get("cursor_key"):
+            cursor = f"Window(home).Property(artwork_cursor_{key})"
+            scope = ArtworkIdentity.parse(infolabel(cursor)).scope
+        else:
+            return
         if not (scope and position) or self.identity_labels:
             return
         if not infolabel(f"Container({scope}).CurrentItem"):
             return
         # The name first: a URL read between the two then never pairs a new count
         # with the position the cursor is on.
-        window_property(f"artwork_held_{cursor_key}", position)
+        window_property(f"artwork_held_{key}", position)
         unstamped = to_int(
             infolabel("Window(home).Property(artwork_holds_unstamped)"), 0
         )
