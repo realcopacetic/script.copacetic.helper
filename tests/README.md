@@ -79,7 +79,9 @@ python tests/segments_offline.py
 # Kodi's strings per case, record or reminder by the client, Switch's builtins or
 # Player.Open once the list moved on, on air switching unasked, Back, delete (only
 # this or the rule) for an existing timer, the failed-delete dialog, the stamp after
-# Kodi's timers catch up, busy cleared on every way out
+# Kodi's timers catch up, busy cleared on every way out; the channel manager's Back
+# (script/actions.py pvr_manager_back): Kodi's own question, Yes OK 4, No Cancel 6,
+# Back refocusing what it left
 python tests/pvr_offline.py
 
 # Lyrics (shared/lrc.py, service/lyrics.py): the LRC parser; the sources in order (a

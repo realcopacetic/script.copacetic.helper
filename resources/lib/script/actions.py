@@ -1015,6 +1015,23 @@ def pvr_smart_select(
 
 
 @action
+def pvr_manager_back(focus: str, **kwargs: str) -> None:
+    """
+    Kodi's channel manager question for Back with unsaved edits, which Kodi discards:
+    Yes clicks OK (4, save and close), No Cancel (6), Back refocuses what it left.
+
+    :param focus: The control Back left.
+    """
+    text = xbmc.getLocalizedString
+    choice = xbmcgui.Dialog().yesnocustom(
+        text(20052), f"{text(19212)}\n{text(20103)}", ""
+    )
+    log.execute(
+        {-1: f"SetFocus({focus})", 0: "SendClick(6)", 1: "SendClick(4)"}[choice]
+    )
+
+
+@action
 def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
     """
     Marks every song on an album played (a play count of at least 1, last played
