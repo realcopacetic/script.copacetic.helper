@@ -768,6 +768,20 @@ _EPISODE_CODE = re.compile(  # not \b, as "_" is a word character
 )
 
 
+def _clean_title(name: str) -> tuple[str, str]:
+    """
+    xbmc.getCleanMovieTitle, a byte that isn't UTF-8 made "?" both ways: Kodi returns
+    one as a lone surrogate (Am%E9lie decoded) and fails on one it is given.
+
+    :param name: A file's path or name.
+    :return: (title, year).
+    """
+    title, year = xbmc.getCleanMovieTitle(
+        name.encode("utf-8", "replace").decode(), False
+    )
+    return title.encode("utf-8", "replace").decode(), year
+
+
 def clean_name(path: str) -> dict[str, str]:
     """
     A file's readable name by Kodi's own clean-up (the user's cleanstrings too): a
@@ -778,14 +792,14 @@ def clean_name(path: str) -> dict[str, str]:
     """
     stem = os.path.splitext(os.path.basename(path))[0]
     if not (match := _EPISODE_CODE.search(stem)):
-        title, year = xbmc.getCleanMovieTitle(path, False)
+        title, year = _clean_title(path)
         return {k: v for k, v in (("title", title), ("year", year)) if v}
     season, episode = map(int, filter(None, match.groups()))
     before, after = stem[: match.start()], stem[match.start() :]
     # A bare name as the "path": the extension keeps the last word from reading as one.
     # The title keeps the code in front while cleaned: Kodi cuts no tag at position 0
-    show = xbmc.getCleanMovieTitle(f"{before}.mkv", False)[0] if before else ""
-    title = xbmc.getCleanMovieTitle(f"{after}.mkv", False)[0]
+    show = _clean_title(f"{before}.mkv")[0] if before else ""
+    title = _clean_title(f"{after}.mkv")[0]
     show, title = show.strip(" .-"), _EPISODE_CODE.sub("", title, 1).strip(" .-")
     return {
         k: v
@@ -848,10 +862,8 @@ def file_clean_name(path: str, title: str | None = None) -> dict[str, str]:
     :return: clean_name's values; empty for a title of its own.
     """
     if path.startswith("stack://"):  # its GetMovieName names the stack, as its label
-        name, year = found = xbmc.getCleanMovieTitle(path, False)
-        if title is not None and not (
-            title and xbmc.getCleanMovieTitle(title, False) == found
-        ):
+        name, year = found = _clean_title(path)
+        if title is not None and not (title and _clean_title(title) == found):
             return {}
         if _EPISODE_CODE.search(name):  # split the stack's name, not a part's
             return clean_name(f"{name.translate(_REENCODE)}.mkv")

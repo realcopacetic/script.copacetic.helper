@@ -46,8 +46,11 @@ YEAR = re.compile(
 
 def clean_string(path: str, use_folder: bool) -> tuple[str, str]:
     """CUtil::CleanString as getCleanMovieTitle runs it, default cleanstrings."""
-    # GetMovieName: URIUtils::GetFileName (at / or \), then CURL::Decode
-    name, year = unquote_plus(re.split(r"[/\\]", path)[-1]), ""
+    path.encode()  # Kodi reads its argument with PyUnicode_AsUTF8: no surrogates
+    # GetMovieName: URIUtils::GetFileName (at / or \), then CURL::Decode; the result
+    # is returned decoded with surrogateescape (python.string.outtm)
+    name = unquote_plus(re.split(r"[/\\]", path)[-1], errors="surrogateescape")
+    year = ""
     if match := YEAR.search(name):
         name, year = match.group(1), match.group(2)
     root, ext = os.path.splitext(name)
@@ -221,6 +224,15 @@ class CleanNameTest(unittest.TestCase):
         self.assertEqual(  # undecoded, as Kodi passes it: its own '?' is no option
             utilities.file_clean_name("https://h/Who%20Am%20I%3F%202014.mkv"),
             {"title": "Who Am I?", "year": "2014"},
+        )
+
+    def test_bytes_not_utf8_made_safe(self):  # a surrogate fails Kodi's string read
+        film = {"title": "Am?lie", "year": "2001"}
+        self.assertEqual(self.name("Am%E9lie.2001.mkv"), film)  # decoded by Kodi
+        self.assertEqual(self.name("Am\udce9lie.2001.mkv"), film)  # a raw byte name
+        self.assertEqual(
+            self.name("Caf%E9.S01E02.Pilot%E9.mkv"),
+            {"tvshowtitle": "Caf?", "episode": "1x02", "title": "Pilot?"},
         )
 
     def test_numbers_inside_words_are_no_code(self):
