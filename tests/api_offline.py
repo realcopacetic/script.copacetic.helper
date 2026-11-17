@@ -1192,6 +1192,16 @@ class BlendTest(unittest.TestCase):
         ranked = rank_songs([(1, [["", "Hit"]])], songs)
         self.assertEqual([row["songid"] for row in ranked], [1, 4])
 
+    def test_generic_titles_match_by_mbid_only(self):
+        songs = [
+            song(1, "Intro", 2000),
+            song(2, "Hit", 2000),
+            song(3, "Outro", 2000, 0, "m3"),
+        ]
+        rows = [["", "Intro"], ["", "Hit"], ["m3", "Outro"]]
+        ranked = rank_songs([(1, rows)], songs)
+        self.assertEqual([row["songid"] for row in ranked], [2, 3])
+
     def test_tie_by_play_count(self):
         songs = [song(1, "A", 2000, 1), song(2, "B", 2000, 7)]
         both = [(1, [["", "A"], ["", "B"]]), (1, [["", "B"], ["", "A"]])]
