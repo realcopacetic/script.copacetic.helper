@@ -90,8 +90,7 @@ def bake_profiles() -> None:
     for profile in profiles:
         if monitor.abortRequested():
             return
-        name = " ".join(profile.findtext("name", "").split())  # as Kodi's XML reader
-        thumb = profile.findtext("thumbnail", "")
+        name, thumb = profile.findtext("name", ""), profile.findtext("thumbnail", "")
         if not (name and thumb) or UNSAFE.search(name):
             continue
         dest = f"{LOGIN_BLURS}{name}.jpg"
@@ -100,7 +99,7 @@ def bake_profiles() -> None:
             changed.append(dest)
     for file in Path(xbmcvfs.translatePath(LOGIN_BLURS)).glob("*.jpg"):
         if (url := f"{LOGIN_BLURS}{file.name}") not in keep:
-            file.unlink()
+            file.unlink(missing_ok=True)  # two bakes can race: window close, service
             changed.append(url)
     refresh(changed)
 
