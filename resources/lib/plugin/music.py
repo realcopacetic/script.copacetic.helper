@@ -70,6 +70,8 @@ K = 10  # reciprocal rank fusion: how fast credit falls with place (1st 1/11)
 # Music, new albums included (coding-notes audits/2026-11-12-music-popularity.md)
 WEIGHTS = {"deezer": 2.0, "listenbrainz": 1.0}
 OVERLAP = 3  # song titles in common that identify an artist with no album in common
+# Titles many albums share (title_key form): a ranking row matches them by MBID only
+GENERIC = frozenset({"interlude", "intro", "outro", "prelude", "skit", "untitled"})
 SINGLE = 4  # a release with fewer different songs yields to a same-year album
 # Music info's word for how popular an item is, never a raw number (N13, Ash 14 Nov)
 PLACES = 10  # "#2 song", "Your #3 artist": only within the first ten
@@ -236,8 +238,8 @@ def fused(rankings: Iterable[tuple[float, Iterable]]) -> Counter:
 def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
     """
     A lookup from a ranking row to a library song: by recording MBID, else title and
-    album title, else title; the earliest release of several, a single after an album
-    of the same year.
+    album title, else title (never a GENERIC one); the earliest release of several, a
+    single after an album of the same year.
 
     :param songs: Library songs with album, albumid, musicbrainztrackid, title, year.
     :return: find(mbid, title, album="") giving the song or None.
@@ -254,7 +256,8 @@ def song_finder(songs: list[dict]) -> Callable[..., dict | None]:
         by_album.setdefault((key, title_key(song["album"])), song)
         by_title.setdefault(key, song)
     by_mbid.pop("", None)  # untagged songs
-    by_title.pop("", None)  # titles of symbols only
+    for key in ("", *GENERIC):  # titles of symbols only; a new album's "Intro"
+        by_title.pop(key, None)
 
     def find(mbid: str, title: str, album: str = "") -> dict | None:
         key = title_key(title)

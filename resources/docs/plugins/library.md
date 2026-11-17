@@ -429,7 +429,9 @@ A song matches a ListenBrainz recording by its MusicBrainz recording id
 (`musicbrainztrackid`, Picard's "MusicBrainz Track Id"), else by title: case, accents,
 punctuation and a trailing `(feat. …)`, `[Remaster]` or ` - Live` part are ignored.
 Deezer has no MusicBrainz ids, so its tracks match by title (Deezer's title without
-its version, such as "(Album Version)"). Each title appears once, from its earliest
+its version, such as "(Album Version)"). A title many albums share (Intro, Interlude,
+Outro, Prelude, Skit, Untitled) matches by recording id only, so a new album's "Intro"
+never ranks an older one. Each title appears once, from its earliest
 dated release (a single, with fewer than four different songs, after an album of the
 same year; two same-year albums in the order the library returns them) unless a
 recording id matched another. The path returns nothing when
