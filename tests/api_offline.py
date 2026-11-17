@@ -2161,7 +2161,7 @@ class SeasonsTest(unittest.TestCase):
         self.assertEqual(
             [i["label"] for i in items], ["Season 1", "Season 2", "Specials"]
         )
-        self.assertEqual(items[0]["file"], "videodb://tvshows/titles/7/1/")
+        self.assertEqual(items[0]["file"], "videodb://tvshows/titles/7/1/?tvshowid=7")
         self.assertEqual([i["properties"]["current"] for i in items], ["", "true", ""])
 
     def test_flattened_or_other_paths(self):
