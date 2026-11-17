@@ -218,6 +218,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 self._prev_focus_id = int(self.host_focus)
             else:
                 log.execute(f"SetFocus({self._list_container.getId()})")
+            # Delete stays off on a one-entry list from the start, not only once moved
+            self._update_mgmt_buttons()
             self._refresh_ui(update_row=False)
 
     def _scan_controls(self) -> None:
