@@ -595,12 +595,19 @@ class Skin:
         def lookup(match: re.Match) -> str:
             return params.get(match[1], "")
 
+        # A param of a call Kodi skips is never read (no $EXP in a param's value)
+        unread = (
+            node.tag == "param"
+            and parent.tag == "include"
+            and self.constant_false(parent.get("condition", ""))
+        )
+
         def substitute(value: str) -> str | None:
             whole = PARAM.fullmatch(value)
             if whole and whole[1] not in params and node.tag == "param":
                 return None
             for token, name in REF.findall(value):
-                if "$PARAM[" in name:
+                if "$PARAM[" in name and not unread:
                     self.check_reference(token, PARAM.sub(lookup, name), node.src)
             return PARAM.sub(lookup, value)
 
