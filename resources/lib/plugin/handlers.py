@@ -1137,7 +1137,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         caption = self._probe_text("truncate_label_id")
         title = self._probe_text("truncate_title_id")
         target = self.target_item
-        path = infolabel(f"{target}.FileNameAndPath")
         aliases = self.params.get("genre_aliases", "")
         data = DataHandler(
             target=target,
@@ -1194,14 +1193,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_property("tmdb_art_missed")
         if not guard.alive():
             return
-        # Rerun it, if TMDb adds art of its type and the item wasn't replaced in place
-        # (a filter keeps the position); not with a dialog over the serve's window (its
-        # info dialog's, for a dialog serve), whose items it would read
+        # Rerun it, if TMDb adds art of its type and the URL's item is still shown (a
+        # filter replaces it in place, keeping the position); a favourite's 9040 keeps
+        # the last item until its own job lands, so its echo must name the focused
+        # favourite (favourite_source; Kodi's hex is lower case, the echo's upper). Not
+        # with a dialog over the serve's window (its info dialog's, for a dialog
+        # serve), whose items it would read
+        tmdb_id = self.params.get("tmdb_id")
+        favourite = self.params.get("favourite_source")
         if (
             own_miss
             and art_type in tmdb_item.get("art", {})
             and topmost_window_id() == self.window_id
-            and infolabel(f"{target}.FileNameAndPath") == path
+            and self._item_key(target) == f"{self.dbtype}:{self.dbid}"
+            and (tmdb_id is None or infolabel(f"{target}.UniqueID(tmdb)") == tmdb_id)
+            and (
+                favourite is None
+                or infolabel(f"{target}.Property(favourite.path)").lower()
+                == infolabel(favourite).lower()
+            )
         ):
             window_property("tmdb_art_ready", missed)
 
