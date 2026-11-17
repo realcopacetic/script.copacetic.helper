@@ -13,7 +13,7 @@ from xbmcgui import ListItem
 from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag, joined
 from resources.lib.shared.genres import genre_bucket
-from resources.lib.shared.mix import credits, genre_ids
+from resources.lib.shared.mix import credits
 from resources.lib.shared.utilities import ADDON, fold, json_call
 
 _DETAILS = {
@@ -133,13 +133,16 @@ def details_item(
     return library_item(details, type) if details else None
 
 
-def mix_cards(mixes: list[tuple[str, dict]]) -> list[DirectoryItem]:
+def mix_cards(
+    mixes: list[tuple[str, dict]], ids: dict[str, int]
+) -> list[DirectoryItem]:
     """
     Daily mixes as cards, named by their most played genre still in the library:
     "<genre> mix", that genre and its bucket, an eyebrow with its count, its artists in
     play order (MIX_NAMES named, MIX_SLIDES thumbs). Opens that genre; a click plays it.
 
-    :param mixes: (card, kept_mix dict) pairs.
+    :param mixes: (card, kept_mix dict) pairs, each with a genre still in the library.
+    :param ids: The library's genre ids by name (genre_ids).
     :return: (path, ListItem, is_folder) per card.
     """
     names = {
@@ -161,11 +164,9 @@ def mix_cards(mixes: list[tuple[str, dict]]) -> list[DirectoryItem]:
         )["result"].get("artists", [])
         if "thumb" in row["art"]
     }
-    ids, cards = genre_ids(), []
+    cards = []
     for key, mix in mixes:
-        # its most played genre still in the library (a clean drops some); else no card
-        if not (genre := next((g for g in mix["genres"] if g in ids), None)):
-            continue
+        genre = next(g for g in mix["genres"] if g in ids)  # most played still there
         artists = names[key]
         slides = [thumbs[name] for name in artists if name in thumbs][:MIX_SLIDES]
         if artists[MIX_NAMES:]:

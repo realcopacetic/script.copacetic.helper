@@ -430,11 +430,10 @@ class Card(unittest.TestCase):
             mock.patch.object(
                 music, "json_call", return_value={"result": {"artists": rows}}
             ),
-            mock.patch.object(music, "genre_ids", lambda: library),
             mock.patch.object(music, "ADDON") as addon,
         ):
             addon.getLocalizedString = self.STRINGS.get
-            return music.mix_cards([("Rock", kept)]), list_item.return_value
+            return music.mix_cards([("Rock", kept)], library), list_item.return_value
 
     def card(self, names: list[str]) -> mock.Mock:
         [(path, _, folder)], li = self.cards(names, ["Stoner", "Desert"])
@@ -446,7 +445,6 @@ class Card(unittest.TestCase):
         self.assertEqual(path, "musicdb://genres/11/")
         props = li.setProperties.call_args.args[0]
         self.assertEqual((props["mix_genreid"], props["mix_bucket"]), ("11", "HipHop"))
-        self.assertEqual(self.cards(["Kyuss"], ["Cleaned"])[0], [])  # all gone: none
 
     def test_artists_in_play_order(self):
         li = self.card(
@@ -593,7 +591,10 @@ class Click(unittest.TestCase):
 
 
 class Rail(unittest.TestCase):
-    def test_the_album_artists_read_once_for_every_draw(self):
+    def rail(
+        self, gone: tuple[str, ...] = ()
+    ) -> tuple[list | None, mock.Mock, mock.Mock]:
+        """daily_mixes, limit 2, over four cards; ``gone`` lost their genre."""
         from types import SimpleNamespace
 
         from resources.lib.plugin import handlers
@@ -602,22 +603,35 @@ class Rail(unittest.TestCase):
 
         def kept(key, seeds, owned):
             owned(), owned()  # each card's similar_to
-            return {"songs": []}
+            return {"songs": [], "genres": [key]}
 
-        cards = [("Stoner", []), ("PostRock", []), ("HipHop", [])]
+        cards = [(key, []) for key in ("Stoner", "PostRock", "HipHop", "Jazz")]
+        library = {key: n for n, (key, _) in enumerate(cards) if key not in gone}
         with (
             mock.patch.object(handlers, "artist_names", reads),
             mock.patch.object(handlers, "played_songs", lambda: []),
             mock.patch.object(handlers, "leading_cards", lambda played: cards),
             mock.patch.object(handlers, "kept_mix", side_effect=kept) as kept_mix,
-            mock.patch.object(handlers, "mix_cards", lambda mixes: mixes),
+            mock.patch.object(handlers, "genre_ids", lambda: library),
+            mock.patch.object(handlers, "mix_cards", lambda mixes, ids: mixes),
             mock.patch.object(handlers, "set_plugincontent"),
             mock.patch.object(handlers, "ADDON"),
         ):
             mixes = handlers.PluginHandlers.daily_mixes(SimpleNamespace(limit=2))
+        return mixes, reads, kept_mix
+
+    def test_the_album_artists_read_once_for_every_draw(self):
+        mixes, reads, kept_mix = self.rail()
         self.assertEqual([key for key, _ in mixes], ["Stoner", "PostRock"])  # limit
         reads.assert_called_once_with("daily_mixes", album_artists=True)
         self.assertEqual(kept_mix.call_count, 2)
+
+    def test_a_card_whose_genres_are_gone_gives_its_place_to_the_next(self):
+        mixes, _, kept_mix = self.rail(("PostRock",))
+        self.assertEqual([key for key, _ in mixes], ["Stoner", "HipHop"])
+        self.assertEqual(kept_mix.call_count, 3)  # Jazz isn't drawn
+        mixes, _, _ = self.rail(("Stoner", "PostRock", "HipHop", "Jazz"))
+        self.assertIsNone(mixes)  # all gone: none
 
 
 class Playlist:

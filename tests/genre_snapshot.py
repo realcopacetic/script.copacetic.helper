@@ -152,7 +152,8 @@ def main() -> None:
     names = genre_list(cache)
     if unsafe := sorted(n for n in names.values() if UNSAFE.search(n)):
         print(f"left out, as no row can test them: {unsafe}")
-    found = inherited({i: n for i, n in names.items() if n not in unsafe}, cache)
+    # every genre walks the tree, so a child still inherits through an unsafe parent
+    found = {n: b for n, b in inherited(names, cache).items() if n not in unsafe}
     subgenres = {name: bucket for name, bucket in found.items() if bucket}
     # what the module will give every genre, checked before anything is written
     genres.SUBGENRES = subgenres
