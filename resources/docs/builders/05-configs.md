@@ -42,6 +42,7 @@ JSON files in `extras/templates/configs/`. The file's `mapping` must be the mapp
 | `default_key` | the mapping's `key` placeholder | Which token picks the row in `defaults` |
 | `defaults` | — | Default per group, `"*"` as wildcard. Without it, the first surviving value is the default. |
 | `dependent_fields` | `[]` | Other settings this config's rules read — see below |
+| `separator` | — | Lets a stored value be several items joined by it (`eng\|jpn`), as a `multiselect` button writes ([Onclick](06-controls.md#onclick)); without it only one item stands. Use `\|`: a comma would split a `RunScript` parameter. |
 | `templates_from` | the file's `mapping` | Mappings this config serves — see [One definition, several mappings](#one-definition-several-mappings) |
 
 Each rule is `{"condition": "...", "value": [...]}`. `condition` is required; `value` defaults to an empty list.
