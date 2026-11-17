@@ -293,6 +293,7 @@ class Monitor(xbmc.Monitor):
                 self.player_monitor
                 and data.get("type") == "song"
                 and "transaction" not in data
+                and not self.closed  # a close's wait, for its write, bumps them too
             ):
                 self._song_update()
             return
@@ -329,7 +330,7 @@ class Monitor(xbmc.Monitor):
     def _song_update(self, delay: float = 0.5) -> None:
         """
         One album bar re-serve (_album_bump) after the last of a burst of song updates
-        and closes; an update (after the write) replaces a close's longer wait.
+        and closes; an update doesn't cut a pending close's longer wait (its write).
 
         :param delay: Seconds to wait.
         """
@@ -350,8 +351,8 @@ class Monitor(xbmc.Monitor):
             " | String.IsEqual(Container(9010).ListItem.Property(album),true)"
         ):
             window_property("progress_version", value=str(time.monotonic_ns()))
-        closed = [self.closed.popitem() for _ in range(len(self.closed))]
-        if any(_play_count(songid) != count for songid, count in closed):
+        closed, self.closed = self.closed, {}  # a started Timer can't be cancelled
+        if any(_play_count(songid) != count for songid, count in closed.items()):
             window_property("played_version", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:
