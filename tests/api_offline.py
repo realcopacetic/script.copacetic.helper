@@ -1068,6 +1068,27 @@ def deezer_search(*artists):
     return json.dumps({"data": data}).encode()
 
 
+def deezer_releases(*titles):
+    """A Deezer artist-albums answer with these release titles."""
+    return json.dumps({"data": [{"title": title} for title in titles]}).encode()
+
+
+# Jay-Z's library is Watch the Throne alone: none of it in Deezer's top tracks but
+# one censored title, from a compilation (Ash's log, 17 Nov; N81)
+THRONE = [
+    song(n, title, 2011, album="Watch the Throne", albumid=1)
+    for n, title in enumerate(
+        ["No Church in the Wild", "Lift Off", "Niggas in Paris", "Otis", "New Day"], 1
+    )
+]
+JAYZ_SEARCH = deezer_search((1309, "JAY Z", 3_584_796), (412481021, "JAŸ-Z", 2484))
+JAYZ_TOP = deezer_top(
+    ("Empire State of Mind", "The Blueprint 3"),
+    ("Ni**as in Paris", "Once Upon a Time in 2011"),
+    ("99 Problems", "The Black Album"),
+)
+
+
 class BlendTest(unittest.TestCase):
     def test_fused(self):
         scores = fused([(1, "ab"), (1, "cd")])
@@ -1183,6 +1204,21 @@ class BlendTest(unittest.TestCase):
         # no match: None while the library has too few titles to tell, else False
         self.assertIsNone(accept([["", "Other", "x"]], QOTSA_SONGS[:2]))
         self.assertIs(accept([["", "Other", "x"]]), False)
+
+    def test_censored_titles(self):
+        # each * one letter; a censored title counts as a song in common
+        rows = [["", "Ni**as in Paris (feat. X)", "Once Upon a Time in 2011"]]
+        self.assertEqual(rank_songs([(1, rows)], THRONE)[0]["songid"], 3)
+        self.assertIs(deezer_match(THRONE, rows), False)  # one song, no album
+        releases = [["", "", "Watch The Throne (Deluxe)"]]
+        self.assertTrue(deezer_match(THRONE, rows + releases))
+        # a release row gives the album, never the song: an album alone is no match
+        self.assertIs(deezer_match(THRONE, releases), False)
+        # one letter per *, and a title two keys fit matches neither
+        self.assertEqual(rank_songs([(1, [["", "Ni*as in Paris"]])], THRONE), [])
+        both = [song(1, "Funk You", 2000), song(2, "Fuck You", 2000)]
+        self.assertEqual(rank_songs([(1, [["", "F**k You"]])], both), [])
+        self.assertEqual(rank_songs([(1, [["", "F**k You"]])], both[1:]), both[1:])
 
     def test_played_tail_earliest_release(self):
         songs = [
@@ -1344,9 +1380,38 @@ class DeezerTest(Base):
             ),
             other,
             other,
+            deezer_releases("Other Album"),
         ]
         self.assertEqual(self.top(), [])
         self.assertEqual(self.deezer_row(f"match:{QOTSA}"), (None, 7 * DAY))
+        self.assertTrue(  # the most followed's releases, once on a miss
+            self.net.requests[3].full_url.endswith("artist/9/albums?limit=100")
+        )
+
+    def test_releases_hold_the_library_album(self):
+        self.songs = THRONE
+        self.net.answers = [
+            JAYZ_SEARCH,
+            JAYZ_TOP,
+            deezer_top(("Other Song", "Other Album")),
+            deezer_releases("The Blueprint 3", "Watch The Throne (Deluxe)"),
+        ]
+        rows = deezer.top_tracks("jayz", "Jay‐Z", self.accept)
+        self.assertEqual(rows[1], ["", "Ni**as in Paris", "Once Upon a Time in 2011"])
+        self.assertEqual(self.deezer_row("match:jayz"), ([1309, 3_584_796], 90 * DAY))
+        self.assertEqual(len(self.net.requests), 4)  # its top list isn't refetched
+        self.assertEqual(self.deezer_row("top:1309"), (rows, 7 * DAY))
+
+    def test_releases_without_a_song_in_common_no_match(self):
+        self.songs = THRONE
+        self.net.answers = [
+            JAYZ_SEARCH,
+            deezer_top(("Empire State of Mind", "The Blueprint 3")),
+            deezer_top(("Other Song", "Other Album")),
+            deezer_releases("Watch The Throne (Deluxe)"),
+        ]
+        self.assertEqual(deezer.top_tracks("jayz", "Jay‐Z", self.accept), [])
+        self.assertEqual(self.deezer_row("match:jayz"), (None, 7 * DAY))
 
     def test_far_ahead_taken_with_few_songs(self):
         self.songs = QOTSA_SONGS[:2]
@@ -1373,6 +1438,7 @@ class DeezerTest(Base):
             ),
             other,
             other,
+            deezer_releases("Other Album"),
         ]
         self.assertEqual(self.top(), [])
         self.assertEqual(self.deezer_row(f"match:{QOTSA}"), (None, 7 * DAY))
@@ -1387,6 +1453,7 @@ class DeezerTest(Base):
             self.net.answers = [
                 deezer_search((9, "Queens of the Stone Age", fans)),
                 deezer_top(("Other Song", "Other Album")),
+                deezer_releases("Other Album"),
             ]
             self.top()
             self.assertEqual(self.deezer_row(f"match:{QOTSA}")[0], artist)

@@ -74,15 +74,30 @@ def _top(artist: int) -> list[list[str]]:
     ]
 
 
+def _releases(artist: int) -> list[list[str]]:
+    """
+    A Deezer artist's first 100 releases, as rows with an album title and no title.
+
+    :param artist: Deezer artist id.
+    :return: ["", "", album title] rows.
+    """
+    rows = get_json(f"artist/{artist}/albums", limit=100)["data"][:100]
+    return [
+        ["", "", title[:TITLE]]
+        for row in rows
+        if isinstance(title := row["title"], str)
+    ]
+
+
 def _artist(key: str, name: str, accept: Callable[[list], bool | None]) -> tuple:
     """
-    A library artist's Deezer artist: the first of its most followed same-named
-    Deezer artists whose top tracks accept takes as the library's; with too few titles
-    to tell, the most followed with LEAD times the next one's fans, and over FANS.
+    A library artist's Deezer artist: the first of its most followed namesakes whose
+    top tracks accept takes; else the most followed, if far ahead (LEAD, FANS) with
+    too few titles to tell, or if accept takes its top tracks with its _releases.
 
     :param key: artist_key of the library artist.
     :param name: Its name, searched for.
-    :param accept: Whether a candidate's top-track rows are this artist's.
+    :param accept: Whether a candidate's rows (top tracks, releases) are the artist's.
     :return: ([Deezer id, fans] or None, {id: top rows} fetched by this search).
     """
     accepted = {}
@@ -106,11 +121,13 @@ def _artist(key: str, name: str, accept: Callable[[list], bool | None]) -> tuple
                 accepted[artist] = tops[artist]
                 return [artist, int(row["nb_fan"])]
             unsure = verdict is None
-        # Too few library titles to rule them out: the most followed, if far ahead
-        if unsure:
+        if tops and (artist := int(named[0]["id"])) in tops:
             fans = [row["nb_fan"] for row in named[:2]]
-            artist = int(named[0]["id"])
-            if artist in tops and fans[0] > max(LEAD * sum(fans[1:]), FANS):
+            # Too few library titles to rule them out: the most followed, if far
+            # ahead; else its releases may hold a library album its top 100 misses
+            if (unsure and fans[0] > max(LEAD * sum(fans[1:]), FANS)) or accept(
+                tops[artist] + _releases(artist)
+            ):
                 accepted[artist] = tops[artist]
                 return [artist, int(fans[0])]
 
