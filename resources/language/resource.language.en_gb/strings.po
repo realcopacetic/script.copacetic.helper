@@ -596,6 +596,31 @@ msgctxt "#32400"
 msgid "Keyboard layout"
 msgstr ""
 
+#: /context.py — context menu items (addon.xml kodi.context.item); ids kept from WINDOWS
+msgctxt "#32820"
+msgid "Shuffle"
+msgstr ""
+
+msgctxt "#32821"
+msgid "Start mix"
+msgstr ""
+
+msgctxt "#32822"
+msgid "Like"
+msgstr ""
+
+msgctxt "#32823"
+msgid "Unlike"
+msgstr ""
+
+msgctxt "#32824"
+msgid "Pin to speed dial"
+msgstr ""
+
+msgctxt "#32825"
+msgid "Unpin"
+msgstr ""
+
 
 
 
@@ -658,6 +683,11 @@ msgstr ""
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32610"
 msgid "Random albums"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py — the speed dial listing's category; id kept from WINDOWS
+msgctxt "#32826"
+msgid "Speed dial"
 msgstr ""
 
 
@@ -742,35 +772,6 @@ msgstr ""
 #: /resources/lib/windows/browse.py
 msgctxt "#32819"
 msgid "Kodi commands"
-msgstr ""
-
-#: /context.py — context menu items (addon.xml kodi.context.item)
-msgctxt "#32820"
-msgid "Shuffle"
-msgstr ""
-
-msgctxt "#32821"
-msgid "Start mix"
-msgstr ""
-
-msgctxt "#32822"
-msgid "Like"
-msgstr ""
-
-msgctxt "#32823"
-msgid "Unlike"
-msgstr ""
-
-msgctxt "#32824"
-msgid "Pin to speed dial"
-msgstr ""
-
-msgctxt "#32825"
-msgid "Unpin"
-msgstr ""
-
-msgctxt "#32826"
-msgid "Speed dial"
 msgstr ""
 
 #: /resources/lib/windows/dynamiceditor.py — management button descriptions
