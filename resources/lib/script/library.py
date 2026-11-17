@@ -240,8 +240,9 @@ def refresh_cached(type: str, dbid: int) -> int:
         for name, url in _details(type, dbid, "art")["art"].items()
         if "." not in name
     ]
-    # processed rows hold the URL as the skin passed it, which the plugin unquotes
-    # once: wrapped, plain or (embedded art) once-unquoted
+    # processed rows hold url_decode_path's form; older ones the URL as the skin
+    # passed it, which the plugin unquotes once: wrapped, plain or (embedded art)
+    # once-unquoted
     forms = set()
     for url in art:
         decoded = url_decode_path(url)
