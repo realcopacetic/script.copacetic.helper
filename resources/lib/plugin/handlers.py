@@ -297,7 +297,8 @@ class _FocusGuard:
 
 
 # A library show's titles path: its id, then the listed season, if any
-_TITLES_PATH = re.compile(r"videodb://tvshows/titles/(\d+)/(?:(-?\d+)/)?")
+TITLES = "videodb://tvshows/titles/"
+_TITLES_PATH = re.compile(rf"{TITLES}(\d+)/(?:(-?\d+)/)?")
 
 
 class PluginHandlers(metaclass=PluginInfoRegistry):
@@ -1859,7 +1860,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return set_items(
             {
                 # as Kodi's own season paths, so Back finds the season in its list
-                "file": f"videodb://tvshows/titles/{show}/{row['season']}/?tvshowid={show}",
+                "file": f"{TITLES}{show}/{row['season']}/?tvshowid={show}",
                 "label": row["label"],
                 "properties": {
                     "current": "true" if str(row["season"]) == listed else ""
