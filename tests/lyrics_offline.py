@@ -14,6 +14,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from build_offline import HELPER, install_stubs
@@ -580,6 +581,28 @@ class PollerHookTest(Kodi):
         lyrics._fetches[SONG].run()
         self.assertEqual(self.monitor.watch_lyrics(), 1)
         self.assertEqual(self.props, {"lyrics_state": "searching"})
+
+    def test_a_song_the_endless_queue_adds_is_prefetched(self):
+        self.conditions |= {lyrics.ENABLED, player.ENDLESS_QUEUE}
+        tag = SimpleNamespace(getDbId=lambda: 5, getGenres=list, getDisc=int)
+        tag.getArtist = tag.getAlbumArtist = tag.getAlbum = str
+        monitor = self.monitor
+        monitor.getMusicInfoTag = lambda: tag
+        monitor._publish = monitor._record_speed_dial = monitor._album_path = str
+
+        def grow(song):  # the last song queued: the lookup found none next
+            self.assertEqual(self.lookups, [self.abortRequested])
+            self.labels |= QUEUED
+            return True
+
+        monitor._extend_queue = grow
+        item = {"result": {"item": {"albumid": 0}}}
+        with (
+            patch.object(player, "json_call", lambda *a, **k: item),
+            patch.object(player, "window_property", lambda *a, **k: None),
+        ):
+            monitor._handle_audio_start()
+        self.assertEqual(self.asked, [("prefetch", NEXT)])
 
     def test_off_clears_and_a_start_waits_for_its_av_start(self):
         self.conditions.add(lyrics.ENABLED)

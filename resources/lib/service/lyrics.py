@@ -236,6 +236,17 @@ def publish(
     return synced or []
 
 
+def prefetch(aborted: Callable[[], bool]) -> None:
+    """
+    Ask LRCLIB on a thread for the song queued next, unless it is out or cached.
+
+    :param aborted: abortRequested of a Monitor made on the service thread.
+    """
+    queued = song("MusicPlayer.offset(1).")
+    if _wanted(queued) and queued not in _fetches and not _saved(queued)[1]:
+        Fetch(queued, lrclib.prefetch, aborted)
+
+
 def lookup(aborted: Callable[[], bool]) -> "Lyrics":
     """
     Publish the playing song's lyrics from a .lrc, its tags or LRCLIB's cache, else
@@ -248,15 +259,13 @@ def lookup(aborted: Callable[[], bool]) -> "Lyrics":
     for key, value in SEARCHING.items():
         window_property(key, value=value)
     found, fetch = find(infolabel("Player.Filenameandpath")), None
-    playing, queued = song(), song("MusicPlayer.offset(1).")
-    if not found and _wanted(playing):
+    if not found and _wanted(playing := song()):
         payload, fresh = _saved(playing)
         if fresh:
             found = _found(payload)
         else:  # the next song's prefetch may still be out: it serves
             fetch = _fetches.get(playing) or Fetch(playing, lrclib.lyrics, aborted)
-    if _wanted(queued) and queued not in _fetches and not _saved(queued)[1]:
-        Fetch(queued, lrclib.prefetch, aborted)
+    prefetch(aborted)  # after: the playing song's own request is never asked twice
     return Lyrics(fetch=fetch) if fetch else Lyrics(publish(*(found or NONE)))
 
 

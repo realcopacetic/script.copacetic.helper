@@ -561,6 +561,8 @@ class PlayerMonitor(Player):
         ):
             if not self.isPlayingAudio() or self.getMusicInfoTag().getDbId() != songid:
                 return  # the next song published its own while the queue grew
+            if self._lyrics:  # its lookup ran before a next song was queued
+                lyrics.prefetch(self._monitor.abortRequested)
             # The album path compared the queue before it grew
             album_path = self._album_path(item.get("albumid", 0))
             window_property("player_album_path", value=album_path)
