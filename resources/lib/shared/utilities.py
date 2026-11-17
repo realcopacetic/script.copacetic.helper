@@ -572,7 +572,7 @@ def url_decode_path(path: str) -> str:
         encoded = "".join(chr(b) if b in URL_SAFE else f"%{b:02x}" for b in raw)
         tail = transform and f"transform?{options}"
         return f"image://{kind and kind + '@'}{encoded}/{tail}"
-    return urllib.unquote(path.replace("image://", "").rstrip("/"))
+    return urllib.unquote(body.rstrip("/"))
 
 
 def validate_path(path: str | Path) -> bool:

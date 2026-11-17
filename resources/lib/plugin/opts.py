@@ -31,9 +31,9 @@ def read_art_urls(
     params: Mapping[str, str], read: Callable[[str], str], on_top: bool
 ) -> dict[str, str]:
     """
-    Each art URL read whole, where it extends the value in the plugin URL, which Kodi
-    built in the window: Python reads in the topmost dialog's. Under a dialog
-    (``on_top`` False) only a non-empty value can vouch for a read.
+    Each art URL read whole, where it is the plugin URL's value or that value cut at an
+    "&" or "|": Kodi built it in the window, Python reads in the topmost dialog's. A cut
+    URL (param absent) vouches only on top (``on_top``); an empty one is no image.
 
     :param params: Plugin parameters, art URLs as Kodi passed them.
     :param read: Label reader (``xbmc.getInfoLabel``).
@@ -42,9 +42,12 @@ def read_art_urls(
     """
     urls = {}
     for param, label in art_reads(params).items():
-        value = params.get(param, "")
-        if (on_top or value) and (url := read(label)).startswith(value):
-            urls[param] = url
+        if (value := params.get(param)) is None:
+            if on_top:
+                urls[param] = read(label)
+        elif value and (url := read(label)).startswith(value):
+            if url[len(value) :][:1] in "&|":  # whole, or cut at the parser's or Kodi's
+                urls[param] = url
     return urls
 
 

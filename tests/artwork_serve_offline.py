@@ -2,9 +2,11 @@
 Offline checks for the artwork serve (PluginHandlers.artwork) with Kodi's reads
 stubbed and the image work faked: the logo from clearlogo_source, with and without
 a favourite's multiart_target, and the icon from icon_source (a cut band label the
-item's own); a background read whole by a skin variable's name, standing only where it
-extends the URL's raw value (under a menu, only a non-empty one), a family outranking
-it; the parser keeps art URLs raw and url_decode_path leaves a bare URL; a held serve names its position only for a move that stamped no visit;
+item's own); a background read whole by a skin variable's name, standing only where
+the URL's raw value is it or it cut at "&" or "|" (a cut-off URL only on top, an empty
+one never), a family outranking it; the parser keeps art URLs raw and url_decode_path
+leaves a bare URL; a held serve names its position only for a move that stamped no
+visit;
 the TV guide's time left (epg_time_left) from the programme's start and runtime,
 across midnight too, only while the URL's channel is on air and before its end.
 Run from the helper root:
@@ -239,10 +241,37 @@ class ArtUrls(unittest.TestCase):
         params = {"icon_source": ICON_SOURCE, "icon_var": "v"}
         self.assertEqual(opts.art_reads(params), {"icon_url": ICON_SOURCE})
 
+    def reads(self, url: str | None, read: str, on_top: bool = True) -> dict:
+        """read_art_urls of a background_var whose label reads ``read``."""
+        params = {"background_var": VAR} | (
+            {} if url is None else {"background_url": url}
+        )
+        return opts.read_art_urls(params, {f"$VAR[{VAR}]": read}.get, on_top)
+
     def test_a_read_must_extend_the_urls_value(self):
-        read = {f"$VAR[{VAR}]": PLEX}.get
-        params = {"background_var": VAR, "background_url": "https://plex/other.jpg"}
-        self.assertEqual(opts.read_art_urls(params, read, on_top=True), {})
+        self.assertEqual(self.reads("https://plex/other.jpg", PLEX), {})
+
+    def test_an_ampersand_extension_stands(self):
+        self.assertEqual(
+            self.reads(PLEX.partition("&")[0], PLEX), {"background_url": PLEX}
+        )
+
+    def test_a_pipe_extension_stands(self):
+        self.assertEqual(
+            self.reads(LOGO.partition("|")[0], LOGO), {"background_url": LOGO}
+        )
+
+    def test_a_longer_name_is_another_image(self):
+        self.assertEqual(self.reads("https://x/art/12", "https://x/art/123"), {})
+        self.assertEqual(self.reads("https://x/f.jpg", "https://x/f.jpg.1"), {})
+
+    def test_a_present_empty_url_is_no_image(self):
+        # a clearlogo-only item: its neighbour's fanart, read after a move, never lands
+        self.assertEqual(self.reads("", "https://x/neighbour.jpg"), {})
+
+    def test_a_cut_off_url_reads_on_top_only(self):
+        self.assertEqual(self.reads(None, PLEX), {"background_url": PLEX})
+        self.assertEqual(self.reads(None, PLEX, on_top=False), {})
 
     def test_a_bare_url_is_kodis_key_as_it_stands(self):
         self.assertEqual(url_decode_path(PLEX), PLEX)
