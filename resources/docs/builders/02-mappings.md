@@ -231,7 +231,7 @@ A static mapping the addon builds from `resources/lib/shared/genres.py`, the sam
 2. each bucket's keywords (`contains`), narrow buckets before the broad ones they split from (Blues before Rock, Techno before Electronic);
 3. MusicBrainz genres no term finds (`tag`, a whole tag only, so `oi` is not found in "Choir"), by the bucket of the genre MusicBrainz lists them as a subgenre of (`phonk` under Hip Hop). From a snapshot `tests/genre_snapshot.py` refreshes by hand; `tests/genre_offline.py` checks every MusicBrainz genre still gets its bucket.
 
-A template block gives a skin its icon cascade. A `tag` row tests the whole tag between Kodi's default music `itemseparator`, ` / ` (a skin whose users change it gets these rows only for an item with one genre); its `String.Contains` comes first, false for nearly every row, so the four tag tests run only on a hit:
+A template block gives a skin its icon cascade. A `tag` row tests the whole tag between Kodi's default music `itemseparator`, ` / ` (a skin whose users change it gets these rows only for an item with one genre); its `String.Contains` is false for nearly every row. Kodi doesn't keep the written order of an AND, though: it moves a later test that made it false to the front, so once a genre has contained a term but not as a whole tag, that row runs its four tag tests first:
 
 ```json
 "values": [

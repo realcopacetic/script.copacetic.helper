@@ -10,6 +10,7 @@ import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from functools import cache, cached_property, partial
+from itertools import islice
 from operator import itemgetter
 from typing import Any, Callable
 
@@ -82,7 +83,7 @@ from resources.lib.plugin.soundtracks import (
 )
 from resources.lib.shared import logger as log
 from resources.lib.shared.lrc import LINES, LONG, NEIGHBOURS
-from resources.lib.shared.mix import kept_mix, leading_cards, played_songs
+from resources.lib.shared.mix import genre_ids, kept_mix, leading_cards, played_songs
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import markdown_label
@@ -1881,12 +1882,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         set_plugincontent(category=ADDON.getLocalizedString(32837))
         # the album artists, read once and only if a card is drawn
         owned = cache(partial(artist_names, "daily_mixes", album_artists=True))
+        ids = genre_ids()
         with cache_only():
-            mixes = [
+            drawn = (
                 (key, kept_mix(key, seeds, owned))
-                for key, seeds in leading_cards(played_songs())[: self.limit]
-            ]
-        return mix_cards(mixes) if mixes else None  # none until there are plays
+                for key, seeds in leading_cards(played_songs())
+            )
+            # A card whose genres a clean removed has none to open: the next one
+            # takes its place, drawn only when needed
+            live = ((key, mix) for key, mix in drawn if ids.keys() & mix["genres"])
+            mixes = [*islice(live, self.limit)]
+        return mix_cards(mixes, ids) if mixes else None  # none until there are plays
 
     @log.duration
     def random_genre(self) -> list[DirectoryItem] | None:
@@ -2438,7 +2444,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # Over the artist's albums (uncredited 0), as Discography ranks them: it must
         # lead alone, and an artist with one album has no ranking
         credit = album_credit(rankings, songs, albums)
-        ranked = sorted((credit[album["albumid"]] for album in albums), reverse=True)
+        ranked = sorted((credit[row["albumid"]] for row in albums), reverse=True)
         if len(ranked) > 1 and credit[albumid] == ranked[0] > ranked[1]:
             return ADDON.getLocalizedString(32998)
         return ""
