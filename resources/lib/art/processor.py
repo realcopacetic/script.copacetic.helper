@@ -136,6 +136,8 @@ class ImageProcessor:
         radius = opts.blur_radius if opts.blur_radius else self.cfg.blur_radius
         sigma = radius
         try:
+            if has_alpha(image):  # resized as RGBA: no key colour at its edges
+                image = self._ensure_mode(image, "RGBA")
             if opts.edge_trim:
                 dx = round(image.width * opts.edge_trim / 100)
                 dy = round(image.height * opts.edge_trim / 100)
