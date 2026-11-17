@@ -487,7 +487,7 @@ class ImageEditor:
                     f"{self.__class__.__name__} → File processed: "
                     f"{url} → {processed_path}",
                 )
-        finally:  # a temp copy left behind would fail every later serve of its source
+        finally:  # a temp copy left behind is only a leak: each copy has its own name
             if self.temp_folder in source_path:
                 outcome = "deleted" if xbmcvfs.delete(source_path) else "cleanup failed"
                 log.debug(
