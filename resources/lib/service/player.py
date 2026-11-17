@@ -377,7 +377,10 @@ class PlayerMonitor(Player):
         episode's next and its season's; a set's name and other films), subtitle type,
         stream count, picks, identity; Play next's successor; then skip segments.
         """
-        tag = self.getVideoInfoTag()
+        try:  # read together: a stop since the AV start raises; its queued stop clears
+            tag, total = self.getVideoInfoTag(), self.getTotalTime()
+        except RuntimeError:
+            return
         dbid = tag.getDbId()
         media_type = tag.getMediaType()
         path = infolabel("Player.Filenameandpath")
@@ -438,7 +441,7 @@ class PlayerMonitor(Player):
         # The lookup's queue wait runs callbacks queued meanwhile, a next file's
         # start among them: the answer lands only if no other file started
         started = self._starts
-        found = segments.lookup(self.getTotalTime(), *library)
+        found = segments.lookup(total, *library)
         if started == self._starts:
             self._segments = found
 
