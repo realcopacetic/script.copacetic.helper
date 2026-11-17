@@ -555,6 +555,7 @@ class PlayerMonitor(Player):
         else:  # the last song's, if the setting went off since its pass
             self._lyrics = None
             lyrics.clear()
+        queued = lyrics.song("MusicPlayer.offset(1).") if self._lyrics else None
         self._record_speed_dial(songid)
         if (
             songid > 0
@@ -564,7 +565,8 @@ class PlayerMonitor(Player):
         ):
             if not self.isPlayingAudio() or self.getMusicInfoTag().getDbId() != songid:
                 return  # the next song published its own while the queue grew
-            if self._lyrics:  # its lookup ran before a next song was queued
+            # The lookup asked for the next song then: ask again only for a new one
+            if queued and lyrics.song("MusicPlayer.offset(1).") != queued:
                 lyrics.prefetch(self._monitor.abortRequested)
             # The album path compared the queue before it grew
             album_path = self._album_path(item.get("albumid", 0))
