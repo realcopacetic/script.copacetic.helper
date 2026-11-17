@@ -343,7 +343,7 @@ class RuntimeStateManager:
 
         :return: True when state was written (fresh seed, new mappings, rows changed).
         """
-        state = self.runtime_state if self.exists else {}
+        state = self.runtime_state
         changed = {}
         for mapping_key, mapping in self.mappings.items():
             if mapping.get("mode") != "dynamic":
