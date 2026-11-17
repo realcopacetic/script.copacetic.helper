@@ -431,6 +431,17 @@ class BuildBoundary(unittest.TestCase):
         self.assertFalse(utilities.DEV_RESET.exists())
         self.assertNotIn("kept", json.loads(STATE.read_text()))
 
+    def test_a_check_with_dev_mode_off_leaves_a_reset_unpinned(self):
+        self.current_cache()
+        self.addCleanup(utilities.DEV_RESET.unlink, missing_ok=True)
+        with (
+            as_skin("skin.test"),
+            patch.object(monitor.ADDON, "getSettingBool", "dev_reset".__eq__),
+        ):
+            self.start()
+            self.follow(REAL)
+        self.assertFalse(utilities.DEV_RESET.exists())
+
     def test_rebuild_reset_takes_an_unpinned_reset(self):
         self.current_cache()
         self.addCleanup(utilities.DEV_RESET.unlink, missing_ok=True)

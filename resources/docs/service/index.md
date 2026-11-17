@@ -89,7 +89,8 @@ interrupted. In order:
    `dev_reset.txt` in the add-on's profile folder when the settings are saved, and
    only that skin's next check uses it. Turned on in a skin without the builder
    (Estuary), it waits for the next builder skin it is in: that skin's next check
-   (a start, a switch in or an update) or `rebuild` with `reset=true` takes it.
+   with dev mode on (a start, a switch in or an update) or `rebuild` with
+   `reset=true` takes it. A check with dev mode off leaves it unclaimed.
    Other skins leave it on and keep their files; turning it off deletes the file.
    The settings are saved once, on OK, so to move a reset to another skin, turn it
    off and press OK, then turn it on again in that skin.
