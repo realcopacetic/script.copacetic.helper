@@ -452,10 +452,12 @@ artist has fewer than three song titles, too few to tell, the most followed is t
 if it has more than ten times the fans of the next same-named artist and more than
 1,000: a library artist with a song or two that aren't among its top tracks still
 gets its Deezer lists, at the risk of a namesake's for one Deezer doesn't have.
-Failing both, the most followed one's releases (`/artist/<id>/albums`, its first 100)
-are read, one request: their album titles count with its top tracks' albums, so one
-song title in common and a library album among its releases take it (a library
-holding only an album outside the artist's top tracks); an album alone never does. An
+Failing both, when the most followed one's top tracks share a song title, its releases
+(`/artist/<id>/albums`, its first 100) are read, one request: their titles count with
+its top tracks' albums, so that title and a library album among its releases take it
+(a library holding only an album outside the artist's top tracks); an album alone
+never does. Singles, compilations, a release named like the artist (a namesake's
+self-titled album) and one named like a library song are left out. An
 artist whose name has no letters or digits ("!!!") isn't looked up. Its id is kept, keyed by the artist's
 MusicBrainz id, else by its name, so later opens skip the search; **Refresh cached
 data** on the artist searches again (a different pick needs a changed library or
