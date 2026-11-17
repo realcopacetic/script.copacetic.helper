@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
+from uuid import uuid4
 
 import xbmc
 import xbmcvfs
@@ -167,16 +168,15 @@ class ArtworkCacheManager:
 
     def source_temp_path(self, ctx: CacheContext) -> str | None:
         """
-        Copy the source artwork to a temp file for processing; return its path. A
-        web source that fails to copy is not asked for again for DEAD_SOURCE_TTL.
+        Copy the source artwork to a temp file of this call's own (a parallel serve's
+        copy would replace it mid-read); return its path. A web source that fails to
+        copy is not asked for again for DEAD_SOURCE_TTL.
         """
-        temp_path = str(Path(self.temp_folder) / ctx.cached_thumb)
-        if validate_path(temp_path):
-            return temp_path
         dead = f"artwork_dead_{Path(ctx.cached_thumb).stem}"
         failed = to_float(infolabel(f"Window(home).Property({dead})"))
         if 0 <= time.time() - failed < DEAD_SOURCE_TTL:
             return None
+        temp_path = str(Path(self.temp_folder) / f"{uuid4().hex}_{ctx.cached_thumb}")
         if xbmcvfs.copy(ctx.decoded_url, temp_path):
             return temp_path
         if ctx.decoded_url.startswith(("http://", "https://")):
