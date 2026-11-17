@@ -377,7 +377,8 @@ changed an output file. While a settings window is open, the rebuild waits until
 window closes. The rebuild sets [`helper_reloading`](#dynamic_settings_window), so the
 skin can cover it.
 
-Mappings without a `parent_mapping` are left alone.
+Mappings without a `parent_mapping` are left alone. The removed entries' own children
+go too, in any mapping whose `parent_mapping` is this one (a widget's tabs).
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

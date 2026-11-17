@@ -756,9 +756,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 return
 
         if self.parent_filter:
-            mapping = self.runtime_manager.mappings.get(mk, {})
-            metadata = mapping.get("metadata", {})
-            default_order = mapping.get("default_order") or mapping.get("items", [])
             parent_item = self.runtime_manager.mapping_item_for_runtime_id(
                 self.parent_filter
             )
@@ -771,11 +768,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 reverse=True,
             ):
                 self.runtime_manager.delete_mapping_item(mk, item["runtime_index"])
-            for mi in default_order:
-                if metadata.get(mi, {}).get("parent") == parent_item:
-                    self.runtime_manager.insert_mapping_item(
-                        mk, mi, extra_fields={"parent": self.parent_filter}
-                    )
+            for mi in self.runtime_manager.default_children(mk, parent_item):
+                self.runtime_manager.insert_mapping_item(
+                    mk, mi, extra_fields={"parent": self.parent_filter}
+                )
         else:
             self.runtime_manager.reset_runtime_state_for(mk)
 
