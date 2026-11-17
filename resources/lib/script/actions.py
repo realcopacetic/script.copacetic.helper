@@ -1769,6 +1769,16 @@ def toggle_addon(id: str, **kwargs: str) -> None:
 
 
 @action
+def toggle_setting(id: str, **kwargs: str) -> None:
+    """
+    Turn one of the helper's on/off settings over, so a skin's row flips it in place.
+
+    :param id: The setting's id, e.g. lrclib.
+    """
+    ADDON.setSettingBool(id, not ADDON.getSettingBool(id))
+
+
+@action
 def unpin(id: str = "", type: str = "", path: str = "", **kwargs: str) -> None:
     """
     Unpins a speed dial entry.

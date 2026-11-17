@@ -108,6 +108,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
 | [`tmdb_test`](#tmdb_test) | Checks the TMDb token |
 | [`toggle_addon`](#toggle_addon) | Enables or disables an add-on |
+| [`toggle_setting`](#toggle_setting) | Turns one of the helper's on/off settings over |
 | [`trailer_fullscreen`](#trailer_fullscreen) | Takes a window's trailer full screen without restarting it |
 | [`trailer_return`](#trailer_return) | Reopens the info dialog a full-screen trailer came from |
 | [`unpin`](#unpin) | Unpins a speed dial entry |
@@ -1623,6 +1624,26 @@ shows the new state.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=toggle_addon,id=script.module.example)</onclick>
+```
+
+---
+
+## toggle_setting
+
+Turns one of the helper's own on/off settings over (on becomes off, off becomes on),
+so a skin can offer it as a row of its own settings without opening the helper's.
+Read the setting back with `Addon.SettingBool(script.copacetic.helper,<id>)`. In a
+[settings window](../builders/06-controls.md#onclick) row, run it as a
+`runtime_script` onclick (`"action": "toggle_setting"`, `"kwargs": {"id": "lrclib"}`):
+it then runs before the row redraws, so a `label2` that reads the setting shows the
+new value at once.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | a bool setting's id in the helper's settings, e.g. `lrclib` | required | The setting to turn over |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=toggle_setting,id=lrclib)</onclick>
 ```
 
 ---

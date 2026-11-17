@@ -3,7 +3,8 @@ Offline checks for lyrics: the LRC parser (shared/lrc.py); the service's sources
 order (a .lrc beside the song, its tags, LRCLIB), what it publishes, how it steps
 the visualisation's follow list (3510) and the music OSD's browse list (3511) by
 their selected item, and the player monitor's poller hook (service/lyrics.py,
-service/player.py); the info=lyrics plugin path and the lyrics_seek action.
+service/player.py); the info=lyrics plugin path, the lyrics_seek action and the
+LRCLIB row's toggle_setting.
 Infolabels and conditions are dicts; nothing reaches the network.
 Run from the helper root: python tests/lyrics_offline.py
 """
@@ -726,6 +727,17 @@ class PluginAndActionTest(unittest.TestCase):
             actions.lyrics_seek(time="0")
         self.assertEqual(seeks, [65.3, 0.0])
         self.assertIs(actions.REGISTRY["lyrics_seek"], actions.lyrics_seek)
+
+    def test_the_lrclib_row_turns_the_setting_over(self):
+        settings = {"lrclib": True}
+        addon = SimpleNamespace(
+            getSettingBool=settings.get, setSettingBool=settings.__setitem__
+        )
+        with patch.object(actions, "ADDON", addon):
+            actions.REGISTRY["toggle_setting"](id="lrclib")
+            self.assertEqual(settings, {"lrclib": False})
+            actions.toggle_setting(id="lrclib")
+        self.assertEqual(settings, {"lrclib": True})
 
 
 if __name__ == "__main__":
