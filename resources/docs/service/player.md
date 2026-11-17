@@ -285,7 +285,9 @@ forgets every saved answer; **Refresh cached data** one library song's (see
 
 **The lines** come from the plugin path
 `plugin://script.copacetic.helper/?info=lyrics&revision=$INFO[Window(home).Property(lyrics_revision)]`:
-one item per synced line, in order. The label is the line's text, empty for a gap;
+one item per synced line, in order, with a gap first when the first line has text
+and starts after 0 (an intro), so its dots can sit above that line. The label is the line's
+text, empty for a gap;
 the properties are `index` (from 0), `time` (milliseconds, with any `[offset:]`
 applied), `gap` (`true` on an empty line), `long` (`true` when the line needs more than
 two lines of the skin's `title_identity` font at 660 px, as Kodi wraps it, so a skin

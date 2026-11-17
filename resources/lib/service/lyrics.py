@@ -239,14 +239,17 @@ def publish(
 ) -> list:
     """
     Publish a song's lyrics: the lines before the revision that refetches them, the
-    state, which shows them, last.
+    state, which shows them, last. A first line with text after 0 gets a gap before
+    it, so an intro shows its dots row above that line.
 
     :param source: file, embedded or lrclib; "" for none.
     :param synced: [[ms, text], ...]; None unless synced.
     :param text: The plain text; None unless plain.
     :param instrumental: LRCLIB marks the song instrumental.
-    :return: The synced lines; empty unless synced.
+    :return: The synced lines, with that gap; empty unless synced.
     """
+    if synced and synced[0][0] and synced[0][1]:
+        synced = [[0, ""], *synced]
     long = long_lines(synced) if synced else []
     props = {
         LINES: json.dumps(synced) if synced else "",
