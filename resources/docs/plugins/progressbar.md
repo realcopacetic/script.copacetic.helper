@@ -3,10 +3,12 @@
 Works out how much of the focused item has been watched, returns it on a list item,
 and moves and sizes a progress bar group to fit your layout. The same item carries
 short context values for labels beside the bar: time left and the end time, the next
-episode and its runtime, a "new" flag and the next air date.
+episode and its runtime, a "new" flag, the next air date, a newly aired episode and
+whether a show has ended.
 
-It handles movies, episodes, TV shows, seasons and movie sets. For a set it counts the
-watched movies in the set.
+It handles movies, episodes, TV shows, seasons, movie sets and music albums. For a set
+it counts the watched movies in the set; for an album, the songs heard (see
+[Albums](#albums)).
 
 ## Plugin path
 
@@ -48,7 +50,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
 | `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, or an episode (for a show, its newest unwatched one, specials included) first aired, at most this many days ago. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
-| `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDb data `next_air` and `next_air_episode` read, as in [TMDb lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
+| `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDb data `next_air`, `next_air_episode`, `new_episode` and `show_status` read, as in [TMDb lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 Placement parameters (`coords`, `anchor_id`, `inset`, `track_w`, `track_h`,
@@ -94,7 +96,9 @@ heard.
   was added within `new_days`. That costs one `AudioLibrary.GetAlbumDetails` call.
 
 An album's item also carries `ListItem.Property(album)` `true`: the service skips its
-re-serve only while the bar on top is another item's. The serve also writes the focused album's id to
+re-serve only while the bar on top is another item's. The service reads the bar's
+item from container `9010` in the topmost dialog, else the active window, so give
+the progress bar's helper container that id for the skip to work. The serve also writes the focused album's id to
 `Window(home).Property(album_played)`
 when every song has played and none is part-heard, or to `album_unplayed` when none
 has, and clears the other. The context menu's
@@ -132,7 +136,7 @@ for them too. The library calls they add, per focus:
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
 | Album none of whose songs has played | 1 | `GetAlbumDetails` (`dateadded`) |
-| Watched or part-watched film or episode, fully watched or Specials season, set, plugin item | 0 | |
+| Watched or part-watched film or episode, fully watched or Specials season, set, album with a song played, plugin item | 0 | |
 
 A movie set's value itself costs one `GetMovieSetDetails` call (rule 3 above), and an
 album's one `GetSongs` call, both made before the bar moves.
@@ -188,8 +192,9 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   descending, limit 1), and is set only when TMDb's is later: an episode missing
   mid-run, or one TMDb numbers differently (TVDB order, episode groups), is no news.
   A special (season 0) is left out, as `next_episode` leaves it out. The [metadata](metadata.md#tmdb-lookups)
-  plugin fills the cache when called with `enrich_with_tmdb=true`. Until it has, and
-  once the date is past, both are empty. An entry cached by an older version of the
+  plugin fills the cache when called with `enrich_with_tmdb=true`. Until it has, all
+  four are empty; once the next air date is past, `next_air` and `next_air_episode`
+  are empty. An entry cached by an older version of the
   add-on holds the date alone (or no last aired episode and status), so
   `next_air_episode` (or `new_episode` and `show_status`) stays empty until a
   `metadata` call fetches the show again, once the entry is 7 days old. The cache is kept per
@@ -216,16 +221,19 @@ Kodi has a time left only for the programme it is playing (`PVR.EpgEventRemainin
 so the helper works it out from the URL alone, against the clock: nothing is read from
 the window, so a move while the call runs changes nothing.
 
-- **Start:** the end of the programme's path. A guide item's path is
+- **Start:** the end of `programme`, the programme's path. A guide item's path is
   `pvr://guide/<epg id>/<start>.epg`, with the start in UTC as `YYYY-MM-DD HH:MM:SS`, so
   no regional time format is parsed.
-- **Runtime:** `ListItem.Duration(secs)`.
+- **Runtime:** `runtime`, the programme's `ListItem.Duration(secs)`.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `programme` | `$INFO[ListItem.FolderPath]` | required | The programme's path, unique to it. Echoed as the item's label, so the skin can check the value is for the focused programme. |
 | `runtime` | `$INFO[ListItem.Duration(secs)]` | required | The programme's runtime in seconds. |
 | `visit` | any text | empty | Echoed as `ListItem.Property(visit)`, so the skin can tell a value from this visit to the window from one it kept from the last. |
+
+Any other parameter, such as `minute` in the example below, is not read: it only
+changes the path.
 
 There's no item when the clock is past the programme's end. Kodi keeps a
 timeshifted channel's programme on air by its playback time.
