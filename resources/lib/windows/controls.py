@@ -14,6 +14,7 @@ from xbmcgui import (
 )
 
 from resources.lib.builders.logic import RuleEngine
+from resources.lib.builders.runtime import allowed_value
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import infolabel
 from resources.lib.windows import onclick_actions
@@ -149,9 +150,9 @@ class BaseControlHandler:
         if not allowed:
             return None
         current = self._get_setting_value()
-        if current in allowed:
-            return current
         link = self._active_link()
+        if allowed_value(current, {**link.get("config", {}), "items": allowed}):
+            return current
         default_val = (
             link["config"].get("default", allowed[0])
             if link.get("linked_config")
