@@ -410,8 +410,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         current_focus = self.getFocusId()
         prev_focus = self._prev_focus_id
         if self._page_changed and current_focus in self._handler_by_focus_id:
-            self._page_changed = False
-            self.clearProperty("page_changed")
+            self._set_page_changed(False)
 
         # Exit targets are only recorded by actions on host_focus; seeing
         # one ⇒ close, the exit router performs the window change.
@@ -501,17 +500,26 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             return
 
         self.container_position = idx
-        # The rail's Right reads it: the new page opens at its first row, scrolled up
-        if not self._page_changed:
-            self._page_changed = True
-            self.setProperty("page_changed", "true")
         self._update_mgmt_buttons()
         content_id = self._list_container.getListItem(idx).getProperty("content_id")
-        if not content_id or content_id not in self.listitems:
-            return  # placeholder row — don't update handlers
+        # Placeholder rows don't update handlers. Rows hide and show one at a time:
+        # no flag meanwhile, or a Right finding no row sends FirstPage to the rail.
+        if content_id and content_id in self.listitems:
+            self._set_page_changed(False)
+            self.current_listitem = content_id
+            self._refresh_ui()
+        self._set_page_changed(True)
 
-        self.current_listitem = content_id
-        self._refresh_ui()
+    def _set_page_changed(self, changed: bool) -> None:
+        """
+        Flag a new page for the rail's Right, which then enters the column at its
+        first row, scrolled up (editor.xml); the property is written only on a change.
+
+        :param changed: True once a new page's rows are up, False otherwise.
+        """
+        if changed != self._page_changed:
+            self._page_changed = changed
+            self.setProperty("page_changed", "true" if changed else "")
 
     def _begin_mutation(self) -> None:
         """
