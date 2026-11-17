@@ -14,7 +14,8 @@ import xbmcvfs
 
 from resources.lib.apis import lrclib
 from resources.lib.shared import logger as log
-from resources.lib.shared.lrc import LINES, NEIGHBOURS, parse, plain
+from resources.lib.shared.lrc import LINES, LONG, NEIGHBOURS, parse, plain
+from resources.lib.shared.text import KodiMetric, load_font, skin_font, wrap_text
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -23,6 +24,9 @@ from resources.lib.shared.utilities import (
 )
 
 ENABLED = "Skin.HasSetting(lyrics)"
+# The playing line's box (skin lyrics.xml txt_lyrics_current): two title_identity lines
+# at 660; a line that needs more is drawn a size down
+CURRENT_FONT, CURRENT_WIDTH, CURRENT_LINES = "title_identity", 660, 2
 FOLLOW, BROWSE = 3510, 3511  # the visualisation's follow list, the music OSD's browse
 # Seconds: a playhead stalled just before a line (buffering) polls up to 20 times a
 # second until it moves, not faster
@@ -39,6 +43,7 @@ SETTLE = 0.5
 # state, which shows them, last
 PROPS = (
     LINES,
+    LONG,
     "lyrics_revision",
     "lyrics_source",
     "lyrics_plain",
@@ -206,6 +211,29 @@ class Fetch(Thread):
             del _fetches[self.song]
 
 
+def long_lines(synced: list) -> list[int]:
+    """
+    The indexes of the synced lines that wrap past the playing line's box, as Kodi
+    lays them out at the GUI's scale; none without the skin's font.
+
+    :param synced: [[ms, text], ...].
+    :return: Their indexes, in order.
+    """
+    if (spec := skin_font(CURRENT_FONT)) is None or not (face := load_font(spec[0])):
+        return []
+    metric = KodiMetric(
+        face,
+        spec[1],
+        to_int(infolabel("System.ScreenWidth")) / 1920,
+        to_int(infolabel("System.ScreenHeight")) / 1080,
+    )
+    return [
+        index
+        for index, (_, text) in enumerate(synced)
+        if len(wrap_text(metric, text, CURRENT_WIDTH)) > CURRENT_LINES
+    ]
+
+
 def publish(
     source: str, synced: list | None, text: str | None, instrumental: bool
 ) -> list:
@@ -219,8 +247,10 @@ def publish(
     :param instrumental: LRCLIB marks the song instrumental.
     :return: The synced lines; empty unless synced.
     """
+    long = long_lines(synced) if synced else []
     props = {
         LINES: json.dumps(synced) if synced else "",
+        LONG: json.dumps(long) if long else "",
         "lyrics_revision": f"{time.monotonic_ns()}",
         "lyrics_source": source,
         "lyrics_plain": text,
