@@ -9,6 +9,10 @@ python tests/build_offline.py ../skin.copacetic2 /tmp/c2-build [--state runtime_
 # Before a patch: skin HEAD vs working tree (exit 1 = outputs differ, 2 = harness/build failed)
 python tests/snapshot_diff.py ../skin.copacetic2 [--base REF] [--head REF] [--helper-base REF] [--state FILE]
 
+# The builder with no rows: each runtime_state mapping emptied in turn, then all
+# (from a fresh build's state, or --state); exit 2 at the first build that fails
+python tests/emptied_offline.py ../skin.copacetic2 [--state runtime_state.json]
+
 # Lint what the migrated (C2) windows load, plus a fresh build (exit 1 on errors)
 python tests/skin_lint.py ../skin.copacetic2 [--window MyPics.xml ...] [--all] [--generated /tmp/c2-build] [--exclude 'GLOB' ...] [--count]
 
