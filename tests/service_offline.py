@@ -653,6 +653,43 @@ class PlayedVersion(unittest.TestCase):
     def test_one_counted_of_a_burst_bumps_once(self):
         self.assertEqual(self.bumped({7: 3, 8: 0}, {7: 3, 8: 1}), ["played_version"])
 
+    def test_an_update_keeps_a_pending_close_waiting(self):
+        service = object.__new__(monitor.Monitor)
+        service.closed, service.player_monitor = {7: 3}, Mock()
+        service._song_update = Mock()
+        service.onNotification("xbmc", "AudioLibrary.OnUpdate", '{"type": "song"}')
+        service._song_update.assert_not_called()  # its read would beat the write
+        service.closed = {}
+        service.onNotification("xbmc", "AudioLibrary.OnUpdate", '{"type": "song"}')
+        service._song_update.assert_called_once_with()
+
+    def test_overlapping_bumps_share_nothing(self):
+        service = object.__new__(monitor.Monitor)
+        seen = []
+
+        class Racing(dict):
+            """A second Timer takes the songs between the first's count and pop."""
+
+            def popitem(self):
+                if not seen:
+                    seen.append("raced")
+                    service._album_bump()
+                return super().popitem()
+
+        def details(method, params, parent):
+            seen.append(params["songid"])
+            return {"result": {"songdetails": {"playcount": 4}}}
+
+        service.closed = Racing({7: 3})
+        with (
+            patch.object(monitor, "condition", lambda expression: False),
+            patch.object(monitor, "json_call", details),
+            patch.object(monitor, "window_property") as prop,
+        ):
+            service._album_bump()
+        self.assertEqual(seen, [7])
+        self.assertEqual([c.args[0] for c in prop.call_args_list], ["played_version"])
+
 
 class LyricsUnderTheScreensaver(unittest.TestCase):
     def test_only_lyrics_follow_while_audio_plays(self):
