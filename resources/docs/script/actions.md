@@ -100,7 +100,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`shuffle_artist`](#shuffle_artist) | Plays all of an artist's songs, shuffled |
 | [`size_identity`](#size_identity) | Sizes the video OSD's or seek bar dialog's logo control to the playing item's logo |
 | [`skip_segment`](#skip_segment) | Seeks past the intro, recap or credits in play |
-| [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year, or one of today's mixes |
+| [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year, or a daily mix card's |
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
 | [`tmdb_test`](#tmdb_test) | Checks the TMDb token |
 | [`toggle_addon`](#toggle_addon) | Enables or disables an add-on |
@@ -146,7 +146,7 @@ whose builder templates (`extras/templates/`) or `16x9/` XML name
 `info=speed_dial`, for example in a widget's content path. The service checks when
 the skin becomes active and again when it is updated, and sets
 `Window(home).Property(helper_speed_dial)` for it. A skin that opts in without speed
-dial gets the other five items only.
+dial gets the other seven items only.
 
 **Pin to speed dial** and **Unpin** tell a pinned item by the speed dial window
 properties (see [Is this item pinned?](../plugins/speed_dial.md#is-this-item-pinned)),
@@ -1008,7 +1008,7 @@ Example from Copacetic, the live channel list's guide (4719; 10608 is `pvrosdcha
 
 ```xml
 <onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air)) + String.IsEmpty(Window(pvrosdchannels).Property(pvrosd_smart_select))">SetProperty(pvrosd_smart_select,1,pvrosdchannels)</onclick>
-<onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air)) + String.IsEmpty(Window(pvrosdchannels).Property(pvrosd_smart_select))">RunScript(script.copacetic.helper,action=pvr_smart_select,id=$INFO[Container(4719).ListItem.Property(broadcastid)],channelid=$INFO[Container(4719).ListItem.Property(channelid)],switch=ClearProperty(pvrosd_guide,pvrosdchannels)|SetFocus(11)|Action(Select,pvrosdchannels),when=…,stamp=pvrosd_guide_timers,busy=pvrosd_smart_select,window_id=10608)</onclick>
+<onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air)) + String.IsEmpty(Window(pvrosdchannels).Property(pvrosd_smart_select))">RunScript(script.copacetic.helper,action=pvr_smart_select,id=$INFO[Container(4719).ListItem.Property(broadcastid)],channelid=$INFO[Container(4719).ListItem.Property(channelid)],switch=ClearProperty(pvrosd_guide,pvrosdchannels)|SetFocus(11)|Action(Select,pvrosdchannels),when=Window.IsModalDialogTopmost(pvrosdchannels) + String.IsEqual(Window(pvrosdchannels).Property(pvrosd_guide),$INFO[Container(4719).ListItem.Property(channelid)]) + String.IsEqual(Container(11).ListItem.Property(channelid),$INFO[Container(4719).ListItem.Property(channelid)]),stamp=pvrosd_guide_timers,busy=pvrosd_smart_select,window_id=10608)</onclick>
 ```
 
 ---
