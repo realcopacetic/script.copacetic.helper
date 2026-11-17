@@ -69,6 +69,13 @@ python tests/multiart_offline.py
 # host open once the session has closed), else clear it
 python tests/service_offline.py
 
+# Settings editor edges (builders/runtime.py, windows/dynamiceditor.py, controls.py) with
+# Kodi stubbed: a new or re-preset parent gets a seed_with_parent mapping's default
+# children once (a group widget's tabs); a removed parent's children's children go too;
+# a new rail page is flagged for the rail's Right only once its rows are up; a mouse
+# click acts as Select, and a click on a sliderex's slider keeps its value
+python tests/editor_offline.py
+
 # Add-ons that clash (service/clashes.py) with Kodi's reads stubbed: asked once Home
 # settles; Switch off, Keep both and Back; answers applied at each entry without asking;
 # a feature turned off, a skin left or a reset gives the add-on back; the service
