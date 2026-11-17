@@ -39,7 +39,8 @@ Trailers started with `action=play_trailer` do not set these properties. See
 | `player_start` | The playing file's path, for a skin's start-of-playback label; a skin clears it when its label is done | A video starts, not when the skin is entered mid-playback |
 | `player_clearlogo` | The playing item's clearlogo (an episode's show's), cropped to its visible edges; the original if cropping fails | A video with a clearlogo starts |
 | `player_clearlogo_width` | That logo's width when fitted into a 600 x 90 box, in skin pixels | As above |
-| `player_identity_<window>` | `player_clearlogo` once that window's logo control is sized to it (`seekbar`, `videoosd`) | A video starts; for `videoosd`, also the [`size_identity`](../script/actions.md#size_identity) action |
+| `player_clearlogo_height` | That logo's height when fitted into an 840 x 200 box (full-screen info's), in skin pixels | As above |
+| `player_identity_<window>` | `player_clearlogo` once that window's logo control is sized to it (`seekbar`, `videoosd`, `fullscreeninfo`) | A video starts; for `videoosd` and `fullscreeninfo`, also the [`size_identity`](../script/actions.md#size_identity) action |
 | `player_clean_title`, `player_clean_year` | A film's title and year, by Kodi's own clean-up of its file name | A video outside the library starts whose title is its file name |
 | `player_clean_tvshowtitle`, `player_clean_episode`, `player_clean_title` | For a file named like an episode (`S01E07` or `1x07`): the show, the `1x07` code and the episode title | As above |
 
@@ -119,7 +120,9 @@ works out its width in a 600 x 90 box, and sets the width of control `4045` (the
 in the seek bar dialog at once, and in the video OSD if it is open. Mount the logo as
 control `4045` with `<aspectratio aligny="center">keep</aspectratio>` and left
 alignment, and show the label beside it once `player_identity_<window>` equals
-`player_clearlogo`. A window the service didn't size (the video OSD's first open
+`player_clearlogo`. Full-screen info's control `4045` is sized by height instead, its
+logo's in an 840 x 200 box, so the lines stacked under it close up to the logo (and at
+once if the dialog is open). A window the service didn't size (the video OSD's first open
 after a new file; either window after a skin reload, which rebuilds its controls) runs
 [`size_identity`](../script/actions.md#size_identity) from its `<onload>`. A window
 without control `4045` is left alone, and its stamp isn't set.

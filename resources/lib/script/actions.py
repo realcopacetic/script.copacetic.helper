@@ -1597,7 +1597,7 @@ def size_identity(window: str = "videoosd", **kwargs: str) -> None:
     A window's onload: fit its identity logo to the playing item's, for an open the
     service didn't size (the OSD's first, any after a skin reload).
 
-    :param window: videoosd or seekbar.
+    :param window: videoosd, seekbar or fullscreeninfo.
     """
     from resources.lib.plugin.helpers import size_identity as fit  # this action only
 
