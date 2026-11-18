@@ -211,8 +211,9 @@ the skin. For each add-on that is enabled while a feature it clashes with is on:
   it off (Kodi stops its service with it); *Keep both* leaves it. *Not now*, Back, or
   the question closing without a click (Kodi quitting, a skin reload) asks again the
   next time. If the skin is left first, nothing is asked.
-- ***Switch off* chosen:** it is switched off again without asking, also if the user
-  switched it back on meanwhile.
+- ***Switch off* chosen:** it is switched off again without asking at each entry, after
+  a skin that gave it back. One the user (or Kodi, for an add-on that needs it) switched
+  back on while it was off for the skin is left on, and counts as *Keep both* from then.
 - ***Keep both* chosen:** it is never asked about again.
 
 An add-on the helper switched off is switched back on when its features are all off

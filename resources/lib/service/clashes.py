@@ -55,7 +55,8 @@ def _enable(addon_id: str, enabled: bool) -> None:
 def _apply(state: dict) -> list[str]:
     """
     Switch off each add-on the user chose to while a feature it overlaps is on, back
-    on one switched off that no longer should be; saved if changed.
+    on one switched off that no longer should be; saved if changed. One switched off
+    but found on was switched on by the user or Kodi: it is kept from now on.
 
     :param state: _load's state, updated in place.
     :return: Add-ons on, overlapping a feature on, not asked about yet.
@@ -67,10 +68,13 @@ def _apply(state: dict) -> list[str]:
         enabled = condition(f"System.AddonIsEnabled({addon_id})")
         if wanted is None and enabled:
             unasked.append(addon_id)
+        elif wanted and enabled and addon_id in off:
+            answers[addon_id] = False
+            off.remove(addon_id)
+            log.info(f"clashes → {addon_id} switched back on elsewhere, kept")
         elif wanted and enabled:
             _enable(addon_id, False)
-            if addon_id not in off:
-                off.append(addon_id)
+            off.append(addon_id)
         elif not wanted and addon_id in off:
             _enable(addon_id, True)
             off.remove(addon_id)

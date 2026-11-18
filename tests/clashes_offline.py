@@ -2,9 +2,9 @@
 Offline checks for add-ons that clash (resources/lib/service/clashes.py), Kodi's reads
 stubbed: an add-on doing a feature's job is asked about once Home settles; Switch off
 switches it off, Keep both leaves it, Not now, Back or a close without a click asks
-again next time; an answer applies at
-each entry without asking; a feature turned off, a skin left or a reset gives it back;
-the service queues the check on entering a skin and gives add-ons back on leaving.
+again next time; an answer applies at each entry without asking, but one switched back
+on elsewhere is kept; a feature turned off, a skin left or a reset gives it back; the
+service queues the check on entering a skin and gives add-ons back on leaving.
 Run from the helper root: python tests/clashes_offline.py
 """
 
@@ -124,11 +124,19 @@ class Clashes(unittest.TestCase):
 
     def test_an_answer_applies_at_each_entry_without_asking(self):
         clashes.check()
-        self.enabled.add(LRC)  # switched back on in the Add-ons browser
+        clashes.restore()  # another skin gives it back
         clashes.check()
         self.assertEqual(len(self.asked()), 1)
         self.assertNotIn(LRC, self.enabled)
         self.assertEqual(clashes._load()["off"], [LRC])
+
+    def test_switched_back_on_elsewhere_is_kept(self):
+        clashes.check()
+        self.enabled.add(LRC)  # the Add-ons browser, or Kodi for a dependency
+        clashes.check()
+        self.assertEqual(len(self.asked()), 1)
+        self.assertIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": []})
 
     def test_nothing_to_ask_writes_nothing(self):
         self.enabled = set()
