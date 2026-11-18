@@ -628,7 +628,7 @@ song's when asked, from the artist's songs.
 ## The add-on's own directory
 
 Opening `plugin://script.copacetic.helper/` with no `info=` lists two folders, Videos
-(`?group=video`) and Music (`?group=music`). Each holds a plain folder per listing
+(`?group=video`) and Music (`?group=music`), or one group's folders (below). Each holds a plain folder per listing
 that needs no input, on the path Copacetic's Home rail for it reads, so users can
 browse them or add them as widgets from Kodi's add-on browser. Neither level runs a
 listing until a folder is opened. The random rows take the rails' default length
@@ -646,13 +646,15 @@ draws that icon.
 | Videos | Random genre - movies | `info=random_genre&type=movie&limit=20` |
 | Videos | Random genre - TV shows | `info=random_genre&type=tvshow&limit=20` |
 | Music | Speed dial | `info=speed_dial` |
-| Music | Daily mixes | `info=daily_mixes` |
 | Music | Rediscover | `info=rediscover&limit=20` |
 | Music | Random albums | `info=random_albums&limit=20` |
 | Music | Random genre - albums | `info=random_genre&type=album&limit=20` |
 | Music | Random genre - artists | `info=random_genre&type=artist&limit=20` |
 
-The add-on provides `video`, so Kodi opens it in the Videos window, the Music
-folders too: a song there plays alone, not as a queue.
+The add-on provides `video audio`, so it is listed under both Video and Music
+add-ons, and Kodi opens each in its own window with `?content_type=video` or
+`?content_type=audio`: the root then lists that group's folders directly. Opened
+without one (the Add-ons window's Open, which takes the Videos window), it lists both
+groups. Daily mixes is not offered: a card plays only from the skin's rail.
 
 A plugin path with an `info=` the add-on does not know returns an empty list.

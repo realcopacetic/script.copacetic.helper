@@ -53,9 +53,11 @@ class Main:
         self._additems(fn() or [])
 
     def run_listing(self) -> None:
-        """Emit the add-on's own directory: the root, or a group's folders (group=)."""
+        """Emit the add-on's own directory: the root, or a group's folders."""
         log.debug(f"PluginListing initialized")
-        items = PluginListing().build(self.params.get("group"))
+        items = PluginListing().build(
+            self.params.get("group"), self.params.get("content_type")
+        )
         self._additems(items)
 
     def _additems(self, items: list[tuple]) -> None:
