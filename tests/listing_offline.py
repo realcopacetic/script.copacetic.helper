@@ -144,6 +144,11 @@ class Directory(unittest.TestCase):
         self.assertEqual(self.folders(items, list_item), MUSIC)
         content.assert_called_once_with(content="files", category="Music")
 
+    def test_an_unknown_group_is_an_empty_listing(self):
+        items, _, content = self.build("pictures")
+        self.assertEqual(items, [])
+        content.assert_not_called()
+
     def test_opened_from_an_add_on_list_its_own_group(self):
         # Kodi's ?content_type= for a plugin that provides video and audio
         for content_type, folders in (("video", VIDEO), ("audio", MUSIC)):

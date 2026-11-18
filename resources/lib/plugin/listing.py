@@ -66,7 +66,7 @@ class PluginListing(object):
 
         :param group: A GROUPS key; None for the root.
         :param content_type: Kodi's content_type= (video, audio) from an add-on list.
-        :return: (url, ListItem, True) per folder.
+        :return: (url, ListItem, True) per folder; none for an unknown group.
         """
         if (group := group or _OPENED_FROM.get(content_type)) is None:
             category = ADDON.getAddonInfo("name")
@@ -74,6 +74,8 @@ class PluginListing(object):
                 self._make_item(getLocalizedString(label), icon, {"group": key})
                 for key, (label, icon, _) in GROUPS.items()
             ]
+        elif group not in GROUPS:
+            return []  # an empty listing, as an unknown info= gives
         else:
             label, _, folders = GROUPS[group]
             category = getLocalizedString(label)
