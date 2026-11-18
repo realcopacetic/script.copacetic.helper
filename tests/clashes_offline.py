@@ -205,9 +205,12 @@ class Clashes(unittest.TestCase):
             {"answers": {LRC: True}, "off": [LRC]}
         )
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: None}})
-        self.enter()  # found on, at a version unknown: switched off again
-        self.assertNotIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
+        self.enabled = set()  # off when this lands
+        self.enter()
+        self.enabled.add(LRC)  # then switched on by hand: its version unknown
+        self.enter()
+        self.assertIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": {}})
 
     def test_nothing_to_ask_writes_nothing(self):
         self.enabled = set()
