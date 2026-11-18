@@ -453,6 +453,15 @@ _TYPE_ICON = {
     "games": "DefaultAddonGame.png",
 }
 
+# Add-on source type → Kodi default icon, for a plugin picked under that source
+_ADDON_ICON = {
+    "video": "DefaultAddonVideo.png",
+    "music": "DefaultAddonMusic.png",
+    "programs": "DefaultAddonProgram.png",
+    "pictures": "DefaultAddonPicture.png",
+    "games": "DefaultAddonGame.png",
+}
+
 # item type → library path template for constructing db paths from individual items.
 _LIBRARY_PATH_MAP = {
     "movie": "videodb://movies/titles/{id}/",
@@ -659,7 +668,7 @@ def _build_result(
             icon, action = _TYPE_ICON["games"], 'PlayMedia("%s")' % path
         elif path.startswith(_SCRIPT_SCHEME):
             script = path.removeprefix(_SCRIPT_SCHEME)
-            icon, action = "DefaultAddonProgram.png", 'RunScript("%s")' % script
+            icon, action = _ADDON_ICON["programs"], 'RunScript("%s")' % script
         else:
             icon, action = "DefaultShortcut.png", path
         return {
@@ -672,12 +681,12 @@ def _build_result(
             "update": "",
         }
 
-    content_type = _derive_type(path)
+    content_type, icons = _derive_type(path), _TYPE_ICON
     # A plugin path has no type of its own: it takes its add-on source's, whose
-    # window Kodi lists it in
+    # window Kodi lists it in, and that source's add-on icon
     if content_type == "unknown" and addon_type:
-        content_type = addon_type
-    icon = _PLAYLIST_ICON.get(path) or _TYPE_ICON.get(content_type, "DefaultFolder.png")
+        content_type, icons = addon_type, _ADDON_ICON
+    icon = _PLAYLIST_ICON.get(path) or icons.get(content_type, "DefaultFolder.png")
     window = _derive_window(content_type)
     result = {
         "path": path,

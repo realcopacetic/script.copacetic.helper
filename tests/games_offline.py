@@ -280,7 +280,7 @@ class GamesSource(unittest.TestCase):
             return browse.browse_content({"mode": mode})
 
     def test_a_plugin_picked_under_a_source_opens_in_its_window(self):
-        game, video = 5, 1
+        game = 5
         self.assertEqual(self.picked(game, "widget")["target"], "games")
         menu = self.picked(game, "menu")
         self.assertEqual(
@@ -293,9 +293,16 @@ class GamesSource(unittest.TestCase):
             ),
         )
         # Each add-on source's picks open in the window Kodi lists them in
-        windows = [self.picked(i, "menu")["window"] for i in range(1, 5)]
-        self.assertEqual(windows, ["Videos", "Music", "Programs", "Pictures"])
-        self.assertEqual(self.picked(video, "menu")["icon"], "DefaultVideo.png")
+        picks = [self.picked(i, "menu") for i in range(1, 5)]
+        self.assertEqual(
+            [(pick["window"], pick["icon"]) for pick in picks],
+            [
+                ("Videos", "DefaultAddonVideo.png"),
+                ("Music", "DefaultAddonMusic.png"),
+                ("Programs", "DefaultAddonProgram.png"),
+                ("Pictures", "DefaultAddonPicture.png"),
+            ],
+        )
 
     def test_a_library_path_keeps_its_own_window(self):
         program, movie = 3, "videodb://movies/titles/5/"
