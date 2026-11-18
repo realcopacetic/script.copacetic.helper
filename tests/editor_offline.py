@@ -5,8 +5,9 @@ mapping gets them once (a group widget's first tab), a reset restores them, and
 removing a parent removes its children's children too (a menu item's widgets' tabs);
 a new rail page is flagged for the rail's Right only once its rows are up, and
 cleared at a row; a mouse click acts as Select, and a click on a sliderex's slider
-keeps the value it moved to before focus flips to the button; a slider step isn't
-put back by the refresh it triggers.
+keeps the value it moved to before focus flips to the button; Back from a sliderex
+hands its button the list's colours; a slider step isn't put back by the refresh it
+triggers.
 Run from the helper root: python tests/editor_offline.py
 """
 
@@ -221,6 +222,29 @@ class Clicks(unittest.TestCase):
         handler._on_interact(211, xbmcgui.ACTION_SELECT_ITEM)
         handler._set_setting_value.assert_called_once_with("on")
         self.assertEqual(handler.focus_target_id, 2110)
+
+
+class Back(unittest.TestCase):
+    def test_back_from_a_slider_unfocuses_its_button(self):
+        handler = Mock(focus_target_id=None)
+        ed = editor(
+            host=None,
+            host_focus=None,
+            _prev_focus_id=211,
+            _mgmt_ids=set(),
+            _mgmt_buttons=[],
+            _handler_by_focus_id={211: handler},
+            handlers={"slider": handler},
+            current_listitem="a",
+            listitems={"a": {}},
+            _list_container=Mock(**{"getId.return_value": 100}),
+            getFocusId=lambda: 211,
+            _set_description=Mock(),
+        )
+        ed.onAction(Mock(**{"getId.return_value": xbmcgui.ACTION_NAV_BACK}))
+        handler.update_visibility.assert_called_with(100)
+        ed._set_description.assert_called_with(100)
+        self.assertEqual(ed._prev_focus_id, 100)
 
 
 class HeldSlider(unittest.TestCase):

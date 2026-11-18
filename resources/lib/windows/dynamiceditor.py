@@ -480,10 +480,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             # Back on host_focus exits the host's system, not into the editor.
             if self.host_focus and str(current_focus) == str(self.host_focus):
                 return self._on_close()
-            if current_focus != self._list_container.getId():
-                log.execute(f"Control.SetFocus({self._list_container.getId()})")
+            list_id = self._list_container.getId()
+            if current_focus != list_id:
+                log.execute(f"Control.SetFocus({list_id})")
                 # SetFocus is queued, so getFocusId() still gives the row: name the list
-                self._set_description(self._list_container.getId())
+                for h in self.handlers.values():
+                    h.update_visibility(list_id)
+                self._set_description(list_id)
+                self._prev_focus_id = list_id
                 return  # don't fall through to super
             if self.host_focus:  # hosted: the list steps back to the tab strip first
                 log.execute(f"Control.SetFocus({self.host_focus})")
