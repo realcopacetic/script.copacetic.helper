@@ -1869,19 +1869,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             .get("result", {})
             .get("seasons", [])
         )
-        # Specials sort after the rest; the database's -1 row is replaced by Kodi's own
+        # Specials sort after the rest; -1 is the All row, added below as Kodi does
         seasons = [
             (row["season"], row["label"])
             for row in sorted(rows, key=lambda r: (r["season"] == 0, r["season"]))
             if row["season"] >= 0
         ]
-        shows_all = json_call(
-            "Settings.GetSettingValue",
-            params={"setting": "videolibrary.showallitems"},
-            parent="seasons",
-        )
-        if listed == "-1" or shows_all.get("result", {}).get("value"):
-            seasons.insert(0, (-1, getLocalizedString(20366)))
+        # Kodi's own All item: its setting, and more than one item (AddQueuingFolder)
+        if listed == "-1" or (
+            len(seasons) > 1 and condition("System.GetBool(videolibrary.showallitems)")
+        ):
+            seasons.insert(0, (-1, getLocalizedString(20366).lstrip("* ")))
         return set_items(
             {
                 # as Kodi's own season paths, so Back finds the season in its list
