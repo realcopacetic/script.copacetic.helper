@@ -107,6 +107,12 @@ class BaseBuilder:
                     {**sub, "index": str(index_start + i)}
                     for i, sub in enumerate(substitutions)
                 ]
+        # An item's ``also`` metadata: a pass more per row, its fields over the item's
+        substitutions = [
+            {**sub, **extra}
+            for sub in substitutions
+            for extra in ({}, *sub.get("also", ()))
+        ]
         if mapping_tokens := self.mapping_values.get("tokens"):
             substitutions = [
                 {
