@@ -6,7 +6,8 @@ keeps its own runtime state; a script rebuild sets and clears helper_reloading, 
 the editor close and delete_orphans reload only when the build wrote (or for a host
 open once the session has closed), else clear it. Under the screensaver only lyrics
 follow, while audio plays. played_version moves only for a counted play. A trailer
-request that lands under a modal is dropped.
+request that lands under a modal is dropped. A clashing add-on's feature turned on or
+off queues the clashes check.
 Run from the helper root: python tests/service_offline.py
 """
 
@@ -789,6 +790,43 @@ class TrailerUnderAModal(unittest.TestCase):
             self.assertEqual(
                 self.request(modal, window), ("Heat", "pending", ["t.mp4"])
             )
+
+
+class ClashesFollowTheFeatures(unittest.TestCase):
+    """A clashing add-on's feature turned on or off mid-session queues the check."""
+
+    CHECK = call("RunScript(script.copacetic.helper,action=check_clashes)")
+
+    def setUp(self):
+        self.on = {"Skin.HasSetting(lyrics)"}
+        self.service = object.__new__(monitor.Monitor)
+        self.service.player_monitor, self.service.slideshow = Mock(), Mock()
+        self.service.prune_due = float("inf")
+        self.service.waitForAbort = Mock()
+        for target, name, value in (
+            (monitor.clashes, "condition", lambda text: text in self.on),
+            (monitor, "release_refresh", Mock()),
+        ):
+            patcher = patch.object(target, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = patch.object(monitor.log, "execute")
+        self.execute = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.service._check_clashes()  # on entering the skin
+
+    def test_unchanged_features_queue_nothing_more(self):
+        self.service.poller()
+        self.service.poller()
+        self.assertEqual(self.execute.mock_calls, [self.CHECK])
+
+    def test_a_feature_turned_on_or_off_queues_it_once(self):
+        self.on.add("Skin.HasSetting(playnext_enabled)")
+        self.service.poller()
+        self.service.poller()
+        self.on.clear()
+        self.service.poller()
+        self.assertEqual(self.execute.mock_calls, [self.CHECK] * 3)
 
 
 if __name__ == "__main__":

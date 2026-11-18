@@ -1737,7 +1737,8 @@ def tmdb_test(**kwargs: str) -> None:
 def check_clashes(**kwargs: str) -> None:
     """
     Switch off the add-ons the user chose to for doing a job the skin's features do,
-    then ask about any not asked about yet. The service runs it on entering the skin.
+    then ask about any not asked about yet. The service runs it on entering the skin
+    and when one of those features is turned on or off.
     """
     from resources.lib.service import clashes
 
