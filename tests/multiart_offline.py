@@ -1,7 +1,8 @@
 """
 Offline checks for the gallery tiles' share-out (resources/lib/art/multiart.py):
 an image shows in one tile only (matched by the helper's image identity, a TMDb
-file name in any size) unless a tile has no other image free. Run from the helper root:
+file name in any size) unless a tile has no other image free; and seed_multiart's
+blind seed under a dialog and its seed keys. Run from the helper root:
 python tests/multiart_offline.py
 """
 
@@ -15,7 +16,7 @@ from build_offline import HELPER, install_stubs
 
 STAGE = Path(tempfile.mkdtemp())
 install_stubs(HELPER, STAGE, STAGE, verbose=False)
-sys.modules["xbmc"].Monitor = None  # imported by multiart; share_out never calls it
+sys.modules["xbmc"].Monitor = None  # imported by multiart; SeedMultiart patches it
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.art import multiart  # noqa: E402
@@ -93,6 +94,110 @@ class JoinedFamily(unittest.TestCase):
         tmdb = {"artist.fanart": "t", "thumb": "t"}
         self.assertEqual(self.family("artist.fanart", tmdb)["multiart2"], "t")
         self.assertNotIn("t", self.family("thumb,artist.fanart", tmdb).values())
+
+
+class SeedMultiart(unittest.TestCase):
+    """Register 3400: the visualisation's (12006) and the music OSD's (10120)."""
+
+    FAMILY = {"multiart": "a", "multiart1": "b"}
+
+    def setUp(self):
+        self.props, self.labels, self.reads, self.waits = {}, {}, [], []
+        self.top = self.current = 12006
+        test = self
+
+        class Control:
+            def __init__(self, i):
+                self.i = i
+
+            def reset(self):
+                test.labels[self.i] = ""
+
+            def addLabel(self, label):  # a FadeLabel shows its first label
+                test.labels[self.i] = test.labels[self.i] or label
+
+        class Monitor:
+            def waitForAbort(self, seconds):
+                test.waits.append(seconds)
+                return False
+
+            def abortRequested(self):
+                return False
+
+        def infolabel(label):
+            self.reads.append(label)
+            if label.startswith("Control.GetLabel("):
+                return self.labels.get(int(label[17:-1]), "")
+            return self.props.get(label.removeprefix("Window(home).Property(")[:-1], "")
+
+        def window_property(key, value=False):
+            if value:
+                self.props[key] = f"{value}"
+            else:
+                self.props.pop(key, None)
+
+        window = mock.Mock(getControl=Control)
+        patches = mock.patch.multiple(
+            multiart,
+            Monitor=Monitor,
+            Window=lambda window_id: window,
+            getCurrentWindowId=lambda: self.current,
+            infolabel=infolabel,
+            topmost_window_id=lambda: self.top,
+            window_property=window_property,
+        )
+        patches.start()
+        self.addCleanup(patches.stop)
+
+    def seed(self, window_id=12006, dialog=False):
+        """seed_multiart's art for a two-image family of item 1, first visit."""
+        return multiart.seed_multiart(
+            fadelabel_id="3400",
+            multiart_dict=dict(self.FAMILY),
+            art={"multiart": "a"},
+            seed_scope="player@",
+            seed_item="1//",
+            alive=lambda: True,
+            window_id=window_id,
+            dialog=dialog,
+        )
+
+    def test_blind_seed_waits_a_pass_without_reading(self):
+        self.top = 10120  # the OSD over the visualisation: reads would answer for it
+        self.assertEqual(self.seed(), {"multiart": "a"})
+        self.assertEqual(self.labels, {3400: "a"})
+        self.assertEqual(self.waits, [0.04, 0.04])
+        self.assertFalse([read for read in self.reads if "GetLabel" in read])
+        self.assertEqual(self.props["multiart_seed_scope_3400"], "player@")
+        self.assertTrue(self.props["multiart_seed_sig_3400"].startswith("1//:"))
+        self.assertNotIn("multiart_frozen_3400", self.props)
+
+    def test_blind_refire_trusts_its_signature(self):
+        self.top = 10120
+        self.seed()
+        self.labels[3400] = "b"  # mid-rotation: a reseed would reset it
+        self.seed()
+        self.assertEqual(self.labels, {3400: "b"})
+
+    def test_dialog_keys_its_own(self):
+        self.props |= {"multiart_seed_scope_3400": "x", "multiart_seed_sig_3400": "y"}
+        self.top = 10120
+        self.seed(window_id=10120, dialog=True)
+        self.assertEqual(self.props["multiart_seed_scope_3400_10120"], "player@")
+        self.assertIn("multiart_seed_sig_3400_10120", self.props)
+        self.assertEqual(
+            (
+                self.props["multiart_seed_scope_3400"],
+                self.props["multiart_seed_sig_3400"],
+            ),
+            ("x", "y"),
+        )
+
+    def test_window_keys_stay_its_own_after_a_window_change(self):
+        self.current = 10025  # the active window changed during the serve
+        self.seed()
+        self.assertIn("multiart_seed_sig_3400", self.props)
+        self.assertNotIn("multiart_seed_sig_3400_12006", self.props)
 
 
 if __name__ == "__main__":
