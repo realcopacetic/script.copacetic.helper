@@ -858,6 +858,17 @@ def _file_names(path: str) -> tuple[str, str, str]:
     return raw, decoded, decoded.translate(_REENCODE) if encoded else raw
 
 
+def file_label(path: str) -> str:
+    """
+    A file's name as a caption, read from its path as Kodi reads it: its extension
+    dropped, underscores read as spaces.
+
+    :param path: The file's path.
+    :return: The caption; empty for no path.
+    """
+    return os.path.splitext(_name(path)[0])[0].replace("_", " ").strip()
+
+
 def file_clean_name(path: str, title: str | None = None) -> dict[str, str]:
     """
     clean_name for a file, read from its path as Kodi reads it; given a title, only

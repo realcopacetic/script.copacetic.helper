@@ -97,6 +97,7 @@ from resources.lib.shared.utilities import (
     clear_label,
     condition,
     file_clean_name,
+    file_label,
     focused_control_id,
     fold,
     infolabel,
@@ -299,16 +300,6 @@ class _FocusGuard:
 # A library show's titles path: its id, then the listed season, if any
 _TITLES = "videodb://tvshows/titles/"
 _TITLES_PATH = re.compile(rf"{_TITLES}(\d+)/(?:(-?\d+)/)?")
-
-
-def _file_label(path: str) -> str:
-    """
-    A file's name as a caption: its extension dropped, underscores read as spaces.
-
-    :param path: The file's path, either separator.
-    :return: The caption; empty for no path.
-    """
-    return re.split(r"[/\\]", path)[-1].rsplit(".", 1)[0].replace("_", " ")
 
 
 class PluginHandlers(metaclass=PluginInfoRegistry):
@@ -1670,7 +1661,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_property("typewriter_container")
             window_property("typewriter_pos")
             return
-        if not (label := self.label or _file_label(self.params.get("file", ""))):
+        if not (label := self.label or file_label(self.params.get("file", ""))):
             log.warning("typewriter → label or file required")
             return
 
