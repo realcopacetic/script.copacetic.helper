@@ -5,7 +5,8 @@ mapping gets them once (a group widget's first tab), a reset restores them, and
 removing a parent removes its children's children too (a menu item's widgets' tabs);
 a new rail page is flagged for the rail's Right only once its rows are up, and
 cleared at a row; a mouse click acts as Select, and a click on a sliderex's slider
-keeps the value it moved to before focus flips to the button.
+keeps the value it moved to before focus flips to the button; a slider step isn't
+put back by the refresh it triggers.
 Run from the helper root: python tests/editor_offline.py
 """
 
@@ -66,7 +67,7 @@ for name in ("Button", "Edit", "Label", "RadioButton", "Slider"):
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.builders.runtime import RuntimeStateManager  # noqa: E402
-from resources.lib.windows.controls import SliderExHandler  # noqa: E402
+from resources.lib.windows.controls import SliderExHandler, SliderHandler  # noqa: E402
 from resources.lib.windows.dynamiceditor import DynamicEditor  # noqa: E402
 
 
@@ -220,6 +221,26 @@ class Clicks(unittest.TestCase):
         handler._on_interact(211, xbmcgui.ACTION_SELECT_ITEM)
         handler._set_setting_value.assert_called_once_with("on")
         self.assertEqual(handler.focus_target_id, 2110)
+
+
+class HeldSlider(unittest.TestCase):
+    def test_a_step_is_not_put_back(self):
+        stored = ["a"]
+        slider = Mock(**{"getId.return_value": 211, "getInt.return_value": 1})
+        handler = SliderHandler.__new__(SliderHandler)
+        handler.instance, handler._enabled_by_id = slider, {}
+        handler._int_shown = (0, 3)
+        handler._allowed_items = lambda: ["a", "b", "c"]
+        handler._active_link = lambda: {"linked_config": "steps"}
+        handler._coerce_to_allowed = lambda: stored[0]
+        handler._set_setting_value = lambda value: stored.__setitem__(0, value)
+        handler.parent = Mock(_refresh_ui=handler.update_value)
+        handler._on_interact(211, xbmcgui.ACTION_MOVE_RIGHT)
+        self.assertEqual(stored, ["b"])
+        slider.setInt.assert_not_called()
+        stored[0] = "c"  # a change from elsewhere still moves the slider
+        handler.update_value()
+        slider.setInt.assert_called_once_with(2, 0, 1, 2)
 
 
 if __name__ == "__main__":
