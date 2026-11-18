@@ -78,6 +78,16 @@ def _enable(addon_id: str, enabled: bool) -> bool:
     return done
 
 
+def _version(addon_id: str) -> str:
+    """
+    An add-on's version, read fresh (a condition holds its value for the frame).
+
+    :param addon_id: Add-on id.
+    :return: "" while it is off or not installed.
+    """
+    return infolabel(f"System.AddonVersion({addon_id})")
+
+
 def _unasked(answers: dict) -> list[str]:
     """
     The add-ons to ask about.
@@ -88,9 +98,7 @@ def _unasked(answers: dict) -> list[str]:
     return [
         addon_id
         for addon_id, (feature, _) in CLASHES.items()
-        if addon_id not in answers
-        and condition(feature)
-        and condition(f"System.AddonIsEnabled({addon_id})")
+        if addon_id not in answers and condition(feature) and _version(addon_id)
     ]
 
 
@@ -108,15 +116,14 @@ def apply(answers: dict | None = None) -> list[str]:
     answers, off = state["answers"], state["off"]
     for addon_id, (feature, _) in CLASHES.items():
         wanted = condition(feature) and answers.get(addon_id)  # None: not asked
-        enabled = condition(f"System.AddonIsEnabled({addon_id})")
-        version = infolabel(f"System.AddonVersion({addon_id})")  # "" while off
+        version = _version(addon_id)  # "" while off
         if addon_id in off and not condition(f"System.HasAddon({addon_id})"):
             del off[addon_id]  # uninstalled while off: nothing to give back
-        elif wanted and enabled and addon_id in off and off[addon_id] == version:
+        elif wanted and version and off.get(addon_id) == version:
             answers[addon_id] = False
             del off[addon_id]
             log.info(f"clashes → {addon_id} switched back on elsewhere, kept")
-        elif wanted and enabled:
+        elif wanted and version:
             # Not off yet, or an install or update switched it back on (LoadAddon)
             if _enable(addon_id, False):
                 off[addon_id] = version

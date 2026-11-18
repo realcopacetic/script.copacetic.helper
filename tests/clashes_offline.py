@@ -51,6 +51,7 @@ class Clashes(unittest.TestCase):
         self.true = {clashes.ACTIVE, clashes.SETTLED, LYRICS}
         self.enabled, self.refused, self.installed = {LRC}, set(), set(clashes.CLASHES)
         self.versions = dict.fromkeys(clashes.CLASHES, "1.0")
+        self.cached = None  # what System.AddonIsEnabled holds this frame: as enabled
         self.dialog = Mock()
         self.dialog.return_value.yesnocustom.return_value = 1
         self.json = Mock(side_effect=self.json_rpc)
@@ -72,7 +73,7 @@ class Clashes(unittest.TestCase):
     def condition(self, text: str) -> bool:
         """Each `|` alternative true when listed, add-ons by self.enabled/installed."""
         if text.startswith("System.AddonIsEnabled("):
-            return text[22:-1] in self.enabled
+            return text[22:-1] in (self.enabled if self.cached is None else self.cached)
         if text.startswith("System.HasAddon("):
             return text[16:-1] in self.installed
         return any(part.strip() in self.true for part in text.split("|"))
@@ -124,6 +125,14 @@ class Clashes(unittest.TestCase):
         self.assertEqual(self.asked(), [f"System.AddonTitle({LRC})"])
         self.assertNotIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
+
+    def test_on_or_off_is_read_fresh_not_from_the_frames_cache(self):
+        # InfoBool::Get holds a condition's value until the frame's refresh counter
+        # moves; the version label is read fresh
+        self.cached = set()
+        self.enter()
+        self.assertEqual(self.asked(), [f"System.AddonTitle({LRC})"])
+        self.assertNotIn(LRC, self.enabled)
 
     def test_question_names_the_addon_and_the_skin(self):
         self.enter()
