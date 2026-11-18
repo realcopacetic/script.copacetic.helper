@@ -110,8 +110,8 @@ interrupted. In order:
    and, if the skin's templates or `16x9/` XML name `info=speed_dial`,
    `helper_speed_dial`, which shows Pin to speed dial and Unpin among them. A skin
    update checks for `info=speed_dial` again. Then it applies the answers about
-   [add-ons that clash](#add-ons-that-clash) and, if one needs asking about, queues
-   `action=check_clashes` behind any reload.
+   [add-ons that clash](#add-ons-that-clash) and, if one needs asking about,
+   queues `action=check_clashes` behind any reload.
 4. The poll loop starts, and with it the slideshow.
 
 ### When the active skin changes, or the service stops
@@ -209,17 +209,18 @@ Some add-ons do a job the helper's features do, and with both on, both show:
 The helper never switches one off without asking. Each time a skin that opts in
 becomes active, the service applies the answers given (below) and, if an add-on needs
 asking about, runs `action=check_clashes`, queued behind any reload of the skin. The
-service alone switches add-ons and writes the answers, one change at a time: the check
-(each answer as it is clicked) and *Ask again* hand theirs to it (`JSONRPC.NotifyAll`). For each add-on that is
-enabled while a feature it clashes with is on:
+service alone switches add-ons and writes the answers, one change at a time: the
+check (each answer as it is clicked) and *Ask again* hand theirs to it
+(`JSONRPC.NotifyAll`, sent as the helper). For each add-on that is enabled while a
+feature it clashes with is on:
 
 - **Not asked about yet:** once Home has been on top for 2 seconds with no dialog over
   it or the screensaver, a yes/no names the add-on and the skin. *Switch off* switches
   it off (Kodi stops its service with it); *Keep both* leaves it. *Not now*, Back, or
   the question closing without a click (Kodi quitting, a skin reload) asks again the
   next time, as does an answer clicked after the skin is left. If the skin is left
-  first, nothing is asked; if it is left during a question, or the helper restarts,
-  no further question is asked. One check runs at a time: one started while another
+  first, nothing is asked; if it is left during a question (a switch from outside,
+  by JSON-RPC, too), or the helper restarts, no further question is asked. One check runs at a time: one started while another
   waits for Home or asks (*Ask again* pressed twice, a feature turned on) does
   nothing. The running one reads the add-ons again once Home settles; one that needs
   asking about after its questions open waits for the next check.
@@ -236,15 +237,14 @@ The [poll loop](#the-poll-loop) applies the answers again when one of these feat
 is turned on or off, so a feature turned on mid-session asks once Home settles again,
 and when one of these add-ons is switched on or off or updated, so one switched on by
 hand is kept (and one an update switched on goes off again) within a second, before
-a later update can change its version.
-An add-on the helper switched off is switched back on as soon as its features are all
-off, even while a check waits for Home, and
-whenever a skin that doesn't opt in becomes active. Kodi exiting leaves it off for the
-next start. A switch Kodi refuses (one it won't switch off) is logged and tried again
-at the next check; an add-on uninstalled while switched off is forgotten. The answers and what is switched
-off, with each one's version then, are kept in `clashes.json` in the add-on's profile
-folder. *Ask again about
-add-ons that clash* in the helper's settings (*Troubleshooting*) runs
+a later update can change its version. An add-on the helper switched off is switched
+back on as soon as its features are all off, even while a check waits for Home, and
+whenever a skin that doesn't opt in becomes active. Kodi exiting leaves it off for
+the next start. A switch Kodi refuses (one it won't switch off) is logged and tried
+again at the next check; an add-on uninstalled while switched off is forgotten. The
+answers and what is switched off, with each one's version then, are kept in
+`clashes.json` in the add-on's profile folder. *Ask again about add-ons that clash*
+in the helper's settings (*Troubleshooting*) runs
 [`reset_clashes`](../script/actions.md#reset_clashes): it switches them back on,
 forgets every answer and asks again.
 
