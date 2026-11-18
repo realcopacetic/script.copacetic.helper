@@ -22,6 +22,10 @@ parameter (the ratio, the colours, the surface) costs nothing. The one exception
 band (steps 2 and 3 of [Element on art](#element-on-art)): it is a new image, so it is
 made again.
 
+A large JPEG (a photo) is decoded at a half, quarter or eighth of its size when a call
+only blurs and measures it, never below what the blur is resized to; a call that crops
+it or reads its size (`clearlogo_crop`, `icon_shape`) decodes it whole.
+
 ---
 
 ## Plugin path

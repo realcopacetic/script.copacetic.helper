@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import struct
 import time
 from contextlib import suppress
@@ -74,6 +75,7 @@ UPRIGHT = {  # orientation: its Image.transpose method, as Pillow's exif_transpo
     7: 6,  # TRANSVERSE
     8: 2,  # ROTATE_90
 }
+FULL_SIZE = {"crop", "shape"}  # the processes that read a source at its own size
 
 
 class ImageEditor:
@@ -119,6 +121,7 @@ class ImageEditor:
         art_types = tuple(jobs)
         shared = {
             "images": {},  # opened sources by URL: one open per source per serve
+            "drafts": self._drafts(jobs, art_opts),
             "results": {k: {} for k in art_types},
             "contexts": {},
         }
@@ -142,6 +145,29 @@ class ImageEditor:
         except Exception:
             log.exception(f"{self.__class__.__name__} → Error during image processing")
             return {}
+
+    def _drafts(
+        self, jobs: Mapping[str, Iterable[str]], art_opts: Mapping[str, ArtOpts]
+    ) -> dict[str, int]:
+        """
+        The square each source's decode may be scaled down to and still cover what
+        its jobs resize it to, trimmed and either way up; 0 where one needs it whole.
+
+        :param jobs: Mapping of art_type to ordered process names.
+        :param art_opts: Mapping of art_type to parsed ArtOpts.
+        :return: Source URL → side in pixels, 0 for full size.
+        """
+        drafts = {}
+        for art_type, processes in jobs.items():
+            if not ((opts := art_opts.get(art_type)) and opts.url):
+                continue
+            frame = opts.darken and opts.darken.frame
+            box = map(int, frame.split(",")) if frame else self.cfg.blur_target_size
+            side = math.ceil(max(box) / (1 - opts.edge_trim / 50))
+            whole = any(p in FULL_SIZE and opts.enabled(p) for p in processes)
+            wanted = drafts.get(opts.url, side)  # another art type's, of this source
+            drafts[opts.url] = 0 if whole or not wanted else max(side, wanted)
+        return drafts
 
     def _handle_jobs(
         self,
@@ -459,7 +485,8 @@ class ImageEditor:
 
         try:
             if image is None:
-                if (image := self._image_open(source_path)) is None:
+                draft = shared["drafts"].get(url, 0)
+                if (image := self._image_open(source_path, draft)) is None:
                     return None
                 shared["images"][url] = image
 
@@ -518,12 +545,13 @@ class ImageEditor:
         )
         return policy.resolve_art_type(candidates, art_type)
 
-    def _image_open(self, url: str) -> Image.Image | None:
+    def _image_open(self, url: str, draft: int = 0) -> Image.Image | None:
         """
-        Open an image from Kodi VFS via Pillow, turned upright as Kodi draws it.
-        Skips unsupported formats and returns None on failure.
+        Open an image from Kodi VFS via Pillow, turned upright as Kodi draws it; a
+        JPEG decodes scaled down while both sides stay at least draft.
 
         :param url: Kodi VFS or translated path to the image resource.
+        :param draft: Side in pixels the decode must keep; 0 for full size.
         :return: PIL Image or None if missing/unsupported/unreadable.
         """
         if url.lower().endswith(".svg"):
@@ -534,6 +562,8 @@ class ImageEditor:
 
         try:
             image = Image.open(xbmcvfs.translatePath(url))
+            if draft:  # before the first load; other formats ignore it
+                image.draft("RGB", (draft, draft))
             turn = None
             with suppress(SyntaxError, struct.error):  # a bad EXIF header: as stored
                 if image.format in ORIENTED:

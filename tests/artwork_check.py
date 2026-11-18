@@ -5,8 +5,9 @@ Checks the label's measured rect (lines, widest line), the element-on-art step, 
 winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
 away) and, at step 3, that the tinted band reads at the ratio, then that a palette
 PNG's transparent colour is no colour, that a row measured before the measure version
-is measured again, that an RGB PNG with tRNS measures as its RGBA copy and that an
-image Kodi recached in the other format measures its newer copy; prints
+is measured again, that an RGB PNG with tRNS measures as its RGBA copy, that an
+image Kodi recached in the other format measures its newer copy and that a photo-sized
+JPEG decodes scaled down for a blur but whole for its size; prints
 each serve's time. Needs Pillow and the skin (its Font.xml and fonts measure the
 label); no network.
 
@@ -277,8 +278,62 @@ def main() -> None:
     print(f"{'ok  ' if ok else 'FAIL'} RGB PNG with tRNS measures as its RGBA {got[0]}")
     failures += check_rekey(tmp, serve, ImageEditor())
     failures += check_recache(tmp, serve, ImageEditor())
+    failures += check_draft(tmp, serve, ImageEditor)
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
+
+
+def check_draft(tmp: Path, serve: Callable, editor: type) -> bool:
+    """
+    A photo-sized JPEG decodes scaled down for a blur and its measure (stored on its
+    side too) with the same darken, and whole for a job that reads its size.
+
+    :param tmp: Scratch root for the sources.
+    :param serve: Runs a serve from its params; returns (art, ms).
+    :param editor: ImageEditor, whose opens are watched.
+    :return: True when a check failed.
+    """
+    photo = Image.new("RGB", (4000, 3000), "#806040")
+    ImageDraw.Draw(photo).rectangle((0, 0, 4000, 1000), "#f4f6fa")
+    turned = Image.Exif()
+    turned[0x0112] = 6  # stored on its side
+    blur = {"blur": "true", "edge_trim": "2", "darken": "true"}
+    cases = {  # name: (art types, shape, EXIF, the size opened)
+        "blur": (("background",), False, None, (1000, 750)),
+        "blur, on its side": (("background",), False, turned, (750, 1000)),
+        "shape": (("icon",), True, None, (4000, 3000)),
+        "blur and shape": (("background", "icon"), True, None, (4000, 3000)),
+    }
+    opened, opener, drafts, failed = [], editor._image_open, editor._drafts, False
+
+    def watch(self, url: str, draft: int = 0) -> Image.Image | None:
+        opened.append(image := opener(self, url, draft))
+        return image
+
+    editor._image_open = watch
+    for name, (art_types, shape, exif, want) in cases.items():
+        params = {f"{t}_{k}": v for t in art_types for k, v in blur.items()}
+        params |= {"icon_shape": "true"} if shape else {}
+        arts = []
+        for copy in ("", " whole"):  # the second decoded whole, to compare
+            path = str(tmp / f"draft {name}{copy}.jpg")
+            photo.save(path, quality=90, exif=exif or Image.Exif())
+            arts.append(serve(params | {f"{t}_url": path for t in art_types}))
+            editor._drafts = lambda self, jobs, art_opts: {}
+        editor._drafts = drafts
+        (art, ms), (whole, whole_ms), first = *arts, art_types[0]
+        ok = [image.size for image in opened[:-1]] == [want]  # one open per serve
+        ok &= art[f"{first}_darken"] == whole[f"{first}_darken"]
+        ok &= Image.open(art[first]).size == Image.open(whole[first]).size
+        ok &= not shape or (art["icon_width"], art["icon_height"]) == (4000, 3000)
+        failed |= not ok
+        print(
+            f"{'ok  ' if ok else 'FAIL'} draft {name:17} opened {opened[0].size} "
+            f"{ms:4.0f} ms, whole {whole_ms:4.0f} ms"
+        )
+        opened.clear()
+    editor._image_open = opener
+    return failed
 
 
 def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
