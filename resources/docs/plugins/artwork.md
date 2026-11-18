@@ -429,8 +429,11 @@ as an image texture to get a slideshow.
   FadeLabel alone. A new item, or a new `visit`, always starts again from its main
   image.
 
-The FadeLabel must be in the current window. The helper also uses these home window
-properties, with `<id>` the FadeLabel id:
+The FadeLabel must be in the serve's window: its dialog's with `dialog=true` or
+`target=item`, else the current window. The helper also uses these home window
+properties, with `<id>` the FadeLabel id; such a dialog call's seed keys end in
+`<id>_<dialog window id>` (`multiart_seed_sig_3400_10120`), as the window under it
+fills the same id:
 
 | Property | What it holds |
 |---|---|

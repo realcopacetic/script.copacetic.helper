@@ -342,6 +342,7 @@ def seed_multiart(
     seed_item: str,
     alive: Callable[[], bool],
     window_id: int | None = None,
+    dialog: bool = False,
 ) -> dict[str, str] | None:
     """
     Seed/clear a multiart register and reconcile multiart art keys. Register identity
@@ -355,6 +356,7 @@ def seed_multiart(
     :param seed_item: Item and visit of this serve (pos/dbid/visit); keys the skip.
     :param alive: Focus guard callable; False aborts mid-seed.
     :param window_id: Window holding the register (a dialog's serve); else the current.
+    :param dialog: Whether this is a dialog's serve, which keeps its own seed keys.
     :return: Updated art dict, or None when the guard died mid-seed.
     """
 
@@ -364,11 +366,7 @@ def seed_multiart(
     # Python's label reads answer for the topmost window; a dialog keeps its own keys,
     # as the window under it seeds the same register id
     readable = window_id == topmost_window_id()
-    own = (
-        fadelabel_id
-        if window_id == getCurrentWindowId()
-        else f"{fadelabel_id}_{window_id}"
-    )
+    own = f"{fadelabel_id}_{window_id}" if dialog else fadelabel_id
     seed_scope_key = f"multiart_seed_scope_{own}"
     same_scope = infolabel(f"Window(home).Property({seed_scope_key})") == seed_scope
     sig_key = f"multiart_seed_sig_{own}"

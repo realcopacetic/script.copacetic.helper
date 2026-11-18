@@ -953,6 +953,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             seed_item=f"{current_position}/{dbid}/{self.params.get('visit', '')}",
             alive=alive,
             window_id=window_id,
+            dialog=self.dialog,
         )
         if art is None:
             return self._artwork_held(guard.lost_to)
