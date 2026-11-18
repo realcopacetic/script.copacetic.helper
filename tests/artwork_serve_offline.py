@@ -41,7 +41,7 @@ from resources.lib.plugin import handlers, opts  # noqa: E402
 from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
 from resources.lib.shared.utilities import url_decode_path  # noqa: E402
 
-WINDOW, MENU = 10025, 10106
+WINDOW, MENU, PICTURES = 10025, 10106, 10002
 LOGO = "https://x/logo.png|User-Agent=k"
 SOURCE = "Container(50).ListItem.Art(clearlogo)"
 ICON = "https://x/poster.jpg|User-Agent=k"
@@ -397,25 +397,32 @@ class HeldNaming(unittest.TestCase):
 class SlideshowGuard(unittest.TestCase):
     """Under Kodi's slideshow a run follows its picture; under another modal it holds."""
 
-    def alive(self, live: str, modal: int = 12007) -> tuple[bool, str]:
+    def alive(
+        self, live: str, modal: int = 12007, params: dict | None = None
+    ) -> tuple[bool, str]:
         """
-        Guard a run of picture 12/340 from Pictures, a modal dialog over it.
+        Guard a run of picture 12/340 (or params' run) from Pictures, under a modal.
 
         :param live: The slide index Kodi shows now.
         :param modal: The topmost modal dialog.
+        :param params: Guard params replacing the picture's.
         :return: (alive, lost_to).
         """
         handler = handlers.PluginHandlers(
-            {
-                "info": "artwork",
-                "focus_guard": "12/340",
-                "identity_labels": "Slideshow.SlideIndex",
-            }
+            {"info": "artwork"}
+            | (
+                params
+                or {
+                    "focus_guard": "12/340",
+                    "identity_labels": "Slideshow.SlideIndex",
+                }
+            )
         )
-        handler.__dict__["window_id"] = PICTURES = 10002
+        handler.__dict__["window_id"] = PICTURES
+        labels = {"Slideshow.SlideIndex": live}  # Container reads answer empty
         with mock.patch.multiple(
             handlers,
-            infolabel={"Slideshow.SlideIndex": live}.get,
+            infolabel=lambda label: labels.get(label, ""),
             getCurrentWindowId=lambda: PICTURES,
             getCurrentWindowDialogId=lambda: modal,
             _info_open=lambda: False,
@@ -431,6 +438,14 @@ class SlideshowGuard(unittest.TestCase):
 
     def test_another_modal_still_holds(self):
         self.assertEqual(self.alive("13/340", modal=MENU), (True, ""))
+
+    def test_a_dual_rail_under_the_slideshow_holds(self):
+        # Home's two-label guard reads "," at context 0 under the slideshow
+        dual = {
+            "focus_guard": "3,5",
+            "identity_labels": "Container(32060).CurrentItem,Container(3206).CurrentItem",
+        }
+        self.assertEqual(self.alive("13/340", params=dual), (True, ""))
 
 
 class EpgTimeLeft(unittest.TestCase):
