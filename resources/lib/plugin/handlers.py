@@ -2481,7 +2481,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :return: The word, or "" for none.
         """
         album = self._music_details("album", albumid, ["artistid", "compilation"])
-        if album["compilation"]:
+        if not album or album["compilation"]:
             return ""
         artistid = album["artistid"][0]
         albums = self._artist_albums(artistid, _LABEL)
@@ -2501,7 +2501,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param songid: Library song id.
         :return: The word, or "" for none.
         """
-        song = self._music_details("song", songid, ["artistid", "title"])
+        if not (song := self._music_details("song", songid, ["artistid", "title"])):
+            return ""
         songs = self._artist_songs(song["artistid"][0], ["playcount", "title"], _LABEL)
         place = song_play_place(songs, song["title"])
         return ADDON.getLocalizedString(32993) % place if place else ""
@@ -2537,7 +2538,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :return: The word, or "" for none.
         """
         album = self._music_details("album", albumid, ["artistid", "compilation"])
-        if album["compilation"]:
+        if not album or album["compilation"]:
             return ""
         artistid = album["artistid"][0]
         albums = self._artist_albums(artistid, _LABEL)
@@ -2557,28 +2558,33 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param songid: Library song id.
         :return: The word, or "" for none.
         """
-        song = self._music_details("song", songid, ["artistid", "title"])
+        if not (song := self._music_details("song", songid, ["artistid", "title"])):
+            return ""
         properties = [*ALBUM_SONG_PROPERTIES, "playcount"]
         rankings, songs = self._popularity(song["artistid"][0], properties, _LABEL)
         place = song_place(rankings, songs, song["title"])
         return ADDON.getLocalizedString(32997) % place if place else ""
 
     @staticmethod
-    def _music_details(type: str, dbid: int, properties: list[str]) -> dict:
+    def _music_details(type: str, dbid: int, properties: list[str]) -> dict | None:
         """
         A library album's or song's details, for popularity_label.
 
         :param type: album or song.
         :param dbid: Library id.
         :param properties: Properties to fetch.
-        :return: The details object.
+        :return: The details object, or None for an id Kodi no longer has.
         """
-        return json_call(
-            DETAILS[type],
-            properties=properties,
-            params={f"{type}id": dbid},
-            parent=_LABEL,
-        )["result"][f"{type}details"]
+        return (
+            json_call(
+                DETAILS[type],
+                properties=properties,
+                params={f"{type}id": dbid},
+                parent=_LABEL,
+            )
+            .get("result", {})
+            .get(f"{type}details")
+        )
 
     @log.duration
     def lyrics(self) -> list[DirectoryItem] | None:
