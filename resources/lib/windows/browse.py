@@ -48,6 +48,7 @@ def _get_strings() -> dict[str, str]:
         "music_addons": xbmc.getLocalizedString(1038),  # Music add-ons
         "program_addons": xbmc.getLocalizedString(1043),  # Program add-ons
         "picture_addons": xbmc.getLocalizedString(1039),  # Picture add-ons
+        "game_addons": xbmc.getLocalizedString(35049),  # Game add-ons
         "back": "..",
         "use_this_path": _L(32809),  # Use this path
         "my_playlists": _L(32810),  # My playlists
@@ -115,6 +116,7 @@ def _get_addon_sources() -> list[tuple[str, str]]:
         (s["music_addons"], "addons://sources/audio"),
         (s["program_addons"], "addons://sources/executable"),
         (s["picture_addons"], "addons://sources/image"),
+        (s["game_addons"], "addons://sources/game"),
     ]
 
 
@@ -418,11 +420,13 @@ _PATH_TYPE_PREFIXES = [
     ("addons://sources/audio", "music"),
     ("addons://sources/executable", "programs"),
     ("addons://sources/image", "pictures"),
+    ("addons://sources/game", "games"),
 ]
 
 _MUSIC_TYPES = {"music", "albums", "artists", "songs"}
 _PROGRAM_TYPES = {"programs"}
 _PICTURE_TYPES = {"pictures"}
+_GAME_TYPES = {"games"}
 
 # Items _item_type reads, so a few untyped rows at the top don't hide the type.
 _TYPE_PROBE_LIMIT = 10
@@ -440,6 +444,7 @@ _TYPE_ICON = {
     "songs": "DefaultMusicSongs.png",
     "programs": "DefaultProgram.png",
     "pictures": "DefaultPicture.png",
+    "games": "DefaultAddonGame.png",
 }
 
 # item type → library path template for constructing db paths from individual items.
@@ -621,6 +626,8 @@ def _derive_window(content_type: str) -> str:
         return "Programs"
     if content_type in _PICTURE_TYPES:
         return "Pictures"
+    if content_type in _GAME_TYPES:
+        return "Games"
     return "Videos"
 
 

@@ -5,8 +5,9 @@ emulators mapping (one system, several by extension, a shared extension, no row,
 mapping); what a game's start publishes and its stop clears; the autosave blur (the
 newest save picture, one file per picture, the last one dropped, none without a
 readable picture; needs Pillow) and the poller hook that publishes it once per
-opening of the game OSD. With a skin's folder, that skin's own mapping too: its
-shape, and one emulator of each kind.
+opening of the game OSD; the content browser's Game add-ons source
+(windows/browse.py). With a skin's folder, that skin's own mapping too: its shape,
+and one emulator of each kind.
 Run from the helper root: python tests/games_offline.py [../skin.copacetic2]
 """
 
@@ -31,7 +32,7 @@ vars(sys.modules["xbmc"]).update(  # imported names; never called here
     InfoTagVideo=None,
     Monitor=None,
     getCacheThumbName=None,
-    getLocalizedString=None,
+    getLocalizedString=str,  # a string is its id
     VideoStreamDetail=None,
     AudioStreamDetail=None,
     SubtitleStreamDetail=None,
@@ -49,10 +50,12 @@ vars(vfs).update(
         else skin_or_profile(path)
     ),
 )
+sys.modules["xbmcgui"].DialogProgress = None
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.script import library  # noqa: E402
 from resources.lib.service import games, player  # noqa: E402
+from resources.lib.windows import browse  # noqa: E402
 
 MAPPING = STAGE / games.EMULATORS
 OSD = "Window.IsActive(gameosd)"
@@ -223,6 +226,29 @@ class GameStart(Kodi):
         self.poll(True)
         self.monitor._publish({})
         self.assertEqual(self.props(), {})
+
+
+class GamesSource(unittest.TestCase):
+    PATH = "addons://sources/game"
+
+    def test_listed_with_the_add_on_sources(self):
+        with patch.object(browse, "_L", str):
+            self.assertEqual(browse._get_addon_sources()[-1], ("35049", self.PATH))
+
+    def test_opens_in_the_games_window(self):
+        widget = browse._build_result(self.PATH, "Game add-ons", "widget")
+        self.assertEqual(
+            widget,
+            {
+                "path": self.PATH,
+                "label": "Game add-ons",
+                "icon": "DefaultAddonGame.png",
+                "target": "games",
+            },
+        )
+        menu = browse._build_result(self.PATH, "Game add-ons", "menu")
+        self.assertEqual(menu["action"], f'ActivateWindow(Games,"{self.PATH}",return)')
+        self.assertEqual((menu["type"], menu["window"]), ("games", "Games"))
 
 
 @unittest.skipUnless(importlib.util.find_spec("PIL"), "needs Pillow")
