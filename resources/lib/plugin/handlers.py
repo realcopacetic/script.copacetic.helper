@@ -954,6 +954,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             alive=alive,
             window_id=window_id,
             dialog=self.dialog,
+            superseded=self._visit_superseded,
         )
         if art is None:
             return self._artwork_held(guard.lost_to)
