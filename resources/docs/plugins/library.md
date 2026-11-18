@@ -8,6 +8,7 @@ library infolabels and artwork, so your existing layouts work with them.
 |---|---|
 | `in_progress` | Movies and episodes you have started but not finished. |
 | `next_up` | The next unwatched episode of each TV show you are watching. |
+| `seasons` | The seasons of the library TV show a listing shows, for season tabs over its episodes. |
 | `random_movies` | Movies in random order. |
 | `random_tvshows` | TV shows in random order. |
 | `random_albums` | Music library albums in random order. |
@@ -103,6 +104,45 @@ is empty unless the episode has fanart of its own: use `tvshow.fanart`.
 ```xml
 <content>plugin://script.copacetic.helper/?info=next_up&amp;limit=20</content>
 ```
+
+## `seasons`
+
+The seasons of one library TV show, for a row of season tabs over the show's
+episodes. Pass the path of the listing, and the list holds one item per season, in
+season order, with Specials (season 0) last. Kodi's *All seasons* row is left out.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `path` | a library show's path, `videodb://tvshows/titles/<id>/`, or one of its seasons', `videodb://tvshows/titles/<id>/<season>/` | required | The show whose seasons are listed, and the season it lists. Pass `$INFO[Container.FolderPath]` of the episodes listing. Any other path (a TV show genre's, a file's) returns no items. |
+
+These are not library items like the others on this page: they carry no `DBType`,
+`DBID` or library artwork, and they are not folders.
+
+| Infolabel | Value |
+|---|---|
+| `ListItem.Label` | The season's name as Kodi's library gives it, for example `Season 1` or `Specials`. |
+| `ListItem.FileNameAndPath` | The season's path, `videodb://tvshows/titles/<id>/<season>/?tvshowid=<id>`, in the form of Kodi's own season items, so Back from it finds the season in the show's list of seasons. |
+| `ListItem.Property(current)` | `true` on the season `path` lists; empty on the others. Empty on every item when `path` is the show's own (its episodes listed without seasons) or its *All seasons* listing (season `-1`). |
+| `ListItem.Icon`, `ListItem.Art(thumb)` | `DefaultVideo.png`. |
+
+To open a season, update the window's listing with its path. With `replace`, Kodi
+resets the window's history to that path's parents, so Back goes up from the new
+season, not back through each season opened before it.
+
+```xml
+<control type="list" id="5100"><!-- id is an example -->
+  <visible>Container.Content(episodes) + String.StartsWith(Container.FolderPath,videodb://tvshows/titles/)</visible>
+  <orientation>horizontal</orientation>
+  <itemlayout />
+  <focusedlayout />
+  <content>plugin://script.copacetic.helper/?info=seasons&amp;path=$INFO[Container.FolderPath]</content>
+  <onclick>Container.Update($INFO[Container(5100).ListItem.FileNameAndPath],replace)</onclick>
+</control>
+```
+
+The path changes with the listing, so the list reloads each time a season opens and
+`current` moves to it. The call makes one `VideoLibrary.GetSeasons` request and is
+not guarded.
 
 ## `random_movies`
 
@@ -434,7 +474,8 @@ Deezer has no MusicBrainz ids, so its tracks match by title (Deezer's title with
 its version, such as "(Album Version)"); a title Deezer censored ("Ni\*\*as in Paris")
 matches the one library title it fits, each `*` one letter, and none when two fit. A
 title many albums share (Intro, Interlude, Outro, Prelude, Skit, Untitled) matches by
-recording id only, so a new album's "Intro" never ranks an older one. Each title
+recording id, or by title with its album title, never by title alone, so a new album's
+"Intro" never ranks an older one. Each title
 appears once, from its earliest
 dated release (a single, with fewer than four different songs, after an album of the
 same year; two same-year albums in the order the library returns them) unless a
