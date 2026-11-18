@@ -151,8 +151,9 @@ def check() -> None:
     try:
         if not _apply(_load()) or not _settled():
             return
-        state = _load()  # again: features or a reset may have changed meanwhile
-        if answers := _ask(_apply(state)):
+        # Loaded again after each wait: features may change, or a reset write, meanwhile
+        if answers := _ask(_apply(_load())):
+            state = _load()
             state["answers"] |= answers
             # Only after a dialog: a same-frame read (cached) still sees one just off
             _apply(state)
