@@ -1849,12 +1849,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def seasons(self) -> list[DirectoryItem] | None:
         """
-        The seasons of the show listed at ``path`` (a library titles path), Specials
-        last, for the season tabs; the listed season carries property current.
+        The seasons of the show listed at ``path`` (a library titles path) for the
+        season tabs: All first, where Kodi shows it, and Specials last. The listed
+        season carries property current; a flattened listing gets none.
 
         :return: One item per season, or None for a path that is no show's.
         """
-        if not (found := _TITLES_PATH.match(self.params.get("path", ""))):
+        found = _TITLES_PATH.match(self.params.get("path", ""))
+        if not found or found[2] == "-2":  # flattened: the show has no season folders
             return None
         show, listed = found.groups()
         rows = (
@@ -1867,18 +1869,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             .get("result", {})
             .get("seasons", [])
         )
+        # Specials sort after the rest; the database's -1 row is replaced by Kodi's own
+        seasons = [
+            (row["season"], row["label"])
+            for row in sorted(rows, key=lambda r: (r["season"] == 0, r["season"]))
+            if row["season"] >= 0
+        ]
+        shows_all = json_call(
+            "Settings.GetSettingValue",
+            params={"setting": "videolibrary.showallitems"},
+            parent="seasons",
+        )
+        if listed == "-1" or shows_all.get("result", {}).get("value"):
+            seasons.insert(0, (-1, getLocalizedString(20366)))
         return set_items(
             {
                 # as Kodi's own season paths, so Back finds the season in its list
-                "file": f"{_TITLES}{show}/{row['season']}/?tvshowid={show}",
-                "label": row["label"],
-                "properties": {
-                    "current": "true" if str(row["season"]) == listed else ""
-                },
+                "file": f"{_TITLES}{show}/{season}/?tvshowid={show}",
+                "label": label,
+                "properties": {"current": "true" if str(season) == listed else ""},
             }
-            # -1 is Kodi's All seasons row; 0 (Specials) sorts after the rest
-            for row in sorted(rows, key=lambda r: (r["season"] == 0, r["season"]))
-            if row["season"] >= 0
+            for season, label in seasons
         )
 
     @log.duration
