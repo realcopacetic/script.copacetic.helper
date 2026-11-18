@@ -1859,13 +1859,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             .get("result", {})
             .get("seasons", [])
         )
-        # Specials sort after the rest; -1 is the All row, added below as Kodi does
+        # Specials sort after the rest; All is added below as Kodi does
         seasons = [
             (row["season"], row["label"])
             for row in sorted(rows, key=lambda r: (r["season"] == 0, r["season"]))
-            if row["season"] >= 0
         ]
-        # Kodi's own All item: its setting, and more than one item (AddQueuingFolder)
+        # Kodi's own All item: its setting, and more than one item (AddQueuingFolder);
+        # its count also takes linked movies, which GetSeasons leaves out
         if listed == "-1" or (
             len(seasons) > 1 and condition("System.GetBool(videolibrary.showallitems)")
         ):

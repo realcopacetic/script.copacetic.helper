@@ -2139,20 +2139,24 @@ class NextUpTest(unittest.TestCase):
         self.assertEqual(len(self.calls), 2)
 
 
+SHOW_ALL = "System.GetBool(videolibrary.showallitems)"
+
+
 class SeasonsTest(unittest.TestCase):
     rows = [
-        {"season": -1, "label": "All seasons"},
         {"season": 0, "label": "Specials"},
         {"season": 2, "label": "Season 2"},
         {"season": 1, "label": "Season 1"},
     ]
 
     def seasons(self, path, show_all=False, rows=None):
-        rpc = lambda request: json.dumps({"result": {"seasons": rows or self.rows}})
+        rpc = lambda request: json.dumps(
+            {"result": {"seasons": self.rows if rows is None else rows}}
+        )
         patch(
             self,
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
-            (handlers, "condition", lambda expression: show_all),
+            (handlers, "condition", lambda expr: show_all and expr == SHOW_ALL),
             (handlers, "getLocalizedString", lambda id: f"* #{id}"),
             (handlers, "set_items", list),
         )
@@ -2174,6 +2178,7 @@ class SeasonsTest(unittest.TestCase):
         items = self.seasons("videodb://tvshows/titles/7/-1/")
         self.assertEqual(items[0]["properties"]["current"], "true")
         self.assertEqual(len(items), 4)
+        self.assertEqual(self.seasons("videodb://tvshows/titles/7/1/", rows=[]), [])
 
     def test_no_all_for_one_season(self):
         one = [{"season": 1, "label": "Season 1"}]
