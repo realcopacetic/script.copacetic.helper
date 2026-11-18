@@ -380,7 +380,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32146"
-msgid "Switches back on each add-on the helper switched off for doing a job the skin already does (lyrics, next episode prompts, skip buttons), and asks about each again the next time Home opens."
+msgid "Switches back on each add-on the helper switched off for doing a job the skin already does (lyrics, next episode prompts, skip buttons), and asks about each again once Home is shown."
 msgstr ""
 
 
