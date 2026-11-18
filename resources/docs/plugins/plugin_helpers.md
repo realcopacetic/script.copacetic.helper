@@ -177,7 +177,11 @@ Three cases always pass: when no control has focus at all, when the live identit
 reads as empty, and when a modal dialog is over the current window the run reads
 (not a dialog run's own dialog). Python's reads would answer for that dialog's
 controls, and nothing under a modal dialog takes input, so the item is still the one
-the path was built for. An info dialog is the exception: Copacetic's info rails share
+the path was built for. Kodi's picture slideshow (`slideshow`, a modal dialog over
+Pictures) is one exception: its picture moves under it, so a run under it is guarded by
+its identity alone, such as `focus_guard=$INFO[Slideshow.SlideIndex]` with
+`identity_labels=Slideshow.SlideIndex` (a picture's path can hold a `|` or `&`). An
+info dialog is the other: Copacetic's info rails share
 the windows' container ids, so a run would read the dialog's rails as its own. While
 an info dialog is open (`movieinformation`, `musicinformation`, `songinformation` or
 `addoninformation` visible, from the moment Kodi registers it to the end of its close),
