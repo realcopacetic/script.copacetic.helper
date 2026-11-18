@@ -181,8 +181,6 @@ show; with no rectangles that is the part of the image the frame shows.
 |---|---|---|---|
 | `multiart` | an art type, e.g. `fanart`, `poster`, `keyart`, `tvshow.fanart`, or several separated by commas | — | The family to collect. Several types are read in turn and joined into one family, each image once: `thumb,artist.thumb,artist.fanart` gives a playing song's album cover, then its artist's art. `get_extra_multiart` adds nothing to a joined family. |
 | `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for (`fanart1` … `fanart15`). |
-| `multiart_target` | container id | — | Read the family, and its TMDB item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. When the family has more than one image (so the FadeLabel rotates), its first image is also the background, so each slide's blur continues the base's. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
-| `multiart_target_key` | `dbtype:dbid` | — | With `multiart_target`: the item the call is for. If given and the target reads as another item (it hasn't landed yet, or a modal dialog is up), the call returns the held item instead of seeding or clearing. Not given: no check. |
 | `get_extra_multiart` | `true`, `false` | `false` | Add TMDB artwork of the same type, after the library artwork. See [Multiart](#multiart). |
 | `language` | TMDB language, e.g. `en-US` | add-on setting | Language of the TMDB artwork to add. |
 | `type`, `id`, `tmdb_id`, `tvshowid` | | | With `get_extra_multiart`: how the TMDB item is found. See [TMDB lookups](metadata.md#tmdb-lookups). |
@@ -255,7 +253,7 @@ Use them when something outside the helper container's window needs the values, 
 to keep the last background on screen while the next one is processed.
 
 **Aborted calls hold what the list shows.** A call that stops early (its `visit` is no
-longer live, the focus guard fails, or `multiart_target_key` no longer matches) returns
+longer live, or the focus guard fails) returns
 one item whose `background`, `background_darken` and `icon_darken` art are those of
 `Container(<prop_key>).ListItem`, with `ListItem.Property(current)` =
 `held/<scope>/<prop_key>`, the scope taken from that item's own `current`. The list is
@@ -367,7 +365,7 @@ the logo's hue only when `Integer.IsLessOrEqual(…palette_logo_darken,…backgr
 
 Kodi stores extra artwork as numbered keys: `fanart`, `fanart1`, `fanart2` …
 Multiart reads `Art(<type>)` and `Art(<type>1)` to `Art(<type><multiart_max>)` from
-the focused item (or `multiart_target`'s), skips the empty ones, and returns them as
+the focused item, skips the empty ones, and returns them as
 `multiart`, `multiart1`, `multiart2` … with no gaps.
 
 Because the keys are always the same, your layouts can read `multiart*` and switch
@@ -408,12 +406,7 @@ library artwork:
   item, with the item still focused and no dialog open, it sets the Home window property
   `tmdb_art_ready` (`<kind>:<tmdb_id>`). Put that in the URL,
   `$INFO[Window(home).Property(tmdb_art_ready),&tmdb_ready=]`, and Kodi reruns the serve
-  once, which then adds the extras. That rerun keeps the art on screen, except with
-  `multiart_target` when the family had one image: the extras make it two or more, and
-  its first slide becomes the backdrop. The result's `tmdb_swap` property names the
-  miss (`<kind>:<tmdb_id>`) whenever the family had fewer than two images (a family of
-  none gets no extras, so its rerun changes nothing), so equal to `tmdb_art_ready` it
-  marks the running job as a rerun that can change the backdrop.
+  once, which then adds the extras. That rerun keeps the art on screen.
 - For movies and TV shows with a TMDB id. Episodes use their show's artwork.
 - A `tvshow.` type adds TMDB artwork of the plain type: `tvshow.fanart` adds TMDB
   `fanart`.
@@ -519,7 +512,6 @@ When the container position is known, the list item carries:
 | `current_pos` | The container position (`CurrentItem`) this result is for. |
 | `previous`, `next` | `<container>/<position>` of the items either side. Positions wrap around when the container has more than one item. |
 | `previous_pos`, `next_pos` | The positions either side, on their own. |
-| `tmdb_swap` | The TMDB miss whose rerun changes this item's backdrop (see [Multiart](#multiart-1)), else empty. |
 
 The container is `target` when passed. Without `target`, it is the first `/`
 segment of `Window(home).Property(artwork_cursor_<cursor_key>)`, or the id of the

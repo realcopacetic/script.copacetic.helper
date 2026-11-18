@@ -1,10 +1,9 @@
 """
 Offline checks for the artwork serve (PluginHandlers.artwork) with Kodi's reads
-stubbed and the image work faked: the logo from clearlogo_source, with and without
-a favourite's multiart_target, and the icon from icon_source (a cut band label the
-item's own); a background read whole by a skin variable's name, standing only where
-the URL's raw value is it or it cut at "&" or "|" (a cut-off URL only on top, an empty
-one never), a family outranking it; the parser keeps art URLs raw and url_decode_path
+stubbed and the image work faked: the logo from clearlogo_source and the icon from
+icon_source (a cut band label the item's own); a background read whole by a skin
+variable's name, standing only where the URL's raw value is it or it cut at "&" or
+"|" (a cut-off URL only on top, an empty one never); the parser keeps art URLs raw and url_decode_path
 leaves a bare URL; a held serve names its position only for a move that stamped no
 visit; under Kodi's slideshow a run stops once its picture has moved on;
 the TV guide's time left (epg_time_left) from the programme's start and runtime,
@@ -46,7 +45,6 @@ LOGO = "https://x/logo.png|User-Agent=k"
 SOURCE = "Container(50).ListItem.Art(clearlogo)"
 ICON = "https://x/poster.jpg|User-Agent=k"
 ICON_SOURCE = "Container(50).ListItem(0).Art(poster)"
-FAMILY = {"multiart": "fav0.jpg", "multiart1": "fav1.jpg"}
 VAR = "art_background_primary"
 PLEX = "https://plex/photo/x.jpg?width=500&X-Plex-Token=a%2Bb"
 
@@ -57,14 +55,13 @@ class ArtworkServe(unittest.TestCase):
     def serve(self, params: dict, on_top: bool = True, visit_ends: str = "") -> dict:
         """
         Run artwork() and report what it saw: logo, icon and label (the clearlogo and
-        icon URLs and band label the image work got), family (the item the family was
-        read from), seeded and register (seed_multiart's family and fadelabel_id) and
-        items (what it returned).
+        icon URLs and band label the image work got), background, register
+        (seed_multiart's fadelabel_id) and items (what it returned).
 
         :param params: The URL's params past the fixed ones.
         :param on_top: Whether the serve's window is topmost (else a menu is).
         :param visit_ends: Where visit v1 gives way to v2: "images" or "seed".
-        :return: What it saw, by logo, icon, label, family, seeded, register and items.
+        :return: What it saw, by logo, icon, label, background, register and items.
         """
         seen = {}
         visit = "Window(home).Property(artwork_visit)"
@@ -98,13 +95,11 @@ class ArtworkServe(unittest.TestCase):
                 labels[visit] = "v2"
             return {"background": "blur.png"}
 
-        def family(self, item, multiart_type):
-            seen["family"] = item
+        def family(self, multiart_type):
             self._tmdb_missed = None
-            return FAMILY if item.startswith("Container(9040)") else {}
+            return {}
 
         def seed(**kwargs):  # seed_multiart: None when its guard dies mid-seed
-            seen["seeded"] = kwargs["multiart_dict"]
             seen["register"] = kwargs["fadelabel_id"]
             if visit_ends == "seed":
                 labels[visit] = "v2"
@@ -140,7 +135,6 @@ class ArtworkServe(unittest.TestCase):
     def test_source_read_headers_kept(self):
         out = self.serve({"clearlogo_source": SOURCE})
         self.assertEqual(out["logo"], LOGO)
-        self.assertEqual(out["family"], "Container(50).ListItem")
         self.assertTrue(out["items"])
 
     def test_source_over_a_header_less_url(self):
@@ -160,19 +154,6 @@ class ArtworkServe(unittest.TestCase):
 
     def test_no_source_keeps_the_url(self):
         self.assertEqual(self.serve({"clearlogo_url": "logo.png"})["logo"], "logo.png")
-
-    def test_favourite_family_with_a_source(self):
-        fav = {"multiart_target": "9040", "multiart": "fanart"}
-        out = self.serve(fav | {"clearlogo_source": SOURCE})
-        self.assertEqual(out["family"], "Container(9040).ListItem")
-        self.assertEqual(out["seeded"], FAMILY)
-        self.assertEqual(out["logo"], LOGO)
-
-    def test_favourite_family_with_an_empty_source(self):
-        fav = {"multiart_target": "9040", "multiart": "fanart"}
-        out = self.serve(fav | {"clearlogo_source": ""})
-        self.assertEqual(out["family"], "Container(9040).ListItem")
-        self.assertEqual(out["seeded"], FAMILY)
 
     def test_menu_on_top_keeps_the_url(self):
         params = {"clearlogo_source": SOURCE, "clearlogo_url": "logo.png"}
@@ -224,10 +205,6 @@ class ArtworkServe(unittest.TestCase):
     def test_under_a_menu_an_empty_url_reads_nothing(self):
         out = self.serve({"background_var": VAR, "background_url": ""}, on_top=False)
         self.assertNotIn("background", out)  # no art: no image work at all
-
-    def test_a_family_outranks_the_background_read(self):
-        fav = {"multiart_target": "9040", "multiart": "fanart"}
-        self.assertEqual(self.plex(**fav)["background"], "fav0.jpg")
 
     VISIT = {"visit": "v1", "multiart_fadelabel": "3400"}
 

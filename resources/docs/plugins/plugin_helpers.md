@@ -40,7 +40,6 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `text` | Draws text into a PNG image. | [Text Image](text.md) |
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
 | `clean_name` | Returns a file's readable name: a film's title and year, or an episode's show, code and title. | [Clean name](clean_name.md) |
-| `favourite` | Returns the library item a favourite points to, with its details and artwork. | [Favourite](favourite.md) |
 | `in_progress`, `next_up`, `seasons`, `random_movies`, `random_tvshows`, `random_albums`, `rediscover`, `daily_mixes`, `random_genre`, `cast`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `genre_music`, `similar_music`, `top_songs`, `discography`, `soundtracks` | Fill a container with library items. | [Library Listings](library.md) |
 | `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |
 | `popularity_label` | Returns a word for how popular a library artist, album or song is ("Charting", "#2 song", "Your #3 artist"). | [Library Listings](library.md#popularity_label) |
@@ -303,7 +302,6 @@ Then reference the variable in your container:
 - [Typewriter](typewriter.md)
 - [Text Image](text.md)
 - [Reposition](reposition.md)
-- [Favourite](favourite.md)
 - [Library Listings](library.md)
 - [Speed Dial](speed_dial.md)
 - [Placement Options](placement.md)
