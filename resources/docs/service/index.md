@@ -212,9 +212,10 @@ the skin. For each add-on that is enabled while a feature it clashes with is on:
   it or the screensaver, a yes/no names the add-on and the skin. *Switch off* switches
   it off (Kodi stops its service with it); *Keep both* leaves it. *Not now*, Back, or
   the question closing without a click (Kodi quitting, a skin reload) asks again the
-  next time. If the skin is left first, nothing is asked. Two checks at once (*Ask
-  again* pressed twice) ask once: the add-ons are read again once Home settles, and
-  only one check asks at a time.
+  next time. If the skin is left first, nothing is asked. One check runs at a time:
+  one started while another waits for Home or asks (*Ask again* pressed twice, a
+  feature turned on) does nothing, and the running one reads the add-ons again once
+  Home settles.
 - ***Switch off* chosen:** it is switched off again without asking at each entry, after
   a skin that gave it back. One the user (or Kodi, for an add-on that needs it) switched
   back on while it was off for the skin is left on, and counts as *Keep both* from then.
@@ -224,8 +225,8 @@ The [poll loop](#the-poll-loop) runs the check again when one of these features 
 turned on or off, so a feature turned on mid-session asks once Home settles again. An
 add-on the helper switched off is switched back on when its features are all off, and
 whenever a skin that doesn't opt in becomes active. Kodi exiting leaves it off for the
-next start. A switch Kodi refuses (an add-on uninstalled, or one Kodi won't switch
-off) is logged and tried again at the next check. The answers and what is switched
+next start. A switch Kodi refuses (one it won't switch off) is logged and tried again
+at the next check; an add-on uninstalled while switched off is forgotten. The answers and what is switched
 off are kept in `clashes.json` in the add-on's profile folder. *Ask again about
 add-ons that clash* in the helper's settings (*Troubleshooting*) runs
 [`reset_clashes`](../script/actions.md#reset_clashes): it switches them back on,
@@ -252,7 +253,7 @@ back with the next play, speed dial change or slide.
 | `helper_speed_dial` | As `helper_active`, when the skin's templates or `16x9/` XML name `info=speed_dial`; checked again on a skin update | `true` | As `helper_active`; a skin update that drops `info=speed_dial` | [Context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu) |
 | `helper_reloading` | Just before the service reloads the skin after an in-place update, except during fullscreen video. Not on a start, a switch into the skin or a helper restart | `reload` | Your skin clears it once its window is ready after the reload; the service clears it if the reload is dropped or postponed | [Script actions](../script/actions.md#dynamic_settings_window) |
 | `helper_settle` | Just before each `ReloadSkin()` the service runs, through `SetProperty` | A number that changes each time | Cleared once the last number has landed, just before the `ReloadSkin()`; left set if the wait gives up after a minute | [What runs when](#when-a-skin-that-opts-in-becomes-active) |
-| `helper_clashes_asking` | While [`check_clashes`](../script/actions.md#check_clashes) asks about add-ons that clash, so a second check at the same time asks nothing | `true` | Once it has asked | [Add-ons that clash](#add-ons-that-clash) |
+| `helper_clashes_asking` | While [`check_clashes`](../script/actions.md#check_clashes) runs (waiting for Home, then asking), so a second check at the same time does nothing | `true` | When it ends; also when a skin that opts in becomes active | [Add-ons that clash](#add-ons-that-clash) |
 | `playlist_revision` | Songs are added to, removed from or cleared out of the music queue (`Playlist.OnAdd`, `OnRemove`, `OnClear` for playlist 0), or it is shuffled or unshuffled (`Player.OnPropertyChanged` `shuffled`, player 0), while a skin that opts in is active. A move announces nothing: bump it from the skin where songs are moved. Not while the helper itself refills the queue (`playlist_replacing`, set by its play actions until the songs are in): the play that follows refetches the lists | A number that changes each time: put it in a queue list's path (`playlistmusic://?revision=…`), as Kodi's list providers refresh on play, resume and stop, not when the queue changes | Never | [On music queue edits](#on-music-queue-edits) |
 | `progress_version` | Half a second after the last of a burst of library song updates outside a scan (`AudioLibrary.OnUpdate`, type `song`, no `transaction`) or library song closes (a song's stop, end, or the next song's start: Kodi saves the play count only once the song has drained, so a close waits the crossfade plus 2 seconds, which an update meanwhile doesn't cut), unless, when it fires, container 9010 on top (the topmost dialog's, else the active window's) serves a bar for something other than an album (its item has a `plugin://` path and no `ListItem.Property(album)`): a song heard, however it was queued, a Like, [`mark_album`](../script/actions.md#mark_album) | A number that changes each time | Never | [Progress bar: albums](../plugins/progressbar.md#albums) |
 | `played_version` | When `progress_version` is due (whether or not it is set), if a library song closed since the last time has a play count other than the one Player.GetItem gave at its start: Kodi counted the play (past `playcountminimumpercent`, 90 by default) | A number that changes each time | Never | [On song updates](#on-song-updates) |

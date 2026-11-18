@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from threading import Thread
 from unittest.mock import Mock, call, patch
 
 from build_offline import HELPER, _module, install_stubs
@@ -44,7 +45,7 @@ class Clashes(unittest.TestCase):
         clashes.STATE.unlink(missing_ok=True)
         # What reads true: the skin active and settled, CU LRC on, the lyrics feature on
         self.true = {clashes.ACTIVE, clashes.SETTLED, LYRICS}
-        self.enabled, self.refused = {LRC}, set()
+        self.enabled, self.refused, self.installed = {LRC}, set(), set(clashes.CLASHES)
         self.dialog = Mock()
         self.dialog.return_value.yesnocustom.return_value = 1
         self.json = Mock(side_effect=self.set_enabled)
@@ -62,9 +63,11 @@ class Clashes(unittest.TestCase):
         clashes.ADDON.getLocalizedString = str
 
     def condition(self, text: str) -> bool:
-        """Each `|` alternative true when listed, add-ons by self.enabled."""
+        """Each `|` alternative true when listed, add-ons by self.enabled/installed."""
         if text.startswith("System.AddonIsEnabled("):
             return text[22:-1] in self.enabled
+        if text.startswith("System.HasAddon("):
+            return text[16:-1] in self.installed
         return any(part.strip() in self.true for part in text.split("|"))
 
     def set_enabled(self, method, params, parent):
@@ -216,19 +219,46 @@ class Clashes(unittest.TestCase):
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
         self.assertEqual(clashes.xbmcgui.Window(10000).getProperty(clashes.ASKING), "")
 
-    def test_a_check_waiting_for_home_reads_the_answers_given_meanwhile(self):
+    def test_a_check_queued_under_the_question_asks_nothing_after_not_now(self):
+        # B starts under A's dialog (Home covered), so it would still be waiting for
+        # Home when A's Not now (0) lets Home settle again
+        waiting = []
+
+        def dialog(*args):
+            if not waiting:
+                self.true.discard(clashes.SETTLED)
+                waiting.append(Thread(target=clashes.check))
+                waiting[0].start()
+                waiting[0].join(0.2)
+                self.true.add(clashes.SETTLED)
+            return 0
+
+        self.dialog.return_value.yesnocustom.side_effect = dialog
+        clashes.check()
+        waiting[0].join(5)
+        self.assertEqual(len(self.asked()), 1)
+
+    def test_a_check_started_while_another_waits_for_home_leaves_it_to_that_one(self):
         waits = []
 
         def settled():
             waits.append(None)
-            if len(waits) == 1:  # another check asks while this one waits
+            if len(waits) == 1:  # another check starts while this one waits
                 clashes.check()
             return True
 
         with patch.object(clashes, "_settled", settled):
             clashes.check()
+        self.assertEqual(len(waits), 1)
         self.assertEqual(len(self.asked()), 1)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+
+    def test_no_answer_clicked_applies_nothing_after_the_question(self):
+        # A same-frame read would see one just switched off as still on (cached)
+        self.dialog.return_value.yesnocustom.return_value = 0
+        with patch.object(clashes, "_apply", wraps=clashes._apply) as apply:
+            clashes.check()
+        self.assertEqual(apply.call_count, 2)  # before and after Home settles
 
     def test_a_switch_kodi_refuses_is_not_recorded(self):
         self.refused = {LRC}  # CanAddonBeDisabled false: InvalidParams
@@ -238,9 +268,23 @@ class Clashes(unittest.TestCase):
 
     def test_restore_keeps_one_kodi_refuses_listed(self):
         clashes.check()
-        self.refused = {LRC}  # uninstalled meanwhile
+        self.refused = {LRC}  # EnableAddon failed
         clashes.restore()
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+
+    def test_one_uninstalled_while_off_is_dropped(self):
+        clashes.check()
+        self.installed.discard(LRC)
+        clashes.check()
+        self.json.assert_called_once()  # the switch-off only: no give-back tried
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
+
+    def test_restore_drops_one_uninstalled(self):
+        clashes.check()
+        self.installed.discard(LRC)
+        clashes.restore()
+        self.json.assert_called_once()
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
 
 
 class Service(unittest.TestCase):
@@ -249,6 +293,8 @@ class Service(unittest.TestCase):
         self.service._builder_elements = Mock()
 
     def test_entering_a_skin_queues_the_check(self):
+        home = clashes.xbmcgui.Window(10000)
+        home.setProperty(clashes.ASKING, "true")  # left by a check killed mid-run
         with (
             patch.object(monitor, "skin_uses_builder", lambda: True),
             patch.object(monitor, "PlayerMonitor", Mock()),
@@ -258,6 +304,7 @@ class Service(unittest.TestCase):
         execute.assert_called_once_with(
             "RunScript(script.copacetic.helper,action=check_clashes)"
         )
+        self.assertEqual(home.getProperty(clashes.ASKING), "")
 
     def test_any_skin_not_opting_in_gets_addons_back(self):
         with (
