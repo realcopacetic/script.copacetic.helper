@@ -280,7 +280,7 @@ class GamesSource(unittest.TestCase):
             dialog.return_value.select.side_effect = [4, source]  # Add-ons, source
             return browse.browse_content({"mode": mode})
 
-    def test_a_plugin_picked_under_it_opens_in_the_games_window(self):
+    def test_a_plugin_picked_under_a_source_opens_in_its_window(self):
         game, video = 5, 1
         self.assertEqual(self.picked(game, "widget")["target"], "games")
         menu = self.picked(game, "menu")
@@ -293,7 +293,10 @@ class GamesSource(unittest.TestCase):
                 'ActivateWindow(Games,"plugin://plugin.program.iagl/",return)',
             ),
         )
-        self.assertEqual(self.picked(video, "menu")["window"], "Videos")
+        # Each add-on source's picks open in the window Kodi lists them in
+        windows = [self.picked(i, "menu")["window"] for i in range(1, 5)]
+        self.assertEqual(windows, ["Videos", "Music", "Programs", "Pictures"])
+        self.assertEqual(self.picked(video, "menu")["icon"], "DefaultVideo.png")
 
     def test_standalone_game_plays_from_a_menu_item(self):
         game = "game://game.libretro.2048"
