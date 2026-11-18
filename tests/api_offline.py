@@ -1754,13 +1754,13 @@ class PopularityLabelTest(Base):
             request = json.loads(request)
             method, params = request["method"], request["params"]
             self.calls.append(method)
+            if self.stale and method.endswith("Details"):  # Kodi's InvalidParams
+                error = {"code": -32602, "message": "Invalid params."}
+                return json.dumps({"id": 1, "jsonrpc": "2.0", "error": error})
             if method == "AudioLibrary.GetArtistDetails":
                 details = {"artist": "Queens of the Stone Age"}
                 details["musicbrainzartistid"] = [QOTSA]
                 return json.dumps({"result": {"artistdetails": details}})
-            if self.stale and method.endswith("Details"):  # Kodi's InvalidParams
-                error = {"code": -32602, "message": "Invalid params."}
-                return json.dumps({"id": 1, "jsonrpc": "2.0", "error": error})
             if method == "AudioLibrary.GetAlbumDetails":
                 details = {"artistid": [4], "compilation": self.compilation}
                 return json.dumps({"result": {"albumdetails": details}})
@@ -1951,14 +1951,20 @@ class PopularityLabelTest(Base):
         self.assertEqual(self.label("artist", PLACES - 1), f"Your #{PLACES} artist")
         self.assertIsNone(self.label("artist", PLACES))
 
-    def test_album_or_song_gone_says_nothing(self):
+    def test_item_gone_says_nothing(self):
         self.stale = True
         for deezer_on in (True, False):
             self.settings["deezer"] = deezer_on
-            for type in ("album", "song"):
+            for type in ("album", "artist", "song"):
                 with self.subTest(deezer=deezer_on, type=type):
                     self.assertIsNone(self.label(type, 99))
         self.assertEqual(self.net.requests, [])
+
+    def test_text_id_sends_nothing(self):
+        for type in ("album", "artist", "song"):
+            with self.subTest(type=type):
+                self.assertIsNone(self.label(type, "abc"))
+        self.assertEqual((self.calls, self.net.requests), ([], []))
 
     def test_other_type_sends_nothing(self):
         self.assertIsNone(self.label("musicvideo", 4))

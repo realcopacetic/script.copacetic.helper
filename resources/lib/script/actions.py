@@ -1370,7 +1370,9 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
     if type == "artist":  # not a guest spot on another's album, while they have one
         from resources.lib.plugin.music import artist_identity
 
-        name = artist_identity(dbid, "start_mix")[0]
+        if not (identity := artist_identity(dbid, "start_mix")):
+            return None
+        name = identity[0]
         own = {"field": "albumartist", "operator": "is", "value": name}
         # else any song they're credited on, counted for them, not its album's lead
         filters = ((own, {}), ({"artistid": dbid}, {"albumartist": [name]}))
