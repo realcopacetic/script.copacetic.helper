@@ -137,9 +137,10 @@ python tests/builder_offline.py
 # by extension, a shared extension, no row, no mapping); a game's start publishing
 # both, its stop clearing them; the autosave blur (needs Pillow): the newest save
 # picture, a file per picture, the last one dropped, none while Kodi writes it, once
-# per opening of the game OSD; the content browser's Game add-ons source and its
-# Games window target. With a skin, its own mapping's shape and one emulator of each
-# kind
+# per opening of the game OSD and cleared when it closes; the content browser's Game
+# add-ons source, its Games window target, a standalone game played from a menu item
+# and not offered to a widget. With a skin that has the mapping, its shape and one
+# emulator of each kind
 python tests/games_offline.py [../skin.copacetic2]
 ```
 

@@ -131,7 +131,8 @@ class Identity(Kodi):
                 {"player_emulator": "Genesis Plus GX", "player_system": ""},
             )
 
-    def test_extension_over_the_emulators_system(self):
+    def test_row_with_both_reads_the_extension_first(self):
+        # No row of the skin's needs both; the order is the reader's, pinned here
         self.assertEqual(system(BSNES, "/roms/Tetris.gb"), "Game Boy")
         self.assertEqual(system(BSNES, "/roms/F-Zero.sfc"), "SNES")
 
@@ -209,9 +210,27 @@ class GameStart(Kodi):
         self.assertEqual(self.poll(True)[0].args, ("editor", "/roms/Sonic.md"))
         self.assertEqual(self.props()["player_game_blur"], "/blur/game_1.jpg")
         self.assertEqual(self.poll(True), [])  # still open
-        self.poll(False)
+        self.assertEqual(self.poll(False), [])
+        self.assertNotIn("player_game_blur", self.props())  # closed: cleared
         self.assertEqual(len(self.poll(True, "/blur/game_2.jpg")), 1)
         self.assertEqual(self.props()["player_game_blur"], "/blur/game_2.jpg")
+
+    def test_osd_up_at_the_start_opens_for_this_game(self):
+        self.monitor.onAVStarted()
+        self.poll(True)
+        self.monitor._successor = "/tv/next episode.mkv"
+        self.monitor.onAVStarted()  # the next game, Kodi's OSD still up
+        self.assertEqual(self.monitor._successor, "")
+        self.assertEqual(len(self.poll(True, "/blur/game_2.jpg")), 1)
+        self.assertEqual(self.props()["player_game_blur"], "/blur/game_2.jpg")
+
+    def test_game_inside_a_trailers_wait_is_not_sent_full_screen(self):
+        self.monitor._dropped_flight = True
+        self.monitor.isPlayingVideo = lambda: True  # RetroPlayer has video too
+        with patch.object(player.log, "execute") as execute:
+            self.monitor.onAVStarted()
+        execute.assert_not_called()
+        self.assertFalse(self.monitor._dropped_flight)
 
     def test_no_autosave_sets_nothing_and_a_stop_or_new_game_clears(self):
         self.monitor._game_osd = False
@@ -249,6 +268,44 @@ class GamesSource(unittest.TestCase):
         menu = browse._build_result(self.PATH, "Game add-ons", "menu")
         self.assertEqual(menu["action"], f'ActivateWindow(Games,"{self.PATH}",return)')
         self.assertEqual((menu["type"], menu["window"]), ("games", "Games"))
+
+    def test_standalone_game_plays_from_a_menu_item(self):
+        game = "game://game.libretro.2048"
+        self.assertEqual(
+            browse._build_result(game, "2048", "menu"),
+            {
+                "path": game,
+                "label": "2048",
+                "icon": "DefaultAddonGame.png",
+                "type": "command",
+                "window": "",
+                "action": f'PlayMedia("{game}")',
+                "update": "",
+            },
+        )
+
+    def offered(self, mode):
+        """The rows the source's picker lists in a mode."""
+        rows = [
+            {"file": "plugin://plugin.program.iagl/", "filetype": "directory"},
+            {"file": "game://game.libretro.2048", "filetype": "file"},
+        ]
+        rows = [row | {"label": row["file"]} for row in rows]
+        with (
+            patch.object(browse, "_L", str),
+            patch.object(browse, "_get_directory", return_value=rows),
+            patch.object(browse, "Dialog") as dialog,
+        ):
+            dialog.return_value.select.return_value = -1
+            browse._browse_level(self.PATH, "Game add-ons", mode)
+        return dialog.return_value.select.call_args.args[1][2:]  # after .. and Use
+
+    def test_widget_is_not_offered_a_standalone_game(self):
+        self.assertEqual(self.offered("widget"), ["plugin://plugin.program.iagl/  >"])
+        self.assertEqual(
+            self.offered("menu"),
+            ["plugin://plugin.program.iagl/  >", "game://game.libretro.2048"],
+        )
 
 
 @unittest.skipUnless(importlib.util.find_spec("PIL"), "needs Pillow")
@@ -346,6 +403,8 @@ class AutosaveBlur(unittest.TestCase):
 class SkinMapping(Kodi):
     def setUp(self):
         super().setUp()
+        if not (SKIN / games.EMULATORS).exists():
+            self.skipTest("this skin has no emulators mapping")
         self.text = (SKIN / games.EMULATORS).read_text(encoding="utf-8")
         MAPPING.write_text(self.text, encoding="utf-8")
 
