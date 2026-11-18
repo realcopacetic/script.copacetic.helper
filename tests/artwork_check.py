@@ -332,6 +332,10 @@ def check_draft(tmp: Path, serve: Callable, editor: type) -> bool:
             f"{ms:4.0f} ms, whole {whole_ms:4.0f} ms"
         )
         opened.clear()
+    bad = {"background_url": path, "background_darken_frame": "wide", **params}
+    ok = serve(bad)[0] == {}  # logged, not raised out of the serve
+    failed |= not ok
+    print(f"{'ok  ' if ok else 'FAIL'} draft: a bad frame param serves no art")
     editor._image_open = opener
     return failed
 

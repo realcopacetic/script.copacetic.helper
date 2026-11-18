@@ -119,13 +119,13 @@ class ImageEditor:
         :return: Flattened dict of ListItem.Art keys and metadata values.
         """
         art_types = tuple(jobs)
-        shared = {
-            "images": {},  # opened sources by URL: one open per source per serve
-            "drafts": self._drafts(jobs, art_opts),
-            "results": {k: {} for k in art_types},
-            "contexts": {},
-        }
         try:
+            shared = {
+                "images": {},  # opened sources by URL: one open per source per serve
+                "drafts": self._drafts(jobs, art_opts),  # a bad frame param raises
+                "results": {k: {} for k in art_types},
+                "contexts": {},
+            }
             records = {
                 art_type: merged
                 for art_type, processes in jobs.items()
