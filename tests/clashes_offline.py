@@ -455,6 +455,15 @@ class Clashes(unittest.TestCase):
         self.assertEqual(clashes._load(), {"answers": {}, "off": {}})
         self.assertEqual(self.service.clash_features, ())  # checked again next pass
 
+    def test_another_senders_notification_is_ignored(self):
+        self.enter()
+        self.service.onNotification("someone.else", f"Other.{clashes.RESET}", "null")
+        self.service.onNotification(
+            "someone.else", f"Other.{clashes.ANSWERS}", json.dumps({LRC: False})
+        )
+        self.assertNotIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
+
     def test_an_answer_after_the_skin_is_left_is_not_applied(self):
         def leave(*args):
             self.service.player_monitor = None
