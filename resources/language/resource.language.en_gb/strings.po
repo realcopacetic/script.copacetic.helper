@@ -16,20 +16,21 @@ msgstr ""
 #########################################################################################################
 #: Contents
 
-#: SETTINGS           320XX
-#: SETTINGS HELP      321XX
-#: SERVICE            322XX
-#: SCRIPT             324XX
-#: PLUGIN             326XX
-#: WINDOWS            328XX
+#: SETTINGS              320XX
+#: SETTINGS HELP         321XX
+#: DIALOGS AND TOASTS    322XX
+#: SCRIPT                324XX
+#: PLUGIN                326XX
+#: WINDOWS AND MENUS     328XX
+#: MUSIC INFO            329XX
 
 
 
 
 #########################################################################################################
 
-#: SETTINGS           320XX
-#: SETTINGS HELP      321XX
+#: SETTINGS              320XX
+# Labels, groups and keyboard headings of the add-on's settings
 
 #########################################################################################################
 
@@ -54,28 +55,8 @@ msgid "Enable extra debug logs"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32103"
-msgid "Diagnostic and informational logs will be included in the Kodi log file to help troubleshooting."
-msgstr ""
-
-#: /resources/settings.xml
 msgctxt "#32004"
 msgid "Include json call/response logs"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32104"
-msgid "Whenever Kodi's internal database is queried by the add-on using JSON-RPC, the queries and responses will also be logged."
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32020"
-msgid "Include verbose builder logs"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32120"
-msgid "Logs every per-item builder operation (default applications, fallback resolutions). Very noisy — only useful when debugging template/mapping issues."
 msgstr ""
 
 #: /resources/settings.xml
@@ -94,31 +75,6 @@ msgid "Enable Dev mode"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32107"
-msgid "This will force all skin builder files to be rebuilt every time Kodi starts."
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32012"
-msgid "Reset on next start"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32112"
-msgid "Clears runtime_state and all builder outputs of the skin you turn this on in, next time that skin starts, then rebuilds from defaults. The toggle reverts itself once applied. To move it to another skin, turn it off and press OK, then turn it on again."
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32013"
-msgid "Rebuild now"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32113"
-msgid "Rebuild all skin output files immediately and reload the skin. Preserves runtime_state."
-msgstr ""
-
-#: /resources/settings.xml
 msgctxt "#32008"
 msgid "API"
 msgstr ""
@@ -134,13 +90,18 @@ msgid "TMDB access token"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32110"
-msgid "Adds TV creators, trailers, missing plots and taglines, and extra art. Paste your own v3 API key or v4 read access token from themoviedb.org. Sends the item's TMDB ID to TMDB. Empty: nothing sent."
+msgctxt "#32011"
+msgid "Enter a TMDB v3 API Key or v4 API Read Access Token"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32011"
-msgid "Enter a TMDB v3 API Key or v4 API Read Access Token"
+msgctxt "#32012"
+msgid "Reset on next start"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32013"
+msgid "Rebuild now"
 msgstr ""
 
 #: /resources/settings.xml
@@ -149,18 +110,8 @@ msgid "Test TMDB access"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32114"
-msgid "Verify the current token by making a test request and report the result."
-msgstr ""
-
-#: /resources/settings.xml
 msgctxt "#32015"
 msgid "TMDB language"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32115"
-msgid "Language code for TMDB metadata, e.g. 'en-US', 'fr-FR', 'de-DE'."
 msgstr ""
 
 #: /resources/settings.xml
@@ -169,18 +120,28 @@ msgid "Enter a TMDB language code"
 msgstr ""
 
 #: /resources/settings.xml
+msgctxt "#32017"
+msgid "Cache"
+msgstr ""
+
+#: /resources/settings.xml
 msgctxt "#32018"
 msgid "ListenBrainz"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32021"
-msgid "ListenBrainz user token"
+msgctxt "#32019"
+msgid "Clear add-on cache"
 msgstr ""
 
 #: /resources/settings.xml
-msgctxt "#32121"
-msgid "Adds Top songs, Discography popularity order and similar artists (the similar rails, Start mix, the endless queue and daily mixes). Paste the token from listenbrainz.org/settings. Sends the artist's MusicBrainz ID and token to ListenBrainz. Empty: nothing sent."
+msgctxt "#32020"
+msgid "Include verbose builder logs"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32021"
+msgid "ListenBrainz user token"
 msgstr ""
 
 #: /resources/settings.xml
@@ -203,9 +164,14 @@ msgctxt "#32025"
 msgid "Clear artist or album artwork"
 msgstr ""
 
-#: /resources/settings.xml
-msgctxt "#32125"
-msgid "Remove the current artwork of every artist or album in Kodi's list, so refreshing them all fills it again from the folders and the information provider. Image files are not touched."
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32027"
+msgid "Remove broken artwork"
+msgstr ""
+
+#: /resources/settings.xml, /resources/lib/script/actions.py
+msgctxt "#32028"
+msgid "Clean image cache"
 msgstr ""
 
 #: /resources/lib/script/actions.py
@@ -226,41 +192,6 @@ msgstr ""
 #: /resources/lib/script/actions.py
 msgctxt "#32032"
 msgid "Remove all the artwork (embedded covers stay) from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
-msgstr ""
-
-#: /resources/settings.xml, /resources/lib/script/actions.py
-msgctxt "#32027"
-msgid "Remove broken artwork"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32127"
-msgid "Check every artwork link of artists, albums, films, sets, TV shows and seasons, then remove the dead ones (web images no longer there, files moved or deleted). Run it on a device whose share login can read every art folder. Asks first; an artist it changes loses its discography and music video links until refreshed."
-msgstr ""
-
-#: /resources/settings.xml, /resources/lib/script/actions.py
-msgctxt "#32028"
-msgid "Clean image cache"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32128"
-msgid "Remove this device's cached copies of images that no library item uses and that haven't been shown for 30 days. Asks first. Each Kodi device keeps its own cache."
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32017"
-msgid "Cache"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32019"
-msgid "Clear add-on cache"
-msgstr ""
-
-#: /resources/settings.xml
-msgctxt "#32119"
-msgid "Delete all processed artwork (blurred, cropped, text images), reset the artwork lookup database, and forget saved web service answers (TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB), the daily mix cards' kept mixes and saved text truncations. Asks first. Source artwork is unaffected."
 msgstr ""
 
 #: /resources/settings.xml, /resources/lib/script/actions.py
@@ -333,6 +264,86 @@ msgctxt "#32046"
 msgid "Ask again about add-ons that clash"
 msgstr ""
 
+
+
+
+#########################################################################################################
+
+#: SETTINGS HELP         321XX
+# Help text under a setting: id = the setting's label id + 100
+
+#########################################################################################################
+
+#: /resources/settings.xml
+msgctxt "#32103"
+msgid "Diagnostic and informational logs will be included in the Kodi log file to help troubleshooting."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32104"
+msgid "Whenever Kodi's internal database is queried by the add-on using JSON-RPC, the queries and responses will also be logged."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32107"
+msgid "This will force all skin builder files to be rebuilt every time Kodi starts."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32110"
+msgid "Adds TV creators, trailers, missing plots and taglines, and extra art. Paste your own v3 API key or v4 read access token from themoviedb.org. Sends the item's TMDB ID to TMDB. Empty: nothing sent."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32112"
+msgid "Clears runtime_state and all builder outputs of the skin you turn this on in, next time that skin starts, then rebuilds from defaults. The toggle reverts itself once applied. To move it to another skin, turn it off and press OK, then turn it on again."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32113"
+msgid "Rebuild all skin output files immediately and reload the skin. Preserves runtime_state."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32114"
+msgid "Verify the current token by making a test request and report the result."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32115"
+msgid "Language code for TMDB metadata, e.g. 'en-US', 'fr-FR', 'de-DE'."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32119"
+msgid "Delete all processed artwork (blurred, cropped, text images), reset the artwork lookup database, and forget saved web service answers (TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB), the daily mix cards' kept mixes and saved text truncations. Asks first. Source artwork is unaffected."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32120"
+msgid "Logs every per-item builder operation (default applications, fallback resolutions). Very noisy — only useful when debugging template/mapping issues."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32121"
+msgid "Adds Top songs, Discography popularity order and similar artists (the similar rails, Start mix, the endless queue and daily mixes). Paste the token from listenbrainz.org/settings. Sends the artist's MusicBrainz ID and token to ListenBrainz. Empty: nothing sent."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32125"
+msgid "Remove the current artwork of every artist or album in Kodi's list, so refreshing them all fills it again from the folders and the information provider. Image files are not touched."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32127"
+msgid "Check every artwork link of artists, albums, films, sets, TV shows and seasons, then remove the dead ones (web images no longer there, files moved or deleted). Run it on a device whose share login can read every art folder. Asks first; an artist it changes loses its discography and music video links until refreshed."
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32128"
+msgid "Remove this device's cached copies of images that no library item uses and that haven't been shown for 30 days. Asks first. Each Kodi device keeps its own cache."
+msgstr ""
+
 #: /resources/settings.xml
 msgctxt "#32133"
 msgid "Forget every saved TMDB answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
@@ -383,7 +394,8 @@ msgstr ""
 
 #########################################################################################################
 
-#: SERVICE           322XX
+#: DIALOGS AND TOASTS    322XX
+# Questions, progress text and toasts of the settings' actions
 
 #########################################################################################################
 
@@ -572,7 +584,8 @@ msgstr ""
 
 #########################################################################################################
 
-#: SCRIPT            324XX
+#: SCRIPT                324XX
+# Dialogs a skin opens through RunScript
 
 #########################################################################################################
 
@@ -581,37 +594,13 @@ msgctxt "#32400"
 msgid "Keyboard layout"
 msgstr ""
 
-#: /context.py — context menu items (addon.xml kodi.context.item); ids kept from WINDOWS
-msgctxt "#32820"
-msgid "Shuffle"
-msgstr ""
-
-msgctxt "#32821"
-msgid "Start mix"
-msgstr ""
-
-msgctxt "#32822"
-msgid "Like"
-msgstr ""
-
-msgctxt "#32823"
-msgid "Unlike"
-msgstr ""
-
-msgctxt "#32824"
-msgid "Pin to speed dial"
-msgstr ""
-
-msgctxt "#32825"
-msgid "Unpin"
-msgstr ""
-
 
 
 
 #########################################################################################################
 
-#: PLUGIN           326XX
+#: PLUGIN                326XX
+# Names of the rows and lists the plugin serves
 
 #########################################################################################################
 
@@ -670,11 +659,6 @@ msgctxt "#32610"
 msgid "Random albums"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — the speed dial listing's category; id kept from WINDOWS
-msgctxt "#32826"
-msgid "Speed dial"
-msgstr ""
-
 #: /resources/lib/plugin/listing.py — the add-on's own folders, as the skin's rails
 msgctxt "#32611"
 msgid "Random genre - movies"
@@ -694,10 +678,11 @@ msgstr ""
 
 
 
+
 #########################################################################################################
 
-#: WINDOWS           328XX
-#: Browse content dialog and Dynamic Editor strings
+#: WINDOWS AND MENUS     328XX
+# Content browser, settings editor, context menu, Home's music rows
 
 #########################################################################################################
 
@@ -776,6 +761,36 @@ msgctxt "#32819"
 msgid "Kodi commands"
 msgstr ""
 
+#: /context.py — context menu items (addon.xml kodi.context.item); ids kept from WINDOWS
+msgctxt "#32820"
+msgid "Shuffle"
+msgstr ""
+
+msgctxt "#32821"
+msgid "Start mix"
+msgstr ""
+
+msgctxt "#32822"
+msgid "Like"
+msgstr ""
+
+msgctxt "#32823"
+msgid "Unlike"
+msgstr ""
+
+msgctxt "#32824"
+msgid "Pin to speed dial"
+msgstr ""
+
+msgctxt "#32825"
+msgid "Unpin"
+msgstr ""
+
+#: /resources/lib/plugin/handlers.py — the speed dial listing's category; id kept from WINDOWS
+msgctxt "#32826"
+msgid "Speed dial"
+msgstr ""
+
 #: /resources/lib/windows/dynamiceditor.py — management button descriptions
 msgctxt "#32827"
 msgid "Add a new entry."
@@ -852,6 +867,16 @@ msgstr ""
 msgctxt "#32843"
 msgid "Mark as unplayed"
 msgstr ""
+
+
+
+
+#########################################################################################################
+
+#: MUSIC INFO            329XX
+# The popularity word on an artist's, album's or song's info
+
+#########################################################################################################
 
 #: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: a song's place in its artist's plays (%d 1 to 10)
 msgctxt "#32993"
