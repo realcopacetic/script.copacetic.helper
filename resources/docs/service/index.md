@@ -225,6 +225,10 @@ enabled while a feature it clashes with is on:
 - ***Switch off* chosen:** it is switched off again without asking at each entry, after
   a skin that gave it back. One the user (or Kodi, for an add-on that needs it) switched
   back on while it was off for the skin is left on, and counts as *Keep both* from then.
+  One found on at another version than when it was switched off is switched off again:
+  Kodi switches a disabled add-on back on when it installs or updates it (an update by
+  hand or a reinstall; automatic updates skip disabled add-ons). A reinstall of the
+  same version can't be told apart and counts as *Keep both*.
 - ***Keep both* chosen:** it is never asked about again.
 
 The [poll loop](#the-poll-loop) applies the answers again when one of these features
@@ -234,7 +238,8 @@ off, even while a check waits for Home, and
 whenever a skin that doesn't opt in becomes active. Kodi exiting leaves it off for the
 next start. A switch Kodi refuses (one it won't switch off) is logged and tried again
 at the next check; an add-on uninstalled while switched off is forgotten. The answers and what is switched
-off are kept in `clashes.json` in the add-on's profile folder. *Ask again about
+off, with each one's version then, are kept in `clashes.json` in the add-on's profile
+folder. *Ask again about
 add-ons that clash* in the helper's settings (*Troubleshooting*) runs
 [`reset_clashes`](../script/actions.md#reset_clashes): it switches them back on,
 forgets every answer and asks again.
