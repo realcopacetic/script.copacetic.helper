@@ -128,7 +128,9 @@ python tests/clean_name_offline.py
 # Games (service/games.py, service/player.py): the emulator from a game add-on's name
 # as Kodi reads it; the system from the skin's emulators mapping (one system, several
 # by extension, a shared extension, no row, no mapping); a game's start publishing
-# both, its stop clearing them. With a skin, its own mapping's shape and one emulator
+# both, its stop clearing them; the autosave blur (needs Pillow): the newest save
+# picture, a file per picture, the last one dropped, none while Kodi writes it, once
+# per opening of the game OSD. With a skin, its own mapping's shape and one emulator
 # of each kind
 python tests/games_offline.py [../skin.copacetic2]
 ```

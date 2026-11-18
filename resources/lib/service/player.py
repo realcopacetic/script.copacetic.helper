@@ -166,6 +166,7 @@ class PlayerMonitor(Player):
         self._resume_waiting = False  # a hung flight was cancelled: start the next
         self._seek_at = 0.0  # the last seek's time; 0 clears one left by a restart
         self._successor = ""  # the file Play next queued after this episode
+        self._game_osd = False  # the game OSD was open at the last poll
         self._segments = None  # the playing video's skip segments
         # The playing song's lyrics; None not looked up, False until its AV start
         self._lyrics = None
@@ -381,8 +382,21 @@ class PlayerMonitor(Player):
             client = self.getPlayingItem().getGameInfoTag().getGameClient()
         except RuntimeError:  # stopped since the AV start
             return
-        self._publish(games.identity(client, infolabel("Player.Filenameandpath")))
+        props = games.identity(client, infolabel("Player.Filenameandpath"))
+        # Published empty, so a stop clears what the OSD's opening writes later
+        self._publish(props | {"player_game_blur": ""})
         lyrics.clear()  # a song's, kept up to this start
+
+    def watch_game_osd(self) -> None:
+        """
+        Poller hook: when the game OSD opens, publish the game's newest autosave
+        picture, blurred, as player_game_blur; none leaves it empty.
+        """
+        opened, self._game_osd = self._game_osd, condition("Window.IsActive(gameosd)")
+        if self._game_osd and not opened:
+            path = infolabel("Player.Filenameandpath")
+            blur = games.autosave_blur(self._image_editor, path)
+            window_property("player_game_blur", value=blur)
 
     def _handle_video_start(self) -> None:
         """

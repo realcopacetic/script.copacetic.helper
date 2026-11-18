@@ -372,8 +372,8 @@ class Monitor(xbmc.Monitor):
     def poller(self) -> None:
         """
         Polling loop: trailer session watchdog, seek offset expiry, Play next's
-        switch-off, skip segments, slideshow, held speed dial refreshes, a clashes check
-        on a feature change, lyrics (next pass at their next line), a daily cache prune.
+        switch-off, skip segments, the game OSD's blur, slideshow, held speed dial
+        refreshes, a clashes check on a feature change, lyrics, a daily cache prune.
         """
         if (now := time.time()) >= self.prune_due:  # runs on through suspend
             try:
@@ -387,6 +387,7 @@ class Monitor(xbmc.Monitor):
         self.player_monitor.expire_seek_offset()
         self.player_monitor.watch_playnext()
         self.player_monitor.watch_segments()
+        self.player_monitor.watch_game_osd()
         self.slideshow.tick()
         release_refresh()
         if clashes.features() != self.clash_features:
