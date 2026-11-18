@@ -6,39 +6,29 @@ from urllib.parse import urlencode
 from xbmc import getLocalizedString
 from xbmcgui import ListItem
 
-from resources.lib.shared.utilities import ADDON, infolabel, set_plugincontent
+from resources.lib.shared.utilities import ADDON, set_plugincontent
 
-_SEED = {"randomise": "Window(home).Property(random_seed)"}
-# The add-on's own directory: a folder per group (Kodi's string, Kodi's icon for it),
-# and in each a folder per Home rail the helper lists with no input: (add-on string,
-# the rail's icon, its path's params, params read when the group lists, as the rail's
-# $INFO).
-# Random rows take the rails' default length; the rest list whole.
+_RANDOM = {"limit": "20"}  # the rails' default length
+# Per group, Kodi's string and icon, then (add-on string, the rail's icon, its path's
+# params) per Home rail the helper lists with no input; no stamps, so paths stay live
 GROUPS = {
     "video": (
         3,
         "DefaultVideo.png",
         (
-            (32601, "SpinnerGap", {"info": "in_progress"}, {}),
-            (32600, "FastForward", {"info": "next_up"}, {}),
+            (32601, "SpinnerGap", {"info": "in_progress"}),
+            (32600, "FastForward", {"info": "next_up"}),
             (
                 32605,
                 "Shuffle",
-                {"info": "random_movies", "exclude_played_days": "14", "limit": "20"},
-                _SEED,
+                {"info": "random_movies", "exclude_played_days": "14"} | _RANDOM,
             ),
-            (32606, "SealQuestion", {"info": "random_tvshows", "limit": "20"}, _SEED),
-            (
-                32611,
-                "FilmSlate",
-                {"info": "random_genre", "type": "movie", "limit": "20"},
-                _SEED,
-            ),
+            (32606, "SealQuestion", {"info": "random_tvshows"} | _RANDOM),
+            (32611, "FilmSlate", {"info": "random_genre", "type": "movie"} | _RANDOM),
             (
                 32612,
                 "MonitorPlay",
-                {"info": "random_genre", "type": "tvshow", "limit": "20"},
-                _SEED,
+                {"info": "random_genre", "type": "tvshow"} | _RANDOM,
             ),
         ),
     ),
@@ -46,31 +36,15 @@ GROUPS = {
         2,
         "DefaultAudio.png",
         (
-            (
-                32826,
-                "DotsNine",
-                {"info": "speed_dial"},
-                {"v": "Window(home).Property(speed_dial_version)"},
-            ),
-            (32837, "Playlist", {"info": "daily_mixes"}, {"day": "System.Date(dd)"}),
-            (
-                32836,
-                "ClockCounterClockwise",
-                {"info": "rediscover", "limit": "20"},
-                _SEED,
-            ),
-            (32610, "Headphones", {"info": "random_albums", "limit": "20"}, _SEED),
-            (
-                32613,
-                "MusicNote",
-                {"info": "random_genre", "type": "album", "limit": "20"},
-                _SEED,
-            ),
+            (32826, "DotsNine", {"info": "speed_dial"}),
+            (32837, "Playlist", {"info": "daily_mixes"}),
+            (32836, "ClockCounterClockwise", {"info": "rediscover"} | _RANDOM),
+            (32610, "Headphones", {"info": "random_albums"} | _RANDOM),
+            (32613, "MusicNote", {"info": "random_genre", "type": "album"} | _RANDOM),
             (
                 32614,
                 "MicrophoneStage",
-                {"info": "random_genre", "type": "artist", "limit": "20"},
-                _SEED,
+                {"info": "random_genre", "type": "artist"} | _RANDOM,
             ),
         ),
     ),
@@ -102,11 +76,9 @@ class PluginListing(object):
             category = getLocalizedString(label)
             items = [
                 self._make_item(
-                    ADDON.getLocalizedString(name),
-                    f"icons/{icon}.png",
-                    params | {key: infolabel(info) for key, info in live.items()},
+                    ADDON.getLocalizedString(name), f"icons/{icon}.png", params
                 )
-                for name, icon, params, live in folders
+                for name, icon, params in folders
             ]
         set_plugincontent(content="files", category=category)
         return items

@@ -343,7 +343,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         self.sort_lastplayed = {"order": "descending", "method": "lastplayed"}
         self.limit = to_int(params.get("limit"), None)
-        self.randomise = params.get("randomise", "")
 
         self.exclude_key = params.get("exclude_key", "title")
         self.exclude_value = params.get("exclude_value", "")
@@ -396,6 +395,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.player,
             through_info,
         )
+
+    @cached_property
+    def randomise(self) -> str:
+        """
+        The order seed: randomise= (empty for a fresh order), else Copacetic's live
+        one, so a path saved without it follows the rails' seed.
+        """
+        seed = self.params.get("randomise")
+        return infolabel("Window(home).Property(random_seed)") if seed is None else seed
 
     @cached_property
     def window_id(self) -> int:
