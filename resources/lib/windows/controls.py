@@ -10,6 +10,7 @@ from xbmcgui import (
     ACTION_MOVE_RIGHT,
     ACTION_MOVE_UP,
     ACTION_NAV_BACK,
+    ACTION_PREVIOUS_MENU,
     ACTION_SELECT_ITEM,
 )
 
@@ -745,6 +746,7 @@ class EditHandler(BaseControlHandler):
         ACTION_MOVE_LEFT,
         ACTION_MOVE_RIGHT,
         ACTION_NAV_BACK,
+        ACTION_PREVIOUS_MENU,
     )
 
     def __init__(

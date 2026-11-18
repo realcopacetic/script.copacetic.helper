@@ -6,7 +6,8 @@ removing a parent removes its children's children too (a menu item's widgets' ta
 a new rail page is flagged for the rail's Right only once its rows are up, and
 cleared at a row; a mouse click acts as Select, and a click on a sliderex's slider
 keeps the value it moved to before focus flips to the button; Back from a sliderex
-hands its button the list's colours; a slider step isn't put back by the refresh it
+hands its button the list's colours, and Back or Previous Menu on an edit row saves
+what was typed; a slider step isn't put back by the refresh it
 triggers.
 Run from the helper root: python tests/editor_offline.py
 """
@@ -68,7 +69,11 @@ for name in ("Button", "Edit", "Label", "RadioButton", "Slider"):
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.builders.runtime import RuntimeStateManager  # noqa: E402
-from resources.lib.windows.controls import SliderExHandler, SliderHandler  # noqa: E402
+from resources.lib.windows.controls import (  # noqa: E402
+    EditHandler,
+    SliderExHandler,
+    SliderHandler,
+)
 from resources.lib.windows.dynamiceditor import DynamicEditor  # noqa: E402
 
 
@@ -245,6 +250,37 @@ class Back(unittest.TestCase):
         handler.update_visibility.assert_called_with(100)
         ed._set_description.assert_called_with(100)
         self.assertEqual(ed._prev_focus_id, 100)
+
+    def test_back_or_previous_menu_saves_typed_text(self):
+        for a_id in (xbmcgui.ACTION_NAV_BACK, xbmcgui.ACTION_PREVIOUS_MENU):
+            handler = EditHandler.__new__(EditHandler)
+            handler.control, handler.is_dynamic_linked = {}, False
+            handler.focus_target_id = None
+            handler.instance = Mock(**{"getId.return_value": 300})
+            handler.instance.getText.return_value = "typed "
+            handler._cached_text = "stored"
+            handler._set_setting_value = Mock()
+            handler.update_visibility = Mock()
+            ed = editor(
+                host=None,
+                host_focus=None,
+                _prev_focus_id=300,
+                _mgmt_ids=set(),
+                _mgmt_buttons=[],
+                _handler_by_focus_id={300: handler},
+                handlers={"edit": handler},
+                current_listitem="a",
+                listitems={"a": {}},
+                container_position=0,
+                _list_container=Mock(**{"getId.return_value": 100}),
+                getFocusId=lambda: 300,
+                _set_description=Mock(),
+                _build_dicts=Mock(),
+                _refresh_list_row=Mock(),
+            )
+            handler.parent = ed
+            ed.onAction(Mock(**{"getId.return_value": a_id}))
+            handler._set_setting_value.assert_called_once_with("typed")
 
 
 class HeldSlider(unittest.TestCase):
