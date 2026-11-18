@@ -156,8 +156,8 @@ details fetched are still returned. *Clear add-on cache* empties it. The art is 
 available to the artwork helper's `get_extra_multiart`
 (see [Artwork](artwork.md#multiart)).
 
-**Add-on settings needed:** the user pastes their own TMDB v3 API key or v4 API read
-access token into **TMDB access token** (setting id `tmdb_access_token`, empty by
+**Add-on settings needed:** the user pastes their own TMDB v3 API key or v4 read access
+token into **TMDB access token** (setting id `tmdb_access_token`, empty by
 default). There is no separate on/off setting: the token is the user's consent.
 Without it, nothing is fetched or read from the cache, nothing is logged above debug,
 and `metadata` adds nothing from TMDB. **Test TMDB access** checks the token.
