@@ -2172,6 +2172,16 @@ class SeasonsTest(unittest.TestCase):
         self.assertIsNone(self.seasons(""))
 
 
+class FileLabelTest(unittest.TestCase):
+    def test_name_as_caption(self):
+        label = handlers._file_label
+        path = "special://home/addons/skin.copacetic2/resources/Grid_with_flags.jpg"
+        self.assertEqual(label(path), "Grid with flags")
+        self.assertEqual(label(r"C:\Kodi\addons\x\Copacetic_2.png"), "Copacetic 2")
+        self.assertEqual(label("Synced_lyrics"), "Synced lyrics")
+        self.assertEqual(label(""), "")
+
+
 def days_ago(days):
     """A JSON-RPC dateadded string, days before now."""
     return f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
