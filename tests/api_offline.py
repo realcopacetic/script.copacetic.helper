@@ -2174,11 +2174,13 @@ class SeasonsTest(unittest.TestCase):
 
 class FileLabelTest(unittest.TestCase):
     def test_name_as_caption(self):
-        label = handlers._file_label
+        label = handlers.file_label
         path = "special://home/addons/skin.copacetic2/resources/Grid_with_flags.jpg"
         self.assertEqual(label(path), "Grid with flags")
         self.assertEqual(label(r"C:\Kodi\addons\x\Copacetic_2.png"), "Copacetic 2")
         self.assertEqual(label("Synced_lyrics"), "Synced lyrics")
+        self.assertEqual(label("http://repo/x/shot_1.png?v=1.2"), "shot 1")
+        self.assertEqual(label("_preview_.png"), "preview")
         self.assertEqual(label(""), "")
 
 
