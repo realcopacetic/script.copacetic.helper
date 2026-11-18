@@ -45,7 +45,8 @@ A child item's metadata names its parent by item name (`"parent": "movies"`). Wh
 Two maintenance behaviours keep links sane:
 
 - **Reset remaps.** Resetting the *parent* mapping recreates its entries with the same ids — and any children pointing at a surviving parent are re-linked to the fresh entry. Children whose parent didn't survive move to their own item's metadata `parent` among the new defaults; they are removed only when that isn't one of them.
-- **Deletes prune orphans.** Deleting an entry also removes any children in other mappings that pointed at it, so no widget lingers attached to a menu item that's gone.
+- **Deletes prune orphans.** Deleting an entry also removes any children in other mappings that pointed at it, and their own children in turn, so no widget lingers attached to a menu item that's gone, and no tab lingers on one of its widgets.
+- **New parents get their children.** With `"seed_with_parent": true` on the child mapping, a parent entry the editor adds, or switches to another item, gets the child items whose metadata `parent` names its item, when it has no children yet. See [Includes → Parent and child lists](07-includes.md#parent-and-child-lists).
 
 ### Reset vs rebuild
 
@@ -161,7 +162,7 @@ Hosting composes with the other session kwargs. Editors opened *from inside* a h
 
 **Fixed list** (view settings): no control has a `role`. One row per automatic entry; the user edits each row's settings but the list itself never changes. The addon enforces this — without a role, the mutation buttons (410–413) are never attached. The addon doesn't hide them, so leave them out of a fixed list's window XML, or hide them yourself.
 
-**Editable list** (widgets, menus): one control has `role: "item_picker"` or `"add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). The management buttons appear and the user adds, deletes, and reorders. If the list opens empty (for example a parent with no children yet), the editor runs Add straight away; cancel it and the window closes.
+**Editable list** (widgets, menus): one control has `role: "item_picker"` or `"add_action"` — see [Controls → The Add control](06-controls.md#the-add-control-item_picker-and-add_action). The management buttons appear and the user adds, deletes, and reorders. If the list opens empty (for example a parent with no children yet), the editor runs Add straight away; cancel it and the window closes. An empty fixed list (its mapping has no entries yet, or the settings file couldn't be read) closes at once, as nothing in it could take focus, unless `host_focus` gives focus somewhere to land.
 
 The right-hand controls work the same in both: each edits one setting on the highlighted row. Writes happen immediately as the user changes things — Close doesn't "save", it just ends the session.
 
@@ -187,7 +188,7 @@ The right-hand controls work the same in both: each edits one setting on the hig
 | Reset | 414 | Back to defaults — the whole mapping, or only the open parent's entries — with a confirm dialog |
 | Close | 415 | Save and close |
 
-You only supply focusable buttons; the editor handles the presses. Only Add, Move up/down, and Delete require the Add control — Reset and Close work in fixed lists too.
+You only supply focusable buttons; the editor handles the presses. A mouse click counts as Select, on the list, the controls and these buttons. Only Add, Move up/down, and Delete require the Add control — Reset and Close work in fixed lists too.
 
 The editor looks these buttons up when the window opens. If a required one is missing, it stops while setting up and the window stays empty, as with the list and the textbox. A missing Reset or Close is skipped.
 
@@ -252,6 +253,20 @@ On close each goes back to what it was before the window opened (empty for a top
 
 ```
 String.IsEqual(Window(home).Property(current_mapping_{runtime_id}),tabs)
+```
+
+The settings window itself carries one property, read with `Window.Property(page_changed)` in its own XML:
+
+| Property | Value |
+|---|---|
+| `page_changed` | `true` once the list's selection has moved to another entry and that entry's controls are shown; empty again as soon as focus reaches one of the controls, and while the controls are being changed |
+
+A grouplist keeps its scroll position when its rows change, so after a long page the next one can open with its first rows out of view. Use the property in the list's `<onright>` to enter the controls at the first row after a change, and normally otherwise. From Copacetic, where 101 is the grouplist of controls:
+
+```xml
+<onright condition="String.IsEmpty(Window.Property(page_changed))">101</onright>
+<onright condition="!String.IsEmpty(Window.Property(page_changed))">SetFocus(101)</onright>
+<onright condition="!String.IsEmpty(Window.Property(page_changed))">Action(FirstPage)</onright>
 ```
 
 Each row also carries its resolved entry — metadata, stored values, and config defaults — as listitem properties, raw keys not display labels: `String.IsEqual(Container(100).ListItem.Property(layout),strip)`. Properties re-stamp on every edit, so conditions track the session live.

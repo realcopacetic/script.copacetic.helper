@@ -98,7 +98,7 @@ Runs its `onclick` when pressed, and writes the result to its `field`:
 
 ### `sliderex` — slider with a label
 
-Kodi sliders can't show text, so this pairs a slider with a button: the button shows the name and current value, the slider takes left/right, select flips focus between them. **The button's ID is the slider's ID with a `0` on the end** (202 → 2020). Your window XML must follow this.
+Kodi sliders can't show text, so this pairs a slider with a button: the button shows the name and current value, the slider takes left/right, select flips focus between them. A mouse click on the slider sets the value where it lands, saves it and moves focus to the button. **The button's ID is the slider's ID with a `0` on the end** (202 → 2020). Your window XML must follow this.
 
 ```json
 "widget_layout": { "field": "layout", "id": 202, "control_type": "sliderex", "label": "Layout" }
