@@ -200,14 +200,14 @@ msgid "All artwork"
 msgstr ""
 
 #. %s is Kodi's own "Artists" or "Albums". "Change information provider" is Kodi's #20195 and "Set
-#. for all shown" stands for its #38065 and #38067: follow Kodi's translation of them.
+#. for all shown" stands for its #38065 and #38067: follow Kodi's translation of them. Keep %s; write a literal % as %%.
 #: /resources/lib/script/actions.py
 msgctxt "#32031"
 msgid "Remove the online artwork from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
 msgstr ""
 
 #. %s is Kodi's own "Artists" or "Albums". "Change information provider" is Kodi's #20195 and "Set
-#. for all shown" stands for its #38065 and #38067: follow Kodi's translation of them.
+#. for all shown" stands for its #38065 and #38067: follow Kodi's translation of them. Keep %s; write a literal % as %%.
 #: /resources/lib/script/actions.py
 msgctxt "#32032"
 msgid "Remove all the artwork (embedded covers stay) from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
@@ -444,7 +444,7 @@ msgstr ""
 
 #########################################################################################################
 
-#. %s is a size, e.g. "1.2 MB". A toast (one line, cut if long): keep it short.
+#. %s is a size, e.g. "1.2 MB". A toast (one line, cut if long): keep it short. Keep %s; write a literal % as %%.
 #: /resources/lib/shared/utilities.py
 msgctxt "#32201"
 msgid "Cache cleared, %s freed"
@@ -713,7 +713,7 @@ msgctxt "#32602"
 msgid "Director credits"
 msgstr ""
 
-#. The name of a list of items sharing a actor with the open one: keep it short.
+#. The name of a list of items sharing an actor with the open one: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32603"
 msgid "Actor credits"
@@ -751,7 +751,7 @@ msgctxt "#32608"
 msgid "Studio credits"
 msgstr ""
 
-#. The name of a list of items sharing a artist with the open one: keep it short.
+#. The name of a list of items sharing an artist with the open one: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32609"
 msgid "Artist credits"

@@ -414,7 +414,7 @@ def clear_cache(**kwargs: str) -> None:
     handlers[-1].vacuum()  # every table lives in the one LOOKUPS file
 
     readable_size = readable_bytes(size_before - get_total_size(ADDONDATA))
-    log.info(f"Artwork cache cleared by user. {readable_size} saved.")
+    log.info(f"Artwork cache cleared by user. {readable_size} freed.")
     Dialog().notification(
         ADDON.getLocalizedString(32019), ADDON.getLocalizedString(32201) % readable_size
     )
