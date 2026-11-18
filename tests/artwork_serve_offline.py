@@ -498,6 +498,10 @@ class CoverSize(unittest.TestCase):
     def test_no_cover_is_small(self):
         self.assertEqual(self.publish({})[0], ("cover_small_visualisation", True))
 
+    def test_no_prop_key_no_suffix(self):
+        out = self.publish({}, params={"target": "player"})
+        self.assertEqual(out, [("cover_small", True), ("cover_file", "a.flac")])
+
     def test_song_moved_on(self):
         self.assertEqual(self.publish({}, playing="b.flac"), [])
 
