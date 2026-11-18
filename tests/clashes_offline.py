@@ -1,7 +1,8 @@
 """
 Offline checks for add-ons that clash (resources/lib/service/clashes.py), Kodi's reads
 stubbed: an add-on doing a feature's job is asked about once Home settles; Switch off
-switches it off, Keep both leaves it, Back asks again next time; an answer applies at
+switches it off, Keep both leaves it, Not now, Back or a close without a click asks
+again next time; an answer applies at
 each entry without asking; a feature turned off, a skin left or a reset gives it back;
 the service queues the check on entering a skin and gives add-ons back on leaving.
 Run from the helper root: python tests/clashes_offline.py
@@ -94,11 +95,11 @@ class Clashes(unittest.TestCase):
         )
         self.assertEqual(
             self.dialog.return_value.yesnocustom.call_args.args[2:],
-            ("", "32235", "32234"),
+            ("32235", "32239", "32234"),  # custom Keep both, no Not now, yes
         )
 
     def test_keep_both_leaves_it_and_never_asks_again(self):
-        self.dialog.return_value.yesnocustom.return_value = 0
+        self.dialog.return_value.yesnocustom.return_value = 2
         clashes.check()
         clashes.check()
         self.assertEqual(len(self.asked()), 1)
@@ -111,6 +112,15 @@ class Clashes(unittest.TestCase):
         clashes.check()
         self.assertEqual(len(self.asked()), 2)
         self.assertIn(LRC, self.enabled)
+
+    def test_not_now_or_a_close_without_a_click_asks_again_next_time(self):
+        # GUIDialogYesNo::GetResult: no button pressed reads as DIALOG_RESULT_NO
+        self.dialog.return_value.yesnocustom.return_value = 0
+        clashes.check()
+        clashes.check()
+        self.assertEqual(len(self.asked()), 2)
+        self.assertIn(LRC, self.enabled)
+        self.assertFalse(clashes.STATE.exists())
 
     def test_an_answer_applies_at_each_entry_without_asking(self):
         clashes.check()
@@ -146,7 +156,7 @@ class Clashes(unittest.TestCase):
     def test_each_addon_asked_in_turn(self):
         self.enabled = {LRC, UPNEXT}
         self.true |= {PLAYNEXT}
-        self.dialog.return_value.yesnocustom.side_effect = [1, 0]
+        self.dialog.return_value.yesnocustom.side_effect = [1, 2]
         clashes.check()
         self.assertEqual(self.enabled, {UPNEXT})
         self.assertEqual(

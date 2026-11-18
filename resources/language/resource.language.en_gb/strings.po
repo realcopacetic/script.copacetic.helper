@@ -577,6 +577,11 @@ msgctxt "#32238"
 msgid "%(addon)s shows its own skip and next episode buttons over %(skin)s's. Switch it off while you use %(skin)s? It comes back on if you change skin."
 msgstr ""
 
+#: /resources/lib/service/clashes.py
+msgctxt "#32239"
+msgid "Not now"
+msgstr ""
+
 #: /resources/lib/script/actions.py
 msgctxt "#32240"
 msgid "Delete all processed artwork and forget every saved web service answer? Each is made or fetched again when next needed."
