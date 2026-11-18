@@ -269,6 +269,32 @@ class GamesSource(unittest.TestCase):
         self.assertEqual(menu["action"], f'ActivateWindow(Games,"{self.PATH}",return)')
         self.assertEqual((menu["type"], menu["window"]), ("games", "Games"))
 
+    def picked(self, source, mode):
+        """What the browser returns for a plugin picked under an add-on source."""
+        plugin = "plugin://plugin.program.iagl/"
+        with (
+            patch.object(browse, "_L", str),
+            patch.object(browse, "_browse_level", return_value=(plugin, "IAGL")),
+            patch.object(browse, "Dialog") as dialog,
+        ):
+            dialog.return_value.select.side_effect = [4, source]  # Add-ons, source
+            return browse.browse_content({"mode": mode})
+
+    def test_a_plugin_picked_under_it_opens_in_the_games_window(self):
+        game, video = 5, 1
+        self.assertEqual(self.picked(game, "widget")["target"], "games")
+        menu = self.picked(game, "menu")
+        self.assertEqual(
+            (menu["type"], menu["window"], menu["icon"], menu["action"]),
+            (
+                "games",
+                "Games",
+                "DefaultAddonGame.png",
+                'ActivateWindow(Games,"plugin://plugin.program.iagl/",return)',
+            ),
+        )
+        self.assertEqual(self.picked(video, "menu")["window"], "Videos")
+
     def test_standalone_game_plays_from_a_menu_item(self):
         game = "game://game.libretro.2048"
         self.assertEqual(

@@ -116,7 +116,7 @@ def _get_addon_sources() -> list[tuple[str, str]]:
         (s["music_addons"], "addons://sources/audio"),
         (s["program_addons"], "addons://sources/executable"),
         (s["picture_addons"], "addons://sources/image"),
-        (s["game_addons"], "addons://sources/game"),
+        (s["game_addons"], _GAME_SOURCE),
     ]
 
 
@@ -359,6 +359,9 @@ _PATH_SCHEMES = (
     "ftp://",
     "upnp://",
 )
+
+# Kodi lists this source's plugins in Games, so a path picked under it opens there.
+_GAME_SOURCE = "addons://sources/game"
 
 # A standalone game in addons://sources/game, a file: Kodi plays it, nothing lists it.
 _GAME_SCHEME = "game://"
@@ -634,7 +637,9 @@ def _derive_window(content_type: str) -> str:
     return "Videos"
 
 
-def _build_result(path: str, label: str, mode: str) -> dict[str, str]:
+def _build_result(
+    path: str, label: str, mode: str, content_type: str | None = None
+) -> dict[str, str]:
     """
     Build the final return dict for a selected path.
     Widget mode returns ``{path, label, icon, target}``; menu mode adds
@@ -643,6 +648,7 @@ def _build_result(path: str, label: str, mode: str) -> dict[str, str]:
     :param path: Selected path or action string.
     :param label: Display label for the result.
     :param mode: "widget" or "menu".
+    :param content_type: Type the path's source gives it, over the path's own.
     :return: Result dict.
     """
 
@@ -660,7 +666,7 @@ def _build_result(path: str, label: str, mode: str) -> dict[str, str]:
             "update": "",
         }
 
-    content_type = _derive_type(path)
+    content_type = content_type or _derive_type(path)
     icon = _PLAYLIST_ICON.get(path) or _TYPE_ICON.get(content_type, "DefaultFolder.png")
     window = _derive_window(content_type)
     result = {
@@ -914,10 +920,13 @@ def _browse_playlists(media: str, heading: str) -> tuple[str, str] | None:
         return result  # (path, label) or None
 
 
-def _browse_addons(heading: str, mode: str = "widget") -> tuple[str, str] | None:
+def _browse_addons(
+    heading: str, mode: str = "widget"
+) -> tuple[tuple[str, str] | None, str | None]:
     """
     Show the add-on type picker, then browse the chosen source.
-    Returns (path, label), or None.
+    Returns ((path, label) or None, ``games`` for a pick under the Game add-ons
+    source, else None).
     """
     s = _get_strings()
     addon_sources = _get_addon_sources()
@@ -926,18 +935,15 @@ def _browse_addons(heading: str, mode: str = "widget") -> tuple[str, str] | None
         labels = [s["back"]] + [label + "  >" for label, _ in addon_sources]
         idx = Dialog().select(heading, labels)
 
-        if idx == -1:
-            return None
-
-        if idx == 0:
-            return None  # ".." — back to top-level picker
+        if idx < 1:
+            return None, None  # cancel or ".." — back to top-level picker
 
         label, path = addon_sources[idx - 1]
         result = _browse_level(path, label, mode)
 
         if result is _BACK_SENTINEL:
             continue
-        return result  # (path, label) or None
+        return result, "games" if path == _GAME_SOURCE else None
 
 
 def _browse_picture_sources(heading: str) -> tuple[str, str] | None:
@@ -1024,6 +1030,7 @@ def browse_content(cfg) -> dict[str, str] | str | None:
             return ""
 
         label, path = sources[idx]
+        content_type = None
 
         if label == s["video_playlists"]:
             result = _browse_playlists("video", heading)
@@ -1032,7 +1039,7 @@ def browse_content(cfg) -> dict[str, str] | str | None:
         elif label == s["pictures"]:
             result = _browse_picture_sources(heading)
         elif label == s["addons"]:
-            result = _browse_addons(heading, mode)
+            result, content_type = _browse_addons(heading, mode)
         elif label == s["custom_path"]:
             result = _custom_path()
         elif label == s["common"]:
@@ -1060,7 +1067,7 @@ def browse_content(cfg) -> dict[str, str] | str | None:
             return built
 
         path, label = result
-        built = _build_result(path, label, mode)
+        built = _build_result(path, label, mode, content_type)
         if "item_type" in cfg.get("sibling_fields", {}):
             built["item_type"] = _item_type(path, cfg.get("depth", 0))
         return built
