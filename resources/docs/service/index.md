@@ -210,7 +210,7 @@ The helper never switches one off without asking. Each time a skin that opts in
 becomes active, the service applies the answers given (below) and, if an add-on needs
 asking about, runs `action=check_clashes`, queued behind any reload of the skin. The
 service alone switches add-ons and writes the answers, one change at a time: the check
-and *Ask again* hand theirs to it (`JSONRPC.NotifyAll`). For each add-on that is
+(each answer as it is clicked) and *Ask again* hand theirs to it (`JSONRPC.NotifyAll`). For each add-on that is
 enabled while a feature it clashes with is on:
 
 - **Not asked about yet:** once Home has been on top for 2 seconds with no dialog over

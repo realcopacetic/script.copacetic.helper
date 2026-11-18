@@ -465,6 +465,20 @@ class Clashes(unittest.TestCase):
         self.assertIn(LRC, self.enabled)
         self.assertFalse(clashes.STATE.exists())  # asked again on return
 
+    def test_each_answer_is_applied_as_it_is_clicked(self):
+        # Switch off for CU LRC, then the skin left under the question about Up Next
+        self.enabled, self.true = {LRC, UPNEXT}, self.true | {PLAYNEXT}
+
+        def answer(*args):
+            if len(self.asked()) == 2:
+                self.service.player_monitor = None
+            return 1
+
+        self.dialog.return_value.yesnocustom.side_effect = answer
+        self.enter()
+        self.assertEqual(self.enabled, {UPNEXT})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
+
     def test_no_answer_clicked_hands_the_service_nothing(self):
         self.dialog.return_value.yesnocustom.return_value = 0
         self.enter()

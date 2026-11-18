@@ -188,19 +188,17 @@ def _settled(token: str, skin: str) -> bool:
     return True
 
 
-def _ask(unasked: list[str], token: str, skin: str) -> dict:
+def _ask(unasked: list[str], token: str, skin: str) -> None:
     """
-    Ask about each add-on in turn, until the skin is left or the guard changes hands.
-    Only a click on Switch off or Keep both counts: Not now, Back or a close by Kodi
-    asks again next time.
+    Ask about each add-on in turn, until the skin is left or the guard changes hands,
+    handing each answer to the service as it's clicked. Only Switch off or Keep both
+    count: Not now, Back or a close by Kodi asks again next time.
 
     :param unasked: Add-on ids to ask about.
     :param token: The guard's value this check set.
     :param skin: The skin's folder when this check began.
-    :return: Each answer clicked: id: True to switch it off.
     """
     title = infolabel(f"System.AddonTitle({skin})")
-    answers = {}
     for addon_id in unasked:
         if not _current(token, skin):
             break
@@ -214,8 +212,7 @@ def _ask(unasked: list[str], token: str, skin: str) -> dict:
         )
         # No button pressed (a quit, a skin reload, Dialog.Close) reads as no (0)
         if answer > 0:
-            answers[addon_id] = answer == 1
-    return answers
+            notify(ANSWERS, {addon_id: answer == 1})
 
 
 def check() -> None:
@@ -235,8 +232,7 @@ def check() -> None:
         if not _unasked(_load()["answers"]) or not _settled(token, skin):
             return
         # Read again after the wait: a reset may land meanwhile
-        if answers := _ask(_unasked(_load()["answers"]), token, skin):
-            notify(ANSWERS, answers)
+        _ask(_unasked(_load()["answers"]), token, skin)
     finally:
         if home.getProperty(ASKING) == token:
             home.clearProperty(ASKING)
