@@ -95,7 +95,8 @@ def _settled() -> bool:
 def check() -> None:
     """
     In a skin using the helper: apply the answers given, then, once Home settles, ask
-    about each add-on not asked about yet. Back leaves it to be asked next time.
+    about each add-on not asked about yet. Only a click on Switch off or Keep both is
+    kept: Not now, Back or a close by Kodi asks again next time.
     """
     if not condition(ACTIVE):
         return
@@ -108,11 +109,12 @@ def check() -> None:
         answer = xbmcgui.Dialog().yesnocustom(
             names["addon"],
             ADDON.getLocalizedString(CLASHES[addon_id][1]) % names,
-            "",  # no third button
-            ADDON.getLocalizedString(32235),
-            ADDON.getLocalizedString(32234),
+            ADDON.getLocalizedString(32235),  # custom (2): Keep both
+            ADDON.getLocalizedString(32239),  # no (0): Not now
+            ADDON.getLocalizedString(32234),  # yes (1): Switch off
         )
-        if answer >= 0:
+        # No button pressed (a quit, a skin reload, Dialog.Close) reads as no (0)
+        if answer > 0:
             state["answers"][addon_id] = answer == 1
     _apply(state)
 

@@ -208,7 +208,8 @@ the skin. For each add-on that is enabled while a feature it clashes with is on:
 
 - **Not asked about yet:** once Home has been on top for 2 seconds with no dialog over
   it or the screensaver, a yes/no names the add-on and the skin. *Switch off* switches
-  it off (Kodi stops its service with it); *Keep both* leaves it. Back asks again the
+  it off (Kodi stops its service with it); *Keep both* leaves it. *Not now*, Back, or
+  the question closing without a click (Kodi quitting, a skin reload) asks again the
   next time. If the skin is left first, nothing is asked.
 - ***Switch off* chosen:** it is switched off again without asking, also if the user
   switched it back on meanwhile.
