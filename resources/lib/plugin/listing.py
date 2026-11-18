@@ -6,22 +6,18 @@ from urllib.parse import urlencode
 from xbmc import getLocalizedString
 from xbmcgui import ListItem
 
-from resources.lib.shared.utilities import (
-    ADDON,
-    ADDON_ID,
-    infolabel,
-    set_plugincontent,
-)
+from resources.lib.shared.utilities import ADDON, infolabel, set_plugincontent
 
 _SEED = {"randomise": "Window(home).Property(random_seed)"}
-# The add-on's own directory: a folder per group, Kodi's string and icon, and in each
-# a folder per Home rail the helper lists with no input: (add-on string, the rail's
-# icon, its path's params, params read when the group lists, as the rail's $INFO).
+# The add-on's own directory: a folder per group (Kodi's string, Kodi's icon for it),
+# and in each a folder per Home rail the helper lists with no input: (add-on string,
+# the rail's icon, its path's params, params read when the group lists, as the rail's
+# $INFO).
 # Random rows take the rails' default length; the rest list whole.
 GROUPS = {
     "video": (
         3,
-        "DefaultAddonVideo.png",
+        "DefaultVideo.png",
         (
             (32601, "SpinnerGap", {"info": "in_progress"}, {}),
             (32600, "FastForward", {"info": "next_up"}, {}),
@@ -48,7 +44,7 @@ GROUPS = {
     ),
     "music": (
         2,
-        "DefaultAddonMusic.png",
+        "DefaultAudio.png",
         (
             (
                 32826,
@@ -129,14 +125,14 @@ class PluginListing(object):
         self, label: str, icon: str, params: dict[str, str]
     ) -> tuple[str, ListItem, bool]:
         """
-        A folder item with no info tag, so skins read it as a plain folder.
+        A folder item with no info tag and no thumb, so skins read it as a plain
+        folder and draw its own icon.
 
         :param label: Display label for the ListItem.
-        :param icon: Its icon; the add-on's icon is its thumb.
+        :param icon: Its icon.
         :param params: The plugin URL's params.
         :return: (url, ListItem, True).
         """
-        thumb = f"special://home/addons/{ADDON_ID}/resources/icon.png"
         li_item = ListItem(label=label, offscreen=True)
-        li_item.setArt({"icon": icon, "thumb": thumb})
+        li_item.setArt({"icon": icon})
         return (self._encode_url(**params), li_item, True)

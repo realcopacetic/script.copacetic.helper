@@ -154,15 +154,18 @@ class Directory(unittest.TestCase):
             items, list_item, _, _ = self.build("music")
         self.assertNotIn("randomise", self.folders(items, list_item)["Rediscover"])
 
-    def test_art_the_rails_icon_and_the_add_ons_thumb(self):
+    def test_art_an_icon_alone_the_rails_or_the_groups(self):
+        # no thumb: Copacetic's art cell falls back to ListItem.ActualIcon's glyph
         _, list_item, _, _ = self.build("video")
-        art = list_item.return_value.setArt.call_args_list[0].args[0]
+        arts = [call.args[0] for call in list_item.return_value.setArt.call_args_list]
         self.assertEqual(
-            art,
-            {
-                "icon": "icons/SpinnerGap.png",
-                "thumb": "special://home/addons/script.copacetic.helper/resources/icon.png",
-            },
+            arts[:2],
+            [{"icon": "icons/SpinnerGap.png"}] + [{"icon": "icons/FastForward.png"}],
+        )
+        _, list_item, _, _ = self.build()
+        arts = [call.args[0] for call in list_item.return_value.setArt.call_args_list]
+        self.assertEqual(
+            arts, [{"icon": "DefaultVideo.png"}, {"icon": "DefaultAudio.png"}]
         )
 
     def test_every_folder_a_handler_that_needs_no_input(self):

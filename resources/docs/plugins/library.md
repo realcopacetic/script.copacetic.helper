@@ -633,7 +633,9 @@ that needs no input, on the path Copacetic's Home rail for it reads, so users ca
 browse them or add them as widgets from Kodi's add-on browser. Neither level runs a
 listing until a folder is opened. The random rows take the rails' default length
 (`limit=20`) and today's `randomise=` seed (`Window(home).Property(random_seed)`);
-`v=` and `day=` are the rails' refetch stamps, read when the group lists.
+`v=` and `day=` are the rails' refetch stamps, read when the group lists. Each folder
+sets only an icon (its rail's glyph; `DefaultVideo.png` and `DefaultAudio.png` for the
+groups), no thumb, so a skin draws that icon.
 
 | Group | Folder | Path (after `?`) |
 |---|---|---|
