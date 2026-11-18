@@ -1,0 +1,1116 @@
+# Kodi Media Center language file
+# Addon Name: Copacetic Helper
+# Addon id: script.copacetic.helper
+# Addon Provider: realcopacetic
+msgid ""
+msgstr ""
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: sv_SE\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+
+
+
+#########################################################################################################
+#: Contents
+
+#: SETTINGS              320XX
+#: SETTINGS HELP         321XX
+#: DIALOGS AND TOASTS    322XX
+#: SCRIPT                324XX
+#: PLUGIN                326XX
+#: WINDOWS AND MENUS     328XX
+#: MUSIC INFO            329XX
+
+
+
+
+#########################################################################################################
+
+#: SETTINGS              320XX
+# Labels, groups and keyboard headings of the add-on's settings
+
+#########################################################################################################
+
+#. The skin's name, heading the helper's toasts: do not translate.
+#: /resources/lib/script/actions.py
+#: /resources/lib/shared/utilities.py
+msgctxt "#32000"
+msgid "Copacetic"
+msgstr "Copacetic"
+
+#: /resources/settings.xml
+msgctxt "#32001"
+msgid "Troubleshooting"
+msgstr "Felsökning"
+
+#: /resources/settings.xml
+msgctxt "#32002"
+msgid "Logs"
+msgstr "Loggar"
+
+#: /resources/settings.xml
+msgctxt "#32003"
+msgid "Enable extra debug logs"
+msgstr "Aktivera extra felsökningsloggar"
+
+#: /resources/settings.xml
+msgctxt "#32004"
+msgid "Include json call/response logs"
+msgstr "Inkludera loggar för JSON-anrop/svar"
+
+#: /resources/settings.xml
+msgctxt "#32005"
+msgid "Developers"
+msgstr "Utvecklare"
+
+#: /resources/settings.xml
+msgctxt "#32006"
+msgid "Dev mode"
+msgstr "Utvecklarläge"
+
+#: /resources/settings.xml
+msgctxt "#32007"
+msgid "Enable Dev mode"
+msgstr "Aktivera utvecklarläge"
+
+#. A settings category: the web services the helper can ask.
+#: /resources/settings.xml
+msgctxt "#32008"
+msgid "API"
+msgstr "API"
+
+#. A web service's name: do not translate.
+#: /resources/settings.xml
+msgctxt "#32009"
+msgid "TMDB"
+msgstr "TMDB"
+
+#: /resources/settings.xml
+msgctxt "#32010"
+msgid "TMDB access token"
+msgstr "TMDB-åtkomsttoken"
+
+#. A keyboard's heading.
+#: /resources/settings.xml
+msgctxt "#32011"
+msgid "Enter a TMDB v3 API Key or v4 API Read Access Token"
+msgstr "Ange en TMDB v3 API-nyckel eller v4-läsåtkomsttoken"
+
+#: /resources/settings.xml
+msgctxt "#32012"
+msgid "Reset on next start"
+msgstr "Återställ vid nästa start"
+
+#: /resources/settings.xml
+msgctxt "#32013"
+msgid "Rebuild now"
+msgstr "Bygg om nu"
+
+#: /resources/settings.xml
+msgctxt "#32014"
+msgid "Test TMDB access"
+msgstr "Testa TMDB-åtkomst"
+
+#: /resources/settings.xml
+msgctxt "#32015"
+msgid "TMDB language"
+msgstr "TMDB-språk"
+
+#. A keyboard's heading.
+#: /resources/settings.xml
+msgctxt "#32016"
+msgid "Enter a TMDB language code"
+msgstr "Ange en TMDB-språkkod"
+
+#: /resources/settings.xml
+msgctxt "#32017"
+msgid "Cache"
+msgstr "Cache"
+
+#. A web service's name: do not translate.
+#: /resources/settings.xml
+msgctxt "#32018"
+msgid "ListenBrainz"
+msgstr "ListenBrainz"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+#: /resources/lib/shared/utilities.py
+msgctxt "#32019"
+msgid "Clear add-on cache"
+msgstr "Töm tilläggets cache"
+
+#: /resources/settings.xml
+msgctxt "#32020"
+msgid "Include verbose builder logs"
+msgstr "Inkludera utförliga byggloggar"
+
+#: /resources/settings.xml
+msgctxt "#32021"
+msgid "ListenBrainz user token"
+msgstr "ListenBrainz-användartoken"
+
+#. A keyboard's heading.
+#: /resources/settings.xml
+msgctxt "#32022"
+msgid "Enter your ListenBrainz user token"
+msgstr "Ange din ListenBrainz-användartoken"
+
+#: /resources/settings.xml
+msgctxt "#32023"
+msgid "Test ListenBrainz access"
+msgstr "Testa ListenBrainz-åtkomst"
+
+#: /resources/settings.xml
+msgctxt "#32024"
+msgid "Library"
+msgstr "Bibliotek"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32025"
+msgid "Clear artist or album artwork"
+msgstr "Rensa artist- eller albumbilder"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32027"
+msgid "Remove broken artwork"
+msgstr "Ta bort trasiga bilder"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32028"
+msgid "Clean image cache"
+msgstr "Töm bildcachen"
+
+#. A choice in a select dialog headed #32025.
+#: /resources/lib/script/actions.py
+msgctxt "#32029"
+msgid "Online artwork only (local files take its place)"
+msgstr "Endast onlinebilder (lokala filer ersätter dem)"
+
+#. A choice in a select dialog headed #32025.
+#: /resources/lib/script/actions.py
+msgctxt "#32030"
+msgid "All artwork"
+msgstr "Alla bilder"
+
+#. %s is Kodi's own "Artists" or "Albums". "Change information provider" is Kodi's #20195 and "Set
+#. for all shown" stands for its #38065 and #38067: follow Kodi's translation of them. Keep %s; write a literal % as %%.
+#: /resources/lib/script/actions.py
+msgctxt "#32031"
+msgid "Remove the online artwork from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
+msgstr "Vill du ta bort onlinebilderna från allt i listan %s i Kodi? En artist förlorar också sin diskografi och sina musikvideolänkar tills den uppdateras. Uppdatera sedan alla: Ändra informationsleverantör → Ange för alla visade."
+
+#. %s is Kodi's own "Artists" or "Albums". "Change information provider" is Kodi's #20195 and "Set
+#. for all shown" stands for its #38065 and #38067: follow Kodi's translation of them. Keep %s; write a literal % as %%.
+#: /resources/lib/script/actions.py
+msgctxt "#32032"
+msgid "Remove all the artwork (embedded covers stay) from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
+msgstr "Vill du ta bort alla bilder (inbäddade omslag finns kvar) från allt i listan %s i Kodi? En artist förlorar också sin diskografi och sina musikvideolänkar tills den uppdateras. Uppdatera sedan alla: Ändra informationsleverantör → Ange för alla visade."
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32033"
+msgid "Clear TMDB data"
+msgstr "Rensa TMDB-data"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32034"
+msgid "Clear ListenBrainz data"
+msgstr "Rensa ListenBrainz-data"
+
+#. %s is a web service's name: TMDB, ListenBrainz, Deezer, TheIntroDB or LRCLIB.
+#: /resources/lib/script/actions.py
+msgctxt "#32035"
+msgid "Forget every saved %s answer? Each is fetched again when next shown."
+msgstr "Vill du glömma alla sparade svar från %s? Vart och ett hämtas igen när det visas nästa gång."
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32036"
+msgid "Clear Deezer data"
+msgstr "Rensa Deezer-data"
+
+#. A web service's name: do not translate.
+#: /resources/settings.xml
+msgctxt "#32037"
+msgid "Deezer"
+msgstr "Deezer"
+
+#: /resources/settings.xml
+msgctxt "#32038"
+msgid "Rank music with Deezer"
+msgstr "Rangordna musik med Deezer"
+
+#. A web service's name: do not translate.
+#: /resources/settings.xml
+msgctxt "#32039"
+msgid "TheIntroDB"
+msgstr "TheIntroDB"
+
+#: /resources/settings.xml
+msgctxt "#32040"
+msgid "Find intros and credits with TheIntroDB"
+msgstr "Hitta intron och eftertexter med TheIntroDB"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32041"
+msgid "Clear TheIntroDB data"
+msgstr "Rensa TheIntroDB-data"
+
+#. A web service's name: do not translate.
+#: /resources/settings.xml
+msgctxt "#32042"
+msgid "LRCLIB"
+msgstr "LRCLIB"
+
+#: /resources/settings.xml
+msgctxt "#32043"
+msgid "Find lyrics with LRCLIB"
+msgstr "Hitta låttexter med LRCLIB"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32044"
+msgid "Clear LRCLIB data"
+msgstr "Rensa LRCLIB-data"
+
+#: /resources/settings.xml
+msgctxt "#32045"
+msgid "Other add-ons"
+msgstr "Andra tillägg"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32046"
+msgid "Ask again about add-ons that clash"
+msgstr "Fråga igen om tillägg som krockar"
+
+
+
+
+#########################################################################################################
+
+#: SETTINGS HELP         321XX
+# Help text under a setting: id = the setting's label id + 100
+
+#########################################################################################################
+
+#: /resources/settings.xml
+msgctxt "#32103"
+msgid "Diagnostic and informational logs will be included in the Kodi log file to help troubleshooting."
+msgstr "Diagnostik- och informationsloggar tas med i Kodis loggfil för att underlätta felsökning."
+
+#: /resources/settings.xml
+msgctxt "#32104"
+msgid "Whenever Kodi's internal database is queried by the add-on using JSON-RPC, the queries and responses will also be logged."
+msgstr "När tillägget frågar Kodis interna databas via JSON-RPC loggas även frågorna och svaren."
+
+#: /resources/settings.xml
+msgctxt "#32107"
+msgid "This will force all skin builder files to be rebuilt every time Kodi starts."
+msgstr "Tvingar alla skalets byggfiler att byggas om varje gång Kodi startar."
+
+#. Keep themoviedb.org as it is.
+#: /resources/settings.xml
+msgctxt "#32110"
+msgid "Adds TV creators, trailers, missing plots and taglines, and extra art. Paste your own v3 API key or v4 read access token from themoviedb.org. Sends the item's TMDB ID to TMDB. Empty: nothing sent."
+msgstr "Lägger till TV-skapare, trailers, saknade handlingar och taglines samt extra bilder. Klistra in din egen v3 API-nyckel eller v4-läsåtkomsttoken från themoviedb.org. Skickar objektets TMDB-ID till TMDB. Tomt: inget skickas."
+
+#. runtime_state is a file's name: keep it as it is.
+#: /resources/settings.xml
+msgctxt "#32112"
+msgid "Clears runtime_state and all builder outputs of the skin you turn this on in, next time that skin starts, then rebuilds from defaults. The toggle reverts itself once applied. To move it to another skin, turn it off and press OK, then turn it on again."
+msgstr "Rensar runtime_state och alla byggutdata för skalet du slår på detta i, nästa gång det skalet startar, och bygger sedan om från standardvärden. Reglaget återställer sig självt när det har tillämpats. För att flytta det till ett annat skal: slå av det och tryck OK, och slå sedan på det igen."
+
+#. runtime_state is a file's name: keep it as it is.
+#: /resources/settings.xml
+msgctxt "#32113"
+msgid "Rebuild all skin output files immediately and reload the skin. Preserves runtime_state."
+msgstr "Bygg om alla skalets utdatafiler direkt och ladda om skalet. Behåller runtime_state."
+
+#: /resources/settings.xml
+msgctxt "#32114"
+msgid "Verify the current token by making a test request and report the result."
+msgstr "Verifiera nuvarande token med en testbegäran och rapportera resultatet."
+
+#. Keep the codes 'en-US', 'fr-FR' and 'de-DE' as they are.
+#: /resources/settings.xml
+msgctxt "#32115"
+msgid "Language code for TMDB metadata, e.g. 'en-US', 'fr-FR', 'de-DE'."
+msgstr "Språkkod för TMDB-metadata, t.ex. 'en-US', 'fr-FR', 'de-DE'."
+
+#: /resources/settings.xml
+msgctxt "#32119"
+msgid "Delete all processed artwork (blurred, cropped, text images), reset the artwork lookup database, and forget saved web service answers (TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB), the daily mix cards' kept mixes and saved text truncations. Asks first. Source artwork is unaffected."
+msgstr "Radera alla bearbetade bilder (suddade, beskurna, textbilder), återställ bilduppslagsdatabasen och glöm sparade svar från webbtjänster (TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB), de dagliga mixkortens sparade mixar och sparade textavkortningar. Frågar först. Källbilderna påverkas inte."
+
+#: /resources/settings.xml
+msgctxt "#32120"
+msgid "Logs every per-item builder operation (default applications, fallback resolutions). Very noisy — only useful when debugging template/mapping issues."
+msgstr "Loggar varje byggåtgärd per objekt (standardtillämpningar, reservupplösningar). Mycket pratigt — bara användbart vid felsökning av mall-/mappningsproblem."
+
+#. "Top songs", "Discography" and "Start mix" (#32821) are the skin's and the helper's own labels:
+#. use their translations. Keep listenbrainz.org/settings.
+#: /resources/settings.xml
+msgctxt "#32121"
+msgid "Adds Top songs, Discography popularity order and similar artists (the similar rails, Start mix, the endless queue and daily mixes). Paste the token from listenbrainz.org/settings. Sends the artist's MusicBrainz ID and token to ListenBrainz. Empty: nothing sent."
+msgstr "Lägger till Topplåtar, popularitetsordning för Diskografi och liknande artister (liknande-raderna, Starta mix, den oändliga kön och dagliga mixar). Klistra in token från listenbrainz.org/settings. Skickar artistens MusicBrainz-ID och token till ListenBrainz. Tomt: inget skickas."
+
+#: /resources/settings.xml
+msgctxt "#32125"
+msgid "Remove the current artwork of every artist or album in Kodi's list, so refreshing them all fills it again from the folders and the information provider. Image files are not touched."
+msgstr "Ta bort nuvarande bilder för alla artister eller album i Kodis lista, så att de fylls på igen från mapparna och informationsleverantören när alla uppdateras. Bildfiler rörs inte."
+
+#. "Asks first": the action shows a yes/no question before it removes anything.
+#: /resources/settings.xml
+msgctxt "#32127"
+msgid "Check every artwork link of artists, albums, movies, sets, TV shows and seasons, then remove the dead ones (web images no longer there, files moved or deleted). Run it on a device whose share login can read every art folder. Asks first; an artist it changes loses its discography and music video links until refreshed."
+msgstr "Kontrollera alla bildlänkar för artister, album, filmer, samlingar, TV-serier och säsonger, och ta sedan bort de döda (webbilder som inte längre finns, filer som flyttats eller raderats). Kör det på en enhet vars delningsinloggning kan läsa alla bildmappar. Frågar först; en artist som ändras förlorar sin diskografi och sina musikvideolänkar tills den uppdateras."
+
+#: /resources/settings.xml
+msgctxt "#32128"
+msgid "Remove this device's cached copies of images that no library item uses and that haven't been shown for 30 days. Asks first. Each Kodi device keeps its own cache."
+msgstr "Ta bort enhetens cachade kopior av bilder som inget biblioteksobjekt använder och som inte har visats på 30 dagar. Frågar först. Varje Kodi-enhet har sin egen cache."
+
+#. "Refresh cached data" is string #32835: use the same words.
+#: /resources/settings.xml
+msgctxt "#32133"
+msgid "Forget every saved TMDB answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
+msgstr "Glöm alla sparade TMDB-svar (detaljer, rollista, bildlänkar), så att vart och ett hämtas igen när det visas nästa gång. Ett objekt: Uppdatera cachad data i dess innehållsmeny."
+
+#. "Refresh cached data" is string #32835: use the same words.
+#: /resources/settings.xml
+msgctxt "#32134"
+msgid "Forget every saved ListenBrainz answer (top songs, similar artists), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
+msgstr "Glöm alla sparade ListenBrainz-svar (topplåtar, liknande artister), så att vart och ett hämtas igen när det visas nästa gång. En artist: Uppdatera cachad data i dess innehållsmeny."
+
+#. "Refresh cached data" is string #32835: use the same words.
+#: /resources/settings.xml
+msgctxt "#32136"
+msgid "Forget every saved Deezer answer (matched artists, top tracks, similar artists, today's chart), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
+msgstr "Glöm alla sparade Deezer-svar (matchade artister, topplåtar, liknande artister, dagens topplista), så att vart och ett hämtas igen när det visas nästa gång. En artist: Uppdatera cachad data i dess innehållsmeny."
+
+#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your most played album"
+#. (#32994), "Your #2 song" (#32993) and "Start mix" (#32821) are the helper's own labels: use the
+#. same words as those strings.
+#: /resources/settings.xml
+msgctxt "#32138"
+msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your most played album or Your #2 song from your plays."
+msgstr "Ordnar Topplåtar och Diskografi (Popularitet) efter vad som strömmas på Deezer just nu, ensamt eller sammanvägt med ListenBrainz; hittar liknande artister (liknande-raderna, Starta mix, den oändliga kön och dagliga mixar); märker musikinfo med På listan eller Populär. Skickar artistens namn till Deezer och hämtar dess topplista en gång om dagen; inget konto behövs. Av: inget skickas, och musikinfo visar Din artist #3, Ditt mest spelade album eller Din låt #2 utifrån dina spelningar."
+
+#. "Play next" is the skin's own label. Keep theintrodb.org as it is.
+#: /resources/settings.xml
+msgctxt "#32140"
+msgid "Where a library movie's or episode's intro, recap and credits are, for the skin's skip button and Play next. Times come from TheIntroDB (theintrodb.org), sent the movie's or show's ids and the episode's number; no account needed. Off: nothing sent, and only chapters are used."
+msgstr "Var en biblioteksfilms eller ett avsnitts intro, resumé och eftertexter finns, för skalets hoppa över-knapp och Spela nästa. Tiderna kommer från TheIntroDB (theintrodb.org), som får filmens eller seriens id:n och avsnittets nummer; inget konto behövs. Av: inget skickas, och bara kapitel används."
+
+#. "Refresh cached data" is string #32835: use the same words.
+#: /resources/settings.xml
+msgctxt "#32141"
+msgid "Forget every saved TheIntroDB answer (intro, recap and credits times), so each is fetched again when next played. One movie or show: Refresh cached data in its context menu."
+msgstr "Glöm alla sparade TheIntroDB-svar (tider för intro, resumé och eftertexter), så att vart och ett hämtas igen när det spelas nästa gång. En film eller serie: Uppdatera cachad data i dess innehållsmeny."
+
+#. Keep .lrc and lrclib.net as they are.
+#: /resources/settings.xml
+msgctxt "#32143"
+msgid "Lyrics for the playing song, when it has no .lrc file beside it and none in its tags, for the skin's lyrics. They come from LRCLIB (lrclib.net), sent the song's title, artist, album and length. The next song in the queue is asked ahead too, even when it has lyrics of its own. No account needed. Off: nothing sent, and only .lrc files and tags are used."
+msgstr "Låttexter för låten som spelas, när den saknar .lrc-fil bredvid sig och text i taggarna, för skalets låttexter. De kommer från LRCLIB (lrclib.net), som får låtens titel, artist, album och längd. Nästa låt i kön efterfrågas också i förväg, även när den har egna låttexter. Inget konto behövs. Av: inget skickas, och bara .lrc-filer och taggar används."
+
+#: /resources/settings.xml
+msgctxt "#32144"
+msgid "Forget every saved LRCLIB answer (song lyrics), so each is fetched again when next played."
+msgstr "Glöm alla sparade LRCLIB-svar (låttexter), så att vart och ett hämtas igen när det spelas nästa gång."
+
+#: /resources/settings.xml
+msgctxt "#32146"
+msgid "Switches back on each add-on the helper switched off for doing a job the skin already does (lyrics, next episode prompts, skip buttons), and asks about each again once Home is shown."
+msgstr "Slår på igen varje tillägg som hjälptillägget slog av för att det gjorde något skalet redan gör (låttexter, frågor om nästa avsnitt, hoppa över-knappar), och frågar om vart och ett igen när Hem visas."
+
+
+
+
+#########################################################################################################
+
+#: DIALOGS AND TOASTS    322XX
+# Questions, progress text and toasts of the settings' actions
+
+#########################################################################################################
+
+#. %s is a size, e.g. "1.2 MB". A toast (one line, cut if long): keep it short. Keep %s; write a literal % as %%.
+#: /resources/lib/shared/utilities.py
+msgctxt "#32201"
+msgid "Cache cleared, %s freed"
+msgstr "Cache tömd, %s frigjort"
+
+#. A toast under an add-on's id, after it is switched off.
+#: /resources/lib/script/actions.py
+msgctxt "#32205"
+msgid "Disabled"
+msgstr "Inaktiverad"
+
+#. A toast under an add-on's id, after it is switched on.
+#: /resources/lib/script/actions.py
+msgctxt "#32206"
+msgid "Enabled"
+msgstr "Aktiverad"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32207"
+msgid "Skin reset and rebuilt"
+msgstr "Skalet återställt och ombyggt"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32208"
+msgid "No TMDB token set"
+msgstr "Ingen TMDB-token angiven"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32209"
+msgid "TMDB token valid"
+msgstr "TMDB-token giltig"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32210"
+msgid "TMDB test failed — check token and network"
+msgstr "TMDB-test misslyckades — kontrollera token och nätverk"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32211"
+msgid "Skin rebuilt"
+msgstr "Skalet ombyggt"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32212"
+msgid "No ListenBrainz token set"
+msgstr "Ingen ListenBrainz-token angiven"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32213"
+msgid "ListenBrainz token valid"
+msgstr "ListenBrainz-token giltig"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32214"
+msgid "ListenBrainz test failed — check token and network"
+msgstr "ListenBrainz-test misslyckades — kontrollera token och nätverk"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/shared/utilities.py
+msgctxt "#32215"
+msgid "Skin build failed — check the log"
+msgstr "Skalbygget misslyckades — se loggen"
+
+#. %d is a number of artists or albums. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32216"
+msgid "Artwork cleared for %d items"
+msgstr "Bilder rensade för %d objekt"
+
+#. First %d: a number of images; second %d: a number of library items. %s is empty, or a space and
+#. string #32228 in its brackets: keep it straight after the items, before the full stop. "Show song
+#. and album artists" is Kodi's #13414: follow Kodi's translation; \" is a quotation mark.
+#: /resources/lib/script/actions.py
+msgctxt "#32218"
+msgid "Found %d broken images on %d items%s. Remove them? An artist also loses its discography and music video links until refreshed (song-only artists need \"Show song and album artists\" on)."
+msgstr "Hittade %d trasiga bilder på %d objekt%s. Ta bort dem? En artist förlorar också sin diskografi och sina musikvideolänkar tills den uppdateras (artister med bara låtar kräver att \"Visa låt och albumartister\" är på)."
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32219"
+msgid "No broken artwork found"
+msgstr "Inga trasiga bilder hittades"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32220"
+msgid "No internet connection, nothing removed"
+msgstr "Ingen internetanslutning, inget borttaget"
+
+#. %d is a number of images. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32221"
+msgid "Removed %d broken images"
+msgstr "Tog bort %d trasiga bilder"
+
+#. %d is a number of images and %.0f their size in megabytes: keep both exactly (%.0f prints a whole
+#. number).
+#: /resources/lib/script/actions.py
+msgctxt "#32222"
+msgid "Found %d cached images (%.0f MB) that nothing has used for 30 days. Remove them?"
+msgstr "Hittade %d cachade bilder (%.0f MB) som inget har använt på 30 dagar. Ta bort dem?"
+
+#. %d is a number of images. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32223"
+msgid "Removed %d cached images"
+msgstr "Tog bort %d cachade bilder"
+
+#. A progress dialog's line.
+#: /resources/lib/script/actions.py
+msgctxt "#32224"
+msgid "Reading the library…"
+msgstr "Läser biblioteket…"
+
+#. %d is a number of images. A progress dialog's line.
+#: /resources/lib/script/actions.py
+msgctxt "#32225"
+msgid "Checking %d images…"
+msgstr "Kontrollerar %d bilder…"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32226"
+msgid "Nothing to clean"
+msgstr "Inget att städa"
+
+#. %s is a list of server names, e.g. "nas.local, 192.168.1.5"; %d is a number of images.
+#: /resources/lib/script/actions.py
+msgctxt "#32227"
+msgid "No longer found by name: %s, for %d images. Include those images? Say no if any is a server only your network knows."
+msgstr "Hittas inte längre via namn: %s, för %d bilder. Ta med de bilderna? Svara nej om någon är en server som bara ditt nätverk känner till."
+
+#. %d is a number of artwork links. Shown after #32218, #32219, #32221 or #32229, so it stays in
+#. brackets and starts in lower case.
+#: /resources/lib/script/actions.py
+msgctxt "#32228"
+msgid "(%d skipped: their server didn't answer)"
+msgstr "(%d hoppades över: deras server svarade inte)"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32229"
+msgid "Nothing removed"
+msgstr "Inget borttaget"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32230"
+msgid "Cleared"
+msgstr "Rensat"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32231"
+msgid "Fetched again when next shown"
+msgstr "Hämtas igen vid nästa visning"
+
+#. A toast (one line, cut if long): keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32232"
+msgid "Nothing cached for this item"
+msgstr "Inget cachat för det här objektet"
+
+#. "Waveform" is a visualisation add-on's name: do not translate. A toast (one line, cut if long):
+#. keep it short.
+#: /resources/lib/script/actions.py
+msgctxt "#32233"
+msgid "Waveform couldn't be switched on: the background stays as it is"
+msgstr "Waveform kunde inte slås på: bakgrunden förblir som den är"
+
+#. A dialog button: keep it short. Switches the other add-on off (see #32236).
+#: /resources/lib/service/clashes.py
+msgctxt "#32234"
+msgid "Switch off"
+msgstr "Slå av"
+
+#. A dialog button: keep it short. Leaves the other add-on on (see #32236).
+#: /resources/lib/service/clashes.py
+msgctxt "#32235"
+msgid "Keep both"
+msgstr "Behåll båda"
+
+#. %(addon)s is the other add-on's name and %(skin)s the skin's: keep both exactly, with the s after
+#. the bracket.
+#: /resources/lib/service/clashes.py
+msgctxt "#32236"
+msgid "%(addon)s opens its own lyrics over %(skin)s's. Switch it off while you use %(skin)s? It comes back on if you change skin."
+msgstr "%(addon)s visar sina egna låttexter över %(skin)ss. Vill du slå av det medan du använder %(skin)s? Det slås på igen om du byter skal."
+
+#. %(addon)s is the other add-on's name and %(skin)s the skin's: keep both exactly, with the s after
+#. the bracket. "Play next" is the skin's own label.
+#: /resources/lib/service/clashes.py
+msgctxt "#32237"
+msgid "%(addon)s shows its own next episode prompt as well as %(skin)s's Play next. It also covers episodes from other add-ons, which Play next doesn't. Switch it off while you use %(skin)s? It comes back on if you change skin."
+msgstr "%(addon)s visar sin egen fråga om nästa avsnitt utöver %(skin)ss Spela nästa. Det täcker även avsnitt från andra tillägg, vilket Spela nästa inte gör. Vill du slå av det medan du använder %(skin)s? Det slås på igen om du byter skal."
+
+#. %(addon)s is the other add-on's name and %(skin)s the skin's: keep both exactly, with the s after
+#. the bracket.
+#: /resources/lib/service/clashes.py
+msgctxt "#32238"
+msgid "%(addon)s shows its own skip and next episode buttons over %(skin)s's. Switch it off while you use %(skin)s? It comes back on if you change skin."
+msgstr "%(addon)s visar sina egna knappar för att hoppa över och för nästa avsnitt över %(skin)ss. Vill du slå av det medan du använder %(skin)s? Det slås på igen om du byter skal."
+
+#. A dialog button: keep it short. Closes the question, which is asked again later (see #32236).
+#: /resources/lib/service/clashes.py
+msgctxt "#32239"
+msgid "Not now"
+msgstr "Inte nu"
+
+#: /resources/lib/script/actions.py
+msgctxt "#32240"
+msgid "Delete all processed artwork and forget every saved web service answer? Each is made or fetched again when next needed."
+msgstr "Vill du radera alla bearbetade bilder och glömma alla sparade svar från webbtjänster? Vart och ett skapas eller hämtas igen när det behövs nästa gång."
+
+
+
+
+#########################################################################################################
+
+#: SCRIPT                324XX
+# Dialogs a skin opens through RunScript
+
+#########################################################################################################
+
+#. A select dialog's heading.
+#: /resources/lib/script/actions.py
+msgctxt "#32400"
+msgid "Keyboard layout"
+msgstr "Tangentbordslayout"
+
+
+
+
+#########################################################################################################
+
+#: PLUGIN                326XX
+# Names of the rows and lists the plugin serves, and the units it writes
+
+#########################################################################################################
+
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
+msgctxt "#32600"
+msgid "Next up"
+msgstr "Näst på tur"
+
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
+msgctxt "#32601"
+msgid "Continue watching"
+msgstr "Fortsätt titta"
+
+#. The name of a list of items sharing a director with the open one: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32602"
+msgid "Director credits"
+msgstr "Av regissören"
+
+#. The name of a list of items sharing an actor with the open one: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32603"
+msgid "Actor credits"
+msgstr "Med skådespelaren"
+
+#. The name of a list of items sharing a writer with the open one: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32604"
+msgid "Writer credits"
+msgstr "Av författaren"
+
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
+msgctxt "#32605"
+msgid "Random movies"
+msgstr "Slumpade filmer"
+
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
+msgctxt "#32606"
+msgid "Random TV shows"
+msgstr "Slumpade TV-serier"
+
+#. The name of a list of items sharing a genre with the open one: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32607"
+msgid "Genre credits"
+msgstr "Samma genre"
+
+#. The name of a list of items sharing a studio with the open one: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32608"
+msgid "Studio credits"
+msgstr "Samma studio"
+
+#. The name of a list of items sharing an artist with the open one: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32609"
+msgid "Artist credits"
+msgstr "Av artisten"
+
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
+msgctxt "#32610"
+msgid "Random albums"
+msgstr "Slumpade album"
+
+#. The name of a row of items, shown as its heading: keep it short. Movies of one genre, picked at
+#. random.
+#: /resources/lib/plugin/listing.py
+msgctxt "#32611"
+msgid "Random genre - movies"
+msgstr "Slumpad genre - filmer"
+
+#. The name of a row of items, shown as its heading: keep it short. TV shows of one genre, picked at
+#. random.
+#: /resources/lib/plugin/listing.py
+msgctxt "#32612"
+msgid "Random genre - TV shows"
+msgstr "Slumpad genre - TV-serier"
+
+#. The name of a row of items, shown as its heading: keep it short. Albums of one genre, picked at
+#. random.
+#: /resources/lib/plugin/listing.py
+msgctxt "#32613"
+msgid "Random genre - albums"
+msgstr "Slumpad genre - album"
+
+#. The name of a row of items, shown as its heading: keep it short. Artists of one genre, picked at
+#. random.
+#: /resources/lib/plugin/listing.py
+msgctxt "#32614"
+msgid "Random genre - artists"
+msgstr "Slumpad genre - artister"
+
+#. Hours, right after the number in a time left or a runtime: "1h 23m", "1h". Keep it short;
+#. start it with a space if your language puts one there ("1 h 23 min"). Use the same as
+#. the skin's string 31919.
+#: /resources/lib/plugin/helpers.py
+msgctxt "#32615"
+msgid "h"
+msgstr " h"
+
+#. Minutes, right after the number in a time left or a runtime: "1h 23m", "48m". Keep it short;
+#. start it with a space if your language puts one there ("48 min"). Use the same
+#. as the skin's string 31920.
+#: /resources/lib/plugin/helpers.py
+msgctxt "#32616"
+msgid "m"
+msgstr " min"
+
+
+
+
+#########################################################################################################
+
+#: WINDOWS AND MENUS     328XX
+# Content browser, settings editor, context menu, Home's music rows
+
+#########################################################################################################
+
+#. A line in the content browser's list: keep it short.
+#: /resources/lib/windows/browse.py
+msgctxt "#32804"
+msgid "Custom path..."
+msgstr "Anpassad sökväg..."
+
+#. A line in a select dialog, below Kodi's "None": opens a file browser.
+#: /resources/lib/windows/onclick_actions.py
+msgctxt "#32805"
+msgid "Browse..."
+msgstr "Bläddra..."
+
+#. A toast in the content browser (one line, cut if long): keep it short.
+#: /resources/lib/windows/browse.py
+msgctxt "#32806"
+msgid "No picture sources found"
+msgstr "Inga bildkällor hittades"
+
+#. A toast in the content browser (one line, cut if long): keep it short.
+#: /resources/lib/windows/browse.py
+msgctxt "#32807"
+msgid "Can't open this folder"
+msgstr "Kan inte öppna mappen"
+
+#. A line in the content browser's list: keep it short.
+#: /resources/lib/windows/browse.py
+msgctxt "#32809"
+msgid "Use this path"
+msgstr "Använd sökvägen"
+
+#. A line in the content browser's list: keep it short.
+#: /resources/lib/windows/browse.py
+msgctxt "#32810"
+msgid "My playlists"
+msgstr "Mina spellistor"
+
+#. A line in the content browser's list: keep it short.
+#: /resources/lib/windows/browse.py
+msgctxt "#32811"
+msgid "Skin playlists"
+msgstr "Skalets spellistor"
+
+#. A progress dialog's line.
+#: /resources/lib/windows/browse.py
+msgctxt "#32812"
+msgid "Finding playlists..."
+msgstr "Söker spellistor..."
+
+#. A toast in the content browser (one line, cut if long): keep it short.
+#: /resources/lib/windows/browse.py
+msgctxt "#32813"
+msgid "No playlists found"
+msgstr "Inga spellistor hittades"
+
+#. A toast in the content browser (one line, cut if long): keep it short.
+#: /resources/lib/windows/browse.py
+msgctxt "#32814"
+msgid "No favourites found"
+msgstr "Inga favoriter hittades"
+
+#. A progress dialog's line.
+#: /resources/lib/windows/browse.py
+msgctxt "#32815"
+msgid "Getting directory listing..."
+msgstr "Hämtar kataloglistning..."
+
+#. A keyboard's heading.
+#: /resources/lib/windows/browse.py
+msgctxt "#32816"
+msgid "Enter content path"
+msgstr "Ange innehållssökväg"
+
+#. A select dialog's heading.
+#: /resources/lib/windows/browse.py
+msgctxt "#32817"
+msgid "Select content"
+msgstr "Välj innehåll"
+
+#. A line in the content browser's list: keep it short. Opens a list of common shortcuts (Videos,
+#. Movies, Music…).
+#: /resources/lib/windows/browse.py
+msgctxt "#32818"
+msgid "Common"
+msgstr "Vanliga"
+
+#. A line in the content browser's list: keep it short. Opens a list of commands (Reboot, Quit,
+#. Update library…).
+#: /resources/lib/windows/browse.py
+msgctxt "#32819"
+msgid "Kodi commands"
+msgstr "Kodi-kommandon"
+
+#. A context menu item: keep it short. Plays the item's songs in a random order.
+#: /addon.xml
+#: /resources/lib/plugin/music.py
+msgctxt "#32820"
+msgid "Shuffle"
+msgstr "Blanda"
+
+#. A context menu item: keep it short. Plays a mix of songs like the item's.
+#: /addon.xml
+#: /resources/lib/plugin/music.py
+msgctxt "#32821"
+msgid "Start mix"
+msgstr "Starta mix"
+
+#. A context menu item: keep it short. Rates a song as liked.
+#: /addon.xml
+msgctxt "#32822"
+msgid "Like"
+msgstr "Gilla"
+
+#. A context menu item: keep it short. Takes a song's like away.
+#: /addon.xml
+msgctxt "#32823"
+msgid "Unlike"
+msgstr "Sluta gilla"
+
+#. A context menu item: keep it short. "Speed dial" is string #32826: use the same words.
+#: /addon.xml
+msgctxt "#32824"
+msgid "Pin to speed dial"
+msgstr "Fäst på snabbval"
+
+#. A context menu item: keep it short. Takes an item off the speed dial.
+#: /addon.xml
+#: /resources/lib/plugin/music.py
+msgctxt "#32825"
+msgid "Unpin"
+msgstr "Lossa"
+
+#. The name of a row of items, shown as its heading: keep it short. A grid of pinned artists,
+#. albums, songs and playlists.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
+msgctxt "#32826"
+msgid "Speed dial"
+msgstr "Snabbval"
+
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
+msgctxt "#32827"
+msgid "Add a new entry."
+msgstr "Lägg till en ny post."
+
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
+msgctxt "#32828"
+msgid "Move the selected entry up."
+msgstr "Flytta upp vald post."
+
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
+msgctxt "#32829"
+msgid "Move the selected entry down."
+msgstr "Flytta ned vald post."
+
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
+msgctxt "#32830"
+msgid "Delete the selected entry."
+msgstr "Radera vald post."
+
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
+msgctxt "#32831"
+msgid "Reset all entries to defaults."
+msgstr "Återställ alla poster till standard."
+
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
+msgctxt "#32832"
+msgid "Save and close."
+msgstr "Spara och stäng."
+
+#. A yes/no dialog's heading.
+#: /resources/lib/windows/dynamiceditor.py
+msgctxt "#32833"
+msgid "Reset to defaults"
+msgstr "Återställ till standard"
+
+#. \n\n is an empty line between the two sentences: keep it.
+#: /resources/lib/windows/dynamiceditor.py
+msgctxt "#32834"
+msgid "This will reset all entries.\n\nAre you sure you want to continue?"
+msgstr "Detta återställer alla poster.\n\nÄr du säker på att du vill fortsätta?"
+
+#. A context menu item: keep it short. Also heads its toasts (#32231, #32232).
+#: /addon.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32835"
+msgid "Refresh cached data"
+msgstr "Uppdatera cachad data"
+
+#. The name of a row of items, shown as its heading: keep it short. Songs once played often or
+#. liked, not played for 90 days.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
+msgctxt "#32836"
+msgid "Rediscover"
+msgstr "Återupptäck"
+
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32837"
+msgid "Daily mixes"
+msgstr "Dagliga mixar"
+
+#. %s is a music genre, e.g. "Rock mix". A card's title: keep it short.
+#: /resources/lib/plugin/music.py
+msgctxt "#32838"
+msgid "%s mix"
+msgstr "%s-mix"
+
+#. %s is a number of songs. Keep the middle dot (·) with a space on each side. One short line.
+#: /resources/lib/plugin/music.py
+msgctxt "#32839"
+msgid "Daily mix · %s songs"
+msgstr "Daglig mix · %s låtar"
+
+#. First %s: artist names with commas between, e.g. "Blur, Pulp"; second %s: the last name. Reads
+#. "Blur, Pulp and Oasis."
+#: /resources/lib/plugin/music.py
+msgctxt "#32840"
+msgid "%s and %s."
+msgstr "%s och %s."
+
+#. %s is eight artist names with commas between. Reads "Blur, Pulp, … and more."
+#: /resources/lib/plugin/music.py
+msgctxt "#32841"
+msgid "%s and more."
+msgstr "%s med flera."
+
+#. A context menu item: keep it short. For an album.
+#: /addon.xml
+msgctxt "#32842"
+msgid "Mark as played"
+msgstr "Markera som spelad"
+
+#. A context menu item: keep it short. For an album.
+#: /addon.xml
+msgctxt "#32843"
+msgid "Mark as unplayed"
+msgstr "Markera som ospelad"
+
+
+
+
+#########################################################################################################
+
+#: MUSIC INFO            329XX
+# The popularity word on an artist's, album's or song's info
+
+#########################################################################################################
+
+#. %d is a place from 1 to 10 by the user's own plays. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32993"
+msgid "Your #%d song"
+msgstr "Din låt #%d"
+
+#. By the user's own plays. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32994"
+msgid "Your most played album"
+msgstr "Ditt mest spelade album"
+
+#. An artist in today's chart. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32995"
+msgid "Charting"
+msgstr "På listan"
+
+#. An artist with a million fans or more. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32996"
+msgid "Popular"
+msgstr "Populär"
+
+#. %d is a place from 1 to 10 among its artist's songs. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32997"
+msgid "#%d song"
+msgstr "Låt #%d"
+
+#. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32998"
+msgid "Most popular album"
+msgstr "Mest populära album"
+
+#. %d is a place from 1 to 10 by the user's own plays. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32999"
+msgid "Your #%d artist"
+msgstr "Din artist #%d"
