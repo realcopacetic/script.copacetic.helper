@@ -82,7 +82,9 @@ def _apply(state: dict) -> list[str]:
     for addon_id, (feature, _) in CLASHES.items():
         wanted = condition(feature) and answers.get(addon_id)  # None: not asked
         enabled = condition(f"System.AddonIsEnabled({addon_id})")
-        if wanted is None and enabled:
+        if addon_id in off and not condition(f"System.HasAddon({addon_id})"):
+            off.remove(addon_id)  # uninstalled while off: nothing to give back
+        elif wanted is None and enabled:
             unasked.append(addon_id)
         elif wanted and enabled and addon_id in off:
             answers[addon_id] = False
@@ -140,20 +142,20 @@ def _ask(unasked: list[str]) -> dict:
 def check() -> None:
     """
     In a skin using the helper: apply the answers given, then, once Home settles, ask
-    about each add-on not asked about yet; one check asks at a time.
+    about each add-on not asked about yet. One check runs at a time.
     """
-    if not condition(ACTIVE) or not _apply(_load()) or not _settled():
-        return
     home = xbmcgui.Window(10000)
-    if home.getProperty(ASKING):
-        return  # another check asks, from a state read after this one settled
+    if not condition(ACTIVE) or home.getProperty(ASKING):
+        return  # the running check reads the state again once Home settles
     home.setProperty(ASKING, "true")
     try:
-        # Read again: the wait may outlast another check's answers
-        answers = _ask(_apply(_load()))
-        state = _load()
-        state["answers"] |= answers
-        _apply(state)
+        if not _apply(_load()) or not _settled():
+            return
+        state = _load()  # again: features or a reset may have changed meanwhile
+        if answers := _ask(_apply(state)):
+            state["answers"] |= answers
+            # Only after a dialog: a same-frame read (cached) still sees one just off
+            _apply(state)
     finally:
         home.clearProperty(ASKING)
 
@@ -161,10 +163,14 @@ def check() -> None:
 def restore(forget: bool = False) -> None:
     """
     Switch back on every add-on switched off for the skin: in a skin that doesn't use
-    the helper, or to ask again. One Kodi refuses stays listed.
+    the helper, or to ask again. One Kodi refuses stays listed; one uninstalled goes.
 
     :param forget: Forget the answers too, so each is asked again.
     """
     state = _load()
-    off = [addon_id for addon_id in state["off"] if not _enable(addon_id, True)]
+    off = [
+        addon_id
+        for addon_id in state["off"]
+        if condition(f"System.HasAddon({addon_id})") and not _enable(addon_id, True)
+    ]
     _save({"answers": {} if forget else state["answers"], "off": off})

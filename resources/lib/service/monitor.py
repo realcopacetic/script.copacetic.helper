@@ -147,6 +147,7 @@ class Monitor(xbmc.Monitor):
         Thread(target=bake_profiles, daemon=True).start()
         window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial() and "true")
         window_property(ACTIVE_PROPERTY, value="true")
+        window_property(clashes.ASKING)  # a check killed mid-run would block the rest
         self._check_clashes()
 
     def _check_clashes(self) -> None:
