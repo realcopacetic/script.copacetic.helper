@@ -629,11 +629,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return False
         return True
 
+    @property
+    def _prop_suffix(self) -> str:
+        """
+        The artwork serve's window property suffix: _<prop_key>, or none without one.
+        """
+        return f"_{key}" if (key := self.params.get("prop_key")) else ""
+
     def _bridge_props(self) -> list[tuple[str, str]]:
         """
         The artwork serve's art fields and the window properties they are written to.
         """
-        suffix = f"_{key}" if (key := self.params.get("prop_key")) else ""
+        suffix = self._prop_suffix
         return [
             ("background", f"background_blur{suffix}"),
             ("background_darken", f"background_darken{suffix}"),
@@ -645,8 +652,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     ) -> None:
         """
         Publish the playing song's cover size from a player icon_shape serve:
-        cover_small_<prop_key> (under 500 on its short side, or none), then its song,
-        cover_file_<prop_key>. Nothing once the song has moved on (a late serve).
+        cover_small (under 500 on its short side, or none), then its song, cover_file,
+        each _prop_suffix ended. Nothing once the song has moved on (a late serve).
 
         :param art: The serve's art; empty for a song with no art.
         :param played: Player.Filenameandpath when the serve started.
@@ -656,18 +663,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         if not alive() or infolabel("Player.Filenameandpath") != played:
             return
-        key = self.params.get("prop_key", "")
+        suffix = self._prop_suffix
         size = min(to_int(art.get("icon_width"), 0), to_int(art.get("icon_height"), 0))
-        window_property(f"cover_small_{key}", size < 500)
-        window_property(f"cover_file_{key}", played)
+        window_property(f"cover_small{suffix}", size < 500)
+        window_property(f"cover_file{suffix}", played)
 
     @property
     def _scope_prop(self) -> str:
         """
         The window property naming the scope the bridge properties were written for.
         """
-        suffix = f"_{key}" if (key := self.params.get("prop_key")) else ""
-        return f"artwork_scope{suffix}"
+        return f"artwork_scope{self._prop_suffix}"
 
     def _artwork_held(self, lost_to: str = "") -> list[DirectoryItem]:
         """
