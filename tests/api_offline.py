@@ -2147,17 +2147,13 @@ class SeasonsTest(unittest.TestCase):
         {"season": 1, "label": "Season 1"},
     ]
 
-    def seasons(self, path, show_all=False):
-        def rpc(request):
-            if json.loads(request)["method"] == "Settings.GetSettingValue":
-                return json.dumps({"result": {"value": show_all}})
-            return json.dumps({"result": {"seasons": self.rows}})
-
+    def seasons(self, path, show_all=False, rows=None):
+        rpc = lambda request: json.dumps({"result": {"seasons": rows or self.rows}})
         patch(
             self,
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
-            (sys.modules["xbmc"], "getLocalizedString", lambda id: f"#{id}"),
-            (handlers, "getLocalizedString", lambda id: f"#{id}"),
+            (handlers, "condition", lambda expression: show_all),
+            (handlers, "getLocalizedString", lambda id: f"* #{id}"),
             (handlers, "set_items", list),
         )
         return handlers.PluginHandlers({"info": "seasons", "path": path}).seasons()
@@ -2178,6 +2174,11 @@ class SeasonsTest(unittest.TestCase):
         items = self.seasons("videodb://tvshows/titles/7/-1/")
         self.assertEqual(items[0]["properties"]["current"], "true")
         self.assertEqual(len(items), 4)
+
+    def test_no_all_for_one_season(self):
+        one = [{"season": 1, "label": "Season 1"}]
+        items = self.seasons("videodb://tvshows/titles/7/1/", show_all=True, rows=one)
+        self.assertEqual([i["label"] for i in items], ["Season 1"])
 
     def test_flattened_or_other_paths(self):
         # -2 is Kodi's flattened listing: a show with no season folders gets no tabs
