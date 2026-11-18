@@ -78,7 +78,7 @@ _MODAL_OPEN = (
     " + !Window.IsModalDialogTopmost(busydialognocancel)"
 )
 API_SOURCES = {
-    "tmdb": ("TMDb", 32033),
+    "tmdb": ("TMDB", 32033),
     "listenbrainz": ("ListenBrainz", 32034),
     "deezer": ("Deezer", 32036),
     "theintrodb": ("TheIntroDB", 32041),
