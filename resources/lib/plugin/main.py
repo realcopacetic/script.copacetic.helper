@@ -53,9 +53,9 @@ class Main:
         self._additems(fn() or [])
 
     def run_listing(self) -> None:
-        """Emit the default plugin directory (top-level categories)."""
+        """Emit the add-on's own directory: the root, or a group's folders (group=)."""
         log.debug(f"PluginListing initialized")
-        items = PluginListing().build()
+        items = PluginListing().build(self.params.get("group"))
         self._additems(items)
 
     def _additems(self, items: list[tuple]) -> None:

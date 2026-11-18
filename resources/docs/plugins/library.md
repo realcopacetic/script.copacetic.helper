@@ -627,12 +627,30 @@ song's when asked, from the artist's songs.
 
 ## The add-on's own directory
 
-Opening `plugin://script.copacetic.helper/` with no `info=` lists two folders, so
-users can add them as widgets from Kodi's add-on browser:
+Opening `plugin://script.copacetic.helper/` with no `info=` lists two folders, Videos
+(`?group=video`) and Music (`?group=music`). Each holds a plain folder per listing
+that needs no input, on the path Copacetic's Home rail for it reads, so users can
+browse them or add them as widgets from Kodi's add-on browser. Neither level runs a
+listing until a folder is opened. The random rows take the rails' default length
+(`limit=20`) and today's `randomise=` seed (`Window(home).Property(random_seed)`);
+`v=` and `day=` are the rails' refetch stamps, read when the group lists.
 
-| Folder | Path |
-|---|---|
-| Continue watching | `plugin://script.copacetic.helper/?info=in_progress&type=mixed` |
-| Next up | `plugin://script.copacetic.helper/?info=next_up&type=tvshow` |
+| Group | Folder | Path (after `?`) |
+|---|---|---|
+| Videos | Continue watching | `info=in_progress` |
+| Videos | Next up | `info=next_up` |
+| Videos | Random movies | `info=random_movies&exclude_played_days=14&limit=20&randomise=…` |
+| Videos | Random TV shows | `info=random_tvshows&limit=20&randomise=…` |
+| Videos | Random genre - movies | `info=random_genre&type=movie&limit=20&randomise=…` |
+| Videos | Random genre - TV shows | `info=random_genre&type=tvshow&limit=20&randomise=…` |
+| Music | Speed dial | `info=speed_dial&v=…` |
+| Music | Daily mixes | `info=daily_mixes&day=…` |
+| Music | Rediscover | `info=rediscover&limit=20&randomise=…` |
+| Music | Random albums | `info=random_albums&limit=20&randomise=…` |
+| Music | Random genre - albums | `info=random_genre&type=album&limit=20&randomise=…` |
+| Music | Random genre - artists | `info=random_genre&type=artist&limit=20&randomise=…` |
+
+The add-on provides `video`, so Kodi opens it in the Videos window, the Music
+folders too: a song there plays alone, not as a queue.
 
 A plugin path with an `info=` the add-on does not know returns an empty list.

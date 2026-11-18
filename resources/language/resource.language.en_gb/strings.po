@@ -690,6 +690,23 @@ msgctxt "#32826"
 msgid "Speed dial"
 msgstr ""
 
+#: /resources/lib/plugin/listing.py — the add-on's own folders, as the skin's rails
+msgctxt "#32611"
+msgid "Random genre - movies"
+msgstr ""
+
+msgctxt "#32612"
+msgid "Random genre - TV shows"
+msgstr ""
+
+msgctxt "#32613"
+msgid "Random genre - albums"
+msgstr ""
+
+msgctxt "#32614"
+msgid "Random genre - artists"
+msgstr ""
+
 
 
 #########################################################################################################
