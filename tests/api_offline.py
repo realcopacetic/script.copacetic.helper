@@ -2147,11 +2147,17 @@ class SeasonsTest(unittest.TestCase):
         {"season": 1, "label": "Season 1"},
     ]
 
-    def seasons(self, path):
-        rpc = lambda request: json.dumps({"result": {"seasons": self.rows}})
+    def seasons(self, path, show_all=False):
+        def rpc(request):
+            if json.loads(request)["method"] == "Settings.GetSettingValue":
+                return json.dumps({"result": {"value": show_all}})
+            return json.dumps({"result": {"seasons": self.rows}})
+
         patch(
             self,
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (sys.modules["xbmc"], "getLocalizedString", lambda id: f"#{id}"),
+            (handlers, "getLocalizedString", lambda id: f"#{id}"),
             (handlers, "set_items", list),
         )
         return handlers.PluginHandlers({"info": "seasons", "path": path}).seasons()
@@ -2164,10 +2170,18 @@ class SeasonsTest(unittest.TestCase):
         self.assertEqual(items[0]["file"], "videodb://tvshows/titles/7/1/?tvshowid=7")
         self.assertEqual([i["properties"]["current"] for i in items], ["", "true", ""])
 
+    def test_all_first_where_kodi_shows_it_or_it_is_listed(self):
+        items = self.seasons("videodb://tvshows/titles/7/1/?tvshowid=7", show_all=True)
+        self.assertEqual(items[0]["label"], "#20366")
+        self.assertEqual(items[0]["file"], "videodb://tvshows/titles/7/-1/?tvshowid=7")
+        self.assertEqual([i["properties"]["current"] for i in items][:2], ["", "true"])
+        items = self.seasons("videodb://tvshows/titles/7/-1/")
+        self.assertEqual(items[0]["properties"]["current"], "true")
+        self.assertEqual(len(items), 4)
+
     def test_flattened_or_other_paths(self):
-        # -2 is Kodi's flattened listing: no tab is current
-        items = self.seasons("videodb://tvshows/titles/7/-2/")
-        self.assertFalse(any(i["properties"]["current"] for i in items))
+        # -2 is Kodi's flattened listing: a show with no season folders gets no tabs
+        self.assertIsNone(self.seasons("videodb://tvshows/titles/7/-2/"))
         self.assertIsNone(self.seasons("videodb://recentlyaddedepisodes/"))
         self.assertIsNone(self.seasons(""))
 
