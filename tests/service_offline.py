@@ -5,7 +5,8 @@ still start; helper_speed_dial follows the skin naming info=speed_dial; each ski
 keeps its own runtime state; a script rebuild sets and clears helper_reloading, and
 the editor close and delete_orphans reload only when the build wrote (or for a host
 open once the session has closed), else clear it. Under the screensaver only lyrics
-follow, while audio plays. played_version moves only for a counted play.
+follow, while audio plays. played_version moves only for a counted play. A trailer
+request that lands under a modal is dropped.
 Run from the helper root: python tests/service_offline.py
 """
 
@@ -753,6 +754,41 @@ class MultiLanguageSubtitles(unittest.TestCase):
                 ):
                     actions.player_stream("subtitle", lang="eng|jpn")
         self.assertEqual(shown, [2, 1, None])  # English, then Japanese, then off
+
+
+class TrailerUnderAModal(unittest.TestCase):
+    """A play_trailer that lands under a modal is dropped and unstamps its item."""
+
+    def request(self, modal: bool, window: str, stamp: str = "Heat") -> tuple:
+        props, flights = {"trailer_played_item": stamp}, []
+        with (
+            patch.object(
+                actions, "condition", lambda c: modal and c == actions._MODAL_OPEN
+            ),
+            patch.object(
+                actions,
+                "infolabel",
+                lambda label: props.get(label[len("Window(home).Property(") : -1], ""),
+            ),
+            patch.object(
+                actions, "window_property", lambda k, value="": props.update({k: value})
+            ),
+            patch.object(actions, "start_flight", flights.append),
+        ):
+            actions.play_trailer("t.mp4", item="Heat", window=window)
+        return props.get("trailer_played_item"), props.get("trailer_state"), flights
+
+    def test_modal_drops_the_request_and_clears_the_stamp(self):
+        self.assertEqual(self.request(True, "videos"), ("", None, []))
+
+    def test_another_items_stamp_stays(self):
+        self.assertEqual(self.request(True, "videos", "Ronin"), ("Ronin", None, []))
+
+    def test_the_info_dialog_and_no_modal_play(self):
+        for modal, window in ((True, "infoscreen"), (False, "videos")):
+            self.assertEqual(
+                self.request(modal, window), ("Heat", "pending", ["t.mp4"])
+            )
 
 
 if __name__ == "__main__":
