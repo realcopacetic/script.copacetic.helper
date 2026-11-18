@@ -138,8 +138,9 @@ python tests/builder_offline.py
 # both, its stop clearing them; the autosave blur (needs Pillow): the newest save
 # picture, a file per picture, the last one dropped, none while Kodi writes it, once
 # per opening of the game OSD and cleared when it closes; the content browser's Game
-# add-ons source, its Games window target (a plugin picked under it too), a standalone
-# game played from a menu item and not offered to a widget. With a skin that has the mapping, its shape and one
+# add-ons source, its Games window target (a plugin picked under it too, and under each
+# other add-on source its own window), a standalone game played from a menu item and
+# not offered to a widget. With a skin that has the mapping, its shape and one
 # emulator of each kind
 python tests/games_offline.py [../skin.copacetic2]
 ```

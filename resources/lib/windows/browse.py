@@ -116,7 +116,7 @@ def _get_addon_sources() -> list[tuple[str, str]]:
         (s["music_addons"], "addons://sources/audio"),
         (s["program_addons"], "addons://sources/executable"),
         (s["picture_addons"], "addons://sources/image"),
-        (s["game_addons"], _GAME_SOURCE),
+        (s["game_addons"], "addons://sources/game"),
     ]
 
 
@@ -359,9 +359,6 @@ _PATH_SCHEMES = (
     "ftp://",
     "upnp://",
 )
-
-# Kodi lists this source's plugins in Games, so a path picked under it opens there.
-_GAME_SOURCE = "addons://sources/game"
 
 # A standalone game in addons://sources/game, a file: Kodi plays it, nothing lists it.
 _GAME_SCHEME = "game://"
@@ -925,8 +922,7 @@ def _browse_addons(
 ) -> tuple[tuple[str, str] | None, str | None]:
     """
     Show the add-on type picker, then browse the chosen source.
-    Returns ((path, label) or None, ``games`` for a pick under the Game add-ons
-    source, else None).
+    Returns ((path, label) or None, the chosen source's content type or None).
     """
     s = _get_strings()
     addon_sources = _get_addon_sources()
@@ -943,7 +939,8 @@ def _browse_addons(
 
         if result is _BACK_SENTINEL:
             continue
-        return result, "games" if path == _GAME_SOURCE else None
+        # Kodi lists a source's plugins in its own window, so a pick takes its type
+        return result, _derive_type(path)
 
 
 def _browse_picture_sources(heading: str) -> tuple[str, str] | None:
