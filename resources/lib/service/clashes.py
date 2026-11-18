@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 from pathlib import Path
+from uuid import uuid4
 
 import xbmc
 import xbmcgui
@@ -25,7 +26,7 @@ CLASHES = {
 }
 STATE = Path(ADDONDATA) / "clashes.json"
 ACTIVE = "!String.IsEmpty(Window(home).Property(helper_active))"  # the service sets it
-ASKING = "helper_clashes_asking"  # Home property: set while a check asks
+ASKING = "helper_clashes_asking"  # Home property: the running check's token
 SETTLED = (
     "Window.IsActive(home) + !System.HasActiveModalDialog + !System.ScreenSaverActive"
 )
@@ -100,15 +101,20 @@ def _apply(state: dict) -> list[str]:
     return unasked
 
 
-def _settled() -> bool:
+def _settled(token: str) -> bool:
     """
     Wait until Home has been on top for 2 s with nothing over it.
 
-    :return: False when Kodi exits or the skin is left first.
+    :param token: The guard's value this check set.
+    :return: False when Kodi exits, the skin is left or the guard changes hands first.
     """
-    monitor, quiet = xbmc.Monitor(), 0
+    monitor, home, quiet = xbmc.Monitor(), xbmcgui.Window(10000), 0
     while quiet < 4:
-        if monitor.waitForAbort(0.5) or not condition(ACTIVE):
+        if (
+            monitor.waitForAbort(0.5)
+            or not condition(ACTIVE)
+            or home.getProperty(ASKING) != token
+        ):
             return False
         quiet = quiet + 1 if condition(SETTLED) else 0
     return True
@@ -147,9 +153,11 @@ def check() -> None:
     home = xbmcgui.Window(10000)
     if not condition(ACTIVE) or home.getProperty(ASKING):
         return  # the running check reads the state again once Home settles
-    home.setProperty(ASKING, "true")
+    # A token, so a check outlived by a helper restart stops and leaves the new guard
+    token = uuid4().hex
+    home.setProperty(ASKING, token)
     try:
-        if not _apply(_load()) or not _settled():
+        if not _apply(_load()) or not _settled(token):
             return
         # Loaded again after each wait: features may change, or a reset write, meanwhile
         if answers := _ask(_apply(_load())):
@@ -158,7 +166,8 @@ def check() -> None:
             # Only after a dialog: a same-frame read (cached) still sees one just off
             _apply(state)
     finally:
-        home.clearProperty(ASKING)
+        if home.getProperty(ASKING) == token:
+            home.clearProperty(ASKING)
 
 
 def restore(forget: bool = False) -> None:

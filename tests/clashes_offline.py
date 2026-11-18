@@ -241,7 +241,7 @@ class Clashes(unittest.TestCase):
     def test_a_check_started_while_another_waits_for_home_leaves_it_to_that_one(self):
         waits = []
 
-        def settled():
+        def settled(token):
             waits.append(None)
             if len(waits) == 1:  # another check starts while this one waits
                 clashes.check()
@@ -252,6 +252,21 @@ class Clashes(unittest.TestCase):
         self.assertEqual(len(waits), 1)
         self.assertEqual(len(self.asked()), 1)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+
+    def test_a_check_outlived_by_a_helper_restart_stops_and_leaves_the_new_guard(self):
+        home = clashes.xbmcgui.Window(10000)
+        self.addCleanup(home.clearProperty, clashes.ASKING)
+
+        def restart(secs):
+            # Within one wait: the service clears the guard, the new check sets its own
+            home.setProperty(clashes.ASKING, "new")
+            return False
+
+        with patch.object(clashes.xbmc, "Monitor") as kodi:
+            kodi.return_value.waitForAbort.side_effect = restart
+            clashes.check()
+        self.assertEqual(self.asked(), [])
+        self.assertEqual(home.getProperty(clashes.ASKING), "new")
 
     def test_the_answer_is_merged_into_the_state_as_it_is_after_the_question(self):
         clashes.check()  # CU LRC switched off
