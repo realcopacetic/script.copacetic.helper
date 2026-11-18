@@ -217,9 +217,11 @@ enabled while a feature it clashes with is on:
   it off (Kodi stops its service with it); *Keep both* leaves it. *Not now*, Back, or
   the question closing without a click (Kodi quitting, a skin reload) asks again the
   next time, as does an answer clicked after the skin is left. If the skin is left
-  first, nothing is asked. One check runs at a time: one started while another waits
-  for Home or asks (*Ask again* pressed twice, a feature turned on) does nothing, and
-  the running one reads the add-ons again once Home settles.
+  first, nothing is asked; if it is left during a question, or the helper restarts,
+  no further question is asked. One check runs at a time: one started while another
+  waits for Home or asks (*Ask again* pressed twice, a feature turned on) does
+  nothing. The running one reads the add-ons again once Home settles; one that needs
+  asking about after its questions open waits for the next check.
 - ***Switch off* chosen:** it is switched off again without asking at each entry, after
   a skin that gave it back. One the user (or Kodi, for an add-on that needs it) switched
   back on while it was off for the skin is left on, and counts as *Keep both* from then.
