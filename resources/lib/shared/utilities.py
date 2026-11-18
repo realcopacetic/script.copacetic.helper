@@ -393,7 +393,7 @@ def create_dir(path: str) -> None:
 def clear_cache(**kwargs: str) -> None:
     """
     Clears all temporary artwork processing data and every table in the lookup
-    database, then compacts it. Posts a notification with the amount of space saved.
+    database, then compacts it. Posts a notification with the amount of space freed.
     """
     size_before = get_total_size(ADDONDATA)
 
@@ -415,8 +415,9 @@ def clear_cache(**kwargs: str) -> None:
 
     readable_size = readable_bytes(size_before - get_total_size(ADDONDATA))
     log.info(f"Artwork cache cleared by user. {readable_size} saved.")
-    message = f"{ADDON.getLocalizedString(32201)}, {readable_size} {ADDON.getLocalizedString(32202)}."
-    Dialog().notification(ADDON_ID, message)
+    Dialog().notification(
+        ADDON.getLocalizedString(32019), ADDON.getLocalizedString(32201) % readable_size
+    )
 
 
 def readable_bytes(size: int, precision: int = 1) -> str:
