@@ -415,7 +415,8 @@ def seed_multiart(
         art = {k: v for k, v in art.items() if not k.startswith("multiart")}
     else:
         return None
-    if alive():
+    # A window serve that outlived its window leaves the live window's keys alone
+    if alive() and (dialog or window_id == getCurrentWindowId()):
         window_property(seed_scope_key, seed_scope)
         if seeded:
             window_property(sig_key, signature)

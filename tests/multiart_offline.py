@@ -193,11 +193,12 @@ class SeedMultiart(unittest.TestCase):
             ("x", "y"),
         )
 
-    def test_window_keys_stay_its_own_after_a_window_change(self):
+    def test_window_change_writes_no_keys(self):
+        live = {"multiart_seed_scope_3400": "x", "multiart_seed_sig_3400": "y"}
+        self.props |= live  # the window now active seeded register 3400 too
         self.current = 10025  # the active window changed during the serve
         self.seed()
-        self.assertIn("multiart_seed_sig_3400", self.props)
-        self.assertNotIn("multiart_seed_sig_3400_12006", self.props)
+        self.assertEqual(self.props, live)
 
 
 if __name__ == "__main__":
