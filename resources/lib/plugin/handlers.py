@@ -301,6 +301,16 @@ _TITLES = "videodb://tvshows/titles/"
 _TITLES_PATH = re.compile(rf"{_TITLES}(\d+)/(?:(-?\d+)/)?")
 
 
+def _file_label(path: str) -> str:
+    """
+    A file's name as a caption: its extension dropped, underscores read as spaces.
+
+    :param path: The file's path, either separator.
+    :return: The caption; empty for no path.
+    """
+    return re.split(r"[/\\]", path)[-1].rsplit(".", 1)[0].replace("_", " ")
+
+
 class PluginHandlers(metaclass=PluginInfoRegistry):
     """
     High-level plugin actions (artwork, metadata, typewriter) with focus guarding.
@@ -1656,7 +1666,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def typewriter(self) -> None:
         """
         Run typewriter animation for the current item; guarded against focus changes.
-        A reset=true invocation supersedes any run and hides the control.
+        A reset=true invocation supersedes any run and hides the control. With no
+        label, a file param captions by its name (an add-on's screenshots).
         """
         if not self._require("target_id"):
             return
@@ -1667,8 +1678,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_property("typewriter_container")
             window_property("typewriter_pos")
             return
-        if not self.label:
-            log.warning("typewriter → label required")
+        if not (label := self.label or _file_label(self.params.get("file", ""))):
+            log.warning("typewriter → label or file required")
             return
 
         if self._visit_superseded():
@@ -1685,7 +1696,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         window_property("typewriter_pos", value=self.expected_identity)
         t = TypewriterAnimation(control_id=target_id, window_id=self.window_id)
         t.update(
-            label=self.label,
+            label=label,
             opts=PlacementOpts.from_params(self.params),
             max_lines=to_int(self.params.get("max_lines"), None),
             start_delay=to_float(self.params.get("start_delay"), 0),
