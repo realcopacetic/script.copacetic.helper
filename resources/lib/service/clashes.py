@@ -106,7 +106,7 @@ def apply(answers: dict | None = None) -> list[str]:
     """
     The service's write, so two never overlap: merge new answers, switch off each
     add-on chosen while a feature it overlaps is on, back on one no longer wanted off.
-    One found on at the version it went off at was switched on elsewhere: kept.
+    One found on at the version it went off at, or unknown, was switched on: kept.
 
     :param answers: Answers just clicked: id: True to switch it off.
     :return: Add-ons on, overlapping a feature on, not asked about yet.
@@ -119,7 +119,9 @@ def apply(answers: dict | None = None) -> list[str]:
         version = _version(addon_id)  # "" while off
         if addon_id in off and not condition(f"System.HasAddon({addon_id})"):
             del off[addon_id]  # uninstalled while off: nothing to give back
-        elif wanted and version and off.get(addon_id) == version:
+        elif (
+            wanted and version and addon_id in off and off[addon_id] in (None, version)
+        ):
             answers[addon_id] = False
             del off[addon_id]
             log.info(f"clashes → {addon_id} switched back on elsewhere, kept")
