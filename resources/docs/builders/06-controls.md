@@ -133,7 +133,7 @@ Text that can't take focus, for naming a group of rows. It has no `field` or `on
 
 ### `edit` — free text
 
-Kodi keyboard input; saves on select, or when the user moves away or presses Back. `label` is passed to the control as its label. Shows the stored value, or the item's metadata value for the field when nothing is stored:
+Kodi keyboard input; saves on select, or when the user moves away or presses Back or Previous Menu (Esc on a keyboard). `label` is passed to the control as its label. Shows the stored value, or the item's metadata value for the field when nothing is stored:
 
 ```json
 "widget_label": {
