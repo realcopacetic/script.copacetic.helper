@@ -392,14 +392,9 @@ msgstr ""
 
 #########################################################################################################
 
-#: /resources/lib/utilities.py, /resources/lib/script/actions.py
+#: /resources/lib/shared/utilities.py
 msgctxt "#32201"
-msgid "Cropped cache cleared"
-msgstr ""
-
-#: /resources/lib/utilities.py, /resources/lib/script/actions.py
-msgctxt "#32202"
-msgid "saved"
+msgid "Cache cleared, %s freed"
 msgstr ""
 
 #: /resources/lib/service/settings.py
