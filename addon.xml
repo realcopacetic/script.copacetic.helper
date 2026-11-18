@@ -66,7 +66,14 @@
     <assets>
       <icon>resources/icon.png</icon>
       <fanart>resources/fanart.jpg</fanart>
-      <screenshot>resources/screenshot-01.jpg</screenshot>
+      <screenshot>resources/Copacetic_Helper.jpg</screenshot>
+      <screenshot>resources/Synced_lyrics_from_LRCLIB.jpg</screenshot>
+      <screenshot>resources/Daily_mixes_from_Deezer_and_ListenBrainz.jpg</screenshot>
+      <screenshot>resources/Trailers_play_as_you_browse.jpg</screenshot>
+      <screenshot>resources/Skip_intro_and_play_next.jpg</screenshot>
+      <screenshot>resources/Colours_from_the_artwork.jpg</screenshot>
+      <screenshot>resources/Skin_includes_built_from_templates.jpg</screenshot>
+      <screenshot>resources/Settings_for_each_API.jpg</screenshot>
     </assets>
     <summary lang="en_GB">The engine behind the Copacetic 2 skin.</summary>
     <description lang="en_GB">Copacetic Helper builds the Copacetic 2 skin's layouts and artwork. TMDB and ListenBrainz tokens in its settings add extras.[CR]This product uses the TMDB API but is not endorsed or certified by TMDB (https://www.themoviedb.org).</description>
