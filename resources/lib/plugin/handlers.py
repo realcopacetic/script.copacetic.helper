@@ -2144,12 +2144,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if empty.
         """
-        if not self._require("type", "id"):
+        if not (self._require("type", "id") and (dbid := to_int(self.dbid))):
             return
         details = json_call(
             f"VideoLibrary.Get{_VIDEO_METHODS[self.dbtype]}Details",
             properties=["cast"],
-            params={f"{self.dbtype}id": int(self.dbid)},
+            params={f"{self.dbtype}id": dbid},
             parent="cast",
         )
         item = details.get("result", {}).get(f"{self.dbtype}details", {})
@@ -2237,10 +2237,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (self._require("type") and self.dbtype in MUSIC_TYPES):
             return
         genres = {*self.label.split(" / ")}  # a list value matches any of them
-        if self.dbid:  # a scraped artist genre may tag none of the library's songs
+        if dbid := to_int(self.dbid):  # a scraped artist genre may tag no library song
             albums = library_rows(
                 "album",
-                {"artistid": int(self.dbid)},
+                {"artistid": dbid},
                 None,
                 None,
                 "genre_music",
@@ -2272,13 +2272,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         if not (self._require("type") and self.dbtype in MUSIC_TYPES):
             return
-        if self.dbid and (seed := self.params.get("seed", "artist")) != "artist":
+        seed = self.params.get("seed", "artist")
+        if (dbid := to_int(self.dbid)) and seed != "artist":
             details = json_call(
                 DETAILS[seed],
                 properties=(
                     ["artistid", "compilation"] if seed == "album" else ["artistid"]
                 ),
-                params={f"{seed}id": int(self.dbid)},
+                params={f"{seed}id": dbid},
                 parent="similar_music",
             )["result"][f"{seed}details"]
             # a compilation's first artist is Various Artists: genres only
@@ -2286,7 +2287,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "" if details.get("compilation") else str(details["artistid"][0])
             )
         if not (
-            self.dbid and (similar := similar_artists(int(self.dbid), "similar_music"))
+            (dbid := to_int(self.dbid))
+            and (similar := similar_artists(dbid, "similar_music"))
         ):
             return self.genre_music()
         if self.dbtype == "artist":  # closest first
@@ -2361,8 +2363,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.apis import deezer, listenbrainz
 
+        if not (identity := artist_identity(artistid, parent)):
+            return [], []
+        name, mbid = identity
         on_deezer = deezer.enabled()
-        name, mbid = artist_identity(artistid, parent)
         listens = partial(listenbrainz.top_recordings, mbid)
         if not (mbid and listenbrainz.enabled()):
             listens = list
@@ -2392,11 +2396,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.apis import deezer, listenbrainz
 
-        if not ((deezer.enabled() or listenbrainz.enabled()) and self._require("id")):
+        if not (
+            (deezer.enabled() or listenbrainz.enabled())
+            and self._require("id")
+            and (artistid := to_int(self.dbid))
+        ):
             return
-        rankings, songs = self._popularity(
-            int(self.dbid), SONG_RANK_PROPERTIES, "top_songs"
-        )
+        rankings, songs = self._popularity(artistid, SONG_RANK_PROPERTIES, "top_songs")
         if not songs:
             return
         set_plugincontent(content="songs")
@@ -2414,9 +2420,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.apis import deezer, listenbrainz
 
-        if not self._require("id"):
+        if not (self._require("id") and (artistid := to_int(self.dbid))):
             return
-        artistid = int(self.dbid)
         albums = self._artist_albums(artistid, "discography")
         rankings, songs = [], []
         if albums and (deezer.enabled() or listenbrainz.enabled()):
@@ -2457,7 +2462,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.apis import deezer
 
-        if not (self.dbtype in MUSIC_TYPES and self._require("id")):
+        if not (
+            self.dbtype in MUSIC_TYPES
+            and self._require("id")
+            and (dbid := to_int(self.dbid))
+        ):
             return
         if deezer.enabled():
             words = {
@@ -2471,7 +2480,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "artist": self._played_artist,
                 "song": self._played_song,
             }
-        label = words[self.dbtype](int(self.dbid))
+        label = words[self.dbtype](dbid)
         if label:  # whose word: a skin shows it only on that item, not the last one's
             whose = {"dbid": self.dbid, "dbtype": self.dbtype}
             item = {"file": plugin_path(_LABEL), "label": label, "properties": whose}
@@ -2536,7 +2545,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.apis import deezer
 
-        name, mbid = artist_identity(artistid, _LABEL)
+        if not (identity := artist_identity(artistid, _LABEL)):
+            return ""
+        name, mbid = identity
         songs = cache(lambda: self._artist_songs(artistid, ["album", "title"], _LABEL))
         key = deezer.artist_key(mbid, name)
         match = deezer.artist_match(
@@ -2644,11 +2655,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: List of directory items for Kodi, or None if none match.
         """
-        if not self._require("type", "id"):
+        if not (self._require("type", "id") and (dbid := to_int(self.dbid))):
             return
         if self.dbtype == "album":
-            return self._soundtrack_source(int(self.dbid))
-        media, dbid, season = self.dbtype, int(self.dbid), None
+            return self._soundtrack_source(dbid)
+        media, season = self.dbtype, None
         if media in ("season", "episode"):
             parent = _video_details(
                 media, dbid, ["tvshowid", "season"], parent="soundtracks"

@@ -223,21 +223,25 @@ def uncensored(title: str, keys: Iterable[str]) -> str | None:
     return found[0] if len(found) == 1 else None
 
 
-def artist_identity(dbid: int, parent: str) -> tuple[str, str]:
+def artist_identity(dbid: int, parent: str) -> tuple[str, str] | None:
     """
     A library artist's name and MusicBrainz id.
 
     :param dbid: Library artist id.
     :param parent: Caller name for logging.
-    :return: (name, MBID), the MBID empty when untagged.
+    :return: (name, MBID), the MBID empty when untagged; None for an id Kodi lacks.
     """
-    details = json_call(
-        "AudioLibrary.GetArtistDetails",
-        properties=["musicbrainzartistid"],
-        params={"artistid": dbid},
-        parent=parent,
-    )["result"]["artistdetails"]
-    return details["artist"], details["musicbrainzartistid"][0]
+    details = (
+        json_call(
+            "AudioLibrary.GetArtistDetails",
+            properties=["musicbrainzartistid"],
+            params={"artistid": dbid},
+            parent=parent,
+        )
+        .get("result", {})
+        .get("artistdetails")
+    )
+    return details and (details["artist"], details["musicbrainzartistid"][0])
 
 
 def fused(rankings: Iterable[tuple[float, Iterable]]) -> Counter:
@@ -554,7 +558,9 @@ def similar_artists(
     """
     from resources.lib.apis import deezer, listenbrainz
 
-    name, mbid = artist_identity(artistid, parent)
+    if not (identity := artist_identity(artistid, parent)):
+        return []
+    name, mbid = identity
     scores = Counter()
     if deezer.enabled():  # its songs are read only to check a first Deezer match
         songs = cache(
