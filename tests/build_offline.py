@@ -6,7 +6,6 @@ call that isn't stubbed fails loudly. Outputs never touch the skin.
 """
 
 import argparse
-import json
 import re
 import shutil
 import subprocess
@@ -55,8 +54,11 @@ def install_stubs(
     }
     po = helper / "resources/language/resource.language.en_gb/strings.po"
     entries = re.findall(r'msgctxt "#(\d+)"\nmsgid "(.*)"', po.read_text("utf-8"))
-    # the .po's escapes (\" \n \\) are JSON's
-    strings = {int(i): json.loads(f'"{text}"') for i, text in entries}
+    escapes = {"n": "\n", "t": "\t"}  # and \" \\ as themselves, as Kodi reads them
+    strings = {
+        int(i): re.sub(r'\\(["\\nt])', lambda m: escapes.get(m[1], m[1]), text)
+        for i, text in entries
+    }
     roots = {
         f"special://profile/addon_data/{addon_id}/": out,
         "special://profile/": out / "profile",
