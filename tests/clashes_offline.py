@@ -3,10 +3,11 @@ Offline checks for add-ons that clash (resources/lib/service/clashes.py), Kodi's
 stubbed: an add-on doing a feature's job is asked about once Home settles; Switch off
 switches it off, Keep both leaves it, Not now, Back or a close without a click asks
 again next time; an answer applies at each entry without asking, but one switched back
-on elsewhere is kept; a feature turned off, a skin left or a reset gives it back, at
-once while a check waits; two checks at once ask once and only the service writes; a
-switch Kodi refuses isn't recorded; the service queues the check on entering a skin
-and gives add-ons back on leaving.
+on elsewhere is kept, unless an update did it; a feature turned off, a skin left or a
+reset gives it back, at once while a check waits; questions stop when the skin is
+left; two checks at once ask once and only the service writes; a switch Kodi refuses
+isn't recorded; the service queues the check on entering a skin and gives add-ons back
+on leaving.
 Run from the helper root: python tests/clashes_offline.py
 """
 
@@ -49,12 +50,13 @@ class Clashes(unittest.TestCase):
         # What reads true: the skin active and settled, CU LRC on, the lyrics feature on
         self.true = {clashes.ACTIVE, clashes.SETTLED, LYRICS}
         self.enabled, self.refused, self.installed = {LRC}, set(), set(clashes.CLASHES)
+        self.versions = dict.fromkeys(clashes.CLASHES, "1.0")
         self.dialog = Mock()
         self.dialog.return_value.yesnocustom.return_value = 1
         self.json = Mock(side_effect=self.json_rpc)
         for target, name, value in (
             (clashes, "condition", self.condition),
-            (clashes, "infolabel", lambda label: label),
+            (clashes, "infolabel", self.infolabel),
             (clashes, "json_call", self.json),
             (clashes.xbmcgui, "Dialog", self.dialog),
             # RunScript, run at once
@@ -74,6 +76,13 @@ class Clashes(unittest.TestCase):
         if text.startswith("System.HasAddon("):
             return text[16:-1] in self.installed
         return any(part.strip() in self.true for part in text.split("|"))
+
+    def infolabel(self, label: str) -> str:
+        """System.AddonVersion from self.versions, "" while off; others as written."""
+        if label.startswith("System.AddonVersion("):
+            addon_id = label[20:-1]
+            return self.versions[addon_id] if addon_id in self.enabled else ""
+        return label
 
     def json_rpc(self, method, params, parent):
         """
@@ -114,7 +123,7 @@ class Clashes(unittest.TestCase):
         self.enter()
         self.assertEqual(self.asked(), [f"System.AddonTitle({LRC})"])
         self.assertNotIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
 
     def test_question_names_the_addon_and_the_skin(self):
         self.enter()
@@ -138,7 +147,7 @@ class Clashes(unittest.TestCase):
         self.enter()
         self.assertEqual(len(self.asked()), 1)
         self.assertIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": {}})
 
     def test_back_asks_again_next_time(self):
         self.dialog.return_value.yesnocustom.return_value = -1
@@ -162,7 +171,7 @@ class Clashes(unittest.TestCase):
         self.enter()
         self.assertEqual(len(self.asked()), 1)
         self.assertNotIn(LRC, self.enabled)
-        self.assertEqual(clashes._load()["off"], [LRC])
+        self.assertEqual(clashes._load()["off"], {LRC: "1.0"})
 
     def test_switched_back_on_elsewhere_is_kept(self):
         self.enter()
@@ -170,7 +179,26 @@ class Clashes(unittest.TestCase):
         self.enter()
         self.assertEqual(len(self.asked()), 1)
         self.assertIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": {}})
+
+    def test_an_update_switching_it_back_on_is_switched_off_again(self):
+        self.enter()
+        # A manual update or a reinstall: LoadAddon enables a disabled add-on
+        self.enabled.add(LRC)
+        self.versions[LRC] = "1.1"
+        self.enter()
+        self.assertEqual(len(self.asked()), 1)
+        self.assertNotIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.1"}})
+
+    def test_a_list_written_before_versions_were_kept_still_loads(self):
+        clashes.JSONHandler(clashes.STATE).write_json(
+            {"answers": {LRC: True}, "off": [LRC]}
+        )
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: None}})
+        self.enter()  # found on, at a version unknown: switched off again
+        self.assertNotIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
 
     def test_nothing_to_ask_writes_nothing(self):
         self.enabled = set()
@@ -187,7 +215,7 @@ class Clashes(unittest.TestCase):
         self.true.discard(LYRICS)
         self.enter()
         self.assertIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {}})
 
     def test_one_of_two_features_is_enough(self):
         self.enabled = {TIDB}
@@ -202,7 +230,8 @@ class Clashes(unittest.TestCase):
         self.enter()
         self.assertEqual(self.enabled, {UPNEXT})
         self.assertEqual(
-            clashes._load(), {"answers": {LRC: True, UPNEXT: False}, "off": [LRC]}
+            clashes._load(),
+            {"answers": {LRC: True, UPNEXT: False}, "off": {LRC: "1.0"}},
         )
 
     def test_questions_stop_when_the_skin_is_left_or_the_guard_changes_hands(self):
@@ -240,7 +269,7 @@ class Clashes(unittest.TestCase):
         self.enter()
         clashes.restore()
         self.assertIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {}})
 
     def test_restore_with_nothing_off_writes_nothing(self):
         clashes.restore()
@@ -261,7 +290,7 @@ class Clashes(unittest.TestCase):
         )
         clashes.check()
         self.assertEqual(len(self.asked()), 1)
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
         self.assertEqual(clashes.xbmcgui.Window(10000).getProperty(clashes.ASKING), "")
 
     def test_a_check_queued_under_the_question_asks_nothing_after_not_now(self):
@@ -296,7 +325,7 @@ class Clashes(unittest.TestCase):
             clashes.check()
         self.assertEqual(len(waits), 1)
         self.assertEqual(len(self.asked()), 1)
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
 
     def test_a_check_outlived_by_a_helper_restart_stops_and_leaves_the_new_guard(self):
         home = clashes.xbmcgui.Window(10000)
@@ -323,7 +352,7 @@ class Clashes(unittest.TestCase):
         )
         self.enter()
         self.assertIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {UPNEXT: False}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {UPNEXT: False}, "off": {}})
 
     def test_two_checks_at_once_and_a_feature_off_and_on_keep_switch_off(self):
         self.enter()  # CU LRC switched off
@@ -348,7 +377,8 @@ class Clashes(unittest.TestCase):
         waiting.join(5)
         self.assertEqual(len(self.asked()), 2)
         self.assertEqual(
-            clashes._load(), {"answers": {LRC: True, UPNEXT: False}, "off": [LRC]}
+            clashes._load(),
+            {"answers": {LRC: True, UPNEXT: False}, "off": {LRC: "1.0"}},
         )
 
     def test_a_check_only_asks_the_service_writes(self):
@@ -364,7 +394,7 @@ class Clashes(unittest.TestCase):
         self.service.clash_features = clashes.features()
         clashes.notify(clashes.RESET)
         self.assertIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {}, "off": {}})
         self.assertEqual(self.service.clash_features, ())  # checked again next pass
 
     def test_an_answer_after_the_skin_is_left_is_not_applied(self):
@@ -386,27 +416,27 @@ class Clashes(unittest.TestCase):
         self.refused = {LRC}  # CanAddonBeDisabled false: InvalidParams
         self.enter()
         self.assertIn(LRC, self.enabled)
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {}})
 
     def test_restore_keeps_one_kodi_refuses_listed(self):
         self.enter()
         self.refused = {LRC}  # EnableAddon failed
         clashes.restore()
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.0"}})
 
     def test_one_uninstalled_while_off_is_dropped(self):
         self.enter()
         self.installed.discard(LRC)
         self.enter()
         self.assertEqual(len(self.switches()), 1)  # the switch-off: no give-back tried
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {}})
 
     def test_restore_drops_one_uninstalled(self):
         self.enter()
         self.installed.discard(LRC)
         clashes.restore()
         self.assertEqual(len(self.switches()), 1)
-        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {}})
 
 
 class Service(unittest.TestCase):

@@ -81,9 +81,10 @@ python tests/editor_offline.py
 
 # Add-ons that clash (service/clashes.py) with Kodi's reads stubbed: asked once Home
 # settles; Switch off, Keep both, and Not now, Back or a close asking again; answers
-# applied at each entry without asking, one switched back on elsewhere kept; a feature
-# turned off, a skin left or a reset gives the add-on back, at once while a check
-# waits; two checks at once ask once and only the service writes; a switch Kodi
+# applied at each entry without asking, one switched back on elsewhere kept but one an
+# update switched back on switched off again; a feature turned off, a skin left or a
+# reset gives the add-on back, at once while a check waits; questions stop when the
+# skin is left; two checks at once ask once and only the service writes; a switch Kodi
 # refuses isn't recorded; the service queues the check on entering a skin and gives
 # add-ons back in any other
 python tests/clashes_offline.py

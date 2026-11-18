@@ -40,9 +40,16 @@ def features() -> tuple[bool, ...]:
 
 
 def _load() -> dict:
-    """clashes.json: the answers (id: True to switch it off) and those off for them."""
+    """
+    clashes.json: the answers (id: True to switch it off) and those off for them, with
+    the version each had then (None from a list, written before versions were kept).
+    """
     data = JSONHandler(STATE).data.get(STATE, {})
-    return {"answers": data.get("answers", {}), "off": data.get("off", [])}
+    off = data.get("off", {})
+    return {
+        "answers": data.get("answers", {}),
+        "off": dict.fromkeys(off) if isinstance(off, list) else off,
+    }
 
 
 def _save(state: dict) -> None:
@@ -90,8 +97,8 @@ def _unasked(answers: dict) -> list[str]:
 def apply(answers: dict | None = None) -> list[str]:
     """
     The service's write, so two never overlap: merge new answers, switch off each
-    add-on chosen while a feature it overlaps is on, and back on one no longer wanted
-    off. One off but found on was switched on by the user or Kodi: kept from now on.
+    add-on chosen while a feature it overlaps is on, back on one no longer wanted off.
+    One found on at the version it went off at was switched on elsewhere: kept.
 
     :param answers: Answers just clicked: id: True to switch it off.
     :return: Add-ons on, overlapping a feature on, not asked about yet.
@@ -102,18 +109,20 @@ def apply(answers: dict | None = None) -> list[str]:
     for addon_id, (feature, _) in CLASHES.items():
         wanted = condition(feature) and answers.get(addon_id)  # None: not asked
         enabled = condition(f"System.AddonIsEnabled({addon_id})")
+        version = infolabel(f"System.AddonVersion({addon_id})")  # "" while off
         if addon_id in off and not condition(f"System.HasAddon({addon_id})"):
-            off.remove(addon_id)  # uninstalled while off: nothing to give back
-        elif wanted and enabled and addon_id in off:
+            del off[addon_id]  # uninstalled while off: nothing to give back
+        elif wanted and enabled and addon_id in off and off[addon_id] == version:
             answers[addon_id] = False
-            off.remove(addon_id)
+            del off[addon_id]
             log.info(f"clashes → {addon_id} switched back on elsewhere, kept")
         elif wanted and enabled:
+            # Not off yet, or an install or update switched it back on (LoadAddon)
             if _enable(addon_id, False):
-                off.append(addon_id)
+                off[addon_id] = version
         elif not wanted and addon_id in off:
             if _enable(addon_id, True):
-                off.remove(addon_id)
+                del off[addon_id]
     _save(state)
     return _unasked(answers)
 
@@ -218,9 +227,9 @@ def restore(forget: bool = False) -> None:
     :param forget: Forget the answers too, so each is asked again.
     """
     state = _load()
-    off = [
-        addon_id
-        for addon_id in state["off"]
+    off = {
+        addon_id: version
+        for addon_id, version in state["off"].items()
         if condition(f"System.HasAddon({addon_id})") and not _enable(addon_id, True)
-    ]
+    }
     _save({"answers": {} if forget else state["answers"], "off": off})
