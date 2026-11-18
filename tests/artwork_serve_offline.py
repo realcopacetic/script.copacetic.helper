@@ -3,11 +3,12 @@ Offline checks for the artwork serve (PluginHandlers.artwork) with Kodi's reads
 stubbed and the image work faked: the logo from clearlogo_source and the icon from
 icon_source (a cut band label the item's own); a background read whole by a skin
 variable's name, standing only where the URL's raw value is it or it cut at "&" or
-"|" (a cut-off URL only on top, an empty one never); the parser keeps art URLs raw and url_decode_path
-leaves a bare URL; a held serve names its position only for a move that stamped no
-visit; under Kodi's slideshow a run stops once its picture has moved on;
-the TV guide's time left (epg_time_left) from the programme's start and runtime,
-across midnight too, only while the URL's channel is on air and before its end.
+"|" (a cut-off URL only on top, an empty one never); the parser keeps art URLs raw
+and url_decode_path leaves a bare URL; a held serve names its position only for a
+move that stamped no visit; under Kodi's slideshow a run stops once its picture has
+moved on; the TV guide's time left (epg_time_left) from the programme's start and
+runtime, across midnight too, only while the URL's channel is on air and before its
+end.
 Run from the helper root:
 python tests/artwork_serve_offline.py
 """
