@@ -30,6 +30,8 @@ ASKING = "helper_clashes_asking"  # Home property: the running check's token
 SETTLED = (
     "Window.IsActive(home) + !System.HasActiveModalDialog + !System.ScreenSaverActive"
 )
+# Writes a script hands the service (JSONRPC.NotifyAll), so they never overlap
+ANSWERS, RESET = "clashes_answers", "clashes_reset"
 
 
 def features() -> tuple[bool, ...]:
@@ -69,24 +71,39 @@ def _enable(addon_id: str, enabled: bool) -> bool:
     return done
 
 
-def _apply(state: dict) -> list[str]:
+def _unasked(answers: dict) -> list[str]:
     """
-    Switch off each add-on the user chose to while a feature it overlaps is on, back
-    on one switched off that no longer should be; saved if changed. One switched off
-    but found on was switched on by the user or Kodi: it is kept from now on.
+    The add-ons to ask about.
 
-    :param state: _load's state, updated in place.
+    :param answers: The answers given: id: True to switch it off.
     :return: Add-ons on, overlapping a feature on, not asked about yet.
     """
+    return [
+        addon_id
+        for addon_id, (feature, _) in CLASHES.items()
+        if addon_id not in answers
+        and condition(feature)
+        and condition(f"System.AddonIsEnabled({addon_id})")
+    ]
+
+
+def apply(answers: dict | None = None) -> list[str]:
+    """
+    The service's write, so two never overlap: merge new answers, switch off each
+    add-on chosen while a feature it overlaps is on, and back on one no longer wanted
+    off. One off but found on was switched on by the user or Kodi: kept from now on.
+
+    :param answers: Answers just clicked: id: True to switch it off.
+    :return: Add-ons on, overlapping a feature on, not asked about yet.
+    """
+    state = _load()
+    state["answers"] |= answers or {}
     answers, off = state["answers"], state["off"]
-    unasked = []
     for addon_id, (feature, _) in CLASHES.items():
         wanted = condition(feature) and answers.get(addon_id)  # None: not asked
         enabled = condition(f"System.AddonIsEnabled({addon_id})")
         if addon_id in off and not condition(f"System.HasAddon({addon_id})"):
             off.remove(addon_id)  # uninstalled while off: nothing to give back
-        elif wanted is None and enabled:
-            unasked.append(addon_id)
         elif wanted and enabled and addon_id in off:
             answers[addon_id] = False
             off.remove(addon_id)
@@ -98,7 +115,21 @@ def _apply(state: dict) -> list[str]:
             if _enable(addon_id, True):
                 off.remove(addon_id)
     _save(state)
-    return unasked
+    return _unasked(answers)
+
+
+def notify(message: str, data: dict | None = None) -> None:
+    """
+    Hand the service a write: its Monitor runs onNotification on its own thread.
+
+    :param message: ANSWERS or RESET.
+    :param data: For ANSWERS, the answers clicked.
+    """
+    json_call(
+        "JSONRPC.NotifyAll",
+        params={"sender": "script.copacetic.helper", "message": message, "data": data},
+        parent="clashes",
+    )
 
 
 def _settled(token: str) -> bool:
@@ -147,8 +178,8 @@ def _ask(unasked: list[str]) -> dict:
 
 def check() -> None:
     """
-    In a skin using the helper: apply the answers given, then, once Home settles, ask
-    about each add-on not asked about yet. One check runs at a time.
+    In a skin using the helper, once Home settles, ask about each add-on not asked
+    about yet; the service applies the answers. One check runs at a time.
     """
     home = xbmcgui.Window(10000)
     if not condition(ACTIVE) or home.getProperty(ASKING):
@@ -157,14 +188,11 @@ def check() -> None:
     token = uuid4().hex
     home.setProperty(ASKING, token)
     try:
-        if not _apply(_load()) or not _settled(token):
+        if not _unasked(_load()["answers"]) or not _settled(token):
             return
-        # Loaded again after each wait: features may change, or a reset write, meanwhile
-        if answers := _ask(_apply(_load())):
-            state = _load()
-            state["answers"] |= answers
-            # Only after a dialog: a same-frame read (cached) still sees one just off
-            _apply(state)
+        # Read again after the wait: a reset may land meanwhile
+        if answers := _ask(_unasked(_load()["answers"])):
+            notify(ANSWERS, answers)
     finally:
         if home.getProperty(ASKING) == token:
             home.clearProperty(ASKING)

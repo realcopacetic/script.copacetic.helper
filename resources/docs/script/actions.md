@@ -232,11 +232,12 @@ the list opens: a script still running as it closes can write after its unload.
 
 ## check_clashes
 
-Switches off each add-on the user chose to switch off for doing a job one of the
-helper's features does, while that feature is on, and switches one back on once its
-features are all off. Then, once Home settles, asks about each such add-on not asked
-about yet. Runs only while a skin that opts in is active; the service runs it each
-time one becomes active, and when one of those features is turned on or off. See
+Once Home settles, asks about each add-on doing a job one of the helper's features
+does, while that feature is on, not asked about yet. The service applies the answers:
+it switches off each add-on the user chose to switch off while such a feature is on,
+and switches one back on once its features are all off. Runs only while a skin that
+opts in is active; the service runs it when an add-on needs asking about, each time
+one becomes active and when one of those features is turned on or off. See
 [Add-ons that clash](../service/index.md#add-ons-that-clash) for the add-ons and
 the rules.
 
@@ -1263,9 +1264,9 @@ No parameters.
 
 ## reset_clashes
 
-Switches back on every add-on the helper switched off for
-[clashing](../service/index.md#add-ons-that-clash), forgets every answer, shows a
-notification, then in a skin that opts in asks about each again once Home settles.
+Has the service switch back on every add-on the helper switched off for
+[clashing](../service/index.md#add-ons-that-clash) and forget every answer, and shows
+a notification; in a skin that opts in, each is asked about again once Home settles.
 Also in the helper's settings, under *Troubleshooting*.
 
 No parameters.

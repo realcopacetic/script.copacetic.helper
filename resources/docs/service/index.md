@@ -109,9 +109,9 @@ interrupted. In order:
    [context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu),
    and, if the skin's templates or `16x9/` XML name `info=speed_dial`,
    `helper_speed_dial`, which shows Pin to speed dial and Unpin among them. A skin
-   update checks for `info=speed_dial` again. Then it queues
-   `action=check_clashes` behind any reload (see
-   [Add-ons that clash](#add-ons-that-clash)).
+   update checks for `info=speed_dial` again. Then it applies the answers about
+   [add-ons that clash](#add-ons-that-clash) and, if one needs asking about, queues
+   `action=check_clashes` behind any reload.
 4. The poll loop starts, and with it the slideshow.
 
 ### When the active skin changes, or the service stops
@@ -150,8 +150,9 @@ Each pass it:
 7. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz,
    Deezer, TheIntroDB and LRCLIB answers in the add-on's `_lookup.db` that expired
    more than 30 days ago. If the database is busy, it tries again an hour later;
-8. queues `action=check_clashes` again when a feature an add-on clashes with is
-   turned on or off (see [Add-ons that clash](#add-ons-that-clash));
+8. when a feature an add-on clashes with is turned on or off, applies the answers
+   again and, if one needs asking about, queues `action=check_clashes` (see
+   [Add-ons that clash](#add-ons-that-clash));
 9. publishes the playing song's current lyric line and moves the lyric list in view
    to it, or looks the song's lyrics up if the skin's `lyrics` setting was just
    turned on, or clears them if it was turned off (see [Lyrics](player.md#lyrics)).
@@ -205,25 +206,29 @@ Some add-ons do a job the helper's features do, and with both on, both show:
 | TheIntroDB (`plugin.video.tidb`) | Shows its own skip and next episode buttons, or skips on its own | [Skip segments](player.md#skip-segments) (`skip_segments`) or Play next |
 
 The helper never switches one off without asking. Each time a skin that opts in
-becomes active, the service runs `action=check_clashes`, queued behind any reload of
-the skin. For each add-on that is enabled while a feature it clashes with is on:
+becomes active, the service applies the answers given (below) and, if an add-on needs
+asking about, runs `action=check_clashes`, queued behind any reload of the skin. The
+service alone switches add-ons and writes the answers, one change at a time: the check
+and *Ask again* hand theirs to it (`JSONRPC.NotifyAll`). For each add-on that is
+enabled while a feature it clashes with is on:
 
 - **Not asked about yet:** once Home has been on top for 2 seconds with no dialog over
   it or the screensaver, a yes/no names the add-on and the skin. *Switch off* switches
   it off (Kodi stops its service with it); *Keep both* leaves it. *Not now*, Back, or
   the question closing without a click (Kodi quitting, a skin reload) asks again the
-  next time. If the skin is left first, nothing is asked. One check runs at a time:
-  one started while another waits for Home or asks (*Ask again* pressed twice, a
-  feature turned on) does nothing, and the running one reads the add-ons again once
-  Home settles.
+  next time, as does an answer clicked after the skin is left. If the skin is left
+  first, nothing is asked. One check runs at a time: one started while another waits
+  for Home or asks (*Ask again* pressed twice, a feature turned on) does nothing, and
+  the running one reads the add-ons again once Home settles.
 - ***Switch off* chosen:** it is switched off again without asking at each entry, after
   a skin that gave it back. One the user (or Kodi, for an add-on that needs it) switched
   back on while it was off for the skin is left on, and counts as *Keep both* from then.
 - ***Keep both* chosen:** it is never asked about again.
 
-The [poll loop](#the-poll-loop) runs the check again when one of these features is
-turned on or off, so a feature turned on mid-session asks once Home settles again. An
-add-on the helper switched off is switched back on when its features are all off, and
+The [poll loop](#the-poll-loop) applies the answers again when one of these features
+is turned on or off, so a feature turned on mid-session asks once Home settles again.
+An add-on the helper switched off is switched back on as soon as its features are all
+off, even while a check waits for Home, and
 whenever a skin that doesn't opt in becomes active. Kodi exiting leaves it off for the
 next start. A switch Kodi refuses (one it won't switch off) is logged and tried again
 at the next check; an add-on uninstalled while switched off is forgotten. The answers and what is switched

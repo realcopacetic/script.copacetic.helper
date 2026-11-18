@@ -1736,9 +1736,9 @@ def tmdb_test(**kwargs: str) -> None:
 @action
 def check_clashes(**kwargs: str) -> None:
     """
-    Switch off the add-ons the user chose to for doing a job the skin's features do,
-    then ask about any not asked about yet. The service runs it on entering the skin
-    and when one of those features is turned on or off.
+    Once Home settles, ask about the add-ons doing a job the skin's features do, not
+    asked about yet. The service applies the answers, and runs it when one needs
+    asking: on entering the skin, or when one of those features is turned on or off.
     """
     from resources.lib.service import clashes
 
@@ -1748,16 +1748,15 @@ def check_clashes(**kwargs: str) -> None:
 @action
 def reset_clashes(**kwargs: str) -> None:
     """
-    Switch back on the add-ons switched off for clashing and forget the answers; in
-    a skin using the helper, ask again once Home settles.
+    Have the service switch back on the add-ons switched off for clashing and forget
+    the answers; in a skin using the helper, it asks again once Home settles.
     """
     from resources.lib.service import clashes
 
-    clashes.restore(forget=True)
+    clashes.notify(clashes.RESET)
     xbmcgui.Dialog().notification(
         ADDON.getLocalizedString(32046), ADDON.getLocalizedString(32230)
     )
-    clashes.check()
 
 
 @action
