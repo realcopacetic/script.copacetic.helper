@@ -869,6 +869,10 @@ watches it:
 - A request that never starts is dropped after 5 seconds.
 - A request for the trailer already playing for the same `item` and `window` does
   nothing, so it plays on instead of restarting.
+- A request made while a modal dialog is up (busy spinners aside) does nothing, so a
+  request the skin made just before a dialog opened can't play under it. It clears
+  `trailer_played_item` if that names its `item`, so the item can ask again. The info
+  dialog's own trailer (`window=infoscreen`) is exempt.
 - If the user starts a film or song while the trailer is still on its way, that
   plays instead (a film full screen) and the request is dropped.
 - With `viewport`, the service zooms the video to fill that area.

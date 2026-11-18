@@ -217,7 +217,9 @@ next focus. The service clears it when a trailer fails to play or a request is
 retired, so the item can try again. A retired request clears it only while it still
 names that request's item: a newer item may have set it before its own request
 arrived. Likewise a trailer that fails while a newer request waits behind it leaves
-the stamp, which is that request's.
+the stamp, which is that request's. `action=play_trailer` clears it too when it drops
+a request made just before a modal dialog opened, again only while it names that
+request's item.
 
 ## What your skin should do
 

@@ -72,6 +72,11 @@ from resources.lib.shared.utilities import (
 REGISTRY = {}
 
 _LIBRARY_ITEMS = {"album": "albumid", "artist": "artistid", "genre": "genreid"}
+# A modal dialog is up, busy spinners aside: the skin's modal_open
+_MODAL_OPEN = (
+    "System.HasVisibleModalDialog + !Window.IsModalDialogTopmost(busydialog)"
+    " + !Window.IsModalDialogTopmost(busydialognocancel)"
+)
 API_SOURCES = {
     "tmdb": ("TMDb", 32033),
     "listenbrainz": ("ListenBrainz", 32034),
@@ -643,7 +648,7 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     """
     Request a trailer, stamping the item it is for so a stale start is parked.
     It plays at once, or when the trailer still resolving ahead of it lands; one
-    already playing for the same item and window plays on.
+    already playing for the same item and window plays on. None starts under a modal.
 
     :param trailer: Player path or plugin URL to play.
     :param item: Item label captured skin-side, atomic with the trailer URL.
@@ -655,20 +660,26 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     """
     if not trailer:
         return
-    playing = ("playing", trailer, kwargs.get("item", ""), kwargs.get("window", ""))
-    if playing == tuple(
+    item, window = kwargs.get("item", ""), kwargs.get("window", "")
+    if ("playing", trailer, item, window) == tuple(
         infolabel(f"Window(home).Property(trailer_{key})")
         for key in ("state", "request", "item", "window")
     ):
         return  # landed after a quick away-and-back: the return's rest asks again
+    if window != "infoscreen" and condition(_MODAL_OPEN):
+        # A dialog opened just after the skin's gate passed: unstamp the item so it
+        # asks again; a stamp for another item since (the info dialog's) stays.
+        if infolabel("Window(home).Property(trailer_played_item)") == item:
+            window_property("trailer_played_item")
+        return
 
     window_property("trailer_state", value="pending")
     window_property("trailer_request", value=trailer)
     window_property("trailer_viewport", value=kwargs.get("viewport", ""))
     window_property("trailer_source", value=kwargs.get("source_prefix", ""))
-    window_property("trailer_item", value=kwargs.get("item", ""))
+    window_property("trailer_item", value=item)
     window_property("trailer_focus_ids", value=kwargs.get("focus_ids", ""))
-    window_property("trailer_window", value=kwargs.get("window", ""))
+    window_property("trailer_window", value=window)
     window_property("trailer_fullscreen", value=kwargs.get("fullscreen", ""))
     start_flight(trailer)
 
