@@ -635,7 +635,7 @@ def _derive_window(content_type: str) -> str:
 
 
 def _build_result(
-    path: str, label: str, mode: str, content_type: str | None = None
+    path: str, label: str, mode: str, addon_type: str | None = None
 ) -> dict[str, str]:
     """
     Build the final return dict for a selected path.
@@ -645,7 +645,7 @@ def _build_result(
     :param path: Selected path or action string.
     :param label: Display label for the result.
     :param mode: "widget" or "menu".
-    :param content_type: Type the path's source gives it, over the path's own.
+    :param addon_type: Type of the add-on source it was picked under, if any.
     :return: Result dict.
     """
 
@@ -663,7 +663,11 @@ def _build_result(
             "update": "",
         }
 
-    content_type = content_type or _derive_type(path)
+    content_type = _derive_type(path)
+    # A plugin path has no type of its own: it takes its add-on source's, whose
+    # window Kodi lists it in
+    if content_type == "unknown" and addon_type:
+        content_type = addon_type
     icon = _PLAYLIST_ICON.get(path) or _TYPE_ICON.get(content_type, "DefaultFolder.png")
     window = _derive_window(content_type)
     result = {
@@ -939,7 +943,6 @@ def _browse_addons(
 
         if result is _BACK_SENTINEL:
             continue
-        # Kodi lists a source's plugins in its own window, so a pick takes its type
         return result, _derive_type(path)
 
 
@@ -1027,7 +1030,7 @@ def browse_content(cfg) -> dict[str, str] | str | None:
             return ""
 
         label, path = sources[idx]
-        content_type = None
+        addon_type = None
 
         if label == s["video_playlists"]:
             result = _browse_playlists("video", heading)
@@ -1036,7 +1039,7 @@ def browse_content(cfg) -> dict[str, str] | str | None:
         elif label == s["pictures"]:
             result = _browse_picture_sources(heading)
         elif label == s["addons"]:
-            result, content_type = _browse_addons(heading, mode)
+            result, addon_type = _browse_addons(heading, mode)
         elif label == s["custom_path"]:
             result = _custom_path()
         elif label == s["common"]:
@@ -1064,7 +1067,7 @@ def browse_content(cfg) -> dict[str, str] | str | None:
             return built
 
         path, label = result
-        built = _build_result(path, label, mode, content_type)
+        built = _build_result(path, label, mode, addon_type)
         if "item_type" in cfg.get("sibling_fields", {}):
             built["item_type"] = _item_type(path, cfg.get("depth", 0))
         return built
