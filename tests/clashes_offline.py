@@ -69,6 +69,11 @@ class Clashes(unittest.TestCase):
         clashes.ADDON.getLocalizedString = str
         self.service = object.__new__(monitor.Monitor)
         self.service.player_monitor = Mock()  # the skin active
+        self.service.slideshow, self.service.waitForAbort = Mock(), Mock()
+        self.service.prune_due = float("inf")
+        patcher = patch.object(monitor, "release_refresh", Mock())
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def condition(self, text: str) -> bool:
         """Each `|` alternative true when listed, add-ons by self.enabled/installed."""
@@ -107,6 +112,10 @@ class Clashes(unittest.TestCase):
     def enter(self):
         """The service's check: on entering the skin, or on a feature change."""
         self.service._check_clashes()
+
+    def poll(self):
+        """One pass of the service's poll loop."""
+        self.service.poller()
 
     def switches(self) -> list[dict]:
         """The Addons.SetAddonEnabled params sent so far."""
@@ -199,6 +208,31 @@ class Clashes(unittest.TestCase):
         self.assertEqual(len(self.asked()), 1)
         self.assertNotIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": {LRC: "1.1"}})
+
+    def test_switched_on_by_hand_is_kept_within_a_poll_before_an_update(self):
+        self.enter()
+        self.poll()
+        self.enabled.add(LRC)  # by hand
+        self.poll()
+        self.versions[LRC] = "1.1"  # then an automatic update: enabled add-ons update
+        self.enter()
+        self.assertIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": {}})
+
+    def test_an_update_switching_it_back_on_is_caught_within_a_poll(self):
+        self.enter()
+        self.enabled.add(LRC)
+        self.versions[LRC] = "1.1"
+        self.poll()
+        self.assertNotIn(LRC, self.enabled)
+
+    def test_its_own_switches_and_answers_ask_nothing_more(self):
+        self.enabled = {LRC, UPNEXT}
+        self.true |= {PLAYNEXT}
+        self.dialog.return_value.yesnocustom.side_effect = [1, 0]  # Up Next: Not now
+        self.enter()
+        self.poll()
+        self.assertEqual(len(self.asked()), 2)
 
     def test_a_list_written_before_versions_were_kept_still_loads(self):
         clashes.JSONHandler(clashes.STATE).write_json(
@@ -466,7 +500,7 @@ class Service(unittest.TestCase):
             patch.object(monitor.log, "execute") as execute,
         ):
             self.service._follow("skin", "1")
-        apply.assert_called_once_with()
+        apply.assert_called_once_with(None)
         execute.assert_called_once_with(
             "RunScript(script.copacetic.helper,action=check_clashes)"
         )

@@ -80,7 +80,7 @@ class Monitor(xbmc.Monitor):
         self.slideshow = None
         self.song_bump = None  # a pending progress_version bump
         self.closed = {}  # songs closed since the last bump: id → start play count
-        self.clash_features = ()  # clashes.features() when a check was last queued
+        self.clash_features = ()  # clashes.features() after the last apply
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
         self._run()
 
@@ -150,13 +150,16 @@ class Monitor(xbmc.Monitor):
         window_property(clashes.ASKING)  # a check killed mid-run would block the rest
         self._check_clashes()
 
-    def _check_clashes(self) -> None:
+    def _check_clashes(self, answers: dict | None = None) -> None:
         """
         Apply the answers about add-ons that clash, here alone so no two writes
-        overlap, noting the features seen; queue the question about any not asked yet.
+        overlap, then note what it leaves; queue the question about any not asked yet.
+
+        :param answers: Answers just clicked, handed over by check_clashes.
         """
-        self.clash_features = clashes.features()
-        if clashes.apply():
+        unasked = clashes.apply(answers)
+        self.clash_features = clashes.features()  # after: its own switches aren't news
+        if unasked and not answers:  # the check handing answers over asked the rest
             log.execute("RunScript(script.copacetic.helper,action=check_clashes)")
 
     def _deactivate(self) -> None:
@@ -301,7 +304,7 @@ class Monitor(xbmc.Monitor):
         """
         if method == f"Other.{clashes.ANSWERS}":
             if self.player_monitor:  # the skin left meanwhile: asked again on return
-                clashes.apply(json.loads(data))
+                self._check_clashes(json.loads(data))
             return
         if method == f"Other.{clashes.RESET}":
             clashes.restore(forget=True)
@@ -386,7 +389,7 @@ class Monitor(xbmc.Monitor):
         """
         Polling loop: trailer session watchdog, seek offset expiry, Play next's
         switch-off, skip segments, the game OSD's blur, slideshow, held speed dial
-        refreshes, a clashes check on a feature change, lyrics, a daily cache prune.
+        refreshes, clashes on a feature or add-on change, lyrics, a daily cache prune.
         """
         if (now := time.time()) >= self.prune_due:  # runs on through suspend
             try:

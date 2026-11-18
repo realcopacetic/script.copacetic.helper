@@ -150,8 +150,9 @@ Each pass it:
 7. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz,
    Deezer, TheIntroDB and LRCLIB answers in the add-on's `_lookup.db` that expired
    more than 30 days ago. If the database is busy, it tries again an hour later;
-8. when a feature an add-on clashes with is turned on or off, applies the answers
-   again and, if one needs asking about, queues `action=check_clashes` (see
+8. when a feature an add-on clashes with is turned on or off, or one of those
+   add-ons is switched on or off or updated, applies the answers again and, if one
+   needs asking about, queues `action=check_clashes` (see
    [Add-ons that clash](#add-ons-that-clash));
 9. publishes the playing song's current lyric line and moves the lyric list in view
    to it, or looks the song's lyrics up if the skin's `lyrics` setting was just
@@ -232,7 +233,10 @@ enabled while a feature it clashes with is on:
 - ***Keep both* chosen:** it is never asked about again.
 
 The [poll loop](#the-poll-loop) applies the answers again when one of these features
-is turned on or off, so a feature turned on mid-session asks once Home settles again.
+is turned on or off, so a feature turned on mid-session asks once Home settles again,
+and when one of these add-ons is switched on or off or updated, so one switched on by
+hand is kept (and one an update switched on goes off again) within a second, before
+a later update can change its version.
 An add-on the helper switched off is switched back on as soon as its features are all
 off, even while a check waits for Home, and
 whenever a skin that doesn't opt in becomes active. Kodi exiting leaves it off for the
