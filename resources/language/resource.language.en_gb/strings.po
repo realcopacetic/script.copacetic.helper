@@ -372,7 +372,7 @@ msgstr ""
 #. "Asks first": the action shows a yes/no question before it removes anything.
 #: /resources/settings.xml
 msgctxt "#32127"
-msgid "Check every artwork link of artists, albums, films, sets, TV shows and seasons, then remove the dead ones (web images no longer there, files moved or deleted). Run it on a device whose share login can read every art folder. Asks first; an artist it changes loses its discography and music video links until refreshed."
+msgid "Check every artwork link of artists, albums, movies, sets, TV shows and seasons, then remove the dead ones (web images no longer there, files moved or deleted). Run it on a device whose share login can read every art folder. Asks first; an artist it changes loses its discography and music video links until refreshed."
 msgstr ""
 
 #: /resources/settings.xml
@@ -409,13 +409,13 @@ msgstr ""
 #. "Play next" is the skin's own label. Keep theintrodb.org as it is.
 #: /resources/settings.xml
 msgctxt "#32140"
-msgid "Where a library film's or episode's intro, recap and credits are, for the skin's skip button and Play next. Times come from TheIntroDB (theintrodb.org), sent the film's or show's ids and the episode's number; no account needed. Off: nothing sent, and only chapters are used."
+msgid "Where a library movie's or episode's intro, recap and credits are, for the skin's skip button and Play next. Times come from TheIntroDB (theintrodb.org), sent the movie's or show's ids and the episode's number; no account needed. Off: nothing sent, and only chapters are used."
 msgstr ""
 
 #. "Refresh cached data" is string #32835: use the same words.
 #: /resources/settings.xml
 msgctxt "#32141"
-msgid "Forget every saved TheIntroDB answer (intro, recap and credits times), so each is fetched again when next played. One film or show: Refresh cached data in its context menu."
+msgid "Forget every saved TheIntroDB answer (intro, recap and credits times), so each is fetched again when next played. One movie or show: Refresh cached data in its context menu."
 msgstr ""
 
 #. Keep .lrc and lrclib.net as they are.
