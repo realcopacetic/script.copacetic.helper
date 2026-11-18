@@ -60,6 +60,23 @@ skin reads can't keep its old value, so the outgoing logo needs its own. Show ea
 slot while `slideshow_slot` names it, and its `Visible` and `Hidden` animations play
 on every slide, with no other trigger (see [Showing the slideshow](#showing-the-slideshow)).
 
+## A picture for the next start
+
+The first slide published each time a skin that opts in becomes active is also saved,
+with the same blur, as
+`special://masterprofile/addon_data/script.copacetic.helper/splash.jpg`. Kodi shows a
+skin's startup window before the service runs, so a splash can show the last session's
+background there. If the file can't be written, the next slide tries again. The file is
+rewritten only when its picture changes, and this profile's cached copy of it is then
+dropped. It sits in the master profile's add-on data, so every profile and the login
+screen read the same file. Before the first session there is no file, so give the
+texture a `fallback`. The login screen's profile pictures are blurred the same way: see
+[`bake_profiles`](../script/actions.md#bake_profiles).
+
+```xml
+<texture fallback="common/splash.jpg">special://masterprofile/addon_data/script.copacetic.helper/splash.jpg</texture>
+```
+
 ## Skin settings read
 
 | Name | Kind | Accepted values | Default | What it does |

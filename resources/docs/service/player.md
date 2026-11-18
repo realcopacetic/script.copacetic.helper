@@ -258,7 +258,8 @@ Each song is looked up when it starts (`lyrics_state` reads `searching` meanwhil
 LRCLIB answer show at once; a request to LRCLIB runs in the background and its
 answer shows within 0.2 seconds of arriving, so nothing else the service does waits
 on it. The next song in the queue is asked for in the background too, so it is ready
-when it starts; only an answer is saved then, so a failed request can't hide that
+when it starts; that includes a song the [endless queue](#endless-queue) adds as the
+playing one starts. Only an answer is saved then, so a failed request can't hide that
 song's lyrics, and one song is never asked for twice at once. Turning the setting on
 mid-song looks the song up then; off clears everything. The properties stay up until
 the next song's are ready, and clear when playback stops or a video starts.
@@ -290,8 +291,9 @@ and starts after 0 (an intro), so its dots can sit above that line. The label is
 text, empty for a gap;
 the properties are `index` (from 0), `time` (milliseconds, with any `[offset:]`
 applied), `gap` (`true` on an empty line), `long` (`true` when the line needs more than
-two lines of the skin's `title_identity` font at 660 px, as Kodi wraps it, so a skin
-can draw it smaller in its playing line's box) and `m2`, `m1`, `p1` ... `p5` (the
+two lines 660 px wide in the font named `title_identity` in the skin's `Font.xml` (its
+first fontset), as Kodi wraps it, so a skin can draw it smaller in its playing line's
+box; without that font no line is marked) and `m2`, `m1`, `p1` ... `p5` (the
 indexes two above to five below this line). The last are for a fade by distance from
 the selected line while the list is browsed: compare a row's
 `ListItem.Property(index)` with `Container(<id>).ListItem.Property(m1)` and so on.
