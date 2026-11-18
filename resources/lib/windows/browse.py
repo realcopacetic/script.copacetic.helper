@@ -360,6 +360,9 @@ _PATH_SCHEMES = (
     "upnp://",
 )
 
+# A standalone game in addons://sources/game, a file: Kodi plays it, nothing lists it.
+_GAME_SCHEME = "game://"
+
 # Paths where "Use this path" is suppressed in widget mode.
 _NO_USE_PATH = {
     "library://video/",
@@ -643,15 +646,17 @@ def _build_result(path: str, label: str, mode: str) -> dict[str, str]:
     :return: Result dict.
     """
 
-    # Action strings (commands, builtins) bypass path-based derivation
-    if mode == "menu" and _is_action_string(path):
+    # Action strings (commands, builtins) bypass path-based derivation; a standalone
+    # game from the Game add-ons source (game://<add-on id>) is one that plays it
+    game = path.startswith(_GAME_SCHEME)
+    if mode == "menu" and (game or _is_action_string(path)):
         return {
             "path": path,
             "label": label,
-            "icon": "DefaultShortcut.png",
+            "icon": _TYPE_ICON["games"] if game else "DefaultShortcut.png",
             "type": "command",
             "window": "",
-            "action": path,
+            "action": 'PlayMedia("%s")' % path if game else path,
             "update": "",
         }
 
@@ -800,6 +805,8 @@ def _browse_level(path: str, heading: str, mode: str = "widget", folders: bool =
             for item in items
             if item["file"] not in _SUPPRESS_ITEMS
             and (not folders or _is_plain_folder(item))
+            # A widget can't list a standalone game: only a menu item can play it
+            and not (mode == "widget" and item["file"].startswith(_GAME_SCHEME))
         ]
 
         suppress_use_path = mode == "widget" and path in _NO_USE_PATH
