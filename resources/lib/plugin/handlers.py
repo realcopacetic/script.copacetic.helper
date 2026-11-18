@@ -160,6 +160,7 @@ def _video_details(
 
 _INFO_OPEN = " | ".join(f"Window.IsVisible({wid})" for wid in INFO_DIALOGS)
 _SERVE_DIALOGS = (*INFO_DIALOGS, 10120)  # and the music OSD, whose rails serve alike
+_SLIDESHOW = 12007  # a modal dialog over Pictures: its own serve guards its picture
 _TRAILER_PENDING = "String.IsEqual(Window(home).Property(trailer_state),pending)"
 
 
@@ -253,9 +254,11 @@ class _FocusGuard:
 
         # A modal dialog over the window answers the reads below, and nothing under
         # it moves. An info dialog's rails share the window's ids, so under one only
-        # a run that reads none of them carries on.
-        modal = getCurrentWindowDialogId() != 9999
-        if modal and self.window_id == getCurrentWindowId():
+        # a run that reads none of them carries on. The slideshow's picture moves.
+        modal = getCurrentWindowDialogId()
+        if modal != 9999 and self.window_id == getCurrentWindowId():
+            if modal == _SLIDESHOW:
+                return self._same_item()
             if self.through_info or not _info_open():
                 return True
             log.debug(f"{LOG_TAG} → {self.caller_name}: ABORTED → under an info dialog")
@@ -282,6 +285,14 @@ class _FocusGuard:
             )
             return False
 
+        return self._same_item()
+
+    def _same_item(self) -> bool:
+        """
+        Identity check: the live identity, when it reads, is still the snapshot.
+
+        :return: False once the item has moved on (lost_to is then set).
+        """
         if not self.expected_identity:
             return True
 

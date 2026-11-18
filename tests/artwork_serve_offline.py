@@ -6,7 +6,7 @@ item's own); a background read whole by a skin variable's name, standing only wh
 the URL's raw value is it or it cut at "&" or "|" (a cut-off URL only on top, an empty
 one never), a family outranking it; the parser keeps art URLs raw and url_decode_path
 leaves a bare URL; a held serve names its position only for a move that stamped no
-visit;
+visit; under Kodi's slideshow a run stops once its picture has moved on;
 the TV guide's time left (epg_time_left) from the programme's start and runtime,
 across midnight too, only while the URL's channel is on air and before its end.
 Run from the helper root:
@@ -392,6 +392,45 @@ class HeldNaming(unittest.TestCase):
         params = {"cursor_key": "", "hold_key": "editor_50"}  # the playlist editor
         self.assertEqual(self.hold(params, cursor="", key="editor_50"), self.NAMED)
         self.assertEqual(self.hold(params, serve=True, key="editor_50"), self.NAMED)
+
+
+class SlideshowGuard(unittest.TestCase):
+    """Under Kodi's slideshow a run follows its picture; under another modal it holds."""
+
+    def alive(self, live: str, modal: int = 12007) -> tuple[bool, str]:
+        """
+        Guard a run of picture 12/340 from Pictures, a modal dialog over it.
+
+        :param live: The slide index Kodi shows now.
+        :param modal: The topmost modal dialog.
+        :return: (alive, lost_to).
+        """
+        handler = handlers.PluginHandlers(
+            {
+                "info": "artwork",
+                "focus_guard": "12/340",
+                "identity_labels": "Slideshow.SlideIndex",
+            }
+        )
+        handler.__dict__["window_id"] = PICTURES = 10002
+        with mock.patch.multiple(
+            handlers,
+            infolabel={"Slideshow.SlideIndex": live}.get,
+            getCurrentWindowId=lambda: PICTURES,
+            getCurrentWindowDialogId=lambda: modal,
+            _info_open=lambda: False,
+        ):
+            guard = handler._guard(through_info=True)
+            return guard.alive(), guard.lost_to
+
+    def test_the_same_picture_carries_on(self):
+        self.assertEqual(self.alive("12/340"), (True, ""))
+
+    def test_a_step_stops_the_run(self):
+        self.assertEqual(self.alive("13/340"), (False, "13/340"))
+
+    def test_another_modal_still_holds(self):
+        self.assertEqual(self.alive("13/340", modal=MENU), (True, ""))
 
 
 class EpgTimeLeft(unittest.TestCase):
