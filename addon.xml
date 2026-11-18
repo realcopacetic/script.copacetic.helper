@@ -70,5 +70,19 @@
     </assets>
     <summary lang="en_GB">The engine behind the Copacetic 2 skin.</summary>
     <description lang="en_GB">Copacetic Helper builds the Copacetic 2 skin's layouts and artwork. TMDB and ListenBrainz tokens in its settings add extras.[CR]This product uses the TMDB API but is not endorsed or certified by TMDB (https://www.themoviedb.org).</description>
+    <summary lang="de_DE">Der Motor hinter dem Skin Copacetic 2.</summary>
+    <description lang="de_DE">Copacetic Helper erstellt die Layouts und das Artwork des Skins Copacetic 2. TMDB- und ListenBrainz-Token in seinen Einstellungen schalten Extras frei.[CR]Dieses Produkt verwendet die TMDB-API, wird aber von TMDB weder unterstützt noch zertifiziert (https://www.themoviedb.org).</description>
+    <summary lang="es_ES">El motor de la skin Copacetic 2.</summary>
+    <description lang="es_ES">Copacetic Helper crea los diseños y la ilustración de la skin Copacetic 2. Los tokens de TMDB y ListenBrainz en sus ajustes añaden extras.[CR]Este producto utiliza la API de TMDB, pero no está respaldado ni certificado por TMDB (https://www.themoviedb.org).</description>
+    <summary lang="fr_FR">Le moteur de l'habillage Copacetic 2.</summary>
+    <description lang="fr_FR">Copacetic Helper construit les dispositions et les illustrations de l'habillage Copacetic 2. Des jetons TMDB et ListenBrainz dans ses paramètres ajoutent des extras.[CR]Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB (https://www.themoviedb.org).</description>
+    <summary lang="it_IT">Il motore della skin Copacetic 2.</summary>
+    <description lang="it_IT">Copacetic Helper crea i layout e l'artwork della skin Copacetic 2. I token TMDB e ListenBrainz nelle sue impostazioni aggiungono funzioni extra.[CR]Questo prodotto utilizza l'API di TMDB ma non è approvato né certificato da TMDB (https://www.themoviedb.org).</description>
+    <summary lang="pl_PL">Silnik skóry Copacetic 2.</summary>
+    <description lang="pl_PL">Copacetic Helper buduje układy i grafiki skóry Copacetic 2. Tokeny TMDB i ListenBrainz w jego ustawieniach dodają dodatkowe funkcje.[CR]Ten produkt korzysta z API TMDB, ale nie jest wspierany ani certyfikowany przez TMDB (https://www.themoviedb.org).</description>
+    <summary lang="sv_SE">Motorn bakom skalet Copacetic 2.</summary>
+    <description lang="sv_SE">Copacetic Helper bygger skalet Copacetic 2:s layouter och bilder. TMDB- och ListenBrainz-token i dess inställningar ger extra funktioner.[CR]Den här produkten använder TMDB API men är inte godkänd eller certifierad av TMDB (https://www.themoviedb.org).</description>
+    <summary lang="zh_CN">Copacetic 2 皮肤背后的引擎。</summary>
+    <description lang="zh_CN">Copacetic Helper 为 Copacetic 2 皮肤构建布局和艺术图片。在其设置中填写 TMDB 和 ListenBrainz 令牌可启用额外功能。[CR]本产品使用 TMDB API，但未经 TMDB 认可或认证 (https://www.themoviedb.org)。</description>
   </extension>
 </addon>
