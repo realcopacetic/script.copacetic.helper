@@ -205,6 +205,24 @@ class Clashes(unittest.TestCase):
             clashes._load(), {"answers": {LRC: True, UPNEXT: False}, "off": [LRC]}
         )
 
+    def test_questions_stop_when_the_skin_is_left_or_the_guard_changes_hands(self):
+        home = clashes.xbmcgui.Window(10000)
+        self.addCleanup(home.clearProperty, clashes.ASKING)
+        for change in (
+            lambda: self.true.discard(clashes.ACTIVE),
+            lambda: home.setProperty(clashes.ASKING, "new"),  # a helper restart
+        ):
+            with self.subTest(change=change):
+                self.enabled, self.true = {LRC, UPNEXT}, self.true | {PLAYNEXT}
+                self.dialog.return_value.yesnocustom.reset_mock()
+                self.dialog.return_value.yesnocustom.side_effect = lambda *args: (
+                    change() or 0
+                )
+                clashes.check()
+                self.assertEqual(self.asked(), [f"System.AddonTitle({LRC})"])
+                self.true.add(clashes.ACTIVE)
+                home.clearProperty(clashes.ASKING)
+
     def test_outside_a_helper_skin_nothing_runs(self):
         self.true.discard(clashes.ACTIVE)
         clashes.check()
