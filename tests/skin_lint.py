@@ -45,6 +45,7 @@ C2_SHELLS = (
     *("tpl_editor", "blk_settings_panels"),  # the editors and the settings windows
     "blk_osd_",  # VideoOSD and the seek bar and info dialogs over fullscreen video
     "blk_musicosd",  # MusicOSD
+    "blk_game",  # DialogGameControllers (its three dialogs) and GameOSD's pill
 )
 MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow returns
     *("AddonBrowser.xml", "EventLog.xml", "MyFavourites.xml", "MyGames.xml"),
