@@ -50,7 +50,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
 | `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, or an episode (for a show, its newest unwatched one, specials included) first aired, at most this many days ago. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
-| `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDb data `next_air`, `next_air_episode`, `new_episode` and `show_status` read, as in [TMDb lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
+| `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDB data `next_air`, `next_air_episode`, `new_episode` and `show_status` read, as in [TMDB lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
 Placement parameters (`coords`, `anchor_id`, `inset`, `track_w`, `track_h`,
@@ -117,10 +117,10 @@ One list item in the helper container:
 | `ListItem.Property(next_episode)` | A TV show or season with unwatched episodes, started or not: the lowest unwatched episode outside the specials, e.g. `2x10` (`1x01` for a show not yet begun, `3x01` for a Season 3 not yet begun). |
 | `ListItem.Property(next_runtime)` | That episode's library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
 | `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`; or for an album none of whose songs has played, added within `new_days`. |
-| `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDb data, in `date_format`. |
-| `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDb data predates it (see below). |
-| `ListItem.Property(new_episode)` | A fully watched TV show: TMDb's last aired episode when it is later than the library's newest, e.g. `3x05`. A notice only: nothing to play. |
-| `ListItem.Property(show_status)` | A fully watched TV show: `ended` (TMDb's *Ended* or *Canceled*) or `returning` (*Returning Series*); empty for TMDb's other states. |
+| `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDB data, in `date_format`. |
+| `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDB data predates it (see below). |
+| `ListItem.Property(new_episode)` | A fully watched TV show: TMDB's last aired episode when it is later than the library's newest, e.g. `3x05`. A notice only: nothing to play. |
+| `ListItem.Property(show_status)` | A fully watched TV show: `ended` (TMDB's *Ended* or *Canceled*) or `returning` (*Returning Series*); empty for TMDB's other states. |
 | `ListItem.Property(album)` | `true` for a library album; empty otherwise. |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
@@ -132,7 +132,7 @@ for them too. The library calls they add, per focus:
 | Focused item | Calls | Which |
 |---|---|---|
 | Show or season with episodes left, started or not (a favourite's season too) | 1 | `GetEpisodes` |
-| Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDb id, only with a TMDb token and no `UniqueID(tmdb)`; `GetEpisodes` for the newest episode, only when TMDb's cached data has a last aired episode |
+| Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDB id, only with a TMDB token and no `UniqueID(tmdb)`; `GetEpisodes` for the newest episode, only when TMDB's cached data has a last aired episode |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
 | Album none of whose songs has played | 1 | `GetAlbumDetails` (`dateadded`) |
@@ -184,13 +184,13 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   `ListItem.Premiered` can't stand in: they print the date in the region's short date
   format, which the user can change.
 - **`next_air`**, **`next_air_episode`**, **`new_episode`** and **`show_status`**:
-  only for a fully watched show (some episodes watched, none left) with a TMDb token
-  set; any other show makes no lookup for them. TMDb's next episode air date, season
+  only for a fully watched show (some episodes watched, none left) with a TMDB token
+  set; any other show makes no lookup for them. TMDB's next episode air date, season
   and number, its last aired episode and its status, read from the add-on's cache
-  only; this path never asks TMDb. `new_episode` costs one `VideoLibrary.GetEpisodes`
+  only; this path never asks TMDB. `new_episode` costs one `VideoLibrary.GetEpisodes`
   call for the library's newest episode outside the specials (sorted `episode`,
-  descending, limit 1), and is set only when TMDb's is later: an episode missing
-  mid-run, or one TMDb numbers differently (TVDB order, episode groups), is no news.
+  descending, limit 1), and is set only when TMDB's is later: an episode missing
+  mid-run, or one TMDB numbers differently (TVDB order, episode groups), is no news.
   A special (season 0) is left out, as `next_episode` leaves it out. The [metadata](metadata.md#tmdb-lookups)
   plugin fills the cache when called with `enrich_with_tmdb=true`. Until it has, all
   four are empty; once the next air date is past, `next_air` and `next_air_episode`
@@ -198,10 +198,10 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   add-on holds the date alone (or no last aired episode and status), so
   `next_air_episode` (or `new_episode` and `show_status`) stays empty until a
   `metadata` call fetches the show again, once the entry is 7 days old. The cache is kept per
-  TMDb language, so a `metadata` call with a `language` fills it for a `progressbar`
+  TMDB language, so a `metadata` call with a `language` fills it for a `progressbar`
   call with the same `language` only.
   A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its
-  default id) costs one `VideoLibrary.GetTVShowDetails` call to find its TMDb id, as
+  default id) costs one `VideoLibrary.GetTVShowDetails` call to find its TMDB id, as
   the metadata plugin does.
 
 ## Focus guard

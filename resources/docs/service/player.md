@@ -69,9 +69,9 @@ order:
    file. Any other name (`Prologue`, a cold open) is not a segment.
 2. **[TheIntroDB](https://theintrodb.org)**, for a library film or episode, while the
    helper's *TheIntroDB* setting is on (the default). The service asks once at AV start
-   by the film's (or the episode's show's) TMDb id, then TVDB, then IMDb (a TMDb lookup
-   reads TMDb's episode numbering, as a TMDb-scraped library has), moving on only while
-   a TMDb or IMDb id or its numbering is unknown there. A "no submissions" answer ends
+   by the film's (or the episode's show's) TMDB id, then TVDB, then IMDb (a TMDB lookup
+   reads TMDB's episode numbering, as a TMDB-scraped library has), moving on only while
+   a TMDB or IMDb id or its numbering is unknown there. A "no submissions" answer ends
    it: TheIntroDB keys its records by TVDB id and answers so for any TVDB id or episode
    without times, known or not, and an IMDb id finds the same record. The service sends
    the file's length so the answer comes from the nearest release. Every segment of a
@@ -89,7 +89,7 @@ order:
    or both, but no other marks: one anywhere else, a third early mark or a second late
    one, and the pattern is not used. Files under 15 minutes are left alone.
 
-**What TheIntroDB is sent.** One id for the film or the episode's show (TMDb, TVDB or
+**What TheIntroDB is sent.** One id for the film or the episode's show (TMDB, TVDB or
 IMDb, in that order, until one is known), the season and episode number for an
 episode, and the file's length. No account is needed. Requests are spaced at least a
 second apart; a request that would wait more than 3 seconds is skipped, and the last
