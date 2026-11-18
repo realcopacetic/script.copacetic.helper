@@ -65,7 +65,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32104"
-msgid "Whenever Kodi's internal database is queried by the addon using JSON-RPC, the queries and responses will also be logged."
+msgid "Whenever Kodi's internal database is queried by the add-on using JSON-RPC, the queries and responses will also be logged."
 msgstr ""
 
 #: /resources/settings.xml
@@ -255,17 +255,17 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32019"
-msgid "Clear addon cache"
+msgid "Clear add-on cache"
 msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32119"
-msgid "Delete all processed artwork (blurred, cropped, text images), reset the artwork lookup database, and forget saved web service answers (TMDb, ListenBrainz, Deezer, TheIntroDB, LRCLIB), the daily mix cards' kept mixes and saved text truncations. Asks first. Source artwork is unaffected."
+msgid "Delete all processed artwork (blurred, cropped, text images), reset the artwork lookup database, and forget saved web service answers (TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB), the daily mix cards' kept mixes and saved text truncations. Asks first. Source artwork is unaffected."
 msgstr ""
 
 #: /resources/settings.xml, /resources/lib/script/actions.py
 msgctxt "#32033"
-msgid "Clear TMDb data"
+msgid "Clear TMDB data"
 msgstr ""
 
 #: /resources/settings.xml, /resources/lib/script/actions.py
@@ -335,7 +335,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32133"
-msgid "Forget every saved TMDb answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
+msgid "Forget every saved TMDB answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
 msgstr ""
 
 #: /resources/settings.xml
