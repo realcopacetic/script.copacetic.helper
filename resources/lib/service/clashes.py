@@ -156,32 +156,39 @@ def notify(message: str, data: dict | None = None) -> None:
     )
 
 
-def _current(token: str) -> bool:
+def _current(token: str, skin: str) -> bool:
     """
-    Whether this check is still the one to run.
+    Whether this check is still the one to run; a switch from outside (JSON-RPC)
+    loads another skin before the service clears helper_active.
 
     :param token: The guard's value this check set.
+    :param skin: The skin's folder when this check began.
     :return: False once the skin is left or the guard changes hands.
     """
-    return condition(ACTIVE) and xbmcgui.Window(10000).getProperty(ASKING) == token
+    return (
+        xbmc.getSkinDir() == skin
+        and condition(ACTIVE)
+        and xbmcgui.Window(10000).getProperty(ASKING) == token
+    )
 
 
-def _settled(token: str) -> bool:
+def _settled(token: str, skin: str) -> bool:
     """
     Wait until Home has been on top for 2 s with nothing over it.
 
     :param token: The guard's value this check set.
+    :param skin: The skin's folder when this check began.
     :return: False when Kodi exits, the skin is left or the guard changes hands first.
     """
     monitor, quiet = xbmc.Monitor(), 0
     while quiet < 4:
-        if monitor.waitForAbort(0.5) or not _current(token):
+        if monitor.waitForAbort(0.5) or not _current(token, skin):
             return False
         quiet = quiet + 1 if condition(SETTLED) else 0
     return True
 
 
-def _ask(unasked: list[str], token: str) -> dict:
+def _ask(unasked: list[str], token: str, skin: str) -> dict:
     """
     Ask about each add-on in turn, until the skin is left or the guard changes hands.
     Only a click on Switch off or Keep both counts: Not now, Back or a close by Kodi
@@ -189,14 +196,15 @@ def _ask(unasked: list[str], token: str) -> dict:
 
     :param unasked: Add-on ids to ask about.
     :param token: The guard's value this check set.
+    :param skin: The skin's folder when this check began.
     :return: Each answer clicked: id: True to switch it off.
     """
-    skin = infolabel(f"System.AddonTitle({xbmc.getSkinDir()})")
+    title = infolabel(f"System.AddonTitle({skin})")
     answers = {}
     for addon_id in unasked:
-        if not _current(token):
+        if not _current(token, skin):
             break
-        names = {"addon": infolabel(f"System.AddonTitle({addon_id})"), "skin": skin}
+        names = {"addon": infolabel(f"System.AddonTitle({addon_id})"), "skin": title}
         answer = xbmcgui.Dialog().yesnocustom(
             names["addon"],
             ADDON.getLocalizedString(CLASHES[addon_id][1]) % names,
@@ -221,13 +229,13 @@ def check() -> None:
         # asking about after its questions open waits for the next check
         return
     # A token, so a check outlived by a helper restart stops and leaves the new guard
-    token = uuid4().hex
+    token, skin = uuid4().hex, xbmc.getSkinDir()
     home.setProperty(ASKING, token)
     try:
-        if not _unasked(_load()["answers"]) or not _settled(token):
+        if not _unasked(_load()["answers"]) or not _settled(token, skin):
             return
         # Read again after the wait: a reset may land meanwhile
-        if answers := _ask(_unasked(_load()["answers"]), token):
+        if answers := _ask(_unasked(_load()["answers"]), token, skin):
             notify(ANSWERS, answers)
     finally:
         if home.getProperty(ASKING) == token:
