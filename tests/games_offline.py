@@ -320,11 +320,19 @@ class GamesSource(unittest.TestCase):
             },
         )
 
+    def test_script_runs_from_a_menu_item(self):
+        menu = browse._build_result("script://script.foo", "Foo", "menu")
+        self.assertEqual(
+            (menu["type"], menu["icon"], menu["action"]),
+            ("command", "DefaultAddonProgram.png", 'RunScript("script.foo")'),
+        )
+
     def offered(self, mode):
         """The rows the source's picker lists in a mode."""
         rows = [
             {"file": "plugin://plugin.program.iagl/", "filetype": "directory"},
             {"file": "game://game.libretro.2048", "filetype": "file"},
+            {"file": "script://script.foo", "filetype": "file"},
         ]
         rows = [row | {"label": row["file"]} for row in rows]
         with (
@@ -336,11 +344,15 @@ class GamesSource(unittest.TestCase):
             browse._browse_level(self.PATH, "Game add-ons", mode)
         return dialog.return_value.select.call_args.args[1][2:]  # after .. and Use
 
-    def test_widget_is_not_offered_a_standalone_game(self):
+    def test_widget_is_not_offered_a_standalone_game_or_script(self):
         self.assertEqual(self.offered("widget"), ["plugin://plugin.program.iagl/  >"])
         self.assertEqual(
             self.offered("menu"),
-            ["plugin://plugin.program.iagl/  >", "game://game.libretro.2048"],
+            [
+                "plugin://plugin.program.iagl/  >",
+                "game://game.libretro.2048",
+                "script://script.foo",
+            ],
         )
 
 

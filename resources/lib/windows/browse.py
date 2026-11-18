@@ -363,6 +363,9 @@ _PATH_SCHEMES = (
 # A standalone game in addons://sources/game, a file: Kodi plays it, nothing lists it.
 _GAME_SCHEME = "game://"
 
+# A script add-on in an add-on source, a file too: Kodi runs it (CExecString::Parse).
+_SCRIPT_SCHEME = "script://"
+
 # Paths where "Use this path" is suppressed in widget mode.
 _NO_USE_PATH = {
     "library://video/",
@@ -650,16 +653,22 @@ def _build_result(
     """
 
     # Action strings (commands, builtins) bypass path-based derivation; a standalone
-    # game from the Game add-ons source (game://<add-on id>) is one that plays it
-    game = path.startswith(_GAME_SCHEME)
-    if mode == "menu" and (game or _is_action_string(path)):
+    # game (game://<add-on id>) plays and a script (script://<add-on id>) runs
+    if mode == "menu" and _is_action_string(path):
+        if path.startswith(_GAME_SCHEME):
+            icon, action = _TYPE_ICON["games"], 'PlayMedia("%s")' % path
+        elif path.startswith(_SCRIPT_SCHEME):
+            script = path.removeprefix(_SCRIPT_SCHEME)
+            icon, action = "DefaultAddonProgram.png", 'RunScript("%s")' % script
+        else:
+            icon, action = "DefaultShortcut.png", path
         return {
             "path": path,
             "label": label,
-            "icon": _TYPE_ICON["games"] if game else "DefaultShortcut.png",
+            "icon": icon,
             "type": "command",
             "window": "",
-            "action": 'PlayMedia("%s")' % path if game else path,
+            "action": action,
             "update": "",
         }
 
@@ -812,8 +821,11 @@ def _browse_level(path: str, heading: str, mode: str = "widget", folders: bool =
             for item in items
             if item["file"] not in _SUPPRESS_ITEMS
             and (not folders or _is_plain_folder(item))
-            # A widget can't list a standalone game: only a menu item can play it
-            and not (mode == "widget" and item["file"].startswith(_GAME_SCHEME))
+            # A widget can't list a standalone game or script: only a menu item runs it
+            and not (
+                mode == "widget"
+                and item["file"].startswith((_GAME_SCHEME, _SCRIPT_SCHEME))
+            )
         ]
 
         suppress_use_path = mode == "widget" and path in _NO_USE_PATH
