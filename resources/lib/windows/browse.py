@@ -273,20 +273,20 @@ _KODI_COMMANDS = [
     (xbmc.getLocalizedString(13010), "Hibernate", "DefaultShortcut.png"),  # Hibernate
     (xbmc.getLocalizedString(13011), "Suspend", "DefaultShortcut.png"),  # Suspend
     (
-        xbmc.getLocalizedString(19026),
-        "ShutdownTimer",
+        xbmc.getLocalizedString(20150),
+        "AlarmClock(shutdowntimer,Shutdown())",
         "DefaultShortcut.png",
-    ),  # Add timer...
+    ),  # Custom shutdown timer
     (
         xbmc.getLocalizedString(20151),
-        "CancelShutdownTimer",
+        "CancelAlarm(shutdowntimer)",
         "DefaultShortcut.png",
     ),  # Cancel shutdown timer
     (
-        xbmc.getLocalizedString(356),
+        xbmc.getLocalizedString(360),
         "ActivateScreensaver",
         "DefaultShortcut.png",
-    ),  # Screensaver mode
+    ),  # Screensaver
     (xbmc.getLocalizedString(13014), "Minimize", "DefaultShortcut.png"),  # Minimise
     (
         xbmc.getLocalizedString(20045),
