@@ -298,6 +298,18 @@ class Clashes(unittest.TestCase):
                 self.true.add(clashes.ACTIVE)
                 home.clearProperty(clashes.ASKING)
 
+    def test_a_skin_switched_from_outside_mid_question_asks_no_more(self):
+        # JSON-RPC Settings.SetSettingValue lookandfeel.skin: the new skin loads before
+        # the service sees it and clears helper_active
+        self.enabled, self.true = {LRC, UPNEXT}, self.true | {PLAYNEXT}
+        skin = ["skin.test"]
+        self.dialog.return_value.yesnocustom.side_effect = lambda *args: (
+            skin.__setitem__(0, "skin.other") or 0
+        )
+        with patch.object(clashes.xbmc, "getSkinDir", lambda: skin[0]):
+            clashes.check()
+        self.assertEqual(self.asked(), [f"System.AddonTitle({LRC})"])
+
     def test_outside_a_helper_skin_nothing_runs(self):
         self.true.discard(clashes.ACTIVE)
         clashes.check()
@@ -361,7 +373,7 @@ class Clashes(unittest.TestCase):
     def test_a_check_started_while_another_waits_for_home_leaves_it_to_that_one(self):
         waits = []
 
-        def settled(token):
+        def settled(token, skin):
             waits.append(None)
             if len(waits) == 1:  # another check starts while this one waits
                 clashes.check()
