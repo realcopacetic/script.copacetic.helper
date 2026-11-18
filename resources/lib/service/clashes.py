@@ -151,7 +151,7 @@ def notify(message: str, data: dict | None = None) -> None:
     """
     json_call(
         "JSONRPC.NotifyAll",
-        params={"sender": "script.copacetic.helper", "message": message, "data": data},
+        params={"sender": log.ADDON_ID, "message": message, "data": data},
         parent="clashes",
     )
 

@@ -302,11 +302,12 @@ class Monitor(xbmc.Monitor):
         :param method: Announcement name, e.g. "Playlist.OnAdd".
         :param data: Its data as JSON.
         """
-        if method == f"Other.{clashes.ANSWERS}":
+        mine = sender == log.ADDON_ID
+        if mine and method == f"Other.{clashes.ANSWERS}":
             if self.player_monitor:  # the skin left meanwhile: asked again on return
                 self._check_clashes(json.loads(data))
             return
-        if method == f"Other.{clashes.RESET}":
+        if mine and method == f"Other.{clashes.RESET}":
             clashes.restore(forget=True)
             self.clash_features = ()  # checked next pass: reads this frame are cached
             return
