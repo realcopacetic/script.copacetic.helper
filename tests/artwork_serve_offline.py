@@ -54,18 +54,22 @@ PLEX = "https://plex/photo/x.jpg?width=500&X-Plex-Token=a%2Bb"
 class ArtworkServe(unittest.TestCase):
     """A serve of the focused item in view 50, its window on top unless a menu is."""
 
-    def serve(self, params: dict, on_top: bool = True) -> dict:
+    def serve(self, params: dict, on_top: bool = True, visit_ends: str = "") -> dict:
         """
         Run artwork() and report what it saw: logo, icon and label (the clearlogo and
         icon URLs and band label the image work got), family (the item the family was
-        read from), seeded (the family seed_multiart got) and items (what it returned).
+        read from), seeded and register (seed_multiart's family and fadelabel_id) and
+        items (what it returned).
 
         :param params: The URL's params past the fixed ones.
         :param on_top: Whether the serve's window is topmost (else a menu is).
-        :return: What it saw, by logo, icon, label, family, seeded and items.
+        :param visit_ends: Where visit v1 gives way to v2: "images" or "seed".
+        :return: What it saw, by logo, icon, label, family, seeded, register and items.
         """
         seen = {}
+        visit = "Window(home).Property(artwork_visit)"
         labels = {
+            visit: "v1",
             SOURCE: LOGO,
             ICON_SOURCE: ICON,
             f"$VAR[{VAR}]": PLEX,
@@ -90,6 +94,8 @@ class ArtworkServe(unittest.TestCase):
             seen["icon"] = art_opts["icon"].url
             seen["background"] = art_opts["background"].url
             seen["label"] = art_opts["icon"].darken.label
+            if visit_ends == "images":
+                labels[visit] = "v2"
             return {"background": "blur.png"}
 
         def family(self, item, multiart_type):
@@ -97,9 +103,12 @@ class ArtworkServe(unittest.TestCase):
             self._tmdb_missed = None
             return FAMILY if item.startswith("Container(9040)") else {}
 
-        def seed(**kwargs):
+        def seed(**kwargs):  # seed_multiart: None when its guard dies mid-seed
             seen["seeded"] = kwargs["multiart_dict"]
-            return kwargs["art"]
+            seen["register"] = kwargs["fadelabel_id"]
+            if visit_ends == "seed":
+                labels[visit] = "v2"
+            return kwargs["art"] if kwargs["alive"]() else None
 
         with (
             mock.patch.multiple(
@@ -219,6 +228,26 @@ class ArtworkServe(unittest.TestCase):
     def test_a_family_outranks_the_background_read(self):
         fav = {"multiart_target": "9040", "multiart": "fanart"}
         self.assertEqual(self.plex(**fav)["background"], "fav0.jpg")
+
+    VISIT = {"visit": "v1", "multiart_fadelabel": "3400"}
+
+    def held(self, out: dict) -> bool:
+        """Whether the serve returned a hold."""
+        return out["items"][0]["properties"]["current"].startswith("held/")
+
+    def test_a_live_visit_seeds_its_register(self):
+        out = self.serve(self.VISIT)
+        self.assertEqual(out["register"], "3400")
+        self.assertFalse(self.held(out))
+
+    def test_a_visit_ended_before_the_seed_leaves_the_register(self):
+        # A→B→A: back in the same window, the new visit's register is live
+        self.assertIsNone(self.serve(self.VISIT, visit_ends="images")["register"])
+
+    def test_a_visit_ending_mid_seed_holds(self):
+        out = self.serve(self.VISIT, visit_ends="seed")
+        self.assertEqual(out["register"], "3400")
+        self.assertTrue(self.held(out))
 
 
 class ArtUrls(unittest.TestCase):

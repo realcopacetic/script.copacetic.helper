@@ -945,16 +945,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_property("tmdb_art_missed", self._tmdb_missed)
 
         folder = infolabel(f"{self.identity_container}.FolderPath")
+        # A serve whose visit ended (A→B→A: the same window) leaves the live visit's
+        # register alone; one ending mid-seed holds (the reset may have run)
+        hands_off = blind or self._visit_superseded()
         art = seed_multiart(
-            fadelabel_id=None if blind else self.params.get("multiart_fadelabel"),
+            fadelabel_id=None if hands_off else self.params.get("multiart_fadelabel"),
             multiart_dict=multiart_dict,
             art=art,
             seed_scope=f"{stamp_scope}@{folder}",
             seed_item=f"{current_position}/{dbid}/{self.params.get('visit', '')}",
-            alive=alive,
+            alive=lambda: alive() and not self._visit_superseded(),
             window_id=window_id,
             dialog=self.dialog,
-            superseded=self._visit_superseded,
         )
         if art is None:
             return self._artwork_held(guard.lost_to)
