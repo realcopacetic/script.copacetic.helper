@@ -34,7 +34,9 @@ msgstr ""
 
 #########################################################################################################
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#. The skin's name, heading the helper's toasts: do not translate.
+#: /resources/lib/script/actions.py
+#: /resources/lib/shared/utilities.py
 msgctxt "#32000"
 msgid "Copacetic"
 msgstr ""
@@ -74,11 +76,13 @@ msgctxt "#32007"
 msgid "Enable Dev mode"
 msgstr ""
 
+#. A settings category: the web services the helper can ask.
 #: /resources/settings.xml
 msgctxt "#32008"
 msgid "API"
 msgstr ""
 
+#. A web service's name: do not translate.
 #: /resources/settings.xml
 msgctxt "#32009"
 msgid "TMDB"
@@ -89,6 +93,7 @@ msgctxt "#32010"
 msgid "TMDB access token"
 msgstr ""
 
+#. A keyboard's heading.
 #: /resources/settings.xml
 msgctxt "#32011"
 msgid "Enter a TMDB v3 API Key or v4 API Read Access Token"
@@ -114,6 +119,7 @@ msgctxt "#32015"
 msgid "TMDB language"
 msgstr ""
 
+#. A keyboard's heading.
 #: /resources/settings.xml
 msgctxt "#32016"
 msgid "Enter a TMDB language code"
@@ -124,12 +130,15 @@ msgctxt "#32017"
 msgid "Cache"
 msgstr ""
 
+#. A web service's name: do not translate.
 #: /resources/settings.xml
 msgctxt "#32018"
 msgid "ListenBrainz"
 msgstr ""
 
 #: /resources/settings.xml
+#: /resources/lib/script/actions.py
+#: /resources/lib/shared/utilities.py
 msgctxt "#32019"
 msgid "Clear add-on cache"
 msgstr ""
@@ -144,6 +153,7 @@ msgctxt "#32021"
 msgid "ListenBrainz user token"
 msgstr ""
 
+#. A keyboard's heading.
 #: /resources/settings.xml
 msgctxt "#32022"
 msgid "Enter your ListenBrainz user token"
@@ -159,61 +169,75 @@ msgctxt "#32024"
 msgid "Library"
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32025"
 msgid "Clear artist or album artwork"
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32027"
 msgid "Remove broken artwork"
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32028"
 msgid "Clean image cache"
 msgstr ""
 
+#. A choice in a select dialog headed #32025.
 #: /resources/lib/script/actions.py
 msgctxt "#32029"
 msgid "Online artwork only (local files take its place)"
 msgstr ""
 
+#. A choice in a select dialog headed #32025.
 #: /resources/lib/script/actions.py
 msgctxt "#32030"
 msgid "All artwork"
 msgstr ""
 
+#. %s is Kodi's own "Artists" or "Albums". "Change information provider" is Kodi's #20195 and "Set
+#. for all shown" stands for its #38065 and #38067: follow Kodi's translation of them.
 #: /resources/lib/script/actions.py
 msgctxt "#32031"
 msgid "Remove the online artwork from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
 msgstr ""
 
+#. %s is Kodi's own "Artists" or "Albums". "Change information provider" is Kodi's #20195 and "Set
+#. for all shown" stands for its #38065 and #38067: follow Kodi's translation of them.
 #: /resources/lib/script/actions.py
 msgctxt "#32032"
 msgid "Remove all the artwork (embedded covers stay) from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32033"
 msgid "Clear TMDB data"
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32034"
 msgid "Clear ListenBrainz data"
 msgstr ""
 
+#. %s is a web service's name: TMDB, ListenBrainz, Deezer, TheIntroDB or LRCLIB.
 #: /resources/lib/script/actions.py
 msgctxt "#32035"
 msgid "Forget every saved %s answer? Each is fetched again when next shown."
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32036"
 msgid "Clear Deezer data"
 msgstr ""
 
+#. A web service's name: do not translate.
 #: /resources/settings.xml
 msgctxt "#32037"
 msgid "Deezer"
@@ -224,6 +248,7 @@ msgctxt "#32038"
 msgid "Rank music with Deezer"
 msgstr ""
 
+#. A web service's name: do not translate.
 #: /resources/settings.xml
 msgctxt "#32039"
 msgid "TheIntroDB"
@@ -234,11 +259,13 @@ msgctxt "#32040"
 msgid "Find intros and credits with TheIntroDB"
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32041"
 msgid "Clear TheIntroDB data"
 msgstr ""
 
+#. A web service's name: do not translate.
 #: /resources/settings.xml
 msgctxt "#32042"
 msgid "LRCLIB"
@@ -249,7 +276,8 @@ msgctxt "#32043"
 msgid "Find lyrics with LRCLIB"
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32044"
 msgid "Clear LRCLIB data"
 msgstr ""
@@ -259,7 +287,8 @@ msgctxt "#32045"
 msgid "Other add-ons"
 msgstr ""
 
-#: /resources/settings.xml, /resources/lib/script/actions.py
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32046"
 msgid "Ask again about add-ons that clash"
 msgstr ""
@@ -289,16 +318,19 @@ msgctxt "#32107"
 msgid "This will force all skin builder files to be rebuilt every time Kodi starts."
 msgstr ""
 
+#. Keep themoviedb.org as it is.
 #: /resources/settings.xml
 msgctxt "#32110"
 msgid "Adds TV creators, trailers, missing plots and taglines, and extra art. Paste your own v3 API key or v4 read access token from themoviedb.org. Sends the item's TMDB ID to TMDB. Empty: nothing sent."
 msgstr ""
 
+#. runtime_state is a file's name: keep it as it is.
 #: /resources/settings.xml
 msgctxt "#32112"
 msgid "Clears runtime_state and all builder outputs of the skin you turn this on in, next time that skin starts, then rebuilds from defaults. The toggle reverts itself once applied. To move it to another skin, turn it off and press OK, then turn it on again."
 msgstr ""
 
+#. runtime_state is a file's name: keep it as it is.
 #: /resources/settings.xml
 msgctxt "#32113"
 msgid "Rebuild all skin output files immediately and reload the skin. Preserves runtime_state."
@@ -309,6 +341,7 @@ msgctxt "#32114"
 msgid "Verify the current token by making a test request and report the result."
 msgstr ""
 
+#. Keep the codes 'en-US', 'fr-FR' and 'de-DE' as they are.
 #: /resources/settings.xml
 msgctxt "#32115"
 msgid "Language code for TMDB metadata, e.g. 'en-US', 'fr-FR', 'de-DE'."
@@ -324,6 +357,8 @@ msgctxt "#32120"
 msgid "Logs every per-item builder operation (default applications, fallback resolutions). Very noisy — only useful when debugging template/mapping issues."
 msgstr ""
 
+#. "Top songs", "Discography" and "Start mix" (#32821) are the skin's and the helper's own labels:
+#. use their translations. Keep listenbrainz.org/settings.
 #: /resources/settings.xml
 msgctxt "#32121"
 msgid "Adds Top songs, Discography popularity order and similar artists (the similar rails, Start mix, the endless queue and daily mixes). Paste the token from listenbrainz.org/settings. Sends the artist's MusicBrainz ID and token to ListenBrainz. Empty: nothing sent."
@@ -334,6 +369,7 @@ msgctxt "#32125"
 msgid "Remove the current artwork of every artist or album in Kodi's list, so refreshing them all fills it again from the folders and the information provider. Image files are not touched."
 msgstr ""
 
+#. "Asks first": the action shows a yes/no question before it removes anything.
 #: /resources/settings.xml
 msgctxt "#32127"
 msgid "Check every artwork link of artists, albums, films, sets, TV shows and seasons, then remove the dead ones (web images no longer there, files moved or deleted). Run it on a device whose share login can read every art folder. Asks first; an artist it changes loses its discography and music video links until refreshed."
@@ -344,36 +380,45 @@ msgctxt "#32128"
 msgid "Remove this device's cached copies of images that no library item uses and that haven't been shown for 30 days. Asks first. Each Kodi device keeps its own cache."
 msgstr ""
 
+#. "Refresh cached data" is string #32835: use the same words.
 #: /resources/settings.xml
 msgctxt "#32133"
 msgid "Forget every saved TMDB answer (details, cast, artwork links), so each is fetched again when next shown. One item: Refresh cached data in its context menu."
 msgstr ""
 
+#. "Refresh cached data" is string #32835: use the same words.
 #: /resources/settings.xml
 msgctxt "#32134"
 msgid "Forget every saved ListenBrainz answer (top songs, similar artists), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
 msgstr ""
 
+#. "Refresh cached data" is string #32835: use the same words.
 #: /resources/settings.xml
 msgctxt "#32136"
 msgid "Forget every saved Deezer answer (matched artists, top tracks, similar artists, today's chart), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
 msgstr ""
 
+#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your most played album"
+#. (#32994), "Your #2 song" (#32993) and "Start mix" (#32821) are the helper's own labels: use the
+#. same words as those strings.
 #: /resources/settings.xml
 msgctxt "#32138"
 msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your most played album or Your #2 song from your plays."
 msgstr ""
 
+#. "Play next" is the skin's own label. Keep theintrodb.org as it is.
 #: /resources/settings.xml
 msgctxt "#32140"
 msgid "Where a library film's or episode's intro, recap and credits are, for the skin's skip button and Play next. Times come from TheIntroDB (theintrodb.org), sent the film's or show's ids and the episode's number; no account needed. Off: nothing sent, and only chapters are used."
 msgstr ""
 
+#. "Refresh cached data" is string #32835: use the same words.
 #: /resources/settings.xml
 msgctxt "#32141"
 msgid "Forget every saved TheIntroDB answer (intro, recap and credits times), so each is fetched again when next played. One film or show: Refresh cached data in its context menu."
 msgstr ""
 
+#. Keep .lrc and lrclib.net as they are.
 #: /resources/settings.xml
 msgctxt "#32143"
 msgid "Lyrics for the playing song, when it has no .lrc file beside it and none in its tags, for the skin's lyrics. They come from LRCLIB (lrclib.net), sent the song's title, artist, album and length. The next song in the queue is asked ahead too, even when it has lyrics of its own. No account needed. Off: nothing sent, and only .lrc files and tags are used."
@@ -399,176 +444,219 @@ msgstr ""
 
 #########################################################################################################
 
+#. %s is a size, e.g. "1.2 MB". A toast (one line, cut if long): keep it short.
 #: /resources/lib/shared/utilities.py
 msgctxt "#32201"
 msgid "Cache cleared, %s freed"
 msgstr ""
 
+#. A toast under an add-on's id, after it is switched off.
 #: /resources/lib/script/actions.py
 msgctxt "#32205"
 msgid "Disabled"
 msgstr ""
 
+#. A toast under an add-on's id, after it is switched on.
 #: /resources/lib/script/actions.py
 msgctxt "#32206"
 msgid "Enabled"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32207"
 msgid "Skin reset and rebuilt"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32208"
 msgid "No TMDB token set"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32209"
 msgid "TMDB token valid"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32210"
 msgid "TMDB test failed — check token and network"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32211"
 msgid "Skin rebuilt"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32212"
 msgid "No ListenBrainz token set"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32213"
 msgid "ListenBrainz token valid"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32214"
 msgid "ListenBrainz test failed — check token and network"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/shared/utilities.py
 msgctxt "#32215"
 msgid "Skin build failed — check the log"
 msgstr ""
 
+#. %d is a number of artists or albums. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32216"
 msgid "Artwork cleared for %d items"
 msgstr ""
 
+#. First %d: a number of images; second %d: a number of library items. %s is empty, or a space and
+#. string #32228 in its brackets: keep it straight after the items, before the full stop. "Show song
+#. and album artists" is Kodi's #13414: follow Kodi's translation; \" is a quotation mark.
 #: /resources/lib/script/actions.py
 msgctxt "#32218"
 msgid "Found %d broken images on %d items%s. Remove them? An artist also loses its discography and music video links until refreshed (song-only artists need \"Show song and album artists\" on)."
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32219"
 msgid "No broken artwork found"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32220"
 msgid "No internet connection, nothing removed"
 msgstr ""
 
+#. %d is a number of images. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32221"
 msgid "Removed %d broken images"
 msgstr ""
 
+#. %d is a number of images and %.0f their size in megabytes: keep both exactly (%.0f prints a whole
+#. number).
 #: /resources/lib/script/actions.py
 msgctxt "#32222"
 msgid "Found %d cached images (%.0f MB) that nothing has used for 30 days. Remove them?"
 msgstr ""
 
+#. %d is a number of images. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32223"
 msgid "Removed %d cached images"
 msgstr ""
 
+#. A progress dialog's line.
 #: /resources/lib/script/actions.py
 msgctxt "#32224"
 msgid "Reading the library…"
 msgstr ""
 
+#. %d is a number of images. A progress dialog's line.
 #: /resources/lib/script/actions.py
 msgctxt "#32225"
 msgid "Checking %d images…"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32226"
 msgid "Nothing to clean"
 msgstr ""
 
+#. %s is a list of server names, e.g. "nas.local, 192.168.1.5"; %d is a number of images.
 #: /resources/lib/script/actions.py
 msgctxt "#32227"
 msgid "No longer found by name: %s, for %d images. Include those images? Say no if any is a server only your network knows."
 msgstr ""
 
+#. %d is a number of artwork links. Shown after #32218, #32219, #32221 or #32229, so it stays in
+#. brackets and starts in lower case.
 #: /resources/lib/script/actions.py
 msgctxt "#32228"
 msgid "(%d skipped: their server didn't answer)"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32229"
 msgid "Nothing removed"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32230"
 msgid "Cleared"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32231"
 msgid "Fetched again when next shown"
 msgstr ""
 
+#. A toast (one line, cut if long): keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32232"
 msgid "Nothing cached for this item"
 msgstr ""
 
+#. "Waveform" is a visualisation add-on's name: do not translate. A toast (one line, cut if long):
+#. keep it short.
 #: /resources/lib/script/actions.py
 msgctxt "#32233"
 msgid "Waveform couldn't be switched on: the background stays as it is"
 msgstr ""
 
+#. A dialog button: keep it short. Switches the other add-on off (see #32236).
 #: /resources/lib/service/clashes.py
 msgctxt "#32234"
 msgid "Switch off"
 msgstr ""
 
+#. A dialog button: keep it short. Leaves the other add-on on (see #32236).
 #: /resources/lib/service/clashes.py
 msgctxt "#32235"
 msgid "Keep both"
 msgstr ""
 
+#. %(addon)s is the other add-on's name and %(skin)s the skin's: keep both exactly, with the s after
+#. the bracket.
 #: /resources/lib/service/clashes.py
 msgctxt "#32236"
 msgid "%(addon)s opens its own lyrics over %(skin)s's. Switch it off while you use %(skin)s? It comes back on if you change skin."
 msgstr ""
 
+#. %(addon)s is the other add-on's name and %(skin)s the skin's: keep both exactly, with the s after
+#. the bracket. "Play next" is the skin's own label.
 #: /resources/lib/service/clashes.py
 msgctxt "#32237"
 msgid "%(addon)s shows its own next episode prompt as well as %(skin)s's Play next. It also covers episodes from other add-ons, which Play next doesn't. Switch it off while you use %(skin)s? It comes back on if you change skin."
 msgstr ""
 
+#. %(addon)s is the other add-on's name and %(skin)s the skin's: keep both exactly, with the s after
+#. the bracket.
 #: /resources/lib/service/clashes.py
 msgctxt "#32238"
 msgid "%(addon)s shows its own skip and next episode buttons over %(skin)s's. Switch it off while you use %(skin)s? It comes back on if you change skin."
 msgstr ""
 
+#. A dialog button: keep it short. Closes the question, which is asked again later (see #32236).
 #: /resources/lib/service/clashes.py
 msgctxt "#32239"
 msgid "Not now"
@@ -589,7 +677,8 @@ msgstr ""
 
 #########################################################################################################
 
-#: /resources/lib/script/actions.py — seed_keyboard_layout picker
+#. A select dialog's heading.
+#: /resources/lib/script/actions.py
 msgctxt "#32400"
 msgid "Keyboard layout"
 msgstr ""
@@ -604,74 +693,101 @@ msgstr ""
 
 #########################################################################################################
 
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
 #: /resources/lib/plugin/listing.py
 msgctxt "#32600"
 msgid "Next up"
 msgstr ""
 
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
 #: /resources/lib/plugin/listing.py
 msgctxt "#32601"
 msgid "Continue watching"
 msgstr ""
 
+#. The name of a list of items sharing a director with the open one: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32602"
 msgid "Director credits"
 msgstr ""
 
+#. The name of a list of items sharing a actor with the open one: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32603"
 msgid "Actor credits"
 msgstr ""
 
+#. The name of a list of items sharing a writer with the open one: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32604"
 msgid "Writer credits"
 msgstr ""
 
+#. The name of a row of items, shown as its heading: keep it short.
 #: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
 msgctxt "#32605"
 msgid "Random movies"
 msgstr ""
 
+#. The name of a row of items, shown as its heading: keep it short.
 #: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
 msgctxt "#32606"
 msgid "Random TV shows"
 msgstr ""
 
+#. The name of a list of items sharing a genre with the open one: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32607"
 msgid "Genre credits"
 msgstr ""
 
+#. The name of a list of items sharing a studio with the open one: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32608"
 msgid "Studio credits"
 msgstr ""
 
+#. The name of a list of items sharing a artist with the open one: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32609"
 msgid "Artist credits"
 msgstr ""
 
+#. The name of a row of items, shown as its heading: keep it short.
 #: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
 msgctxt "#32610"
 msgid "Random albums"
 msgstr ""
 
-#: /resources/lib/plugin/listing.py — the add-on's own folders, as the skin's rails
+#. The name of a row of items, shown as its heading: keep it short. Movies of one genre, picked at
+#. random.
+#: /resources/lib/plugin/listing.py
 msgctxt "#32611"
 msgid "Random genre - movies"
 msgstr ""
 
+#. The name of a row of items, shown as its heading: keep it short. TV shows of one genre, picked at
+#. random.
+#: /resources/lib/plugin/listing.py
 msgctxt "#32612"
 msgid "Random genre - TV shows"
 msgstr ""
 
+#. The name of a row of items, shown as its heading: keep it short. Albums of one genre, picked at
+#. random.
+#: /resources/lib/plugin/listing.py
 msgctxt "#32613"
 msgid "Random genre - albums"
 msgstr ""
 
+#. The name of a row of items, shown as its heading: keep it short. Artists of one genre, picked at
+#. random.
+#: /resources/lib/plugin/listing.py
 msgctxt "#32614"
 msgid "Random genre - artists"
 msgstr ""
@@ -686,184 +802,247 @@ msgstr ""
 
 #########################################################################################################
 
+#. A line in the content browser's list: keep it short.
 #: /resources/lib/windows/browse.py
 msgctxt "#32804"
 msgid "Custom path..."
 msgstr ""
 
-#: /resources/lib/windows/onclick_actions.py — browse_single's Browse, below None
+#. A line in a select dialog, below Kodi's "None": opens a file browser.
+#: /resources/lib/windows/onclick_actions.py
 msgctxt "#32805"
 msgid "Browse..."
 msgstr ""
 
-#: /resources/lib/windows/browse.py — Pictures with no picture sources
+#. A toast in the content browser (one line, cut if long): keep it short.
+#: /resources/lib/windows/browse.py
 msgctxt "#32806"
 msgid "No picture sources found"
 msgstr ""
 
-#: /resources/lib/windows/browse.py — a picture source Kodi can't list
+#. A toast in the content browser (one line, cut if long): keep it short.
+#: /resources/lib/windows/browse.py
 msgctxt "#32807"
 msgid "Can't open this folder"
 msgstr ""
 
-#: /resources/lib/windows/browse.py — navigation and status labels
+#. A line in the content browser's list: keep it short.
+#: /resources/lib/windows/browse.py
 msgctxt "#32809"
 msgid "Use this path"
 msgstr ""
 
+#. A line in the content browser's list: keep it short.
 #: /resources/lib/windows/browse.py
 msgctxt "#32810"
 msgid "My playlists"
 msgstr ""
 
+#. A line in the content browser's list: keep it short.
 #: /resources/lib/windows/browse.py
 msgctxt "#32811"
 msgid "Skin playlists"
 msgstr ""
 
+#. A progress dialog's line.
 #: /resources/lib/windows/browse.py
 msgctxt "#32812"
 msgid "Finding playlists..."
 msgstr ""
 
+#. A toast in the content browser (one line, cut if long): keep it short.
 #: /resources/lib/windows/browse.py
 msgctxt "#32813"
 msgid "No playlists found"
 msgstr ""
 
+#. A toast in the content browser (one line, cut if long): keep it short.
 #: /resources/lib/windows/browse.py
 msgctxt "#32814"
 msgid "No favourites found"
 msgstr ""
 
+#. A progress dialog's line.
 #: /resources/lib/windows/browse.py
 msgctxt "#32815"
 msgid "Getting directory listing..."
 msgstr ""
 
+#. A keyboard's heading.
 #: /resources/lib/windows/browse.py
 msgctxt "#32816"
 msgid "Enter content path"
 msgstr ""
 
+#. A select dialog's heading.
 #: /resources/lib/windows/browse.py
 msgctxt "#32817"
 msgid "Select content"
 msgstr ""
 
-#: /resources/lib/windows/browse.py — menu-mode extra source labels
+#. A line in the content browser's list: keep it short. Opens a list of common shortcuts (Videos,
+#. Movies, Music…).
+#: /resources/lib/windows/browse.py
 msgctxt "#32818"
 msgid "Common"
 msgstr ""
 
+#. A line in the content browser's list: keep it short. Opens a list of commands (Reboot, Quit,
+#. Update library…).
 #: /resources/lib/windows/browse.py
 msgctxt "#32819"
 msgid "Kodi commands"
 msgstr ""
 
-#: /context.py — context menu items (addon.xml kodi.context.item); ids kept from WINDOWS
+#. A context menu item: keep it short. Plays the item's songs in a random order.
+#: /addon.xml
+#: /resources/lib/plugin/music.py
 msgctxt "#32820"
 msgid "Shuffle"
 msgstr ""
 
+#. A context menu item: keep it short. Plays a mix of songs like the item's.
+#: /addon.xml
+#: /resources/lib/plugin/music.py
 msgctxt "#32821"
 msgid "Start mix"
 msgstr ""
 
+#. A context menu item: keep it short. Rates a song as liked.
+#: /addon.xml
 msgctxt "#32822"
 msgid "Like"
 msgstr ""
 
+#. A context menu item: keep it short. Takes a song's like away.
+#: /addon.xml
 msgctxt "#32823"
 msgid "Unlike"
 msgstr ""
 
+#. A context menu item: keep it short. "Speed dial" is string #32826: use the same words.
+#: /addon.xml
 msgctxt "#32824"
 msgid "Pin to speed dial"
 msgstr ""
 
+#. A context menu item: keep it short. Takes an item off the speed dial.
+#: /addon.xml
+#: /resources/lib/plugin/music.py
 msgctxt "#32825"
 msgid "Unpin"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — the speed dial listing's category; id kept from WINDOWS
+#. The name of a row of items, shown as its heading: keep it short. A grid of pinned artists,
+#. albums, songs and playlists.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
 msgctxt "#32826"
 msgid "Speed dial"
 msgstr ""
 
-#: /resources/lib/windows/dynamiceditor.py — management button descriptions
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
 msgctxt "#32827"
 msgid "Add a new entry."
 msgstr ""
 
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
 msgctxt "#32828"
 msgid "Move the selected entry up."
 msgstr ""
 
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
 msgctxt "#32829"
 msgid "Move the selected entry down."
 msgstr ""
 
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
 msgctxt "#32830"
 msgid "Delete the selected entry."
 msgstr ""
 
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
 msgctxt "#32831"
 msgid "Reset all entries to defaults."
 msgstr ""
 
+#. The description shown for a button of the skin's settings editor.
+#: /resources/lib/windows/dynamiceditor.py
 msgctxt "#32832"
 msgid "Save and close."
 msgstr ""
 
-#: /resources/lib/windows/dynamiceditor.py — reset confirmation
+#. A yes/no dialog's heading.
+#: /resources/lib/windows/dynamiceditor.py
 msgctxt "#32833"
 msgid "Reset to defaults"
 msgstr ""
 
+#. \n\n is an empty line between the two sentences: keep it.
+#: /resources/lib/windows/dynamiceditor.py
 msgctxt "#32834"
 msgid "This will reset all entries.\n\nAre you sure you want to continue?"
 msgstr ""
 
-#: /addon.xml, /resources/lib/script/actions.py — context menu item
+#. A context menu item: keep it short. Also heads its toasts (#32231, #32232).
+#: /addon.xml
+#: /resources/lib/script/actions.py
 msgctxt "#32835"
 msgid "Refresh cached data"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — Home rows
+#. The name of a row of items, shown as its heading: keep it short. Songs once played often or
+#. liked, not played for 90 days.
+#: /resources/lib/plugin/handlers.py
+#: /resources/lib/plugin/listing.py
 msgctxt "#32836"
 msgid "Rediscover"
 msgstr ""
 
+#. The name of a row of items, shown as its heading: keep it short.
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32837"
 msgid "Daily mixes"
 msgstr ""
 
-#: /resources/lib/plugin/music.py — a daily mix card, %s the genre
+#. %s is a music genre, e.g. "Rock mix". A card's title: keep it short.
+#: /resources/lib/plugin/music.py
 msgctxt "#32838"
 msgid "%s mix"
 msgstr ""
 
-#: /resources/lib/plugin/music.py — its eyebrow, %s the songs it plays
+#. %s is a number of songs. Keep the middle dot (·) with a space on each side. One short line.
+#: /resources/lib/plugin/music.py
 msgctxt "#32839"
 msgid "Daily mix · %s songs"
 msgstr ""
 
-#: /resources/lib/plugin/music.py — its artists, "A, B and C." (%s "A, B", %s "C")
+#. First %s: artist names with commas between, e.g. "Blur, Pulp"; second %s: the last name. Reads
+#. "Blur, Pulp and Oasis."
+#: /resources/lib/plugin/music.py
 msgctxt "#32840"
 msgid "%s and %s."
 msgstr ""
 
-#: /resources/lib/plugin/music.py — its first eight of nine or more, "A, …, H and more."
+#. %s is eight artist names with commas between. Reads "Blur, Pulp, … and more."
+#: /resources/lib/plugin/music.py
 msgctxt "#32841"
 msgid "%s and more."
 msgstr ""
 
-#: /addon.xml — the context menu, for an album
+#. A context menu item: keep it short. For an album.
+#: /addon.xml
 msgctxt "#32842"
 msgid "Mark as played"
 msgstr ""
 
+#. A context menu item: keep it short. For an album.
+#: /addon.xml
 msgctxt "#32843"
 msgid "Mark as unplayed"
 msgstr ""
@@ -878,37 +1057,44 @@ msgstr ""
 
 #########################################################################################################
 
-#: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: a song's place in its artist's plays (%d 1 to 10)
+#. %d is a place from 1 to 10 by the user's own plays. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32993"
 msgid "Your #%d song"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: the album with its artist's most plays
+#. By the user's own plays. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32994"
 msgid "Your most played album"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — popularity_label: an artist in Deezer's chart today
+#. An artist in today's chart. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32995"
 msgid "Charting"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — popularity_label: an artist with a million Deezer fans or more
+#. An artist with a million fans or more. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32996"
 msgid "Popular"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — popularity_label: a song's place in its artist's Top songs (%d 1 to 10)
+#. %d is a place from 1 to 10 among its artist's songs. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32997"
 msgid "#%d song"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — popularity_label: the album leading Discography's popularity order
+#. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32998"
 msgid "Most popular album"
 msgstr ""
 
-#: /resources/lib/plugin/handlers.py — popularity_label, Deezer off: an artist's place in the library's plays (%d 1 to 10)
+#. %d is a place from 1 to 10 by the user's own plays. A small label on music info: keep it short.
+#: /resources/lib/plugin/handlers.py
 msgctxt "#32999"
 msgid "Your #%d artist"
 msgstr ""
