@@ -234,12 +234,12 @@ _SETTINGS_SHORTCUTS = [
         "DefaultAddon.png",
     ),  # Player
     (
-        xbmc.getLocalizedString(14201),
+        xbmc.getLocalizedString(14211),
         "ActivateWindow(Settings,media)",
         "DefaultAddon.png",
     ),  # Media
     (
-        xbmc.getLocalizedString(19180),
+        xbmc.getLocalizedString(14204),
         "ActivateWindow(Settings,pvr)",
         "DefaultAddon.png",
     ),  # PVR & Live TV
@@ -294,15 +294,15 @@ _KODI_COMMANDS = [
         "DefaultShortcut.png",
     ),  # Master mode
     (
-        xbmc.getLocalizedString(653),
+        xbmc.getLocalizedString(653) + " (" + xbmc.getLocalizedString(3) + ")",
         "UpdateLibrary(video)",
         "DefaultMovies.png",
-    ),  # Update video library
+    ),  # Update library (Videos)
     (
-        xbmc.getLocalizedString(654),
+        xbmc.getLocalizedString(653) + " (" + xbmc.getLocalizedString(2) + ")",
         "UpdateLibrary(music)",
         "DefaultMusicAlbums.png",
-    ),  # Update music library
+    ),  # Update library (Music)
     (
         xbmc.getLocalizedString(334) + " (" + xbmc.getLocalizedString(3) + ")",
         "CleanLibrary(video)",
