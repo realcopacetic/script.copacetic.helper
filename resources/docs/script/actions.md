@@ -61,7 +61,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
 | [`check_clashes`](#check_clashes) | Switches off the add-ons the user chose to for clashing with the skin's features, and asks about new ones |
 | [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
-| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDb, ListenBrainz, Deezer, TheIntroDB or LRCLIB |
+| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDB, ListenBrainz, Deezer, TheIntroDB or LRCLIB |
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties one or more fadelabel controls |
@@ -106,7 +106,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`skip_segment`](#skip_segment) | Seeks past the intro, recap or credits in play |
 | [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year, or a daily mix card's |
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
-| [`tmdb_test`](#tmdb_test) | Checks the TMDb token |
+| [`tmdb_test`](#tmdb_test) | Checks the TMDB token |
 | [`toggle_addon`](#toggle_addon) | Enables or disables an add-on |
 | [`toggle_setting`](#toggle_setting) | Turns one of the helper's on/off settings over |
 | [`trailer_fullscreen`](#trailer_fullscreen) | Takes a window's trailer full screen without restarting it |
@@ -317,7 +317,7 @@ not touched. Also in the helper's settings, under *Library*.
 
 After a yes/no, deletes the helper's processed artwork (blurred, cropped and text images) and resets
 its artwork lookup database. It also empties the saved answers from web services
-(TMDb, ListenBrainz, Deezer, TheIntroDB, LRCLIB) and the daily mix cards' kept mixes, so they are
+(TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB) and the daily mix cards' kept mixes, so they are
 worked out again, and the saved text truncations,
 then compacts the database file. A notification shows how much space was saved.
 Images are made again the next time they are needed.
@@ -1184,7 +1184,7 @@ loads). The context menu's **Refresh cached data** item runs it. A notification 
 whether anything was cached for the item. Checking the sources takes up to six
 seconds.
 
-- **Web answers** are marked out of date rather than deleted: a film's TMDb details
+- **Web answers** are marked out of date rather than deleted: a film's TMDB details
   and TheIntroDB skip times;
   for a TV show, season or episode, the show's and all its seasons'; for an artist,
   its ListenBrainz answers (by its MusicBrainz id: top songs and similar artists) and
@@ -1618,9 +1618,9 @@ checks the playhead is still inside):
 
 ## tmdb_test
 
-Checks the TMDb token set in the helper's settings with a test request. A
+Checks the TMDB token set in the helper's settings with a test request. A
 notification says whether the token works or the request failed. With no token set,
-TMDb is off, and the notification says so.
+TMDB is off, and the notification says so.
 
 No parameters.
 

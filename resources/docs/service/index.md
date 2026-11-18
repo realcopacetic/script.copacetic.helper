@@ -147,7 +147,7 @@ Each pass it:
 6. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
    focus is no longer on a speed dial item (see
    [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list));
-7. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz,
+7. once a day, starting with the first pass, deletes saved TMDB, ListenBrainz,
    Deezer, TheIntroDB and LRCLIB answers in the add-on's `_lookup.db` that expired
    more than 30 days ago. If the database is busy, it tries again an hour later;
 8. queues `action=check_clashes` again when a feature an add-on clashes with is

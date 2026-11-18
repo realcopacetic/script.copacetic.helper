@@ -181,11 +181,11 @@ show; with no rectangles that is the part of the image the frame shows.
 |---|---|---|---|
 | `multiart` | an art type, e.g. `fanart`, `poster`, `keyart`, `tvshow.fanart`, or several separated by commas | — | The family to collect. Several types are read in turn and joined into one family, each image once: `thumb,artist.thumb,artist.fanart` gives a playing song's album cover, then its artist's art. `get_extra_multiart` adds nothing to a joined family. |
 | `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for (`fanart1` … `fanart15`). |
-| `multiart_target` | container id | — | Read the family, and its TMDb item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. When the family has more than one image (so the FadeLabel rotates), its first image is also the background, so each slide's blur continues the base's. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
+| `multiart_target` | container id | — | Read the family, and its TMDB item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. When the family has more than one image (so the FadeLabel rotates), its first image is also the background, so each slide's blur continues the base's. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
 | `multiart_target_key` | `dbtype:dbid` | — | With `multiart_target`: the item the call is for. If given and the target reads as another item (it hasn't landed yet, or a modal dialog is up), the call returns the held item instead of seeding or clearing. Not given: no check. |
-| `get_extra_multiart` | `true`, `false` | `false` | Add TMDb artwork of the same type, after the library artwork. See [Multiart](#multiart). |
-| `language` | TMDb language, e.g. `en-US` | add-on setting | Language of the TMDb artwork to add. |
-| `type`, `id`, `tmdb_id`, `tvshowid` | | | With `get_extra_multiart`: how the TMDb item is found. See [TMDb lookups](metadata.md#tmdb-lookups). |
+| `get_extra_multiart` | `true`, `false` | `false` | Add TMDB artwork of the same type, after the library artwork. See [Multiart](#multiart). |
+| `language` | TMDB language, e.g. `en-US` | add-on setting | Language of the TMDB artwork to add. |
+| `type`, `id`, `tmdb_id`, `tvshowid` | | | With `get_extra_multiart`: how the TMDB item is found. See [TMDB lookups](metadata.md#tmdb-lookups). |
 | `multiart_fadelabel` | control id | — | A FadeLabel to fill with the family, in display order. See [Multiart in a FadeLabel](#multiart-in-a-fadelabel). |
 
 ### Other
@@ -385,26 +385,26 @@ the family with one variable:
 <content>plugin://script.copacetic.helper/?info=artwork&amp;target=50&amp;focus_guard=$INFO[Container(50).CurrentItem]&amp;background_url=$INFO[Container(50).ListItem.Art(fanart)]&amp;background_blur=true&amp;multiart=$VAR[MultiartType]&amp;multiart_max=15</content>
 ```
 
-With `get_extra_multiart=true`, TMDb artwork of the same type is added after the
+With `get_extra_multiart=true`, TMDB artwork of the same type is added after the
 library artwork:
 
 - Only when the item has its own image of that type, so the first image is always the
   item's.
-- Without duplicates: a TMDb image already in the library artwork in another size is
+- Without duplicates: a TMDB image already in the library artwork in another size is
   skipped.
 - Backdrops (`fanart`, `landscape`) at width 1280 and posters (`poster`, `keyart`) at
-  width 780, not TMDb's original size, as each new image downloads the first time it
+  width 780, not TMDB's original size, as each new image downloads the first time it
   shows.
-- Only TMDb backdrops of exactly 16:9 at 1920×1080 or larger, and posters of exactly
-  2:3 at 1000×1500 or larger: smaller or odd-sized uploads are left out. TMDb's main
+- Only TMDB backdrops of exactly 16:9 at 1920×1080 or larger, and posters of exactly
+  2:3 at 1000×1500 or larger: smaller or odd-sized uploads are left out. TMDB's main
   backdrop or poster (`backdrop_path`, `poster_path`) follows the same rule when it is
   in those lists, and stays first when it isn't (a poster in a third language). An item
-  cached earlier keeps its lists until it is next fetched from TMDb; *Clear addon
+  cached earlier keeps its lists until it is next fetched from TMDB; *Clear add-on
   cache* applies the rule at once.
-- From the TMDb cache only, which [`metadata`](metadata.md#metadata) with
+- From the TMDB cache only, which [`metadata`](metadata.md#metadata) with
   `tmdb_art=true` fills for the same item and language. An item not cached yet gets its library
   artwork only, and this serve notes the miss in the Home window property
-  `tmdb_art_missed`. When `metadata` then caches TMDb art of that type for the same
+  `tmdb_art_missed`. When `metadata` then caches TMDB art of that type for the same
   item, with the item still focused and no dialog open, it sets the Home window property
   `tmdb_art_ready` (`<kind>:<tmdb_id>`). Put that in the URL,
   `$INFO[Window(home).Property(tmdb_art_ready),&tmdb_ready=]`, and Kodi reruns the serve
@@ -414,8 +414,8 @@ library artwork:
   miss (`<kind>:<tmdb_id>`) whenever the family had fewer than two images (a family of
   none gets no extras, so its rerun changes nothing), so equal to `tmdb_art_ready` it
   marks the running job as a rerun that can change the backdrop.
-- For movies and TV shows with a TMDb id. Episodes use their show's artwork.
-- A `tvshow.` type adds TMDb artwork of the plain type: `tvshow.fanart` adds TMDb
+- For movies and TV shows with a TMDB id. Episodes use their show's artwork.
+- A `tvshow.` type adds TMDB artwork of the plain type: `tvshow.fanart` adds TMDB
   `fanart`.
 
 ### Multiart in a FadeLabel
@@ -425,7 +425,7 @@ image path. Read the label that is showing with `Control.GetLabel(<id>)` and use
 as an image texture to get a slideshow.
 
 - The main image comes first. The rest are shuffled.
-- The returned `multiart*` keys stay in library order (library artwork, then TMDb
+- The returned `multiart*` keys stay in library order (library artwork, then TMDB
   artwork). Only the FadeLabel is shuffled.
 - A family with fewer than two images is not loaded. The FadeLabel is emptied and no
   `multiart*` keys are returned.
@@ -478,10 +478,10 @@ it (see below). Use it for a grid of artwork tiles that should not all change at
   current window when no info dialog is open. The call first waits, up to a second,
   for that dialog to be topmost, and stops if it never is. Give the FadeLabels all the
   same scroll speed and delay.
-- Library artwork only; no TMDb artwork is added. The main image comes first and the
+- Library artwork only; no TMDB artwork is added. The main image comes first and the
   rest are shuffled.
 - An image is shown in one FadeLabel where it can be. When several art types hold the
-  same image (the same URL, or the same TMDb file in another size), the FadeLabels take
+  same image (the same URL, or the same TMDB file in another size), the FadeLabels take
   turns claiming their shuffled images, and the others leave it out. The first
   FadeLabel in `tiles` order keeps a shared main image; a later one starts on an image
   no other FadeLabel holds, or keeps the shared main when none is free.
@@ -515,7 +515,7 @@ When the container position is known, the list item carries:
 | `current_pos` | The container position (`CurrentItem`) this result is for. |
 | `previous`, `next` | `<container>/<position>` of the items either side. Positions wrap around when the container has more than one item. |
 | `previous_pos`, `next_pos` | The positions either side, on their own. |
-| `tmdb_swap` | The TMDb miss whose rerun changes this item's backdrop (see [Multiart](#multiart-1)), else empty. |
+| `tmdb_swap` | The TMDB miss whose rerun changes this item's backdrop (see [Multiart](#multiart-1)), else empty. |
 
 The container is `target` when passed. Without `target`, it is the first `/`
 segment of `Window(home).Property(artwork_cursor_<cursor_key>)`, or the id of the

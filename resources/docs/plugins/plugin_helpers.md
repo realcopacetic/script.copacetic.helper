@@ -33,7 +33,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 |--------|--------------|------|
 | `artwork` | Crops clearlogos, blurs backgrounds, works out darken values, element colours and palettes, collects multiart and can fill a FadeLabel with it. | [Artwork](artwork.md) |
 | `multiart_tiles` | Fills several FadeLabels in an info dialog with the item's artwork, so they change one at a time. | [Artwork](artwork.md#multiart_tiles) |
-| `metadata` | Returns tidied details of the focused item, with optional TMDb details. | [Metadata](metadata.md) |
+| `metadata` | Returns tidied details of the focused item, with optional TMDB details. | [Metadata](metadata.md) |
 | `progressbar` | Works out watched (or, for an album, heard) progress and context labels (time left, next episode, new, next air date, new episode, show status) and places a progress bar. | [Progress Bar](progressbar.md) |
 | `epg_time_left` | Works out the time left of the TV guide's focused programme while it is on air. | [Progress Bar](progressbar.md#epg_time_left) |
 | `typewriter` | Types a label into a textbox one character at a time. | [Typewriter](typewriter.md) |
@@ -245,7 +245,7 @@ A paired tab list (`32020`) and content list (`3202`) should behave as a single 
 Guarded handlers don't check once at startup — they re-check before every stage that is expensive or has visible side effects:
 
 - **`artwork`** checks at the start, after image processing, after multiart resolution, and immediately **before filling the multiart FadeLabel** — so a stale invocation can never refill a FadeLabel the skin has just cleared. A guard that still passes at the end also lets the helper write `artwork_cursor_<cursor_key>` itself when the property does not match the item it ran for (see [Is this result for the focused item?](artwork.md#is-this-result-for-the-focused-item)).
-- **`metadata`** checks before reading the item, after the TMDb lookup, and before returning the item.
+- **`metadata`** checks before reading the item, after the TMDB lookup, and before returning the item.
 - **`text`** checks before and after drawing the image.
 - **`typewriter`** receives the guard's `alive` callable and checks it **after every 25 ms wait** (once before the textbox shows, then after each character), alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating, before moving UI controls, and after moving them (the progress value is still returned; what remains, the UI update or the context values, is skipped).
@@ -293,7 +293,7 @@ Then reference the variable in your container:
 ## 5) See also
 
 - [Artwork](artwork.md)
-- [Metadata and TMDb details](metadata.md)
+- [Metadata and TMDB details](metadata.md)
 - [Progress Bar](progressbar.md)
 - [Typewriter](typewriter.md)
 - [Text Image](text.md)

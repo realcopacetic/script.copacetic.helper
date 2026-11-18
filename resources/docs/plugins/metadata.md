@@ -2,7 +2,7 @@
 
 The `metadata` plugin path returns a cleaned-up copy of the focused item's details on a
 single list item. It reads the item's infolabels, tidies them, can add details from
-TMDb, and can cut a long plot to fit a set number of lines.
+TMDB, and can cut a long plot to fit a set number of lines.
 
 ---
 
@@ -24,17 +24,17 @@ and so on.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `target` | container id, or `item` | — | Container whose focused item is read. Omit to use `Container` (the current container); `item` reads the window's own item (an info dialog's). |
-| `type` | `movie`, `tvshow`, `season`, `episode`, `set`, … | — | The item's `DBType`. Used for TMDb lookups and for sets (see Studio below). |
-| `id` | number | — | The item's `DBID`. Used for TMDb lookups, for album artists and set studios and years (see below), and to keep the `random_pick` choice. |
+| `type` | `movie`, `tvshow`, `season`, `episode`, `set`, … | — | The item's `DBType`. Used for TMDB lookups and for sets (see Studio below). |
+| `id` | number | — | The item's `DBID`. Used for TMDB lookups, for album artists and set studios and years (see below), and to keep the `random_pick` choice. |
 | `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. The same item gets the same pick until Kodi restarts. |
 | `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
-| `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDb. TMDb values replace the library values, except the plot, title, tagline and trailer, which TMDb only fills when the item has none (a season takes TMDb's plot where it has one: Kodi gives seasons their show's). See [TMDb lookups](#tmdb-lookups). |
-| `prefer_tmdb_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: TMDb's trailer replaces a library trailer that is a link (`plugin://`, `http://`, `https://`), such as the one Kodi's TMDb scraper saves. A library trailer that is a file always stays. |
-| `random_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: when TMDb's trailer is used, pick one at random from its best-ranked trailers instead of the newest. The same item gets the same pick until Kodi restarts. |
-| `tmdb_trailer_only` | `true`, `false` | `false` | With `enrich_with_tmdb`: take only the trailer from TMDb, by the rules above; every other field stays the library's. For a view that wants TMDb's trailer without TMDb's plot, title or details. |
-| `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDb's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDb artwork. When the artwork serve missed this item's TMDb art and it is now cached, with the item still focused and no dialog open, it sets the Home window property `tmdb_art_ready` so the artwork serve runs again ([Multiart](artwork.md#multiart)). "Still focused": `target`'s item still has the URL's `type` and `id` as its `DBType` and `DBID`, and (when the URL passes `tmdb_id`) its `UniqueID(tmdb)`. So pass `type` and `id`: without them the property is never set. |
+| `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDB. TMDB values replace the library values, except the plot, title, tagline and trailer, which TMDB only fills when the item has none (a season takes TMDB's plot where it has one: Kodi gives seasons their show's). See [TMDB lookups](#tmdb-lookups). |
+| `prefer_tmdb_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: TMDB's trailer replaces a library trailer that is a link (`plugin://`, `http://`, `https://`), such as the one Kodi's TMDB scraper saves. A library trailer that is a file always stays. |
+| `random_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: when TMDB's trailer is used, pick one at random from its best-ranked trailers instead of the newest. The same item gets the same pick until Kodi restarts. |
+| `tmdb_trailer_only` | `true`, `false` | `false` | With `enrich_with_tmdb`: take only the trailer from TMDB, by the rules above; every other field stays the library's. For a view that wants TMDB's trailer without TMDB's plot, title or details. |
+| `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDB's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDB artwork. When the artwork serve missed this item's TMDB art and it is now cached, with the item still focused and no dialog open, it sets the Home window property `tmdb_art_ready` so the artwork serve runs again ([Multiart](artwork.md#multiart)). "Still focused": `target`'s item still has the URL's `type` and `id` as its `DBType` and `DBID`, and (when the URL passes `tmdb_id`) its `UniqueID(tmdb)`. So pass `type` and `id`: without them the property is never set. |
 | `favourite_source` | an infolabel, such as `Container(50).ListItem.FileNameAndPath` | — | With `tmdb_art`, when `target` is a [`favourite`](favourite.md) container (9040 in that page's example): the infolabel holding the focused favourite's own path. `tmdb_art_ready` is set only while `target`'s `ListItem.Property(favourite.path)` matches it (case aside), since that container keeps the last favourite's item until its own update lands. |
-| `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDb lookup inputs. See [TMDb lookups](#tmdb-lookups). |
+| `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDB lookup inputs. See [TMDB lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
@@ -43,7 +43,7 @@ and so on.
 | Infolabel | Value |
 |---|---|
 | `ListItem.Label`, `ListItem.Label2` | The focused item's `Label`. |
-| `ListItem.Title` | The focused item's `Title`, which a list's label may not be (a search node, Files with library titles off): use it where a library title is compared, such as the `exclude_value` of [`genre_credits`](library.md). With TMDb, the TMDb title is used only when the item has none. |
+| `ListItem.Title` | The focused item's `Title`, which a list's label may not be (a search node, Files with library titles off): use it where a library title is compared, such as the `exclude_value` of [`genre_credits`](library.md). With TMDB, the TMDB title is used only when the item has none. |
 | `ListItem.TVShowTitle` | The focused item's show title (a show, season or episode), to leave its show out of a TV rail, such as `genre_credits` with `type=tvshow`. |
 | `ListItem.Property(dbid)` | The `id` it was read for. With `Label`, it tells a skin whose metadata the container holds while the next item's is still loading. |
 | `ListItem.Director` | All directors, or one at random with `random_pick=true`, whole, as the library names them. |
@@ -52,8 +52,8 @@ and so on.
 | `ListItem.Studio` | The first studio, as the library names it (`Disney+`). Kodi sets have no studio: with `type=set` it is the first studio of the set's earliest movie, in a list and in the set's own info dialog alike. |
 | `ListItem.Property(set_first_year)`, `ListItem.Property(set_last_year)` | With `type=set` and `id`: the years of the set's earliest and latest movies (those with a year), for a year span; `set_last_year` is empty when both are the same year. Empty for other types. Reading `Container(id).ListItem(0)` and `ListItem(-1)` of a set's movies instead gives the years around the list's cursor, not the span. |
 | `ListItem.Writer` | The first writer. |
-| `ListItem.Plot`, `ListItem.PlotOutline`, `ListItem.TagLine` | As on the focused item. With TMDb, the TMDb plot and tagline are used only when the library has none; a season takes the TMDb season overview where it has one, as Kodi gives seasons their show's plot. |
-| `ListItem.Trailer` | The library trailer. With TMDb, the TMDb trailer is used when the library has none, or with `prefer_tmdb_trailer=true` when the library's is a link. |
+| `ListItem.Plot`, `ListItem.PlotOutline`, `ListItem.TagLine` | As on the focused item. With TMDB, the TMDB plot and tagline are used only when the library has none; a season takes the TMDB season overview where it has one, as Kodi gives seasons their show's plot. |
+| `ListItem.Trailer` | The library trailer. With TMDB, the TMDB trailer is used when the library has none, or with `prefer_tmdb_trailer=true` when the library's is a link. |
 | `ListItem.Property(truncated_label)` | The cut-down text, when `truncate_width` is passed. |
 | `ListItem.Property(truncated_title)` | The cut-down title, when `truncate_title_width` is passed and the title overflows; empty when it fits. |
 | `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits). Empty for other types. |
@@ -70,11 +70,11 @@ names (`Drum & Bass`). `genre_aliases` and full stops (which become spaces) appl
 `ListItem.Genre` for every type.
 `Property(genre_query)` keeps the whole pick.
 
-With `enrich_with_tmdb=true`, the [TMDb fields](#tmdb-fields) are added too (artwork is not); the item's own title,
+With `enrich_with_tmdb=true`, the [TMDB fields](#tmdb-fields) are added too (artwork is not); the item's own title,
 plot, tagline and trailer are kept where it has them (the trailer only if it is a file,
 with `prefer_tmdb_trailer=true`).
 
-The guard is checked before reading, after the TMDb lookup and before the item is
+The guard is checked before reading, after the TMDB lookup and before the item is
 returned.
 
 ### In an info dialog (`target=item`)
@@ -100,9 +100,9 @@ never see this.
 
 ---
 
-## TMDb lookups
+## TMDB lookups
 
-`metadata` finds the TMDb id like this. Each value comes from the parameter when
+`metadata` finds the TMDB id like this. Each value comes from the parameter when
 passed, else from the focused item.
 
 | Param | Falls back to | Notes |
@@ -112,15 +112,15 @@ passed, else from the focused item.
 | `tmdb_id` | `ListItem.UniqueID(tmdb)` | Used directly when set. Otherwise looked up from the library with `id`. |
 | `tvshowid` | `ListItem.TvShowDBID`, then `ListItem.Property(tvshowid)` | For seasons and episodes: the show to look up. |
 | `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped. |
-| `language` | add-on setting **TMDB language**, else `en-US` | TMDb language, for example `de-DE`. |
+| `language` | add-on setting **TMDB language**, else `en-US` | TMDB language, for example `de-DE`. |
 
-Episodes look up their show, as TMDb has no episode lookup here, and take only what
+Episodes look up their show, as TMDB has no episode lookup here, and take only what
 fits an episode: the show's trailer, artwork and `tmdb_*` properties. The episode's
 own title, plot and year are kept.
 
-### TMDb fields
+### TMDB fields
 
-With `enrich_with_tmdb=true`, these come from TMDb:
+With `enrich_with_tmdb=true`, these come from TMDB:
 
 | Infolabel | Movies | TV shows (and episodes) | Seasons |
 |---|---|---|---|
@@ -132,9 +132,9 @@ With `enrich_with_tmdb=true`, these come from TMDb:
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |
 | `ListItem.Property(tmdb_next_air_season)`, `ListItem.Property(tmdb_next_air_episode)` | — | next episode's season and episode number | — |
 | `ListItem.Property(tmdb_last_air_season)`, `ListItem.Property(tmdb_last_air_episode)` | — | last aired episode's season and episode number | — |
-| `ListItem.Property(tmdb_status)` | — | status as TMDb writes it, e.g. `Returning Series`, `Ended`, `Canceled` | — |
+| `ListItem.Property(tmdb_status)` | — | status as TMDB writes it, e.g. `Returning Series`, `Ended`, `Canceled` | — |
 
-With `tmdb_art=true`, TMDb's image lists are cached with these numbered art keys:
+With `tmdb_art=true`, TMDB's image lists are cached with these numbered art keys:
 
 | Art keys | Source | Most |
 |---|---|---|
@@ -145,21 +145,22 @@ With `tmdb_art=true`, TMDb's image lists are cached with these numbered art keys
 | `clearlogo`, `clearlogo1…` | logos in your language, else logos with no language | 5 |
 
 Backdrops must be exactly 16:9 at 1920×1080 or larger and posters exactly 2:3 at
-1000×1500 or larger; others are left out. TMDb's main poster and backdrop follow the
+1000×1500 or larger; others are left out. TMDB's main poster and backdrop follow the
 same rule when they are in the lists, and stay first when they aren't (so `poster` or
 `fanart` can then lead 10 more).
 
-Results are cached for 7 days, an id TMDb doesn't know for a day, a "too many
-requests" answer for as long as TMDb asks, and any other failed request (offline,
+Results are cached for 7 days, an id TMDB doesn't know for a day, a "too many
+requests" answer for as long as TMDB asks, and any other failed request (offline,
 timeout, server error, a refused token) for 5 minutes; until the retry, the last
-details fetched are still returned. *Clear add-on cache* empties it. The art is then available to the artwork helper's
-`get_extra_multiart` (see [Artwork](artwork.md#multiart)).
+details fetched are still returned. *Clear add-on cache* empties it. The art is then
+available to the artwork helper's `get_extra_multiart`
+(see [Artwork](artwork.md#multiart)).
 
-**Add-on settings needed:** the user pastes their own TMDb v3 API key or v4 API read
+**Add-on settings needed:** the user pastes their own TMDB v3 API key or v4 API read
 access token into **TMDB access token** (setting id `tmdb_access_token`, empty by
 default). There is no separate on/off setting: the token is the user's consent.
 Without it, nothing is fetched or read from the cache, nothing is logged above debug,
-and `metadata` adds nothing from TMDb. **Test TMDB access** checks the token.
+and `metadata` adds nothing from TMDB. **Test TMDB access** checks the token.
 **TMDB language** (`tmdb_language`) sets the default `language`.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
@@ -186,17 +187,17 @@ letter that fits. Results are cached by the font's name, so after changing the f
 | `truncate_font` | a font name from your `Font.xml`, e.g. `description_l` | — | Font of the label. The helper reads its file and size from the first fontset in `16x9/Font.xml`. Required with `truncate_width`. A name that is not in `Font.xml` logs a warning and the text is returned uncut. |
 | `truncate_lines` | whole number | `3` | Most lines to keep. |
 | `truncate_label` | any text | — | Text to cut. |
-| `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). It is read when the call starts, before any TMDb wait, so a label that follows the focus still gives this item's text. |
+| `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). It is read when the call starts, before any TMDB wait, so a label that follows the focus still gives this item's text. |
 | `truncate_probe` | `true`, `false`, a `DBType` such as `season` | `true` | `false`: every type but `album`, `artist` and `song` ignores `truncate_label_id` (below); a `DBType`: items of that type ignore it. |
 
 The text used is the first that is not empty: `truncate_label`, the label of
 `truncate_label_id`, the returned plot, then `ListItem.Plot` of the focused item.
 `truncate_probe` skips `truncate_label_id` where that label reads something else:
-`season` for a season, whose Kodi plot is its show's, so the returned plot (TMDb's
+`season` for a season, whose Kodi plot is its show's, so the returned plot (TMDB's
 season overview when there is one) is cut; `false` for a favourite read with `target=`,
-whose caption may be its action text, so the returned plot (the library's, else TMDb's)
+whose caption may be its action text, so the returned plot (the library's, else TMDB's)
 is cut. Music keeps the label: an album's or artist's caption is its description.
-An item with no plot of its own skips the label whenever TMDb returned one, so TMDb's
+An item with no plot of its own skips the label whenever TMDB returned one, so TMDB's
 plot is cut directly. This matters when your label falls back to the last returned
 plot, which can be another item's.
 
