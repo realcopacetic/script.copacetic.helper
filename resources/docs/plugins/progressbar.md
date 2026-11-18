@@ -131,7 +131,7 @@ for them too. The library calls they add, per focus:
 
 | Focused item | Calls | Which |
 |---|---|---|
-| Show or season with episodes left, started or not (a favourite's season too) | 1 | `GetEpisodes` |
+| Show or season with episodes left, started or not | 1 | `GetEpisodes` |
 | Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDB id, only with a TMDB token and no `UniqueID(tmdb)`; `GetEpisodes` for the newest episode, only when TMDB's cached data has a last aired episode |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
@@ -162,8 +162,8 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   `VideoLibrary.GetEpisodes` call for the unwatched episodes of a show or season with
   any left, started or not (a season's own, or the whole show for *All seasons*,
   which sends no `season`: `GetEpisodes` rejects `-1`). A show or season with none
-  left, and anything not in the library, make no episode call. A favourite's season
-  (an add-on item, with no `TvShowDBID`) is found by its `Property(tvshowid)`.
+  left, and anything not in the library, make no episode call. A helper's season item
+  (with no `TvShowDBID`) is found by its `Property(tvshowid)`.
   `next_episode` is the episode [`next_up`](library.md#next_up) lists for the show,
   or the season's lowest unwatched one: its first episode if it isn't started, and
   `next_runtime` is its `runtime` from the same call (seconds in JSON-RPC; without

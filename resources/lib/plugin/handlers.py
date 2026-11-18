@@ -35,8 +35,6 @@ from resources.lib.plugin.helpers import (
 from resources.lib.plugin.identity import ArtworkIdentity
 from resources.lib.plugin.json_map import (
     HEAVY_FIELDS,
-    JSON_PROPERTIES,
-    json_to_canonical,
     trim_properties,
 )
 from resources.lib.plugin.library import (
@@ -61,7 +59,6 @@ from resources.lib.plugin.music import (
     artist_names,
     artist_places,
     deezer_match,
-    details_item,
     dial_item,
     library_item,
     library_rows,
@@ -472,14 +469,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             not swap or self.expected_identity is not None or not self.identity_labels
         )
 
-    def _item_key(self, item: str | None = None) -> str:
+    def _item_key(self) -> str:
         """
-        An item's library identity, dbtype:dbid.
+        The serve's item's library identity, dbtype:dbid.
 
-        :param item: Infolabel prefix of the item; the art source's if None.
         :return: The identity, "dbtype:dbid".
         """
-        item = item or self.target_item
+        item = self.target_item
         return f"{infolabel(f'{item}.DBType')}:{infolabel(f'{item}.DBID')}"
 
     def _visit_superseded(self) -> bool:
@@ -517,14 +513,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         *,
         append_artwork: bool,
         cache_only: bool = False,
-        target: str | None = None,
     ) -> dict[str, Any] | None:
         """Resolve TMDb canonical item for the current listitem; sets _tmdb_key to its
         kind:tmdb_id once resolved.
 
         :param append_artwork: Whether to include TMDb artwork fields.
         :param cache_only: Read the TMDb cache only; never fetch.
-        :param target: Infolabel prefix of the item; the serve's target item if None.
         :return: canonical item dict or None.
         """
         from resources.lib.apis.tmdb.client import tmdb_token
@@ -535,7 +529,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not tmdb_token():  # off: skip resolve_tmdb_context's uniqueid lookup
             return
 
-        ctx = resolve_tmdb_context(self.params, target=target or self.target_item)
+        ctx = resolve_tmdb_context(self.params, target=self.target_item)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
         self._tmdb_key = f"{ctx.get('kind') or self.dbtype}:{tmdb_id}"
 
@@ -761,13 +755,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         window_property("artwork_holds_unstamped", unstamped + 1)
 
-    def _multiart_dict(self, item: str, multiart_type: str | None) -> dict[str, str]:
+    def _multiart_dict(self, multiart_type: str | None) -> dict[str, str]:
         """
-        The multiart family of an item, extended by TMDb's cached art of the same
+        The serve's item's multiart family, extended by TMDb's cached art of the same
         type when the URL asks for it (get_extra_multiart); keeps a miss of that art
         in _tmdb_missed for artwork() to note in tmdb_art_missed.
 
-        :param item: Infolabel prefix of the item.
         :param multiart_type: Base art type; None for no family.
         :return: The family as "multiart", "multiart1" … keys.
         """
@@ -776,12 +769,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # Cache only: no network wait before the seed; another serve fills it.
         extra = multiart_type and parse_bool(self.params.get("get_extra_multiart"))
         tmdb_item = (
-            self._get_tmdb_item(append_artwork=True, cache_only=True, target=item)
-            if extra
-            else None
+            self._get_tmdb_item(append_artwork=True, cache_only=True) if extra else None
         )
         family = build_multiart_dict(
-            target=item,
+            target=self.target_item,
             multiart_type=multiart_type,
             max_items=self.params.get("multiart_max"),
             tmdb_art=(tmdb_item or {}).get("art", {}),
@@ -868,26 +859,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 focused_control_id(window_id)
             )
         multiart_type = self.params.get("multiart")
-        params = self.params
         alive = guard.alive
-        family = {}
-        # multiart_target: the family's own item when the focused one only stands
-        # for it (a favourite's library item, 9040); identity stays the focused one.
-        # Read before the image jobs: a seeded family's first slide is the backdrop,
-        # so 9300's blur is 9400's blur of slide 0.
-        if source := self.params.get("multiart_target"):
-            multiart_item = f"Container({source}).ListItem"
-            # The target reading as another item (it hadn't landed, or a modal dialog
-            # opened, whose containers Python reads) holds: no seed or clear from it.
-            key = self.params.get("multiart_target_key")
-            alive = lambda: guard.alive() and (
-                key is None or self._item_key(multiart_item) == key
-            )
-            if not alive():
-                return self._artwork_held(guard.lost_to)
-            multiart_dict = self._multiart_dict(multiart_item, multiart_type)
-            if len(multiart_dict) > 1:  # seed_multiart seeds only then
-                family = {"background_url": multiart_dict["multiart"]}
         # Kodi ends a plugin URL's options at its first "|" (art headers), and the
         # parser a value at a raw URL's own "&KEY=": each art URL is read whole by the
         # label the skin names (read_art_urls), headers kept, and a band label cut off
@@ -895,7 +867,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # so then only a read the URL's value vouches for stands: a hold could outlast
         # the dialog (an info rail's URL rests through it).
         on_top = topmost_window_id() == window_id
-        params = params | read_art_urls(params, infolabel, on_top) | family
+        params = self.params | read_art_urls(self.params, infolabel, on_top)
         if on_top and params.get("icon_source") and "icon_darken_label" not in params:
             params = params | {
                 "icon_darken_label": infolabel(
@@ -949,10 +921,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # The playing song is read from Player infos, which no dialog answers for.
         covered = lambda: not (self.dialog or self.player) and _info_open()
         blind = covered()
-        if not source:
-            multiart_dict = self._multiart_dict(
-                self.target_item, None if blind else multiart_type
-            )
+        multiart_dict = self._multiart_dict(None if blind else multiart_type)
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
         if not alive():
@@ -1051,18 +1020,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                             "current_pos": str(current_position),
                             "previous_pos": str(prev_item.pos),
                             "next_pos": str(next_item.pos),
-                            # The miss whose rerun changes the backdrop, so the skin
-                            # fades for it: a favourite's family backdrop needs two
-                            # images; a key already stamped reruns nothing
-                            "tmdb_swap": (
-                                self._tmdb_key
-                                if self._tmdb_missed
-                                and source
-                                and len(multiart_dict) <= 1
-                                and infolabel("Window(home).Property(tmdb_art_ready)")
-                                != self._tmdb_key
-                                else ""
-                            ),
                         }
                         if not (self.item or self.player)
                         # The playing song has no position: current tells songs apart,
@@ -1121,47 +1078,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return set_items(
             [{"file": plugin_path("multiart_tiles"), "properties": {"visit": visit}}]
         )
-
-    @log.duration
-    def favourite(self) -> list[DirectoryItem] | None:
-        """
-        A favourite's library item, whole, for the metadata, progress bar and
-        artwork serves to read; it echoes favourite.index and favourite.path (the
-        favourite's FileNameAndPath, as Kodi lists it) so the skin knows it.
-
-        :return: The item, or None when the favourite names no library item.
-        """
-        from resources.lib.plugin.favourites import forget, library_key, listed_path
-
-        if not self._require("path"):
-            return
-        guard = self._guard()
-        path = self.params["path"]
-        if not (guard.alive() and (key := library_key(path))):
-            return
-        dbtype, dbid = key.split(":")
-        echo = {
-            "favourite.index": self.params.get("index", ""),
-            "favourite.path": listed_path(path),
-        }
-        if dbtype in MUSIC_TYPES:
-            extra = () if dbtype == "song" else ("description",)
-            if not (found := details_item(dbtype, int(dbid), "favourite", extra)):
-                forget(path, dbtype)
-                return
-            _, li, _ = found
-            li.setProperties(echo)
-            items = [(plugin_path("favourite"), li, False)]
-        else:
-            properties = JSON_PROPERTIES["movieset" if dbtype == "set" else dbtype]
-            if not (row := _video_details(dbtype, int(dbid), properties, "favourite")):
-                forget(path, dbtype)
-                return
-            item = json_to_canonical(row, dbtype)
-            item["file"] = plugin_path("favourite")  # no thumb loader on the file
-            item["properties"] |= echo
-            items = set_items([item], media_type=dbtype, tag_applier=apply_videoinfotag)
-        return items if guard.alive() else None
 
     @log.duration
     def metadata(self) -> list[DirectoryItem] | None:
@@ -1241,39 +1157,28 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return
         # Rerun it, if TMDb adds art of its type and the URL's item is still shown (a
-        # filter replaces it in place, keeping the position); a favourite's 9040 keeps
-        # the last item until its own job lands, so its echo must name the focused
-        # favourite (favourite_source; Kodi's hex is lower case, the echo's upper). Not
-        # with a dialog over the serve's window (its info dialog's, for a dialog
-        # serve), whose items it would read
+        # filter replaces it in place, keeping the position). Not with a dialog over
+        # the serve's window (its info dialog's, for a dialog serve), whose items it
+        # would read
         tmdb_id = self.params.get("tmdb_id")
-        favourite = self.params.get("favourite_source")
         if (
             own_miss
             and art_type in tmdb_item.get("art", {})
             and topmost_window_id() == self.window_id
-            and self._item_key(target) == f"{self.dbtype}:{self.dbid}"
+            and self._item_key() == f"{self.dbtype}:{self.dbid}"
             and (tmdb_id is None or infolabel(f"{target}.UniqueID(tmdb)") == tmdb_id)
-            and (
-                favourite is None
-                or infolabel(f"{target}.Property(favourite.path)").lower()
-                == infolabel(favourite).lower()
-            )
         ):
             window_property("tmdb_art_ready", missed)
 
         # truncate_probe=<dbtype>: that type skips the skin's probe (a season's reads
-        # its show's plot); =false: every video type does (a favourite's reads its
-        # action text). Music keeps it: an album's or artist's caption is its
-        # description. A plot only TMDb has skips it too: the probe is empty, or the
-        # last serve's plot, another item's if neither has a dbid and their labels match
-        skip = self.params.get("truncate_probe", "true")
+        # its show's plot). A plot only TMDb has skips it too: the probe is empty, or
+        # the last serve's plot, another item's if neither has a dbid and their labels
+        # match
         self._apply_truncated_label(
             data,
             target=target,
             default_text=data.get("Plot"),
-            probe=skip != self.dbtype
-            and (skip != "false" or self.dbtype in MUSIC_TYPES)
+            probe=self.params.get("truncate_probe") != self.dbtype
             and (bool(own_plot) or not data.get("Plot")),
             probed=caption,
         )
@@ -1384,8 +1289,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return self._show_news(to_int(labels["DBID"]))
 
         # No library id (a plugin's item): tvshowid 0 would ask for every show. A
-        # favourite's season (a helper item) has a DBID but no TvShowDBID, only
-        # Property(tvshowid); another add-on's may hold some other id.
+        # helper's season item has a DBID but no TvShowDBID, only Property(tvshowid);
+        # another add-on's may hold some other id.
         if dbtype == "tvshow":
             show_id = to_int(labels["DBID"])
         else:

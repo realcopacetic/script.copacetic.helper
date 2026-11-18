@@ -789,14 +789,10 @@ class TmdbTest(Base):
             handler.metadata()
             handler.dbtype = "episode"  # an episode's plot is its own: keeps the probe
             handler.metadata()
-            handler.params["truncate_probe"] = "false"  # a favourite: video skips
-            handler.metadata()
             handler._get_tmdb_item, library["Plot"] = lambda **kwargs: {}, ""
-            handler.dbtype = "season"  # a favourite season, no plot: still skips
+            handler.dbtype = "season"  # a season with no plot: still skips
             handler.metadata()
-            handler.params["truncate_probe"], handler.dbtype = "false", "album"
-            handler.metadata()  # music keeps the probe (an album caption: description)
-        self.assertEqual(probes, [True, False, True, False, True, False, False, True])
+        self.assertEqual(probes, [True, False, True, False, True, False])
 
     def test_truncated_label_probe(self):
         handler = object.__new__(handlers.PluginHandlers)
@@ -2404,9 +2400,9 @@ class ProgressbarTest(unittest.TestCase):
         properties = self.prop_all(**unwatched_season)  # not started: its next too
         self.assertEqual((properties["next_episode"], properties["new"]), ("3x01", ""))
         self.assertEqual(self.calls.pop()["season"], 3)
-        favourite = unwatched_season | {"DBID": "40", "TvShowDBID": ""}
-        favourite["Property(tvshowid)"] = "7"
-        self.assertEqual(self.prop("next_episode", **favourite), "3x01")
+        helper_season = unwatched_season | {"DBID": "40", "TvShowDBID": ""}
+        helper_season["Property(tvshowid)"] = "7"
+        self.assertEqual(self.prop("next_episode", **helper_season), "3x01")
         self.assertEqual(self.calls.pop()["tvshowid"], 7)  # a helper season's show id
         for empty in (
             {"Season": "0"},
@@ -2414,7 +2410,7 @@ class ProgressbarTest(unittest.TestCase):
             {"Property(tvshowid)": ""},
             {"DBID": ""},  # another add-on's season: its tvshowid may be a TMDb id
         ):
-            self.assertEqual(self.prop("next_episode", **favourite | empty), "")
+            self.assertEqual(self.prop("next_episode", **helper_season | empty), "")
         self.assertEqual(self.calls, [])  # Specials, none left or no show id: no query
         show["Property(InProgressEpisodes)"] = "1"  # its first episode, part-watched
         self.assertEqual(self.prop("next_episode", **show), "2x10")

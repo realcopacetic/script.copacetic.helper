@@ -33,7 +33,6 @@ and so on.
 | `random_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: when TMDB's trailer is used, pick one at random from its best-ranked trailers instead of the newest. The same item gets the same pick until Kodi restarts. |
 | `tmdb_trailer_only` | `true`, `false` | `false` | With `enrich_with_tmdb`: take only the trailer from TMDB, by the rules above; every other field stays the library's. For a view that wants TMDB's trailer without TMDB's plot, title or details. |
 | `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDB's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDB artwork. When the artwork serve missed this item's TMDB art and it is now cached, with the item still focused and no dialog open, it sets the Home window property `tmdb_art_ready` so the artwork serve runs again ([Multiart](artwork.md#multiart)). "Still focused": `target`'s item still has the URL's `type` and `id` as its `DBType` and `DBID`, and (when the URL passes `tmdb_id`) its `UniqueID(tmdb)`. So pass `type` and `id`: without them the property is never set. |
-| `favourite_source` | an infolabel, such as `Container(50).ListItem.FileNameAndPath` | — | With `tmdb_art`, when `target` is a [`favourite`](favourite.md) container (9040 in that page's example): the infolabel holding the focused favourite's own path. `tmdb_art_ready` is set only while `target`'s `ListItem.Property(favourite.path)` matches it (case aside), since that container keeps the last favourite's item until its own update lands. |
 | `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDB lookup inputs. See [TMDB lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -188,18 +187,15 @@ letter that fits. Results are cached by the font's name, so after changing the f
 | `truncate_lines` | whole number | `3` | Most lines to keep. |
 | `truncate_label` | any text | — | Text to cut. |
 | `truncate_label_id` | control id | — | Read the text from this label control instead (`Control.GetLabel`). It is read when the call starts, before any TMDB wait, so a label that follows the focus still gives this item's text. |
-| `truncate_probe` | `true`, `false`, a `DBType` such as `season` | `true` | `false`: every type but `album`, `artist` and `song` ignores `truncate_label_id` (below); a `DBType`: items of that type ignore it. |
+| `truncate_probe` | a `DBType` such as `season` | — | Items of that type ignore `truncate_label_id` (below). |
 
 The text used is the first that is not empty: `truncate_label`, the label of
 `truncate_label_id`, the returned plot, then `ListItem.Plot` of the focused item.
 `truncate_probe` skips `truncate_label_id` where that label reads something else:
 `season` for a season, whose Kodi plot is its show's, so the returned plot (TMDB's
-season overview when there is one) is cut; `false` for a favourite read with `target=`,
-whose caption may be its action text, so the returned plot (the library's, else TMDB's)
-is cut. Music keeps the label: an album's or artist's caption is its description.
-An item with no plot of its own skips the label whenever TMDB returned one, so TMDB's
-plot is cut directly. This matters when your label falls back to the last returned
-plot, which can be another item's.
+season overview when there is one) is cut. An item with no plot of its own skips the
+label whenever TMDB returned one, so TMDB's plot is cut directly. This matters when
+your label falls back to the last returned plot, which can be another item's.
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=metadata&amp;target=50&amp;truncate_width=720&amp;truncate_lines=3&amp;truncate_font=font_plot</content>

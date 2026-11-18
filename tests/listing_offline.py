@@ -64,7 +64,6 @@ EXCLUDED = {
     "director_credits",
     "discography",
     "epg_time_left",
-    "favourite",
     "genre_credits",
     "genre_music",
     "lyrics",
