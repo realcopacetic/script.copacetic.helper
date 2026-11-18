@@ -149,7 +149,7 @@ class SeedMultiart(unittest.TestCase):
         patches.start()
         self.addCleanup(patches.stop)
 
-    def seed(self, window_id=12006, dialog=False):
+    def seed(self, window_id=12006, dialog=False, superseded=False):
         """seed_multiart's art for a two-image family of item 1, first visit."""
         return multiart.seed_multiart(
             fadelabel_id="3400",
@@ -160,6 +160,7 @@ class SeedMultiart(unittest.TestCase):
             alive=lambda: True,
             window_id=window_id,
             dialog=dialog,
+            superseded=lambda: superseded,
         )
 
     def test_blind_seed_waits_a_pass_without_reading(self):
@@ -203,6 +204,28 @@ class SeedMultiart(unittest.TestCase):
         self.current = 10025  # the active window changed during the serve
         self.seed()
         self.assertEqual(self.props, live)
+
+    def test_visit_change_writes_no_keys(self):
+        live = {
+            "multiart_frozen_3400": "f",
+            "multiart_seed_scope_3400": "x",
+            "multiart_seed_sig_3400": "y",
+        }
+        self.props |= live  # A→B→A: the same window's new visit seeded and froze 3400
+        self.seed(superseded=True)
+        self.assertEqual(self.props, live)
+
+    def test_scope_change_clears_the_frame(self):
+        self.props |= {"multiart_frozen_3400": "f", "multiart_seed_scope_3400": "x"}
+        self.seed()
+        self.assertNotIn("multiart_frozen_3400", self.props)
+        self.assertEqual(self.props["multiart_seed_scope_3400"], "player@")
+
+    def test_dialog_scope_change_clears_the_frame(self):
+        self.props["multiart_frozen_3400"] = "f"  # the window under it froze 3400
+        self.top = 10120
+        self.seed(window_id=10120, dialog=True)
+        self.assertNotIn("multiart_frozen_3400", self.props)
 
 
 if __name__ == "__main__":

@@ -343,6 +343,7 @@ def seed_multiart(
     alive: Callable[[], bool],
     window_id: int | None = None,
     dialog: bool = False,
+    superseded: Callable[[], bool] = lambda: False,
 ) -> dict[str, str] | None:
     """
     Seed/clear a multiart register and reconcile multiart art keys. Register identity
@@ -357,6 +358,7 @@ def seed_multiart(
     :param alive: Focus guard callable; False aborts mid-seed.
     :param window_id: Window holding the register (a dialog's serve); else the current.
     :param dialog: Whether this is a dialog's serve, which keeps its own seed keys.
+    :param superseded: Whether the serve's visit has ended (A→B→A: same window).
     :return: Updated art dict, or None when the guard died mid-seed.
     """
 
@@ -389,10 +391,11 @@ def seed_multiart(
         )
         return art
     frozen_key = f"multiart_frozen_{fadelabel_id}"
+    # A window serve that outlived its window or visit leaves the live one's keys alone
+    owns = lambda: (dialog or window_id == getCurrentWindowId()) and not superseded()
     if not same_scope:
-        # the frame belongs to the previous region; a window serve that outlived its
-        # window leaves the live window's alone (the key is shared)
-        if dialog or window_id == getCurrentWindowId():
+        # the frame belongs to the previous region (the key is shared)
+        if owns():
             window_property(frozen_key)
     elif (
         len(multiart_dict) > 1
@@ -418,8 +421,7 @@ def seed_multiart(
         art = {k: v for k, v in art.items() if not k.startswith("multiart")}
     else:
         return None
-    # A window serve that outlived its window leaves the live window's keys alone
-    if alive() and (dialog or window_id == getCurrentWindowId()):
+    if alive() and owns():
         window_property(seed_scope_key, seed_scope)
         if seeded:
             window_property(sig_key, signature)
