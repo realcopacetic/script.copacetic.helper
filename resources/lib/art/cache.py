@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -58,8 +59,9 @@ class ArtworkCacheManager:
 
     def prepare(self, url: str) -> CacheContext:
         """
-        Resolve Kodi texture-cache paths and compute source hash. The suffix is
-        guessed from the decoded URL, but Kodi picks its copy's by alpha: try both.
+        Resolve Kodi texture-cache paths and compute source hash. Kodi picks its
+        copy's suffix by alpha and keeps the old copy when a changed image recaches
+        in the other format (TextureDatabase.cpp AddCachedTexture): take the newer.
 
         :param url: Original artwork URL.
         :return: CacheContext for the resolved source.
@@ -68,20 +70,21 @@ class ArtworkCacheManager:
         suffix = ".png" if decoded_url.lower().endswith(".png") else ".jpg"
         cached_thumb = self.get_cached_thumb(decoded_url, suffix)
         cached_image_path = Path(THUMB_DB) / cached_thumb[0] / cached_thumb
-        file_hash = self.hash_manager.compute_hash(cached_image_path)
-        if not file_hash:
-            other = ".jpg" if suffix == ".png" else ".png"
-            other_path = cached_image_path.with_suffix(other)
-            if file_hash := self.hash_manager.compute_hash(other_path):
-                suffix, cached_image_path = other, other_path
-                cached_thumb = other_path.name
+        other = ".jpg" if suffix == ".png" else ".png"
+        mtimes = {}  # the URL's suffix first: equal times keep it
+        for path in (cached_image_path, cached_image_path.with_suffix(other)):
+            with suppress(FileNotFoundError):  # a copy cleared meanwhile
+                mtimes[path] = path.stat().st_mtime
+        if mtimes:
+            cached_image_path = max(mtimes, key=mtimes.get)
+            suffix, cached_thumb = cached_image_path.suffix, cached_image_path.name
         return CacheContext(
             source_url=url,
             decoded_url=decoded_url,
             suffix=suffix,
             cached_thumb=cached_thumb,
             cached_image_path=cached_image_path,
-            cached_file_hash=file_hash,
+            cached_file_hash=self.hash_manager.compute_hash(cached_image_path),
             cache_key=url,
             dest_thumb=cached_thumb,
         )
