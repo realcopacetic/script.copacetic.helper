@@ -96,7 +96,7 @@ msgstr ""
 #. A keyboard's heading.
 #: /resources/settings.xml
 msgctxt "#32011"
-msgid "Enter a TMDB v3 API Key or v4 API Read Access Token"
+msgid "Enter a TMDB v3 API key or v4 read access token"
 msgstr ""
 
 #: /resources/settings.xml
@@ -821,13 +821,13 @@ msgstr ""
 #. A line in the content browser's list: keep it short.
 #: /resources/lib/windows/browse.py
 msgctxt "#32804"
-msgid "Custom path..."
+msgid "Custom path…"
 msgstr ""
 
 #. A line in a select dialog, below Kodi's "None": opens a file browser.
 #: /resources/lib/windows/onclick_actions.py
 msgctxt "#32805"
-msgid "Browse..."
+msgid "Browse…"
 msgstr ""
 
 #. A toast in the content browser (one line, cut if long): keep it short.
@@ -863,7 +863,7 @@ msgstr ""
 #. A progress dialog's line.
 #: /resources/lib/windows/browse.py
 msgctxt "#32812"
-msgid "Finding playlists..."
+msgid "Finding playlists…"
 msgstr ""
 
 #. A toast in the content browser (one line, cut if long): keep it short.
@@ -881,7 +881,7 @@ msgstr ""
 #. A progress dialog's line.
 #: /resources/lib/windows/browse.py
 msgctxt "#32815"
-msgid "Getting directory listing..."
+msgid "Getting directory listing…"
 msgstr ""
 
 #. A keyboard's heading.

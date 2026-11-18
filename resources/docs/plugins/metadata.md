@@ -152,7 +152,7 @@ same rule when they are in the lists, and stay first when they aren't (so `poste
 Results are cached for 7 days, an id TMDb doesn't know for a day, a "too many
 requests" answer for as long as TMDb asks, and any other failed request (offline,
 timeout, server error, a refused token) for 5 minutes; until the retry, the last
-details fetched are still returned. *Clear addon cache* empties it. The art is then available to the artwork helper's
+details fetched are still returned. *Clear add-on cache* empties it. The art is then available to the artwork helper's
 `get_extra_multiart` (see [Artwork](artwork.md#multiart)).
 
 **Add-on settings needed:** the user pastes their own TMDb v3 API key or v4 API read

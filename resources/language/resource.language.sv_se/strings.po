@@ -96,7 +96,7 @@ msgstr "TMDB-åtkomsttoken"
 #. A keyboard's heading.
 #: /resources/settings.xml
 msgctxt "#32011"
-msgid "Enter a TMDB v3 API Key or v4 API Read Access Token"
+msgid "Enter a TMDB v3 API key or v4 read access token"
 msgstr "Ange en TMDB v3 API-nyckel eller v4-läsåtkomsttoken"
 
 #: /resources/settings.xml
@@ -821,14 +821,14 @@ msgstr " min"
 #. A line in the content browser's list: keep it short.
 #: /resources/lib/windows/browse.py
 msgctxt "#32804"
-msgid "Custom path..."
-msgstr "Anpassad sökväg..."
+msgid "Custom path…"
+msgstr "Anpassad sökväg…"
 
 #. A line in a select dialog, below Kodi's "None": opens a file browser.
 #: /resources/lib/windows/onclick_actions.py
 msgctxt "#32805"
-msgid "Browse..."
-msgstr "Bläddra..."
+msgid "Browse…"
+msgstr "Bläddra…"
 
 #. A toast in the content browser (one line, cut if long): keep it short.
 #: /resources/lib/windows/browse.py
@@ -863,8 +863,8 @@ msgstr "Skalets spellistor"
 #. A progress dialog's line.
 #: /resources/lib/windows/browse.py
 msgctxt "#32812"
-msgid "Finding playlists..."
-msgstr "Söker spellistor..."
+msgid "Finding playlists…"
+msgstr "Söker spellistor…"
 
 #. A toast in the content browser (one line, cut if long): keep it short.
 #: /resources/lib/windows/browse.py
@@ -881,8 +881,8 @@ msgstr "Inga favoriter hittades"
 #. A progress dialog's line.
 #: /resources/lib/windows/browse.py
 msgctxt "#32815"
-msgid "Getting directory listing..."
-msgstr "Hämtar kataloglistning..."
+msgid "Getting directory listing…"
+msgstr "Hämtar kataloglistning…"
 
 #. A keyboard's heading.
 #: /resources/lib/windows/browse.py
