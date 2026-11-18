@@ -194,8 +194,12 @@ class SeedMultiart(unittest.TestCase):
         )
 
     def test_window_change_writes_no_keys(self):
-        live = {"multiart_seed_scope_3400": "x", "multiart_seed_sig_3400": "y"}
-        self.props |= live  # the window now active seeded register 3400 too
+        live = {
+            "multiart_frozen_3400": "f",
+            "multiart_seed_scope_3400": "x",
+            "multiart_seed_sig_3400": "y",
+        }
+        self.props |= live  # the window now active seeded and froze register 3400
         self.current = 10025  # the active window changed during the serve
         self.seed()
         self.assertEqual(self.props, live)

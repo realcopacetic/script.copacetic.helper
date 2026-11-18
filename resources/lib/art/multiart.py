@@ -390,7 +390,10 @@ def seed_multiart(
         return art
     frozen_key = f"multiart_frozen_{fadelabel_id}"
     if not same_scope:
-        window_property(frozen_key)  # the frame belongs to the previous region
+        # the frame belongs to the previous region; a window serve that outlived its
+        # window leaves the live window's alone (the key is shared)
+        if dialog or window_id == getCurrentWindowId():
+            window_property(frozen_key)
     elif (
         len(multiart_dict) > 1
         and stored.startswith(f"{seed_item}:")
