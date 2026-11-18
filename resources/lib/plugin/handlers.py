@@ -2281,18 +2281,24 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         seed = self.params.get("seed", "artist")
         if (dbid := to_int(self.dbid)) and seed != "artist":
-            details = json_call(
-                DETAILS[seed],
-                properties=(
-                    ["artistid", "compilation"] if seed == "album" else ["artistid"]
-                ),
-                params={f"{seed}id": dbid},
-                parent="similar_music",
-            )["result"][f"{seed}details"]
-            # a compilation's first artist is Various Artists: genres only
-            self.dbid = (
-                "" if details.get("compilation") else str(details["artistid"][0])
+            details = (
+                json_call(
+                    DETAILS[seed],
+                    properties=(
+                        ["artistid", "compilation"] if seed == "album" else ["artistid"]
+                    ),
+                    params={f"{seed}id": dbid},
+                    parent="similar_music",
+                )
+                .get("result", {})
+                .get(f"{seed}details")
             )
+            # gone from the library, or a compilation (its first artist is Various
+            # Artists): genres only
+            if not details or details.get("compilation"):
+                self.dbid = ""
+            else:
+                self.dbid = str(details["artistid"][0])
         if not (
             (dbid := to_int(self.dbid))
             and (similar := similar_artists(dbid, "similar_music"))
@@ -2668,13 +2674,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return self._soundtrack_source(dbid)
         media, season = self.dbtype, None
         if media in ("season", "episode"):
-            parent = _video_details(
-                media, dbid, ["tvshowid", "season"], parent="soundtracks"
-            )
+            if not (
+                parent := _video_details(
+                    media, dbid, ["tvshowid", "season"], parent="soundtracks"
+                )
+            ):
+                return
             media, dbid, season = "tvshow", parent["tvshowid"], parent["season"]
-        item = _video_details(
-            media, dbid, ["title", "originaltitle", "year"], parent="soundtracks"
-        )
+        if not (
+            item := _video_details(
+                media, dbid, ["title", "originaltitle", "year"], parent="soundtracks"
+            )
+        ):
+            return
         names = {item["title"], item["originaltitle"]}
         keys = set(map(title_key, filter(None, names)))
         albums = library_rows(
@@ -2731,12 +2743,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param albumid: Library album id.
         :return: List of one directory item, or None if not a soundtrack or no match.
         """
-        album = json_call(
-            "AudioLibrary.GetAlbumDetails",
-            properties=["genre", "originaldate", "style", "title", "type", "year"],
-            params={"albumid": albumid},
-            parent="soundtracks",
-        )["result"]["albumdetails"]
+        album = (
+            json_call(
+                "AudioLibrary.GetAlbumDetails",
+                properties=["genre", "originaldate", "style", "title", "type", "year"],
+                params={"albumid": albumid},
+                parent="soundtracks",
+            )
+            .get("result", {})
+            .get("albumdetails")
+        )
+        if not album:  # gone from the library
+            return
         tags = (album["type"], album["title"], *album["genre"], *album["style"])
         if not any(SOUNDTRACK in tag.casefold() for tag in tags):
             return

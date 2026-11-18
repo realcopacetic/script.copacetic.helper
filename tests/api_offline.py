@@ -1971,6 +1971,40 @@ class PopularityLabelTest(Base):
         self.assertEqual((self.calls, self.net.requests), ([], []))
 
 
+class StaleIdTest(unittest.TestCase):
+    """A library id Kodi no longer has: every *Details call answers InvalidParams."""
+
+    def setUp(self):
+        self.calls = []
+
+        def rpc(request):
+            self.calls.append(json.loads(request)["method"])
+            error = {"code": -32602, "message": "Invalid params."}
+            return json.dumps({"id": 1, "jsonrpc": "2.0", "error": error})
+
+        patch(self, (sys.modules["xbmc"], "executeJSONRPC", rpc))
+
+    def handler(self, **params):
+        return handlers.PluginHandlers({"id": "99"} | params)
+
+    def test_similar_music_seed_gone_is_genres_only(self):
+        for seed in ("album", "song"):
+            with self.subTest(seed=seed):
+                handler = self.handler(info="similar_music", type="album", seed=seed)
+                genres = mock.Mock(return_value="genres")
+                with mock.patch.object(handler, "genre_music", genres):
+                    self.assertEqual(handler.similar_music(), "genres")
+                self.assertEqual(handler.dbid, "")  # not the gone id as an artist's
+
+    def test_soundtracks_of_a_gone_item_is_none(self):
+        for type in ("album", "movie", "season", "episode"):
+            with self.subTest(type=type):
+                self.calls.clear()
+                handler = self.handler(info="soundtracks", type=type)
+                self.assertIsNone(handler.soundtracks())
+                self.assertEqual(len(self.calls), 1)  # its details only
+
+
 class ParserTest(unittest.TestCase):
     def parse(self, query):
         return parse_plugin_argv(["plugin://script.copacetic.helper/", "1", query])
