@@ -319,22 +319,24 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         li = self._list_container.getListItem(idx)
         self._apply_row_visuals(li, self.listitems[runtime_id], runtime_id)
 
-    def _refresh_ui(self, update_row: bool = True) -> None:
+    def _refresh_ui(self, update_row: bool = True, focus_id: int | None = None) -> None:
         """
         Update all dynamic handlers and bottom description for current slot.
 
         :param update_row: Flag determining whether the current row's label should be updated.
+        :param focus_id: Control taking focus, when a queued SetFocus hasn't landed yet.
         """
         if self.current_listitem is None or self.current_listitem not in self.listitems:
             return
 
+        focus_id = focus_id or self.getFocusId()
         for h in self.handlers.values():
             h.update_value()
-            h.update_visibility(self.getFocusId())
+            h.update_visibility(focus_id)
         if update_row:
             self._refresh_list_row(self.container_position)
 
-        self._set_description(self.getFocusId())
+        self._set_description(focus_id)
 
     def _set_description(self, focus_id: int) -> None:
         """
@@ -461,8 +463,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                     log.execute(f"Control.SetFocus({requested_focus})")
                     current_focus = requested_focus
 
-                for h in self.handlers.values():
-                    h.update_visibility(current_focus)
+                # Back leaves the row for the list, refreshed for the list below
+                if a_id not in (ACTION_NAV_BACK, ACTION_PREVIOUS_MENU):
+                    for h in self.handlers.values():
+                        h.update_visibility(current_focus)
 
             # Description — always update (mgmt buttons have descriptions too)
             self._set_description(current_focus)
@@ -484,9 +488,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             if current_focus != list_id:
                 log.execute(f"Control.SetFocus({list_id})")
                 # SetFocus is queued, so getFocusId() still gives the row: name the list
-                for h in self.handlers.values():
-                    h.update_visibility(list_id)
-                self._set_description(list_id)
+                self._refresh_ui(update_row=False, focus_id=list_id)
                 self._prev_focus_id = list_id
                 return  # don't fall through to super
             if self.host_focus:  # hosted: the list steps back to the tab strip first

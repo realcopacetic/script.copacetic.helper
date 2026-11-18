@@ -5,10 +5,10 @@ mapping gets them once (a group widget's first tab), a reset restores them, and
 removing a parent removes its children's children too (a menu item's widgets' tabs);
 a new rail page is flagged for the rail's Right only once its rows are up, and
 cleared at a row; a mouse click acts as Select, and a click on a sliderex's slider
-keeps the value it moved to before focus flips to the button; Back from a sliderex
-hands its button the list's colours, and Back or Previous Menu on an edit row saves
-what was typed; a slider step isn't put back by the refresh it
-triggers.
+keeps the value it moved to before focus flips to the button; Back from a row
+refreshes its controls for the list (a sliderex's button loses its focused colours)
+when a row is selected, and Back or Previous Menu on an edit row saves what was
+typed; a slider step isn't put back by the refresh it triggers, a move not stored is.
 Run from the helper root: python tests/editor_offline.py
 """
 
@@ -247,8 +247,30 @@ class Back(unittest.TestCase):
             _set_description=Mock(),
         )
         ed.onAction(Mock(**{"getId.return_value": xbmcgui.ACTION_NAV_BACK}))
-        handler.update_visibility.assert_called_with(100)
+        handler.update_value.assert_called_once_with()
+        handler.update_visibility.assert_called_once_with(100)
         ed._set_description.assert_called_with(100)
+        self.assertEqual(ed._prev_focus_id, 100)
+
+    def test_back_without_a_selection_leaves_the_handlers(self):
+        handler = Mock(focus_target_id=None)
+        ed = editor(
+            host=None,
+            host_focus=None,
+            _prev_focus_id=211,
+            _mgmt_ids=set(),
+            _mgmt_buttons=[],
+            _handler_by_focus_id={211: handler},
+            handlers={"slider": handler},
+            current_listitem=None,
+            listitems={"a": {}},
+            _list_container=Mock(**{"getId.return_value": 100}),
+            getFocusId=lambda: 211,
+            _set_description=Mock(),
+        )
+        ed.onAction(Mock(**{"getId.return_value": xbmcgui.ACTION_NAV_BACK}))
+        handler.update_value.assert_not_called()
+        handler.update_visibility.assert_not_called()
         self.assertEqual(ed._prev_focus_id, 100)
 
     def test_back_or_previous_menu_saves_typed_text(self):
@@ -260,7 +282,7 @@ class Back(unittest.TestCase):
             handler.instance.getText.return_value = "typed "
             handler._cached_text = "stored"
             handler._set_setting_value = Mock()
-            handler.update_visibility = Mock()
+            handler.update_value, handler.update_visibility = Mock(), Mock()
             ed = editor(
                 host=None,
                 host_focus=None,
@@ -281,6 +303,8 @@ class Back(unittest.TestCase):
             handler.parent = ed
             ed.onAction(Mock(**{"getId.return_value": a_id}))
             handler._set_setting_value.assert_called_once_with("typed")
+            # Shown again as stored: a cleared row gets its metadata fallback back
+            handler.update_value.assert_called_once_with()
 
 
 class HeldSlider(unittest.TestCase):
