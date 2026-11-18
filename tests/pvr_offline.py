@@ -190,6 +190,11 @@ class Handler(unittest.TestCase):
         self.assertIsNone(items)
         self.assertEqual(calls, [])
 
+    def test_channel_not_a_number_no_call(self):
+        items, calls = self.serve({"channelid": "News"}, [NOW])
+        self.assertIsNone(items)
+        self.assertEqual(calls, [])
+
 
 class SmartSelect(unittest.TestCase):
     """pvr_smart_select with JSON-RPC, the dialogs and builtins stubbed."""
