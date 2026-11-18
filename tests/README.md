@@ -113,6 +113,11 @@ python tests/pvr_offline.py
 # the info=lyrics plugin path (an item per line) and the lyrics_seek action
 python tests/lyrics_offline.py
 
+# The add-on's own directory (plugin/listing.py): the root's Videos and Music folders,
+# each group's plain folders on the Home rails' paths (live params read only when a
+# group lists, none at the root), and every handler offered or excluded on purpose
+python tests/listing_offline.py
+
 # Clean names (shared/utilities.py clean_name) against a port of Kodi's CleanString:
 # a film's title and year; an episode's show, 1x07 and title in the scene, Sonarr,
 # underscore and title-less forms
