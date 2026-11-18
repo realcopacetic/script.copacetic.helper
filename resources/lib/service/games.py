@@ -1,12 +1,28 @@
 # author: realcopacetic
 
 import os
+import re
+from pathlib import Path
 
+import xbmcvfs
+
+from resources.lib.art.editor import ImageEditor
+from resources.lib.plugin.opts import ArtOpts
 from resources.lib.shared.json import JSONHandler
-from resources.lib.shared.utilities import TEMPLATES, infolabel, skin_path
+from resources.lib.shared.utilities import (
+    BLURS,
+    TEMPLATES,
+    create_dir,
+    infolabel,
+    skin_path,
+)
 
 # The skin's map of game add-on ids to systems, relative to the skin's folder.
 EMULATORS = f"{TEMPLATES}/mappings/mappings_emulators.json"
+# Kodi's saves, a folder per game file's name: each save with a picture beside it.
+SAVES = "special://home/saves/"
+BLUR = "game_"  # the blur's file name in BLURS, before its picture's time
+BLUR_OPTS = ArtOpts.from_params({"background_blur": "true"}, "background")
 
 
 def emulator_name(addon_name: str) -> str:
@@ -39,3 +55,40 @@ def identity(client: str, path: str) -> dict[str, str]:
         "player_system": core.get("extensions", {}).get(extension)
         or core.get("system", ""),
     }
+
+
+def autosave_blur(editor: ImageEditor, path: str) -> str:
+    """
+    Blur a game's newest save picture (Kodi autosaves every 10 s of play) into a
+    file named by the picture's time: Kodi won't reread a rewritten path.
+
+    :param editor: The artwork editor, for its processor.
+    :param path: The playing game's file.
+    :return: The blur's path; empty with no picture, or one that can't be read.
+    """
+    folder = Path(xbmcvfs.translatePath(SAVES), re.split(r"[/\\]", path)[-1])
+    newest = max(folder.glob("*.jpg"), key=os.path.getmtime, default=None)
+    if not newest:
+        return ""
+    blur = Path(BLURS, f"{BLUR}{newest.stat().st_mtime_ns}.jpg")
+    if blur.exists():  # the OSD opened again before the next autosave
+        return str(blur)
+    from PIL import Image  # a new picture only
+
+    from resources.lib.art.io import write_image
+    from resources.lib.script.library import remove_textures
+
+    try:
+        with Image.open(newest) as image:
+            blurred = editor.processor.blur(image, opts=BLUR_OPTS)
+    except OSError:  # Kodi is still writing it
+        return ""
+    if not blurred:
+        return ""
+    stale = [str(old) for old in Path(BLURS).glob(f"{BLUR}*.jpg")]
+    for old in stale:
+        os.remove(old)
+    remove_textures(stale)  # Kodi's cached copies of them
+    create_dir(BLURS)
+    write_image(str(blur), blurred["image"], "JPEG", editor.cfg)
+    return str(blur)
