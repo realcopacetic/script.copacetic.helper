@@ -168,13 +168,16 @@ Blurs each profile's picture (radius 50, through the helper's art cache) into
 `special://masterprofile/addon_data/script.copacetic.helper/login/<profile name>.jpg`, the
 master profile's add-on data because a login screen runs as the master profile. A
 profile gone, renamed or without a picture loses its file, and a profile whose name
-holds `\ / : * ? " < > |` gets none. The service does it on every start, after each
-login; call it as Kodi's Profiles window closes, so a picture changed there shows at the
-next logout. Files are rewritten only when they change, and this profile's cached copy
-of a changed file is dropped (Kodi rechecks a cached file at most once a day).
+holds `\ / : * ? " < > |` gets none. The service does it each time a skin that
+[opts in](../service/index.md#opting-in) becomes active (Kodi's start, each login, a
+switch into the skin); call it as Kodi's Profiles window closes, so a picture changed
+there shows at the next logout. Files are rewritten only when they change, and this profile's cached copy
+of a changed file is dropped (Kodi rechecks a cached file at most once a day). No
+parameters.
 
 The service also writes `.../splash.jpg` from the first slideshow slide of each session,
-the same blur, for a splash to show at the next start. A skin reads both by path; a
+the same blur, for a splash to show at the next start (see
+[Slideshow](../service/slideshow.md#a-picture-for-the-next-start)). A skin reads both by path; a
 missing file draws nothing, so pair them with the texture's `fallback`:
 
 ```xml
@@ -471,7 +474,7 @@ editable lists and hosting — is in
 | Your controls | as declared in the control templates | Missing ones are skipped |
 | Add, Move up, Move down, Delete | 410, 411, 412, 413 | Required when a control has `role` `item_picker` or `add_action`. Otherwise never attached, and not hidden for you. |
 | Reset, Close | 414, 415 | Optional; Back from the list closes too (in a hosted window it goes to `host_focus` first). Reset asks for confirmation first. |
-| Colour labels | 420, 421 | Optional hidden labels holding the focused and unfocused colour. Default `FFFFFFFF` and `80FFFFFF`. |
+| Colour labels | 420, 421 | Optional hidden labels holding the focused and unfocused colour, read as `Control.GetLabel(420)` and `Control.GetLabel(421)`. Default `FFFFFFFF` and `80FFFFFF`. |
 
 ### Window properties
 
@@ -484,7 +487,13 @@ editable lists and hosting — is in
 | `helper_reloading` | `rebuild` while the builder outputs rebuild on close, then `reload` as the skin reload is sent (also in `rebuild` and `delete_orphans`, and `reload` alone when the service reloads for a skin update, except during fullscreen video), so the skin can cover both, for example with its splash. The skin clears it, once its window is ready after the reload; the helper clears it only when no reload follows: a failed rebuild, a rebuild on close or in `delete_orphans` that changed no output file (unless the editor's host window was opened again meanwhile, which still reloads), or a dropped or postponed reload. |
 
 If the list is empty and it is an editable list, the Add dialog opens straight away.
-Cancel it and the window closes.
+Cancel it and the window closes. An empty fixed list closes at once, unless
+`host_focus` is set.
+
+The settings window itself also carries `Window.Property(page_changed)`: `true` once
+the list's selection has moved to another entry, until focus reaches one of the
+controls. See [Asking about the editor from skin
+XML](../builders/09-runtime-state.md#asking-about-the-editor-from-skin-xml).
 
 Each list item also carries the entry's values as list item properties, for example
 `Container(100).ListItem.Property(layout)`.
@@ -711,6 +720,8 @@ album costs a moment and Home refreshes its widgets once per song.
 or cleared). The service then sets `progress_version` once for the songs' updates
 ([On song updates](../service/index.md#on-song-updates)), which a skin puts in its
 progress bar URL to have the bar served again.
+
+---
 
 ## move_pin
 
