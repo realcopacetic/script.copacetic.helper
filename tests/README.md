@@ -124,6 +124,13 @@ python tests/listing_offline.py
 # a film's title and year; an episode's show, 1x07 and title in the scene, Sonarr,
 # underscore and title-less forms
 python tests/clean_name_offline.py
+
+# Games (service/games.py, service/player.py): the emulator from a game add-on's name
+# as Kodi reads it; the system from the skin's emulators mapping (one system, several
+# by extension, a shared extension, no row, no mapping); a game's start publishing
+# both, its stop clearing them. With a skin, its own mapping's shape and one emulator
+# of each kind
+python tests/games_offline.py [../skin.copacetic2]
 ```
 
 - `build_offline` stubs only the `xbmc*` calls the builders make; a new Kodi call fails loudly — add it to `install_stubs`. Any ERROR log line fails the build.
