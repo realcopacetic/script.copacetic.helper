@@ -102,7 +102,9 @@ interrupted. In order:
 2. The service attaches the player monitor, which handles playback from now on (see
    [Player properties](player.md) and [Play next](playnext.md)). It sets the
    [speed dial](../plugins/speed_dial.md#window-properties) pinned-item properties and,
-   if something is already playing, that file's player properties.
+   if something is already playing, that file's player properties. It then blurs each
+   profile's picture for a login screen, in the background (see
+   [`bake_profiles`](../script/actions.md#bake_profiles)).
 3. It sets `helper_active`, which shows the helper's
    [context menu items](../script/actions.md#items-the-helper-adds-to-the-context-menu),
    and, if the skin's templates or `16x9/` XML name `info=speed_dial`,
@@ -137,16 +139,18 @@ Each pass it:
 1. checks the trailer session (see [Trailers](trailers.md));
 2. clears `player_seek_offset` and `player_seek_chapter` once Kodi's seek display is over (see
    [Seek offset](player.md#seek-offset));
-3. publishes the playing video's skip segment in play or next (see
+3. removes the episode [Play next](playnext.md) queued, if `playnext_enabled` was
+   turned off during the episode;
+4. publishes the playing video's skip segment in play or next (see
    [Skip segments](player.md#skip-segments));
-4. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
-5. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
+5. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
+6. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
    focus is no longer on a speed dial item (see
    [Speed dial](../plugins/speed_dial.md#plays-dont-reload-a-focused-list));
-6. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz,
+7. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz,
    Deezer, TheIntroDB and LRCLIB answers in the add-on's `_lookup.db` that expired
    more than 30 days ago. If the database is busy, it tries again an hour later;
-7. publishes the playing song's current lyric line and moves the lyric list in view
+8. publishes the playing song's current lyric line and moves the lyric list in view
    to it, or looks the song's lyrics up if the skin's `lyrics` setting was just
    turned on, or clears them if it was turned off (see [Lyrics](player.md#lyrics)).
 
@@ -310,10 +314,11 @@ when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes 
 | `info_current` | Window property | When a trailer goes full screen | [Trailers](trailers.md#full-screen) |
 | `trailer_flight`, `trailer_pending_since` | Window property | On playback start, and each poll | [Trailers](trailers.md) |
 | `trailer_file` | Window property | Each poll | [Trailers](trailers.md) |
-| `playnext_enabled` | Skin setting (bool) | When a library episode starts; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Play next](playnext.md) |
+| `playnext_enabled` | Skin setting (bool) | When a library episode starts, and each poll while the episode it queued is due; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Play next](playnext.md) |
 | `skip_segments` | Skin setting (bool) | When a video starts; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Player properties](player.md#skip-segments) |
 | `endless_queue` | Skin setting (bool) | When a library song starts | [Player properties](player.md#endless-queue) |
 | `lyrics` | Skin setting (bool) | When a song starts, and each poll while one plays; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Lyrics](player.md#lyrics) |
+| `title_identity` | Font in `Font.xml` (first fontset) | When a song's synced lyrics are found, to mark the long lines | [Lyrics](player.md#lyrics) |
 | `3510`, `3511` | Container ids (`NumItems`, `CurrentItem`, focus) | At each lyric line, in the visualisation and the music OSD | [Lyrics](player.md#lyrics) |
 | `slideshow_source`, `slideshow2_source` | Skin string | Each poll | [Slideshow](slideshow.md) |
 | `slideshow_path`, `slideshow2_path` | Skin string | Each poll | [Slideshow](slideshow.md) |
