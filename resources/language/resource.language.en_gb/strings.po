@@ -689,7 +689,7 @@ msgstr ""
 #########################################################################################################
 
 #: PLUGIN                326XX
-# Names of the rows and lists the plugin serves
+# Names of the rows and lists the plugin serves, and the units it writes
 
 #########################################################################################################
 
@@ -790,6 +790,22 @@ msgstr ""
 #: /resources/lib/plugin/listing.py
 msgctxt "#32614"
 msgid "Random genre - artists"
+msgstr ""
+
+#. Hours, right after the number in a time left or a runtime: "1h 23m", "1h". Keep it to a letter
+#. or two; start it with a space if your language puts one there ("1 h 23 min"). Use the same as
+#. the skin's string 31919.
+#: /resources/lib/plugin/helpers.py
+msgctxt "#32615"
+msgid "h"
+msgstr ""
+
+#. Minutes, right after the number in a time left or a runtime: "1h 23m", "48m". Keep it to a
+#. letter or two; start it with a space if your language puts one there ("48 min"). Use the same
+#. as the skin's string 31920.
+#: /resources/lib/plugin/helpers.py
+msgctxt "#32616"
+msgid "m"
 msgstr ""
 
 

@@ -6,6 +6,8 @@ call that isn't stubbed fails loudly. Outputs never touch the skin.
 """
 
 import argparse
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -36,7 +38,8 @@ def install_stubs(
 ) -> dict[str, int]:
     """
     Stub ``xbmc*`` modules: special:// paths map to ``stage`` and ``out``,
-    logs go to stdout, settings come from the add-on's settings.xml defaults.
+    logs go to stdout, settings come from the add-on's settings.xml defaults
+    and strings from its en_gb strings.po.
 
     :param helper: Helper add-on root.
     :param stage: Scratch skin root holding templates and generated XML.
@@ -50,6 +53,10 @@ def install_stubs(
         s.get("id"): s.findtext("default", "")
         for s in ET.parse(helper / "resources" / "settings.xml").iter("setting")
     }
+    po = helper / "resources/language/resource.language.en_gb/strings.po"
+    entries = re.findall(r'msgctxt "#(\d+)"\nmsgid "(.*)"', po.read_text("utf-8"))
+    # the .po's escapes (\" \n \\) are JSON's
+    strings = {int(i): json.loads(f'"{text}"') for i, text in entries}
     roots = {
         f"special://profile/addon_data/{addon_id}/": out,
         "special://profile/": out / "profile",
@@ -75,6 +82,9 @@ def install_stubs(
 
         def getSettingBool(self, key: str) -> bool:
             return settings[key] == "true"
+
+        def getLocalizedString(self, string_id: int) -> str:
+            return strings[string_id]
 
     class Window:
         def __init__(self, window_id: int = 10000):

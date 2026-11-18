@@ -18,6 +18,7 @@ from resources.lib.plugin.geometry import (
 from resources.lib.shared import logger as log
 from resources.lib.shared.text import KodiMetric, fit_lines, load_font, skin_font
 from resources.lib.shared.utilities import (
+    ADDON,
     clamp,
     condition,
     infolabel,
@@ -348,15 +349,16 @@ class DataHandler:
 
 def hours_minutes(minutes: int) -> str:
     """
-    A duration as the progress bar's labels show it.
+    A duration as the progress bar's labels show it, in the language's units.
 
     :param minutes: The duration in whole minutes.
-    :return: "1h 23m", "1h" or "48m".
+    :return: "1h 23m", "1h" or "48m" in English.
     """
+    h, m = ADDON.getLocalizedString(32615), ADDON.getLocalizedString(32616)
     hours, mins = divmod(minutes, 60)
     if not hours:
-        return f"{mins}m"
-    return f"{hours}h {mins}m" if mins else f"{hours}h"
+        return f"{mins}{m}"
+    return f"{hours}{h} {mins}{m}" if mins else f"{hours}{h}"
 
 
 class ProgressBarManager:
