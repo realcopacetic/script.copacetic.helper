@@ -159,13 +159,16 @@ class ArtworkCacheManager:
 
     def source_path(self, ctx: CacheContext) -> str | None:
         """
-        The file to open the source from: Kodi's texture-cache copy, else a temp copy.
+        The file to open the source from: Kodi's texture-cache copy, else a local file
+        in place (a picture on disk), else a temp copy (a share, the web, image://).
 
         :param ctx: CacheContext for the source.
         :return: Path of the file, or None when the source can't be copied.
         """
         if validate_path(path := str(ctx.cached_image_path)):
             log.debug(f"{self.__class__.__name__} → texture-cache file → {path}")
+            return path
+        if "://" not in (path := xbmcvfs.translatePath(ctx.decoded_url)):
             return path
         return self.source_temp_path(ctx)
 

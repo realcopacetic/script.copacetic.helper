@@ -7,7 +7,8 @@ away) and, at step 3, that the tinted band reads at the ratio, then that a palet
 PNG's transparent colour is no colour, that a row measured before the measure version
 is measured again, that an RGB PNG with tRNS measures as its RGBA copy, that an
 image Kodi recached in the other format measures its newer copy and that a photo-sized
-JPEG decodes scaled down for a blur but whole for its size; prints
+JPEG decodes scaled down for a blur but whole for its size, and that a local source
+opens in place where a share's is copied; prints
 each serve's time. Needs Pillow and the skin (its Font.xml and fonts measure the
 label); no network.
 
@@ -279,8 +280,28 @@ def main() -> None:
     failures += check_rekey(tmp, serve, ImageEditor())
     failures += check_recache(tmp, serve, ImageEditor())
     failures += check_draft(tmp, serve, ImageEditor)
+    failures += check_in_place(tmp, ImageEditor())
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
+
+
+def check_in_place(tmp: Path, editor: Any) -> bool:
+    """
+    A source outside Kodi's texture cache opens in place when it is a local file; only
+    a share's or the web's is copied to a temp file.
+
+    :param tmp: Scratch root, holding the posters.
+    :param editor: ImageEditor, for its cache manager.
+    :return: True when a check failed.
+    """
+    vfs, manager, copied = sys.modules["xbmcvfs"], editor.cache_manager, []
+    copy, vfs.copy = vfs.copy, lambda src, dst: copied.append(src)
+    local, share = str(tmp / "white.jpg"), "smb://nas/pictures/white.jpg"
+    ok = manager.source_path(manager.prepare(local)) == local and not copied
+    ok &= manager.source_path(manager.prepare(share)) is None and copied == [share]
+    vfs.copy = copy
+    print(f"{'ok  ' if ok else 'FAIL'} source: a local file in place, a share copied")
+    return not ok
 
 
 def check_draft(tmp: Path, serve: Callable, editor: type) -> bool:
