@@ -14,7 +14,7 @@ from xbmcgui import getCurrentWindowDialogId
 from resources.lib.art.editor import ImageEditor
 from resources.lib.plugin.helpers import IDENTITY_LOGO_BOX, INFO_LOGO_BOX, size_identity
 from resources.lib.plugin.opts import ArtOpts
-from resources.lib.service import lyrics, playnext, segments
+from resources.lib.service import games, lyrics, playnext, segments
 from resources.lib.service.trailer import (
     TrailerZoomController,
     enter_fullscreen,
@@ -217,6 +217,10 @@ class PlayerMonitor(Player):
                 "Window.IsActive(fullscreenvideo)"
             ):
                 log.execute("Action(FullScreen)")  # took the flight's windowed start
+        if self.isPlayingGame():  # first: a game has video and audio too
+            self._clear_trailer_props()
+            self._handle_game_start()
+            return
         if self.isPlayingVideo():
             # Not a trailer: any leftover trailer state was superseded by a
             # real video — clear it and take the normal video path.
@@ -370,6 +374,15 @@ class PlayerMonitor(Player):
         self._cleanup()
         if own:
             window_property("trailer_played_item")
+
+    def _handle_game_start(self) -> None:
+        """Publish a game's emulator and system on start, for the game pill."""
+        try:
+            client = self.getPlayingItem().getGameInfoTag().getGameClient()
+        except RuntimeError:  # stopped since the AV start
+            return
+        self._publish(games.identity(client, infolabel("Player.Filenameandpath")))
+        lyrics.clear()  # a song's, kept up to this start
 
     def _handle_video_start(self) -> None:
         """
