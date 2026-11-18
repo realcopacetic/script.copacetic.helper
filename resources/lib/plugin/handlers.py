@@ -2096,7 +2096,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         if not self._require("channelid"):
             return
-        params = {"channelid": int(self.params["channelid"])}
+        if (channelid := to_int(self.params["channelid"], None)) is None:
+            return
+        params = {"channelid": channelid}
         broadcasts = (
             json_call(
                 "PVR.GetBroadcasts",
