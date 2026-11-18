@@ -127,7 +127,9 @@ python tests/clean_name_offline.py
 
 # Builder passes (builders/modules.py): an item's `also` metadata gives a pass more per
 # row, so one settings entry feeds a second window's expressions (append, assign, the
-# inverted fallback) and variables, in static and dynamic mappings
+# inverted fallback) and variables, in static and dynamic mappings. Skin mirrors
+# (builders/runtime.py): a new mirrored field's config default reaches its skin
+# setting when the state is checked, fresh or saved without it; a saved value wins
 python tests/builder_offline.py
 
 # Games (service/games.py, service/player.py): the emulator from a game add-on's name

@@ -3,21 +3,27 @@ Offline checks for the builders' loop passes (resources/lib/builders/modules.py)
 item's ``also`` metadata gives a pass more per row, its fields over the item's, so
 one settings entry feeds a second window's names: static and dynamic mappings,
 expressions (append, assign, the inverted fallback) and variables; an item without
-it keeps its one pass.
+it keeps its one pass. And for a skin mirror (builders/runtime.py): a new mirrored
+field's config default reaches its skin setting when the runtime state is checked,
+on a fresh state and on a saved row that never held the field; a saved value wins.
 Run from the helper root: python tests/builder_offline.py
 """
 
+import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from build_offline import HELPER, install_stubs
 
 STAGE = Path(tempfile.mkdtemp())
 install_stubs(HELPER, STAGE, STAGE, verbose=False)
+(STAGE / "addon.xml").write_text('<addon id="skin.test" />')
 sys.path.insert(0, str(HELPER))
 
+from resources.lib.builders import runtime  # noqa: E402
 from resources.lib.builders.modules import (  # noqa: E402
     ExpressionsBuilder,
     VariablesBuilder,
@@ -141,6 +147,63 @@ class Also(unittest.TestCase):
         )
         self.assertEqual(visible["layout_grid_visible_programs"], "false")
         self.assertEqual(visible["layout_list_visible_programs"], "true")
+
+
+class MirrorDefault(unittest.TestCase):
+    """A radiobutton added to a settings category, on by default, mirrored."""
+
+    FIELD = "controller_diagrams"
+    MAPPINGS = {
+        "copacetic": {
+            "mode": "dynamic",
+            "items": ["views"],
+            "placeholders": {"key": "settings_category"},
+            "skin_mirrors": {FIELD: FIELD},
+            "config_fields": {"views": {FIELD: FIELD}},
+        }
+    }
+    CONFIGS = {
+        "copacetic": {
+            FIELD: {"items": {"true": "On", "false": "Off"}, "defaults": {"*": "true"}}
+        }
+    }
+
+    def check(self, saved=None, skin_has=False):
+        """Check the runtime state over a saved one; the builtins it ran."""
+        state = Path(tempfile.mkdtemp(dir=STAGE), "runtime_state.json")
+        if saved is not None:
+            state.write_text(json.dumps({"copacetic": saved}))
+        manager = runtime.RuntimeStateManager(
+            self.MAPPINGS, self.CONFIGS, {}, str(state)
+        )
+        ran, on = [], f"Skin.SetBool({self.FIELD})"
+
+        def builtin(action):  # the skin setting follows, as Kodi's does
+            nonlocal skin_has
+            ran.append(action)
+            skin_has = action == on
+
+        with (
+            patch.object(runtime, "condition", lambda text: skin_has),
+            patch.object(runtime, "executebuiltin", builtin),
+        ):
+            manager.initialize_runtime_state()
+        return ran
+
+    def test_fresh_state(self):
+        self.assertEqual(self.check(), [f"Skin.SetBool({self.FIELD})"])
+
+    def test_saved_row_without_the_field(self):
+        row = {"runtime_id": "1", "mapping_item": "views", "channel_logos": "true"}
+        self.assertEqual(self.check([row]), [f"Skin.SetBool({self.FIELD})"])
+        self.assertEqual(self.check([row], skin_has=True), [])  # already on
+
+    def test_saved_off_wins(self):
+        row = {"runtime_id": "1", "mapping_item": "views", self.FIELD: "false"}
+        self.assertEqual(self.check([row]), [])
+        self.assertEqual(
+            self.check([row], skin_has=True), [f"Skin.Reset({self.FIELD})"]
+        )
 
 
 if __name__ == "__main__":
