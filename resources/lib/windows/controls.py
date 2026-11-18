@@ -860,7 +860,7 @@ class SliderHandler(BaseControlHandler):
         """
         super().__init__(control, instance, runtime_manager)
         self._enabled = False
-        self._int_shown = None  # (index, steps) last on the slider
+        self._stepping = False  # True during the refresh the slider's own step runs
 
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:
         """
@@ -872,11 +872,14 @@ class SliderHandler(BaseControlHandler):
         values = self._allowed_items()
         idx = self.instance.getInt()
         if 0 <= idx < len(values):
-            # Kodi moved the slider before this ran: setting it again in the refresh
-            # would undo a step a held key took meanwhile.
-            self._int_shown = (idx, len(values))
             self._set_setting_value(values[idx])
-            self.parent._refresh_ui()
+            # Kodi moved the slider before this ran: setting it again in this refresh
+            # would undo a step a held key took meanwhile.
+            self._stepping = True
+            try:
+                self.parent._refresh_ui()
+            finally:
+                self._stepping = False
 
     def update_value(self) -> None:
         """Snap to an allowed value, then update slider index and enabled state."""
@@ -888,8 +891,7 @@ class SliderHandler(BaseControlHandler):
         current = self._coerce_to_allowed()
         values = self._allowed_items()
         idx = values.index(current) if current in values else 0
-        if self._int_shown != (idx, len(values)):
-            self._int_shown = (idx, len(values))
+        if not self._stepping:
             self.instance.setInt(idx, 0, 1, max(len(values) - 1, 0))
         enabled = len(values) > 1
         self.set_enabled(enabled)
