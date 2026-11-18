@@ -84,7 +84,19 @@ This is what lets one includes template produce different output per item — ea
 
 The `custom` preset is nearly empty on purpose. The user fills in `content` and `label` through the editor.
 
-**Special fields.** Two metadata fields mean something to the addon. `parent` names an item in the `parent_mapping` — see [Parent and child lists](07-includes.md#parent-and-child-lists). `xsp` holds a smart-playlist dict that becomes the `{xsp}` token — see [Includes → What the tokens are](07-includes.md#what-the-tokens-are).
+**Special fields.** Three metadata fields mean something to the addon. `parent` names an item in the `parent_mapping` — see [Parent and child lists](07-includes.md#parent-and-child-lists). `xsp` holds a smart-playlist dict that becomes the `{xsp}` token — see [Includes → What the tokens are](07-includes.md#what-the-tokens-are). `also` gives the item more than one loop pass — see below.
+
+**`also` — one item, more than one pass.** A list of field sets. The item gets its own pass, then one more per set, with that set's fields over the item's and everything else the same: for a dynamic mapping, the entry's stored settings and its `{index}`. Use it when one settings entry has to feed names that another field keys. Copacetic's `games` content type belongs to the Games window, and also covers two add-ons' listings in Programs:
+
+```json
+"games": {
+  "window": "games",
+  "match": "String.StartsWith(Container.FolderPath,plugin://)",
+  "also": [ { "window": "programs", "match": "String.StartsWith(Container.FolderPath,plugin://plugin.program.akl)" } ]
+}
+```
+
+A template named `layout_{item}_visible_{window}` then adds the entry's choice to both `…_games` and `…_programs`, each with its own `match`. The extra passes exist only while templates expand: the settings file and the editor still have one entry. They count as passes for `{count}`, `{is_first}`, `{is_last}` and `{instance}`.
 
 **Strings vs everything else.** Only string values can end up on settings-file entries and be edited. Dicts, lists, and numbers stay in the mapping — the builders can still use them (an `xsp` smart-playlist dict becomes the `{xsp}` token, for example), but they never appear in the settings file. So: user-editable → make it a string, even if just `""`.
 

@@ -125,6 +125,11 @@ python tests/listing_offline.py
 # underscore and title-less forms
 python tests/clean_name_offline.py
 
+# Builder passes (builders/modules.py): an item's `also` metadata gives a pass more per
+# row, so one settings entry feeds a second window's expressions (append, assign, the
+# inverted fallback) and variables, in static and dynamic mappings
+python tests/builder_offline.py
+
 # Games (service/games.py, service/player.py): the emulator from a game add-on's name
 # as Kodi reads it; the system from the skin's emulators mapping (one system, several
 # by extension, a shared extension, no row, no mapping); a game's start publishing
