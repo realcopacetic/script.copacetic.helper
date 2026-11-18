@@ -214,8 +214,11 @@ class PlayerMonitor(Player):
         if self._dropped_flight:
             # The user's media, started inside the flight's wait (onPlayBackStarted)
             self._dropped_flight = False
-            if self.isPlayingVideo() and not condition(
-                "Window.IsActive(fullscreenvideo)"
+            # A game opens full screen in its own window, and counts as video too
+            if (
+                self.isPlayingVideo()
+                and not self.isPlayingGame()
+                and not condition("Window.IsActive(fullscreenvideo)")
             ):
                 log.execute("Action(FullScreen)")  # took the flight's windowed start
         if self.isPlayingGame():  # first: a game has video and audio too
@@ -378,6 +381,9 @@ class PlayerMonitor(Player):
 
     def _handle_game_start(self) -> None:
         """Publish a game's emulator and system on start, for the game pill."""
+        self._successor = ""  # the last episode's: Play next has nothing to drop
+        # An OSD up at the start (Kodi's own, at launch) opens for this game
+        self._game_osd = False
         try:
             client = self.getPlayingItem().getGameInfoTag().getGameClient()
         except RuntimeError:  # stopped since the AV start
@@ -390,13 +396,15 @@ class PlayerMonitor(Player):
     def watch_game_osd(self) -> None:
         """
         Poller hook: when the game OSD opens, publish the game's newest autosave
-        picture, blurred, as player_game_blur; none leaves it empty.
+        picture, blurred, as player_game_blur (none leaves it empty); when it
+        closes, clear it, so the next opening never shows the last one's scene.
         """
         opened, self._game_osd = self._game_osd, condition("Window.IsActive(gameosd)")
-        if self._game_osd and not opened:
-            path = infolabel("Player.Filenameandpath")
-            blur = games.autosave_blur(self._image_editor, path)
-            window_property("player_game_blur", value=blur)
+        if self._game_osd == opened:
+            return
+        path = infolabel("Player.Filenameandpath")
+        blur = self._game_osd and games.autosave_blur(self._image_editor, path)
+        window_property("player_game_blur", value=blur)
 
     def _handle_video_start(self) -> None:
         """
