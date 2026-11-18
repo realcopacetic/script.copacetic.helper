@@ -5,7 +5,8 @@ Checks the label's measured rect (lines, widest line), the element-on-art step, 
 winning colour, the band's PNG and alpha (solid over the label's lines, 0 a feather
 away) and, at step 3, that the tinted band reads at the ratio, then that a palette
 PNG's transparent colour is no colour, that a row measured before the measure version
-is measured again and that an RGB PNG with tRNS measures as its RGBA copy; prints
+is measured again, that an RGB PNG with tRNS measures as its RGBA copy and that an
+image Kodi recached in the other format measures its newer copy; prints
 each serve's time. Needs Pillow and the skin (its Font.xml and fonts measure the
 label); no network.
 
@@ -275,6 +276,7 @@ def main() -> None:
     failures += not ok
     print(f"{'ok  ' if ok else 'FAIL'} RGB PNG with tRNS measures as its RGBA {got[0]}")
     failures += check_rekey(tmp, serve, ImageEditor())
+    failures += check_recache(tmp, serve, ImageEditor())
     shutil.rmtree(tmp)
     sys.exit(bool(failures))
 
@@ -330,6 +332,38 @@ def check_rekey(tmp: Path, serve: Callable, editor: Any) -> bool:
     ok &= (updated["icon_width"], updated["icon_opaque"]) == (240, 1)
     ok &= rows_keyed_by(ctx.cached_file_hash, processes[:3])
     print(f"{'ok  ' if ok else 'FAIL'} rekey: URL rows to the .jpg copy's hash, once")
+    return not ok
+
+
+def check_recache(tmp: Path, serve: Callable, editor: Any) -> bool:
+    """
+    A replaced icon Kodi recaches in the other format: Kodi leaves the old copy, so
+    the newer copy is measured, both ways (Copacetic 2's RGBA icon went RGB).
+
+    :param tmp: Scratch root for the source.
+    :param serve: Runs a serve from its params; returns (art, ms).
+    :param editor: ImageEditor, for the copy's path.
+    :return: True when a check failed.
+    """
+    rounded = Image.new("RGBA", (720, 720), "white")  # alpha: Kodi's copy is a .png
+    rounded.putpixel((719, 719), (255, 255, 255, 252))
+    square = Image.new("RGB", (720, 720), "white")  # no alpha: a .jpg
+    ok = True
+    for name, old, new, want in (
+        ("went-rgb.png", (rounded, ".png"), (square, ".jpg"), 1),
+        ("went-rgba.png", (square, ".jpg"), (rounded, ".png"), 0),
+    ):
+        path = str(tmp / "addon" / name)
+        params = {"icon_url": path, "icon_shape": "true"}
+        copy = editor.cache_manager.prepare(path).cached_image_path
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        old[0].save(stale := copy.with_suffix(old[1]))
+        os.utime(stale, (time.time() - 86400,) * 2)
+        ok &= serve(params)[0]["icon_opaque"] == 1 - want
+        new[0].save(copy.with_suffix(new[1]))
+        art = serve(params)[0]
+        ok &= (art["icon_width"], art["icon_opaque"]) == (720, want)
+    print(f"{'ok  ' if ok else 'FAIL'} recache: the newer of Kodi's two copies")
     return not ok
 
 
