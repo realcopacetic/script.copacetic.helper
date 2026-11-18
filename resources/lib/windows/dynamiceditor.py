@@ -482,6 +482,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 return self._on_close()
             if current_focus != self._list_container.getId():
                 log.execute(f"Control.SetFocus({self._list_container.getId()})")
+                # SetFocus is queued, so getFocusId() still gives the row: name the list
+                self._set_description(self._list_container.getId())
                 return  # don't fall through to super
             if self.host_focus:  # hosted: the list steps back to the tab strip first
                 log.execute(f"Control.SetFocus({self.host_focus})")
