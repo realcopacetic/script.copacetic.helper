@@ -80,6 +80,7 @@ class Monitor(xbmc.Monitor):
         self.slideshow = None
         self.song_bump = None  # a pending progress_version bump
         self.closed = {}  # songs closed since the last bump: id → start play count
+        self.clash_features = ()  # clashes.features() when a check was last queued
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
         self._run()
 
@@ -146,6 +147,11 @@ class Monitor(xbmc.Monitor):
         Thread(target=bake_profiles, daemon=True).start()
         window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial() and "true")
         window_property(ACTIVE_PROPERTY, value="true")
+        self._check_clashes()
+
+    def _check_clashes(self) -> None:
+        """Queue the check of add-ons that clash, noting the features it will see."""
+        self.clash_features = clashes.features()
         log.execute("RunScript(script.copacetic.helper,action=check_clashes)")
 
     def _deactivate(self) -> None:
@@ -365,8 +371,8 @@ class Monitor(xbmc.Monitor):
     def poller(self) -> None:
         """
         Polling loop: trailer session watchdog, seek offset expiry, Play next's
-        switch-off, skip segments, slideshow, held speed dial refreshes, lyrics (the
-        next pass at their next line) and a daily API cache prune.
+        switch-off, skip segments, slideshow, held speed dial refreshes, a clashes check
+        on a feature change, lyrics (next pass at their next line), a daily cache prune.
         """
         if (now := time.time()) >= self.prune_due:  # runs on through suspend
             try:
@@ -382,4 +388,6 @@ class Monitor(xbmc.Monitor):
         self.player_monitor.watch_segments()
         self.slideshow.tick()
         release_refresh()
+        if clashes.features() != self.clash_features:
+            self._check_clashes()
         self.waitForAbort(self.player_monitor.watch_lyrics())  # last: it times the wait

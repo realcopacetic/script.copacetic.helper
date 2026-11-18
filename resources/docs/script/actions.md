@@ -236,7 +236,7 @@ Switches off each add-on the user chose to switch off for doing a job one of the
 helper's features does, while that feature is on, and switches one back on once its
 features are all off. Then, once Home settles, asks about each such add-on not asked
 about yet. Runs only while a skin that opts in is active; the service runs it each
-time one becomes active. See
+time one becomes active, and when one of those features is turned on or off. See
 [Add-ons that clash](../service/index.md#add-ons-that-clash) for the add-ons and
 the rules.
 

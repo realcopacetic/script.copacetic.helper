@@ -30,6 +30,11 @@ SETTLED = (
 )
 
 
+def features() -> tuple[bool, ...]:
+    """Whether each feature in CLASHES is on, for the service to see one change."""
+    return tuple(condition(feature) for feature, _ in CLASHES.values())
+
+
 def _load() -> dict:
     """clashes.json: the answers (id: True to switch it off) and those off for them."""
     data = JSONHandler(STATE).data.get(STATE, {})

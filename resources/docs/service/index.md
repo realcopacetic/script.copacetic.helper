@@ -150,7 +150,9 @@ Each pass it:
 7. once a day, starting with the first pass, deletes saved TMDb, ListenBrainz,
    Deezer, TheIntroDB and LRCLIB answers in the add-on's `_lookup.db` that expired
    more than 30 days ago. If the database is busy, it tries again an hour later;
-8. publishes the playing song's current lyric line and moves the lyric list in view
+8. queues `action=check_clashes` again when a feature an add-on clashes with is
+   turned on or off (see [Add-ons that clash](#add-ons-that-clash));
+9. publishes the playing song's current lyric line and moves the lyric list in view
    to it, or looks the song's lyrics up if the skin's `lyrics` setting was just
    turned on, or clears them if it was turned off (see [Lyrics](player.md#lyrics)).
 
@@ -216,11 +218,11 @@ the skin. For each add-on that is enabled while a feature it clashes with is on:
   back on while it was off for the skin is left on, and counts as *Keep both* from then.
 - ***Keep both* chosen:** it is never asked about again.
 
-An add-on the helper switched off is switched back on when its features are all off
-(at the next entry), and whenever a skin that doesn't opt in becomes active. Kodi
-exiting leaves it off for the next start. A feature turned on mid-session is checked
-the next time the skin becomes active. The answers and what is switched off are kept
-in `clashes.json` in the add-on's profile folder. *Ask again about add-ons that clash*
+The [poll loop](#the-poll-loop) runs the check again when one of these features is
+turned on or off, so a feature turned on mid-session asks once Home settles again. An
+add-on the helper switched off is switched back on when its features are all off, and
+whenever a skin that doesn't opt in becomes active. Kodi exiting leaves it off for the
+next start. The answers and what is switched off are kept in `clashes.json` in the add-on's profile folder. *Ask again about add-ons that clash*
 in the helper's settings (*Troubleshooting*) runs
 [`reset_clashes`](../script/actions.md#reset_clashes): it switches them back on,
 forgets every answer and asks again.
