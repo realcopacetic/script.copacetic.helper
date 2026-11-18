@@ -209,11 +209,6 @@ msgid "Remove the current artwork of every artist or album in Kodi's list, so re
 msgstr ""
 
 #: /resources/lib/script/actions.py
-msgctxt "#32026"
-msgid "Remove %s from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
-msgstr ""
-
-#: /resources/lib/script/actions.py
 msgctxt "#32029"
 msgid "Online artwork only (local files take its place)"
 msgstr ""
@@ -225,12 +220,12 @@ msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32031"
-msgid "the online artwork"
+msgid "Remove the online artwork from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
 msgstr ""
 
 #: /resources/lib/script/actions.py
 msgctxt "#32032"
-msgid "all the artwork (embedded covers stay)"
+msgid "Remove all the artwork (embedded covers stay) from everything in Kodi's %s list? An artist also loses its discography and music video links until refreshed. Then refresh them all: Change information provider → Set for all shown."
 msgstr ""
 
 #: /resources/settings.xml, /resources/lib/script/actions.py

@@ -238,10 +238,8 @@ def clear_art(type: str = "", online_only: str = "", **kwargs: str) -> None:
             return
         online_only = str(choice == 0)
     online_only = parse_bool(online_only)
-    which = ADDON.getLocalizedString(32031 if online_only else 32032)
-    if not xbmcgui.Dialog().yesno(
-        heading, ADDON.getLocalizedString(32026) % (which, kinds[type])
-    ):
+    message = ADDON.getLocalizedString(32031 if online_only else 32032)
+    if not xbmcgui.Dialog().yesno(heading, message % kinds[type]):
         return
     # the items Kodi's Artists or Albums node lists, which its refresh-all fills again
     targets = [
