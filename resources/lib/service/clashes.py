@@ -25,6 +25,7 @@ CLASHES = {
 }
 STATE = Path(ADDONDATA) / "clashes.json"
 ACTIVE = "!String.IsEmpty(Window(home).Property(helper_active))"  # the service sets it
+ASKING = "helper_clashes_asking"  # Home property: set while a check asks
 SETTLED = (
     "Window.IsActive(home) + !System.HasActiveModalDialog + !System.ScreenSaverActive"
 )
@@ -47,14 +48,24 @@ def _save(state: dict) -> None:
         JSONHandler(STATE).write_json(state)
 
 
-def _enable(addon_id: str, enabled: bool) -> None:
-    """Switch an add-on on or off; Kodi starts or stops its service with it."""
-    json_call(
+def _enable(addon_id: str, enabled: bool) -> bool:
+    """
+    Switch an add-on on or off; Kodi starts or stops its service with it.
+
+    :param addon_id: Add-on id.
+    :param enabled: True to switch it on.
+    :return: False when Kodi refuses (an add-on uninstalled, or one it can't switch).
+    """
+    switch = "on" if enabled else "off"
+    if done := "result" in json_call(
         "Addons.SetAddonEnabled",
         params={"addonid": addon_id, "enabled": enabled},
         parent="clashes",
-    )
-    log.info(f"clashes → {addon_id} switched {'on' if enabled else 'off'}")
+    ):
+        log.info(f"clashes → {addon_id} switched {switch}")
+    else:
+        log.warning(f"clashes → {addon_id} not switched {switch}: Kodi refused")
+    return done
 
 
 def _apply(state: dict) -> list[str]:
@@ -78,11 +89,11 @@ def _apply(state: dict) -> list[str]:
             off.remove(addon_id)
             log.info(f"clashes → {addon_id} switched back on elsewhere, kept")
         elif wanted and enabled:
-            _enable(addon_id, False)
-            off.append(addon_id)
+            if _enable(addon_id, False):
+                off.append(addon_id)
         elif not wanted and addon_id in off:
-            _enable(addon_id, True)
-            off.remove(addon_id)
+            if _enable(addon_id, True):
+                off.remove(addon_id)
     _save(state)
     return unasked
 
@@ -101,18 +112,16 @@ def _settled() -> bool:
     return True
 
 
-def check() -> None:
+def _ask(unasked: list[str]) -> dict:
     """
-    In a skin using the helper: apply the answers given, then, once Home settles, ask
-    about each add-on not asked about yet. Only a click on Switch off or Keep both is
-    kept: Not now, Back or a close by Kodi asks again next time.
+    Ask about each add-on in turn. Only a click on Switch off or Keep both counts:
+    Not now, Back or a close by Kodi asks again next time.
+
+    :param unasked: Add-on ids to ask about.
+    :return: Each answer clicked: id: True to switch it off.
     """
-    if not condition(ACTIVE):
-        return
-    state = _load()
-    if not (unasked := _apply(state)) or not _settled():
-        return
     skin = infolabel(f"System.AddonTitle({xbmc.getSkinDir()})")
+    answers = {}
     for addon_id in unasked:
         names = {"addon": infolabel(f"System.AddonTitle({addon_id})"), "skin": skin}
         answer = xbmcgui.Dialog().yesnocustom(
@@ -124,18 +133,38 @@ def check() -> None:
         )
         # No button pressed (a quit, a skin reload, Dialog.Close) reads as no (0)
         if answer > 0:
-            state["answers"][addon_id] = answer == 1
-    _apply(state)
+            answers[addon_id] = answer == 1
+    return answers
+
+
+def check() -> None:
+    """
+    In a skin using the helper: apply the answers given, then, once Home settles, ask
+    about each add-on not asked about yet; one check asks at a time.
+    """
+    if not condition(ACTIVE) or not _apply(_load()) or not _settled():
+        return
+    home = xbmcgui.Window(10000)
+    if home.getProperty(ASKING):
+        return  # another check asks, from a state read after this one settled
+    home.setProperty(ASKING, "true")
+    try:
+        # Read again: the wait may outlast another check's answers
+        answers = _ask(_apply(_load()))
+        state = _load()
+        state["answers"] |= answers
+        _apply(state)
+    finally:
+        home.clearProperty(ASKING)
 
 
 def restore(forget: bool = False) -> None:
     """
     Switch back on every add-on switched off for the skin: in a skin that doesn't use
-    the helper, or to ask again.
+    the helper, or to ask again. One Kodi refuses stays listed.
 
     :param forget: Forget the answers too, so each is asked again.
     """
     state = _load()
-    for addon_id in state["off"]:
-        _enable(addon_id, True)
-    _save({"answers": {} if forget else state["answers"], "off": []})
+    off = [addon_id for addon_id in state["off"] if not _enable(addon_id, True)]
+    _save({"answers": {} if forget else state["answers"], "off": off})

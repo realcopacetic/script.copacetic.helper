@@ -3,8 +3,9 @@ Offline checks for add-ons that clash (resources/lib/service/clashes.py), Kodi's
 stubbed: an add-on doing a feature's job is asked about once Home settles; Switch off
 switches it off, Keep both leaves it, Not now, Back or a close without a click asks
 again next time; an answer applies at each entry without asking, but one switched back
-on elsewhere is kept; a feature turned off, a skin left or a reset gives it back; the
-service queues the check on entering a skin and gives add-ons back on leaving.
+on elsewhere is kept; a feature turned off, a skin left or a reset gives it back; two
+checks at once ask once; a switch Kodi refuses isn't recorded; the service queues the
+check on entering a skin and gives add-ons back on leaving.
 Run from the helper root: python tests/clashes_offline.py
 """
 
@@ -43,7 +44,7 @@ class Clashes(unittest.TestCase):
         clashes.STATE.unlink(missing_ok=True)
         # What reads true: the skin active and settled, CU LRC on, the lyrics feature on
         self.true = {clashes.ACTIVE, clashes.SETTLED, LYRICS}
-        self.enabled = {LRC}
+        self.enabled, self.refused = {LRC}, set()
         self.dialog = Mock()
         self.dialog.return_value.yesnocustom.return_value = 1
         self.json = Mock(side_effect=self.set_enabled)
@@ -67,10 +68,13 @@ class Clashes(unittest.TestCase):
         return any(part.strip() in self.true for part in text.split("|"))
 
     def set_enabled(self, method, params, parent):
-        """Addons.SetAddonEnabled, applied to self.enabled."""
+        """Addons.SetAddonEnabled, applied to self.enabled unless refused."""
+        if params["addonid"] in self.refused:
+            return {"error": {"code": -32602, "message": "Invalid params."}}
         (self.enabled.add if params["enabled"] else self.enabled.discard)(
             params["addonid"]
         )
+        return {"result": "OK"}
 
     def asked(self) -> list[str]:
         """The headings of the questions asked so far."""
@@ -201,6 +205,42 @@ class Clashes(unittest.TestCase):
         self.assertIn(LRC, self.enabled)
         clashes.check()
         self.assertEqual(len(self.asked()), 2)
+
+    def test_a_second_check_while_one_asks_asks_nothing(self):
+        # Ask again pressed twice: both settle together
+        self.dialog.return_value.yesnocustom.side_effect = lambda *args: (
+            clashes.check() or 1
+        )
+        clashes.check()
+        self.assertEqual(len(self.asked()), 1)
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+        self.assertEqual(clashes.xbmcgui.Window(10000).getProperty(clashes.ASKING), "")
+
+    def test_a_check_waiting_for_home_reads_the_answers_given_meanwhile(self):
+        waits = []
+
+        def settled():
+            waits.append(None)
+            if len(waits) == 1:  # another check asks while this one waits
+                clashes.check()
+            return True
+
+        with patch.object(clashes, "_settled", settled):
+            clashes.check()
+        self.assertEqual(len(self.asked()), 1)
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
+
+    def test_a_switch_kodi_refuses_is_not_recorded(self):
+        self.refused = {LRC}  # CanAddonBeDisabled false: InvalidParams
+        clashes.check()
+        self.assertIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
+
+    def test_restore_keeps_one_kodi_refuses_listed(self):
+        clashes.check()
+        self.refused = {LRC}  # uninstalled meanwhile
+        clashes.restore()
+        self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
 
 
 class Service(unittest.TestCase):
