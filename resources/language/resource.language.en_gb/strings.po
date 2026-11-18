@@ -392,16 +392,6 @@ msgctxt "#32201"
 msgid "Cache cleared, %s freed"
 msgstr ""
 
-#: /resources/lib/service/settings.py
-msgctxt "#32203"
-msgid "setting changed"
-msgstr ""
-
-#: /resources/lib/service/settings.py
-msgctxt "#32204"
-msgid "settings changed"
-msgstr ""
-
 #: /resources/lib/script/actions.py
 msgctxt "#32205"
 msgid "Disabled"
