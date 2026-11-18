@@ -514,8 +514,8 @@ Answers are kept in the add-on's `_lookup.db` (`api_cache`):
   query, a minute after a quota answer, and five minutes when it is busy,
   unreachable or answers in a shape the helper doesn't expect.
 
-An older answer is shown while a source is unreachable. **Clear addon cache** forgets
-them all; *Cache › Clear TMDb / ListenBrainz / Deezer data* forget one source's, and
+An older answer is shown while a source is unreachable. **Clear add-on cache** forgets
+them all; *Cache › Clear TMDB / ListenBrainz / Deezer data* forget one source's, and
 **Refresh cached data** one artist's.
 ListenBrainz requests are spaced at least a second apart across all plugin calls, as
 ListenBrainz asks: a call inside that second waits its turn, then takes the answer if

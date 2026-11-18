@@ -43,7 +43,7 @@ def _get_strings() -> dict[str, str]:
         "video_playlists": xbmc.getLocalizedString(20012),  # Video playlists
         "music_playlists": xbmc.getLocalizedString(20011),  # Music playlists
         "addons": xbmc.getLocalizedString(24001),  # Add-ons
-        "custom_path": _L(32804),  # Custom path...
+        "custom_path": _L(32804),  # Custom path…
         "video_addons": xbmc.getLocalizedString(1037),  # Video add-ons
         "music_addons": xbmc.getLocalizedString(1038),  # Music add-ons
         "program_addons": xbmc.getLocalizedString(1043),  # Program add-ons
@@ -53,12 +53,12 @@ def _get_strings() -> dict[str, str]:
         "use_this_path": _L(32809),  # Use this path
         "my_playlists": _L(32810),  # My playlists
         "skin_playlists": _L(32811),  # Skin playlists
-        "finding_playlists": _L(32812),  # Finding playlists...
+        "finding_playlists": _L(32812),  # Finding playlists…
         "no_playlists_found": _L(32813),  # No playlists found
         "no_favourites_found": _L(32814),  # No favourites found
         "no_sources_found": _L(32806),  # No picture sources found
         "cannot_list": _L(32807),  # Can't open this folder
-        "getting_directory": _L(32815),  # Getting directory listing...
+        "getting_directory": _L(32815),  # Getting directory listing…
         "enter_path": _L(32816),  # Enter content path
         "select_content": _L(32817),  # Select content
         "common": _L(32818),  # Common

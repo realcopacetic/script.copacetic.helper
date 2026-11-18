@@ -96,8 +96,8 @@ msgstr "TMDB 访问令牌"
 #. A keyboard's heading.
 #: /resources/settings.xml
 msgctxt "#32011"
-msgid "Enter a TMDB v3 API Key or v4 API Read Access Token"
-msgstr "输入 TMDB v3 API Key 或 v4 API 读取访问令牌"
+msgid "Enter a TMDB v3 API key or v4 read access token"
+msgstr "输入 TMDB v3 API key 或 v4 API 读取访问令牌"
 
 #: /resources/settings.xml
 msgctxt "#32012"
@@ -821,14 +821,14 @@ msgstr " 分"
 #. A line in the content browser's list: keep it short.
 #: /resources/lib/windows/browse.py
 msgctxt "#32804"
-msgid "Custom path..."
-msgstr "自定义路径..."
+msgid "Custom path…"
+msgstr "自定义路径…"
 
 #. A line in a select dialog, below Kodi's "None": opens a file browser.
 #: /resources/lib/windows/onclick_actions.py
 msgctxt "#32805"
-msgid "Browse..."
-msgstr "浏览..."
+msgid "Browse…"
+msgstr "浏览…"
 
 #. A toast in the content browser (one line, cut if long): keep it short.
 #: /resources/lib/windows/browse.py
@@ -863,8 +863,8 @@ msgstr "皮肤播放列表"
 #. A progress dialog's line.
 #: /resources/lib/windows/browse.py
 msgctxt "#32812"
-msgid "Finding playlists..."
-msgstr "正在查找播放列表..."
+msgid "Finding playlists…"
+msgstr "正在查找播放列表…"
 
 #. A toast in the content browser (one line, cut if long): keep it short.
 #: /resources/lib/windows/browse.py
@@ -881,8 +881,8 @@ msgstr "未找到收藏"
 #. A progress dialog's line.
 #: /resources/lib/windows/browse.py
 msgctxt "#32815"
-msgid "Getting directory listing..."
-msgstr "正在获取目录列表..."
+msgid "Getting directory listing…"
+msgstr "正在获取目录列表…"
 
 #. A keyboard's heading.
 #: /resources/lib/windows/browse.py
