@@ -253,6 +253,18 @@ class Clashes(unittest.TestCase):
         self.assertEqual(len(self.asked()), 1)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
 
+    def test_the_answer_is_merged_into_the_state_as_it_is_after_the_question(self):
+        clashes.check()  # CU LRC switched off
+        self.enabled.add(UPNEXT)
+        self.true.add(PLAYNEXT)
+        # Ask again pressed under the question about Up Next: CU LRC back, forgotten
+        self.dialog.return_value.yesnocustom.side_effect = lambda *args: (
+            clashes.restore(forget=True) or 2
+        )
+        clashes.check()
+        self.assertIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {UPNEXT: False}, "off": []})
+
     def test_no_answer_clicked_applies_nothing_after_the_question(self):
         # A same-frame read would see one just switched off as still on (cached)
         self.dialog.return_value.yesnocustom.return_value = 0
