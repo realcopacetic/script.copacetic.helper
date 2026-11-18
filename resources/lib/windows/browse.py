@@ -947,7 +947,10 @@ def _browse_addons(
 ) -> tuple[tuple[str, str] | None, str | None]:
     """
     Show the add-on type picker, then browse the chosen source.
-    Returns ((path, label) or None, the chosen source's content type or None).
+
+    :param heading: Dialog heading.
+    :param mode: "widget" (default) or "menu".
+    :return: ``((path, label) or None, the source's content type or None)``.
     """
     s = _get_strings()
     addon_sources = _get_addon_sources()
