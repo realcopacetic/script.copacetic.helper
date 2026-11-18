@@ -72,7 +72,7 @@ from resources.lib.shared.utilities import (
 REGISTRY = {}
 
 _LIBRARY_ITEMS = {"album": "albumid", "artist": "artistid", "genre": "genreid"}
-# A modal dialog is up, busy spinners aside: the skin's modal_open
+# A modal dialog is up, busy spinners aside: the skin's modal_open, spelt out
 _MODAL_OPEN = (
     "System.HasVisibleModalDialog + !Window.IsModalDialogTopmost(busydialog)"
     " + !Window.IsModalDialogTopmost(busydialognocancel)"
@@ -667,8 +667,8 @@ def play_trailer(trailer: str, **kwargs: str) -> None:
     ):
         return  # landed after a quick away-and-back: the return's rest asks again
     if window != "infoscreen" and condition(_MODAL_OPEN):
-        # A dialog opened just after the skin's gate passed: unstamp the item so it
-        # asks again; a stamp for another item since (the info dialog's) stays.
+        # A dialog opened just after the skin's gate passed: unstamp the item so its
+        # next focus or listing refresh can ask again; another item's stamp stays.
         if infolabel("Window(home).Property(trailer_played_item)") == item:
             window_property("trailer_played_item")
         return

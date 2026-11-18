@@ -871,7 +871,8 @@ watches it:
   nothing, so it plays on instead of restarting.
 - A request made while a modal dialog is up (busy spinners aside) does nothing, so a
   request the skin made just before a dialog opened can't play under it. It clears
-  `trailer_played_item` if that names its `item`, so the item can ask again. The info
+  `trailer_played_item` if that names its `item`, so the item can ask again on its next
+  focus or listing refresh (closing the dialog alone doesn't refocus it). The info
   dialog's own trailer (`window=infoscreen`) is exempt.
 - If the user starts a film or song while the trailer is still on its way, that
   plays instead (a film full screen) and the request is dropped.
