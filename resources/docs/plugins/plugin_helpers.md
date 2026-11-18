@@ -41,7 +41,7 @@ This approach enables **highly responsive plugin calls** with minimal overhead.
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
 | `clean_name` | Returns a file's readable name: a film's title and year, or an episode's show, code and title. | [Clean name](clean_name.md) |
 | `favourite` | Returns the library item a favourite points to, with its details and artwork. | [Favourite](favourite.md) |
-| `in_progress`, `next_up`, `random_movies`, `random_tvshows`, `random_albums`, `rediscover`, `daily_mixes`, `random_genre`, `cast`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `genre_music`, `similar_music`, `top_songs`, `discography`, `soundtracks` | Fill a container with library items. | [Library Listings](library.md) |
+| `in_progress`, `next_up`, `seasons`, `random_movies`, `random_tvshows`, `random_albums`, `rediscover`, `daily_mixes`, `random_genre`, `cast`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `genre_music`, `similar_music`, `top_songs`, `discography`, `soundtracks` | Fill a container with library items. | [Library Listings](library.md) |
 | `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |
 | `popularity_label` | Returns a word for how popular a library artist, album or song is ("Charting", "#2 song", "Your #3 artist"). | [Library Listings](library.md#popularity_label) |
 | `lyrics` | Fills a container with the playing song's synced lyric lines, one item per line. | [Lyrics](../service/player.md#lyrics) |
@@ -161,7 +161,12 @@ window once. `artwork`, `metadata`, `progressbar`, `text` and `multiart_tiles` f
 wait for that dialog to be topmost, for up to a second, plus up to five behind the busy dialog
 (Kodi's own Information shows it while it swaps the item), since under a menu a bare
 `ListItem` read answers for the window under the info dialog. If it never is, or the
-dialog closes meanwhile, the path stops (`artwork` returns its held item). Pass `dialog=true` when the controls are
+dialog closes meanwhile, the path stops (`artwork` returns its held item). It stops
+too after a wait behind the busy dialog when its identity was read at the start
+(`identity_labels` with no `focus_guard`, see [Custom identities](#custom-identities--identity_labels)):
+the item may have swapped, and the guard would then hold the new one. A busy dialog
+shown while `Window(home).Property(trailer_state)` is `pending` (the service
+resolving a trailer, which swaps nothing) doesn't count. Pass `dialog=true` when the controls are
 in an info dialog and the path reads a list in it (`target=<id>`). On every path the
 focus check reads that same window: the dialog's focus with `dialog=true` or
 `target=item`, else the current window's. A dialog run also aborts once its dialog has
@@ -187,7 +192,7 @@ that window was lost. This needs the list hidden while an info dialog is open: a
 hidden list reads no path, so it reads the new count once, when it shows again; a
 list left visible would run the path again under the dialog and lose it once more.
 
-Either check can be disabled by omission: no `focus_ids` skips the focus check; an absent or empty `focus_guard` skips the identity check. A handler with neither runs unguarded.
+Either check can be disabled by omission: no `focus_ids` skips the focus check; an empty `focus_guard`, or an absent one without `identity_labels`, skips the identity check. With `identity_labels` and no `focus_guard` at all, the helper reads the identity when the run starts and guards that. A handler with neither check runs unguarded.
 
 The addon imposes **no skin topology**. Which controls form a unit, and what constitutes an item's identity, are entirely skinner-declared. The addon only implements the semantics: *any-of-these-has-focus* and *snapshot-equals-live*.
 
@@ -218,6 +223,11 @@ At every checkpoint, the helper verifies that at least one control in `focus_ids
 #### Custom identities — `identity_labels`
 
 When `CurrentItem` of one container isn't discriminating enough, declare the identity explicitly. `identity_labels` takes literal infolabel paths (no `$INFO[...]` wrapper — they must reach the helper unresolved); the helper reads each live and joins the values with `,`. The matching snapshot is built by joining the corresponding `$INFO[...]` expressions with `,` in `focus_guard`. The two sides never need parsing — they only need to be constructed the same way.
+
+Kodi ends a plugin path's options at its first `|`. So a label holding one (a title, a plot) cuts the path there:
+
+- In `focus_guard` itself, the snapshot arrives cut at the `|`. The helper cuts the live identity at its first `|` too, so the two still match.
+- In a parameter before `focus_guard`, the whole guard is lost. The helper then reads the identity from `identity_labels` when the run starts (see above); without `identity_labels`, the run has no identity check. Put `focus_guard` early in the path, before any free text.
 
 #### Recipe: treating two containers as one
 
