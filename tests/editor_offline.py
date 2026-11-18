@@ -284,12 +284,12 @@ class Back(unittest.TestCase):
 
 
 class HeldSlider(unittest.TestCase):
-    def test_a_step_is_not_put_back(self):
+    def test_a_step_is_not_put_back_but_an_unstored_move_is(self):
         stored = ["a"]
         slider = Mock(**{"getId.return_value": 211, "getInt.return_value": 1})
         handler = SliderHandler.__new__(SliderHandler)
         handler.instance, handler._enabled_by_id = slider, {}
-        handler._int_shown = (0, 3)
+        handler._stepping = False
         handler._allowed_items = lambda: ["a", "b", "c"]
         handler._active_link = lambda: {"linked_config": "steps"}
         handler._coerce_to_allowed = lambda: stored[0]
@@ -298,9 +298,10 @@ class HeldSlider(unittest.TestCase):
         handler._on_interact(211, xbmcgui.ACTION_MOVE_RIGHT)
         self.assertEqual(stored, ["b"])
         slider.setInt.assert_not_called()
-        stored[0] = "c"  # a change from elsewhere still moves the slider
+        # A wheel or drag Kodi applied without a stored step: the next refresh resets it
+        slider.getInt.return_value = 2
         handler.update_value()
-        slider.setInt.assert_called_once_with(2, 0, 1, 2)
+        slider.setInt.assert_called_once_with(1, 0, 1, 2)
 
 
 if __name__ == "__main__":
