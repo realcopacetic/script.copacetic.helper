@@ -151,9 +151,13 @@ class Monitor(xbmc.Monitor):
         self._check_clashes()
 
     def _check_clashes(self) -> None:
-        """Queue the check of add-ons that clash, noting the features it will see."""
+        """
+        Apply the answers about add-ons that clash, here alone so no two writes
+        overlap, noting the features seen; queue the question about any not asked yet.
+        """
         self.clash_features = clashes.features()
-        log.execute("RunScript(script.copacetic.helper,action=check_clashes)")
+        if clashes.apply():
+            log.execute("RunScript(script.copacetic.helper,action=check_clashes)")
 
     def _deactivate(self) -> None:
         """Leaving the skin: hide the context items, release the monitors."""
@@ -287,13 +291,22 @@ class Monitor(xbmc.Monitor):
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
-        Kodi event hook while active: a new playlist_revision on each music queue
-        edit (a shuffle too), and progress_version after song updates outside a scan.
+        Kodi event hook, on the service's thread: the clashes writes scripts hand over;
+        while active, a new playlist_revision on each music queue edit (a shuffle too),
+        and progress_version after song updates outside a scan.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
         :param data: Its data as JSON.
         """
+        if method == f"Other.{clashes.ANSWERS}":
+            if self.player_monitor:  # the skin left meanwhile: asked again on return
+                clashes.apply(json.loads(data))
+            return
+        if method == f"Other.{clashes.RESET}":
+            clashes.restore(forget=True)
+            self.clash_features = ()  # checked next pass: reads this frame are cached
+            return
         if method == "AudioLibrary.OnUpdate":
             # Music updates don't reach 9010's video-tagged item (DirectoryProvider.cpp
             # Announce): re-serve an album's bar once per burst, as Kodi queues them

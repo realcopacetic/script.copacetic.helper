@@ -82,9 +82,10 @@ python tests/editor_offline.py
 # Add-ons that clash (service/clashes.py) with Kodi's reads stubbed: asked once Home
 # settles; Switch off, Keep both, and Not now, Back or a close asking again; answers
 # applied at each entry without asking, one switched back on elsewhere kept; a feature
-# turned off, a skin left or a reset gives the add-on back; two checks at once ask
-# once; a switch Kodi refuses isn't recorded; the service queues the check on entering
-# a skin and gives add-ons back in any other
+# turned off, a skin left or a reset gives the add-on back, at once while a check
+# waits; two checks at once ask once and only the service writes; a switch Kodi
+# refuses isn't recorded; the service queues the check on entering a skin and gives
+# add-ons back in any other
 python tests/clashes_offline.py
 
 # Skip segments (service/segments.py): chapter starts from Player.Chapters, TheIntroDB's

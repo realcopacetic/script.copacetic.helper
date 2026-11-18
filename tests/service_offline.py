@@ -805,6 +805,7 @@ class ClashesFollowTheFeatures(unittest.TestCase):
         self.service.waitForAbort = Mock()
         for target, name, value in (
             (monitor.clashes, "condition", lambda text: text in self.on),
+            (monitor.clashes, "apply", Mock(return_value=["script.cu.lrclyrics"])),
             (monitor, "release_refresh", Mock()),
         ):
             patcher = patch.object(target, name, value)

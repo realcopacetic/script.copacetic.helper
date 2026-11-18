@@ -3,14 +3,17 @@ Offline checks for add-ons that clash (resources/lib/service/clashes.py), Kodi's
 stubbed: an add-on doing a feature's job is asked about once Home settles; Switch off
 switches it off, Keep both leaves it, Not now, Back or a close without a click asks
 again next time; an answer applies at each entry without asking, but one switched back
-on elsewhere is kept; a feature turned off, a skin left or a reset gives it back; two
-checks at once ask once; a switch Kodi refuses isn't recorded; the service queues the
-check on entering a skin and gives add-ons back on leaving.
+on elsewhere is kept; a feature turned off, a skin left or a reset gives it back, at
+once while a check waits; two checks at once ask once and only the service writes; a
+switch Kodi refuses isn't recorded; the service queues the check on entering a skin
+and gives add-ons back on leaving.
 Run from the helper root: python tests/clashes_offline.py
 """
 
+import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from threading import Thread
@@ -48,19 +51,21 @@ class Clashes(unittest.TestCase):
         self.enabled, self.refused, self.installed = {LRC}, set(), set(clashes.CLASHES)
         self.dialog = Mock()
         self.dialog.return_value.yesnocustom.return_value = 1
-        self.json = Mock(side_effect=self.set_enabled)
-        for name, value in (
-            ("condition", self.condition),
-            ("infolabel", lambda label: label),
-            ("json_call", self.json),
+        self.json = Mock(side_effect=self.json_rpc)
+        for target, name, value in (
+            (clashes, "condition", self.condition),
+            (clashes, "infolabel", lambda label: label),
+            (clashes, "json_call", self.json),
+            (clashes.xbmcgui, "Dialog", self.dialog),
+            # RunScript, run at once
+            (monitor.log, "execute", lambda builtin: clashes.check()),
         ):
-            patcher = patch.object(clashes, name, value)
+            patcher = patch.object(target, name, value, create=True)
             patcher.start()
             self.addCleanup(patcher.stop)
-        patcher = patch.object(clashes.xbmcgui, "Dialog", self.dialog, create=True)
-        patcher.start()
-        self.addCleanup(patcher.stop)
         clashes.ADDON.getLocalizedString = str
+        self.service = object.__new__(monitor.Monitor)
+        self.service.player_monitor = Mock()  # the skin active
 
     def condition(self, text: str) -> bool:
         """Each `|` alternative true when listed, add-ons by self.enabled/installed."""
@@ -70,27 +75,49 @@ class Clashes(unittest.TestCase):
             return text[16:-1] in self.installed
         return any(part.strip() in self.true for part in text.split("|"))
 
-    def set_enabled(self, method, params, parent):
-        """Addons.SetAddonEnabled, applied to self.enabled unless refused."""
-        if params["addonid"] in self.refused:
+    def json_rpc(self, method, params, parent):
+        """
+        JSONRPC.NotifyAll, handed to the service; Addons.SetAddonEnabled, applied to
+        self.enabled unless refused.
+        """
+        if method == "JSONRPC.NotifyAll":
+            self.service.onNotification(
+                params["sender"],
+                f"Other.{params['message']}",
+                json.dumps(params["data"]),
+            )
+        elif params["addonid"] in self.refused:
             return {"error": {"code": -32602, "message": "Invalid params."}}
-        (self.enabled.add if params["enabled"] else self.enabled.discard)(
-            params["addonid"]
-        )
+        else:
+            (self.enabled.add if params["enabled"] else self.enabled.discard)(
+                params["addonid"]
+            )
         return {"result": "OK"}
+
+    def enter(self):
+        """The service's check: on entering the skin, or on a feature change."""
+        self.service._check_clashes()
+
+    def switches(self) -> list[dict]:
+        """The Addons.SetAddonEnabled params sent so far."""
+        return [
+            c.kwargs["params"]
+            for c in self.json.call_args_list
+            if c.args[0] == "Addons.SetAddonEnabled"
+        ]
 
     def asked(self) -> list[str]:
         """The headings of the questions asked so far."""
         return [c.args[0] for c in self.dialog.return_value.yesnocustom.call_args_list]
 
     def test_switch_off_switches_it_off_and_remembers(self):
-        clashes.check()
+        self.enter()
         self.assertEqual(self.asked(), [f"System.AddonTitle({LRC})"])
         self.assertNotIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
 
     def test_question_names_the_addon_and_the_skin(self):
-        clashes.check()
+        self.enter()
         message = self.dialog.return_value.yesnocustom.call_args.args[1]
         self.assertEqual(
             message,
@@ -107,72 +134,72 @@ class Clashes(unittest.TestCase):
 
     def test_keep_both_leaves_it_and_never_asks_again(self):
         self.dialog.return_value.yesnocustom.return_value = 2
-        clashes.check()
-        clashes.check()
+        self.enter()
+        self.enter()
         self.assertEqual(len(self.asked()), 1)
         self.assertIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": []})
 
     def test_back_asks_again_next_time(self):
         self.dialog.return_value.yesnocustom.return_value = -1
-        clashes.check()
-        clashes.check()
+        self.enter()
+        self.enter()
         self.assertEqual(len(self.asked()), 2)
         self.assertIn(LRC, self.enabled)
 
     def test_not_now_or_a_close_without_a_click_asks_again_next_time(self):
         # GUIDialogYesNo::GetResult: no button pressed reads as DIALOG_RESULT_NO
         self.dialog.return_value.yesnocustom.return_value = 0
-        clashes.check()
-        clashes.check()
+        self.enter()
+        self.enter()
         self.assertEqual(len(self.asked()), 2)
         self.assertIn(LRC, self.enabled)
         self.assertFalse(clashes.STATE.exists())
 
     def test_an_answer_applies_at_each_entry_without_asking(self):
-        clashes.check()
+        self.enter()
         clashes.restore()  # another skin gives it back
-        clashes.check()
+        self.enter()
         self.assertEqual(len(self.asked()), 1)
         self.assertNotIn(LRC, self.enabled)
         self.assertEqual(clashes._load()["off"], [LRC])
 
     def test_switched_back_on_elsewhere_is_kept(self):
-        clashes.check()
+        self.enter()
         self.enabled.add(LRC)  # the Add-ons browser, or Kodi for a dependency
-        clashes.check()
+        self.enter()
         self.assertEqual(len(self.asked()), 1)
         self.assertIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {LRC: False}, "off": []})
 
     def test_nothing_to_ask_writes_nothing(self):
         self.enabled = set()
-        clashes.check()
+        self.enter()
         self.assertFalse(clashes.STATE.exists())
 
     def test_feature_off_asks_nothing(self):
         self.true.discard(LYRICS)
-        clashes.check()
+        self.enter()
         self.assertEqual(self.asked(), [])
 
     def test_feature_turned_off_gives_it_back(self):
-        clashes.check()
+        self.enter()
         self.true.discard(LYRICS)
-        clashes.check()
+        self.enter()
         self.assertIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
 
     def test_one_of_two_features_is_enough(self):
         self.enabled = {TIDB}
         self.true |= {PLAYNEXT}
-        clashes.check()
+        self.enter()
         self.assertEqual(self.asked(), [f"System.AddonTitle({TIDB})"])
 
     def test_each_addon_asked_in_turn(self):
         self.enabled = {LRC, UPNEXT}
         self.true |= {PLAYNEXT}
         self.dialog.return_value.yesnocustom.side_effect = [1, 2]
-        clashes.check()
+        self.enter()
         self.assertEqual(self.enabled, {UPNEXT})
         self.assertEqual(
             clashes._load(), {"answers": {LRC: True, UPNEXT: False}, "off": [LRC]}
@@ -192,7 +219,7 @@ class Clashes(unittest.TestCase):
         self.assertEqual(self.asked(), [])
 
     def test_restore_gives_back_and_keeps_answers(self):
-        clashes.check()
+        self.enter()
         clashes.restore()
         self.assertIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
@@ -203,10 +230,10 @@ class Clashes(unittest.TestCase):
         self.assertFalse(clashes.STATE.exists())
 
     def test_reset_forgets_and_asks_again(self):
-        clashes.check()
+        self.enter()
         clashes.restore(forget=True)
         self.assertIn(LRC, self.enabled)
-        clashes.check()
+        self.enter()
         self.assertEqual(len(self.asked()), 2)
 
     def test_a_second_check_while_one_asks_asks_nothing(self):
@@ -269,48 +296,98 @@ class Clashes(unittest.TestCase):
         self.assertEqual(home.getProperty(clashes.ASKING), "new")
 
     def test_the_answer_is_merged_into_the_state_as_it_is_after_the_question(self):
-        clashes.check()  # CU LRC switched off
+        self.enter()  # CU LRC switched off
         self.enabled.add(UPNEXT)
         self.true.add(PLAYNEXT)
         # Ask again pressed under the question about Up Next: CU LRC back, forgotten
         self.dialog.return_value.yesnocustom.side_effect = lambda *args: (
             clashes.restore(forget=True) or 2
         )
-        clashes.check()
+        self.enter()
         self.assertIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {UPNEXT: False}, "off": []})
 
-    def test_no_answer_clicked_applies_nothing_after_the_question(self):
-        # A same-frame read would see one just switched off as still on (cached)
+    def test_two_checks_at_once_and_a_feature_off_and_on_keep_switch_off(self):
+        self.enter()  # CU LRC switched off
+        self.enabled.add(UPNEXT)
+        self.true |= {PLAYNEXT}
+        self.true.discard(clashes.SETTLED)
+        self.dialog.return_value.yesnocustom.return_value = 2
+        waiting = Thread(target=clashes.check)  # waits for Home to ask about Up Next
+        waiting.start()
+        self.addCleanup(waiting.join, 5)
+        self.addCleanup(self.true.add, clashes.SETTLED)
+        while not clashes.xbmcgui.Window(10000).getProperty(clashes.ASKING):
+            time.sleep(0.01)
+        # Lyrics off then on while it waits: each queues a second check
+        self.true.discard(LYRICS)
+        self.enter()
+        self.assertIn(LRC, self.enabled)  # given back at once
+        self.true.add(LYRICS)
+        self.enter()
+        self.assertNotIn(LRC, self.enabled)
+        self.true.add(clashes.SETTLED)
+        waiting.join(5)
+        self.assertEqual(len(self.asked()), 2)
+        self.assertEqual(
+            clashes._load(), {"answers": {LRC: True, UPNEXT: False}, "off": [LRC]}
+        )
+
+    def test_a_check_only_asks_the_service_writes(self):
+        self.enter()
+        clashes.restore()  # another skin gives it back
+        self.json.reset_mock()
+        clashes.check()  # nothing to ask
+        self.json.assert_not_called()
+        self.assertIn(LRC, self.enabled)
+
+    def test_a_reset_is_handed_to_the_service(self):
+        self.enter()
+        self.service.clash_features = clashes.features()
+        clashes.notify(clashes.RESET)
+        self.assertIn(LRC, self.enabled)
+        self.assertEqual(clashes._load(), {"answers": {}, "off": []})
+        self.assertEqual(self.service.clash_features, ())  # checked again next pass
+
+    def test_an_answer_after_the_skin_is_left_is_not_applied(self):
+        def leave(*args):
+            self.service.player_monitor = None
+            return 1
+
+        self.dialog.return_value.yesnocustom.side_effect = leave
+        self.enter()
+        self.assertIn(LRC, self.enabled)
+        self.assertFalse(clashes.STATE.exists())  # asked again on return
+
+    def test_no_answer_clicked_hands_the_service_nothing(self):
         self.dialog.return_value.yesnocustom.return_value = 0
-        with patch.object(clashes, "_apply", wraps=clashes._apply) as apply:
-            clashes.check()
-        self.assertEqual(apply.call_count, 2)  # before and after Home settles
+        self.enter()
+        self.assertNotIn("JSONRPC.NotifyAll", [c.args[0] for c in self.json.mock_calls])
 
     def test_a_switch_kodi_refuses_is_not_recorded(self):
         self.refused = {LRC}  # CanAddonBeDisabled false: InvalidParams
-        clashes.check()
+        self.enter()
         self.assertIn(LRC, self.enabled)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
 
     def test_restore_keeps_one_kodi_refuses_listed(self):
-        clashes.check()
+        self.enter()
         self.refused = {LRC}  # EnableAddon failed
         clashes.restore()
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": [LRC]})
 
     def test_one_uninstalled_while_off_is_dropped(self):
-        clashes.check()
+        self.enter()
         self.installed.discard(LRC)
-        clashes.check()
-        self.json.assert_called_once()  # the switch-off only: no give-back tried
+        self.enter()
+        self.assertEqual(len(self.switches()), 1)  # the switch-off: no give-back tried
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
 
     def test_restore_drops_one_uninstalled(self):
-        clashes.check()
+        self.enter()
         self.installed.discard(LRC)
         clashes.restore()
-        self.json.assert_called_once()
+        self.assertEqual(len(self.switches()), 1)
         self.assertEqual(clashes._load(), {"answers": {LRC: True}, "off": []})
 
 
@@ -319,15 +396,17 @@ class Service(unittest.TestCase):
         self.service = monitor.Monitor()
         self.service._builder_elements = Mock()
 
-    def test_entering_a_skin_queues_the_check(self):
+    def test_entering_a_skin_applies_and_queues_the_question(self):
         home = clashes.xbmcgui.Window(10000)
         home.setProperty(clashes.ASKING, "true")  # left by a check killed mid-run
         with (
             patch.object(monitor, "skin_uses_builder", lambda: True),
             patch.object(monitor, "PlayerMonitor", Mock()),
+            patch.object(monitor.clashes, "apply", return_value=[LRC]) as apply,
             patch.object(monitor.log, "execute") as execute,
         ):
             self.service._follow("skin", "1")
+        apply.assert_called_once_with()
         execute.assert_called_once_with(
             "RunScript(script.copacetic.helper,action=check_clashes)"
         )
