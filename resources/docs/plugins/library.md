@@ -109,7 +109,7 @@ is empty unless the episode has fanart of its own: use `tvshow.fanart`.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | — | Most movies to return. |
-| `randomise` | any text | — | A seed. The same seed gives the same order, and a movie added to or removed from the list moves no other. A path with other parameters gets its own order from the same seed; `limit` only cuts it. Without it, the order changes on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same order, and a movie added to or removed from the list moves no other. A path with other parameters gets its own order from the same seed; `limit` only cuts it. Without it, Copacetic's own seed (`Window(home).Property(random_seed)`, as its rails); empty, the order changes on every call. |
 | `exclude_played_days` | whole number | — | Leave out movies played in the last N days. |
 
 ```xml
@@ -124,7 +124,7 @@ the home screen. A plugin path that never changes is only called once.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | — | Most TV shows to return. |
-| `randomise` | any text | — | A seed. The same seed gives the same order, and a show added to or removed from the library moves no other. Without it, the order changes on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same order, and a show added to or removed from the library moves no other. Without it, as in [`random_movies`](#random_movies). |
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=random_tvshows&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
@@ -138,7 +138,7 @@ as `musicdb://` folders. The container's content is `albums`.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | — | Most albums to return. |
-| `randomise` | any text | — | A seed. The same seed gives the same order, and an album added to or removed from the library moves no other. Without it, the order changes on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same order, and an album added to or removed from the library moves no other. Without it, as in [`random_movies`](#random_movies). |
 
 ```xml
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=random_albums&amp;limit=20&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
@@ -238,7 +238,7 @@ for music. The container's content is `movies`, `tvshows`, `albums` or `artists`
 | `limit` | whole number | all | Most items, picked at random |
 | `min_items` | whole number | `10` | Fewest items a genre must hold to be picked |
 | `slot` | whole number | `0` | Which pick to take: `0` the first genre in the seeded order, `1` the second, and so on. Give lists of the same type slots `0`, `1`, `2` … and they show different genres, as long as that many genres qualify; past that, it counts round again from the first. |
-| `randomise` | any text | — | A seed. The same seed gives the same genre and the same order. A different `type` gets its own genre order from the same seed. Without it, the genre and order change on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same genre and the same order. A different `type` gets its own genre order from the same seed. Without it, Copacetic's own seed, as in [`random_movies`](#random_movies); empty, the genre and order change on every call. |
 
 ```xml
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=random_genre&amp;type=movie&amp;limit=20&amp;slot=0&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
@@ -632,25 +632,25 @@ Opening `plugin://script.copacetic.helper/` with no `info=` lists two folders, V
 that needs no input, on the path Copacetic's Home rail for it reads, so users can
 browse them or add them as widgets from Kodi's add-on browser. Neither level runs a
 listing until a folder is opened. The random rows take the rails' default length
-(`limit=20`) and today's `randomise=` seed (`Window(home).Property(random_seed)`);
-`v=` and `day=` are the rails' refetch stamps, read when the group lists. Each folder
-sets only an icon (its rail's glyph; `DefaultVideo.png` and `DefaultAudio.png` for the
-groups), no thumb, so a skin draws that icon.
+(`limit=20`) and no `randomise=`, so they follow Copacetic's live seed and a widget
+saved from them changes with the rails. Each folder sets only an icon (its rail's
+glyph; `DefaultVideo.png` and `DefaultAudio.png` for the groups), no thumb, so a skin
+draws that icon.
 
 | Group | Folder | Path (after `?`) |
 |---|---|---|
 | Videos | Continue watching | `info=in_progress` |
 | Videos | Next up | `info=next_up` |
-| Videos | Random movies | `info=random_movies&exclude_played_days=14&limit=20&randomise=…` |
-| Videos | Random TV shows | `info=random_tvshows&limit=20&randomise=…` |
-| Videos | Random genre - movies | `info=random_genre&type=movie&limit=20&randomise=…` |
-| Videos | Random genre - TV shows | `info=random_genre&type=tvshow&limit=20&randomise=…` |
-| Music | Speed dial | `info=speed_dial&v=…` |
-| Music | Daily mixes | `info=daily_mixes&day=…` |
-| Music | Rediscover | `info=rediscover&limit=20&randomise=…` |
-| Music | Random albums | `info=random_albums&limit=20&randomise=…` |
-| Music | Random genre - albums | `info=random_genre&type=album&limit=20&randomise=…` |
-| Music | Random genre - artists | `info=random_genre&type=artist&limit=20&randomise=…` |
+| Videos | Random movies | `info=random_movies&exclude_played_days=14&limit=20` |
+| Videos | Random TV shows | `info=random_tvshows&limit=20` |
+| Videos | Random genre - movies | `info=random_genre&type=movie&limit=20` |
+| Videos | Random genre - TV shows | `info=random_genre&type=tvshow&limit=20` |
+| Music | Speed dial | `info=speed_dial` |
+| Music | Daily mixes | `info=daily_mixes` |
+| Music | Rediscover | `info=rediscover&limit=20` |
+| Music | Random albums | `info=random_albums&limit=20` |
+| Music | Random genre - albums | `info=random_genre&type=album&limit=20` |
+| Music | Random genre - artists | `info=random_genre&type=artist&limit=20` |
 
 The add-on provides `video`, so Kodi opens it in the Videos window, the Music
 folders too: a song there plays alone, not as a queue.

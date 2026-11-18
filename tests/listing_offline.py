@@ -1,8 +1,8 @@
 """
 Offline checks for the add-on's own directory (plugin/listing.py): the root's two
 group folders and each group's folders, all plain folders (no info tag, content
-files), on the Home rails' paths with the live params read only when a group lists,
-every one a listing handler that needs no input.
+files), on the Home rails' paths with no stamps, every one a listing handler that
+needs no input; a path with no randomise= takes Copacetic's live seed.
 Run from the helper root: python tests/listing_offline.py
 """
 
@@ -28,18 +28,13 @@ vars(sys.modules["xbmc"]).update(  # imported names; listing's are patched below
 sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0  # handlers imports it
 sys.path.insert(0, str(HELPER))
 
-from resources.lib.plugin import listing  # noqa: E402
+from resources.lib.plugin import handlers, listing  # noqa: E402
 from resources.lib.plugin.handlers import PluginHandlers  # noqa: E402
 from resources.lib.plugin.registry import collect_info_handlers  # noqa: E402
 
 BASE = "plugin://script.copacetic.helper/"
 KODI = {2: "Music", 3: "Videos"}
-LIVE = {
-    "Window(home).Property(random_seed)": "8812",
-    "Window(home).Property(speed_dial_version)": "5",
-    "System.Date(dd)": "18",
-}
-SEED = {"randomise": "8812", "limit": "20"}
+SEED = {"limit": "20"}
 VIDEO = {
     "Continue watching": {"info": "in_progress"},
     "Next up": {"info": "next_up"},
@@ -49,8 +44,8 @@ VIDEO = {
     "Random genre - TV shows": {"info": "random_genre", "type": "tvshow"} | SEED,
 }
 MUSIC = {
-    "Speed dial": {"info": "speed_dial", "v": "5"},
-    "Daily mixes": {"info": "daily_mixes", "day": "18"},
+    "Speed dial": {"info": "speed_dial"},
+    "Daily mixes": {"info": "daily_mixes"},
     "Rediscover": {"info": "rediscover"} | SEED,
     "Random albums": {"info": "random_albums"} | SEED,
     "Random genre - albums": {"info": "random_genre", "type": "album"} | SEED,
@@ -110,7 +105,6 @@ class Directory(unittest.TestCase):
             mock.patch.object(sys, "argv", [BASE, "1", ""]),
             mock.patch.object(listing, "ListItem") as list_item,
             mock.patch.object(listing, "getLocalizedString", KODI.get),
-            mock.patch.object(listing, "infolabel", side_effect=LIVE.get) as read,
             mock.patch.object(listing, "set_plugincontent") as content,
             mock.patch.object(listing, "ADDON") as addon,
         ):
@@ -121,7 +115,7 @@ class Directory(unittest.TestCase):
         self.assertFalse(list_item.return_value.getVideoInfoTag.called)
         self.assertFalse(list_item.return_value.getMusicInfoTag.called)
         self.assertFalse(list_item.return_value.setInfo.called)
-        return items, list_item, content, read
+        return items, list_item, content
 
     @staticmethod
     def folders(items: list, list_item: mock.Mock) -> dict[str, dict[str, str]]:
@@ -130,39 +124,33 @@ class Directory(unittest.TestCase):
         assert {url.scheme + "://" + url.netloc + url.path for url in urls} == {BASE}
         return {label: dict(parse_qsl(url.query)) for label, url in zip(labels, urls)}
 
-    def test_root_is_two_groups_and_reads_nothing(self):
-        items, list_item, content, read = self.build()
+    def test_root_is_two_groups(self):
+        items, list_item, content = self.build()
         self.assertEqual(
             self.folders(items, list_item),
             {"Videos": {"group": "video"}, "Music": {"group": "music"}},
         )
         content.assert_called_once_with(content="files", category="Copacetic Helper")
-        read.assert_not_called()
 
     def test_video_group_on_the_rails_paths(self):
-        items, list_item, content, _ = self.build("video")
+        items, list_item, content = self.build("video")
         self.assertEqual(self.folders(items, list_item), VIDEO)
         content.assert_called_once_with(content="files", category="Videos")
 
     def test_music_group_on_the_rails_paths(self):
-        items, list_item, content, _ = self.build("music")
+        items, list_item, content = self.build("music")
         self.assertEqual(self.folders(items, list_item), MUSIC)
         content.assert_called_once_with(content="files", category="Music")
 
-    def test_no_seed_lists_a_fresh_order(self):
-        with mock.patch.dict(LIVE, {"Window(home).Property(random_seed)": ""}):
-            items, list_item, _, _ = self.build("music")
-        self.assertNotIn("randomise", self.folders(items, list_item)["Rediscover"])
-
     def test_art_an_icon_alone_the_rails_or_the_groups(self):
         # no thumb: Copacetic's art cell falls back to ListItem.ActualIcon's glyph
-        _, list_item, _, _ = self.build("video")
+        _, list_item, _ = self.build("video")
         arts = [call.args[0] for call in list_item.return_value.setArt.call_args_list]
         self.assertEqual(
             arts[:2],
             [{"icon": "icons/SpinnerGap.png"}] + [{"icon": "icons/FastForward.png"}],
         )
-        _, list_item, _, _ = self.build()
+        _, list_item, _ = self.build()
         arts = [call.args[0] for call in list_item.return_value.setArt.call_args_list]
         self.assertEqual(
             arts, [{"icon": "DefaultVideo.png"}, {"icon": "DefaultAudio.png"}]
@@ -175,6 +163,29 @@ class Directory(unittest.TestCase):
         self.assertFalse(infos & EXCLUDED)
         # every handler is either offered or excluded on purpose
         self.assertEqual(handlers.keys() - infos - EXCLUDED, set())
+
+
+class Seed(unittest.TestCase):
+    """PluginHandlers.randomise: a folder's path has none, so it reads the live one."""
+
+    def seed(self, params: dict[str, str], live: str = "8812") -> tuple[str, mock.Mock]:
+        with mock.patch.object(handlers, "infolabel", return_value=live) as read:
+            seed = PluginHandlers(params).randomise
+        return seed, read
+
+    def test_no_param_takes_copacetics_live_seed(self):
+        seed, read = self.seed({"info": "random_albums"})
+        self.assertEqual(seed, "8812")
+        read.assert_called_once_with("Window(home).Property(random_seed)")
+
+    def test_the_rails_seed_wins_and_reads_nothing(self):
+        seed, read = self.seed({"randomise": "40"})
+        self.assertEqual(seed, "40")
+        read.assert_not_called()
+
+    def test_an_empty_param_or_no_live_seed_is_a_fresh_order(self):
+        self.assertEqual(self.seed({"randomise": ""})[0], "")
+        self.assertEqual(self.seed({}, live="")[0], "")
 
 
 if __name__ == "__main__":
