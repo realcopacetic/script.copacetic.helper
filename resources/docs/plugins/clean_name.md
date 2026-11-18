@@ -30,6 +30,10 @@ It returns one item, with these properties (each only when found):
 | `clean_tvshowtitle` | For a file named like an episode (`S01E07` or `1x07`): the show |
 | `clean_episode` | The episode's code, as `1x07` |
 
+A byte in the name that isn't valid UTF-8 becomes `?`. Kodi decodes a literal escape
+in a local or network file's name to a raw byte, so `Am%E9lie.2001.mkv` gives
+`clean_title` `Am?lie` and `clean_year` `2001`.
+
 A stack of episode parts whose name Kodi cuts at a year (`Show.2005.S01E07.part1.mkv`)
 gives the show and the code, but no `clean_title`: the parts' titles end in their
 part number.
