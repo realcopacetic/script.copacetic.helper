@@ -149,18 +149,17 @@ class SeedMultiart(unittest.TestCase):
         patches.start()
         self.addCleanup(patches.stop)
 
-    def seed(self, window_id=12006, dialog=False, superseded=False):
+    def seed(self, window_id=12006, dialog=False, fadelabel_id="3400", alive=None):
         """seed_multiart's art for a two-image family of item 1, first visit."""
         return multiart.seed_multiart(
-            fadelabel_id="3400",
+            fadelabel_id=fadelabel_id,
             multiart_dict=dict(self.FAMILY),
             art={"multiart": "a"},
             seed_scope="player@",
             seed_item="1//",
-            alive=lambda: True,
+            alive=alive or (lambda: True),
             window_id=window_id,
             dialog=dialog,
-            superseded=lambda: superseded,
         )
 
     def test_blind_seed_waits_a_pass_without_reading(self):
@@ -205,15 +204,26 @@ class SeedMultiart(unittest.TestCase):
         self.seed()
         self.assertEqual(self.props, live)
 
-    def test_visit_change_writes_no_keys(self):
-        live = {
-            "multiart_frozen_3400": "f",
-            "multiart_seed_scope_3400": "x",
-            "multiart_seed_sig_3400": "y",
-        }
-        self.props |= live  # A→B→A: the same window's new visit seeded and froze 3400
-        self.seed(superseded=True)
-        self.assertEqual(self.props, live)
+    LIVE = {
+        "multiart_frozen_3400": "f",
+        "multiart_seed_scope_3400": "x",
+        "multiart_seed_sig_3400": "y",
+    }
+
+    def test_visit_change_touches_nothing(self):
+        # A→B→A: the handler names no register for the old visit's serve
+        self.props |= self.LIVE  # the same window's new visit seeded and froze 3400
+        self.labels[3400] = "b"
+        self.assertEqual(self.seed(fadelabel_id=None), {"multiart": "a"})
+        self.assertEqual((self.props, self.labels), (self.LIVE, {3400: "b"}))
+
+    def test_guard_dying_mid_seed_writes_no_keys(self):
+        self.props["multiart_seed_sig_3400"] = "y"
+        # a visit ending mid-seed: the guard's first read follows the main image
+        self.assertIsNone(self.seed(alive=lambda: False))
+        self.assertEqual(self.labels, {3400: "a"})
+        self.assertEqual(self.props["multiart_seed_sig_3400"], "y")
+        self.assertNotIn("multiart_seed_scope_3400", self.props)
 
     def test_scope_change_clears_the_frame(self):
         self.props |= {"multiart_frozen_3400": "f", "multiart_seed_scope_3400": "x"}
