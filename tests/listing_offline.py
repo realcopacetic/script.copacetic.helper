@@ -45,14 +45,14 @@ VIDEO = {
 }
 MUSIC = {
     "Speed dial": {"info": "speed_dial"},
-    "Daily mixes": {"info": "daily_mixes"},
     "Rediscover": {"info": "rediscover"} | SEED,
     "Random albums": {"info": "random_albums"} | SEED,
     "Random genre - albums": {"info": "random_genre", "type": "album"} | SEED,
     "Random genre - artists": {"info": "random_genre", "type": "artist"} | SEED,
 }
 # Listings the root must never offer: they need an item, artist, label or channel,
-# or serve the skin's own controls rather than a list to browse
+# serve the skin's own controls rather than a list to browse, or (daily_mixes) list
+# cards only the skin's rail click plays
 EXCLUDED = {
     "actor_credits",
     "artist_credits",
@@ -60,6 +60,7 @@ EXCLUDED = {
     "broadcasts",
     "cast",
     "clean_name",
+    "daily_mixes",
     "director_credits",
     "discography",
     "epg_time_left",
@@ -93,14 +94,15 @@ STRINGS = {
     32614: "Random genre - artists",
     32826: "Speed dial",
     32836: "Rediscover",
-    32837: "Daily mixes",
 }
 
 
 class Directory(unittest.TestCase):
     """PluginListing.build: the folders each level lists, and what it reads."""
 
-    def build(self, group: str | None = None) -> tuple[list, mock.Mock, ...]:
+    def build(
+        self, group: str | None = None, content_type: str | None = None
+    ) -> tuple[list, mock.Mock, ...]:
         with (
             mock.patch.object(sys, "argv", [BASE, "1", ""]),
             mock.patch.object(listing, "ListItem") as list_item,
@@ -110,7 +112,7 @@ class Directory(unittest.TestCase):
         ):
             addon.getLocalizedString = STRINGS.get
             addon.getAddonInfo.return_value = "Copacetic Helper"
-            items = listing.PluginListing().build(group)
+            items = listing.PluginListing().build(group, content_type)
         self.assertTrue(all(folder for _, _, folder in items))
         self.assertFalse(list_item.return_value.getVideoInfoTag.called)
         self.assertFalse(list_item.return_value.getMusicInfoTag.called)
@@ -141,6 +143,14 @@ class Directory(unittest.TestCase):
         items, list_item, content = self.build("music")
         self.assertEqual(self.folders(items, list_item), MUSIC)
         content.assert_called_once_with(content="files", category="Music")
+
+    def test_opened_from_an_add_on_list_its_own_group(self):
+        # Kodi's ?content_type= for a plugin that provides video and audio
+        for content_type, folders in (("video", VIDEO), ("audio", MUSIC)):
+            items, list_item, _ = self.build(content_type=content_type)
+            self.assertEqual(self.folders(items, list_item), folders)
+        items, list_item, _ = self.build(content_type="executable")
+        self.assertEqual([*self.folders(items, list_item)], ["Videos", "Music"])
 
     def test_art_an_icon_alone_the_rails_or_the_groups(self):
         # no thumb: Copacetic's art cell falls back to ListItem.ActualIcon's glyph

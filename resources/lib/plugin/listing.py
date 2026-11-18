@@ -8,6 +8,7 @@ from xbmcgui import ListItem
 
 from resources.lib.shared.utilities import ADDON, set_plugincontent
 
+_OPENED_FROM = {"video": "video", "audio": "music"}  # Kodi's content_type=, a group
 _RANDOM = {"limit": "20"}  # the rails' default length
 # Per group, Kodi's string and icon, then (add-on string, the rail's icon, its path's
 # params) per Home rail the helper lists with no input; no stamps, so paths stay live
@@ -37,7 +38,6 @@ GROUPS = {
         "DefaultAudio.png",
         (
             (32826, "DotsNine", {"info": "speed_dial"}),
-            (32837, "Playlist", {"info": "daily_mixes"}),
             (32836, "ClockCounterClockwise", {"info": "rediscover"} | _RANDOM),
             (32610, "Headphones", {"info": "random_albums"} | _RANDOM),
             (32613, "MusicNote", {"info": "random_genre", "type": "album"} | _RANDOM),
@@ -57,15 +57,18 @@ class PluginListing(object):
     they can be browsed or picked as widgets from Kodi's add-on browser.
     """
 
-    def build(self, group: str | None = None) -> list[tuple[str, ListItem, bool]]:
+    def build(
+        self, group: str | None = None, content_type: str | None = None
+    ) -> list[tuple[str, ListItem, bool]]:
         """
-        The root's group folders, or a group's folders on its Home rails' paths; only
-        an opened folder runs its listing.
+        The root's group folders, or one group's on its Home rails' paths: group=, else
+        the one Kodi opened the add-on from. Only an opened folder runs its listing.
 
         :param group: A GROUPS key; None for the root.
+        :param content_type: Kodi's content_type= (video, audio) from an add-on list.
         :return: (url, ListItem, True) per folder.
         """
-        if group is None:
+        if (group := group or _OPENED_FROM.get(content_type)) is None:
             category = ADDON.getAddonInfo("name")
             items = [
                 self._make_item(getLocalizedString(label), icon, {"group": key})
