@@ -97,7 +97,7 @@ msgstr "TMDB 访问令牌"
 #: /resources/settings.xml
 msgctxt "#32011"
 msgid "Enter a TMDB v3 API key or v4 read access token"
-msgstr "输入 TMDB v3 API key 或 v4 API 读取访问令牌"
+msgstr "输入 TMDB v3 API key 或 v4 读取访问令牌"
 
 #: /resources/settings.xml
 msgctxt "#32012"
