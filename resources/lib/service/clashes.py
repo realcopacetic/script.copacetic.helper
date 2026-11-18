@@ -34,9 +34,15 @@ SETTLED = (
 ANSWERS, RESET = "clashes_answers", "clashes_reset"
 
 
-def features() -> tuple[bool, ...]:
-    """Whether each feature in CLASHES is on, for the service to see one change."""
-    return tuple(condition(feature) for feature, _ in CLASHES.values())
+def features() -> tuple[tuple[bool, str], ...]:
+    """
+    Each feature in CLASHES on or not, and its add-on's version ("" while off): for
+    the service to see a feature turned on or off, or an add-on switched or updated.
+    """
+    return tuple(
+        (condition(feature), _version(addon_id))
+        for addon_id, (feature, _) in CLASHES.items()
+    )
 
 
 def _load() -> dict:
