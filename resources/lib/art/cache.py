@@ -168,7 +168,8 @@ class ArtworkCacheManager:
         if validate_path(path := str(ctx.cached_image_path)):
             log.debug(f"{self.__class__.__name__} → texture-cache file → {path}")
             return path
-        if "://" not in (path := xbmcvfs.translatePath(ctx.decoded_url)):
+        path = xbmcvfs.translatePath(ctx.decoded_url)
+        if "://" not in path and validate_path(path):
             return path
         return self.source_temp_path(ctx)
 

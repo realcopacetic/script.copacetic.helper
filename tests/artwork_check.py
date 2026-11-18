@@ -287,8 +287,8 @@ def main() -> None:
 
 def check_in_place(tmp: Path, editor: Any) -> bool:
     """
-    A source outside Kodi's texture cache opens in place when it is a local file; only
-    a share's or the web's is copied to a temp file.
+    A source outside Kodi's texture cache opens in place when it is a local file on
+    disk; a share's, the web's or a missing file's goes to the temp copy, as before.
 
     :param tmp: Scratch root, holding the posters.
     :param editor: ImageEditor, for its cache manager.
@@ -297,8 +297,10 @@ def check_in_place(tmp: Path, editor: Any) -> bool:
     vfs, manager, copied = sys.modules["xbmcvfs"], editor.cache_manager, []
     copy, vfs.copy = vfs.copy, lambda src, dst: copied.append(src)
     local, share = str(tmp / "white.jpg"), "smb://nas/pictures/white.jpg"
+    gone = str(tmp / "deleted.jpg")  # not on disk: falls through to the copy, as before
     ok = manager.source_path(manager.prepare(local)) == local and not copied
-    ok &= manager.source_path(manager.prepare(share)) is None and copied == [share]
+    for path in (share, gone):
+        ok &= manager.source_path(manager.prepare(path)) is None and path in copied
     vfs.copy = copy
     print(f"{'ok  ' if ok else 'FAIL'} source: a local file in place, a share copied")
     return not ok

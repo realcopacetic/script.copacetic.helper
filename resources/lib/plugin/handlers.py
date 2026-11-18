@@ -160,7 +160,8 @@ def _video_details(
 
 _INFO_OPEN = " | ".join(f"Window.IsVisible({wid})" for wid in INFO_DIALOGS)
 _SERVE_DIALOGS = (*INFO_DIALOGS, 10120)  # and the music OSD, whose rails serve alike
-_SLIDESHOW = 12007  # a modal dialog over Pictures: its own serve guards its picture
+_SLIDESHOW = 12007  # a modal dialog: a run guarded by SLIDESHOW_PICTURE follows it
+SLIDESHOW_PICTURE = ("Slideshow.SlideIndex",)  # the picture shown, free of "|" and "&"
 _TRAILER_PENDING = "String.IsEqual(Window(home).Property(trailer_state),pending)"
 
 
@@ -187,6 +188,7 @@ class _FocusGuard:
         "dialog",
         "player",
         "through_info",
+        "picture",
         "lost_to",
     )
 
@@ -200,6 +202,7 @@ class _FocusGuard:
         focus_ids: tuple[str, ...] = (),
         player: bool = False,
         through_info: bool = False,
+        picture: bool = False,
     ):
         """
         Create a guard that checks container focus and item identity.
@@ -212,6 +215,7 @@ class _FocusGuard:
         :param focus_ids: Control ids of which one must hold focus; empty to skip.
         :param player: Whether the item is the playing song, which no focus follows.
         :param through_info: Whether the run passes under an info dialog too.
+        :param picture: Whether the identity is the slideshow's picture.
         """
         self.caller_name = caller_name
         self.expected_identity = expected_identity
@@ -221,6 +225,7 @@ class _FocusGuard:
         self.focus_ids = focus_ids
         self.player = player
         self.through_info = through_info
+        self.picture = picture
         self.lost_to = ""  # the identity read when the item moved on
 
     def alive(self) -> bool:
@@ -257,7 +262,7 @@ class _FocusGuard:
         # a run that reads none of them carries on. The slideshow's picture moves.
         modal = getCurrentWindowDialogId()
         if modal != 9999 and self.window_id == getCurrentWindowId():
-            if modal == _SLIDESHOW:
+            if self.picture and modal == _SLIDESHOW:
                 return self._same_item()
             if self.through_info or not _info_open():
                 return True
@@ -406,6 +411,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.focus_ids,
             self.player,
             through_info,
+            labels == SLIDESHOW_PICTURE,
         )
 
     @cached_property
