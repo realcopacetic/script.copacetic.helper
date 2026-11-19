@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 from fnmatch import fnmatch, fnmatchcase
 from itertools import chain
 from pathlib import Path
-from typing import Iterator, NamedTuple
+from typing import Iterator, NamedTuple, Sequence
 from xml.parsers import expat
 
 from build_offline import HELPER, build_isolated
@@ -30,6 +30,9 @@ PARAM = re.compile(r"\$PARAM\[([^\[\]]*)\]")
 FIELD = re.compile(r"\{[^{}]*\}")  # a builder placeholder: {layout}, {index+1}
 WHOLE_EXP = re.compile(r"\[?\$EXP\[([^\[\]]+)\]\]?")
 INCLUDE_REF = re.compile(r"\$(?:EXP|PARAM)\[[^\[\]]*\]")  # resolved by includes only
+VAR_PARAM = re.compile(
+    r"\b\w+_var=(\w+)"
+)  # a plugin URL naming a $VAR the helper reads
 CONDITION_REF = re.compile(r"\$(?:EXP|PARAM|(?:ESC)?VAR)\[[^\[\]]*\]")
 TIMER_CONDITIONS = {"start", "reset", "stop"}
 TIMER_ACTIONS = {"onstart", "onstop"}
@@ -87,11 +90,21 @@ NAME_TOKEN = re.compile(r"\$\w+\[(?:[^\[\]]|\[[^\[\]]*\])*\]|\{[^{}]*\}")  # any
 PYTHON_ACCESS = {"setProperty", "clearProperty", "getProperty"}
 WINDOWS = {"Window", "home", "window", "self"}  # receivers that are windows, not items
 PROPERTIES = {  # names written or read where the lint cannot see: where
-    "isradio": "Kodi's PVR windows (CGUIWindowPVRBase::OnInitWindow)",
+    "isradio": "Kodi's PVR windows (CGUIWindowPVRBase::OnInitWindow) and its channel"
+    " and group managers (GUIDialogPVRChannelManager.cpp, GUIDialogPVRGroupManager.cpp;"
+    " pvrmanagers.xml:9, :13)",
     "plugin.video.youtube-busy": "YouTube's own; trailer.py clears one it stranded",
     "pvrosd_guide_timers": "pvr_smart_select writes the stamp= name pvr.xml gives",
     "random_seed": "roll_seed writes the prop= name loads.xml gives",
 }
+MEDIA_MESSAGE = (
+    "{info} reads only the active media window: empty on Home and search, and in"
+    " dialogs over them [{where}]"
+)
+JUMPBARLESS = ", ".join(  # the non-media windows reaching both accepted hits below
+    ("DialogAddonInfo.xml", "DialogMusicInfo.xml", "DialogVideoInfo.xml", "Home.xml")
+    + ("MusicOSD.xml", "custom_search.xml")
+)
 DISPATCH = (  # unknown-param, at a call whose include name is a $PARAM
     "a dispatch passes what any of its targets reads; Kodi ignores a param the"
     " target it picks never names"
@@ -113,17 +126,58 @@ ACCEPTED = {  # (rule, file, message start): why it stands
         ),
         DISPATCH,
     ),
+    # generated families only another setting reads (skin_reach, skin 5a4b23a): which
+    **{
+        (
+            "unreferenced-definition",
+            f"{GENERATED}expressions.xml",
+            f"expression {name}",
+        ): f"read once {setting}"
+        for name, setting in (
+            ("art_poster_include_reel_", "a content type's layout is reel"),
+            ("art_square_include_reel_", "a content type's layout is reel"),
+            ("art_square_include_showcase_", "a content type's layout is showcase"),
+            ("trailer_visible_", "a content type's trailer is on (videos)"),
+            (
+                "nowplaying_shown_false_primary_poster_base_",
+                "a list view shows posters",
+            ),
+            ("nowplaying_shown_false_primary_square_", "a strip view shows squares"),
+            (
+                "nowplaying_shown_false_secondary_square_base_",
+                "a showcase shows squares",
+            ),
+            ("nowplaying_shown_true_primary_fanart_", "a strip, panorama or billboard"),
+            (
+                "nowplaying_shown_true_primary_poster_",
+                "a row the defaults lack is added",
+            ),
+            ("nowplaying_shown_true_secondary_fanart_base_", "a billboard or panorama"),
+            ("nowplaying_shown_false_widgets_", "a widget's layout is strip or reel"),
+            ("nowplaying_live_false_widgets_", "a widget is reel with zoom transition"),
+        )
+    },
+    # whole messages, every window that reads it named: a new one shows the finding
     (
         "media-window-info",
         "art.xml",
-        "Container.CurrentItem with no id in expression artwork_current_primary ",
+        MEDIA_MESSAGE.format(
+            info="Container.CurrentItem with no id in expression artwork_current_primary",
+            where=JUMPBARLESS,
+        ),
     ): "read only while the jumpbar has focus, and only media windows mount it",
-    (
-        "media-window-info",
-        f"{GENERATED}expressions.xml",
-        "Container.NumItems with no id in expression base_lag_primary_",
-    ): "the primary view's own scroll: Home has its widgets' term, and nothing"
-    " scrolls a primary list under search or a dialog",
+    **{
+        (
+            "media-window-info",
+            f"{GENERATED}expressions.xml",
+            MEDIA_MESSAGE.format(
+                info=f"Container.NumItems with no id in expression base_lag_primary_{way}",
+                where=JUMPBARLESS,
+            ),
+        ): "the primary view's own scroll: Home has its widgets' term, and nothing"
+        " scrolls a primary list under search or a dialog"
+        for way in ("next", "prev")
+    },
 }
 ERRORS = {
     "parse",
@@ -755,24 +809,37 @@ class Skin:
         self.expand(root, budget=[BUDGET])
         self.expanded.append(root)
         live = name not in MEDIA_WINDOWS
-        queue, reached = [(root, live)], {}
+        queue = [(root, live)]
         branches = {b for node in root.iter() for b in getattr(node, "branch", ())}
         for branch in branches | self.skipped:
             src, _, condition = branch.partition(" ")
             include = Node("include", {"condition": condition})
             include.src = src
             queue.append((include, live))
+        self.follow(queue, name)
+        return root
+
+    def follow(self, queue: list[tuple[Node, bool]], context: str) -> None:
+        """
+        Check and follow every ``$VAR``/``$EXP`` in the queued elements' values, and
+        each variable a plugin URL's ``…_var=`` names (the helper reads it, opts.py).
+
+        :param queue: (element, live) pairs; live where media infos are checked.
+        :param context: Window or ``Timers.xml`` the elements load in.
+        """
+        reached = {}
         while queue:
             top, live = queue.pop()
             for node, value in values(top):
                 live_here = live and not dead(value)
                 if live_here:
-                    self.check_media_info(node, value, name)
+                    self.check_media_info(node, value, context)
                     if EMPTY_ID.search(value):
                         message = "Container() reads the focused control here"
                         self.report("empty-container-id", node.src, message)
                 self.check_escexp(node.src, value)
-                for token, ref in REF.findall(value):
+                named = [("VAR", ref) for ref in VAR_PARAM.findall(value)]
+                for token, ref in REF.findall(value) + named:
                     self.check_reference(token, ref, node.src)
                     kind, ref = KINDS[token], ref.split(",")[0]
                     if ref not in self.defs[kind]:
@@ -787,7 +854,6 @@ class Skin:
                         reached[kind, ref] = live_ref
                         queue.append((definition, live_ref))
         self.reached |= reached.keys()
-        return root
 
     def check_times(self, root: Node) -> None:
         """
@@ -819,7 +885,7 @@ class Skin:
         :param value: Text or attribute value.
         :param context: Non-media window or ``Timers.xml`` that reaches it.
         """
-        owner = f" in expression {node.get('name')}" * (node.tag == "expression")
+        owner = f" in expression {node.get('name')}" if node.tag == "expression" else ""
         for info in MEDIA_INFO.findall(value):
             self.media_info[node.src, f"{info} with no id{owner}"].add(context)
 
@@ -843,9 +909,10 @@ class Skin:
                 self.check_escexp(node.src, value)
             for ref in CONDITION_REF.findall(condition) + INCLUDE_REF.findall(action):
                 self.report("timer-unresolved", node.src, f"{ref} stays literal")
-            for token, ref in REF.findall(action):  # $VAR resolves when the action runs
-                if token == "VAR":
-                    self.check_reference(token, ref, node.src)
+            if action:  # its $VARs resolve when the action runs: checked and followed
+                text = Node(node.tag)
+                text.text, text.src = INCLUDE_REF.sub("", action), node.src
+                self.follow([(text, False)], "Timers.xml")
 
     def family(self, kind: str, name: str) -> tuple[str, str] | None:
         """``(kind, name less its suffix)`` for a per-window or per-scope definition."""
@@ -892,23 +959,30 @@ class Skin:
                     message = f"{name}: {param.get('name')!r} is never read"
                     self.report("unread-param", param.src, message)
 
-    def check_constant_params(self, outside: list[tuple[str, dict[str, str]]]) -> None:
+    def check_constant_params(
+        self, outside: Sequence[tuple[str, dict[str, str]]]
+    ) -> None:
         """
         Report an include param with one literal value at every call that can reach
         it: the default no call overrides, or one value every call passes.
 
         :param outside: ``(include glob, params)`` of the template calls.
         """
-        calls = outside + [
-            (PARAM.sub("*", include_name(call)), params_of(call, "value"))
-            for file, root in self.roots.items()
-            if not file.startswith(GENERATED)
-            for call in root.iter("include")
-            if include_name(call) and "file" not in call.attrib
+        calls = [
+            *outside,
+            *(
+                (PARAM.sub("*", include_name(call)), params_of(call, "value"))
+                for file, root in self.roots.items()
+                if not file.startswith(GENERATED)
+                for call in root.iter("include")
+                if include_name(call) and "file" not in call.attrib
+            ),
         ]
         for name, node in self.defs["include"].items():
             callers = [params for glob, params in calls if fnmatchcase(name, glob)]
-            for param in sorted(self.params[name]) if callers else ():
+            if not callers:
+                continue
+            for param in sorted(self.params[name]):
                 default = self.defaults[name].get(param, "")
                 seen = {params.get(param, default) for params in callers}
                 value = seen.pop()
@@ -941,7 +1015,7 @@ class Skin:
         self,
         windows: list[str] | None = None,
         reach: set[tuple[str, str]] | None = None,
-        outside: list[tuple[str, dict[str, str]]] = (),
+        outside: Sequence[tuple[str, dict[str, str]]] = (),
     ) -> set[Finding]:
         """
         Run every rule over the given windows, or over every loaded file.
@@ -964,21 +1038,17 @@ class Skin:
             self.check_calls(root)
             if root.tag == "window":
                 self.check_ids(name, root)
+        if "Timers.xml" in self.roots:  # before check_unreferenced: its $VARs are read
+            self.check_timers(self.roots["Timers.xml"])
         if windows is not None:
             self.check_unreferenced(reach or set())
             if reach is not None:
                 self.check_unreached(reach)
             self.check_declared_params()
-            self.check_constant_params(list(outside))
+            self.check_constant_params(outside)
             self.check_empty_controls()
-        if "Timers.xml" in self.roots:
-            self.check_timers(self.roots["Timers.xml"])
         for (src, info), contexts in self.media_info.items():
-            where = first_three(sorted(contexts))
-            message = (
-                f"{info} reads only the active media window: empty on Home"
-                f" and search, and in dialogs over them [{where}]"
-            )
+            message = MEDIA_MESSAGE.format(info=info, where=", ".join(sorted(contexts)))
             self.report("media-window-info", src, message)
         self.check_params()
         for (cid, srcs), windows in self.duplicates.items():
@@ -1108,13 +1178,22 @@ def property_glob(name: str) -> str:
     """
     A window property name as Kodi keys it (any case), a built part as ``*``;
     empty when it can't be a name or spells out too little to tell (``*_*``).
+
+    :param name: Property name as written, tokens and placeholders included.
+    :return: Lower-case glob, or "".
     """
     glob = NAME_TOKEN.sub("*", name).lower()
     return glob if PROPERTY_NAME.fullmatch(glob) and SPELLED.search(glob) else ""
 
 
 def meets(name: str, others: set[str]) -> bool:
-    """True when glob ``name`` and one of ``others`` can name the same property."""
+    """
+    True when glob ``name`` and one of ``others`` can name the same property.
+
+    :param name: Property glob.
+    :param others: Property globs.
+    :return: Whether either matches the other.
+    """
     return any(fnmatchcase(name, o) or fnmatchcase(o, name) for o in others)
 
 
@@ -1137,7 +1216,11 @@ def python_properties(helper: Path) -> tuple[list, list, list]:
             return node.value
         if isinstance(node, ast.JoinedStr):
             return "".join(
-                spelled(v.value, names) or "*" if hasattr(v, "conversion") else v.value
+                (
+                    spelled(v.value, names) or "*"
+                    if isinstance(v, ast.FormattedValue)
+                    else v.value
+                )
                 for v in node.values
             )
         return names.get(getattr(node, "id", getattr(node, "attr", None)))
@@ -1281,7 +1364,7 @@ def main() -> None:
     parser.add_argument("--reach", type=Path, help="skin_reach.py --json output")
     args = parser.parse_args()
     reach = args.reach and {
-        tuple(name.split(" ")) for name in json.loads(args.reach.read_text())["all"]
+        tuple(name.split(" ", 1)) for name in json.loads(args.reach.read_text())["all"]
     }
 
     with tempfile.TemporaryDirectory() as name:

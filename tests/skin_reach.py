@@ -4,15 +4,17 @@ and expand every window in each build; print the skin's own includes, variables 
 expressions no build reaches. ``--json`` saves the union for ``skin_lint --reach``.
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
-import os
 import shutil
 import sys
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from build_offline import HELPER, build_isolated, install_stubs
 from skin_lint import (
@@ -24,11 +26,14 @@ from skin_lint import (
     window_families,
 )
 
+if TYPE_CHECKING:  # imported at run time once the stubs are in (state_manager)
+    from resources.lib.builders.runtime import RuntimeStateManager
+
 PROBES = ("vue_billboard", "vue_panorama", "vue_reel", "home_bar")  # the method test
 EDITOR = "controls (settings editor)"
 
 
-def state_manager(skin: Path, state: Path, scratch: Path) -> "RuntimeStateManager":
+def state_manager(skin: Path, state: Path, scratch: Path) -> RuntimeStateManager:
     """
     The helper's ``RuntimeStateManager`` over ``skin``'s templates and ``state``,
     with Kodi stubbed.
@@ -47,7 +52,7 @@ def state_manager(skin: Path, state: Path, scratch: Path) -> "RuntimeStateManage
     return RuntimeStateManager(*templates, state_path=str(state))
 
 
-def every_row(manager: "RuntimeStateManager") -> dict:
+def every_row(manager: RuntimeStateManager) -> dict:
     """
     The default state plus a row for each dynamic mapping item it has none of
     (a widget preset, a menu item), so every item's own config fields are varied.
@@ -60,7 +65,7 @@ def every_row(manager: "RuntimeStateManager") -> dict:
 
     def depth(key: str) -> int:
         parent = mappings[key].get("parent_mapping")
-        return parent and 1 + depth(parent) or 0
+        return 1 + depth(parent) if parent else 0
 
     dynamic = [k for k, m in mappings.items() if m.get("mode") == "dynamic"]
     for key in sorted(dynamic, key=depth):
@@ -84,7 +89,7 @@ def every_row(manager: "RuntimeStateManager") -> dict:
     return state
 
 
-def variants(manager: "RuntimeStateManager", state: dict) -> dict[str, dict]:
+def variants(manager: RuntimeStateManager, state: dict) -> dict[str, dict]:
     """
     One state per option value that some row keeps and changes, set on every such
     row; then, for a field with ``dependent_fields``, one per value of each of them.
@@ -179,6 +184,8 @@ def reach(skin: Path, generated: Path) -> dict[str, set[tuple[str, str]]]:
             if node.src.startswith(GENERATED)
         }
     }
+    if "Timers.xml" in linted.roots:  # Kodi loads it always; its actions' $VARs count
+        linted.check_timers(linted.roots["Timers.xml"])
     linted.roots[EDITOR] = editor_root(skin)
     migrated = [*linted.migrated(), EDITOR]
     rest = [
@@ -247,7 +254,7 @@ def main() -> None:
 
         outs = [Path(tmp, str(n)) for n in range(len(runs))]
         builds = {}  # digest: (label, output)
-        with ProcessPoolExecutor(os.cpu_count()) as pool:
+        with ProcessPoolExecutor() as pool:
             digests = pool.map(build, [args.skin] * len(runs), runs.values(), outs)
             for label, out, digest in zip(runs, outs, digests):
                 if digest in builds:
@@ -258,9 +265,8 @@ def main() -> None:
             labels, outs = zip(*builds.values())
             defined = definitions(args.skin)
             union = {"c2": set(), "all": set(), "emitted": set()}
-            for label, found in zip(
-                labels, pool.map(reach, [args.skin] * len(outs), outs)
-            ):
+            results = pool.map(reach, [args.skin] * len(outs), outs)
+            for label, found in zip(labels, results):
                 new = sorted(found["c2"] & defined.keys() - union["c2"])
                 print(f"{label}: {len(new)} new", flush=True)
                 for kind, name in new:
@@ -276,8 +282,9 @@ def main() -> None:
         f"\n{len(unreached)} of {len(defined)} skin definitions no C2 window reaches:"
     )
     for (kind, name), src in sorted(unreached.items(), key=lambda i: i[1]):
-        others = " (an unmigrated window reaches it)" * ((kind, name) in union["all"])
-        print(f"  {src}  {kind} {name}{others}")
+        elsewhere = (kind, name) in union["all"]
+        note = " (an unmigrated window reaches it)" if elsewhere else ""
+        print(f"  {src}  {kind} {name}{note}")
     unread = sorted(union["emitted"] - union["all"])
     print(f"\n{len(unread)} generated names some build emits and no build reads")
     if args.json:
