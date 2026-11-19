@@ -1133,10 +1133,14 @@ an empty list; when new items land it selects the old selected item again wherev
 finds it by path. So a reset at `<onload>` alone misses a rail still waiting on its
 fetch, and one that shares items with the last dialog item opens part-way along.
 
-For 10 s it selects item 0 (`ControlList.selectItem`, no focus change) of any rail
-that isn't fetching and rests past it. A rail once focused is left alone. It reads its
-window once, the topmost info dialog when it starts, and ends when that dialog closes
-or reopens on another item (its `info_key` window property changes).
+For 30 s with the dialog on top it selects item 0 (`ControlList.selectItem`, no focus
+change) of any rail that isn't fetching, hasn't focus and rests past it, five times a
+second; a rail once seen focused is left alone. A rail you leave again within one of
+those polls may be snapped back. It reads its window once at the start (the topmost
+info dialog, else one a menu or busy dialog covers) and waits, without counting,
+while another dialog is on top, since a condition reads the topmost modal dialog
+(`ModuleXbmc.cpp`, `getCondVisibility`). It ends when that dialog closes or reopens on
+another item (its `info_key` window property changes), or after 5 minutes in all.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
