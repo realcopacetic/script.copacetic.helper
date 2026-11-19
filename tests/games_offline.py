@@ -4,9 +4,9 @@ emulator read from a game add-on's name as Kodi reads it; the system from the sk
 emulators mapping (one system, several by extension, a shared extension, no row, no
 mapping); what a game's start publishes and its stop clears; the autosave blur (the
 newest save picture, one file per picture, the last one dropped, none without a
-readable picture or one Kodi replaces mid-read; needs Pillow) and the poller hook
-that publishes it once per opening of the game OSD; the content browser's Game
-add-ons source (windows/browse.py). With a skin's folder, that skin's own mapping
+readable picture or one deleted mid-read; needs Pillow) and the poller hook that
+publishes it once per opening of the game OSD, trying each poll until one is made;
+the content browser's Game add-ons source (windows/browse.py). With a skin's folder, that skin's own mapping
 too: its shape, and one emulator of each kind.
 Run from the helper root: python tests/games_offline.py [../skin.copacetic2]
 """
@@ -214,6 +214,18 @@ class GameStart(Kodi):
         self.assertNotIn("player_game_blur", self.props())  # closed: cleared
         self.assertEqual(len(self.poll(True, "/blur/game_2.jpg")), 1)
         self.assertEqual(self.props()["player_game_blur"], "/blur/game_2.jpg")
+
+    def test_no_blur_yet_is_tried_again_while_open(self):
+        self.monitor._game_osd = False
+        self.monitor.onAVStarted()
+        self.assertEqual(len(self.poll(True, "")), 1)  # Kodi still writing it
+        self.assertNotIn("player_game_blur", self.props())
+        self.assertEqual(len(self.poll(True)), 1)
+        self.assertEqual(self.props()["player_game_blur"], "/blur/game_1.jpg")
+        self.assertEqual(self.poll(True), [])  # published: no more tries
+        self.assertEqual(self.poll(False, ""), [])
+        self.assertNotIn("player_game_blur", self.props())
+        self.assertEqual(self.poll(False), [])  # closed without one: nothing to do
 
     def test_osd_up_at_the_start_opens_for_this_game(self):
         self.monitor.onAVStarted()
