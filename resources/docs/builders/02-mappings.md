@@ -181,7 +181,7 @@ Runtime values live in the settings file, which skin XML can't read. When a visi
 Field name on the left, Kodi skin-setting name on the right. The addon keeps the skin setting matched to the runtime value:
 
 - **On every write** to the settings file, all declared mirrors re-sync.
-- **On boot**, mirrors are reconciled against the file — this covers edits the live sync never saw (restored backups, wiped settings).
+- **On boot**, mirrors are reconciled against the file — this covers edits the live sync never saw (restored backups, wiped settings). It runs at every build check (start-up, a switch into the skin, a skin update), so a field added to a mapping later reaches its skin setting with its config default there, before the editor is ever opened.
 - Writes are idempotent: nothing touches Kodi unless the value actually changed.
 
 The value is read *resolved* — the stored value, or the config default when the user hasn't touched it. The first entry carrying the field wins, so declare mirrors for single-entry semantics (mapping-wide flags), not per-entry values.
