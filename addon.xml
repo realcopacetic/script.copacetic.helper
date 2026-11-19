@@ -68,17 +68,17 @@
       <fanart>resources/fanart.jpg</fanart>
       <screenshot>resources/Copacetic_Helper.jpg</screenshot>
       <screenshot>resources/Synced_lyrics_from_LRCLIB.jpg</screenshot>
-      <screenshot>resources/Daily_mixes_from_Deezer_and_ListenBrainz.jpg</screenshot>
-      <screenshot>resources/Trailers_play_as_you_browse.jpg</screenshot>
-      <screenshot>resources/Skip_intro_and_play_next.jpg</screenshot>
-      <screenshot>resources/Colours_from_the_artwork.jpg</screenshot>
-      <screenshot>resources/Skin_includes_built_from_templates.jpg</screenshot>
-      <screenshot>resources/Data_enrichment_from_TMDB,_Deezer,_ListenBrainz_and_more.jpg</screenshot>
-      <screenshot>resources/Slideshow_screensaver_with_logos.jpg</screenshot>
+      <screenshot>resources/Daily_mixes_based_on_your_listening_activity.jpg</screenshot>
+      <screenshot>resources/Trailers_play_in_place_as_you_browse_and_go_full_screen_without_restarting.jpg</screenshot>
+      <screenshot>resources/Skip_intro,_recap_and_credits,_and_play_next,_with_TheIntroDB.jpg</screenshot>
+      <screenshot>resources/Artwork_cropped,_blurred,_darkened_and_turned_into_colour_palettes.jpg</screenshot>
+      <screenshot>resources/Every_view,_widget_and_menu_built_from_templates_and_your_settings.jpg</screenshot>
+      <screenshot>resources/Details_from_TMDB,_TheIntroDB,_Deezer,_ListenBrainz_and_LRCLIB.jpg</screenshot>
+      <screenshot>resources/Configurable_slideshow_screensavers.jpg</screenshot>
       <screenshot>resources/Endless_queue_from_similar_artists.jpg</screenshot>
     </assets>
     <summary lang="en_GB">The engine behind the Copacetic 2 skin.</summary>
-    <description lang="en_GB">Copacetic Helper builds the Copacetic 2 skin's layouts and artwork. TMDB and ListenBrainz tokens in its settings add extras.[CR]This product uses the TMDB API but is not endorsed or certified by TMDB (https://www.themoviedb.org).</description>
+    <description lang="en_GB">Copacetic Helper is the engine behind the Copacetic 2 skin. It builds every view, widget and menu from templates and your settings, and rebuilds them as you change them. It prepares the artwork as you browse: logos cropped, backgrounds blurred and darkened, colour palettes picked. It plays trailers in place as you browse and takes them full screen without restarting; skips intros, recaps and credits with chapters and TheIntroDB, and opens Play next where the credits begin; follows songs with synced lyrics; makes daily mixes based on your listening activity and an endless queue from similar artists; and runs configurable slideshow screensavers. TMDB and ListenBrainz tokens in its settings add more.[CR]This product uses the TMDB API but is not endorsed or certified by TMDB (https://www.themoviedb.org).</description>
     <summary lang="de_DE">Der Motor hinter dem Skin Copacetic 2.</summary>
     <description lang="de_DE">Copacetic Helper erstellt die Layouts und das Artwork des Skins Copacetic 2. TMDB- und ListenBrainz-Token in seinen Einstellungen schalten Extras frei.[CR]Dieses Produkt verwendet die TMDB-API, wird aber von TMDB weder unterstützt noch zertifiziert (https://www.themoviedb.org).</description>
     <summary lang="es_ES">El motor de la skin Copacetic 2.</summary>
