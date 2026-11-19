@@ -8,19 +8,20 @@ transparent pixels, and that no string id is defined twice. Errors exit 1.
 """
 
 import argparse
+import ast
 import json
 import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
-from fnmatch import fnmatch
+from fnmatch import fnmatch, fnmatchcase
 from itertools import chain
 from pathlib import Path
 from typing import Iterator, NamedTuple
 from xml.parsers import expat
 
-from build_offline import build_isolated
+from build_offline import HELPER, build_isolated
 from PIL import Image, ImageChops, ImageSequence
 
 REF = re.compile(r"\$(?:ESC(?=VAR))?(VAR|EXP)\[((?:[^\[\]]|\[[^\[\]]*\])+)\]")
@@ -64,6 +65,33 @@ MEDIA_INFO = re.compile(  # label forms with no id; Row/Column/Position(n) are b
     re.IGNORECASE,
 )
 EMPTY_ID = re.compile(r"(?<![\w.])Container\(\s*\)", re.I)  # a $PARAM id left empty
+EMPTY_CONTROLS = {  # includes whose bare <control type> is deliberate: why
+    "atr_none": "a bare widget host's navigator: mounts nothing, and an include with"
+    " no child isn't registered",
+    "blk_background_*": "tpl_window mounts blk_background_<window>; these windows"
+    " have no background of their own",
+    "prb_breadcrumb_label": "breadcrumb dispatch: a label breadcrumb probes nothing",
+    "vue_marquee": "tpl_vues mounts vue_<layout> for a view's art; marquee draws its"
+    " art in its container",
+    "blk_videowindow": "a videowindow with no size fills its parent group"
+    " (CGUIControlFactory::Create)",
+    "tpl_videowindow_inset": "a videowindow with no size fills its parent group",
+}
+SET_PROPERTY = re.compile(r"\b(?:Set|Clear)Property\(\s*([^,()]+?)\s*[,)]", re.I)
+WINDOW_PROPERTY = re.compile(
+    r"\bWindow(?:\([^()]*\))?\.Property\(\s*([^()]+?)\s*\)", re.I
+)
+PROPERTY_NAME = re.compile(r"[\w.:*-]+")
+SPELLED = re.compile(r"[a-z0-9]{3}")  # enough of a name to match on
+NAME_TOKEN = re.compile(r"\$\w+\[(?:[^\[\]]|\[[^\[\]]*\])*\]|\{[^{}]*\}")  # any value
+PYTHON_ACCESS = {"setProperty", "clearProperty", "getProperty"}
+WINDOWS = {"Window", "home", "window", "self"}  # receivers that are windows, not items
+PROPERTIES = {  # names written or read where the lint cannot see: where
+    "isradio": "Kodi's PVR windows (CGUIWindowPVRBase::OnInitWindow)",
+    "plugin.video.youtube-busy": "YouTube's own; trailer.py clears one it stranded",
+    "pvrosd_guide_timers": "pvr_smart_select writes the stamp= name pvr.xml gives",
+    "random_seed": "roll_seed writes the prop= name loads.xml gives",
+}
 ERRORS = {
     "parse",
     "empty-definition",
@@ -283,11 +311,13 @@ class Skin:
         self.types = {}
         self.constants = {}
         self.params = {}
+        self.reads = {}
         self.calls = defaultdict(lambda: (set(), set()))
         self.duplicates = defaultdict(list)
         self.skipped = set()
         self.reached = set()
         self.included = set()
+        self.expanded = []
         self.media_info = defaultdict(set)
         self.loaded = []
         self._load("Includes.xml")
@@ -331,6 +361,7 @@ class Skin:
                 self.defaults[name] = params_of(node, "default")
                 used = {p for _, value in values(node) for p in PARAM.findall(value)}
                 self.params[name] = self.defaults[name].keys() | used
+                self.reads[name] = used
                 for call in node.iter("include"):  # $PARAM-named: reaches its default
                     whole = PARAM.fullmatch(include_name(call))
                     if whole and (default := self.defaults[name].get(whole[1])):
@@ -689,6 +720,7 @@ class Skin:
         self.check_calls(root)
         self.skipped = set()
         self.expand(root, budget=[BUDGET])
+        self.expanded.append(root)
         live = name not in MEDIA_WINDOWS
         queue, reached = [(root, live)], {}
         branches = {b for node in root.iter() for b in getattr(node, "branch", ())}
@@ -786,28 +818,103 @@ class Skin:
         suffix = next((s for s in self.window_families if name.endswith(s)), None)
         return suffix and (kind, name.removesuffix(suffix))
 
-    def check_unreferenced(self) -> None:
+    def check_unreferenced(self, reach: set[tuple[str, str]]) -> None:
         """
         Report generated variables and expressions that no linted window reaches,
         through its values or include conditions, unless another window's (or scope's)
         copy is reached: the builder writes one for each, mounted reader or not.
+
+        :param reach: (kind, name) pairs another setting's build reaches: not reported.
         """
-        mounted = {self.family(*key) for key in self.reached} - {None}
+        reached = self.reached | reach
+        mounted = {self.family(*key) for key in reached} - {None}
         for kind in KINDS.values():
             for name, node in self.defs[kind].items():
                 if (
                     node.src.startswith(GENERATED)
                     and not name.endswith(UNMIGRATED)
-                    and (kind, name) not in self.reached
+                    and (kind, name) not in reached
                     and self.family(kind, name) not in mounted
                 ):
                     self.report("unreferenced-definition", node.src, f"{kind} {name}")
 
-    def lint(self, windows: list[str] | None = None) -> set[Finding]:
+    def check_unreached(self, reach: set[tuple[str, str]]) -> None:
+        """
+        Report skin (not generated) includes, variables and expressions no window
+        reaches under any setting.
+
+        :param reach: (kind, name) pairs ``skin_reach.py`` found reached in some build.
+        """
+        for kind, defs in self.defs.items():
+            for name, node in defs.items():
+                if not node.src.startswith(GENERATED) and (kind, name) not in reach:
+                    self.report("unreached-definition", node.src, f"{kind} {name}")
+
+    def check_declared_params(self) -> None:
+        """Report params an include declares but its definition never reads."""
+        for name, node in self.defs["include"].items():
+            for param in node.iterfind("param"):
+                if param.get("name") not in self.reads[name]:
+                    message = f"{name}: {param.get('name')!r} is never read"
+                    self.report("unread-param", param.src, message)
+
+    def check_constant_params(self, outside: list[tuple[str, dict[str, str]]]) -> None:
+        """
+        Report an include param with one literal value at every call that can reach
+        it: the default no call overrides, or one value every call passes.
+
+        :param outside: ``(include glob, params)`` of the template calls.
+        """
+        calls = outside + [
+            (PARAM.sub("*", include_name(call)), params_of(call, "value"))
+            for file, root in self.roots.items()
+            if not file.startswith(GENERATED)
+            for call in root.iter("include")
+            if include_name(call) and "file" not in call.attrib
+        ]
+        for name, node in self.defs["include"].items():
+            callers = [params for glob, params in calls if fnmatchcase(name, glob)]
+            for param in sorted(self.params[name]) if callers else ():
+                default = self.defaults[name].get(param, "")
+                seen = {params.get(param, default) for params in callers}
+                value = seen.pop()
+                if seen or PARAM.search(value) or FIELD.search(value):
+                    continue
+                passed = sum(param in params for params in callers)
+                declared = node.find(f"param[@name='{param}']")
+                message = (
+                    f"{name}: {param!r} is {value!r} at every call"
+                    if passed
+                    else f"{name}: no call passes {param!r}, always {value!r}"
+                )
+                src = node.src if declared is None else declared.src
+                self.report("constant-param", src, message)
+
+    def check_empty_controls(self) -> None:
+        """Report controls with no children and no attribute but ``type``."""
+        for file, root in self.roots.items():
+            owners = elements(root) if root.tag == "includes" else [root]
+            for owner in owners:
+                name = owner.get("name", file)
+                for control in owner.iter("control"):
+                    if control.attrib.keys() - {"type"} or elements(control):
+                        continue
+                    if not any(fnmatchcase(name, glob) for glob in EMPTY_CONTROLS):
+                        message = f'<control type="{control.get("type")}" /> in {name}'
+                        self.report("empty-control", control.src, message)
+
+    def lint(
+        self,
+        windows: list[str] | None = None,
+        reach: set[tuple[str, str]] | None = None,
+        outside: list[tuple[str, dict[str, str]]] = (),
+    ) -> set[Finding]:
         """
         Run every rule over the given windows, or over every loaded file.
 
         :param windows: Window file names; ``None`` lints the whole skin.
+        :param reach: Every-setting union from ``skin_reach.py``, if one was saved.
+        :param outside: ``(include glob, params)`` of the template calls.
         :return: All findings.
         """
         for name, root in self.roots.items():
@@ -824,7 +931,12 @@ class Skin:
             if root.tag == "window":
                 self.check_ids(name, root)
         if windows is not None:
-            self.check_unreferenced()
+            self.check_unreferenced(reach or set())
+            if reach is not None:
+                self.check_unreached(reach)
+            self.check_declared_params()
+            self.check_constant_params(list(outside))
+            self.check_empty_controls()
         if "Timers.xml" in self.roots:
             self.check_timers(self.roots["Timers.xml"])
         for (src, info), contexts in self.media_info.items():
@@ -933,19 +1045,172 @@ def filled_params(skin: Path) -> frozenset[tuple[str, str]]:
     :param skin: Skin root directory.
     :return: ``(include glob, param)`` pairs; none if the skin has no templates (C1).
     """
-    calls = (
-        (FIELD.sub("*", PARAM.sub("*", call.get("content"))), call)
-        for path in (skin / "extras/templates/includes").glob("*.xml")
+    return frozenset(
+        (glob, param)
+        for glob, params in template_calls(skin)
+        if glob.strip("*")
+        for param, value in params.items()
+        if FIELD.search(value)
+    )
+
+
+def template_calls(skin: Path) -> list[tuple[str, dict[str, str]]]:
+    """
+    Include calls in the include templates, a placeholder or ``$PARAM`` in a name
+    matching anything.
+
+    :param skin: Skin root directory.
+    :return: ``(include glob, params)`` per call; none without templates (C1).
+    """
+    return [
+        (FIELD.sub("*", PARAM.sub("*", call.get("content"))), params_of(call, "value"))
+        for path in sorted((skin / "extras/templates/includes").glob("*.xml"))
         for call in ET.parse(path).iter("include")
         if "content" in call.attrib
+    ]
+
+
+def property_glob(name: str) -> str:
+    """
+    A window property name as Kodi keys it (any case), a built part as ``*``;
+    empty when it can't be a name or spells out too little to tell (``*_*``).
+    """
+    glob = NAME_TOKEN.sub("*", name).lower()
+    return glob if PROPERTY_NAME.fullmatch(glob) and SPELLED.search(glob) else ""
+
+
+def meets(name: str, others: set[str]) -> bool:
+    """True when glob ``name`` and one of ``others`` can name the same property."""
+    return any(fnmatchcase(name, o) or fnmatchcase(o, name) for o in others)
+
+
+def python_properties(helper: Path) -> tuple[list, list, list]:
+    """
+    Window properties the helper's Python and context menu (``addon.xml``) write and
+    read by a name they spell out (a string, or a name its function or module
+    assigns one), and every string in the Python.
+
+    :param helper: Helper add-on root.
+    :return: (writes, reads, strings) as ``(glob, src)`` lists.
+    """
+    trees = {
+        path.relative_to(helper): ast.parse(path.read_text("utf-8"))
+        for path in sorted([*helper.glob("*.py"), *helper.glob("resources/**/*.py")])
+    }
+
+    def spelled(node: ast.AST, names: dict[str, str]) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.JoinedStr):
+            return "".join(
+                spelled(v.value, names) or "*" if hasattr(v, "conversion") else v.value
+                for v in node.values
+            )
+        return names.get(getattr(node, "id", getattr(node, "attr", None)))
+
+    def assigned(nodes: Iterator[ast.AST], names: dict[str, str]) -> dict[str, str]:
+        found = dict(names)
+        for node in nodes:
+            if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+                if (text := spelled(node.value, names)) is not None:
+                    found.setdefault(node.targets[0].id, text)
+        return found
+
+    def called(node: ast.AST) -> str:
+        node = node.func if isinstance(node, ast.Call) else node
+        return getattr(node, "id", getattr(node, "attr", ""))
+
+    constants = assigned(chain.from_iterable(t.body for t in trees.values()), {})
+    lines = (helper / "addon.xml").read_text("utf-8").splitlines()
+    texts = [(f"addon.xml:{n}", line) for n, line in enumerate(lines, 1)]
+    writes, reads, strings = [], [], []
+    for path, tree in trees.items():
+        for node in ast.walk(tree):
+            src = f"{path}:{getattr(node, 'lineno', 0)}"
+            if isinstance(node, (ast.Constant, ast.JoinedStr)):
+                if text := spelled(node, constants):
+                    texts.append((src, text))
+                    strings.append((property_glob(text), src))
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            names = assigned(ast.walk(node), constants)
+            for call in ast.walk(node):
+                if not (isinstance(call, ast.Call) and call.args):
+                    continue
+                name, how = spelled(call.args[0], names), called(call)
+                glob = property_glob(name or "")
+                if glob and (
+                    how == "window_property"
+                    or how in PYTHON_ACCESS
+                    and called(call.func.value) in WINDOWS
+                ):
+                    entry = glob, f"{path}:{call.lineno}"
+                    (reads if how == "getProperty" else writes).append(entry)
+    text_writes, text_reads = text_properties(texts)
+    return writes + text_writes, reads + text_reads, strings
+
+
+def text_properties(texts: list[tuple[str, str]]) -> tuple[list, list]:
+    """
+    Window properties ``SetProperty``/``ClearProperty`` builtins write and
+    ``Window(…).Property(…)`` infos read in each text.
+
+    :param texts: ``(src, text)`` pairs.
+    :return: (writes, reads) as ``(glob, src)`` lists.
+    """
+    writes, reads = [], []
+    for src, text in texts:
+        for names, found in (
+            (WINDOW_PROPERTY.findall(text), reads),
+            (SET_PROPERTY.findall(NAME_TOKEN.sub("*", text)), writes),
+        ):
+            found += ((glob, src) for n in names if (glob := property_glob(n)))
+    return writes, reads
+
+
+def skin_properties(skin: Path, trees: list[Node]) -> tuple[list, list]:
+    """
+    Window properties the skin's XML, generated XML and builder templates write
+    (``SetProperty``, ``ClearProperty``) and read (``Window(…).Property(…)``).
+
+    :param skin: Skin root directory.
+    :param trees: Parsed files and expanded windows (their params filled in).
+    :return: (writes, reads) as ``(glob, src)`` lists.
+    """
+    texts = [(node.src, value) for tree in trees for node, value in values(tree)]
+    for path in sorted((skin / "extras/templates").rglob("*.*")):
+        lines = path.read_text("utf-8").splitlines()
+        texts += ((f"{path.name}:{n}", line) for n, line in enumerate(lines, 1))
+    return text_properties(texts)
+
+
+def check_properties(skin: Path, trees: list[Node], helper: Path) -> Iterator[Finding]:
+    """
+    Report window properties written but never read, or read but never written,
+    across the skin and the helper's Python (Kodi keys them in any case).
+
+    :param skin: Skin root directory.
+    :param trees: Parsed files and expanded windows (their params filled in).
+    :param helper: Helper add-on root.
+    :return: One finding per property, at its first place.
+    """
+    skin_writes, skin_reads = skin_properties(skin, trees)
+    py_writes, py_reads, strings = python_properties(helper)
+    written = {n for n, _ in skin_writes + py_writes} | PROPERTIES.keys()
+    read = {n for n, _ in skin_reads + py_reads} | PROPERTIES.keys()
+    checks = (
+        (skin_writes + py_writes, read, "written, never read"),
+        (skin_reads + py_reads, written, "read, never written"),
     )
-    return frozenset(
-        (glob, param.get("name"))
-        for glob, call in calls
-        if glob.strip("*")
-        for param in call.iterfind("param")
-        if FIELD.search(param.get("value", param.text or ""))
-    )
+    for found, needs, problem in checks:
+        places = defaultdict(list)
+        for name, src in found:
+            places[name].append(src)
+        for name, srcs in places.items():
+            # a Python string elsewhere may be the name, passed in a variable
+            maybe = {glob for glob, src in strings if glob and src not in srcs}
+            if not meets(name, needs | maybe):
+                yield Finding("window-property", srcs[0], f"{name}: {problem}")
 
 
 def location(finding: Finding) -> tuple[str, int]:
@@ -970,7 +1235,11 @@ def main() -> None:
     parser.add_argument(
         "--count", action="store_true", help="size each window's prepared tree"
     )
+    parser.add_argument("--reach", type=Path, help="skin_reach.py --json output")
     args = parser.parse_args()
+    reach = args.reach and {
+        tuple(name.split(" ")) for name in json.loads(args.reach.read_text())["all"]
+    }
 
     with tempfile.TemporaryDirectory() as name:
         generated = args.generated
@@ -989,10 +1258,13 @@ def main() -> None:
         if windows:
             print(f"windows: {', '.join(windows)}")
         findings = (
-            skin.lint(windows)
+            skin.lint(windows, reach, template_calls(args.skin))
             | set(check_textures(args.skin))
             | set(check_strings(args.skin))
         )
+        if windows:
+            trees = [*skin.roots.values(), *skin.expanded]
+            findings |= set(check_properties(args.skin, trees, HELPER))
         if args.count:  # after lint: expanding again records calls and findings
             for window in windows or sorted(skin.roots):
                 if skin.roots[window].tag == "window":
