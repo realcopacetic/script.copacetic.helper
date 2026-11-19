@@ -107,20 +107,23 @@ def library_item(details: dict, type: str) -> DirectoryItem:
     return f"musicdb://{type}s/{details[f'{type}id']}/", li, True
 
 
-def details_item(type: str, dbid: int, parent: str) -> DirectoryItem | None:
+def details_item(
+    type: str, dbid: int, parent: str, extra: tuple[str, ...] = ()
+) -> DirectoryItem | None:
     """
     A library album, artist or song by id, as library_item builds it.
 
     :param type: album, artist or song.
     :param dbid: Library id.
     :param parent: Caller name for logging.
+    :param extra: Properties to fetch beyond _DETAILS (an album's description).
     :return: (path, ListItem, is_folder), or None if the library lost the item.
     """
     method, properties = _DETAILS[type]
     details = (
         json_call(
             method,
-            properties=[*properties, "art"],
+            properties=[*properties, *extra, "art"],
             params={f"{type}id": dbid},
             parent=parent,
         )
