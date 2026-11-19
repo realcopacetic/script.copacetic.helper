@@ -1515,7 +1515,8 @@ A genre or daily mix starts playing from the saved similar artists alone; Deezer
 ListenBrainz are asked once it plays, for the next mix. A genre gone from the library
 since its item or card loaded plays nothing.
 
-If the album or artist has no songs, or the song is not found, nothing changes: what
+If the album or artist has no songs (or the artist is no longer in the library), or the
+song is not found, nothing changes: what
 was playing carries on. A genre, year or daily mix with no songs changes nothing too.
 
 | Param | Accepted values | Default | What it does |
