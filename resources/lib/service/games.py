@@ -87,7 +87,7 @@ def autosave_blur(editor: ImageEditor, path: str) -> str:
             blurred = editor.processor.blur(image, opts=BLUR_OPTS)
     except OSError:  # Kodi is still writing it
         return ""
-    if not blurred:
+    if not blurred:  # the decode failed: usually Kodi still writing its body
         return ""
     stale = [str(old) for old in Path(BLURS).glob(f"{BLUR}*.jpg")]
     for old in stale:
