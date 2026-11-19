@@ -159,7 +159,8 @@ def _video_details(
 
 
 _INFO_OPEN = " | ".join(f"Window.IsVisible({wid})" for wid in INFO_DIALOGS)
-_SERVE_DIALOGS = (*INFO_DIALOGS, 10120)  # and the music OSD, whose rails serve alike
+# and the music OSD, whose rails serve alike, and PVR guide and recording info
+_SERVE_DIALOGS = (*INFO_DIALOGS, 10120, 10600, 10601)
 _SLIDESHOW = 12007  # a modal dialog: a run guarded by SLIDESHOW_PICTURE follows it
 SLIDESHOW_PICTURE = ("Slideshow.SlideIndex",)  # the picture shown, free of "|" and "&"
 _TRAILER_PENDING = "String.IsEqual(Window(home).Property(trailer_state),pending)"
@@ -435,16 +436,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @cached_property
     def _info_window(self) -> int:
         """
-        The dialog a dialog serve belongs to (an info dialog or the music OSD), read
-        once: the topmost dialog when it is one, else the one a menu, Select or busy
-        dialog covers, else the topmost modal dialog (9999 with none).
+        The dialog a dialog serve belongs to (an info dialog, PVR info or the music
+        OSD), read once: the topmost dialog when it is one, else the one a menu,
+        Select or busy dialog covers, else 9999 (it has closed).
         """
         if (top := topmost_window_id()) in _SERVE_DIALOGS:
             return top
         active = (wid for wid in _SERVE_DIALOGS if condition(f"Window.IsActive({wid})"))
-        # Not the window: a serve its dialog's close outran would read its controls
+        # Never another window: a serve its dialog's close outran would read controls
         # there (Non-Existent Control 4046); 9999 fails _info_on_top and the guard
-        return next(active, getCurrentWindowDialogId())
+        return next(active, 9999)
 
     def _info_on_top(self) -> bool:
         """
