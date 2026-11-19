@@ -261,16 +261,31 @@ class FirstFrame(unittest.TestCase):
         "Container(9040).ListItem.Art(fanart1)": "f1.jpg",
     }
 
-    def family(self, **params: str) -> list[str]:
-        """The fanart family _multiart_dict reads from 9040 for a serve of view 50."""
+    def family(
+        self, own: str = "own.jpg", art_type: str | None = "fanart", **params: str
+    ) -> list[str]:
+        """
+        The family _multiart_dict reads from 9040 for a serve of view 50.
+
+        :param own: The favourite's own thumb.
+        :param art_type: The multiart type; None for no family.
+        :return: The family's URLs, in order.
+        """
+        art = self.ART | {"Container(50).ListItem.Art(thumb)": own}
+        self.reads = []
+
+        def infolabel(key):
+            self.reads.append(key)
+            return art.get(key, "")
+
         handler = handlers.PluginHandlers({"info": "artwork", "target": "50"} | params)
-        labels = lambda target, keys: {k: self.ART.get(f"{target}.{k}") for k in keys}
+        labels = lambda target, keys: {k: art.get(f"{target}.{k}") for k in keys}
         with (
-            mock.patch.object(handlers, "infolabel", lambda key: self.ART.get(key, "")),
+            mock.patch.object(handlers, "infolabel", infolabel),
             mock.patch.object(multiart, "get_infolabels", labels),
         ):
-            art = handler._multiart_dict("Container(9040).ListItem", "fanart")
-        return list(art.values())
+            family = handler._multiart_dict("Container(9040).ListItem", art_type)
+        return list(family.values())
 
     def test_opens_on_the_own_items_art(self):
         out = self.family(multiart_first="thumb")
@@ -281,6 +296,15 @@ class FirstFrame(unittest.TestCase):
 
     def test_without_it_the_family_as_read(self):
         self.assertEqual(self.family(), ["f.jpg", "f1.jpg"])
+
+    def test_a_skin_icon_or_pseudo_path_changes_nothing(self):
+        for own in ("DefaultVideo.png", "thumb://None"):
+            out = self.family(own=own, multiart_first="thumb")
+            self.assertEqual(out, ["f.jpg", "f1.jpg"])
+
+    def test_no_family_type_no_read(self):
+        self.assertEqual(self.family(art_type=None, multiart_first="thumb"), [])
+        self.assertEqual(self.reads, [])
 
 
 class ArtUrls(unittest.TestCase):

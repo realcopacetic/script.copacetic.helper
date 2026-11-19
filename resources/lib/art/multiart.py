@@ -42,13 +42,14 @@ def build_multiart_dict(
 ) -> dict[str, str]:
     """
     Build a multiart dict from local artwork, extended by TMDb artwork of the same
-    type. TMDb only extends a local family, so the first image is the item's own.
+    type; TMDb only extends a local family. first, if given, leads a family of two or
+    more, its copies dropped; else the first image is the item's own.
 
     :param target: Infolabel prefix such as "ListItem" or "Container(3100).ListItem".
     :param multiart_type: Base art type ("fanart"), or several joined in turn by ",".
     :param max_items: Maximum number of multiart slots to read, per type.
     :param tmdb_art: TMDb art dict ("fanart", "fanart1" …); empty for none.
-    :param first: URL that leads a non-empty family, dropped later in it; empty: none.
+    :param first: URL to open a rotating family on; empty or None for none.
     :return: A dict mapping "multiart" and "multiartN" keys to artwork URLs.
     """
     if not multiart_type:
@@ -75,8 +76,9 @@ def build_multiart_dict(
         if local_seq
         else []
     )
-    primary = [first, *local_seq] if local_seq else []
-    merged = merge_multiart_sequences(primary=primary, secondary=tmdb_seq)
+    merged = merge_multiart_sequences(primary=local_seq, secondary=tmdb_seq)
+    if first and len(merged) > 1:  # one image never seeds: first doesn't make two
+        merged = merge_multiart_sequences(primary=[first], secondary=merged)
     return sequence_to_multiart_dict(merged)
 
 

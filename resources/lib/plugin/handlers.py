@@ -781,14 +781,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             else None
         )
         # multiart_first: read from the serve's own item, which the skin draws under
-        # the register (a favourite's thumb), not from multiart_target's
-        first = self.params.get("multiart_first")
+        # the register (a favourite's thumb), not from multiart_target's. A skin icon
+        # or Kodi's thumb:// pseudo-path is no image the slot draws: none then.
+        art = self.params.get("multiart_first")
+        first = (
+            infolabel(f"{self.target_item}.Art({art})") if art and multiart_type else ""
+        )
         family = build_multiart_dict(
             target=item,
             multiart_type=multiart_type,
             max_items=self.params.get("multiart_max"),
             tmdb_art=(tmdb_item or {}).get("art", {}),
-            first=first and infolabel(f"{self.target_item}.Art({first})"),
+            first="" if first.startswith(("Default", "thumb://")) else first,
         )
         # None: no extras asked for; "": none missed, so a stale marker clears
         self._tmdb_missed = (

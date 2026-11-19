@@ -100,7 +100,13 @@ class JoinedFamily(unittest.TestCase):
 class FirstFrame(unittest.TestCase):
     """build_multiart_dict's first: it leads a family it isn't the source of."""
 
-    ART = {"ListItem.Art(fanart)": "f", "ListItem.Art(fanart1)": "f1"}
+    ART = {
+        "ListItem.Art(fanart)": "f",
+        "ListItem.Art(fanart1)": "f1",
+        "ListItem.Art(poster)": "p",
+        "ListItem.Art(landscape)": f"{TMDB}/original/y.jpg",
+        "ListItem.Art(landscape1)": "l1",
+    }
 
     def family(self, first, art_type="fanart", tmdb_art={}):
         labels = lambda target, keys: {k: self.ART.get(f"{target}.{k}") for k in keys}
@@ -125,7 +131,15 @@ class FirstFrame(unittest.TestCase):
         self.assertEqual(self.family(None), ["f", "f1"])
 
     def test_never_starts_a_family(self):
-        self.assertEqual(self.family("thumb", art_type="poster"), [])
+        self.assertEqual(self.family("thumb", art_type="keyart"), [])
+
+    def test_never_makes_one_image_two(self):
+        # one library image, TMDb's extras pending: still a single image, no seed
+        self.assertEqual(self.family("thumb", art_type="poster"), ["p"])
+
+    def test_library_copy_in_another_size_dropped(self):
+        out = self.family(f"{TMDB}/w780/y.jpg", art_type="landscape")
+        self.assertEqual(out, [f"{TMDB}/w780/y.jpg", "l1"])
 
     def test_tmdb_copy_in_another_size_dropped(self):
         tmdb = {"fanart": f"{TMDB}/original/x.jpg"}
