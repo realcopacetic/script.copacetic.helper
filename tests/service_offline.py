@@ -742,19 +742,29 @@ class MultiLanguageSubtitles(unittest.TestCase):
         shown = []
         player = Mock(
             setSubtitleStream=lambda i: shown.append(i),
-            showSubtitles=lambda on: shown.append(None),
+            showSubtitles=lambda on: shown.append(on or None),
         )
         with (
             patch.object(actions.xbmc, "Player", lambda: player, create=True),
             patch.object(actions, "_iso639_2", lambda lang: lang),
             patch.object(actions, "window_property", lambda *a, **k: None),
         ):
-            for current in (None, streams[2], streams[1]):  # off, English, Japanese
-                with patch.object(
-                    actions, "player_streams", lambda type, c=current: (streams, c)
+            for current, held in ((None, 0), (streams[2], 2), (streams[1], 1)):
+                with (
+                    patch.object(
+                        actions, "player_streams", lambda type, c=current: (streams, c)
+                    ),
+                    patch.object(actions, "held_subtitle", lambda h=held: h),
                 ):
                     actions.player_stream("subtitle", lang="eng|jpn")
-        self.assertEqual(shown, [2, 1, None])  # English, then Japanese, then off
+            # Off with English held: shown as it is, not selected again (M329)
+            with (
+                patch.object(actions, "player_streams", lambda type: (streams, None)),
+                patch.object(actions, "held_subtitle", lambda: 2),
+            ):
+                actions.player_stream("subtitle", lang="eng|jpn")
+        # English, then Japanese, then off; then English shown
+        self.assertEqual(shown, [2, 1, None, True])
 
 
 class TrailerUnderAModal(unittest.TestCase):

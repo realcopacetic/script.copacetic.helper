@@ -44,6 +44,7 @@ from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.speed_dial import entry as dial_entry
 from resources.lib.shared.speed_dial import mark_source, take_source
 from resources.lib.shared.streams import (
+    held_subtitle,
     player_streams,
     preferred_subtitle,
     subtitle_status,
@@ -1597,7 +1598,11 @@ def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> N
         target = picks[shown + 1] if shown + 1 < len(picks) else None
     else:
         target = streams[on + 1] if on + 1 < len(streams) else None
-    if target:
+    if target and not current and target["index"] == held_subtitle():
+        # Kodi's hidden stream: selecting it again reopens it and drops the lines read
+        # ahead (its players queue up to 8 s), so it would stay blank that long
+        player.showSubtitles(True)
+    elif target:
         player.setSubtitleStream(target["index"])  # also shows subtitles
     elif current:
         player.showSubtitles(False)

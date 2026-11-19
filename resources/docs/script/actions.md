@@ -942,6 +942,13 @@ OSD. It sets the stream directly, so Kodi shows no notification, as its own
 - **Subtitles without `lang`:** each stream in turn, then off. From off, it starts at
   the first stream.
 
+From off, when the stream it turns on is the one Kodi keeps selected while subtitles
+are hidden, the action only shows it, as Kodi's own *Show subtitles* does, so the
+current line appears at once. Selecting a subtitle stream reopens it: Kodi then reads
+its lines from where its demuxer has got to, up to 8 seconds ahead of the picture
+(`VideoPlayerVideo.cpp`, `SetMaxTimeSize(8.0)`), so a switch to another stream shows
+nothing until playback catches up.
+
 A subtitle's type comes from its flags (`isforced`, `isimpaired` in JSON-RPC), then from
 words in its name: `forced` is forced, unless `non` or `not` comes straight before it
 (`Non-Forced`, `Not forced`; `Forced (non-English parts)` stays forced); `SDH`, `CC` or `HI` is hearing impaired. Anything else is full.

@@ -42,6 +42,22 @@ def player_streams(type: str) -> tuple[list[dict], dict | None]:
     return result.get(listed, []), in_use or None  # {} when no stream is in use
 
 
+def held_subtitle() -> int:
+    """
+    The subtitle stream Kodi keeps selected while subtitles are off: it reads on
+    hidden, so showing it is instant, where selecting it again reopens it.
+
+    :return: Its index; -1 with none.
+    """
+    result = json_call(
+        "Player.GetProperties",
+        properties=["currentsubtitle"],
+        params={"playerid": 1},
+        parent="held_subtitle",
+    ).get("result", {})
+    return result.get("currentsubtitle", {}).get("index", -1)
+
+
 def subtitle_kind(stream: dict) -> str:
     """
     A subtitle stream's type, from its flags, then words in its name (external
