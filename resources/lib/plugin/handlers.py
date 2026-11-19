@@ -1165,6 +1165,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if not (row := _video_details(dbtype, int(dbid), properties, "favourite")):
                 forget(path, dbtype)
                 return
+            if dbtype in ("episode", "season"):
+                enrich_with_tvshow([row], "favourite")  # the show's studio and rating
             item = json_to_canonical(row, dbtype)
             item["file"] = plugin_path("favourite")  # no thumb loader on the file
             item["properties"] |= echo
