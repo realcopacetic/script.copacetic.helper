@@ -140,9 +140,11 @@ python tests/builder_offline.py
 # Games (service/games.py, service/player.py): the emulator from a game add-on's name
 # as Kodi reads it; the system from the skin's emulators mapping (one system, several
 # by extension, a shared extension, no row, no mapping); a game's start publishing
-# both, its stop clearing them; the autosave blur (needs Pillow): the newest save
-# picture, a file per picture, the last one dropped, none while Kodi writes it, once
-# per opening of the game OSD and cleared when it closes; the content browser's Game
+# both, its stop clearing them; a library video's start (rails' paths and a set's
+# name, no parent ids; Play next given the show id it looked up); the autosave blur
+# (needs Pillow): the newest save picture, a file per picture, the last one dropped,
+# none while Kodi writes it, once per opening of the game OSD and cleared when it
+# closes; the content browser's Game
 # add-ons source, its Games window target (a plugin picked under it too, and under each
 # other add-on source its own window), a standalone game played from a menu item and
 # not offered to a widget. With a skin that has the mapping, its shape and one

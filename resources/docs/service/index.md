@@ -283,11 +283,7 @@ back with the next play, speed dial change or slide.
 | `trailer_return` | A trailer requested with `fullscreen` starts and goes full screen | The `info_current` key at that moment | By the `trailer_return` action | [Trailers](trailers.md#full-screen) |
 | `info_hop` | As `trailer_return`, when `info_current` is set and is not a season | `fullscreen` | The info dialog's `<onload>`, or the `trailer_return` action | [Trailers](trailers.md#full-screen) |
 | `trailer_played_item` | Never set by the service | — | A trailer fails to play with no newer request waiting, or a request for the item it names never starts; `play_trailer` drops a request for the item it names because a modal dialog is up | [Trailers](trailers.md) |
-| `player_tvshowtitle` | An episode starts | TV show title | Playback stops, ends or fails and nothing else starts; the next file replaces it | [Player properties](player.md) |
-| `player_season` | An episode starts | Season number | As above | [Player properties](player.md) |
-| `player_tvshowid` | A library episode starts | TV show database id | As above | [Player properties](player.md) |
-| `player_setid` | A library movie in a set starts | Movie set database id | As above | [Player properties](player.md) |
-| `player_set`, `player_set_path` | A library movie in a set starts | The set's name, and a `videodb://` URL of its other films | As above | [Player properties](player.md) |
+| `player_set`, `player_set_path` | A library movie in a set starts | The set's name, and a `videodb://` URL of its other films | Playback stops, ends or fails and nothing else starts; the next file replaces it | [Player properties](player.md) |
 | `player_next_path`, `player_season_path` | A library episode starts, not a special | `videodb://` URLs of the next 20 episodes and of the season's unwatched, less the playing file | As above | [Player properties](player.md) |
 | `player_subtitle_kind` | A video starts; the `player_stream` and `player_stream_refresh` actions update it | `forced`, `full` or `impaired`; while off, `missing` (no preferred stream for the language an action was given) or empty | As above | [Player properties](player.md#subtitle-type) |
 | `player_video_count` | A video starts | Number of video streams | As above | [Player properties](player.md) |
