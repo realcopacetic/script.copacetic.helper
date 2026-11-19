@@ -110,7 +110,9 @@ Credits that end before the file does (a scene after them) are a `credits` segme
 credits that run to the end, or end where a preview running to the end starts, set
 `player_credits` instead. The properties update each
 second and clear when the video stops. A skin that remembers a dismissed button in
-`player_skip_dismissed` (Home) has it cleared at each new video too.
+`player_skip_dismissed` (Home) has it cleared at each new video too, and whenever the
+playhead leaves the segment it was in (played or skipped past its end, or a seek back
+before its start), so the button shows again when playback comes back to it.
 
 ### Identity and clean names
 
