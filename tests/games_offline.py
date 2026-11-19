@@ -6,8 +6,8 @@ mapping); what a game's start publishes and its stop clears; the autosave blur (
 newest save picture, one file per picture, the last one dropped, none without a
 readable picture or one deleted mid-read; needs Pillow) and the poller hook that
 publishes it once per opening of the game OSD, trying each poll until one is made;
-the content browser's Game add-ons source (windows/browse.py). With a skin's folder, that skin's own mapping
-too: its shape, and one emulator of each kind.
+the content browser's Game add-ons source (windows/browse.py). With a skin's folder,
+that skin's own mapping too: its shape, and one emulator of each kind.
 Run from the helper root: python tests/games_offline.py [../skin.copacetic2]
 """
 
