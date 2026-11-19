@@ -92,6 +92,39 @@ PROPERTIES = {  # names written or read where the lint cannot see: where
     "pvrosd_guide_timers": "pvr_smart_select writes the stamp= name pvr.xml gives",
     "random_seed": "roll_seed writes the prop= name loads.xml gives",
 }
+DISPATCH = (  # unknown-param, at a call whose include name is a $PARAM
+    "a dispatch passes what any of its targets reads; Kodi ignores a param the"
+    " target it picks never names"
+)
+ACCEPTED = {  # (rule, file, message start): why it stands
+    ("duplicate-id", "art.xml", "id 6300:"): "grp_art_anchor, one per rail: only"
+    " the focused rail's shows, and Kodi's lookup takes the visible one",
+    **{
+        ("duplicate-id", "jumpbar.xml", f"id {cid}:"): "the horizontal and vertical"
+        " jumpbars, one shown per orientation"
+        for cid in range(60, 64)
+    },
+    **dict.fromkeys(
+        (
+            ("unknown-param", "grid.xml", "ctn_grid_primary/ctn_grid_widget/"),
+            ("unknown-param", "marquee.xml", "ctn_marquee_primary: no param 'pre"),
+            ("unknown-param", "widgets.xml", "atr_dual_tab_content_path: no param"),
+            ("unknown-param", "widgets.xml", "ctn_grid_widget: no param 'parallax'"),
+        ),
+        DISPATCH,
+    ),
+    (
+        "media-window-info",
+        "art.xml",
+        "Container.CurrentItem with no id in expression artwork_current_primary ",
+    ): "read only while the jumpbar has focus, and only media windows mount it",
+    (
+        "media-window-info",
+        f"{GENERATED}expressions.xml",
+        "Container.NumItems with no id in expression base_lag_primary_",
+    ): "the primary view's own scroll: Home has its widgets' term, and nothing"
+    " scrolls a primary list under search or a dialog",
+}
 ERRORS = {
     "parse",
     "empty-definition",
@@ -734,7 +767,7 @@ class Skin:
             for node, value in values(top):
                 live_here = live and not dead(value)
                 if live_here:
-                    self.check_media_info(node.src, value, name)
+                    self.check_media_info(node, value, name)
                     if EMPTY_ID.search(value):
                         message = "Container() reads the focused control here"
                         self.report("empty-container-id", node.src, message)
@@ -777,17 +810,18 @@ class Skin:
         for token in ESCEXP.findall(value):
             self.report("escaped-expression", src, f"{token} stays literal")
 
-    def check_media_info(self, src: str, value: str, context: str) -> None:
+    def check_media_info(self, node: Node, value: str, context: str) -> None:
         """
         Record label-form container infos with no id in ``value``: they read only a
         media window's view, so in ``context`` (not a media window) they are empty.
 
-        :param src: Where ``value`` was parsed.
+        :param node: Element holding ``value``; an expression is named in the finding.
         :param value: Text or attribute value.
         :param context: Non-media window or ``Timers.xml`` that reaches it.
         """
+        owner = f" in expression {node.get('name')}" * (node.tag == "expression")
         for info in MEDIA_INFO.findall(value):
-            self.media_info[src, info].add(context)
+            self.media_info[node.src, f"{info} with no id{owner}"].add(context)
 
     def check_timers(self, root: Node) -> None:
         """
@@ -805,7 +839,7 @@ class Skin:
                 )
         for node, condition, action in timer_reads(root):
             for value in (condition, action):
-                self.check_media_info(node.src, value, "Timers.xml")
+                self.check_media_info(node, value, "Timers.xml")
                 self.check_escexp(node.src, value)
             for ref in CONDITION_REF.findall(condition) + INCLUDE_REF.findall(action):
                 self.report("timer-unresolved", node.src, f"{ref} stays literal")
@@ -942,7 +976,7 @@ class Skin:
         for (src, info), contexts in self.media_info.items():
             where = first_three(sorted(contexts))
             message = (
-                f"{info} with no id reads only the active media window: empty on Home"
+                f"{info} reads only the active media window: empty on Home"
                 f" and search, and in dialogs over them [{where}]"
             )
             self.report("media-window-info", src, message)
@@ -1213,6 +1247,15 @@ def check_properties(skin: Path, trees: list[Node], helper: Path) -> Iterator[Fi
                 yield Finding("window-property", srcs[0], f"{name}: {problem}")
 
 
+def is_accepted(finding: Finding) -> bool:
+    """True when ``ACCEPTED`` lists ``finding`` (its rule, file and message start)."""
+    file = location(finding)[0]
+    return any(
+        finding.rule == rule and file == where and finding.message.startswith(start)
+        for rule, where, start in ACCEPTED
+    )
+
+
 def location(finding: Finding) -> tuple[str, int]:
     """Sort key: file name, then numeric line."""
     file, _, line = finding.src.rpartition(":")
@@ -1270,9 +1313,10 @@ def main() -> None:
                 if skin.roots[window].tag == "window":
                     print(skin.count(window))
 
+    accepted = {f for f in findings if is_accepted(f)}
     shown = [
         f
-        for f in findings
+        for f in findings - accepted
         if not any(fnmatch(location(f)[0], glob) for glob in args.exclude)
     ]
     by_rule = defaultdict(list)
@@ -1283,8 +1327,12 @@ def main() -> None:
         for finding in group:
             print(f"  {finding.src}  {finding.message}")
     errors = sum(f.rule in ERRORS for f in shown)
-    hidden = f", {len(findings) - len(shown)} excluded" if args.exclude else ""
-    print(f"\n{errors} errors, {len(shown) - errors} warnings{hidden}")
+    excluded = len(findings) - len(accepted) - len(shown)
+    hidden = f", {excluded} excluded" if args.exclude else ""
+    print(
+        f"\n{errors} errors, {len(shown) - errors} warnings{hidden}"
+        f" ({len(accepted)} accepted, ACCEPTED)"
+    )
     sys.exit(bool(errors))
 
 
