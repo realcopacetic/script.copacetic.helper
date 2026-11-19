@@ -334,34 +334,38 @@ def container_reset(id: str, item: str = "1", **kwargs: str) -> None:
 @action
 def rails_reset(ids: str = "", **kwargs: str) -> None:
     """
-    For 10 s after an info dialog opens, select each rail's first item whenever it
-    rests elsewhere and isn't fetching: Kodi keeps a list's place through an empty
-    list and follows its selected item into new ones. A rail once focused is left.
+    For 30 s on top after an info dialog opens, select each rail's first item when
+    it rests elsewhere and isn't fetching: Kodi keeps a list's place through an
+    empty list and follows its selected item into new ones. A focused rail is left.
 
     :param ids: The dialog's shown rails' container ids, "|" separated.
     """
-    if (window_id := topmost_window_id()) not in INFO_DIALOGS:
+    top = topmost_window_id()
+    active = (wid for wid in INFO_DIALOGS if condition(f"Window.IsActive({wid})"))
+    if not (window_id := top if top in INFO_DIALOGS else next(active, None)):
         return
     window = xbmcgui.Window(window_id)
     key = f"Window({window_id}).Property(info_key)"
-    visit, pending = infolabel(key), {*ids.split("|")} - {""}
-    monitor = xbmc.Monitor()
-    for _ in range(50):
-        # Its window is pinned: a close, or a hop's reopen on another item, ends it
-        if not (pending and condition(f"Window.IsVisible({window_id})")):
+    visit, pending = infolabel(key), set(filter(None, ids.split("|")))
+    monitor, passes = xbmc.Monitor(), 150
+    for _ in range(1500):  # 5 min at most, covered or not
+        if not (passes and pending) or monitor.waitForAbort(0.2):
             return
-        if infolabel(key) != visit:
+        # A close, or a hop's reopen on another item, ends the run
+        if not condition(f"Window.IsVisible({window_id})") or infolabel(key) != visit:
             return
-        for id in [*pending]:
-            if condition(f"Control.HasFocus({id})"):
-                pending.discard(id)
-            elif condition(
-                f"!Container({id}).IsUpdating + "
-                f"Integer.IsGreater(Container({id}).CurrentItem,1)"
+        # Conditions read the topmost modal dialog: under a menu or busy, wait
+        if topmost_window_id() != window_id:
+            continue
+        passes -= 1
+        for rail in [*pending]:
+            if condition(
+                f"!Control.HasFocus({rail}) + !Container({rail}).IsUpdating + "
+                f"Integer.IsGreater(Container({rail}).CurrentItem,1)"
             ):
-                window.getControl(int(id)).selectItem(0)
-        if monitor.waitForAbort(0.2):
-            return
+                window.getControl(int(rail)).selectItem(0)
+            elif condition(f"Control.HasFocus({rail})"):
+                pending.discard(rail)
 
 
 @action
