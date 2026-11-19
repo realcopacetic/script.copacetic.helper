@@ -458,7 +458,9 @@ fills the same id:
 
 A window's call that finishes after its window is no longer the active one (another
 window opened meanwhile) writes neither seed key and leaves `multiart_frozen_<id>`
-alone, since the new window may use the same id.
+alone, since the new window may use the same id. So does a call whose `visit` is no
+longer `Window(home).Property(artwork_visit)` (you left the window and came back to
+it while the call ran): it leaves the FadeLabel and its keys to the new visit's call.
 
 The focus guard is checked just before the FadeLabel is filled. A call for an item
 that is no longer focused never refills it.
