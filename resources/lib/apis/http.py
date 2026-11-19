@@ -1,11 +1,9 @@
 # author: realcopacetic
 
 import json
-from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlsplit
-from urllib.request import Request, urlopen
 
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, to_int
@@ -34,6 +32,8 @@ class HttpError(Exception):
 
 def _error_code(exc: HTTPError) -> str:
     """The error body's top-level "code" (TheIntroDB's reason), "" when none."""
+    from http.client import HTTPException
+
     try:
         return str(json.loads(exc.read(MAX_BODY)).get("code") or "")
     except (OSError, ValueError, AttributeError, RecursionError, HTTPException):
@@ -59,6 +59,11 @@ def get_json(
     :return: Decoded JSON.
     :raises HttpError: On an HTTP error status, no connection or bad JSON.
     """
+    # Here, not at the top: every plugin call imports this module through apis/cache,
+    # and these bring in ssl and email (about 30 ms), which only a request needs
+    from http.client import HTTPException
+    from urllib.request import Request, urlopen
+
     request = Request(
         f"{url}?{urlencode(params)}" if params else url,
         None if body is None else json.dumps(body).encode(),

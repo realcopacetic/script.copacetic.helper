@@ -27,6 +27,7 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.request
 from collections import Counter
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -164,7 +165,7 @@ class Base(unittest.TestCase):
         patch(
             self,
             (time, "time", lambda: self.now),
-            (http, "urlopen", self.net),
+            (urllib.request, "urlopen", self.net),  # get_json imports it per call
             (cache, "Monitor", lambda: self),  # waitForAbort: the clock moves on
             (listenbrainz.ADDON, "getSetting", lambda key: self.settings.get(key, "")),
             (listenbrainz.ADDON, "getSettingBool", lambda key: self.settings.get(key)),
