@@ -287,6 +287,7 @@ class Skin:
         self.duplicates = defaultdict(list)
         self.skipped = set()
         self.reached = set()
+        self.included = set()
         self.media_info = defaultdict(set)
         self.loaded = []
         self._load("Includes.xml")
@@ -489,6 +490,7 @@ class Skin:
                 index += 1
                 continue
             self.record_call(call, name)
+            self.included.add(name)
             params = self.defaults[name] | params_of(call, "value")
             key = name, frozenset(params.items())  # same call again: never ends
             outer = path if call.stack is None else call.stack
@@ -670,9 +672,18 @@ class Skin:
         ]
 
     def check_window(self, name: str) -> None:
+        """Check window ``name`` as ``resolve_window`` does, then its times and ids."""
+        root = self.resolve_window(name)
+        self.check_times(root)
+        self.check_ids(name, self.roots[name])
+
+    def resolve_window(self, name: str) -> Node:
         """
         Check what Kodi resolves when window ``name`` loads: its includes expanded,
         then every ``$VAR``/``$EXP`` reachable from it or its include conditions.
+
+        :param name: Window file name.
+        :return: The expanded window.
         """
         root = clone(self.roots[name])
         self.check_calls(root)
@@ -711,8 +722,7 @@ class Skin:
                         reached[kind, ref] = live_ref
                         queue.append((definition, live_ref))
         self.reached |= reached.keys()
-        self.check_times(root)
-        self.check_ids(name, self.roots[name])
+        return root
 
     def check_times(self, root: Node) -> None:
         """
