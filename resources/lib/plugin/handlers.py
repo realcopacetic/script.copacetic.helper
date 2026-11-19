@@ -859,6 +859,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 focused_control_id(window_id)
             )
         multiart_type = self.params.get("multiart")
+        alive = guard.alive
         # Kodi ends a plugin URL's options at its first "|" (art headers), and the
         # parser a value at a raw URL's own "&KEY=": each art URL is read whole by the
         # label the skin names (read_art_urls), headers kept, and a band label cut off
@@ -884,11 +885,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not jobs:
             log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
             # A song with no art (a stream): none of the last one stays
-            if self.player and guard.alive():
+            if self.player and alive():
                 clear_label(self.params.get("multiart_fadelabel", ""))
                 for _, prop in self._bridge_props():
                     window_property(prop)
-                self._cover_size({}, played, guard.alive)
+                self._cover_size({}, played, alive)
             # A dialog item with no art still lands, so the page isn't held back.
             return (
                 set_items([{"file": plugin_path("artwork"), "properties": cleaned}])
@@ -912,7 +913,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             art_opts=art_opts,
             source=self.target_item,
         )
-        if not guard.alive():
+        if not alive():
             return self._artwork_held(guard.lost_to)
 
         # Under an info dialog its rails answer for this window's (they share ids): no
@@ -923,7 +924,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         multiart_dict = self._multiart_dict(None if blind else multiart_type)
         art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
-        if not guard.alive():
+        if not alive():
             return self._artwork_held(guard.lost_to)
         # After the image jobs: a stamp before them makes Kodi discard this serve
         if self._tmdb_missed is not None:
@@ -939,19 +940,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             art=art,
             seed_scope=f"{stamp_scope}@{folder}",
             seed_item=f"{current_position}/{dbid}/{self.params.get('visit', '')}",
-            alive=lambda: guard.alive() and not self._visit_superseded(),
+            alive=lambda: alive() and not self._visit_superseded(),
             window_id=window_id,
             dialog=self.dialog,
         )
         if art is None:
             return self._artwork_held(guard.lost_to)
-        self._cover_size(art, played, guard.alive)
+        self._cover_size(art, played, alive)
 
         # Sized before the list lands (no blank). A cancelled job still runs: size only
         # for the URL's item, in its window, still topmost (windows share control ids).
         if (
             (fit := self.params.get("clearlogo_fit"))
-            and guard.alive()
+            and alive()
             and not self._visit_superseded()
             and topmost_window_id() == window_id
             and (self.item or self.focus_ids or focused_control_id(window_id) == focus)
@@ -1001,7 +1002,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             and cursor_snapshot != str(identity)
             else ""
         )
-        if stamped and guard.alive() and infolabel(cursor) == cursor_snapshot:
+        if stamped and alive() and infolabel(cursor) == cursor_snapshot:
             window_property(f"artwork_cursor_{cursor_key}", stamped)
 
         return set_items(
