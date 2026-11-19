@@ -4,8 +4,9 @@ entry added or switched to an item with default children in a seed_with_parent
 mapping gets them once (a group widget's first tab), a reset restores them, and
 removing a parent removes its children's children too (a menu item's widgets' tabs);
 a new rail page is flagged for the rail's Right only once its rows are up, and
-cleared at a row; a mouse click acts as Select, and a click on a sliderex's slider
-keeps the value it moved to before focus flips to the button; Back from a row
+cleared at a row, and a page with no row to focus is locked for it; a mouse click
+acts as Select, and a click on a sliderex's slider keeps the value it moved to
+before focus flips to the button; Back from a row
 refreshes its controls for the list (a sliderex's button loses its focused colours)
 when a row is selected, and Back or Previous Menu on an edit row saves what was
 typed; a slider step isn't put back by the refresh it triggers, a move not stored is.
@@ -70,6 +71,7 @@ sys.path.insert(0, str(HELPER))
 
 from resources.lib.builders.runtime import RuntimeStateManager  # noqa: E402
 from resources.lib.windows.controls import (  # noqa: E402
+    BaseControlHandler,
     EditHandler,
     SliderExHandler,
     SliderHandler,
@@ -151,7 +153,7 @@ def editor(**attrs) -> DynamicEditor:
     ed = DynamicEditor.__new__(DynamicEditor)
     ed.props = {}
     ed.setProperty = ed.props.__setitem__
-    ed._page_changed = False
+    ed._page_changed = ed._page_locked = False
     ed.__dict__.update(attrs)
     return ed
 
@@ -188,6 +190,41 @@ class PageChanged(unittest.TestCase):
         ed, seen = self.scrolled("")
         self.assertEqual(seen, [])
         self.assertEqual(ed.props["page_changed"], "true")
+
+
+class PageLocked(unittest.TestCase):
+    def row(self, control_type: str, shown: bool, enabled: bool) -> BaseControlHandler:
+        """A row as update_visibility and set_enabled leave it."""
+        handler = BaseControlHandler.__new__(BaseControlHandler)
+        handler.control = {"control_type": control_type}
+        handler.instance = Mock(**{"getId.return_value": 300})
+        handler._shown, handler._enabled_by_id = shown, {300: enabled}
+        handler.update_value = handler.update_visibility = Mock()
+        return handler
+
+    def refreshed(self, *handlers: BaseControlHandler) -> dict:
+        """The window properties a refresh of a page of ``handlers`` writes."""
+        ed = editor(
+            current_listitem="a",
+            listitems={"a": {}},
+            handlers=dict(enumerate(handlers)),
+            getFocusId=lambda: 100,
+            _set_description=Mock(),
+        )
+        ed._refresh_ui(update_row=False)
+        return ed.props
+
+    def test_nothing_to_focus_locks_the_page(self):
+        for row in (
+            self.row("cycle", True, False),
+            self.row("cycle", False, True),
+            self.row("label", True, True),
+        ):
+            self.assertEqual(self.refreshed(row), {"page_locked": "true"})
+
+    def test_one_focusable_row_leaves_it_open(self):
+        rows = self.row("label", True, True), self.row("cycle", True, True)
+        self.assertEqual(self.refreshed(*rows), {})
 
 
 class Clicks(unittest.TestCase):
@@ -276,7 +313,8 @@ class Back(unittest.TestCase):
     def test_back_or_previous_menu_saves_typed_text(self):
         for a_id in (xbmcgui.ACTION_NAV_BACK, xbmcgui.ACTION_PREVIOUS_MENU):
             handler = EditHandler.__new__(EditHandler)
-            handler.control, handler.is_dynamic_linked = {}, False
+            handler.control, handler.is_dynamic_linked = {"control_type": "edit"}, False
+            handler._shown, handler._enabled_by_id = True, {}
             handler.focus_target_id = None
             handler.instance = Mock(**{"getId.return_value": 300})
             handler.instance.getText.return_value = "typed "
