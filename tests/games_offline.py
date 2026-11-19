@@ -4,10 +4,10 @@ emulator read from a game add-on's name as Kodi reads it; the system from the sk
 emulators mapping (one system, several by extension, a shared extension, no row, no
 mapping); what a game's start publishes and its stop clears; the autosave blur (the
 newest save picture, one file per picture, the last one dropped, none without a
-readable picture; needs Pillow) and the poller hook that publishes it once per
-opening of the game OSD; the content browser's Game add-ons source
-(windows/browse.py). With a skin's folder, that skin's own mapping too: its shape,
-and one emulator of each kind.
+readable picture or one Kodi replaces mid-read; needs Pillow) and the poller hook
+that publishes it once per opening of the game OSD; the content browser's Game
+add-ons source (windows/browse.py). With a skin's folder, that skin's own mapping
+too: its shape, and one emulator of each kind.
 Run from the helper root: python tests/games_offline.py [../skin.copacetic2]
 """
 
@@ -395,6 +395,24 @@ class AutosaveBlur(unittest.TestCase):
         for part in (b"", whole[: len(whole) // 2]):
             shot.write_bytes(part)
             with patch.object(player.log, "error"):  # the processor's own
+                self.assertEqual(self.blur(), "")
+        self.assertEqual(list(self.blurs.iterdir()), [])
+
+    def test_picture_replaced_mid_read(self):
+        real = os.path.getmtime
+
+        def removed_after(path):  # Kodi swaps the picture once its time is read
+            stamp = real(path)
+            os.remove(path)
+            return stamp
+
+        def removed_before(path):  # or before
+            os.remove(path)
+            return real(path)
+
+        for getmtime in (removed_after, removed_before):
+            self.save("blue", 6_000_000_000)
+            with patch.object(games.os.path, "getmtime", getmtime):
                 self.assertEqual(self.blur(), "")
         self.assertEqual(list(self.blurs.iterdir()), [])
 

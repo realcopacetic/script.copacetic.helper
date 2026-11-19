@@ -67,10 +67,14 @@ def autosave_blur(editor: ImageEditor, path: str) -> str:
     :return: The blur's path; empty with no picture, or one that can't be read.
     """
     folder = Path(xbmcvfs.translatePath(SAVES), re.split(r"[/\\]", path)[-1])
-    newest = max(folder.glob("*.jpg"), key=os.path.getmtime, default=None)
-    if not newest:
+    try:
+        newest = max(folder.glob("*.jpg"), key=os.path.getmtime, default=None)
+        if not newest:
+            return ""
+        stamp = newest.stat().st_mtime_ns
+    except OSError:  # Kodi replaced a picture between the listing and the read
         return ""
-    blur = Path(BLURS, f"{BLUR}{newest.stat().st_mtime_ns}.jpg")
+    blur = Path(BLURS, f"{BLUR}{stamp}.jpg")
     if blur.exists():  # the OSD opened again before the next autosave
         return str(blur)
     from PIL import Image  # a new picture only
