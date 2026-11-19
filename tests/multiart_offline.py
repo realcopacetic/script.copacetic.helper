@@ -1,8 +1,9 @@
 """
 Offline checks for the gallery tiles' share-out (resources/lib/art/multiart.py):
 an image shows in one tile only (matched by the helper's image identity, a TMDb
-file name in any size) unless a tile has no other image free; and seed_multiart's
-blind seed under a dialog and its seed keys. Run from the helper root:
+file name in any size) unless a tile has no other image free; a joined family; the
+first frame (multiart_first) leading a family; and seed_multiart's blind seed under a
+dialog and its seed keys. Run from the helper root:
 python tests/multiart_offline.py
 """
 
@@ -94,6 +95,46 @@ class JoinedFamily(unittest.TestCase):
         tmdb = {"artist.fanart": "t", "thumb": "t"}
         self.assertEqual(self.family("artist.fanart", tmdb)["multiart2"], "t")
         self.assertNotIn("t", self.family("thumb,artist.fanart", tmdb).values())
+
+
+class FirstFrame(unittest.TestCase):
+    """build_multiart_dict's first: it leads a family it isn't the source of."""
+
+    ART = {"ListItem.Art(fanart)": "f", "ListItem.Art(fanart1)": "f1"}
+
+    def family(self, first, art_type="fanart", tmdb_art={}):
+        labels = lambda target, keys: {k: self.ART.get(f"{target}.{k}") for k in keys}
+        with mock.patch.object(multiart, "get_infolabels", labels):
+            art = build_multiart_dict(
+                target="ListItem",
+                multiart_type=art_type,
+                max_items=15,
+                tmdb_art=tmdb_art,
+                first=first,
+            )
+        return list(art.values())
+
+    def test_leads_the_family(self):
+        self.assertEqual(self.family("thumb"), ["thumb", "f", "f1"])
+
+    def test_dropped_from_later_in_the_family(self):
+        self.assertEqual(self.family("f1"), ["f1", "f"])
+
+    def test_empty_or_none_changes_nothing(self):
+        self.assertEqual(self.family(""), ["f", "f1"])
+        self.assertEqual(self.family(None), ["f", "f1"])
+
+    def test_never_starts_a_family(self):
+        self.assertEqual(self.family("thumb", art_type="poster"), [])
+
+    def test_tmdb_copy_in_another_size_dropped(self):
+        tmdb = {"fanart": f"{TMDB}/original/x.jpg"}
+        out = self.family(f"{TMDB}/w780/x.jpg", tmdb_art=tmdb)
+        self.assertEqual(out, [f"{TMDB}/w780/x.jpg", "f", "f1"])
+
+    def test_stays_first_in_the_seeded_order(self):
+        art = dict(zip(["multiart", "multiart1", "multiart2"], self.family("thumb")))
+        self.assertEqual(multiart.order_multiart(art)[0], "thumb")
 
 
 class SeedMultiart(unittest.TestCase):

@@ -38,6 +38,7 @@ def build_multiart_dict(
     multiart_type: str | None,
     max_items: int | str | None,
     tmdb_art: Mapping[str, str],
+    first: str | None = None,
 ) -> dict[str, str]:
     """
     Build a multiart dict from local artwork, extended by TMDb artwork of the same
@@ -47,6 +48,7 @@ def build_multiart_dict(
     :param multiart_type: Base art type ("fanart"), or several joined in turn by ",".
     :param max_items: Maximum number of multiart slots to read, per type.
     :param tmdb_art: TMDb art dict ("fanart", "fanart1" …); empty for none.
+    :param first: URL that leads a non-empty family, dropped later in it; empty: none.
     :return: A dict mapping "multiart" and "multiartN" keys to artwork URLs.
     """
     if not multiart_type:
@@ -73,7 +75,8 @@ def build_multiart_dict(
         if local_seq
         else []
     )
-    merged = merge_multiart_sequences(primary=local_seq, secondary=tmdb_seq)
+    primary = [first, *local_seq] if local_seq else []
+    merged = merge_multiart_sequences(primary=primary, secondary=tmdb_seq)
     return sequence_to_multiart_dict(merged)
 
 
