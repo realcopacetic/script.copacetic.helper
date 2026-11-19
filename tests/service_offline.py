@@ -739,32 +739,37 @@ class MultiLanguageSubtitles(unittest.TestCase):
             }
 
         streams = [stream(0, "fre"), stream(1, "jpn"), stream(2, "eng")]
-        shown = []
+        shown, item = [], {"inputstream": "", "path": "/films/Heat.mkv"}
         player = Mock(
             setSubtitleStream=lambda i: shown.append(i),
             showSubtitles=lambda on: shown.append(on or None),
+            getPlayingItem=lambda: Mock(
+                getProperty=item.get, getPath=lambda: item["path"]
+            ),
         )
+
+        def press(current, selected):
+            with patch.object(
+                actions, "player_streams", lambda type: (streams, current, selected)
+            ):
+                actions.player_stream("subtitle", lang="eng|jpn")
+
         with (
             patch.object(actions.xbmc, "Player", lambda: player, create=True),
             patch.object(actions, "_iso639_2", lambda lang: lang),
             patch.object(actions, "window_property", lambda *a, **k: None),
         ):
-            for current, held in ((None, 0), (streams[2], 2), (streams[1], 1)):
-                with (
-                    patch.object(
-                        actions, "player_streams", lambda type, c=current: (streams, c)
-                    ),
-                    patch.object(actions, "held_subtitle", lambda h=held: h),
-                ):
-                    actions.player_stream("subtitle", lang="eng|jpn")
+            press(None, streams[0])  # off, French held: English selected
+            press(streams[2], streams[2])  # English: Japanese
+            press(streams[1], streams[1])  # Japanese: off
             # Off with English held: shown as it is, not selected again (M329)
-            with (
-                patch.object(actions, "player_streams", lambda type: (streams, None)),
-                patch.object(actions, "held_subtitle", lambda: 2),
-            ):
-                actions.player_stream("subtitle", lang="eng|jpn")
-        # English, then Japanese, then off; then English shown
-        self.assertEqual(shown, [2, 1, None, True])
+            press(None, streams[2])
+            # An inputstream add-on or PVR client may have stopped it: selected
+            item["inputstream"] = "inputstream.adaptive"
+            press(None, streams[2])
+            item.update(inputstream="", path="pvr://channels/tv/All/1.pvr")
+            press(None, streams[2])
+        self.assertEqual(shown, [2, 1, None, True, 2, 2])
 
 
 class TrailerUnderAModal(unittest.TestCase):

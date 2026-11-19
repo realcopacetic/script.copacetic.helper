@@ -425,7 +425,7 @@ class PlayerMonitor(Player):
         # Always published, so stop clears what actions write later; with no lang
         # here it is never missing until the skin's player_stream_refresh passes one
         props = {
-            "player_subtitle_kind": subtitle_status(*player_streams("subtitle")),
+            "player_subtitle_kind": subtitle_status(*player_streams("subtitle")[:2]),
             "player_video_count": str(len(self.getAvailableVideoStreams())),
             "player_start": path,  # the skin's video_start timer clears it
         }

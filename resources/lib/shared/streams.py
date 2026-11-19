@@ -23,13 +23,13 @@ _FALLBACKS = {
 }
 
 
-def player_streams(type: str) -> tuple[list[dict], dict | None]:
+def player_streams(type: str) -> tuple[list[dict], dict | None, dict | None]:
     """
-    The playing video's streams of a type, from JSON-RPC, and the one in use:
-    None when there is none, and for subtitles while they are off.
+    The playing video's streams of a type, from JSON-RPC, the one in use (None
+    for subtitles while they are off) and the one selected, Kodi's even while off.
 
     :param type: audio, subtitle or video.
-    :return: The streams in index order, and the one in use.
+    :return: The streams in index order, the one in use, the one selected.
     """
     listed, current, *_ = _STREAMS[type]
     result = json_call(
@@ -38,24 +38,9 @@ def player_streams(type: str) -> tuple[list[dict], dict | None]:
         params={"playerid": 1},  # 1 = video player
         parent="player_streams",
     ).get("result", {})
-    in_use = result.get(current) if result.get("subtitleenabled", True) else None
-    return result.get(listed, []), in_use or None  # {} when no stream is in use
-
-
-def held_subtitle() -> int:
-    """
-    The subtitle stream Kodi keeps selected while subtitles are off: it reads on
-    hidden, so showing it is instant, where selecting it again reopens it.
-
-    :return: Its index; -1 with none.
-    """
-    result = json_call(
-        "Player.GetProperties",
-        properties=["currentsubtitle"],
-        params={"playerid": 1},
-        parent="held_subtitle",
-    ).get("result", {})
-    return result.get("currentsubtitle", {}).get("index", -1)
+    selected = result.get(current) or None  # {} when no stream is selected
+    shown = result.get("subtitleenabled", True)
+    return result.get(listed, []), selected if shown else None, selected
 
 
 def subtitle_kind(stream: dict) -> str:

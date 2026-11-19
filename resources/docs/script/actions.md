@@ -944,7 +944,10 @@ OSD. It sets the stream directly, so Kodi shows no notification, as its own
 
 From off, when the stream it turns on is the one Kodi keeps selected while subtitles
 are hidden, the action only shows it, as Kodi's own *Show subtitles* does, so the
-current line appears at once. Selecting a subtitle stream reopens it: Kodi then reads
+current line appears at once. Not for an item played through an inputstream add-on
+(its `inputstream` property, other than `inputstream.ffmpeg`) or a PVR item: their
+demuxer may stop reading a hidden subtitle and showing it doesn't restart it, so
+those select the stream as before. Selecting a subtitle stream reopens it: Kodi then reads
 its lines from where its demuxer has got to, up to 8 seconds ahead of the picture
 (`VideoPlayerVideo.cpp`, `SetMaxTimeSize(8.0)`), so a switch to another stream shows
 nothing until playback catches up.
