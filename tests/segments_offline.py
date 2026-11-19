@@ -102,6 +102,21 @@ class SegmentsTest(unittest.TestCase):
         self.segments.tick(331)
         self.assertNotIn("player_skip_kind", self.props)
 
+    def test_leaving_a_span_rearms_its_button(self):
+        self.play({"intro": [[300000, 330000]]}, now=301)
+        self.props["player_skip_dismissed"] = "301"  # the skin, on a key in the intro
+        self.segments.tick(320)
+        self.assertEqual(self.props["player_skip_dismissed"], "301")  # still in it
+        self.segments.tick(330.5)  # skipped to its end
+        self.assertNotIn("player_skip_dismissed", self.props)
+        self.props["player_skip_dismissed"] = "301"
+        self.segments.tick(310)  # a seek back into it: dismissed again, and kept
+        self.segments.tick(10)  # a seek back to the start
+        self.assertNotIn("player_skip_dismissed", self.props)
+        self.props["player_skip_dismissed"] = "301"
+        self.segments.tick(20)  # before it, not yet entered: nothing to re-arm
+        self.assertEqual(self.props["player_skip_dismissed"], "301")
+
     def test_credits_before_a_preview_run_to_the_end(self):
         found = {"credits": [[3300000, 3420000]], "preview": [[3420000, None]]}
         self.assertEqual(self.play(found), {"player_credits": "3301"})
