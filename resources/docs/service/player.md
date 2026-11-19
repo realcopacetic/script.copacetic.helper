@@ -17,7 +17,8 @@ the service stops.
   playlist advance replaces them in place, so they never blank between files.
 
 Trailers started with `action=play_trailer` do not set these properties. See
-[Trailers](trailers.md).
+[Trailers](trailers.md). A game sets none of the video properties below, though Kodi
+reports it as video: it sets its own (see [Games](games.md)).
 
 ## Video
 

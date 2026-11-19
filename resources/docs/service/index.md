@@ -14,6 +14,8 @@ Each feature has its own page:
 - [Player properties](player.md) — window properties for the item that is playing,
   and its [lyrics](player.md#lyrics).
 - [Play next](playnext.md) — queues the next episode of a TV show.
+- [Games](games.md) — the playing game's emulator and system, and a blurred picture
+  of the game for the game OSD.
 - [Slideshow](slideshow.md) — a background slideshow of library fanart.
 
 The service does not process artwork for the focused item. That is done by the
@@ -142,7 +144,8 @@ Each pass it:
 3. removes the episode [Play next](playnext.md) queued, if `playnext_enabled` was
    turned off during the episode;
 4. publishes the playing video's skip segment in play or next (see
-   [Skip segments](player.md#skip-segments));
+   [Skip segments](player.md#skip-segments)), and sets or clears `player_game_blur`
+   when the game OSD opens or closes (see [Games](games.md#when-the-game-osd-opens));
 5. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
 6. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
    focus is no longer on a speed dial item (see
@@ -262,7 +265,7 @@ back with the next play, speed dial change or slide.
 | `trailer_flight` | A request that waited behind an earlier trailer is handed to Kodi (`play_trailer` sets it too) | The trailer Kodi is resolving or opening | Its audio and video are up, its stream fails to open, other media starts during its resolve, or the poll after it is cancelled as hung | [Trailers](trailers.md) |
 | `trailer_return` | A trailer requested with `fullscreen` starts and goes full screen | The `info_current` key at that moment | By the `trailer_return` action | [Trailers](trailers.md#full-screen) |
 | `info_hop` | As `trailer_return`, when `info_current` is set and is not a season | `fullscreen` | The info dialog's `<onload>`, or the `trailer_return` action | [Trailers](trailers.md#full-screen) |
-| `trailer_played_item` | Never set by the service | — | A trailer fails to play with no newer request waiting, or a request for the item it names never starts | [Trailers](trailers.md) |
+| `trailer_played_item` | Never set by the service | — | A trailer fails to play with no newer request waiting, or a request for the item it names never starts; `play_trailer` drops a request for the item it names because a modal dialog is up | [Trailers](trailers.md) |
 | `player_tvshowtitle` | An episode starts | TV show title | Playback stops, ends or fails and nothing else starts; the next file replaces it | [Player properties](player.md) |
 | `player_season` | An episode starts | Season number | As above | [Player properties](player.md) |
 | `player_tvshowid` | A library episode starts | TV show database id | As above | [Player properties](player.md) |
@@ -287,6 +290,8 @@ back with the next play, speed dial change or slide.
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
 | `player_genres` | A song starts | The song's genres, joined with ` / ` | As above | [Player properties](player.md) |
 | `player_songid` | A song starts | Song database id, for matching the others to `MusicPlayer.DBID` | As above | [Player properties](player.md) |
+| `player_emulator`, `player_system` | A game starts | The game add-on's emulator name, and the system your skin's emulators mapping gives it (empty if none) | As above | [Games](games.md) |
+| `player_game_blur` | The game OSD opens | The game's newest save picture, blurred; empty if there is none yet | The game OSD closes; as above; the next game's start | [Games](games.md#when-the-game-osd-opens) |
 | `player_seek_offset` | A seek with a jump finishes | The jump, signed (`+10:00`, `-00:30`) | 4 seconds after the seek once `Player.HasPerformedSeek(4)` is false; a chapter jump or speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
 | `player_seek_chapter` | A chapter jump finishes | The chapter it went to (`4`) | 4 seconds after the jump once `Player.HasPerformedSeek(4)` is false; any other seek or a speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
 | `lyrics_state`, `lyrics_source`, `lyrics_revision`, `lyrics_plain`, `lyrics_instrumental` | A song starts with the skin's `lyrics` on, or it is turned on mid-song | `searching`, then what was found, where from, and a new revision for the `info=lyrics` path | The setting is turned off; a video starts; playback stops, ends or fails and nothing else starts; the next song's replace them | [Lyrics](player.md#lyrics) |
@@ -328,6 +333,8 @@ when a trailer session ends. It clears `trailer_fullscreen` as the trailer goes 
 | `skip_segments` | Skin setting (bool) | When a video starts; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Player properties](player.md#skip-segments) |
 | `endless_queue` | Skin setting (bool) | When a library song starts | [Player properties](player.md#endless-queue) |
 | `lyrics` | Skin setting (bool) | When a song starts, and each poll while one plays; when the skin becomes active ([add-ons that clash](#add-ons-that-clash)) | [Lyrics](player.md#lyrics) |
+| `extras/templates/mappings/mappings_emulators.json` | Skin file | When a game starts | [Games](games.md#the-emulators-mapping) |
+| `Window.IsActive(gameosd)` | Boolean condition | Each poll | [Games](games.md#when-the-game-osd-opens) |
 | `title_identity` | Font in `Font.xml` (first fontset) | When a song's synced lyrics are found, to mark the long lines | [Lyrics](player.md#lyrics) |
 | `3510`, `3511` | Container ids (`NumItems`, `CurrentItem`, focus) | At each lyric line, in the visualisation and the music OSD | [Lyrics](player.md#lyrics) |
 | `slideshow_source`, `slideshow2_source` | Skin string | Each poll | [Slideshow](slideshow.md) |
