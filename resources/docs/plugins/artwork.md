@@ -153,7 +153,7 @@ values mean.
 |---|---|---|---|
 | `<prefix>_darken` | `true`, `false` | `false` | Work out how much to darken the image. |
 | `<prefix>_darken_rects` | `x,y,w,h` or `(x,y,w,h),(x,y,w,h),…` | the whole frame | Where your elements sit, in frame coordinates. The element on art and the palette are measured here too. |
-| `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in: the image is scaled to cover it and centred, like `<aspectratio>scale</aspectratio>`. |
+| `<prefix>_darken_frame` | `w,h` | `1920,1080` | Size of the frame the rectangles are measured in: the image is scaled to cover it and centred, like `<aspectratio>scale</aspectratio>`. A value that isn't whole numbers (`wide`) makes the call return no art. |
 | `<prefix>_darken_source` | ARGB or RGB hex (`fff0efef`, `#f0efef`), or `clearlogo`, each with an optional `:ratio`; comma-separated, one per rectangle | `fff0efef` | Colour of the element in each rectangle, in rectangle order; the last carries on for the rest. `clearlogo` uses the clearlogo's colour (it needs `clearlogo_url` in the same call, else the default is used). `:ratio` gives that rectangle its own contrast target in place of `_ratio`: `clearlogo:1.5,fff0efef` asks less of a logo than of the text under it; with no logo, that rectangle falls back to the default colour at `_ratio`. |
 | `<prefix>_darken_surface` | `art`, `blur` | `art` | The image you draw the darken over: the image itself or its blur. The helper measures that one. With `blur` on an image that is not blurred, it measures the image itself. |
 | `<prefix>_darken_max` | whole number | none | A cap on the darken: the value returned is never higher. Bright art may then fall short of the ratio. The value is not checked, so keep it between `0` and `100`. |
@@ -211,7 +211,7 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 |---|---|---|
 | `clearlogo` | `clearlogo_crop=true` | Path to the cropped PNG. |
 | `clearlogo_width`, `clearlogo_height` | `clearlogo_crop=true` | Size of the cropped logo in pixels. The logo is first scaled down to fit 1600×620. |
-| `icon_width`, `icon_height`, `icon_opaque` | `icon_shape=true` | The icon's size in pixels, read from Kodi's texture-cache copy when it has one (Kodi scales that to `imageres`, 720 by default, so a larger image can read smaller), and `1` when all four corner pixels are fully opaque, else `0`. |
+| `icon_width`, `icon_height`, `icon_opaque` | `icon_shape=true` | The icon's size in pixels, read from Kodi's texture-cache copy when it has one (the newer, when an image replaced at the same path left Kodi holding both a `.png` and a `.jpg` copy; Kodi scales that to `imageres`, 720 by default, so a larger image can read smaller), and `1` when all four corner pixels are fully opaque, else `0`. |
 | `background`, `icon` | `<prefix>_blur=true` | Path to the blurred JPEG. |
 | `background_blur_radius`, `icon_blur_radius` | `<prefix>_blur=true` | The radius used. |
 | `<prefix>_darken` | `<prefix>_darken=true` | How much to darken the image: the exact % black, `0`–`100`. |
@@ -444,6 +444,10 @@ fills the same id:
 | `multiart_frozen_<id>` | Written only when the same item and `visit` are refilled with a changed image set: the image that was showing, so you can keep it on screen during the change. Left to the skin for any other item in the same container and folder; cleared when the new item is from a different one. |
 | `multiart_seed_scope_<id>` | Which container and folder the FadeLabel was last filled for. |
 | `multiart_seed_sig_<id>` | Which item and image set it was last filled with. |
+
+A window's call that finishes after its window is no longer the active one (another
+window opened meanwhile) writes neither seed key and leaves `multiart_frozen_<id>`
+alone, since the new window may use the same id.
 
 The focus guard is checked just before the FadeLabel is filled. A call for an item
 that is no longer focused never refills it.
