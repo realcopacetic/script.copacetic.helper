@@ -73,7 +73,9 @@
       <screenshot>resources/Skip_intro_and_play_next.jpg</screenshot>
       <screenshot>resources/Colours_from_the_artwork.jpg</screenshot>
       <screenshot>resources/Skin_includes_built_from_templates.jpg</screenshot>
-      <screenshot>resources/Settings_for_each_API.jpg</screenshot>
+      <screenshot>resources/Data_enrichment_from_TMDB,_Deezer,_ListenBrainz_and_more.jpg</screenshot>
+      <screenshot>resources/Slideshow_screensaver_with_logos.jpg</screenshot>
+      <screenshot>resources/Endless_queue_from_similar_artists.jpg</screenshot>
     </assets>
     <summary lang="en_GB">The engine behind the Copacetic 2 skin.</summary>
     <description lang="en_GB">Copacetic Helper builds the Copacetic 2 skin's layouts and artwork. TMDB and ListenBrainz tokens in its settings add extras.[CR]This product uses the TMDB API but is not endorsed or certified by TMDB (https://www.themoviedb.org).</description>
