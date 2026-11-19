@@ -30,9 +30,8 @@ PARAM = re.compile(r"\$PARAM\[([^\[\]]*)\]")
 FIELD = re.compile(r"\{[^{}]*\}")  # a builder placeholder: {layout}, {index+1}
 WHOLE_EXP = re.compile(r"\[?\$EXP\[([^\[\]]+)\]\]?")
 INCLUDE_REF = re.compile(r"\$(?:EXP|PARAM)\[[^\[\]]*\]")  # resolved by includes only
-VAR_PARAM = re.compile(
-    r"\b\w+_var=(\w+)"
-)  # a plugin URL naming a $VAR the helper reads
+# a plugin URL naming a $VAR the helper reads; a built name ($PARAM, {…}) is no name
+VAR_PARAM = re.compile(r"\b\w+_var=(\w+)(?![\w$\[{])")
 CONDITION_REF = re.compile(r"\$(?:EXP|PARAM|(?:ESC)?VAR)\[[^\[\]]*\]")
 TIMER_CONDITIONS = {"start", "reset", "stop"}
 TIMER_ACTIONS = {"onstart", "onstop"}
@@ -126,7 +125,8 @@ ACCEPTED = {  # (rule, file, message start): why it stands
         ),
         DISPATCH,
     ),
-    # generated families only another setting reads (skin_reach, skin 5a4b23a): which
+    # generated families only another setting reads (skin_reach, skin 5a4b23a), each
+    # with the setting that reads it
     **{
         (
             "unreferenced-definition",
@@ -162,7 +162,8 @@ ACCEPTED = {  # (rule, file, message start): why it stands
         "media-window-info",
         "art.xml",
         MEDIA_MESSAGE.format(
-            info="Container.CurrentItem with no id in expression artwork_current_primary",
+            info="Container.CurrentItem with no id in expression"
+            " artwork_current_primary",
             where=JUMPBARLESS,
         ),
     ): "read only while the jumpbar has focus, and only media windows mount it",
@@ -171,7 +172,8 @@ ACCEPTED = {  # (rule, file, message start): why it stands
             "media-window-info",
             f"{GENERATED}expressions.xml",
             MEDIA_MESSAGE.format(
-                info=f"Container.NumItems with no id in expression base_lag_primary_{way}",
+                info="Container.NumItems with no id in expression"
+                f" base_lag_primary_{way}",
                 where=JUMPBARLESS,
             ),
         ): "the primary view's own scroll: Home has its widgets' term, and nothing"
@@ -1396,7 +1398,9 @@ def main() -> None:
                 if skin.roots[window].tag == "window":
                     print(skin.count(window))
 
-    accepted = {f for f in findings if is_accepted(f)}
+    # with --reach the union decides what another setting reads: no family stands in
+    reach_decides = {"unreferenced-definition"} if reach else set()
+    accepted = {f for f in findings if f.rule not in reach_decides and is_accepted(f)}
     shown = [
         f
         for f in findings - accepted
