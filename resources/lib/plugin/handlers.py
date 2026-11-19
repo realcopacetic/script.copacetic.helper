@@ -437,12 +437,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         The dialog a dialog serve belongs to (an info dialog or the music OSD), read
         once: the topmost dialog when it is one, else the one a menu, Select or busy
-        dialog covers, else the topmost dialog.
+        dialog covers, else the topmost modal dialog (9999 with none).
         """
         if (top := topmost_window_id()) in _SERVE_DIALOGS:
             return top
         active = (wid for wid in _SERVE_DIALOGS if condition(f"Window.IsActive({wid})"))
-        return next(active, top)
+        # Not the window: a serve its dialog's close outran would read its controls
+        # there (Non-Existent Control 4046); 9999 fails _info_on_top and the guard
+        return next(active, getCurrentWindowDialogId())
 
     def _info_on_top(self) -> bool:
         """

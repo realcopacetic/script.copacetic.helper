@@ -156,7 +156,8 @@ a dialog is open on top of it. `dialog=true` (and `target=item`, which implies i
 means the path belongs to an info dialog (`movieinformation`, `songinformation`,
 `musicinformation`, `addoninformation`) or the music OSD (`musicosd`): it uses that
 dialog instead, the topmost dialog when it is one of these, else the one a context
-menu, Select or busy dialog covers, else the topmost dialog. Every path takes its
+menu, Select or busy dialog covers, else the topmost modal dialog; with no dialog up
+(its close outran the path) the path stops, never reading the window's controls. Every path takes its
 window once. `artwork`, `metadata`, `progressbar`, `text` and `multiart_tiles` first
 wait for that dialog to be topmost, for up to a second, plus up to five behind the busy dialog
 (Kodi's own Information shows it while it swaps the item), since under a menu a bare
