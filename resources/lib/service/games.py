@@ -72,7 +72,7 @@ def autosave_blur(editor: ImageEditor, path: str) -> str:
         if not newest:
             return ""
         stamp = newest.stat().st_mtime_ns
-    except OSError:  # Kodi replaced a picture between the listing and the read
+    except OSError:  # a save deleted between the listing and the read
         return ""
     blur = Path(BLURS, f"{BLUR}{stamp}.jpg")
     if blur.exists():  # the OSD opened again before the next autosave
