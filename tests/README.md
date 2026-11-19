@@ -27,7 +27,8 @@ python tests/api_offline.py
 # and without a favourite's multiart_target; the icon from icon_source, a cut band
 # label the item's own; a background read whole by a variable's name (a Plex URL's
 # &X-Plex-Token= kept), standing only where it extends the URL's raw value, under a
-# menu only with a value, a family outranking it; url_decode_path leaves a bare URL as
+# menu only with a value, a family outranking it; multiart_first read from the serve's
+# own item, not multiart_target's; url_decode_path leaves a bare URL as
 # Kodi keys it; a held serve names its position (the
 # jumpbar's re-serve) only for a move that stamped no visit, by the guard's own read;
 # the TV guide's time left (epg_time_left) from the programme's start and runtime,
@@ -58,7 +59,9 @@ python tests/genre_offline.py
 python tests/genre_snapshot.py [--cache /tmp/mb-genres]
 
 # Gallery tiles' share-out (art/multiart.py): an image shows in one tile only,
-# unless a tile has no other image free
+# unless a tile has no other image free; a joined family; the first frame
+# (multiart_first) leading a family and dropped from later in it; seed_multiart's
+# blind seed under a dialog and its seed keys
 python tests/multiart_offline.py
 
 # Service build boundary (service/monitor.py): a build that raises is logged, the

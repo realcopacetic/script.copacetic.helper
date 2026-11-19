@@ -4,7 +4,8 @@ stubbed and the image work faked: the logo from clearlogo_source, with and witho
 a favourite's multiart_target, and the icon from icon_source (a cut band label the
 item's own); a background read whole by a skin variable's name, standing only where
 the URL's raw value is it or it cut at "&" or "|" (a cut-off URL only on top, an empty
-one never), a family outranking it; the parser keeps art URLs raw and url_decode_path
+one never), a family outranking it; multiart_first read from the serve's own item,
+not multiart_target's; the parser keeps art URLs raw and url_decode_path
 leaves a bare URL; a held serve names its position only for a move that stamped no
 visit; under Kodi's slideshow a run stops once its picture has moved on;
 the TV guide's time left (epg_time_left) from the programme's start and runtime,
@@ -248,6 +249,38 @@ class ArtworkServe(unittest.TestCase):
         out = self.serve(self.VISIT, visit_ends="seed")
         self.assertEqual(out["register"], "3400")
         self.assertTrue(self.held(out))
+
+
+class FirstFrame(unittest.TestCase):
+    """multiart_first comes from the serve's own item, not multiart_target's."""
+
+    ART = {
+        "Container(50).ListItem.Art(thumb)": "own.jpg",
+        "Container(9040).ListItem.Art(thumb)": "library.jpg",
+        "Container(9040).ListItem.Art(fanart)": "f.jpg",
+        "Container(9040).ListItem.Art(fanart1)": "f1.jpg",
+    }
+
+    def family(self, **params: str) -> list[str]:
+        """The fanart family _multiart_dict reads from 9040 for a serve of view 50."""
+        handler = handlers.PluginHandlers({"info": "artwork", "target": "50"} | params)
+        labels = lambda target, keys: {k: self.ART.get(f"{target}.{k}") for k in keys}
+        with (
+            mock.patch.object(handlers, "infolabel", lambda key: self.ART.get(key, "")),
+            mock.patch.object(multiart, "get_infolabels", labels),
+        ):
+            art = handler._multiart_dict("Container(9040).ListItem", "fanart")
+        return list(art.values())
+
+    def test_opens_on_the_own_items_art(self):
+        out = self.family(multiart_first="thumb")
+        self.assertEqual(out, ["own.jpg", "f.jpg", "f1.jpg"])
+
+    def test_an_empty_art_changes_nothing(self):
+        self.assertEqual(self.family(multiart_first="poster"), ["f.jpg", "f1.jpg"])
+
+    def test_without_it_the_family_as_read(self):
+        self.assertEqual(self.family(), ["f.jpg", "f1.jpg"])
 
 
 class ArtUrls(unittest.TestCase):

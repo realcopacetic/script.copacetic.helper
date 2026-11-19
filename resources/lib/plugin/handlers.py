@@ -763,9 +763,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _multiart_dict(self, item: str, multiart_type: str | None) -> dict[str, str]:
         """
-        The multiart family of an item, extended by TMDb's cached art of the same
-        type when the URL asks for it (get_extra_multiart); keeps a miss of that art
-        in _tmdb_missed for artwork() to note in tmdb_art_missed.
+        The multiart family of an item, led by multiart_first and extended by TMDb's
+        cached art of the same type when the URL asks (get_extra_multiart); keeps a
+        miss of that art in _tmdb_missed for artwork() to note in tmdb_art_missed.
 
         :param item: Infolabel prefix of the item.
         :param multiart_type: Base art type; None for no family.
@@ -780,11 +780,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if extra
             else None
         )
+        # multiart_first: read from the serve's own item, which the skin draws under
+        # the register (a favourite's thumb), not from multiart_target's
+        first = self.params.get("multiart_first")
         family = build_multiart_dict(
             target=item,
             multiart_type=multiart_type,
             max_items=self.params.get("multiart_max"),
             tmdb_art=(tmdb_item or {}).get("art", {}),
+            first=first and infolabel(f"{self.target_item}.Art({first})"),
         )
         # None: no extras asked for; "": none missed, so a stale marker clears
         self._tmdb_missed = (

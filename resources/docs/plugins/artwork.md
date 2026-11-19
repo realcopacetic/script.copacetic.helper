@@ -181,6 +181,7 @@ show; with no rectangles that is the part of the image the frame shows.
 |---|---|---|---|
 | `multiart` | an art type, e.g. `fanart`, `poster`, `keyart`, `tvshow.fanart`, or several separated by commas | — | The family to collect. Several types are read in turn and joined into one family, each image once: `thumb,artist.thumb,artist.fanart` gives a playing song's album cover, then its artist's art. `get_extra_multiart` adds nothing to a joined family. |
 | `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for (`fanart1` … `fanart15`). |
+| `multiart_first` | an art type, e.g. `thumb`, `fanart`, `fanart4`, `poster7` | — | The image the family opens on: that art of the call's own item (never `multiart_target`'s) goes first, and out of its place later in the family. Only leads a family that has images of its own; empty, it changes nothing. See [Multiart](#multiart). |
 | `multiart_target` | container id | — | Read the family, and its TMDB item, from that container's focused item instead of the call's own: a stand-in such as a favourite whose library item another container lists. When the family has more than one image (so the FadeLabel rotates), its first image is also the background, so each slide's blur continues the base's. Focus, position and the FadeLabel's bookkeeping stay the call's own item. |
 | `multiart_target_key` | `dbtype:dbid` | — | With `multiart_target`: the item the call is for. If given and the target reads as another item (it hasn't landed yet, or a modal dialog is up), the call returns the held item instead of seeding or clearing. Not given: no check. |
 | `get_extra_multiart` | `true`, `false` | `false` | Add TMDB artwork of the same type, after the library artwork. See [Multiart](#multiart). |
@@ -370,6 +371,14 @@ Multiart reads `Art(<type>)` and `Art(<type>1)` to `Art(<type><multiart_max>)` f
 the focused item (or `multiart_target`'s), skips the empty ones, and returns them as
 `multiart`, `multiart1`, `multiart2` … with no gaps.
 
+`multiart_first=<art type>` opens the family on another image: the call's own item's
+art of that type becomes `multiart`, and the same URL is dropped from later in the
+family. Use it where the layout draws that art under the FadeLabel, so the first slide
+matches it and the family fades in after the first dwell: a favourite's tile shows the
+favourite's own `thumb`, while its family comes from `multiart_target`. It never starts
+a family: with no images of the `multiart` type, nothing is returned, as without it.
+With `multiart_target`, the background then blurs this image (see that param).
+
 Because the keys are always the same, your layouts can read `multiart*` and switch
 the family with one variable:
 
@@ -389,7 +398,7 @@ With `get_extra_multiart=true`, TMDB artwork of the same type is added after the
 library artwork:
 
 - Only when the item has its own image of that type, so the first image is always the
-  item's.
+  item's (or `multiart_first`'s).
 - Without duplicates: a TMDB image already in the library artwork in another size is
   skipped.
 - Backdrops (`fanart`, `landscape`) at width 1280 and posters (`poster`, `keyart`) at
