@@ -112,6 +112,7 @@ class Segments:
         self.chapter = -1
         self.published = {}
         self.entered = None  # the start of the span the playhead is in
+        self.last = 0.0  # the playhead at the last publish
 
     def tick(self, now: float) -> None:
         """
@@ -230,7 +231,7 @@ class Segments:
         """
         Publish the span the playhead is in or comes to next, and where credits
         open Play next: whole seconds for the skin's Player.Time(secs) tests, which
-        Kodi rounds, so a start reads only once reached. Leaving a span re-arms it.
+        Kodi rounds, so a start reads once reached. Leaving or seeking back re-arms it.
 
         :param now: The playhead in seconds.
         """
@@ -238,11 +239,12 @@ class Segments:
             "player_credits": f"{ceil(self.credits + 0.5)}" if self.credits else ""
         }
         span = next((s for s in self.spans if s[1] > now), None)
-        # Left it (played or skipped past, or a seek back before it): a dismissal ends
+        # A dismissal ends on leaving its span (played or skipped past, a seek before
+        # it) and on any seek back, within it too (to 0 in an intro at 0); 1 s spare
         entered = span[0] if span and span[0] <= now else None
-        if self.entered not in (None, entered):
+        if self.entered not in (None, entered) or now + 1 < self.last:
             window_property("player_skip_dismissed")
-        self.entered = entered
+        self.entered, self.last = entered, now
         if span:
             start, end, kind = span
             props |= {

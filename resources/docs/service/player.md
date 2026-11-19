@@ -112,7 +112,9 @@ credits that run to the end, or end where a preview running to the end starts, s
 second and clear when the video stops. A skin that remembers a dismissed button in
 `player_skip_dismissed` (Home) has it cleared at each new video too, and whenever the
 playhead leaves the segment it was in (played or skipped past its end, or a seek back
-before its start), so the button shows again when playback comes back to it.
+before its start) or goes back more than a second (a seek or a chapter back, within the
+segment too: to 0:00 in an intro that starts there), so the button shows again when
+playback comes back to it.
 
 ### Identity and clean names
 

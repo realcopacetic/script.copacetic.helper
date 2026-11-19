@@ -109,13 +109,24 @@ class SegmentsTest(unittest.TestCase):
         self.assertEqual(self.props["player_skip_dismissed"], "301")  # still in it
         self.segments.tick(330.5)  # skipped to its end
         self.assertNotIn("player_skip_dismissed", self.props)
-        self.props["player_skip_dismissed"] = "301"
-        self.segments.tick(310)  # a seek back into it: dismissed again, and kept
+        self.segments.tick(310)  # a seek back into it
+        self.props["player_skip_dismissed"] = "301"  # dismissed again
+        self.segments.tick(311)
         self.segments.tick(10)  # a seek back to the start
         self.assertNotIn("player_skip_dismissed", self.props)
         self.props["player_skip_dismissed"] = "301"
-        self.segments.tick(20)  # before it, not yet entered: nothing to re-arm
+        self.segments.tick(11)  # before it, not yet entered: nothing to re-arm
         self.assertEqual(self.props["player_skip_dismissed"], "301")
+
+    def test_a_seek_back_within_an_intro_at_0_rearms_it(self):
+        self.play({"intro": [[0, 60000]]}, now=1)
+        self.props["player_skip_dismissed"] = "1"
+        self.segments.tick(2.6)
+        self.segments.tick(2.4)  # under a second back: jitter, not a seek
+        self.segments.tick(20)
+        self.assertEqual(self.props["player_skip_dismissed"], "1")
+        self.segments.tick(0)  # a seek, or a chapter back, to the start: still in it
+        self.assertNotIn("player_skip_dismissed", self.props)
 
     def test_credits_before_a_preview_run_to_the_end(self):
         found = {"credits": [[3300000, 3420000]], "preview": [[3420000, None]]}
