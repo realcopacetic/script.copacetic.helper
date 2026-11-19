@@ -1025,15 +1025,18 @@ def _eval_node(node: ast.AST, names: Mapping[str, Any]) -> Any:
     Recursive AST walker for evaluate_expression.
 
     :param node: AST node to evaluate.
-    :param names: Mapping of identifier to numeric value.
+    :param names: Mapping of identifier to value; numbers and integer strings count.
     :return: Numeric result of the node.
-    :raises ValueError: For unknown names or unsupported syntax.
+    :raises ValueError: For unknown or non-numeric names, or unsupported syntax.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
         return node.value
     if isinstance(node, ast.Name):
-        if node.id in names:
-            return names[node.id]
+        value = names.get(node.id)
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            return int(value)
         raise ValueError(f"Unknown name '{node.id}'")
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
         return -_eval_node(node.operand, names)
@@ -1061,20 +1064,9 @@ def evaluate_expression(expr: str, names: Mapping[str, Any]) -> str | None:
     :param names: Identifier to numeric value; integer strings parsed, others ignored.
     :return: Stringified result (int when whole), or None if it cannot be evaluated.
     """
-
-    numeric_names = {}
-    for key, value in names.items():
-        if isinstance(value, (int, float)):
-            numeric_names[key] = value
-        elif isinstance(value, str):
-            try:
-                numeric_names[key] = int(value)
-            except ValueError:
-                continue
-
     try:
-        tree = ast.parse(expr, mode="eval")
-        result = _eval_node(tree.body, numeric_names)
+        # Only the names it reads: the builder passes its whole token table
+        result = _eval_node(ast.parse(expr, mode="eval").body, names)
     except (SyntaxError, ValueError, TypeError, ZeroDivisionError):
         return None
 
