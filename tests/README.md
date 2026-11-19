@@ -26,9 +26,9 @@ python tests/api_offline.py
 # read from clearlogo_source (headers kept; the URL's under a menu, none if cut); the
 # icon from icon_source, a cut band label the item's own; a background read whole by a
 # variable's name (a Plex URL's &X-Plex-Token= kept), standing only where it extends
-# the URL's raw value, under a menu only with a value; url_decode_path leaves a bare
-# URL as Kodi keys it; a held serve names its position (the jumpbar's re-serve) only
-# for a move that stamped no visit, by the guard's own read;
+# the URL's raw value, under a menu only with a value; url_decode_path leaves a bare URL as
+# Kodi keys it; a held serve names its position (the
+# jumpbar's re-serve) only for a move that stamped no visit, by the guard's own read;
 # the TV guide's time left (epg_time_left) from the programme's start and runtime,
 # across midnight too, only while the URL's channel is on air and before its end
 python tests/artwork_serve_offline.py
