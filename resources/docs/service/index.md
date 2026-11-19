@@ -144,8 +144,9 @@ Each pass it:
 3. removes the episode [Play next](playnext.md) queued, if `playnext_enabled` was
    turned off during the episode;
 4. publishes the playing video's skip segment in play or next (see
-   [Skip segments](player.md#skip-segments)), and sets or clears `player_game_blur`
-   when the game OSD opens or closes (see [Games](games.md#when-the-game-osd-opens));
+   [Skip segments](player.md#skip-segments)), and sets `player_game_blur` while the
+   game OSD is open (each poll until a blur is made) and clears it when the OSD closes
+   (see [Games](games.md#when-the-game-osd-opens));
 5. moves the slideshow on if the interval has passed (see [Slideshow](slideshow.md));
 6. moves a held speed dial update from `speed_dial_held` to `speed_dial_version` once
    focus is no longer on a speed dial item (see
@@ -307,7 +308,7 @@ back with the next play, speed dial change or slide.
 | `player_genres` | A song starts | The song's genres, joined with ` / ` | As above | [Player properties](player.md) |
 | `player_songid` | A song starts | Song database id, for matching the others to `MusicPlayer.DBID` | As above | [Player properties](player.md) |
 | `player_emulator`, `player_system` | A game starts | The game add-on's emulator name, and the system your skin's emulators mapping gives it (empty if none) | As above | [Games](games.md) |
-| `player_game_blur` | The game OSD opens | The game's newest save picture, blurred; empty if there is none yet | The game OSD closes; as above; the next game's start | [Games](games.md#when-the-game-osd-opens) |
+| `player_game_blur` | The game OSD opens, or the first poll after that with a picture it can read | The game's newest save picture, blurred; empty until there is one | The game OSD closes; as above; the next game's start | [Games](games.md#when-the-game-osd-opens) |
 | `player_seek_offset` | A seek with a jump finishes | The jump, signed (`+10:00`, `-00:30`) | 4 seconds after the seek once `Player.HasPerformedSeek(4)` is false; a chapter jump or speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
 | `player_seek_chapter` | A chapter jump finishes | The chapter it went to (`4`) | 4 seconds after the jump once `Player.HasPerformedSeek(4)` is false; any other seek or a speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |
 | `lyrics_state`, `lyrics_source`, `lyrics_revision`, `lyrics_plain`, `lyrics_instrumental` | A song starts with the skin's `lyrics` on, or it is turned on mid-song | `searching`, then what was found, where from, and a new revision for the `info=lyrics` path | The setting is turned off; a video starts; playback stops, ends or fails and nothing else starts; the next song's replace them | [Lyrics](player.md#lyrics) |

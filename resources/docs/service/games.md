@@ -59,11 +59,14 @@ out and only `player_emulator` is set.
 
 Each poll (once a second), the service checks `Window.IsActive(gameosd)`. When the game
 OSD opens, it sets `player_game_blur`; when it closes, it clears it, so the next opening
-never shows the last one's picture before its own blur is ready.
+never shows the last one's picture before its own blur is ready. If no blur can be made
+yet (the game has no picture, or Kodi is still writing it), the property stays empty
+and the service tries again at each poll while the OSD stays open, so the blur arrives
+as soon as a picture can be read.
 
 | Property | Value |
 |---|---|
-| `player_game_blur` | The game's newest save picture, blurred as a background is. Empty when the game has no picture yet, or Kodi is still writing it. |
+| `player_game_blur` | The game's newest save picture, blurred as a background is. Empty until a picture can be read. |
 
 Kodi saves the game every 10 seconds of play and writes a picture beside each save, in
 `special://home/saves/<game file name>/`. The service blurs the newest one, so a manual
