@@ -159,9 +159,9 @@ music OSD (`musicosd`): it uses that dialog instead, the topmost dialog when it 
 one of these, else the one a context menu, Select or busy dialog covers. With none of
 them up (its close outran the path, or another dialog replaced it, such as Play's
 resume menu or Refresh's prompts) the path stops, never reading another window's
-controls. Every path takes its window once. `artwork`, `metadata`, `progressbar`, `text` and `multiart_tiles` first
-wait for that dialog to be topmost, for up to a second, plus up to five behind the busy dialog
-(Kodi's own Information shows it while it swaps the item), since under a menu a bare
+controls. Every path takes its window once. `artwork`, `metadata`, `progressbar`,
+`text` and `multiart_tiles` first wait for that dialog to be topmost, for up to a
+second, plus up to five behind the busy dialog (Kodi's own Information shows it while it swaps the item), since under a menu a bare
 `ListItem` read answers for the window under the info dialog. If it never is, or the
 dialog closes meanwhile, the path stops (`artwork` returns its held item). It stops
 too after a wait behind the busy dialog when its identity was read at the start
