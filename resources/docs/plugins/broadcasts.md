@@ -15,7 +15,7 @@ beside its channel list.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `channelid` | a channel id (whole number) | required | The channel. A Kodi channel item carries it as `ListItem.Property(channelid)` (`FileItem.cpp`, `SetProperty("channelid", channel->ChannelID())`). |
+| `channelid` | a channel id (whole number) | required | The channel. A Kodi channel item carries it as `ListItem.Property(channelid)` (`FileItem.cpp`, `SetProperty("channelid", channel->ChannelID())`). Anything that isn't a whole number (an item that is no channel) gives no items. |
 | `limit` | whole number | all | The most programmes to return. |
 
 It makes two JSON-RPC calls: `PVR.GetBroadcasts` (every guide entry Kodi holds for the
@@ -33,7 +33,7 @@ channel) and `PVR.GetChannelDetails` (its logo, skipped when there are no progra
 | `ListItem.Property(start)`, `(end)` | Start and end as local clock times in Kodi's time format, without seconds (as `ListItem.StartTime`). |
 | `ListItem.Property(runtime)` | Minutes. |
 | `ListItem.Property(on_air)` | `true` for the programme on air. |
-| `ListItem.Property(time_left)` | On air only, to the programme's end by the clock: `1h 23m`, `1h` or `48m`; empty once it has ended. |
+| `ListItem.Property(time_left)` | On air only, to the programme's end by the clock: `1h 23m`, `1h` or `48m` (the units are the add-on's strings 32615 and 32616, so they follow Kodi's language); empty once it has ended. |
 | `ListItem.Property(state)` | `reminder`, `recording`, `timer`, `recorded` or empty: the first true wins, as the TV guide's icon. |
 | `ListItem.Property(series)` | `true` when a timer rule made its timer or reminder. |
 | `ListItem.Property(hide_add_remove_favourite)` | `true`: the context menu offers no Add to favourites (`ContextMenus.cpp:79-82`), since the item's path is no real item. |
