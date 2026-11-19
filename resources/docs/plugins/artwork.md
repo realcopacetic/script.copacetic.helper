@@ -253,8 +253,8 @@ Use them when something outside the helper container's window needs the values, 
 to keep the last background on screen while the next one is processed.
 
 **Aborted calls hold what the list shows.** A call that stops early (its `visit` is no
-longer live, or the focus guard fails) returns
-one item whose `background`, `background_darken` and `icon_darken` art are those of
+longer live, or the focus guard fails) returns one item whose `background`,
+`background_darken` and `icon_darken` art are those of
 `Container(<prop_key>).ListItem`, with `ListItem.Property(current)` =
 `held/<scope>/<prop_key>`, the scope taken from that item's own `current`. The list is
 read only when `prop_key` is a number and the call's window is on top. A call takes its
@@ -365,8 +365,8 @@ the logo's hue only when `Integer.IsLessOrEqual(…palette_logo_darken,…backgr
 
 Kodi stores extra artwork as numbered keys: `fanart`, `fanart1`, `fanart2` …
 Multiart reads `Art(<type>)` and `Art(<type>1)` to `Art(<type><multiart_max>)` from
-the focused item, skips the empty ones, and returns them as
-`multiart`, `multiart1`, `multiart2` … with no gaps.
+the focused item, skips the empty ones, and returns them as `multiart`, `multiart1`,
+`multiart2` … with no gaps.
 
 Because the keys are always the same, your layouts can read `multiart*` and switch
 the family with one variable:
