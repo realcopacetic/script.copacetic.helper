@@ -411,9 +411,9 @@ class PlayerMonitor(Player):
 
     def _handle_video_start(self) -> None:
         """
-        Publish video properties on start: parent ids with the rails' paths (an
-        episode's next and its season's; a set's name and other films), subtitle type,
-        stream count, picks, identity; Play next's successor; then skip segments.
+        Publish video properties on start: the rails' paths (an episode's next and its
+        season's; a set's name and other films), subtitle type, stream count, picks,
+        identity; Play next's successor; then skip segments.
         """
         try:  # read together: a stop since the AV start raises; its queued stop clears
             tag, total = self.getVideoInfoTag(), self.getTotalTime()
@@ -433,26 +433,22 @@ class PlayerMonitor(Player):
         self._successor = ""
         library = ("movie", 0)  # what TheIntroDB is asked by: a film, or a show's id
 
-        if media_type == "episode":
-            props["player_tvshowtitle"] = tag.getTVShowTitle()
-            props["player_season"] = str(tag.getSeason())
-            if dbid > 0:
-                query = json_call(
-                    "VideoLibrary.GetEpisodeDetails",
-                    params={"properties": ["tvshowid", "file"], "episodeid": dbid},
-                    parent="now_playing_episode",
+        if media_type == "episode" and dbid > 0:
+            query = json_call(
+                "VideoLibrary.GetEpisodeDetails",
+                params={"properties": ["tvshowid", "file"], "episodeid": dbid},
+                parent="now_playing_episode",
+            )
+            details = query.get("result", {}).get("episodedetails", {})
+            if tvshowid := details.get("tvshowid"):
+                library = ("tvshow", tvshowid, tag.getSeason(), tag.getEpisode())
+                props |= _episode_paths(
+                    tvshowid,
+                    tag.getSeason(),
+                    tag.getEpisode(),
+                    _not_file(details["file"]),
                 )
-                details = query.get("result", {}).get("episodedetails", {})
-                if tvshowid := details.get("tvshowid"):
-                    props["player_tvshowid"] = str(tvshowid)
-                    library = ("tvshow", tvshowid, tag.getSeason(), tag.getEpisode())
-                    props |= _episode_paths(
-                        tvshowid,
-                        tag.getSeason(),
-                        tag.getEpisode(),
-                        _not_file(details["file"]),
-                    )
-                    self._successor = playnext.ensure_successor(dbid, tvshowid)
+                self._successor = playnext.ensure_successor(dbid, tvshowid)
 
         elif media_type == "movie" and dbid > 0:
             query = json_call(
@@ -463,7 +459,6 @@ class PlayerMonitor(Player):
             if details := query.get("result", {}).get("moviedetails", {}):
                 library = ("movie", dbid)
             if setid := details.get("setid"):
-                props["player_setid"] = str(setid)
                 props["player_set"] = details["set"]
                 props["player_set_path"] = _videodb_path(
                     f"videodb://movies/titles/?setid={setid}",

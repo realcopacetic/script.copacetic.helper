@@ -2,11 +2,12 @@
 Offline checks for games (resources/lib/service/games.py, service/player.py): the
 emulator read from a game add-on's name as Kodi reads it; the system from the skin's
 emulators mapping (one system, several by extension, a shared extension, no row, no
-mapping); what a game's start publishes and its stop clears; the autosave blur (the
-newest save picture, one file per picture, the last one dropped, none without a
-readable picture or one deleted mid-read; needs Pillow) and the poller hook that
-publishes it once per opening of the game OSD, trying each poll until one is made;
-the content browser's Game add-ons source (windows/browse.py). With a skin's folder,
+mapping); what a game's start publishes and its stop clears, and a library video's
+(the rails' paths and a set's name, no parent ids; Play next given the show's own id
+it looked up); the autosave blur (the newest save picture, one file per picture, the
+last one dropped, none without a readable picture or one deleted mid-read; needs
+Pillow) and the poller hook that publishes it once per opening of the game OSD, trying
+each poll until one is made; the content browser's Game add-ons source (windows/browse.py). With a skin's folder,
 that skin's own mapping too: its shape, and one emulator of each kind.
 Run from the helper root: python tests/games_offline.py [../skin.copacetic2]
 """
@@ -257,6 +258,69 @@ class GameStart(Kodi):
         self.poll(True)
         self.monitor._publish({})
         self.assertEqual(self.props(), {})
+
+
+class VideoStart(Kodi):
+    ANSWERS = {
+        "VideoLibrary.GetEpisodeDetails": {
+            "result": {"episodedetails": {"tvshowid": 7, "file": "/tv/s01e02.mkv"}}
+        },
+        "VideoLibrary.GetMovieDetails": {
+            "result": {
+                "moviedetails": {"setid": 3, "set": "Alien", "file": "/m/Aliens.mkv"}
+            }
+        },
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.home = sys.modules["xbmcgui"].Window(10000)
+        self.monitor = monitor = object.__new__(player.PlayerMonitor)
+        monitor._landed, monitor._dropped_flight = None, False
+        monitor._published, monitor._starts = set(), 0
+        monitor.isPlayingGame = lambda: False
+        monitor.isPlayingVideo = lambda: True
+        monitor.getTotalTime = lambda: 0
+        monitor.getAvailableVideoStreams = list
+
+    def start(self, media_type: str) -> list:
+        """A library video of this type starts: its successor calls."""
+        tag = SimpleNamespace(
+            getDbId=lambda: 12,
+            getMediaType=lambda: media_type,
+            getTitle=lambda: "",
+            getSeason=lambda: 1,
+            getEpisode=lambda: 2,
+            getGenres=list,
+            getDirectors=list,
+        )
+        self.monitor.getVideoInfoTag = lambda: tag
+        with (
+            patch.multiple(
+                player,
+                json_call=lambda method, **_: self.ANSWERS[method],
+                player_streams=lambda _: ([], None),
+                size_identity=lambda _: None,
+            ),
+            patch.object(player.segments, "lookup"),
+            patch.object(player.playnext, "ensure_successor") as successor,
+        ):
+            self.monitor.onAVStarted()
+        return successor.call_args_list
+
+    def test_episode_publishes_no_show_ids_and_hands_play_next_its_own(self):
+        self.assertEqual(self.start("episode")[0].args, (12, 7))
+        names = set(self.monitor._published)
+        self.assertIn("player_next_path", names)
+        self.assertFalse(
+            names & {"player_tvshowtitle", "player_season", "player_tvshowid"}
+        )
+
+    def test_movie_in_a_set_publishes_its_name_and_path_not_its_id(self):
+        self.start("movie")
+        self.assertEqual(self.home.getProperty("player_set"), "Alien")
+        self.assertIn("?setid=3", self.home.getProperty("player_set_path"))
+        self.assertNotIn("player_setid", self.monitor._published)
 
 
 class GamesSource(unittest.TestCase):

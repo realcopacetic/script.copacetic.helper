@@ -1,9 +1,9 @@
 # Player Properties
 
 Tells your skin more about what is playing than Kodi's own infolabels do. The
-service looks up the TV show, movie set and individual artists of the playing item
-and stores them in window properties. Use them to mark the playing show, set, artist
-or album in any list, even when the list item is not the file that is playing.
+service looks up the movie set, episode rails and individual artists of the playing
+item and stores them in window properties. Use them to mark the playing artist or
+album in any list, even when the list item is not the file that is playing.
 
 All properties are on the Home window (`10000`). They are set only while a skin that
 [opts in](index.md#opting-in) is active, and cleared whenever the active skin changes or
@@ -24,11 +24,7 @@ reports it as video: it sets its own (see [Games](games.md)).
 
 | Property | Value | Set when |
 |---|---|---|
-| `player_tvshowtitle` | TV show title | An episode starts |
-| `player_season` | Season number | An episode starts |
-| `player_tvshowid` | TV show database id | A library episode starts and its show is found |
-| `player_setid` | Movie set database id | A library movie starts and it belongs to a set |
-| `player_set` | Movie set name | As above |
+| `player_set` | Movie set name | A library movie starts and it belongs to a set |
 | `player_set_path` | A `videodb://` URL of the set's other films (the playing file left out), ready for a list's `<content>` | As above |
 | `player_next_path` | A `videodb://` URL of the next 20 episodes in season and episode order, into later seasons, less the playing file (and its other parts) | A library episode starts and its show is found; not for a special (season 0) |
 | `player_season_path` | A `videodb://` URL of the season's unwatched episodes, less the playing file | As above |
@@ -44,6 +40,9 @@ reports it as video: it sets its own (see [Games](games.md)).
 | `player_identity_<window>` | `player_clearlogo` once that window's logo control is sized to it (`seekbar`, `videoosd`, `fullscreeninfo`) | A video starts; for `videoosd` and `fullscreeninfo`, also the [`size_identity`](../script/actions.md#size_identity) action |
 | `player_clean_title`, `player_clean_year` | A film's title and year, by Kodi's own clean-up of its file name | A video outside the library starts whose title is its file name |
 | `player_clean_tvshowtitle`, `player_clean_episode`, `player_clean_title` | For a file named like an episode (`S01E07` or `1x07`): the show, the `1x07` code and the episode title | As above |
+
+For the playing show and season, use Kodi's own `VideoPlayer.TVShowTitle`,
+`VideoPlayer.TvShowDBID` and `VideoPlayer.Season`.
 
 When a library episode starts, the service also runs [Play next](playnext.md).
 
@@ -377,11 +376,11 @@ stops; it stays empty until the next change.
 
 ## Example
 
-Show a "now playing" icon on the list item for the show, season, set, artist, album or
-disc that is playing:
+Show a "now playing" icon on the list item for the show, season, artist, album or disc
+that is playing:
 
 ```xml
-<expression name="item_is_playing">Player.HasMedia + [ListItem.IsPlaying | [String.IsEqual(ListItem.DBType,set) + String.IsEqual(Window(home).Property(player_setid),ListItem.DBID)] | [String.IsEqual(ListItem.DBType,tvshow) + String.IsEqual(Window(home).Property(player_tvshowid),ListItem.DBID)] | [String.IsEqual(ListItem.DBType,season) + String.IsEqual(Window(home).Property(player_tvshowid),ListItem.TVShowDBID) + String.IsEqual(Window(home).Property(player_season),ListItem.Season)] | [String.IsEqual(ListItem.DBType,artist) + !String.IsEmpty(ListItem.DBID) + [String.IsEqual(Window(home).Property(player_artistid_1),ListItem.DBID) | String.IsEqual(Window(home).Property(player_artistid_2),ListItem.DBID) | String.IsEqual(Window(home).Property(player_artistid_3),ListItem.DBID)]] | [String.IsEqual(ListItem.DBType,artist) + String.IsEmpty(ListItem.DBID) + [String.IsEqual(Window(home).Property(player_artist_1),ListItem.Artist) | String.IsEqual(Window(home).Property(player_artist_2),ListItem.Artist) | String.IsEqual(Window(home).Property(player_artist_3),ListItem.Artist)]] | [String.IsEqual(ListItem.DBType,album) + !String.IsEmpty(ListItem.DBID) + String.IsEmpty(ListItem.Property(musicvideomediatype)) + String.IsEqual(Window(home).Property(player_albumid),ListItem.DBID) + [String.IsEmpty(ListItem.DiscNumber) | String.IsEqual(Window(home).Property(player_disc),ListItem.DiscNumber)]] | [String.IsEqual(ListItem.DBType,album) + String.IsEmpty(ListItem.DBID) + String.IsEqual(Window(home).Property(player_albumartist),ListItem.Artist) + String.IsEqual(Window(home).Property(player_album),ListItem.Album)]]</expression>
+<expression name="item_is_playing">Player.HasMedia + [ListItem.IsPlaying | [String.IsEqual(ListItem.DBType,tvshow) + String.IsEqual(VideoPlayer.TvShowDBID,ListItem.DBID)] | [String.IsEqual(ListItem.DBType,season) + String.IsEqual(VideoPlayer.TvShowDBID,ListItem.TVShowDBID) + String.IsEqual(VideoPlayer.Season,ListItem.Season)] | [String.IsEqual(ListItem.DBType,artist) + !String.IsEmpty(ListItem.DBID) + [String.IsEqual(Window(home).Property(player_artistid_1),ListItem.DBID) | String.IsEqual(Window(home).Property(player_artistid_2),ListItem.DBID) | String.IsEqual(Window(home).Property(player_artistid_3),ListItem.DBID)]] | [String.IsEqual(ListItem.DBType,artist) + String.IsEmpty(ListItem.DBID) + [String.IsEqual(Window(home).Property(player_artist_1),ListItem.Artist) | String.IsEqual(Window(home).Property(player_artist_2),ListItem.Artist) | String.IsEqual(Window(home).Property(player_artist_3),ListItem.Artist)]] | [String.IsEqual(ListItem.DBType,album) + !String.IsEmpty(ListItem.DBID) + String.IsEmpty(ListItem.Property(musicvideomediatype)) + String.IsEqual(Window(home).Property(player_albumid),ListItem.DBID) + [String.IsEmpty(ListItem.DiscNumber) | String.IsEqual(Window(home).Property(player_disc),ListItem.DiscNumber)]] | [String.IsEqual(ListItem.DBType,album) + String.IsEmpty(ListItem.DBID) + String.IsEqual(Window(home).Property(player_albumartist),ListItem.Artist) + String.IsEqual(Window(home).Property(player_album),ListItem.Album)]]</expression>
 
 <control type="image">
   <texture>icons/nowplaying.png</texture>
@@ -394,4 +393,4 @@ Albums: an `album` item whose id is a music video's) from lighting when a song w
 same album id plays.
 
 For items outside the library, which have no database id, match on title instead:
-`String.IsEqual(Window(home).Property(player_tvshowtitle),ListItem.Title)`.
+`String.IsEqual(VideoPlayer.TVShowTitle,ListItem.Title)`.
