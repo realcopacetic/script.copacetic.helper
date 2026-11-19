@@ -109,20 +109,24 @@ is empty unless the episode has fanart of its own: use `tvshow.fanart`.
 
 The seasons of one library TV show, for a row of season tabs over the show's
 episodes. Pass the path of the listing, and the list holds one item per season, in
-season order, with Specials (season 0) last. Kodi's *All seasons* row is left out.
+season order, with Specials (season 0) last. An *All seasons* item leads them where
+Kodi's own list of seasons shows one: when Kodi's setting `videolibrary.showallitems`
+is on and the show has more than one season, and always when `path` is the *All
+seasons* listing itself (season `-1`). Its label is Kodi's own (string 20366) without
+the leading `* `.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `path` | a library show's path, `videodb://tvshows/titles/<id>/`, or one of its seasons', `videodb://tvshows/titles/<id>/<season>/` | required | The show whose seasons are listed, and the season it lists. Pass `$INFO[Container.FolderPath]` of the episodes listing. Any other path (a TV show genre's, a file's) returns no items. |
+| `path` | a library show's path, `videodb://tvshows/titles/<id>/`, or one of its seasons', `videodb://tvshows/titles/<id>/<season>/` | required | The show whose seasons are listed, and the season it lists. Pass `$INFO[Container.FolderPath]` of the episodes listing. A show listed without season folders (season `-2`) and any other path (a TV show genre's, a file's) return no items. |
 
 These are not library items like the others on this page: they carry no `DBType`,
 `DBID` or library artwork, and they are not folders.
 
 | Infolabel | Value |
 |---|---|
-| `ListItem.Label` | The season's name as Kodi's library gives it, for example `Season 1` or `Specials`. |
-| `ListItem.FileNameAndPath` | The season's path, `videodb://tvshows/titles/<id>/<season>/?tvshowid=<id>`, in the form of Kodi's own season items, so Back from it finds the season in the show's list of seasons. |
-| `ListItem.Property(current)` | `true` on the season `path` lists; empty on the others. Empty on every item when `path` is the show's own (its episodes listed without seasons) or its *All seasons* listing (season `-1`). |
+| `ListItem.Label` | The season's name as Kodi's library gives it, for example `Season 1` or `Specials`; `All seasons` for the *All seasons* item. |
+| `ListItem.FileNameAndPath` | The season's path, `videodb://tvshows/titles/<id>/<season>/?tvshowid=<id>` (season `-1` for *All seasons*), in the form of Kodi's own season items, so Back from it finds the season in the show's list of seasons. |
+| `ListItem.Property(current)` | `true` on the season `path` lists, *All seasons* included; empty on the others. Empty on every item when `path` is the show's own, with no season. |
 | `ListItem.Icon`, `ListItem.Art(thumb)` | `DefaultVideo.png`. |
 
 To open a season, update the window's listing with its path. With `replace`, Kodi
@@ -149,7 +153,7 @@ not guarded.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | whole number | — | Most movies to return. |
-| `randomise` | any text | — | A seed. The same seed gives the same order, and a movie added to or removed from the list moves no other. A path with other parameters gets its own order from the same seed; `limit` only cuts it. Without it, Copacetic's own seed (`Window(home).Property(random_seed)`, as its rails); empty, the order changes on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same order, and a movie added to or removed from the list moves no other. A path with other parameters gets its own order from the same seed; `limit` only cuts it. Without it, the seed is `Window(home).Property(random_seed)` (Copacetic's own, which its rails use; any skin may set it). An empty seed, passed or read, changes the order on every call. |
 | `exclude_played_days` | whole number | — | Leave out movies played in the last N days. |
 
 ```xml
@@ -278,7 +282,7 @@ for music. The container's content is `movies`, `tvshows`, `albums` or `artists`
 | `limit` | whole number | all | Most items, picked at random |
 | `min_items` | whole number | `10` | Fewest items a genre must hold to be picked |
 | `slot` | whole number | `0` | Which pick to take: `0` the first genre in the seeded order, `1` the second, and so on. Give lists of the same type slots `0`, `1`, `2` … and they show different genres, as long as that many genres qualify; past that, it counts round again from the first. |
-| `randomise` | any text | — | A seed. The same seed gives the same genre and the same order. A different `type` gets its own genre order from the same seed. Without it, Copacetic's own seed, as in [`random_movies`](#random_movies); empty, the genre and order change on every call. |
+| `randomise` | any text | — | A seed. The same seed gives the same genre and the same order. A different `type` gets its own genre order from the same seed. Without it, as in [`random_movies`](#random_movies); an empty seed changes the genre and order on every call. |
 
 ```xml
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=random_genre&amp;type=movie&amp;limit=20&amp;slot=0&amp;randomise=$INFO[Window(home).Property(my_random_seed)]</content>
@@ -368,7 +372,8 @@ itself left out.
 
 Fewer than `limit` (or any number, with no `limit`) are topped up from [`genre_music`](#genre_music) with the same
 `label`, `exclude_value` and `randomise`, and the artist's album genres. With no `id`
-(an item outside the library), a compilation album, no similar artist in the
+(an item outside the library), an `id` no longer in the library, a compilation album,
+no similar artist in the
 library, or neither source on, it is `genre_music` alone. The
 answers are cached as `top_songs`' (`deezer:related:<id>`,
 `listenbrainz:similar-artists:<MBID>`): related artists a week, ListenBrainz's two
@@ -613,7 +618,7 @@ none.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `type` | `movie`, `tvshow`, `season`, `episode`, `album` | required | The item's type |
-| `id` | the item's `DBID` | required | The item |
+| `id` | the item's `DBID` | required | The item. An item no longer in the library gives no items. |
 
 ```xml
 <content sortby="userpreference">plugin://script.copacetic.helper/?info=soundtracks&amp;type=$INFO[ListItem.DBType]&amp;id=$INFO[ListItem.DBID]</content>
@@ -658,7 +663,7 @@ song's when asked, from the artist's songs.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `type` | `artist`, `album`, `song` | required | The item's type |
-| `id` | the item's `DBID` | required | The item |
+| `id` | the item's `DBID` | required | The item. An item no longer in the library gives no item. |
 
 ```xml
 <content>plugin://script.copacetic.helper/?info=popularity_label&amp;type=$INFO[ListItem.DBType]&amp;id=$INFO[ListItem.DBID]</content>
@@ -674,9 +679,10 @@ that needs no input, on the path Copacetic's Home rail for it reads, so users ca
 browse them or add them as widgets from Kodi's add-on browser. Neither level runs a
 listing until a folder is opened. The random rows take the rails' default length
 (`limit=20`) and no `randomise=`, so they follow Copacetic's live seed and a widget
-saved from them changes with the rails. Each folder sets only an icon (its rail's
-glyph; `DefaultVideo.png` and `DefaultAudio.png` for the groups), no thumb, so a skin
-draws that icon.
+saved from them changes with the rails. Each folder sets only an icon, no thumb, so a
+skin draws that icon: `DefaultVideo.png` and `DefaultAudio.png` for the groups, and
+its rail's glyph for a listing, `icons/<name>.png` from the skin's own media (for
+example `icons/SpinnerGap.png` for Continue watching).
 
 | Group | Folder | Path (after `?`) |
 |---|---|---|
@@ -698,4 +704,5 @@ add-ons, and Kodi opens each in its own window with `?content_type=video` or
 without one (the Add-ons window's Open, which takes the Videos window), it lists both
 groups. Daily mixes is not offered: a card plays only from the skin's rail.
 
-A plugin path with an `info=` the add-on does not know returns an empty list.
+A plugin path with an `info=` or a `group=` the add-on does not know returns an empty
+list.
