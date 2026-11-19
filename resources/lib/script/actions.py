@@ -44,7 +44,6 @@ from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.speed_dial import entry as dial_entry
 from resources.lib.shared.speed_dial import mark_source, take_source
 from resources.lib.shared.streams import (
-    held_subtitle,
     player_streams,
     preferred_subtitle,
     subtitle_status,
@@ -1578,9 +1577,22 @@ def _publish_subtitle(langs: list[str], kind: str) -> None:
     :param kind: Preferred subtitle type.
     """
     status = condition("Player.HasVideo") and subtitle_status(
-        *player_streams("subtitle"), langs, kind
+        *player_streams("subtitle")[:2], langs, kind
     )
     window_property("player_subtitle_kind", value=status)
+
+
+def _reads_hidden_subtitles(item: xbmcgui.ListItem) -> bool:
+    """
+    Whether Kodi's own demuxer reads the playing video: it keeps reading a hidden
+    subtitle. An inputstream add-on or PVR client may stop it, and showing it again
+    doesn't restart it (VideoPlayer.cpp, PLAYER_SET_SUBTITLESTREAM_VISIBLE).
+
+    :param item: The playing item, as Player.getPlayingItem returns it.
+    :return: True for a file Kodi demuxes itself.
+    """
+    no_addon = item.getProperty("inputstream") in ("", "inputstream.ffmpeg")
+    return no_addon and not item.getPath().startswith("pvr://")
 
 
 @action
@@ -1616,7 +1628,7 @@ def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> N
     """
     player = xbmc.Player()
     langs = _languages(lang)
-    streams, current = player_streams(type)
+    streams, current, selected = player_streams(type)
     on = current["index"] if current else -1
     if type != "subtitle":
         if len(streams) < 2:  # Kodi reopens and seeks even for the same stream
@@ -1635,7 +1647,13 @@ def player_stream(type: str, lang: str = "", kind: str = "", **kwargs: str) -> N
         target = picks[shown + 1] if shown + 1 < len(picks) else None
     else:
         target = streams[on + 1] if on + 1 < len(streams) else None
-    if target and not current and target["index"] == held_subtitle():
+    if (
+        target
+        and not current
+        and selected
+        and target["index"] == selected["index"]
+        and _reads_hidden_subtitles(player.getPlayingItem())
+    ):
         # Kodi's hidden stream: selecting it again reopens it and drops the lines read
         # ahead (its players queue up to 8 s), so it would stay blank that long
         player.showSubtitles(True)
