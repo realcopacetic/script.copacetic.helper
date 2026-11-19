@@ -255,18 +255,19 @@ On close each goes back to what it was before the window opened (empty for a top
 String.IsEqual(Window(home).Property(current_mapping_{runtime_id}),tabs)
 ```
 
-The settings window itself carries one property, read with `Window.Property(page_changed)` in its own XML:
+The settings window itself carries two properties, read with `Window.Property(...)` in its own XML:
 
 | Property | Value |
 |---|---|
 | `page_changed` | `true` once the list's selection has moved to another entry and that entry's controls are shown; empty again as soon as focus reaches one of the controls, and while the controls are being changed |
+| `page_locked` | `true` while the entry's page has no control focus can land on: every one is hidden, disabled (a choice with one option) or a label |
 
-A grouplist keeps its scroll position when its rows change, so after a long page the next one can open with its first rows out of view. Use the property in the list's `<onright>` to enter the controls at the first row after a change, and normally otherwise. From Copacetic, where 101 is the grouplist of controls:
+A grouplist keeps its scroll position when its rows change, so after a long page the next one can open with its first rows out of view. Use `page_changed` in the list's `<onright>` to enter the controls at the first row after a change, and normally otherwise. `SetFocus` on a grouplist with nothing to focus takes focus off the list and gives it to nothing, so leave a locked page alone. From Copacetic, where 101 is the grouplist of controls:
 
 ```xml
-<onright condition="String.IsEmpty(Window.Property(page_changed))">101</onright>
-<onright condition="!String.IsEmpty(Window.Property(page_changed))">SetFocus(101)</onright>
-<onright condition="!String.IsEmpty(Window.Property(page_changed))">Action(FirstPage)</onright>
+<onright condition="String.IsEmpty(Window.Property(page_changed)) + String.IsEmpty(Window.Property(page_locked))">101</onright>
+<onright condition="!String.IsEmpty(Window.Property(page_changed)) + String.IsEmpty(Window.Property(page_locked))">SetFocus(101)</onright>
+<onright condition="!String.IsEmpty(Window.Property(page_changed)) + String.IsEmpty(Window.Property(page_locked))">Action(FirstPage)</onright>
 ```
 
 Each row also carries its resolved entry — metadata, stored values, and config defaults — as listitem properties, raw keys not display labels: `String.IsEqual(Container(100).ListItem.Property(layout),strip)`. Properties re-stamp on every edit, so conditions track the session live.

@@ -106,6 +106,15 @@ class BaseControlHandler:
         """
         return {self.instance.getId()}
 
+    @property
+    def focusable(self) -> bool:
+        """Whether focus can land here: shown, not a label, with an enabled id."""
+        return (
+            self.control["control_type"] != "label"
+            and bool(self._shown)
+            and any(self._enabled_by_id.get(i, True) for i in self.focus_ids)
+        )
+
     def _active_link(self) -> dict:
         """
         Binding for the focused listitem, cached per (selection, state

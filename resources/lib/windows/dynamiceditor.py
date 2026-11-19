@@ -55,6 +55,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.current_listitem = None
         self._prev_focus_id = -1
         self._page_changed = False
+        self._page_locked = False
         self._mgmt_buttons = []
         self._mgmt_ids = set()
         self._mgmt_map = {
@@ -333,6 +334,11 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         for h in self.handlers.values():
             h.update_value()
             h.update_visibility(focus_id)
+        # A page with nothing to focus: the rail's Right stays put (editor.xml)
+        locked = not any(h.focusable for h in self.handlers.values())
+        if locked != self._page_locked:
+            self._page_locked = locked
+            self.setProperty("page_locked", "true" if locked else "")
         if update_row:
             self._refresh_list_row(self.container_position)
 
