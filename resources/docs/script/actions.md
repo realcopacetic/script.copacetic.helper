@@ -90,6 +90,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`playlist_goto`](#playlist_goto) | Plays the music queue from one of its songs |
 | [`pvr_manager_back`](#pvr_manager_back) | Kodi's channel manager save question, for Back with unsaved edits |
 | [`pvr_smart_select`](#pvr_smart_select) | Kodi's guide "Smart select" for a later programme: record or switch |
+| [`rails_reset`](#rails_reset) | Puts an info dialog's rails back at their first item as their items land |
 | [`rate_song`](#rate_song) | Sets a song's user rating |
 | [`rebuild`](#rebuild) | Rebuilds the builder output and reloads the skin |
 | [`refresh_cached`](#refresh_cached) | Makes one library item's web answers and cached images come again |
@@ -364,10 +365,11 @@ with more than one row, since it moves a column at a time and wraps.
 | `id` | container id | required | The container to reset |
 | `item` | 1 and up | `1` | The item to select, counted from 1 as `MusicPlayer.PlaylistPosition` and `CurrentItem` count |
 
-Example from Copacetic, for each info dialog rail at open:
+Example from Copacetic, for the info dialogs' Manage list at open (their rails use
+[`rails_reset`](#rails_reset)):
 
 ```xml
-<onload condition="Integer.IsGreater(Container(3211).CurrentItem,1)">RunScript(script.copacetic.helper,action=container_reset,id=3211)</onload>
+<onload condition="Integer.IsGreater(Container(4613).CurrentItem,1)">RunScript(script.copacetic.helper,action=container_reset,id=4613)</onload>
 ```
 
 ---
@@ -1119,6 +1121,31 @@ Example from Copacetic, the live channel list's guide (4719; 10608 is `pvrosdcha
 ```xml
 <onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air)) + String.IsEmpty(Window(pvrosdchannels).Property(pvrosd_smart_select))">SetProperty(pvrosd_smart_select,1,pvrosdchannels)</onclick>
 <onclick condition="String.IsEmpty(Container(4719).ListItem.Property(on_air)) + String.IsEmpty(Window(pvrosdchannels).Property(pvrosd_smart_select))">RunScript(script.copacetic.helper,action=pvr_smart_select,id=$INFO[Container(4719).ListItem.Property(broadcastid)],channelid=$INFO[Container(4719).ListItem.Property(channelid)],switch=ClearProperty(pvrosd_guide,pvrosdchannels)|SetFocus(11)|Action(Select,pvrosdchannels),when=Window.IsModalDialogTopmost(pvrosdchannels) + String.IsEqual(Window(pvrosdchannels).Property(pvrosd_guide),$INFO[Container(4719).ListItem.Property(channelid)]) + String.IsEqual(Container(11).ListItem.Property(channelid),$INFO[Container(4719).ListItem.Property(channelid)]),stamp=pvrosd_guide_timers,busy=pvrosd_smart_select,window_id=10608)</onclick>
+```
+
+---
+
+## rails_reset
+
+Puts an info dialog's rails back at their first item for each new item, as their items
+land. A selection on an empty list does nothing, and Kodi keeps a list's place through
+an empty list; when new items land it selects the old selected item again wherever it
+finds it by path. So a reset at `<onload>` alone misses a rail still waiting on its
+fetch, and one that shares items with the last dialog item opens part-way along.
+
+For 10 s it selects item 0 (`ControlList.selectItem`, no focus change) of any rail
+that isn't fetching and rests past it. A rail once focused is left alone. It reads its
+window once, the topmost info dialog when it starts, and ends when that dialog closes
+or reopens on another item (its `info_key` window property changes).
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `ids` | container ids joined by `\|` | empty | The rails the dialog's item shows |
+
+Example from Copacetic: each shown rail adds its id to the dialog's `rail_ids`, then
+
+```xml
+<onload condition="!Window.Is(addoninformation)">RunScript(script.copacetic.helper,action=rails_reset,ids=$INFO[Window.Property(rail_ids)])</onload>
 ```
 
 ---
