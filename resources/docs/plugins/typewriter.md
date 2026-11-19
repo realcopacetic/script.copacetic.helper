@@ -33,7 +33,8 @@ The path returns no list items. It drives the textbox directly.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `target_id` | control id | — | **Required.** The textbox. |
-| `label` | any text | — | **Required** unless `reset=true`. The text to type. |
+| `label` | any text | — | **Required** unless `reset=true` or `file` is passed. The text to type. |
+| `file` | a file's path | — | Used only when `label` is empty: the file's name is typed, its extension dropped and underscores read as spaces (`.../Screenshot_01.jpg` types `Screenshot 01`). The name is taken as Kodi takes it: options after a `?` (on a web path also `;`, `#` or `|`) are cut first. For items Kodi lists with no label, such as an add-on's screenshots. |
 | `reset` | `true`, `false` | `false` | Stop any run on this textbox and hide it. See [Resetting](#resetting). |
 | `max_lines` | whole number | `3` | Most lines the textbox may grow to. |
 | `start_delay` | seconds (decimal) | `0` | Wait before typing starts. Focus is checked again after the wait. |
