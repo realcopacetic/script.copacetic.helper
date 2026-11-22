@@ -127,18 +127,17 @@ class Server:
     @staticmethod
     def _handle(url: str) -> list[tuple]:
         """
-        Run the plugin handler a URL names, as plugin/main.py does.
+        Run the plugin handler a URL names, through plugin/main.py's dispatch.
 
         :param url: The probe's plugin URL.
         :return: Its (url, ListItem, isFolder) items; none for an unknown info.
         """
         # Here, not at the top: the service loads without the plugin stack
-        from resources.lib.plugin.handlers import PluginHandlers
         from resources.lib.plugin.opts import ART_URLS
-        from resources.lib.plugin.registry import collect_info_handlers
+        from resources.lib.plugin.registry import info_handler
 
         params = parse_plugin_argv(["", "", url[len(PLUGIN) :]], raw=ART_URLS)
-        handler = collect_info_handlers(PluginHandlers(params)).get(params.get("info"))
+        handler = info_handler(params)
         return (handler() or []) if handler else []
 
     @staticmethod

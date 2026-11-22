@@ -31,3 +31,17 @@ def collect_info_handlers(inst: object) -> dict[str, Callable]:
         for attr, fn in type(inst).__dict__.items()
         if callable(fn) and (tag := getattr(fn, _INFO_TAG, None))
     }
+
+
+def info_handler(params: dict[str, str]) -> Callable | None:
+    """
+    The handler a request's `info` names, bound to a new PluginHandlers: the one
+    dispatch for plugin calls and served lists (a new instance per serve).
+
+    :param params: Parsed request params.
+    :return: Bound handler, or None for an unknown info.
+    """
+    from resources.lib.plugin.handlers import PluginHandlers  # imports this module
+
+    info = (params.get("info") or "").strip().lower()
+    return collect_info_handlers(PluginHandlers(params)).get(info)

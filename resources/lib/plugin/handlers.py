@@ -20,8 +20,8 @@ from xbmcgui import Window, getCurrentWindowDialogId, getCurrentWindowId
 from xbmcplugin import SORT_METHOD_LASTPLAYED
 
 from resources.lib.apis.cache import cache_only
-from resources.lib.plugin.geometry import PlacementOpts
-from resources.lib.plugin.helpers import (
+from resources.lib.shared.geometry import PlacementOpts
+from resources.lib.shared.helpers import (
     DataHandler,
     ProgressBarManager,
     TypewriterAnimation,

@@ -5,10 +5,9 @@ import time
 
 import xbmcplugin
 
-from resources.lib.plugin.handlers import PluginHandlers
 from resources.lib.plugin.listing import PluginListing
 from resources.lib.plugin.opts import ART_URLS
-from resources.lib.plugin.registry import LOG_TAG, collect_info_handlers
+from resources.lib.plugin.registry import LOG_TAG, info_handler
 from resources.lib.shared import logger as log
 from resources.lib.shared.parser import parse_plugin_argv
 
@@ -37,10 +36,7 @@ class Main:
 
     def run_handler(self) -> None:
         """Dispatch a plugin handler (from ?info=...) and emit its items."""
-        info = (self.info or "").strip().lower()
-        ph = PluginHandlers(self.params)
-        handlers = collect_info_handlers(ph)
-        fn = handlers.get(info)
+        fn = info_handler(self.params)
         if not fn:
             log.debug(f"Ignoring unknown info: {self.info}")
             self._additems([])  # an empty listing, not Kodi's "Error getting"

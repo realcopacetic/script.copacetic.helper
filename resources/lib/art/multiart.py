@@ -9,7 +9,7 @@ from xbmc import Monitor
 from xbmcgui import Window, getCurrentWindowId
 
 from resources.lib.apis.tmdb.fields import TMDB_IMAGE_BASE
-from resources.lib.plugin.helpers import get_infolabels
+from resources.lib.shared.helpers import get_infolabels
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import (
     clamp,

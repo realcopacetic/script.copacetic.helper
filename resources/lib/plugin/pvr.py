@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from xbmc import getRegion
 
-from resources.lib.plugin.helpers import hours_minutes
+from resources.lib.shared.helpers import hours_minutes
 from resources.lib.shared.utilities import plugin_path
 
 # PVR.GetBroadcasts fields a guide row reads (each row also has its label, the title
