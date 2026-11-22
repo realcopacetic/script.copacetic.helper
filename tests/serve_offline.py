@@ -51,6 +51,8 @@ def _server(*probes: str) -> serve.Server:
     server._handle = Mock(return_value=[("plugin://x/1", Mock(), False)])
     server._bind = Mock()
     server.probes = list(probes or (PARAMS,))
+    server.bound = ""  # what 9010's Property(current) reads back
+    server._bind.side_effect = lambda *args: setattr(server, "bound", args[3])
     return server
 
 
@@ -73,9 +75,12 @@ class ServeTest(unittest.TestCase):
 
     def _run(self, server: serve.Server, request: serve.Request) -> None:
         server.request = request
-        reads = lambda label: (
-            server.probes.pop(0) if len(server.probes) > 1 else server.probes[0]
-        )
+
+        def reads(label: str) -> str:
+            if "Property(current)" in label:  # the repeat test's read-back
+                return server.bound
+            return server.probes.pop(0) if len(server.probes) > 1 else server.probes[0]
+
         with patch.object(serve, "infolabel", side_effect=reads):
             server._serve(request)
 
@@ -200,14 +205,19 @@ class ServeTest(unittest.TestCase):
         self._run(server, SETTLE._replace())
         server._handle.assert_called_once()
 
+    def test_a_move_is_never_a_repeat(self) -> None:
+        server = _server()
+        move = serve.Request("move", "primary", (9010,), "m1")
+        self._run(server, move)
+        self._run(server, move._replace())
+        self.assertEqual(server._handle.call_count, 2)
+
     def test_move_with_no_lists_is_the_last_request(self) -> None:
         server = _server()
         self._run(server, SETTLE)
         move = serve.Request("move", "", (), "m1")
-        with patch.object(server, "_identity", return_value="54/7/20/") as identity:
-            self._run(server, move)
-        identity.assert_called_once_with("primary", 10025)
-        self.assertEqual(server._bind.call_args.args[3:], ("m1", "54/7/20/"))
+        self._run(server, move)
+        self.assertEqual(server._bind.call_args.args[3:], ("m1", ""))
         self.assertEqual(
             server.finished, serve.Request("move", "primary", (9010,), "m1")
         )
@@ -222,19 +232,75 @@ class ServeTest(unittest.TestCase):
         server._ring = Mock()
         server.again(9010)  # nothing served yet in this window
         server.last[10025] = SETTLE._replace(lists=(9000, 9010))
-        server.finished = server.last[10025]
         server.again(9300)  # not one of its lists
+        server.request = SETTLE._replace(mark="54/4/13/v")  # a newer ring waits
         server.again(9010)
-        server._ring.assert_called_once_with(SETTLE)
-        self.assertIsNone(server.finished)
+        server.request = server.last[10025]
+        server.again(9010)
+        server._ring.assert_called_once_with(SETTLE._replace(again=True))
 
-    def test_identity_reads_the_cursors_list_else_focus(self) -> None:
-        labels = {"Container(54).CurrentItem": "7", "Container(54).ListItem.DBID": "20"}
-        with patch.object(serve, "infolabel", side_effect=labels.get):
-            self.assertEqual(serve.Server._identity("primary", 10025), "54/7/20/")
-            self.props["artwork_cursor_primary"] = ""  # cleared: back from Info
-            with patch.object(serve, "focused_control_id", return_value=54):
-                self.assertEqual(serve.Server._identity("primary", 10025), "54/7/20/")
+    def test_again_is_never_a_repeat(self) -> None:
+        server = _server()
+        self._run(server, SETTLE)
+        self._run(server, SETTLE._replace(again=True))
+        self.assertEqual(server._handle.call_count, 2)
+
+    def test_a_repeat_whose_list_was_emptied_serves(self) -> None:
+        server = _server()
+        self._run(server, SETTLE)
+        server.bound = ""  # a skin reload rebuilt the window
+        self._run(server, SETTLE._replace())
+        self.assertEqual(server._handle.call_count, 2)
+
+    def test_a_move_with_no_last_serves_every_list(self) -> None:
+        server = _server()
+        self._run(server, serve.Request("move", "", (), "m1"))
+        self.assertEqual(
+            server.finished, serve.Request("move", "primary", (9010,), "m1")
+        )
+
+    def test_wait_time_under_a_dialog_doesnt_count(self) -> None:
+        server = _server(serve.WAIT, PARAMS)
+        tops = iter([10106] * 3 + [10025] * 5)
+        with (
+            patch.object(serve, "topmost_window_id", side_effect=lambda: next(tops)),
+            patch.object(serve, "WAIT_MAX", 0.5),
+            patch.object(serve.time, "monotonic", side_effect=[0, 0.1, 9, 9]),
+        ):
+            self._run(server, SETTLE)
+        server._handle.assert_called_once()
+
+    def test_a_handler_error_binds_blank(self) -> None:
+        with patch(
+            "resources.lib.plugin.registry.info_handler", side_effect=ValueError
+        ):
+            self.assertEqual(serve.Server._handle(PARAMS, bool), [])
+
+    def test_start_rings_a_move(self) -> None:
+        with (
+            patch.object(serve, "Thread"),
+            patch.object(serve, "move_token", return_value="m9") as token,
+        ):
+            server = serve.Server()
+        token.assert_called_once_with()
+        self.assertEqual(
+            server.request, serve.Request("move", "primary", (9010,), "m9")
+        )
+        self.assertTrue(server.rung.is_set())
+
+    def test_ring_move_writes_the_token_first(self) -> None:
+        calls = []
+        home = Mock(setProperty=lambda key, value: calls.append((key, value)))
+        with (
+            patch.object(serve, "Window", return_value=home),
+            patch.object(serve.xbmc, "executebuiltin", calls.append, create=True),
+        ):
+            serve.ring_move()
+        (key, token), ring = calls
+        self.assertEqual(key, "moved_primary")
+        self.assertEqual(
+            ring, f"NotifyAll(script.copacetic.helper,move/primary/9010/{token})"
+        )
 
     def test_bind_sets_paths_and_a_new_window(self) -> None:
         items = [("plugin://x/1", Mock(), False), ("plugin://x/2", Mock(), False)]
