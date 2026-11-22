@@ -541,7 +541,7 @@ class Click(unittest.TestCase):
         offline = []  # whether each draw ran under cache_only
 
         def draw(*args, **kwargs) -> dict:
-            offline.append(cache._offline)
+            offline.append(cache._offline.get())
             return drawn
 
         mocks = {

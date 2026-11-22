@@ -2,9 +2,9 @@
 
 import json
 import sqlite3
+import threading
 import time
 from datetime import timedelta
-from functools import cached_property
 from pathlib import Path
 from typing import Any, Collection, Mapping
 
@@ -20,11 +20,14 @@ TRUNCATE_DB_SCHEMA = (
 
 TRUNCATE_DB_FIELDS = tuple(name for name, _ in TRUNCATE_DB_SCHEMA)
 
+_threads = threading.local()  # sqlite3 refuses another thread's connection
+_schemas = set()  # (handler class, db path) whose schema this process has checked
+
 
 class SQLiteHandler:
     """
-    Base SQLite handler: one WAL connection per instance, shared CRUD helpers.
-    Subclasses must set TABLE_NAME, implement _initialize_database().
+    Base SQLite handler: one WAL connection per thread and file, kept for the thread,
+    and shared CRUD helpers. Subclasses set TABLE_NAME, implement _initialize_database().
     """
 
     TABLE_NAME = None
@@ -37,8 +40,11 @@ class SQLiteHandler:
         :return: None.
         """
         self.db_path = db_path or LOOKUPS
-        create_dir(str(Path(self.db_path).parent))
-        self._initialize_database()
+        # Once per process and table: the service builds handlers on every serve
+        if (key := (type(self), self.db_path)) not in _schemas:
+            create_dir(str(Path(self.db_path).parent))
+            self._initialize_database()
+            _schemas.add(key)
 
     def _initialize_database(self) -> None:
         """
@@ -47,15 +53,17 @@ class SQLiteHandler:
         """
         raise NotImplementedError
 
-    @cached_property
+    @property
     def _conn(self) -> sqlite3.Connection:
         """
-        This handler's connection, opened on first use. WAL mode persists in
-        the database file, so it is set once here rather than per query.
+        This thread's connection to db_path, opened on first use and kept while the
+        thread lives. WAL mode persists in the file, so it is set once per connection.
         """
-        conn = sqlite3.connect(self.db_path, timeout=5)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.row_factory = sqlite3.Row
+        conns = vars(_threads).setdefault("conns", {})
+        if (conn := conns.get(self.db_path)) is None:
+            conn = conns[self.db_path] = sqlite3.connect(self.db_path, timeout=5)
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.row_factory = sqlite3.Row
         return conn
 
     def _insert_or_replace(

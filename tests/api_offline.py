@@ -266,7 +266,7 @@ class ListenBrainzTest(Base):
             self.assertEqual(listenbrainz.top_recordings(GORILLAZ), top)
             self.assertEqual(listenbrainz.top_recordings(QOTSA), [])  # not fetched
         self.assertEqual(len(self.net.requests), 1)
-        self.assertFalse(cache._offline)  # released
+        self.assertFalse(cache._offline.get())  # released
 
     def test_empty_cached_three_days(self):
         self.net.answers = [b"[]"]

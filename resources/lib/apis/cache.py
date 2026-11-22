@@ -3,6 +3,7 @@
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Callable
 
 from xbmc import Monitor
@@ -17,7 +18,9 @@ DAY = 86400
 TTL_INVALID, TTL_DOWN = 7 * DAY, 300
 # TheIntroDB's 429 for one film or episode: its wait holds that key, not the queue
 ONE_MEDIA = "specific_media_usage_limit_exceeded"
-_offline = False  # cache_only holds it: answers come from the cache alone
+# cache_only holds it: answers come from the cache alone. Per thread, as a new one
+# starts with the default: one thread's hold leaves the service's others online
+_offline = ContextVar("cache_only", default=False)
 
 
 @contextmanager
@@ -26,12 +29,11 @@ def cache_only() -> Iterator[None]:
     While held, cached answers whatever their age and fetches nothing: for a plugin
     call (its own interpreter) that must not wait on the network.
     """
-    global _offline
-    _offline = True
+    token = _offline.set(True)
     try:
         yield
     finally:
-        _offline = False
+        _offline.reset(token)
 
 
 # A failed request, or an answer of another shape than the fetch expects
@@ -69,7 +71,7 @@ def cached(
     """
     cache = ApiCacheHandler()
     payload, fresh = cache.get(key) or (None, False)
-    if fresh or _offline:
+    if fresh or _offline.get():
         return payload
     source = key.partition(":")[0]
     if queue:
