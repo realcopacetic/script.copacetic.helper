@@ -49,6 +49,7 @@ class Editor:
 _module("resources.lib.windows.dynamiceditor", DynamicEditor=Editor)
 _module("resources.lib.art.slideshow", Slideshow=Mock)
 _module("resources.lib.service.player", PlayerMonitor=Mock)
+_module("resources.lib.service.serve", Server=Mock)
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.builders.runtime import RuntimeStateManager  # noqa: E402

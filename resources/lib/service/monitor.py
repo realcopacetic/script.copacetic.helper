@@ -15,6 +15,7 @@ from resources.lib.builders.builder_config import BUILDER_CONFIG
 from resources.lib.builders.templates import cache_is_current
 from resources.lib.service import clashes
 from resources.lib.service.player import PlayerMonitor
+from resources.lib.service.serve import Server
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import release_refresh, skin_uses_speed_dial
 from resources.lib.shared.sqlite import ApiCacheHandler
@@ -78,6 +79,7 @@ class Monitor(xbmc.Monitor):
         self.prune_due = 0.0  # wall-clock time of the next API cache prune
         self.player_monitor = None
         self.slideshow = None
+        self.server = None  # served focus calls (serve.py)
         self.song_bump = None  # a pending progress_version bump
         self.closed = {}  # songs closed since the last bump: id → start play count
         self.clash_features = ()  # clashes.features() after the last apply
@@ -144,6 +146,7 @@ class Monitor(xbmc.Monitor):
         self._builder_elements()
         self.player_monitor = PlayerMonitor(song_closed=self._song_closed)
         self.slideshow = Slideshow()
+        self.server = Server()
         Thread(target=bake_profiles, daemon=True).start()
         window_property(SPEED_DIAL_PROPERTY, value=skin_uses_speed_dial() and "true")
         window_property(ACTIVE_PROPERTY, value="true")
@@ -170,7 +173,8 @@ class Monitor(xbmc.Monitor):
             self.song_bump.cancel()
         self.player_monitor.release()
         self.slideshow.clear()
-        self.player_monitor = self.slideshow = None
+        self.server.stop()
+        self.player_monitor = self.slideshow = self.server = None
         log.info(f"{self.__class__.__name__} → Inactive, skin left")
 
     def _builder_elements(self) -> None:
