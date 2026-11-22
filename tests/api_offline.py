@@ -609,6 +609,41 @@ class TmdbTest(Base):
         self.assertEqual(self.tmdb_row(), (item, 7 * DAY))
         self.assertEqual(len(self.net.requests), 3)
 
+    def test_aside_serves_the_cache_and_fetches_on_its_own_thread(self):
+        threads = []
+        thread = lambda target, args, daemon: mock.Mock(
+            start=lambda: threads.append(args)
+        )
+        patch(self, (transform, "Thread", thread))
+        self.addCleanup(transform._asides.clear)
+        landed = mock.Mock()
+        self.net.answers = [TMDB_TV]
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399, aside=landed), {})
+        self.assertEqual(self.net.requests, [])  # nothing on the asker's thread
+        later = mock.Mock()
+        transform.tmdb_to_canonical("tvshow", 1399, aside=later)  # one fetch each
+        self.assertEqual(len(threads), 1)
+        transform._aside(*threads[0])
+        later.assert_called_once()  # the last to ask is told
+        landed.assert_not_called()
+        self.assertEqual(self.tmdb_row()[0]["Title"], "Game of Thrones")
+        self.assertEqual(transform._asides, {})
+        transform.tmdb_to_canonical("tvshow", 1399, aside=landed)  # fresh: none
+        self.assertEqual(len(threads), 1)
+
+    def test_aside_with_no_news_tells_nobody(self):
+        thread = lambda target, args, daemon: mock.Mock(start=lambda: target(*args))
+        patch(self, (transform, "Thread", thread))
+        self.addCleanup(transform._asides.clear)
+        self.net.answers = [TMDB_TV, TimeoutError()]
+        item = transform.tmdb_to_canonical("tvshow", 1399)
+        self.tick(8 * DAY)
+        landed = mock.Mock()
+        stale = transform.tmdb_to_canonical("episode", 1399, aside=landed)
+        self.assertEqual(stale["Trailer"], item["Trailer"])  # the show's, for now
+        self.assertEqual(len(self.net.requests), 2)  # asked, offline
+        landed.assert_not_called()
+
     def test_episode_takes_show_level_keys_only(self):
         self.net.answers = [TMDB_TV]
         episode = transform.tmdb_to_canonical("episode", 1399)
@@ -762,7 +797,7 @@ class TmdbTest(Base):
         handler = object.__new__(handlers.PluginHandlers)
         handler.params = {"enrich_with_tmdb": "true"}
         handler.item, handler.dbtype, handler.dbid = False, "tvshow", "7"
-        handler.dialog = False
+        handler.dialog, handler.again = False, None
         handler.target_item = "Container(50).ListItem"
         handler._guard = lambda: mock.Mock(alive=lambda: True)
         handler._get_tmdb_item = lambda **kwargs: transform.tmdb_to_canonical(
@@ -865,13 +900,15 @@ class TmdbTest(Base):
             "truncate_width": "20",
         }
         handler.item, handler.dbtype, handler.dbid = False, "movie", "7"
-        handler.dialog = False
+        handler.dialog, handler.again = False, None
         handler.target_item = "Container(50).ListItem"
         handler._guard = lambda: mock.Mock(alive=lambda: True)
         shown = {"6009": "This plot", "6036": "This title"}
+        asides = []
 
         def follow_rail(**kwargs):
             shown.update({"6009": "Rail plot", "6036": "Rail title"})
+            asides.append(kwargs["aside"])
 
         handler._get_tmdb_item = follow_rail
         probe = lambda path: shown.get(path[17:21], "")
@@ -884,8 +921,12 @@ class TmdbTest(Base):
             handlers, "set_items", lambda items, **kwargs: items
         ):
             (item,) = handler.metadata()
-        self.assertEqual(item["properties"]["truncated_label"], "This plot...")
-        self.assertEqual(item["properties"]["truncated_title"], "This title...")
+            props = dict(item["properties"])
+            handler.again = mock.Mock()  # served: TMDb is fetched aside
+            handler.metadata()
+        self.assertEqual(props["truncated_label"], "This plot...")
+        self.assertEqual(props["truncated_title"], "This title...")
+        self.assertEqual(asides, [None, handler.again])
 
     def test_fit_lines_sentences(self):
         font = mock.Mock(getlength=len)

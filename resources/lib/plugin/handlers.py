@@ -336,10 +336,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self,
         params: dict[str, str],
         superseded: Callable[[], bool] | None = None,
+        again: Callable[[], None] | None = None,
         query: str = "",
     ) -> None:
         self.params = params
         self.superseded = superseded  # a served list's: its guards test it first
+        self.again = again  # a served list's re-serve, for an answer that lands later
         self.query = query  # the raw query params came from: a service has no argv
 
         self.label = params.get("label", "")
@@ -537,6 +539,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         append_artwork: bool,
         cache_only: bool = False,
         target: str | None = None,
+        aside: Callable[[], None] | None = None,
     ) -> dict[str, Any] | None:
         """Resolve TMDb canonical item for the current listitem; sets _tmdb_key to its
         kind:tmdb_id once resolved.
@@ -544,6 +547,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param append_artwork: Whether to include TMDb artwork fields.
         :param cache_only: Read the TMDb cache only; never fetch.
         :param target: Infolabel prefix of the item; the serve's target item if None.
+        :param aside: Read the cache, fetching on a thread that calls this on news.
         :return: canonical item dict or None.
         """
         from resources.lib.apis.tmdb.client import tmdb_token
@@ -565,6 +569,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             language=self.params.get("language"),
             append_artwork=append_artwork,
             cache_only=cache_only,
+            aside=aside,
         )
         if not item:
             log.debug(
@@ -1231,8 +1236,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         tmdb_art = enrich_with_tmdb and parse_bool(self.params.get("tmdb_art"))
         if enrich_with_tmdb:
             # tmdb_art: the one request also caches the art-bearing entry (a superset)
-            # that the artwork serve's get_extra_multiart reads.
-            tmdb_item = self._get_tmdb_item(append_artwork=tmdb_art)
+            # that the artwork serve's get_extra_multiart reads. Served, a stale entry
+            # is fetched aside, and its news serves this list again (decision 2A)
+            tmdb_item = self._get_tmdb_item(append_artwork=tmdb_art, aside=self.again)
             if tmdb_item:
                 trailers = tmdb_item["properties"].pop("tmdb_trailers", "")
                 if trailers and parse_bool(self.params.get("random_trailer")):
