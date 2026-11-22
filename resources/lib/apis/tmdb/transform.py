@@ -1,6 +1,7 @@
 # author: realcopacetic
 
-from typing import Any, Mapping
+from threading import Lock, Thread
+from typing import Any, Callable, Mapping
 
 from xbmcgui import Window
 
@@ -27,6 +28,10 @@ from resources.lib.shared.utilities import plugin_path, window_property
 EPISODE_KEYS = ("file", "art", "properties", "Trailer")  # show-level, fit an episode
 TTL_HIT, TTL_MISSING = 7 * DAY, DAY
 TOKEN_REFUSED = "tmdb_token_refused"  # Home property: the warning logs once a session
+# Items fetched aside, one thread each: tmdb_to_canonical's args → (the last asker's
+# landed, the answer it was served meanwhile)
+_asides: dict[tuple, tuple[Callable[[], None], dict]] = {}
+_asides_lock = Lock()
 IMAGE_LIST_ROLES = {
     "images_posters": [
         ("poster", "lang"),
@@ -55,6 +60,7 @@ def tmdb_to_canonical(
     language: str | None = None,
     append_artwork: bool = True,
     cache_only: bool = False,
+    aside: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """
     Fetch TMDb data and normalise it into canonical Kodi item format, cached in
@@ -66,6 +72,7 @@ def tmdb_to_canonical(
     :param language: Optional TMDb language override.
     :param append_artwork: If False, skip TMDb 'images' append block.
     :param cache_only: Serve the cached item, even expired; never fetch.
+    :param aside: Serve the cached item, fetching on a thread that calls it on news.
     :return: Canonical TMDb item dict or empty dict.
     """
     if tmdb_id <= 0:
@@ -73,7 +80,7 @@ def tmdb_to_canonical(
         return {}
     if kind == "episode":  # no episode lookup: never the show's Title or Plot
         show = tmdb_to_canonical(
-            "tvshow", tmdb_id, None, language, append_artwork, cache_only
+            "tvshow", tmdb_id, None, language, append_artwork, cache_only, aside
         )
         return {key: show[key] for key in EPISODE_KEYS if key in show}
 
@@ -99,7 +106,10 @@ def tmdb_to_canonical(
         return payload or full or {}
     # Both stale: the art entry, which the metadata serve renews with TMDb multiart on
     # (off, it renews |noart, so an older art entry wins until that one is fresh)
-    if cache_only:
+    if cache_only or aside:
+        if aside:  # a served call: the network never holds the pipeline
+            args = kind, tmdb_id, season_number, language, append_artwork
+            _fetch_aside(args, aside, full or payload or {})
         return full or payload or {}
 
     try:
@@ -132,6 +142,38 @@ def tmdb_to_canonical(
     )
     cache.put(key, item, TTL_HIT)
     return item
+
+
+def _fetch_aside(args: tuple, landed: Callable[[], None], stale: dict) -> None:
+    """
+    Fetch an item on a thread of its own, the only one for that item while it runs;
+    whoever asked last is called once it lands with a different answer.
+
+    :param args: tmdb_to_canonical's positional args for the item.
+    :param landed: The asker's callback.
+    :param stale: The answer the asker served meanwhile.
+    """
+    with _asides_lock:
+        running = args in _asides
+        _asides[args] = landed, stale
+    if not running:
+        Thread(target=_aside, args=(args,), daemon=True).start()
+
+
+def _aside(args: tuple) -> None:
+    """
+    _fetch_aside's thread: the fetch, then the last asker's callback on news (a
+    dead network keeps the stale answer, which calls nobody).
+
+    :param args: tmdb_to_canonical's positional args for the item.
+    """
+    try:
+        item = tmdb_to_canonical(*args)
+    finally:  # an error (logged as the thread ends) still frees the item
+        with _asides_lock:
+            landed, stale = _asides.pop(args)
+    if item != stale:
+        landed()
 
 
 def _build_tmdb_canonical_item(
