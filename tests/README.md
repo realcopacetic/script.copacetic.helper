@@ -79,10 +79,13 @@ python tests/multiart_offline.py
 # host open once the session has closed), else clear it
 python tests/service_offline.py
 
-# Served focus calls spike (service/serve.py): a ring names known lists only; a probe's
-# plugin URL is handled and bound with its cursor, the empty folder binds one blank
-# item, an unmounted probe nothing; under a dialog the request waits, and a newer ring
-# or a window change drops it; a bind sets each item's path and uses a new Window
+# Served focus calls (service/serve.py): a ring's kind, region, known lists and mark;
+# a probe's params handled and bound with the request's current, none one blank item,
+# an empty probe nothing, wait read again; under a dialog the request waits, and a
+# newer ring, a window change or a moved cursor drops it; a list covered mid-run owed
+# again; a repeat does nothing; a move with no lists the window's last request;
+# again() one list of it; the guard's superseded test first; a bind's paths and new
+# Window; SQLite's connection per thread, schema once; cache_only per thread
 python tests/serve_offline.py
 
 # Settings editor edges (builders/runtime.py, windows/dynamiceditor.py, controls.py) with

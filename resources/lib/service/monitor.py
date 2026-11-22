@@ -80,7 +80,7 @@ class Monitor(xbmc.Monitor):
         self.player_monitor = None
         self.slideshow = None
         self.server = None  # served focus calls (serve.py)
-        self.song_bump = None  # a pending progress_version bump
+        self.song_bump = None  # a pending album bar re-serve
         self.closed = {}  # songs closed since the last bump: id → start play count
         self.clash_features = ()  # clashes.features() after the last apply
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
@@ -372,14 +372,17 @@ class Monitor(xbmc.Monitor):
 
     def _album_bump(self) -> None:
         """
-        Timer: a new progress_version, which the skin's progress bar URL carries,
-        unless 9010 on top serves a film's or show's bar (no blink); read now. Then a
-        new played_version if a closed song's play counted (unannounced by real path).
+        Timer: the served bar (9010) again, and a new progress_version for the info
+        dialogs' bar, a plugin list whose URL carries it; unless 9010 on top serves a
+        film's or show's bar (no blink), read now. Then a new played_version if a
+        closed song's play counted (unannounced by real path).
         """
         if condition(
             "!String.StartsWith(Container(9010).ListItem.FileNameAndPath,plugin://)"
             " | String.IsEqual(Container(9010).ListItem.Property(album),true)"
         ):
+            if server := self.server:  # None once the skin has left
+                server.again(9010)
             window_property("progress_version", value=str(time.monotonic_ns()))
         closed, self.closed = self.closed, {}  # a started Timer can't be cancelled
         if any(_play_count(songid) != count for songid, count in closed.items()):
