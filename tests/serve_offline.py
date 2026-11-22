@@ -89,8 +89,8 @@ class ServeTest(unittest.TestCase):
         listener = serve._Listener(heard.append)
         sender = "script.copacetic.helper"
         listener.onNotification(sender, f"Other.settle/primary/9010.9300/{CURSOR}", "")
-        listener.onNotification(sender, "Other.move//9010/m1", "")
-        listener.onNotification(sender, "Other.move///m2", "")
+        listener.onNotification(sender, "Other.move//9010/view/m1", "")
+        listener.onNotification(sender, "Other.move////m2", "")
         listener.onNotification(
             "other.addon", f"Other.settle/primary/9010/{CURSOR}", ""
         )
@@ -99,7 +99,7 @@ class ServeTest(unittest.TestCase):
             heard,
             [
                 serve.Request("settle", "primary", (9010,), CURSOR),
-                serve.Request("move", "", (9010,), "m1"),
+                serve.Request("move", "", (9010,), "m1", "view"),
                 serve.Request("move", "", (), "m2"),
             ],
         )
@@ -282,7 +282,7 @@ class ServeTest(unittest.TestCase):
             patch.object(serve, "move_token", return_value="m9") as token,
         ):
             server = serve.Server()
-        token.assert_called_once_with()
+        token.assert_called_once_with("primary", "secondary")
         self.assertEqual(
             server.request, serve.Request("move", "primary", (9010,), "m9")
         )
@@ -299,8 +299,28 @@ class ServeTest(unittest.TestCase):
         (key, token), ring = calls
         self.assertEqual(key, "moved_primary")
         self.assertEqual(
-            ring, f"NotifyAll(script.copacetic.helper,move/primary/9010/{token})"
+            ring, f"NotifyAll(script.copacetic.helper,move/primary/9010//{token})"
         )
+
+    def test_a_moves_item_is_its_containers_now(self) -> None:
+        labels = {
+            "Container(54).CurrentItem": "7",
+            "Container(54).ListItem.DBID": "20",
+            "Container(3200).CurrentItem": "2",
+            "Container(3200).ListItem.DBID": "",
+        }
+        move = serve.Request("move", "primary", (9010,), "m1")
+        with patch.object(serve, "infolabel", side_effect=labels.get):
+            self.assertEqual(
+                serve.Server._item(move._replace(container="view")), "54/7/20/"
+            )
+            self.assertEqual(
+                serve.Server._item(move._replace(container="3200")), "3200/2//"
+            )
+            self.assertEqual(serve.Server._item(move), "")
+            self.props["artwork_cursor_primary"] = ""  # cleared: no view to name
+            self.assertEqual(serve.Server._item(move._replace(container="view")), "")
+        self.assertEqual(serve.Server._item(SETTLE), "54/3/12/")
 
     def test_bind_sets_paths_and_a_new_window(self) -> None:
         items = [("plugin://x/1", Mock(), False), ("plugin://x/2", Mock(), False)]

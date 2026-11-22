@@ -18,7 +18,9 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.utilities import infolabel, topmost_window_id
 
-# NotifyAll(script.copacetic.helper,<kind>/<region>/<lists, dot-separated>/<mark>)
+# NotifyAll(script.copacetic.helper,<kind>/<region>/<lists, dot-separated>/<mark>);
+# a move's mark is <container>/<token>: the list that moved (view: the cursor's list),
+# or none, then the token in moved_<region>
 KINDS = ("settle", "move")
 PLUGIN = "plugin://script.copacetic.helper/"
 PROBES = {9010: 6910}  # served list → the hidden label holding its params
@@ -34,13 +36,15 @@ class Request(NamedTuple):
     """
     One arrival. A settle answers the cursor its hook wrote (artwork_cursor_<region>),
     a move the token its ring wrote (moved_<region>); the mark is that value. again
-    marks the helper's own re-serve, never a repeat.
+    marks the helper's own re-serve, never a repeat; container is the list a move
+    moved, whose item it binds.
     """
 
     kind: str
     region: str
     lists: tuple[int, ...]
     mark: str
+    container: str = ""
     again: bool = False
 
     @property
@@ -56,15 +60,17 @@ class Request(NamedTuple):
         return Window(10000).getProperty(f"{prop}_{self.region}") == self.mark
 
 
-def move_token(region: str = "primary") -> str:
+def move_token(*regions: str) -> str:
     """
-    A new move token in moved_<region>, as the skin's atr_serve_move writes one.
+    A new move token in moved_<region> for each region, as the skin's atr_serve_move
+    writes one.
 
-    :param region: Whose token.
+    :param regions: Whose token.
     :return: The token, the move's mark.
     """
     token = f"m{time.monotonic_ns()}"
-    Window(10000).setProperty(f"moved_{region}", token)
+    for region in regions:
+        Window(10000).setProperty(f"moved_{region}", token)
     return token
 
 
@@ -76,7 +82,7 @@ def ring_move(region: str = "primary") -> None:
     """
     lists = ".".join(map(str, PROBES))
     mark = move_token(region)
-    xbmc.executebuiltin(f"NotifyAll({log.ADDON_ID},move/{region}/{lists}/{mark})")
+    xbmc.executebuiltin(f"NotifyAll({log.ADDON_ID},move/{region}/{lists}//{mark})")
 
 
 class _Listener(xbmc.Monitor):
@@ -99,7 +105,10 @@ class _Listener(xbmc.Monitor):
             return
         region, lists, mark = (rest.split("/", 2) + ["", ""])[:3]
         ids = tuple(i for i in map(int, filter(None, lists.split("."))) if i in PROBES)
-        self.ring(Request(kind, region, ids, mark))
+        container = ""
+        if kind == "move":
+            container, _, mark = mark.partition("/")
+        self.ring(Request(kind, region, ids, mark, container))
 
 
 class Server:
@@ -112,8 +121,10 @@ class Server:
         self.finished = None  # the last request served whole: a repeat does nothing
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
-        # The landing rang before the service ran (Kodi start, a restart): a move now
-        self._ring(Request("move", "primary", tuple(PROBES), move_token()))
+        # The landing rang before the service ran (Kodi start, a restart): a move now,
+        # its token for either region, as the probe serves the one on screen
+        token = move_token("primary", "secondary")
+        self._ring(Request("move", "primary", tuple(PROBES), token))
 
     def stop(self) -> None:
         """Release both threads: the listener within a second, the worker at once."""
@@ -198,7 +209,7 @@ class Server:
                 if items is None or stale():
                     return  # its guard stopped it, or a move came: a ring follows
                 if topmost_window_id() == window_id:
-                    item = request.current if request.kind == "settle" else ""
+                    item = self._item(request)
                     self._bind(window_id, list_id, items, request.current, item)
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "
@@ -211,6 +222,30 @@ class Server:
             else:
                 return
         self.finished = request
+
+    @staticmethod
+    def _item(request: Request) -> str:
+        """
+        The item served, as list/position/dbid/: a settle's cursor names it; a move's
+        container is read now (view: the cursor's list), so a return to it reads as
+        served; a move with none names nothing.
+
+        :param request: The resolved request.
+        :return: The item, or empty.
+        """
+        if request.kind == "settle":
+            return request.current
+        list_id = request.container
+        if list_id == "view":
+            cursor = Window(10000).getProperty(f"artwork_cursor_{request.region}")
+            list_id = cursor.partition("/")[0]
+        if not list_id:
+            return ""
+        position, dbid = (
+            infolabel(f"Container({list_id}).{label}")
+            for label in ("CurrentItem", "ListItem.DBID")
+        )
+        return f"{list_id}/{position}/{dbid}/"
 
     def _repeat(self, request: Request) -> bool:
         """
@@ -285,13 +320,13 @@ class Server:
     ) -> None:
         """
         Replace the list's items in one bind; the first names the arrival it answers
-        and, for a settle, the item it served, for the skin's readiness test.
+        and the item it served, for the skin's readiness test.
 
         :param window_id: Window holding the list.
         :param list_id: The served list.
         :param items: Handler items; none binds one blank item.
         :param current: The request's current, as Property(current).
-        :param item: A settle's list/position/dbid/ (empty for a move), Property(item).
+        :param item: The item served, list/position/dbid/ (or empty), Property(item).
         """
         listitems = []
         for url, listitem, _ in items:
