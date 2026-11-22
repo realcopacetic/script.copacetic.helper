@@ -5,8 +5,10 @@ probe's params are handled (a plugin prefix dropped) and bound with the request'
 current, none binds one blank item, an empty probe nothing, wait is read again; under
 a dialog the request waits, and a newer ring, a window change or a moved cursor drops
 it unbound; a list a dialog covered mid-run is owed again; a repeat does nothing; a
-move with no lists serves the window's last request; again() serves one list of it; a
-guard's superseded test comes first; a bind sets each item's path and uses a new
+move with no lists serves the window's last request; again() serves one list of it
+(the whole arrival while it is still served, beside an again's own lists, only for
+the arrival that asked) and leaves the last request as it was; a move's item is read
+before its handler; a guard's superseded test comes first; a bind sets each item's path and uses a new
 Window; SQLite keeps one connection per thread, and cache_only holds one thread only.
 Run from the helper root: python tests/serve_offline.py
 """
@@ -15,8 +17,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from threading import Event, Thread
-from unittest.mock import Mock, patch
+from threading import Event, RLock, Thread
+from unittest.mock import Mock, call, patch
 
 from build_offline import HELPER, install_stubs
 
@@ -47,6 +49,7 @@ def _server(*probes: str) -> serve.Server:
     """A Server without its threads, its probe reading probes in turn (the last stays)."""
     server = object.__new__(serve.Server)
     server.request, server.rung, server.stopped = None, Event(), False
+    server.lock = RLock()
     server.heard, server.last, server.finished = 0.0, {}, None
     server._handle = Mock(return_value=[("plugin://x/1", Mock(), False)])
     server._bind = Mock()
@@ -231,13 +234,48 @@ class ServeTest(unittest.TestCase):
         server = _server()
         server._ring = Mock()
         server.again(9010)  # nothing served yet in this window
-        server.last[10025] = SETTLE._replace(lists=(9000, 9010))
+        server.last[10025] = server.finished = SETTLE._replace(lists=(9000, 9010))
         server.again(9300)  # not one of its lists
         server.request = SETTLE._replace(mark="54/4/13/v")  # a newer ring waits
         server.again(9010)
         server.request = server.last[10025]
+        server.again(9010, mark="54/4/13/v")  # asked by an arrival that has gone
         server.again(9010)
-        server._ring.assert_called_once_with(SETTLE._replace(again=True))
+        server.again(9010, mark=CURSOR)
+        self.assertEqual(
+            server._ring.call_args_list, [call(SETTLE._replace(again=True))] * 2
+        )
+
+    def test_again_mid_serve_serves_the_arrival_whole(self) -> None:
+        server = _server()
+        server._ring = Mock()
+        server.last[10025] = server.request = SETTLE._replace(lists=(9000, 9010))
+        server.again(9010)  # not finished: its 9010 would be cut
+        server._ring.assert_called_once_with(
+            SETTLE._replace(lists=(9000, 9010), again=True)
+        )
+
+    def test_again_beside_an_again_keeps_its_lists(self) -> None:
+        server = _server()
+        server._ring = Mock()
+        arrival = SETTLE._replace(lists=(9040, 9000, 9010))
+        server.last[10025] = server.finished = arrival
+        server.request = arrival._replace(lists=(9010,), again=True)  # in flight
+        server.again(9000)
+        server._ring.assert_called_once_with(
+            arrival._replace(lists=(9000, 9010), again=True)
+        )
+
+    @patch.dict(serve.PROBES, {9000: 6900})
+    def test_an_again_keeps_the_arrival_for_the_next_move(self) -> None:
+        server = _server()
+        arrival = SETTLE._replace(lists=(9000, 9010))
+        self._run(server, arrival)
+        self._run(server, arrival._replace(lists=(9010,), again=True))
+        self.assertIs(server.last[10025], arrival)
+        self.assertIs(server.finished, arrival)
+        self._run(server, serve.Request("move", "", (), "m1"))
+        self.assertEqual(server.finished.lists, (9000, 9010))
 
     def test_again_is_never_a_repeat(self) -> None:
         server = _server()
