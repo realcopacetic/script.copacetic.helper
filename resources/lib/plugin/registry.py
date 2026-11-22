@@ -34,7 +34,9 @@ def collect_info_handlers(inst: object) -> dict[str, Callable]:
 
 
 def info_handler(
-    params: dict[str, str], superseded: Callable[[], bool] | None = None
+    params: dict[str, str],
+    superseded: Callable[[], bool] | None = None,
+    query: str = "",
 ) -> Callable | None:
     """
     The handler a request's `info` names, bound to a new PluginHandlers: the one
@@ -42,9 +44,10 @@ def info_handler(
 
     :param params: Parsed request params.
     :param superseded: A served list's test for a newer arrival; None for a plugin.
+    :param query: The raw query params were parsed from, for a handler that rereads it.
     :return: Bound handler, or None for an unknown info.
     """
     from resources.lib.plugin.handlers import PluginHandlers  # imports this module
 
     info = (params.get("info") or "").strip().lower()
-    return collect_info_handlers(PluginHandlers(params, superseded)).get(info)
+    return collect_info_handlers(PluginHandlers(params, superseded, query)).get(info)
