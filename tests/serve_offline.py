@@ -8,7 +8,8 @@ it unbound; a list a dialog covered mid-run is owed again; a repeat does nothing
 move with no lists serves the window's last request; again() serves one list of it
 (the whole arrival while it is still served, beside an again's own lists, only for
 the arrival that asked, as a handler's late answer asks) and leaves the last request as it was; a move's item is read
-before its handler; clean_name reads the query it was served with, not argv; a
+before its handler; clean_name reads the query it was served with, not argv; a favourite with no
+library item answers the blank item; a
 guard's superseded test comes first; Font.xml is read once per version, and a clamp
 is keyed by the font's file and size; a bind sets each item's path and uses a new
 Window; SQLite keeps one connection per thread, and cache_only holds one thread only.
@@ -311,7 +312,7 @@ class ServeTest(unittest.TestCase):
         server = _server()
         self._run(server, serve.Request("move", "", (), "m1"))
         self.assertEqual(
-            server.finished, serve.Request("move", "primary", (9010,), "m1")
+            server.finished, serve.Request("move", "primary", tuple(serve.PROBES), "m1")
         )
 
     def test_wait_time_under_a_dialog_doesnt_count(self) -> None:
@@ -339,7 +340,7 @@ class ServeTest(unittest.TestCase):
             server = serve.Server()
         token.assert_called_once_with("primary", "secondary")
         self.assertEqual(
-            server.request, serve.Request("move", "primary", (9010,), "m9")
+            server.request, serve.Request("move", "primary", tuple(serve.PROBES), "m9")
         )
         self.assertTrue(server.rung.is_set())
 
@@ -354,7 +355,9 @@ class ServeTest(unittest.TestCase):
         (key, token), ring = calls
         self.assertEqual(key, "moved_primary")
         self.assertEqual(
-            ring, f"NotifyAll(script.copacetic.helper,move/primary/9010//{token})"
+            ring,
+            "NotifyAll(script.copacetic.helper,"
+            f"move/primary/9040.9000.9100.9010//{token})",
         )
 
     def test_a_moves_item_is_its_containers_now(self) -> None:
@@ -415,6 +418,19 @@ class GuardTest(unittest.TestCase):
         ph = handlers.PluginHandlers({"info": "progressbar"}, superseded)
         with patch.object(handlers, "getCurrentWindowId", return_value=10025):
             self.assertIs(ph._guard().superseded, superseded)
+
+
+class FavouriteTest(unittest.TestCase):
+    def test_no_library_item_is_a_blank_not_a_stop(self) -> None:
+        ph = handlers.PluginHandlers({"info": "favourite", "path": "plugin://a/"})
+        guard = Mock()
+        with (
+            patch.object(handlers.PluginHandlers, "_guard", return_value=guard),
+            patch("resources.lib.plugin.favourites.library_key", return_value=""),
+        ):
+            self.assertEqual(ph.favourite(), [])  # served: 9040's blank, then 9000
+            guard.alive.return_value = False
+            self.assertIsNone(ph.favourite())  # a move: the request stops
 
 
 class CleanNameTest(unittest.TestCase):
