@@ -8,7 +8,7 @@ coding-notes/copacetic/features/served-focus-calls.md.
 """
 
 import time
-from threading import Event, Thread
+from threading import Event, RLock, Thread
 from typing import Callable, NamedTuple
 
 import xbmc
@@ -116,8 +116,9 @@ class Server:
 
     def __init__(self) -> None:
         self.request, self.rung, self.stopped = None, Event(), False
+        self.lock = RLock()  # again's test and ring, against the listener's ring
         self.heard = 0.0  # when the newest request arrived, for the log
-        self.last = {}  # window id → its last request, for a move with no lists
+        self.last = {}  # window id → its last arrival, for a move with no lists
         self.finished = None  # the last request served whole: a repeat does nothing
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
@@ -131,22 +132,31 @@ class Server:
         self.stopped = True
         self.rung.set()
 
-    def again(self, list_id: int) -> None:
+    def again(self, list_id: int, mark: str = "") -> None:
         """
-        Serve one list of the active window's last request again, as a new arrival
-        (the helper's own events: an album's play counts changed); not if a newer
-        ring waits, as it serves the list anyway.
+        Serve one list of the active window's last arrival again (the helper's own
+        events: an album's play counts, TMDb's answer), as long as no newer ring
+        waits; never cutting the lists of a serve still running.
 
         :param list_id: The list to serve.
+        :param mark: The arrival that asked, if only while it is the last one.
         """
-        last = self.last.get(getCurrentWindowId())
-        pending = self.request
-        if (
-            last
-            and list_id in last.lists
-            and (not pending or pending.mark == last.mark)
-        ):
-            self._ring(last._replace(lists=(list_id,), again=True))
+        with self.lock:
+            last = self.last.get(getCurrentWindowId())
+            pending = self.request
+            if (
+                not last
+                or list_id not in last.lists
+                or mark not in ("", last.mark)
+                or pending.mark != last.mark  # a newer ring: it serves the list anyway
+            ):
+                return
+            if self.finished is last:  # this list, and those of an again in flight
+                wanted = {list_id, *(pending.lists if pending.again else ())}
+                lists = tuple(i for i in last.lists if i in wanted)
+            else:  # the arrival is still being served: all of it again
+                lists = last.lists
+            self._ring(last._replace(lists=lists, again=True))
 
     def _ring(self, request: Request) -> None:
         """
@@ -154,8 +164,9 @@ class Server:
 
         :param request: The arrival heard.
         """
-        self.request, self.heard = request, time.perf_counter()
-        self.rung.set()
+        with self.lock:
+            self.request, self.heard = request, time.perf_counter()
+            self.rung.set()
 
     def _listen(self) -> None:
         """Made here: Kodi calls a Monitor back on the thread that created it."""
@@ -197,7 +208,8 @@ class Server:
             )
         if not request.mark or self._repeat(request):
             return
-        self.last[window_id] = request
+        if not request.again:  # an again keeps its arrival's lists for the next move
+            self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
         for list_id in request.lists:
             while (params := self._turn(list_id, window_id, stale)) is not None:
@@ -221,7 +233,8 @@ class Server:
                     break
             else:
                 return
-        self.finished = request
+        # An again ends with its arrival served whole: a repeat of that does nothing
+        self.finished = self.last.get(window_id) if request.again else request
 
     @staticmethod
     def _item(request: Request) -> str:
