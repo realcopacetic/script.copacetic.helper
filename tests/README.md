@@ -76,7 +76,8 @@ python tests/multiart_offline.py
 # output another profile wrote is rebuilt, and a deleted one is built alone; a script
 # rebuild (script/actions.py) sets helper_reloading and clears it on failure, and the
 # editor close and delete_orphans reload only when the build wrote a file (or for a
-# host open once the session has closed), else clear it
+# host open once the session has closed), else clear it; a skin switch, update or
+# reload drops the loaded fonts
 python tests/service_offline.py
 
 # Served focus calls (service/serve.py): a ring's kind, region, known lists and mark;
@@ -84,8 +85,12 @@ python tests/service_offline.py
 # an empty probe nothing, wait read again; under a dialog the request waits, and a
 # newer ring, a window change or a moved cursor drops it; a list covered mid-run owed
 # again; a repeat does nothing; a move with no lists the window's last request;
-# again() one list of it; the guard's superseded test first; a bind's paths and new
-# Window; SQLite's connection per thread, schema once; cache_only per thread
+# again() one list of it, the whole arrival mid-serve, only for the arrival that
+# asked (TMDb's late answer); a move's item read before its handler; clean_name's
+# query, not argv; a favourite with no library item a blank; the guard's superseded
+# test first; a bind's paths and new Window; Font.xml read once per version, clamps
+# keyed by the font's file and size; SQLite's connection per thread, schema once;
+# cache_only per thread
 python tests/serve_offline.py
 
 # Settings editor edges (builders/runtime.py, windows/dynamiceditor.py, controls.py) with

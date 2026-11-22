@@ -24,7 +24,9 @@ from resources.lib.shared.utilities import infolabel, topmost_window_id
 # or none, then the token in moved_<region>
 KINDS = ("settle", "move")
 PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its query
-PROBES = {9010: 6910}  # served list → the hidden label holding its params
+# Served list → the hidden label holding its params, in serving order: the favourite's
+# library item, which the others' favourite rows read, then details and the bar
+PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910}
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
 # Seconds a probe may say wait before it counts as none: a backstop, as each wait
