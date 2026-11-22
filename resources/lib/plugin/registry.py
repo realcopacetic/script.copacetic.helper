@@ -36,6 +36,7 @@ def collect_info_handlers(inst: object) -> dict[str, Callable]:
 def info_handler(
     params: dict[str, str],
     superseded: Callable[[], bool] | None = None,
+    again: Callable[[], None] | None = None,
     query: str = "",
 ) -> Callable | None:
     """
@@ -44,10 +45,12 @@ def info_handler(
 
     :param params: Parsed request params.
     :param superseded: A served list's test for a newer arrival; None for a plugin.
+    :param again: A served list's re-serve, for an answer that lands later.
     :param query: The raw query params were parsed from, for a handler that rereads it.
     :return: Bound handler, or None for an unknown info.
     """
     from resources.lib.plugin.handlers import PluginHandlers  # imports this module
 
     info = (params.get("info") or "").strip().lower()
-    return collect_info_handlers(PluginHandlers(params, superseded, query)).get(info)
+    handlers = PluginHandlers(params, superseded, again, query)
+    return collect_info_handlers(handlers).get(info)

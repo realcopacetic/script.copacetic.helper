@@ -8,6 +8,7 @@ coding-notes/copacetic/features/served-focus-calls.md.
 """
 
 import time
+from functools import partial
 from threading import Event, RLock, Thread
 from typing import Callable, NamedTuple
 
@@ -216,8 +217,9 @@ class Server:
                 if not params:
                     break  # not mounted in this window
                 item = self._item(request)  # beside the probe: the item it was read for
+                again = partial(self.again, list_id, request.mark)
                 started = time.perf_counter()
-                items = self._handle(params, stale) if params != NONE else []
+                items = self._handle(params, stale, again) if params != NONE else []
                 handled = time.perf_counter()
                 if items is None or stale():
                     return  # its guard stopped it, or a move came: a ring follows
@@ -305,13 +307,16 @@ class Server:
         return None
 
     @staticmethod
-    def _handle(params: str, superseded: Callable[[], bool]) -> list[tuple] | None:
+    def _handle(
+        params: str, superseded: Callable[[], bool], again: Callable[[], None]
+    ) -> list[tuple] | None:
         """
         Run the handler a probe names, through plugin/main.py's dispatch; an error
         answers nothing (the blank item), so the skin's readers aren't held.
 
         :param params: The probe's text: info=…&… (a plugin URL's prefix is dropped).
         :param superseded: Whether a newer arrival has come, the guard's first test.
+        :param again: Serves the list again for this arrival (TMDb's late answer).
         :return: Its items, none for an unknown info; None if its guard stopped it.
         """
         # Here, not at the top: the service loads without the plugin stack
@@ -321,7 +326,7 @@ class Server:
         query = params.removeprefix(PLUGIN)
         try:
             parsed = parse_plugin_argv(["", "", query], raw=ART_URLS)
-            handler = info_handler(parsed, superseded, query)
+            handler = info_handler(parsed, superseded, again, query)
             return handler() if handler else []
         except Exception:
             log.exception(f"Server → handler for {query}")
