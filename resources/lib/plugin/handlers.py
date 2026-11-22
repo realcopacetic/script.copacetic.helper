@@ -1161,7 +1161,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         artwork serves to read; it echoes favourite.index and favourite.path (the
         favourite's FileNameAndPath, as Kodi lists it) so the skin knows it.
 
-        :return: The item, or None when the favourite names no library item.
+        :return: The item; none when it names no library item; None if aborted.
         """
         from resources.lib.plugin.favourites import forget, library_key, listed_path
 
@@ -1169,8 +1169,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         guard = self._guard()
         path = self.params["path"]
-        if not (guard.alive() and (key := library_key(path))):
+        if not guard.alive():
             return
+        if not (key := library_key(path)):
+            return []  # served, the blank item: the lists after it go on
         dbtype, dbid = key.split(":")
         echo = {
             "favourite.index": self.params.get("index", ""),
@@ -1180,7 +1182,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             extra = () if dbtype == "song" else ("description",)
             if not (found := details_item(dbtype, int(dbid), "favourite", extra)):
                 forget(path, dbtype)
-                return
+                return []
             _, li, _ = found
             li.setProperties(echo)
             items = [(plugin_path("favourite"), li, False)]
@@ -1188,7 +1190,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             properties = JSON_PROPERTIES["movieset" if dbtype == "set" else dbtype]
             if not (row := _video_details(dbtype, int(dbid), properties, "favourite")):
                 forget(path, dbtype)
-                return
+                return []
             if dbtype in ("episode", "season"):
                 enrich_with_tvshow([row], "favourite")  # the show's studio and rating
             item = json_to_canonical(row, dbtype)
