@@ -19,6 +19,7 @@ from resources.lib.service.serve import Server
 from resources.lib.shared import logger as log
 from resources.lib.shared.speed_dial import release_refresh, skin_uses_speed_dial
 from resources.lib.shared.sqlite import ApiCacheHandler
+from resources.lib.shared.text import load_font
 from resources.lib.shared.utilities import (
     ADDON,
     adopt_shared_state,
@@ -118,6 +119,7 @@ class Monitor(xbmc.Monitor):
         :param skin: Loaded skin's folder.
         :param version: Its registered version, "" when unreadable.
         """
+        load_font.cache_clear()  # keyed by special://skin, which follows the skin
         if skin != self.skin[0]:
             self.reload_due = False
             if self.player_monitor:
@@ -255,6 +257,7 @@ class Monitor(xbmc.Monitor):
             log.info(f"{self.__class__.__name__} → Reload deferred, skin updating")
         else:
             self.reload_due = False
+            load_font.cache_clear()  # a dev rebuild may have changed a font in place
             xbmc.executebuiltin("ReloadSkin()")
             return
         if covered:

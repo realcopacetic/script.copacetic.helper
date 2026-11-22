@@ -9,11 +9,13 @@ move with no lists serves the window's last request; again() serves one list of 
 (the whole arrival while it is still served, beside an again's own lists, only for
 the arrival that asked) and leaves the last request as it was; a move's item is read
 before its handler; clean_name reads the query it was served with, not argv; a
-guard's superseded test comes first; a bind sets each item's path and uses a new
+guard's superseded test comes first; Font.xml is read once per version, and a clamp
+is keyed by the font's file and size; a bind sets each item's path and uses a new
 Window; SQLite keeps one connection per thread, and cache_only holds one thread only.
 Run from the helper root: python tests/serve_offline.py
 """
 
+import os
 import sys
 import tempfile
 import unittest
@@ -39,7 +41,7 @@ sys.path.insert(0, str(HELPER))
 from resources.lib.apis import cache  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.service import serve  # noqa: E402
-from resources.lib.shared import sqlite  # noqa: E402
+from resources.lib.shared import helpers, sqlite, text  # noqa: E402
 
 PARAMS = "info=progressbar&label=A, B"
 CURSOR = "54/3/12/09:01:02Next"
@@ -420,6 +422,45 @@ class CleanNameTest(unittest.TestCase):
         with patch("resources.lib.plugin.registry.info_handler") as dispatch:
             serve.Server._handle(f"{serve.PLUGIN}{PARAMS}", bool)
         self.assertEqual(dispatch.call_args.args[2], PARAMS)
+
+
+class FontsTest(unittest.TestCase):
+    FONT = (
+        "<fontset id='Default'><font><name>{}</name><filename>{}</filename>"
+        "<size>{}</size></font></fontset>"
+    )
+
+    def test_skin_font_reads_font_xml_once_per_version(self) -> None:
+        xml = STAGE / "fonts" / "16x9" / "Font.xml"
+        xml.parent.mkdir(parents=True, exist_ok=True)
+        xml.write_text(self.FONT.format("body", "a.ttf", 30))
+        with patch.object(text, "skin_path", return_value=str(xml)):
+            reads = text._font_spec.cache_info().misses
+            self.assertEqual(text.skin_font("body"), ("special://skin/fonts/a.ttf", 30))
+            self.assertEqual(text.skin_font("body"), ("special://skin/fonts/a.ttf", 30))
+            self.assertEqual(text._font_spec.cache_info().misses, reads + 1)
+            xml.write_text(self.FONT.format("body", "b.ttf", 32))  # a skin update
+            os.utime(xml, ns=(1, xml.stat().st_mtime_ns + 1))
+            self.assertEqual(text.skin_font("body"), ("special://skin/fonts/b.ttf", 32))
+
+    def test_a_clamp_is_keyed_by_the_fonts_file_and_size(self) -> None:
+        keys = []
+        hit = Mock(return_value="kept")
+        with (
+            patch.object(helpers, "infolabel", return_value="1920"),
+            patch("resources.lib.shared.sqlite.TruncateCacheHandler") as cache,
+            patch(
+                "resources.lib.shared.hash.HashManager.short_hash_str",
+                side_effect=lambda joined, length: keys.append(joined),
+            ),
+        ):
+            cache.return_value.get_entry = hit
+            for spec in (("a.ttf", 30), ("b.ttf", 30)):
+                with patch.object(helpers, "skin_font", return_value=spec):
+                    helpers.clamp_text(text="T", font="body", max_width=9, max_lines=1)
+        self.assertNotEqual(*keys)
+        self.assertNotIn("body", keys[0])
+        self.assertIn("a.ttf|30", keys[0])
 
 
 class ThreadsTest(unittest.TestCase):

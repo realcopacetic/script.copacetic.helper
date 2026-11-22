@@ -634,6 +634,9 @@ def clamp_text(
     from resources.lib.shared.hash import HashManager
     from resources.lib.shared.sqlite import TruncateCacheHandler
 
+    # Keyed by the font's file and size, so a skin's new font for the name re-clamps
+    if (spec := skin_font(font)) is None:
+        return text
     scale_x = to_int(infolabel("System.ScreenWidth")) / _SKIN_WIDTH
     scale_y = to_int(infolabel("System.ScreenHeight")) / _SKIN_HEIGHT
     cache = TruncateCacheHandler()
@@ -641,7 +644,7 @@ def clamp_text(
         "|".join(
             (
                 _CLAMP_VERSION,
-                font,
+                *map(str, spec),
                 f"{scale_x:.4f}",
                 f"{scale_y:.4f}",
                 str(max_width),
@@ -655,7 +658,7 @@ def clamp_text(
     if (cached := cache.get_entry(key)) is not None:
         return cached
 
-    if (spec := skin_font(font)) is None or (face := load_font(spec[0])) is None:
+    if (face := load_font(spec[0])) is None:
         return text
     metric = KodiMetric(face, spec[1], scale_x, scale_y)
     lines = fit_lines(metric, text, max_width, max_lines, sentences=sentences)

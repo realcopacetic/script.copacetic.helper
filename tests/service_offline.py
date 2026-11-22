@@ -7,7 +7,7 @@ the editor close and delete_orphans reload only when the build wrote (or for a h
 open once the session has closed), else clear it. Under the screensaver only lyrics
 follow, while audio plays. played_version moves only for a counted play. A trailer
 request that lands under a modal is dropped. A clashing add-on's feature turned on or
-off queues the clashes check.
+off queues the clashes check. A skin switch, update or reload drops the loaded fonts.
 Run from the helper root: python tests/service_offline.py
 """
 
@@ -121,6 +121,11 @@ class BuildBoundary(unittest.TestCase):
             patch.object(monitor, "validate_path", output_exists),
         ):
             self.service._follow("skin", version)
+
+    def test_a_skin_switch_or_update_drops_the_loaded_fonts(self):
+        with patch.object(monitor, "load_font") as load_font:
+            self.follow(Mock())
+        load_font.cache_clear.assert_called_once()
 
     def test_raising_build_still_activates(self):
         self.follow(RAISES)
@@ -499,6 +504,11 @@ class ServiceReload(unittest.TestCase):
         self.assertEqual(seen, [("reload", 1)])
         self.assertEqual(self.reloading(), "reload")
         monitor.xbmc.executebuiltin.assert_called_once_with("ReloadSkin()")
+
+    def test_a_reload_drops_the_loaded_fonts(self):
+        with patch.object(monitor, "load_font") as load_font:
+            self.service._reload()
+        load_font.cache_clear.assert_called_once()
 
     def test_fullscreen_video_gets_no_cover(self):
         self.service.player_monitor = Mock()
