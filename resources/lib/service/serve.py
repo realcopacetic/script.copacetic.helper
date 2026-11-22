@@ -203,13 +203,13 @@ class Server:
             while (params := self._turn(list_id, window_id, stale)) is not None:
                 if not params:
                     break  # not mounted in this window
+                item = self._item(request)  # beside the probe: the item it was read for
                 started = time.perf_counter()
                 items = self._handle(params, stale) if params != NONE else []
                 handled = time.perf_counter()
                 if items is None or stale():
                     return  # its guard stopped it, or a move came: a ring follows
                 if topmost_window_id() == window_id:
-                    item = self._item(request)
                     self._bind(window_id, list_id, items, request.current, item)
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "

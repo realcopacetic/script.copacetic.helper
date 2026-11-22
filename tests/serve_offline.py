@@ -322,6 +322,15 @@ class ServeTest(unittest.TestCase):
             self.assertEqual(serve.Server._item(move._replace(container="view")), "")
         self.assertEqual(serve.Server._item(SETTLE), "54/3/12/")
 
+    def test_a_moves_item_is_read_before_its_handler(self) -> None:
+        server = _server()
+        order = []
+        server._item = Mock(side_effect=lambda r: order.append("item") or "54/7/20/")
+        server._handle.side_effect = lambda *a: order.append("handle") or []
+        self._run(server, serve.Request("move", "primary", (9010,), "m1", "view"))
+        self.assertEqual(order, ["item", "handle"])
+        self.assertEqual(server._bind.call_args.args[4], "54/7/20/")
+
     def test_bind_sets_paths_and_a_new_window(self) -> None:
         items = [("plugin://x/1", Mock(), False), ("plugin://x/2", Mock(), False)]
         with patch.object(serve, "Window") as window, patch.object(serve, "ListItem"):
