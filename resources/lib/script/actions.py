@@ -1721,7 +1721,7 @@ def size_identity(window: str = "videoosd", **kwargs: str) -> None:
 
     :param window: videoosd, seekbar or fullscreeninfo.
     """
-    from resources.lib.plugin.helpers import size_identity as fit  # this action only
+    from resources.lib.shared.helpers import size_identity as fit  # this action only
 
     fit(window)
 

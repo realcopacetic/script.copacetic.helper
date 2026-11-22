@@ -795,7 +795,7 @@ msgstr "Slumpad genre - artister"
 #. Hours, right after the number in a time left or a runtime: "1h 23m", "1h". Keep it short;
 #. start it with a space if your language puts one there ("1 h 23 min"). Use the same as
 #. the skin's string 31919.
-#: /resources/lib/plugin/helpers.py
+#: /resources/lib/shared/helpers.py
 msgctxt "#32615"
 msgid "h"
 msgstr " h"
@@ -803,7 +803,7 @@ msgstr " h"
 #. Minutes, right after the number in a time left or a runtime: "1h 23m", "48m". Keep it short;
 #. start it with a space if your language puts one there ("48 min"). Use the same
 #. as the skin's string 31920.
-#: /resources/lib/plugin/helpers.py
+#: /resources/lib/shared/helpers.py
 msgctxt "#32616"
 msgid "m"
 msgstr " min"

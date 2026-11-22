@@ -12,7 +12,7 @@ from xbmc import PLAYLIST_MUSIC, InfoTagVideo, Monitor, Player, PlayList
 from xbmcgui import getCurrentWindowDialogId
 
 from resources.lib.art.editor import ImageEditor
-from resources.lib.plugin.helpers import IDENTITY_LOGO_BOX, INFO_LOGO_BOX, size_identity
+from resources.lib.shared.helpers import IDENTITY_LOGO_BOX, INFO_LOGO_BOX, size_identity
 from resources.lib.plugin.opts import ArtOpts
 from resources.lib.service import games, lyrics, playnext, segments
 from resources.lib.service.trailer import (

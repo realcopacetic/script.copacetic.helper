@@ -10,7 +10,7 @@ from typing import Any, Callable, Collection, Iterable, Mapping
 from xbmc import Monitor
 from xbmcgui import Window
 
-from resources.lib.plugin.geometry import (
+from resources.lib.shared.geometry import (
     PlacementOpts,
     align_y,
     compute_rect,

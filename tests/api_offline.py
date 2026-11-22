@@ -62,7 +62,8 @@ from resources.lib.apis import (
 from resources.lib.apis.tmdb import transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.apis.tmdb.fields import filter_tmdb_images_by_size  # noqa: E402
-from resources.lib.plugin import handlers, helpers  # noqa: E402
+from resources.lib.plugin import handlers  # noqa: E402
+from resources.lib.shared import helpers  # noqa: E402
 from resources.lib.plugin.music import (  # noqa: E402
     ALBUM_RANK_PROPERTIES,
     PLACES,
