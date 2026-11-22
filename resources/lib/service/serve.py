@@ -22,7 +22,7 @@ from resources.lib.shared.utilities import infolabel, topmost_window_id
 # a move's mark is <container>/<token>: the list that moved (view: the cursor's list),
 # or none, then the token in moved_<region>
 KINDS = ("settle", "move")
-PLUGIN = "plugin://script.copacetic.helper/"
+PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its query
 PROBES = {9010: 6910}  # served list → the hidden label holding its params
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
@@ -321,7 +321,7 @@ class Server:
         query = params.removeprefix(PLUGIN)
         try:
             parsed = parse_plugin_argv(["", "", query], raw=ART_URLS)
-            handler = info_handler(parsed, superseded)
+            handler = info_handler(parsed, superseded, query)
             return handler() if handler else []
         except Exception:
             log.exception(f"Server → handler for {query}")
