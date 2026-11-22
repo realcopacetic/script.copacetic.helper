@@ -190,6 +190,7 @@ class _FocusGuard:
         "player",
         "through_info",
         "picture",
+        "superseded",
         "lost_to",
     )
 
@@ -204,6 +205,7 @@ class _FocusGuard:
         player: bool = False,
         through_info: bool = False,
         picture: bool = False,
+        superseded: Callable[[], bool] | None = None,
     ):
         """
         Create a guard that checks container focus and item identity.
@@ -217,6 +219,7 @@ class _FocusGuard:
         :param player: Whether the item is the playing song, which no focus follows.
         :param through_info: Whether the run passes under an info dialog too.
         :param picture: Whether the identity is the slideshow's picture.
+        :param superseded: A served list's test for a newer arrival, checked first.
         """
         self.caller_name = caller_name
         self.expected_identity = expected_identity
@@ -227,6 +230,7 @@ class _FocusGuard:
         self.player = player
         self.through_info = through_info
         self.picture = picture
+        self.superseded = superseded
         self.lost_to = ""  # the identity read when the item moved on
 
     def alive(self) -> bool:
@@ -235,6 +239,11 @@ class _FocusGuard:
 
         :return: True if guard conditions still hold, otherwise False.
         """
+        # A served run stops at a newer arrival: one identity test and a property read
+        if self.superseded and self.superseded():
+            log.debug(f"{LOG_TAG} → {self.caller_name}: ABORTED → superseded")
+            return False
+
         # Nothing in the visualisation takes focus: its window and the song decide.
         # A stop empties the identity, so it aborts too.
         if self.player:
@@ -324,8 +333,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     High-level plugin actions (artwork, metadata, typewriter) with focus guarding.
     """
 
-    def __init__(self, params: dict[str, str]) -> None:
+    def __init__(
+        self, params: dict[str, str], superseded: Callable[[], bool] | None = None
+    ) -> None:
         self.params = params
+        self.superseded = superseded  # a served list's: its guards test it first
 
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "").lower()
@@ -413,6 +425,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             self.player,
             through_info,
             labels == SLIDESHOW_PICTURE,
+            self.superseded,
         )
 
     @cached_property
