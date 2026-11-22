@@ -1330,6 +1330,7 @@ def search_backspace(**kwargs: str) -> None:
         keys = logged
         query = reduce(_key, keys, "")
         log.execute(f'SetProperty(search_query,"{query}",home)', wait=True)
+    _ring_search()
 
 
 def _key(text: str, key: str) -> str:
@@ -1368,6 +1369,17 @@ def _publish_query(text: str, min_length: int) -> None:
         "search_query",
         value=quote(json.dumps(text)[1:-1]) if len(text) >= min_length else False,
     )
+    _ring_search()
+
+
+def _ring_search() -> None:
+    """
+    The results change under the keys or the edit: a move for the served lists, once
+    the rails' paths have the new query (their probes wait while a rail updates).
+    """
+    from resources.lib.service.serve import ring_move  # this action's only
+
+    ring_move()
 
 
 def _year_rule(year: str) -> dict:
