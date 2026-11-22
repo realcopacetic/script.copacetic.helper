@@ -36,7 +36,7 @@ class Main:
 
     def run_handler(self) -> None:
         """Dispatch a plugin handler (from ?info=...) and emit its items."""
-        fn = info_handler(self.params)
+        fn = info_handler(self.params, query=sys.argv[2])
         if not fn:
             log.debug(f"Ignoring unknown info: {self.info}")
             self._additems([])  # an empty listing, not Kodi's "Error getting"

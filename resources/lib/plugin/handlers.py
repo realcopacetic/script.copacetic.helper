@@ -6,7 +6,6 @@ import json
 import math
 import random
 import re
-import sys
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
@@ -334,10 +333,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     """
 
     def __init__(
-        self, params: dict[str, str], superseded: Callable[[], bool] | None = None
+        self,
+        params: dict[str, str],
+        superseded: Callable[[], bool] | None = None,
+        query: str = "",
     ) -> None:
         self.params = params
         self.superseded = superseded  # a served list's: its guards test it first
+        self.query = query  # the raw query params came from: a service has no argv
 
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "").lower()
@@ -1576,7 +1579,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         # Kodi passes the plugin URL's values raw: decoding once more would split a
         # web name at its own encoded '?' or '#', so the path is read undecoded
-        names = file_clean_name(parse_plugin_argv(sys.argv, raw={"path"})["path"])
+        path = parse_plugin_argv(["", "", self.query], raw={"path"})["path"]
+        names = file_clean_name(path)
         return set_items(
             [
                 {

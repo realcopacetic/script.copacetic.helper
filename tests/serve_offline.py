@@ -8,7 +8,8 @@ it unbound; a list a dialog covered mid-run is owed again; a repeat does nothing
 move with no lists serves the window's last request; again() serves one list of it
 (the whole arrival while it is still served, beside an again's own lists, only for
 the arrival that asked) and leaves the last request as it was; a move's item is read
-before its handler; a guard's superseded test comes first; a bind sets each item's path and uses a new
+before its handler; clean_name reads the query it was served with, not argv; a
+guard's superseded test comes first; a bind sets each item's path and uses a new
 Window; SQLite keeps one connection per thread, and cache_only holds one thread only.
 Run from the helper root: python tests/serve_offline.py
 """
@@ -112,10 +113,10 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(serve.Request("move", "primary", (9010,), "m1").current, "m1")
 
     def test_probe_is_handled_and_bound_with_current(self) -> None:
-        server = _server(f"{serve.PLUGIN}?{PARAMS}")
+        server = _server(f"{serve.PLUGIN}{PARAMS}")
         self._run(server, SETTLE)
         params, superseded = server._handle.call_args.args
-        self.assertEqual(params, f"{serve.PLUGIN}?{PARAMS}")
+        self.assertEqual(params, f"{serve.PLUGIN}{PARAMS}")
         self.assertFalse(superseded())
         server._bind.assert_called_once_with(
             10025, 9010, server._handle.return_value, "54/3/12/", "54/3/12/"
@@ -124,7 +125,7 @@ class ServeTest(unittest.TestCase):
 
     def test_handle_drops_a_plugin_prefix(self) -> None:
         with patch("resources.lib.plugin.registry.info_handler") as dispatch:
-            serve.Server._handle(f"{serve.PLUGIN}?{PARAMS}", bool)
+            serve.Server._handle(f"{serve.PLUGIN}{PARAMS}", bool)
             serve.Server._handle(PARAMS, bool)
         self.assertEqual(dispatch.call_args_list[0], dispatch.call_args_list[1])
         self.assertEqual(dispatch.call_args.args[0]["label"], "A, B")
@@ -398,6 +399,27 @@ class GuardTest(unittest.TestCase):
         ph = handlers.PluginHandlers({"info": "progressbar"}, superseded)
         with patch.object(handlers, "getCurrentWindowId", return_value=10025):
             self.assertIs(ph._guard().superseded, superseded)
+
+
+class CleanNameTest(unittest.TestCase):
+    def test_it_reads_its_query_not_argv(self) -> None:
+        query = "info=clean_name&path=/media/Who%20Am%20I%3F.mkv&label=A"
+        with (
+            patch.object(sys, "argv", [""]),  # a service's (engine law)
+            patch.object(handlers, "file_clean_name", return_value={"title": "T"}),
+            patch.object(handlers, "set_items", side_effect=lambda items: items),
+        ):
+            params = serve.parse_plugin_argv(["", "", query])
+            items = handlers.PluginHandlers(params, query=query).clean_name()
+            handlers.file_clean_name.assert_called_once_with(
+                "/media/Who%20Am%20I%3F.mkv"
+            )
+        self.assertEqual(items[0]["properties"], {"clean_title": "T"})
+
+    def test_the_service_hands_its_query_on(self) -> None:
+        with patch("resources.lib.plugin.registry.info_handler") as dispatch:
+            serve.Server._handle(f"{serve.PLUGIN}{PARAMS}", bool)
+        self.assertEqual(dispatch.call_args.args[2], PARAMS)
 
 
 class ThreadsTest(unittest.TestCase):
