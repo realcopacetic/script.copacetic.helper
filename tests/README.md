@@ -79,6 +79,12 @@ python tests/multiart_offline.py
 # host open once the session has closed), else clear it
 python tests/service_offline.py
 
+# Served focus calls spike (service/serve.py): a ring names known lists only; a probe's
+# plugin URL is handled and bound with its cursor, the empty folder binds one blank
+# item, an unmounted probe nothing; under a dialog the request waits, and a newer ring
+# or a window change drops it; a bind sets each item's path and uses a new Window
+python tests/serve_offline.py
+
 # Settings editor edges (builders/runtime.py, windows/dynamiceditor.py, controls.py) with
 # Kodi stubbed: a new or re-preset parent gets a seed_with_parent mapping's default
 # children once (a group widget's tabs); a removed parent's children's children go too;
