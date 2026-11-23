@@ -15,7 +15,10 @@ read once per version, and a clamp is keyed by the font's file and size; a bind 
 each item's path and uses a new Window; SQLite keeps one connection per thread, and
 cache_only holds one thread only; a settle hands on its cursor; served artwork fetches
 TMDb's extras aside, noting no miss; a thumb's digest is kept by its file's identity;
-a serve's opened images are closed.
+a serve's opened images are closed; 9300's bind hands the rotation its family (one image
+stops it), which turns from slide 1, each slide made from probe 6940 on top and bound to
+9400 with 9300's identity on its beat, none under a dialog; a new family or an error
+ends a turn, not the thread; a newer ring or a moved cursor ends it.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -25,6 +28,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from threading import Event, RLock, Thread
+from typing import Callable
 from unittest.mock import Mock, call, patch
 
 from build_offline import HELPER, install_stubs
@@ -60,7 +64,9 @@ def _server(*probes: str) -> serve.Server:
     server.request, server.rung, server.stopped = None, Event(), False
     server.lock = RLock()
     server.heard, server.last, server.finished = 0.0, {}, None
-    server._handle = Mock(return_value=[("plugin://x/1", Mock(), False)])
+    server.turn, server.handed = None, Event()
+    blank = Mock(**{"getArt.return_value": ""})  # no family
+    server._handle = Mock(return_value=[("plugin://x/1", blank, False)])
     server._bind = Mock()
     server.probes = list(probes or (PARAMS,))
     server.bound = ""  # what 9010's Property(current) reads back
@@ -661,6 +667,178 @@ class ImagesTest(unittest.TestCase):
                 ed.image_processor({"background": ()}, {"background": 1}), {}
             )
         image.close.assert_called_once()
+
+
+FAMILY = ("a.jpg", "b.jpg")
+TURN = serve.Turn(SETTLE, 10025, "54/3/12/v", FAMILY)
+
+
+def _bound(family: tuple[str, ...], identity: str = "54/3/12/v") -> list[tuple]:
+    """9300's bound item: its family as multiart keys, its identity."""
+    art = dict(zip(["multiart", *(f"multiart{i}" for i in range(1, 9))], family))
+    listitem = Mock(getArt=lambda key: art.get(key, ""), getProperty={}.get)
+    listitem.getProperty = lambda key: identity if key == "identity" else ""
+    return [("plugin://x/artwork", listitem, False)]
+
+
+class RotateTest(unittest.TestCase):
+    """9300's family turns on 9400: one slide a beat, made during the dwell before."""
+
+    def setUp(self) -> None:
+        self.props = {"artwork_cursor_primary": CURSOR}
+        home = Mock(getProperty=lambda key: self.props.get(key, ""))
+        self.patches = [
+            patch.object(serve, "getCurrentWindowId", return_value=10025),
+            patch.object(serve, "topmost_window_id", return_value=10025),
+            patch.object(serve, "Window", return_value=home),
+            patch.object(serve, "DWELL", 0),
+        ]
+        for p in self.patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_9300s_bind_hands_its_family_and_identity(self) -> None:
+        server = _server(PARAMS)
+        server._handle.return_value = _bound(FAMILY)
+        request = SETTLE._replace(lists=(9300,))
+        server.request = request
+        with patch.object(serve, "infolabel", return_value=PARAMS):
+            server._serve(request)
+        self.assertEqual(server.turn, serve.Turn(request, 10025, "54/3/12/v", FAMILY))
+        self.assertTrue(server.handed.is_set())
+
+    def test_a_family_of_one_or_none_stops_the_turn(self) -> None:
+        server = _server()
+        for items in (_bound(("a.jpg",)), []):
+            server.turn = TURN
+            server._hand(serve.Turn(SETTLE, 10025, *serve.Server._family(items)))
+            self.assertIsNone(server.turn)
+            self.assertTrue(server.handed.is_set())
+
+    def turn(
+        self, server: serve.Server, beats: int, slide: Callable | None = None
+    ) -> list[str]:
+        """
+        Run the rotation for so many beats, then stop the service.
+
+        :param server: A Server without its threads, its turn handed.
+        :param beats: Beats to turn before the stop.
+        :param slide: _slide's stand-in; by default each slide made and recorded.
+        :return: The slides the default stand-in made, in order.
+        """
+        made = []
+        ticks = iter(range(beats))
+
+        def turning(turn: serve.Turn) -> bool:
+            if next(ticks, None) is None:
+                server.stopped = True
+                server.handed.set()
+            return not server.stopped
+
+        server._turning = turning
+        server._slide = Mock(
+            side_effect=slide
+            or (lambda turn, url: made.append(url) or [("s", url, False)])
+        )
+        server.handed.set()
+        server._rotate()
+        return made
+
+    def test_turns_from_slide_1_round_again_binding_each(self) -> None:
+        server = _server()
+        server.request, server.turn = SETTLE, TURN
+        made = self.turn(server, 3)
+        self.assertEqual(made, ["b.jpg", "a.jpg", "b.jpg", "a.jpg"])
+        self.assertEqual(
+            [c.args for c in server._bind.call_args_list],
+            [(10025, 9400, [("s", url, False)], "54/3/12/", "") for url in made[:3]],
+        )
+
+    def test_a_beat_under_a_dialog_binds_nothing(self) -> None:
+        server = _server()
+        server.request, server.turn = SETTLE, TURN
+        with patch.object(serve, "topmost_window_id", return_value=10106):
+            self.turn(server, 2)
+        server._bind.assert_not_called()
+
+    def test_a_slide_not_made_binds_nothing_and_turns_on(self) -> None:
+        server = _server()
+        server.request, server.turn = SETTLE, TURN
+        made = self.turn(server, 2, lambda turn, url: None)
+        server._bind.assert_not_called()
+        self.assertEqual(server._slide.call_count, 3)
+        self.assertEqual(made, [])
+
+    def test_a_new_family_ends_the_turn_and_starts_its_own(self) -> None:
+        server = _server()
+        server.request, server.turn = SETTLE, TURN
+        other = TURN._replace(identity="54/4/13/v", family=("c.jpg", "d.jpg"))
+
+        def slide(turn: serve.Turn, url: str) -> list[tuple]:
+            if turn is TURN:
+                server._hand(other)  # 9300 binds the next item mid-dwell
+            return [("s", url, False)]
+
+        made = self.turn(server, 2, slide)
+        self.assertEqual(made, [])
+        self.assertEqual(
+            [c.args[2][0][1] for c in server._bind.call_args_list], ["d.jpg", "c.jpg"]
+        )
+
+    def test_an_error_costs_the_turn_not_the_thread(self) -> None:
+        server = _server()
+        server.request, server.turn = SETTLE, TURN
+        other = TURN._replace(family=("c.jpg", "d.jpg"))
+
+        def slide(turn: serve.Turn, url: str) -> list[tuple]:
+            if turn is TURN:
+                server._hand(other)  # handed as the error lands: the thread turns it
+                raise ValueError
+            return [("s", url, False)]
+
+        self.turn(server, 1, slide)
+        self.assertEqual(server._bind.call_args.args[2], [("s", "d.jpg", False)])
+
+    def test_turning_ends_with_a_newer_ring_or_a_moved_cursor(self) -> None:
+        server = _server()
+        server.request = SETTLE._replace(lists=(9010,), again=True)  # same mark
+        self.assertTrue(server._turning(TURN))
+        self.props["artwork_cursor_primary"] = "54/4/13/v"
+        self.assertFalse(server._turning(TURN))
+        self.props["artwork_cursor_primary"] = CURSOR
+        server.request = SETTLE._replace(mark="54/4/13/v")
+        self.assertFalse(server._turning(TURN))
+
+    def test_slide_reads_its_probe_on_top_and_names_9300s_identity(self) -> None:
+        source = "ListItem.Art(clearlogo)"
+        query = (
+            f"background_blur=true&clearlogo_source={source}"
+            "&clearlogo_url=https://x/l.png?a=1&b=2&icon_darken_label=A & B"
+        )
+        labels = {"Control.GetLabel(6940)": query, source: "https://x/l.png?a=1&b=2"}
+        with (
+            patch.object(serve, "infolabel", side_effect=labels.get) as read,
+            patch("resources.lib.art.multiart.slide_art") as art,
+            patch("resources.lib.plugin.setter.set_items", side_effect=list),
+        ):
+            art.return_value = {"slide": "b.jpg"}
+            items = serve.Server._slide(TURN, "b.jpg")
+        self.assertEqual(read.call_args_list, list(map(call, labels)))
+        params, url = art.call_args.args
+        self.assertEqual(url, "b.jpg")
+        self.assertEqual(params["clearlogo_url"], "https://x/l.png?a=1&b=2")  # whole
+        self.assertEqual(params["icon_darken_label"], "A & B")
+        self.assertEqual(items[0]["properties"], {"identity": "54/3/12/v"})
+        self.assertEqual(items[0]["art"], {"slide": "b.jpg"})
+
+    def test_slide_under_a_dialog_or_with_no_params_makes_none(self) -> None:
+        with patch.object(serve, "infolabel", return_value=PARAMS) as read:
+            with patch.object(serve, "topmost_window_id", return_value=10106):
+                self.assertIsNone(serve.Server._slide(TURN, "b.jpg"))
+            read.assert_not_called()
+            for probe in ("", serve.NONE):
+                read.return_value = probe
+                self.assertIsNone(serve.Server._slide(TURN, "b.jpg"))
 
 
 if __name__ == "__main__":
