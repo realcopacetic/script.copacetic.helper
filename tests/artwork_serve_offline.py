@@ -109,7 +109,6 @@ class ArtworkServe(unittest.TestCase):
 
         def family(self, item, multiart_type):
             seen["family"] = item
-            self._tmdb_missed = None
             return FAMILY if item.startswith("Container(9040)") else {}
 
         def seed(**kwargs):  # seed_multiart: None when its guard dies mid-seed
@@ -242,6 +241,7 @@ class ArtworkServe(unittest.TestCase):
         self.assertEqual(self.plex(**fav)["background"], "fav0.jpg")
 
     VISIT = {"visit": "v1", "multiart_fadelabel": "3400"}
+    VISIT_REGISTER = {"multiart_fadelabel": "3400"}
 
     SERVED = {"superseded": lambda: False, "again": mock.Mock()}
 
@@ -264,6 +264,11 @@ class ArtworkServe(unittest.TestCase):
         self.assertEqual(self.identity(out), "50/3/7/v9")
         self.assertNotIn("background_blur_9300", out["props"])
 
+    def test_a_served_settle_under_a_modal_names_its_cursor(self):
+        cursor = {"cursors": {"primary": "50/3/7/v9"}}
+        out = self.serve({"cursor_key": "primary"}, False, **self.SERVED, **cursor)
+        self.assertEqual(self.identity(out), "50/3/7/v9")  # no position read: 50//7
+
     def test_a_served_move_reads_the_live_visit_and_stamps_nothing(self):
         out = self.serve({"cursor_key": "primary"}, **self.SERVED)
         self.assertEqual(self.identity(out), "50/3/7/v1")
@@ -283,8 +288,6 @@ class ArtworkServe(unittest.TestCase):
     def test_no_art_answers_none_either_way(self):
         self.assertEqual(self.serve({"background_url": ""})["items"], [])
         self.assertEqual(self.serve({"background_url": ""}, **self.SERVED)["items"], [])
-
-    VISIT_REGISTER = {"multiart_fadelabel": "3400"}
 
     def held(self, out: dict) -> bool:
         """Whether the serve returned a hold."""
