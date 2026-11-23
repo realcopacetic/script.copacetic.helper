@@ -10,7 +10,8 @@ before focus flips to the button; Back from a row
 refreshes its controls for the list (a sliderex's button loses its focused colours)
 when a row is selected, and Back or Previous Menu on an edit row saves what was
 typed; a slider step isn't put back by the refresh it triggers, a move not stored is;
-a row redrawn or a placeholder row reached rings the preview's backdrop (9370).
+a row redrawn or a placeholder row reached rings the preview's backdrop (9370);
+entry substitutions are cached until the state changes.
 Run from the helper root: python tests/editor_offline.py
 """
 
@@ -136,6 +137,19 @@ class SeededChildren(unittest.TestCase):
         self.switch(widget, "latest")
         self.switch(widget, "group")
         self.assertEqual(rows(self.manager, "tabs", widget), ["recent", "random"])
+
+    def test_substitutions_are_cached_until_the_state_changes(self):
+        first = self.manager.entry_substitutions("menu", 0)
+        self.assertIs(self.manager.entry_substitutions("menu", 0), first)
+        self.assertIsNot(
+            self.manager.entry_substitutions("menu", 0, include_metadata=True), first
+        )
+        self.manager.reload_state()
+        again = self.manager.entry_substitutions("menu", 0)
+        self.assertIsNot(again, first)
+        self.assertEqual(again, first)
+        self.add("menu", "music")
+        self.assertIsNot(self.manager.entry_substitutions("menu", 0), again)
 
     def test_a_menu_item_seeds_no_widgets(self):
         self.add("menu", "films")
