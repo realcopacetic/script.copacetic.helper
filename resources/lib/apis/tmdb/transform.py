@@ -1,9 +1,9 @@
 # author: realcopacetic
 
-from concurrent.futures import ThreadPoolExecutor
+from collections import deque
 from copy import deepcopy
-from threading import Lock
-from typing import Any, Callable, Mapping
+from threading import Lock, Thread
+from typing import Any, Mapping, Protocol
 
 from xbmc import Monitor
 from xbmcgui import Window
@@ -31,12 +31,24 @@ from resources.lib.shared.utilities import plugin_path, window_property
 EPISODE_KEYS = ("file", "art", "properties", "Trailer")  # show-level, fit an episode
 TTL_HIT, TTL_MISSING = 7 * DAY, DAY
 TOKEN_REFUSED = "tmdb_token_refused"  # Home property: the warning logs once a session
-# Items fetched aside, queued or running: tmdb_to_canonical's args → (every asker's
-# landed, the answer they were served meanwhile). Two workers: a dead network queues
-# its fetches rather than piling up threads
-_asides: dict[tuple, tuple[list[Callable[[], None]], dict]] = {}
-_asides_lock = Lock()
-_aside_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="tmdb_aside")
+# Items fetched aside, queued or running: tmdb_to_canonical's args → (their askers,
+# the answer they were served meanwhile). At most two daemon workers drain the queue
+# and end with it: a dead network queues fetches, and nothing holds Kodi's exit
+ASIDE_WORKERS = 2
+_asides: dict[tuple, tuple[set["Asker"], dict]] = {}
+_aside_queue: deque[tuple] = deque()
+_aside_lock = Lock()
+_aside_workers = [0]  # running, under _aside_lock
+
+
+class Asker(Protocol):
+    """A served call's re-serve once its late answer lands (serve.py's Again)."""
+
+    def __call__(self) -> None: ...
+
+    def current(self) -> bool: ...
+
+
 IMAGE_LIST_ROLES = {
     "images_posters": [
         ("poster", "lang"),
@@ -65,7 +77,7 @@ def tmdb_to_canonical(
     language: str | None = None,
     append_artwork: bool = True,
     cache_only: bool = False,
-    aside: Callable[[], None] | None = None,
+    aside: Asker | None = None,
 ) -> dict[str, Any]:
     """
     Fetch TMDb data and normalise it into canonical Kodi item format, cached in
@@ -77,7 +89,7 @@ def tmdb_to_canonical(
     :param language: Optional TMDb language override.
     :param append_artwork: If False, skip TMDb 'images' append block.
     :param cache_only: Serve the cached item, even expired; never fetch.
-    :param aside: Serve the cached item, fetching on a thread that calls it on news.
+    :param aside: Serve the cached item, fetching aside; it is called on news.
     :return: Canonical TMDb item dict or empty dict.
     """
     if tmdb_id <= 0:
@@ -150,41 +162,58 @@ def tmdb_to_canonical(
     return item
 
 
-def _fetch_aside(args: tuple, landed: Callable[[], None], stale: dict) -> None:
+def _fetch_aside(args: tuple, asker: Asker, stale: dict) -> None:
     """
-    Queue an item's fetch on the aside workers, once while it is queued or running;
-    every asker meanwhile is called once it lands with a different answer.
+    Queue an item's fetch once while it is queued or running, starting a worker if
+    fewer than ASIDE_WORKERS run; every asker meanwhile is called on news.
 
     :param args: tmdb_to_canonical's positional args for the item.
-    :param landed: The asker's callback.
+    :param asker: The served call's re-serve; an equal one asks once.
     :param stale: The answer the asker served meanwhile.
     """
-    with _asides_lock:
-        if queued := args in _asides:
-            _asides[args][0].append(landed)
-        else:
-            _asides[args] = [landed], stale
-    if not queued:
-        _aside_pool.submit(_aside, args)
+    with _aside_lock:
+        if args in _asides:
+            _asides[args][0].add(asker)
+            return
+        _asides[args] = {asker}, stale
+        _aside_queue.append(args)
+        if _aside_workers[0] == ASIDE_WORKERS:
+            return
+        _aside_workers[0] += 1
+    Thread(target=_drain_asides, daemon=True).start()
+
+
+def _drain_asides() -> None:
+    """An aside worker: fetch queued items in turn, and end once the queue is empty."""
+    while True:
+        with _aside_lock:
+            if not _aside_queue:
+                _aside_workers[0] -= 1
+                return
+            args = _aside_queue.popleft()
+        _aside(args)
 
 
 def _aside(args: tuple) -> None:
     """
-    A worker's fetch, none once Kodi is exiting, then each asker's callback on news
-    (a dead network keeps the stale answer, which calls nobody).
+    One queued fetch, skipped once Kodi is exiting or no asker's arrival is still
+    current; then each asker on news (a dead network keeps the stale answer).
 
     :param args: tmdb_to_canonical's positional args for the item.
     """
+    with _aside_lock:
+        askers = set(_asides[args][0])
+    wanted = not Monitor().abortRequested() and any(a.current() for a in askers)
     try:
-        item = None if Monitor().abortRequested() else tmdb_to_canonical(*args)
-    except Exception:  # a pool keeps a task's error in its future: log it here
+        item = tmdb_to_canonical(*args) if wanted else None
+    except Exception:  # its own thread: nothing above it would log
         log.exception(f"tmdb_to_canonical → aside {args}")
         item = None
-    with _asides_lock:
-        asked, stale = _asides.pop(args)
+    with _aside_lock:
+        askers, stale = _asides.pop(args)
     if item is not None and item != stale:
-        for landed in asked:
-            landed()
+        for asker in askers:
+            asker()
 
 
 def _build_tmdb_canonical_item(

@@ -25,6 +25,7 @@ import io
 import json
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import urllib.request
@@ -610,53 +611,92 @@ class TmdbTest(Base):
         self.assertEqual(len(self.net.requests), 3)
 
     def aside_queue(self, aborting=False):
-        """The aside workers' queue, run by hand; Kodi exiting if aborting."""
-        queued = []
-        pool = mock.Mock(submit=lambda fn, args: queued.append(args))
+        """Workers not started, the queue drained by hand; Kodi exiting if aborting."""
+        started = []
+        thread = lambda target, daemon: mock.Mock(start=lambda: started.append(target))
         monitor = lambda: mock.Mock(abortRequested=lambda: aborting)
-        patch(self, (transform, "_aside_pool", pool), (transform, "Monitor", monitor))
+        patch(self, (transform, "Thread", thread), (transform, "Monitor", monitor))
         self.addCleanup(transform._asides.clear)
-        return queued
+        self.addCleanup(transform._aside_queue.clear)
+        self.addCleanup(transform._aside_workers.__setitem__, 0, 0)
+        return started
+
+    @staticmethod
+    def asker(current=True):
+        return mock.Mock(current=lambda: current)
 
     def test_aside_serves_the_cache_and_tells_every_asker(self):
-        queued = self.aside_queue()
-        landed, later = mock.Mock(), mock.Mock()
+        started = self.aside_queue()
+        landed, later = self.asker(), self.asker()
         self.net.answers = [TMDB_TV]
         episode = transform.tmdb_to_canonical("episode", 1399, aside=landed)
         self.assertEqual(episode, {})  # 9100's episode, under its show's key
         self.assertEqual(self.net.requests, [])  # nothing on the asker's thread
         transform.tmdb_to_canonical("tvshow", 1399, aside=later)  # 9000's show
-        self.assertEqual(len(queued), 1)  # one fetch for the key
-        transform._aside(queued[0])
+        transform.tmdb_to_canonical("tvshow", 1399, aside=later)  # a repeat serve
+        self.assertEqual(len(started), 1)  # one fetch for the key, one worker
+        transform._drain_asides()
         landed.assert_called_once()
-        later.assert_called_once()
+        later.assert_called_once()  # asked twice, told once
         self.assertEqual(self.tmdb_row()[0]["Title"], "Game of Thrones")
-        self.assertEqual(transform._asides, {})
+        self.assertEqual((transform._asides, transform._aside_workers), ({}, [0]))
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)  # fresh: none
-        self.assertEqual(len(queued), 1)
+        self.assertEqual(len(started), 1)
+
+    def test_aside_workers_are_capped(self):
+        started = self.aside_queue()
+        for tmdb_id in (1, 2, 3):
+            transform.tmdb_to_canonical("tvshow", tmdb_id, aside=self.asker())
+        self.assertEqual(len(started), transform.ASIDE_WORKERS)
+        self.assertEqual(len(transform._aside_queue), 3)
+
+    def test_aside_skips_items_no_asker_still_wants(self):
+        started = self.aside_queue()
+        landed = self.asker(current=False)  # moved on before the fetch began
+        transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
+        transform._drain_asides()
+        self.assertEqual(self.net.requests, [])
+        landed.assert_not_called()
+        self.assertEqual(transform._asides, {})
 
     def test_aside_with_no_news_tells_nobody(self):
-        queued = self.aside_queue()
+        self.aside_queue()
         self.net.answers = [TMDB_TV, TimeoutError()]
         item = transform.tmdb_to_canonical("tvshow", 1399)
         self.tick(8 * DAY)
-        landed = mock.Mock()
+        landed = self.asker()
         stale = transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
         self.assertEqual(stale, item)
         stale["properties"].pop("tmdb_trailers", None)  # as metadata does
         stale["Trailer"] = "picked"
-        transform._aside(queued[0])
+        transform._drain_asides()
         self.assertEqual(len(self.net.requests), 2)  # asked, offline
         landed.assert_not_called()
 
     def test_aside_fetches_nothing_once_kodi_exits(self):
-        queued = self.aside_queue(aborting=True)
-        landed = mock.Mock()
+        self.aside_queue(aborting=True)
+        landed = self.asker()
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
-        transform._aside(queued[0])
+        transform._drain_asides()
         self.assertEqual(self.net.requests, [])
         landed.assert_not_called()
         self.assertEqual(transform._asides, {})
+
+    def test_aside_workers_end_with_the_queue_and_hold_no_exit(self):
+        monitor = lambda: mock.Mock(abortRequested=lambda: False)
+        patch(self, (transform, "Monitor", monitor))
+        landed = threading.Event()
+        asker = mock.Mock(current=lambda: True, side_effect=landed.set)
+        self.net.answers = [TMDB_TV]
+        transform.tmdb_to_canonical("tvshow", 1399, aside=asker)
+        self.assertTrue(landed.wait(5))
+        for _ in range(500):  # the worker ends just after its callbacks
+            if not transform._aside_workers[0]:
+                break
+            time.sleep(0.01)
+        self.assertEqual(transform._aside_workers, [0])
+        waited = [t for t in threading.enumerate() if not t.daemon]
+        self.assertEqual(waited, [threading.main_thread()])  # Kodi joins these
 
     def test_episode_takes_show_level_keys_only(self):
         self.net.answers = [TMDB_TV]

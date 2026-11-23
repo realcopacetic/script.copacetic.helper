@@ -7,12 +7,13 @@ request waits, and a newer ring, a window change or a moved cursor drops it unbo
 list a dialog covered mid-run is owed again; a repeat does nothing (a list not mounted
 here aside); a move with no lists serves the window's last request; again() serves one
 list of it (the whole arrival while it is still served, beside an again's own lists,
-only for the arrival that asked, as a handler's late answer asks) and leaves the last
-request as it was; a move's item is read before its handler; clean_name reads the query
-it was served with, not argv; a favourite with no library item answers the blank item; a
-guard's superseded test comes first; Font.xml is read once per version, and a clamp is
-keyed by the font's file and size; a bind sets each item's path and uses a new Window;
-SQLite keeps one connection per thread, and cache_only holds one thread only.
+only for the arrival that asked, as a handler's late answer asks, once per list and
+arrival) and leaves the last request as it was; a move's item is read before its
+handler; clean_name reads the query it was served with, not argv; a favourite with no
+library item answers the blank item; a guard's superseded test comes first; Font.xml is
+read once per version, and a clamp is keyed by the font's file and size; a bind sets
+each item's path and uses a new Window; SQLite keeps one connection per thread, and
+cache_only holds one thread only.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -121,7 +122,7 @@ class ServeTest(unittest.TestCase):
         params, superseded, again = server._handle.call_args.args
         self.assertEqual(params, f"{serve.PLUGIN}{PARAMS}")
         self.assertFalse(superseded())
-        self.assertEqual((again.func, again.args), (server.again, (9010, CURSOR)))
+        self.assertEqual(again, serve.Again(server, 9010, CURSOR))
         server._bind.assert_called_once_with(
             10025, 9010, server._handle.return_value, "54/3/12/", "54/3/12/"
         )
@@ -330,6 +331,20 @@ class ServeTest(unittest.TestCase):
         server.last[10025] = server.request = server.finished = moved
         server.late()  # it has moved on: the new arrival serves its own
         server._ring.assert_called_once()
+
+    def test_an_again_is_one_per_list_and_arrival(self) -> None:
+        server = _server()
+        asked = {serve.Again(server, 9000, "m1") for _ in "ab"}
+        asked.add(serve.Again(server, 9100, "m1"))
+        self.assertEqual(len(asked), 2)  # a repeat serve's asks once
+
+    def test_an_again_is_current_while_its_arrival_is_the_last(self) -> None:
+        server = _server()
+        self._run(server, SETTLE)
+        again = serve.Again(server, 9010, CURSOR)
+        self.assertTrue(again.current())
+        server.request = SETTLE._replace(mark="54/4/13/v")  # a newer ring waits
+        self.assertFalse(again.current())
 
     def test_again_is_never_a_repeat(self) -> None:
         server = _server()

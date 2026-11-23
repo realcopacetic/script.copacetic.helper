@@ -1,6 +1,11 @@
 # author: realcopacetic
 
-from typing import Callable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from resources.lib.apis.tmdb.transform import Asker
 
 LOG_TAG = "plugin"
 _INFO_TAG = "__plugin_info__"
@@ -36,7 +41,7 @@ def collect_info_handlers(inst: object) -> dict[str, Callable]:
 def info_handler(
     params: dict[str, str],
     superseded: Callable[[], bool] | None = None,
-    again: Callable[[], None] | None = None,
+    again: Asker | None = None,
     query: str = "",
 ) -> Callable | None:
     """
