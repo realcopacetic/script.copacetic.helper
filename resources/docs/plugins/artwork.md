@@ -223,7 +223,7 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `<prefix>_palette_darken` | `<prefix>_palette=true` | The % black the darken surface needs for `_palette_primary` to read at the ratio. |
 | `<prefix>_palette_logo` | `<prefix>_palette=true`, and the clearlogo has a colour | The clearlogo's hue at the palette's light level. |
 | `<prefix>_palette_logo_darken` | as `_palette_logo` | The % black the darken surface needs for `_palette_logo` to read at the ratio. |
-| `multiart`, `multiart1`, `multiart2` … | `multiart` is passed | The collected family, numbered without gaps. |
+| `multiart`, `multiart1`, `multiart2` … | `multiart` is passed, and the family has two images or more | The collected family, numbered without gaps. |
 
 The list item also carries some properties; see
 [Is this result for the focused item?](#is-this-result-for-the-focused-item), and
@@ -431,8 +431,7 @@ as an image texture to get a slideshow.
 - The main image comes first. The rest are shuffled.
 - The returned `multiart*` keys stay in library order (library artwork, then TMDB
   artwork). Only the FadeLabel is shuffled.
-- A family with fewer than two images is not loaded. The FadeLabel is emptied and no
-  `multiart*` keys are returned.
+- A family with fewer than two images is not loaded: the FadeLabel is emptied.
 - Refiring for the same item, the same `visit` and the same images leaves a running
   FadeLabel alone. A new item, or a new `visit`, always starts again from its main
   image.
@@ -445,13 +444,12 @@ fills the same id:
 
 | Property | What it holds |
 |---|---|
-| `multiart_frozen_<id>` | Written only when the same item and `visit` are refilled with a changed image set: the image that was showing, so you can keep it on screen during the change. Left to the skin for any other item in the same container and folder; cleared when the new item is from a different one. |
 | `multiart_seed_scope_<id>` | Which container and folder the FadeLabel was last filled for. |
 | `multiart_seed_sig_<id>` | Which item and image set it was last filled with. |
 
 A window's call that finishes after its window is no longer the active one (another
-window opened meanwhile) writes neither seed key and leaves `multiart_frozen_<id>`
-alone, since the new window may use the same id. So does a call whose `visit` is no
+window opened meanwhile) writes neither seed key, since the new window may use the
+same id. So does a call whose `visit` is no
 longer `Window(home).Property(artwork_visit)` (you left the window and came back to
 it while the call ran): it leaves the FadeLabel and its keys to the new visit's call.
 

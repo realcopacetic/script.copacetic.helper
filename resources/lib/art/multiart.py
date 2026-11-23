@@ -179,16 +179,34 @@ def sequence_to_multiart_dict(urls: Iterable[str]) -> dict[str, str]:
     return result
 
 
-def order_multiart(art: dict[str, str]) -> list[str]:
+def order_multiart(urls: Iterable[str]) -> list[str]:
     """
-    Resolve the display order for a multiart dict: main image first, extras shuffled.
+    Resolve the display order for a multiart family: main image first, extras shuffled.
 
-    :param art: Dict from sequence_to_multiart_dict ("multiart" first).
+    :param urls: The family's URLs, main first (a multiart dict's values).
     :return: Ordered list of URLs, main first.
     """
-    main, *extras = art.values()
+    main, *extras = urls
     random.shuffle(extras)
     return [main, *extras]
+
+
+def slide_art(params: Mapping[str, str], slide: str) -> dict[str, str]:
+    """
+    A served slide's art: its blur, darkens and band, made with the slide probe's
+    params (as the plugin's 9400 serve made them), and the slide itself.
+
+    :param params: The slide probe's params: blur, darken, band and logo options.
+    :param slide: The slide's URL, its background and icon source.
+    :return: Art for 9400's item, "slide" among it.
+    """
+    from resources.lib.art.editor import ImageEditor
+    from resources.lib.plugin.opts import art_jobs
+
+    art_opts, jobs = art_jobs(params | {"background_url": slide, "icon_url": slide})
+    return ImageEditor().image_processor(jobs=jobs, art_opts=art_opts) | {
+        "slide": slide
+    }
 
 
 def _read_back(expected: Mapping[int, str], monitor: Monitor, readable: bool) -> bool:
@@ -350,9 +368,9 @@ def seed_multiart(
     dialog: bool = False,
 ) -> dict[str, str] | None:
     """
-    Seed/clear a multiart register and reconcile multiart art keys. Register identity
-    is the listing (region + folder): a new listing clears the frozen frame, a refire
-    parks the slide on screen, any other serve keeps the skin's. Artwork handler only.
+    Seed/clear a multiart register and reconcile multiart art keys; a refire of the
+    same set for the same item, visit and listing (region + folder) leaves the turn
+    running. The plugin path's artwork serve only (the visualisation, the music OSD).
 
     :param fadelabel_id: Register control id; None/empty is a no-op.
     :param multiart_dict: Candidate multiart family from the listitem.
@@ -393,24 +411,9 @@ def seed_multiart(
             f"seed_multiart → skip: register {fadelabel_id} already carries this set"
         )
         return art
-    frozen_key = f"multiart_frozen_{fadelabel_id}"
-    if not same_scope:
-        # the frame belongs to the previous region; a window serve that outlived its
-        # window leaves the live window's alone (the key is shared)
-        if dialog or window_id == getCurrentWindowId():
-            window_property(frozen_key)
-    elif (
-        len(multiart_dict) > 1
-        and stored.startswith(f"{seed_item}:")
-        and readable
-        and (displayed := infolabel(f"Control.GetLabel({fadelabel_id})"))
-    ):
-        # A refire of the item on screen with a changed set holds its slide through
-        # the reset; other arrivals keep the skin's frame (notes: wrong-item law).
-        window_property(frozen_key, displayed)
     seeded = False
     if len(multiart_dict) > 1:
-        ordered = order_multiart(multiart_dict)
+        ordered = order_multiart(multiart_dict.values())
         seeded = set_multiart_fadelabel(
             fadelabel_id, ordered, alive=alive, window_id=window_id
         )
