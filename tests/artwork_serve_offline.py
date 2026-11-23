@@ -8,8 +8,8 @@ one never), a family outranking it; multiart_first read from the serve's own ite
 not multiart_target's; the parser keeps art URLs raw and url_decode_path
 leaves a bare URL; a held serve names its position only for a move that stamped no
 visit; served, the cursor and visit come from the request, nothing is stamped or held
-and every serve names its identity; under Kodi's slideshow a run stops once its picture
-has moved on;
+and every serve names its identity; a family lands only with two images or more;
+under Kodi's slideshow a run stops once its picture has moved on;
 the TV guide's time left (epg_time_left) from the programme's start and runtime,
 across midnight too, only while the URL's channel is on air and before its end.
 Run from the helper root:
@@ -58,7 +58,12 @@ class ArtworkServe(unittest.TestCase):
     """A serve of the focused item in view 50, its window on top unless a menu is."""
 
     def serve(
-        self, params: dict, on_top: bool = True, visit_ends: str = "", **served
+        self,
+        params: dict,
+        on_top: bool = True,
+        visit_ends: str = "",
+        own: dict | None = None,
+        **served,
     ) -> dict:
         """
         Run artwork() and report what it saw: logo, icon and label (the clearlogo and
@@ -69,6 +74,7 @@ class ArtworkServe(unittest.TestCase):
         :param params: The URL's params past the fixed ones.
         :param on_top: Whether the serve's window is topmost (else a menu is).
         :param visit_ends: Where visit v1 gives way to v2: "images" or "seed".
+        :param own: The family read from the serve's own item; none by default.
         :param served: A served run's superseded, again and cursors.
         :return: What it saw, by logo, icon, label, family, seeded, register and items.
         """
@@ -109,7 +115,7 @@ class ArtworkServe(unittest.TestCase):
 
         def family(self, item, multiart_type):
             seen["family"] = item
-            return FAMILY if item.startswith("Container(9040)") else {}
+            return FAMILY if item.startswith("Container(9040)") else own or {}
 
         def seed(**kwargs):  # seed_multiart: None when its guard dies mid-seed
             seen["seeded"] = kwargs["multiart_dict"]
@@ -284,6 +290,14 @@ class ArtworkServe(unittest.TestCase):
         out = self.serve({"cursor_key": "primary"}, superseded=lambda: True)
         self.assertIsNone(out["items"])  # no held item: the list keeps its own
         self.assertNotIn("artwork_holds", out["props"])
+
+    def test_a_family_lands_whole(self):
+        out = self.serve({"multiart": "fanart"}, own=FAMILY, **self.SERVED)
+        self.assertLessEqual(FAMILY.items(), out["items"][0]["art"].items())
+
+    def test_a_family_of_one_never_lands(self):
+        out = self.serve({"multiart": "fanart"}, own={"multiart": "one.jpg"})
+        self.assertNotIn("multiart", out["items"][0]["art"])
 
     def test_no_art_answers_none_either_way(self):
         self.assertEqual(self.serve({"background_url": ""})["items"], [])

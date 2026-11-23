@@ -217,3 +217,24 @@ class ArtOpts:
             palette=parse_bool(params.get(f"{art_type}_palette", "false")),
             shape=parse_bool(params.get(f"{art_type}_shape", "false")),
         )
+
+
+def art_jobs(
+    params: Mapping[str, str],
+) -> tuple[dict[str, ArtOpts], dict[str, list[str]]]:
+    """
+    Each art type's options, and the processes it runs: every type with a URL, each
+    process its options enable.
+
+    :param params: Plugin parameters, art URLs read whole.
+    :return: The options by art type, and the jobs for ImageEditor.image_processor.
+    """
+    art_opts = {
+        art_type: ArtOpts.from_params(params, art_type) for art_type in ART_TYPES
+    }
+    jobs = {
+        art_type: [p for p in processes if opts.enabled(p)]
+        for art_type, processes in policy.ART_PROCESS_MAP.items()
+        if (opts := art_opts.get(art_type)) and opts.url
+    }
+    return art_opts, jobs

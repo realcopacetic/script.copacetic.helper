@@ -2,8 +2,8 @@
 Offline checks for the gallery tiles' share-out (resources/lib/art/multiart.py):
 an image shows in one tile only (matched by the helper's image identity, a TMDb
 file name in any size) unless a tile has no other image free; a joined family; the
-first frame (multiart_first) leading a family; and seed_multiart's blind seed under a
-dialog and its seed keys. Run from the helper root:
+first frame (multiart_first) leading a family; seed_multiart's blind seed under a
+dialog and its seed keys; a served slide's art. Run from the helper root:
 python tests/multiart_offline.py
 """
 
@@ -148,7 +148,7 @@ class FirstFrame(unittest.TestCase):
 
     def test_stays_first_in_the_seeded_order(self):
         art = dict(zip(["multiart", "multiart1", "multiart2"], self.family("thumb")))
-        self.assertEqual(multiart.order_multiart(art)[0], "thumb")
+        self.assertEqual(multiart.order_multiart(art.values())[0], "thumb")
 
 
 class SeedMultiart(unittest.TestCase):
@@ -225,7 +225,6 @@ class SeedMultiart(unittest.TestCase):
         self.assertFalse([read for read in self.reads if "GetLabel" in read])
         self.assertEqual(self.props["multiart_seed_scope_3400"], "player@")
         self.assertTrue(self.props["multiart_seed_sig_3400"].startswith("1//:"))
-        self.assertNotIn("multiart_frozen_3400", self.props)
 
     def test_blind_refire_trusts_its_signature(self):
         self.top = 10120
@@ -250,24 +249,22 @@ class SeedMultiart(unittest.TestCase):
 
     def test_window_change_writes_no_keys(self):
         live = {
-            "multiart_frozen_3400": "f",
             "multiart_seed_scope_3400": "x",
             "multiart_seed_sig_3400": "y",
         }
-        self.props |= live  # the window now active seeded and froze register 3400
+        self.props |= live  # the window now active seeded register 3400
         self.current = 10025  # the active window changed during the serve
         self.seed()
         self.assertEqual(self.props, live)
 
     LIVE = {
-        "multiart_frozen_3400": "f",
         "multiart_seed_scope_3400": "x",
         "multiart_seed_sig_3400": "y",
     }
 
     def test_visit_change_touches_nothing(self):
         # A→B→A: the handler names no register for the old visit's serve
-        self.props |= self.LIVE  # the same window's new visit seeded and froze 3400
+        self.props |= self.LIVE  # the same window's new visit seeded 3400
         self.labels[3400] = "b"
         self.assertEqual(self.seed(fadelabel_id=None), {"multiart": "a"})
         self.assertEqual((self.props, self.labels), (self.LIVE, {3400: "b"}))
@@ -280,17 +277,28 @@ class SeedMultiart(unittest.TestCase):
         self.assertEqual(self.props["multiart_seed_sig_3400"], "y")
         self.assertNotIn("multiart_seed_scope_3400", self.props)
 
-    def test_scope_change_clears_the_frame(self):
-        self.props |= {"multiart_frozen_3400": "f", "multiart_seed_scope_3400": "x"}
+    def test_scope_change_reseeds_and_keys_the_new_scope(self):
+        self.props["multiart_seed_scope_3400"] = "x"
+        self.labels[3400] = "b"
         self.seed()
-        self.assertNotIn("multiart_frozen_3400", self.props)
+        self.assertEqual(self.labels, {3400: "a"})
         self.assertEqual(self.props["multiart_seed_scope_3400"], "player@")
 
-    def test_dialog_scope_change_clears_the_frame(self):
-        self.props["multiart_frozen_3400"] = "f"  # the window under it froze 3400
-        self.top = 10120
-        self.seed(window_id=10120, dialog=True)
-        self.assertNotIn("multiart_frozen_3400", self.props)
+
+class SlideArt(unittest.TestCase):
+    """A served slide: the probe's params with the slide as background and icon."""
+
+    def test_slide_is_both_sources_and_lands_in_the_art(self):
+        editor = mock.Mock()
+        editor.return_value.image_processor.return_value = {"background": "b.png"}
+        params = {"background_blur": "true", "icon_darken": "false", "icon_url": "x"}
+        with mock.patch("resources.lib.art.editor.ImageEditor", editor):
+            art = multiart.slide_art(params, "s.jpg")
+        self.assertEqual(art, {"background": "b.png", "slide": "s.jpg"})
+        kwargs = editor.return_value.image_processor.call_args.kwargs
+        self.assertEqual(set(kwargs["jobs"]), {"background", "icon"})
+        self.assertEqual(kwargs["art_opts"]["icon"].url, "s.jpg")
+        self.assertEqual(kwargs["art_opts"]["background"].url, "s.jpg")
 
 
 if __name__ == "__main__":
