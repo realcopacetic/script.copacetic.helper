@@ -1683,31 +1683,31 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
 
     @log.duration
-    def typewriter(self) -> None:
+    def typewriter(self) -> list[DirectoryItem] | None:
         """
-        Run typewriter animation for the current item; guarded against focus changes.
-        A reset=true invocation supersedes any run and hides the control. With no
+        Type the current item's label, guarded against focus changes; served, on a thread
+        of its own. A reset=true call supersedes any run and hides the control. With no
         label, a file param captions by its name (an add-on's screenshots).
         """
         if not self._require("target_id"):
-            return
+            return []
 
         target_id = to_int(self.params.get("target_id"), None)
         if parse_bool(self.params.get("reset", "false")):
             TypewriterAnimation.reset(target_id=target_id)
             window_property("typewriter_container")
             window_property("typewriter_pos")
-            return
+            return []
         if not (label := self.label or file_label(self.params.get("file", ""))):
             log.warning("typewriter → label or file required")
-            return
+            return []
 
         if self._visit_superseded():
-            return
+            return None
 
         guard = self._guard()
         if not guard.alive():
-            return
+            return None
 
         window_property(
             "typewriter_container",
@@ -1715,13 +1715,31 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         window_property("typewriter_pos", value=self.expected_identity)
         t = TypewriterAnimation(control_id=target_id, window_id=self.window_id)
-        t.update(
+        run = partial(
+            t.update,
             label=label,
             opts=PlacementOpts.from_params(self.params),
             max_lines=to_int(self.params.get("max_lines"), None),
             start_delay=to_float(self.params.get("start_delay"), 0),
             alive=guard.alive,
         )
+        if self.superseded:  # served: the pipeline binds 9020 and goes on
+            Thread(target=self._type, args=(run, label), daemon=True).start()
+        else:  # a plugin call's directory ends with the line
+            run()
+        return []
+
+    def _type(self, run: Callable[[], None], label: str) -> None:
+        """
+        A served line, on its own thread: the lease and its arrival's end stop it.
+
+        :param run: The animation, bound to its label, placement and guard.
+        :param label: The text typed, for the log.
+        """
+        try:
+            run()
+        except Exception:  # its own thread: nothing above it would log
+            log.exception(f"{self.__class__.__name__} → typewriter '{label}'")
 
     @log.duration
     def in_progress(self) -> list[DirectoryItem] | None:
