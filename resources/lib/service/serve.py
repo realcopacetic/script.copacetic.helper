@@ -473,9 +473,14 @@ class Server:
                     started = time.perf_counter()
                     items = self._slide(turn, url)
                     made = time.perf_counter() - started
-                    if self._waited(beat, turn):
+                    if self.handed.wait(max(0.0, beat - time.monotonic())):
                         break
-                    if items and topmost_window_id() == turn.window_id:
+                    # Asked after the read on top, which can wait out a frame (the GUI
+                    # lock) in which a move lands
+                    on_top = items and topmost_window_id() == turn.window_id
+                    if not self._turning(turn):
+                        break
+                    if on_top:
                         self._bind(
                             turn.window_id, SLIDES, items, turn.request.current, ""
                         )

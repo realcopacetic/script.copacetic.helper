@@ -20,7 +20,8 @@ stops it; an again of the same family keeps the turn), which turns from slide 1,
 slide made from probe 6932 on top LEAD before its beat and bound to 9400 with 9300's
 identity on it, none under a dialog, none on a short rest, none that won't open, and a
 late bind pushes the next beats back; a new family or an error ends a turn, not the
-thread; a newer ring, a moved cursor or a rail losing focus ends it.
+thread; a newer ring, a moved cursor or a rail losing focus ends it, a move during
+the beat's read on top too.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -854,6 +855,29 @@ class RotateTest(unittest.TestCase):
             self.turn(server, 3, slide)
         self.assertEqual(len(bound), 3)
         self.assertGreaterEqual(min(b - a for a, b in zip(bound, bound[1:])), 0.04)
+
+    def test_a_move_during_the_beats_read_on_top_binds_nothing(self) -> None:
+        server = _server()
+        server.request, server.turn = SETTLE, TURN
+        server._slide = Mock(return_value=[("s", "b.jpg", False)])
+        turning = server._turning
+
+        def stop_when_over(turn: serve.Turn) -> bool:
+            if not (going := turning(turn)):
+                server.stopped = True
+                server.handed.set()
+            return going
+
+        def top() -> int:
+            self.props["artwork_cursor_primary"] = "54/4/13/v"  # a move lands
+            return 10025
+
+        server._turning = stop_when_over
+        server.handed.set()
+        with patch.object(serve, "topmost_window_id", side_effect=top):
+            server._rotate()
+        server._slide.assert_called_once()
+        server._bind.assert_not_called()
 
     def test_turning_ends_with_a_newer_ring_or_a_moved_cursor(self) -> None:
         server = _server()
