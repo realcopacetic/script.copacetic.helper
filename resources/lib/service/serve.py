@@ -29,9 +29,9 @@ PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its quer
 # and the show logo
 PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910, 9300: 6930, 9301: 6931}
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
-# Lists whose art Kodi can fill after they answered none (music, pictures, files: no
-# flag to wait on), in place, so no hook rings: watched while their arrival is live
-LATE = (9300, 9301)
+# A probe's "nothing yet": none, for an item whose art Kodi may still fill with no flag
+# to wait on (music, pictures, files), in place, so no hook rings: watched while live
+LATE = "late"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
 # Seconds a probe may say wait before it counts as none: only a backstop, as each wait
 # row ends with the state it waits on (a slow Search rail can take several seconds)
@@ -256,7 +256,7 @@ class Server:
             with self.lock:
                 self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
-        late = []  # bound none, for art Kodi may yet fill
+        late = []  # bound late: none, for art Kodi may yet fill
         for list_id in request.lists:
             while (params := self._turn(list_id, window_id, stale)) is not None:
                 if not params:
@@ -266,7 +266,7 @@ class Server:
                 started = time.perf_counter()
                 items = (
                     self._handle(params, stale, again, request.cursors)
-                    if params != NONE
+                    if params not in (NONE, LATE)
                     else []
                 )
                 handled = time.perf_counter()
@@ -274,7 +274,7 @@ class Server:
                     return  # its guard stopped it, or a move came: a ring follows
                 if topmost_window_id() == window_id:
                     self._bind(window_id, list_id, items, request.current, item)
-                    if params == NONE and list_id in LATE:
+                    if params == LATE:
                         late.append(list_id)
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "
@@ -303,7 +303,7 @@ class Server:
 
     def _watch(self) -> None:
         """
-        One look at the lists bound none: a probe that reads params now (Kodi filled
+        One look at the lists bound late: a probe that reads params now (Kodi filled
         the art) is served, while its arrival is live and the last, up to WAIT_MAX.
         """
         request, window_id, lists, until = self.watching
@@ -321,7 +321,7 @@ class Server:
         stale = lambda: self.rung.is_set() or not request.live()
         for list_id in lists:
             params = infolabel(f"Control.GetLabel({PROBES[list_id]})")
-            if params in ("", NONE, WAIT):
+            if params in ("", NONE, WAIT, LATE):
                 continue
             item = self._item(request)
             again = Again(self, list_id, request.mark)
