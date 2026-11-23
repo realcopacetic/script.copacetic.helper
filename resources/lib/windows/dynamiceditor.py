@@ -57,7 +57,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.dynamic_controls = {}
         self.container_position = -1
         self.current_listitem = None
-        # What each row and the description show: a write waits for a frame (controls)
+        # What each row and the description show, so a refresh writes only changes
         self._rows_shown = {}
         self._description = None
         self._prev_focus_id = -1
@@ -455,7 +455,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         :param action: xbmcgui.Action object.
         """
-        start, LockedCalls.count = time.perf_counter(), 0
+        start = time.perf_counter()
+        LockedCalls.count = 0
         self._on_action(action)
         log.debug(
             f"{self.__class__.__name__} → action {action.getId()}: "
@@ -508,6 +509,13 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 self._refresh_ui(update_row=False, focus_id=current_focus)
             self._on_list_scroll(current_focus)
         else:
+            # Kodi redraws a pressed control itself, whether focus was already there
+            # or came with the press (a mouse click)
+            if a_id == ACTION_SELECT_ITEM:
+                for focus_id in {prev_focus, current_focus}:
+                    if pressed := self._handler_by_focus_id.get(focus_id):
+                        pressed.pressed()
+
             has_valid_selection = (
                 self.current_listitem is not None
                 and self.current_listitem in self.listitems
@@ -567,13 +575,16 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _on_list_scroll(self, focus_id: int) -> None:
         """
-        Handle user scrolling in the left list. Every row is an entry's, as only
-        _refresh_list adds rows.
+        Handle user scrolling in the left list: the row's entry is the one drawn on it,
+        and none is left after the window closes on an emptied list with a key queued.
 
         :param focus_id: Control that has focus, so the refresh needn't ask Kodi.
         """
         idx = self._list_container.getSelectedPosition()
         if idx < 0 or idx == self.container_position:
+            return
+        content_id = self._rows_shown[idx]["properties"]["content_id"]
+        if content_id not in self.listitems:
             return
 
         self.container_position = idx
@@ -581,7 +592,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         # Rows hide and show one at a time: no flag meanwhile, or a Right finding no
         # row sends FirstPage to the rail.
         self._set_page_changed(False)
-        self.current_listitem = list(self.listitems)[idx]
+        self.current_listitem = content_id
         self._refresh_ui(update_row=False, focus_id=focus_id)
         self._refresh_list_row(idx, moved=True)  # rings once for the move
         self._set_page_changed(True)
