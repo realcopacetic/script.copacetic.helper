@@ -3,8 +3,9 @@
 """
 Served focus calls: the skin rings when an item comes to rest (settle) or a selection
 changes with no focused-layout arrival (move), and the warm service fills each named
-list in turn, each a list with no <content>; 9300's multiart family then turns on
-9400, a slide a beat. Notes: coding-notes/copacetic/features/served-focus-calls.md.
+list in turn, each a list with no <content>, in the active window or, for a dialog's
+region, the dialog; 9300's multiart family then turns on 9400, a slide a beat. Notes:
+coding-notes/copacetic/features/served-focus-calls.md.
 """
 
 import time
@@ -13,11 +14,16 @@ from threading import Event, RLock, Thread
 from typing import Callable, NamedTuple
 
 import xbmc
-from xbmcgui import ListItem, Window, getCurrentWindowId
+from xbmcgui import ListItem, Window, getCurrentWindowDialogId, getCurrentWindowId
 
 from resources.lib.shared import logger as log
 from resources.lib.shared.parser import parse_plugin_argv
-from resources.lib.shared.utilities import infolabel, plugin_path, topmost_window_id
+from resources.lib.shared.utilities import (
+    condition,
+    infolabel,
+    plugin_path,
+    topmost_window_id,
+)
 
 # NotifyAll(script.copacetic.helper,<kind>/<region>/<lists, dot-separated>/<mark>);
 # a move's mark is <container>/<token>: the list that moved (view: the cursor's list),
@@ -28,6 +34,9 @@ PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its quer
 # library item, which the others' favourite rows read, then details, the bar, artwork
 # and the show logo
 PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910, 9300: 6930, 9301: 6931}
+# A dialog's own lists and probes, by the region its rings name: served in the topmost
+# dialog, not the active window. preview: the view settings editor's backdrop blur
+DIALOGS = {"preview": {9370: 6937}}
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
 # Seconds a probe may say wait before it counts as none: only a backstop, as each wait
@@ -118,11 +127,12 @@ def move_token(*regions: str) -> str:
 
 def ring_move(region: str = "primary") -> None:
     """
-    A move from Python (a published search query): the token, then the ring.
+    A move from Python (a published search query, a view settings editor change): the
+    token, then the ring for the region's lists.
 
-    :param region: Whose token, moved_<region>.
+    :param region: Whose token, moved_<region>; a dialog's region names its lists.
     """
-    lists = ".".join(map(str, PROBES))
+    lists = ".".join(map(str, DIALOGS.get(region, PROBES)))
     mark = move_token(region)
     xbmc.executebuiltin(f"NotifyAll({log.ADDON_ID},move/{region}/{lists}//{mark})")
 
@@ -146,7 +156,8 @@ class _Listener(xbmc.Monitor):
         if sender != log.ADDON_ID or kind not in KINDS:
             return
         region, lists, mark = (rest.split("/", 2) + ["", ""])[:3]
-        ids = tuple(i for i in map(int, filter(None, lists.split("."))) if i in PROBES)
+        probes = DIALOGS.get(region, PROBES)
+        ids = tuple(i for i in map(int, filter(None, lists.split("."))) if i in probes)
         container = ""
         if kind == "move":
             container, _, mark = mark.partition("/")
@@ -247,13 +258,18 @@ class Server:
 
     def _serve(self, arrival: Request) -> None:
         """
-        Each list in turn while the arrival is the newest and live; a list a dialog
-        covered before its bind is owed again. A move with no lists or region is the
-        window's last request again (every served list, if none), with its token.
+        Each list in turn while the arrival is the newest and live, in the active window
+        (a dialog region's: the topmost dialog); one covered before its bind is owed. A
+        move with no lists or region: the window's last request (else every list) again.
 
         :param arrival: The request heard.
         """
-        window_id = getCurrentWindowId()
+        probes = DIALOGS.get(arrival.region, PROBES)
+        window_id = (
+            getCurrentWindowDialogId()
+            if arrival.region in DIALOGS
+            else getCurrentWindowId()
+        )
         request = arrival
         if arrival.kind == "move":
             last = self.last.get(window_id) or Request("move", "primary", (), "")
@@ -268,7 +284,7 @@ class Server:
                 self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
         for list_id in request.lists:
-            while (params := self._turn(list_id, window_id, stale)) is not None:
+            while (params := self._turn(probes[list_id], window_id, stale)) is not None:
                 if not params:
                     break  # not mounted in this window
                 item = self._item(request)  # beside the probe: the item it was read for
@@ -352,29 +368,44 @@ class Server:
         )
 
     def _turn(
-        self, list_id: int, window_id: int, stale: Callable[[], bool]
+        self, probe: int, window_id: int, stale: Callable[[], bool]
     ) -> str | None:
         """
         A list's probe once its window is on top (under a dialog Python reads the
         dialog's controls) and the probe doesn't say wait.
 
-        :param list_id: The served list.
+        :param probe: The served list's probe.
         :param window_id: Window the request is for.
         :param stale: Whether the request is over.
         :return: The probe's text (empty: not mounted); None once the request is over.
         """
         until = None  # from the first wait read: time under a dialog doesn't count
-        while not (self.stopped or stale() or getCurrentWindowId() != window_id):
+        while not (self.stopped or stale()):
             if topmost_window_id() == window_id:
-                params = infolabel(f"Control.GetLabel({PROBES[list_id]})")
+                params = infolabel(f"Control.GetLabel({probe})")
                 if params != WAIT:
                     return params
                 until = until or time.monotonic() + WAIT_MAX
                 if time.monotonic() > until:
                     return NONE
+            elif not self._open(window_id):
+                return None  # left, or the dialog closed
             if self.rung.wait(POLL):
                 return None  # a newer ring: rung stays set for the worker
         return None
+
+    @staticmethod
+    def _open(window_id: int) -> bool:
+        """
+        Whether a request's window is still up under whatever covers it: the active
+        window, or a dialog still open.
+
+        :param window_id: Window the request is for.
+        :return: True while it is.
+        """
+        return getCurrentWindowId() == window_id or condition(
+            f"Window.IsVisible({window_id})"
+        )
 
     @staticmethod
     def _handle(
