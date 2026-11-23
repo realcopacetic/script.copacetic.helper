@@ -659,6 +659,36 @@ class TmdbTest(Base):
         landed.assert_not_called()
         self.assertEqual(transform._asides, {})
 
+    def test_aside_decides_a_skip_and_drops_it_in_one_hold(self):
+        started = self.aside_queue()
+        held = []
+        landed = mock.Mock(current=lambda: held.append(transform._aside_lock.locked()))
+        transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
+        transform._drain_asides()  # a joiner waits for the hold, then queues anew
+        self.assertEqual((held, transform._asides), ([True], {}))
+        transform.tmdb_to_canonical("tvshow", 1399, aside=self.asker())
+        self.assertEqual(len(transform._aside_queue), 1)  # its own fetch
+        self.assertEqual(len(started), 2)
+
+    def test_an_asker_that_joins_before_the_fetch_starts_is_fetched_for(self):
+        self.aside_queue()
+        gone, joined = self.asker(current=False), self.asker()
+        self.net.answers = [TMDB_TV]
+        transform.tmdb_to_canonical("tvshow", 1399, aside=gone)
+        transform.tmdb_to_canonical("tvshow", 1399, aside=joined)
+        transform._drain_asides()
+        joined.assert_called_once()
+
+    def test_an_error_before_the_fetch_frees_the_item_and_the_worker(self):
+        started = self.aside_queue()
+        broken = mock.Mock(side_effect=RuntimeError("no monitor"))
+        patch(self, (transform, "Monitor", broken))
+        transform.tmdb_to_canonical("tvshow", 1399, aside=self.asker())
+        transform._drain_asides()
+        self.assertEqual((transform._asides, transform._aside_workers), ({}, [0]))
+        transform.tmdb_to_canonical("tvshow", 1399, aside=self.asker())
+        self.assertEqual(len(started), 2)  # asked again: queued again
+
     def test_aside_with_no_news_tells_nobody(self):
         self.aside_queue()
         self.net.answers = [TMDB_TV, TimeoutError()]
