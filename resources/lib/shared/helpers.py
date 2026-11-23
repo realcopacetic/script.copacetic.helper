@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 import time
 from functools import cached_property
+from threading import Lock
 from typing import Any, Callable, Collection, Iterable, Mapping
 
 from xbmc import Monitor
@@ -674,6 +675,7 @@ class TypewriterAnimation:
     """
 
     leases = {}  # control id → the token this process's last run took for it
+    lease_lock = Lock()  # a claim and a stopped run's hand-back, one at a time
 
     def __init__(
         self,
@@ -732,8 +734,9 @@ class TypewriterAnimation:
         :return: The run's token.
         """
         token = str(time.time_ns())
-        Window(10000).setProperty(f"typewriter_current_{self.control_id}", token)
-        TypewriterAnimation.leases[self.control_id] = token
+        with TypewriterAnimation.lease_lock:
+            Window(10000).setProperty(f"typewriter_current_{self.control_id}", token)
+            TypewriterAnimation.leases[self.control_id] = token
         return token
 
     def update(
@@ -777,8 +780,9 @@ class TypewriterAnimation:
 
         def _retire() -> None:
             """A run that stops with the lease still its own hands it back: no line."""
-            if not _superseded():
-                home.setProperty(owner_key, "scroll")
+            with TypewriterAnimation.lease_lock:  # a claim can't land in between
+                if not _superseded():
+                    home.setProperty(owner_key, "scroll")
 
         if start_delay > 0:
             if monitor.waitForAbort(start_delay):

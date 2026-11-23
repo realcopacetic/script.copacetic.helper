@@ -35,7 +35,9 @@ thread of its own and answers at once (a plugin call types it inline); only the
 service's stop ends a line from here (its lease and guard do the rest); the same line,
 item and label, stands through a new mark until its lease is no longer its run's (a
 stopped line hands it back), and a repeat serves only a retired line; an again asks
-the line too, after a serve that has passed it; live() reads the kept Home.
+the line too, after a serve that has passed it, and a late answer while the line
+waits serves its lists before the line; a repeat whose line probe waits is served
+alone; a claim and a hand-back share one lock; live() reads the kept Home.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -1077,7 +1079,7 @@ class TypewriterTest(unittest.TestCase):
             LINE._replace(lists=(9000, 9020), again=True)
         )
 
-    def test_an_again_while_the_line_waits_serves_once_after(self) -> None:
+    def test_an_again_while_the_line_waits_serves_it_after_the_answer(self) -> None:
         server = _server()
         server._ring = Mock()
         request = LINE._replace(lists=(9000, 9020))
@@ -1094,12 +1096,54 @@ class TypewriterTest(unittest.TestCase):
 
         with patch.object(serve, "infolabel", side_effect=reads):
             server._serve(request)
+        self.assertEqual(server._handle.call_count, 1)  # 9000: the line holds off
         server._ring.assert_called_once_with(request._replace(again=True))
         server._handle.reset_mock()
         server.request = again = request._replace(again=True)
         with patch.object(serve, "infolabel", return_value=TYPED), self._standing():
             server._serve(again)
-        self.assertEqual(server._handle.call_count, 1)  # 9000; the line stands
+        self.assertEqual(server._handle.call_count, 2)  # 9000, then the line once
+
+    def test_a_late_answer_for_a_list_ahead_leaves_the_line_be(self) -> None:
+        server = _server(PARAMS, PARAMS, TYPED)
+        server._ring = Mock()
+        calls = iter([lambda: server.again(9010)])  # asked at 9000: 9010 is ahead
+        server._handle.side_effect = lambda *a: next(calls, lambda: None)() or []
+        self._run(server, LINE._replace(lists=(9000, 9010, 9020)))
+        self.assertEqual(server._handle.call_count, 3)  # the line typed in turn
+        server._ring.assert_not_called()
+
+    def test_a_repeat_whose_line_waits_serves_it_alone(self) -> None:
+        server = _server(PARAMS, TYPED)
+        self._run(server, LINE)
+        server._handle.reset_mock()
+        server.probes = [serve.WAIT, serve.WAIT, TYPED]  # the region's switch latch
+        with self._standing(retired=True):  # the line was cleared meanwhile
+            self._run(server, LINE)
+        server._handle.assert_called_once()  # 9020 alone, once the wait is out
+        self.assertEqual(server._bind.call_args.args[1], 9020)
+        server._handle.reset_mock()
+        server.probes = [serve.WAIT, TYPED]
+        with self._standing():  # a line that still stands is left be
+            self._run(server, LINE)
+        server._handle.assert_not_called()
+
+    def test_a_claim_and_a_hand_back_share_one_lock(self) -> None:
+        home = _Home()
+        lock = Mock(wraps=helpers.TypewriterAnimation.lease_lock)
+        lock.__enter__ = Mock(side_effect=lambda *a: lock._mock_wraps.acquire())
+        lock.__exit__ = Mock(side_effect=lambda *a: lock._mock_wraps.release())
+        windows = {10000: home, 10025: Mock()}
+        monitor = Mock(**{"abortRequested.return_value": False})
+        monitor.waitForAbort.return_value = False
+        with (
+            patch.object(helpers.TypewriterAnimation, "lease_lock", lock),
+            patch.object(helpers, "Window", side_effect=lambda i: windows[i]),
+            patch.object(helpers, "Monitor", return_value=monitor),
+        ):
+            line = helpers.TypewriterAnimation(control_id=4020, window_id=10025)
+            line.update(label="A", opts=Mock(), alive=lambda: False)
+        self.assertEqual(lock.__enter__.call_count, 2)  # the claim, the hand-back
 
     def test_live_reads_the_kept_home(self) -> None:
         with patch.object(serve, "home_property", return_value=CURSOR) as read:
