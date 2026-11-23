@@ -14,8 +14,9 @@ library item answers the blank item; a guard's superseded test comes first; Font
 read once per version, and a clamp is keyed by the font's file and size; a bind sets
 each item's path and uses a new Window; SQLite keeps one connection per thread, and
 cache_only holds one thread only; a settle hands on its cursor; served artwork fetches
-TMDb's extras aside, noting no miss; a thumb's digest is kept by its file's identity;
-a serve's opened images are closed.
+TMDb's extras aside; a list bound none for late art is watched, not holding the next,
+and served once its probe reads params, until its arrival ends or WAIT_MAX; a thumb's
+digest is kept by its file's identity; a serve's opened images are closed.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -59,7 +60,7 @@ def _server(*probes: str) -> serve.Server:
     server = object.__new__(serve.Server)
     server.request, server.rung, server.stopped = None, Event(), False
     server.lock = RLock()
-    server.heard, server.last, server.finished = 0.0, {}, None
+    server.heard, server.last, server.finished, server.watching = 0.0, {}, None, None
     server._handle = Mock(return_value=[("plugin://x/1", Mock(), False)])
     server._bind = Mock()
     server.probes = list(probes or (PARAMS,))
@@ -119,6 +120,49 @@ class ServeTest(unittest.TestCase):
     def test_current_names_the_arrival(self) -> None:
         self.assertEqual(SETTLE.current, "54/3/12/")  # no visit: a kept item matches
         self.assertEqual(serve.Request("move", "primary", (9010,), "m1").current, "m1")
+
+    @patch.dict(serve.PROBES, {9300: 6930})
+    def late(self, *looks: str) -> serve.Server:
+        """
+        A settle of 9300 then 9010 whose 9300 answers none, then a look per probe text.
+
+        :param looks: What 9300's probe reads at each look.
+        :return: The server, after the looks.
+        """
+        server = _server(serve.NONE, PARAMS)
+        self._run(server, SETTLE._replace(lists=(9300, 9010)))
+        for look in looks:
+            reads = lambda label: look if "6930" in label else ""
+            with patch.object(serve, "infolabel", side_effect=reads):
+                server._watch()
+        return server
+
+    def test_a_late_list_is_watched_not_holding_the_next(self) -> None:
+        server = self.late(serve.NONE, PARAMS)
+        bound = [c.args[1:3] for c in server._bind.call_args_list]
+        handled = server._handle.return_value
+        self.assertEqual(bound, [(9300, []), (9010, handled), (9300, handled)])
+        self.assertIsNone(server.watching)  # served: nothing left to watch
+
+    def test_a_late_watch_ends_with_its_arrival(self) -> None:
+        server = self.late()
+        self.assertEqual(server.watching[2], (9300,))
+        self.props["artwork_cursor_primary"] = "54/4/13/v"  # a move: the next ring's
+        with patch.object(serve, "infolabel", return_value=PARAMS):
+            server._watch()
+        self.assertIsNone(server.watching)
+        self.assertEqual(server._handle.call_count, 1)  # 9010's only
+
+    def test_a_late_watch_ends_after_wait_max(self) -> None:
+        with patch.object(serve, "WAIT_MAX", -1):
+            server = self.late(PARAMS)
+        self.assertIsNone(server.watching)
+        self.assertEqual(server._bind.call_count, 2)
+
+    def test_only_a_late_lists_none_is_watched(self) -> None:
+        server = _server(serve.NONE)
+        self._run(server, SETTLE)
+        self.assertIsNone(server.watching)
 
     def test_a_settle_hands_on_its_cursor_a_move_none(self) -> None:
         self.assertEqual(SETTLE.cursors, {"primary": CURSOR})
