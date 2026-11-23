@@ -375,10 +375,10 @@ class Monitor(xbmc.Monitor):
 
     def _album_bump(self) -> None:
         """
-        Timer: the served bar (9010) again, and a new progress_version for the info
-        dialogs' bar, a plugin list whose URL carries it; unless 9010 on top serves a
-        film's or show's bar (no blink), read now. Then a new played_version if a
-        closed song's play counted (unannounced by real path).
+        Timer: the served bar (9010) again, in the topmost window served, and a new
+        progress_version for a plugin bar (another skin's) whose URL carries it; unless
+        9010 on top serves a film's or show's bar (no blink), read now. Then a new
+        played_version if a closed song's play counted (unannounced by real path).
         """
         if condition(
             "!String.StartsWith(Container(9010).ListItem.FileNameAndPath,plugin://)"
