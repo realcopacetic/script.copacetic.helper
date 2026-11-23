@@ -335,11 +335,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         superseded: Callable[[], bool] | None = None,
         again: Asker | None = None,
         query: str = "",
+        cursors: dict[str, str] | None = None,
     ) -> None:
         self.params = params
         self.superseded = superseded  # a served list's: its guards test it first
         self.again = again  # a served list's re-serve, for an answer that lands later
         self.query = query  # the raw query params came from: a service has no argv
+        self.cursors = cursors or {}  # a served settle's cursor by region
 
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "").lower()
@@ -507,6 +509,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :return: True when the URL carries a visit, even an empty one, not the live one.
         """
+        if self.superseded:  # served: the arrival is the visit
+            return self.superseded()
         visit = self.params.get("visit")
         stamp = "Window(home).Property(artwork_visit)"
         return visit is not None and visit != infolabel(stamp)
@@ -713,15 +717,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         return f"artwork_scope{self._prop_suffix}"
 
-    def _artwork_held(self, lost_to: str = "") -> list[DirectoryItem]:
+    def _artwork_held(self, lost_to: str = "") -> list[DirectoryItem] | None:
         """
-        An aborted serve re-serves what its list (prop_key, an id) shows, under an
-        identity no cursor matches; with no id, an empty list, or a dialog over the
+        An aborted plugin serve re-serves what its list (prop_key, an id) shows, under
+        an identity no cursor matches; with no id, an empty list, or a dialog over the
         serve's window (window_id), the last blur and darkens this list wrote.
 
         :param lost_to: The identity the guard read when the item moved on, if it did.
-        :return: The held item for Kodi.
+        :return: The held item for Kodi; None served, as a stopped stage binds nothing.
         """
+        if self.superseded:
+            return None
         key = self.params.get("prop_key", "")
         shown = f"Container({key}).ListItem"
         props = self._bridge_props()
@@ -747,7 +753,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 {
                     "file": plugin_path("artwork"),
                     "art": {field: infolabel(label) for field, label in labels.items()},
-                    "properties": {"current": f"held/{scope}/{key}"},
+                    "properties": dict.fromkeys(
+                        ("current", "identity"), f"held/{scope}/{key}"
+                    ),
                 }
             ]
         )
@@ -794,10 +802,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.art.multiart import build_multiart_dict
 
-        # Cache only: no network wait before the seed; another serve fills it.
+        # Cache only: no network wait before the seed; another serve fills it. Served,
+        # a stale or missing entry is fetched aside, and its news serves artwork again
         extra = multiart_type and parse_bool(self.params.get("get_extra_multiart"))
         tmdb_item = (
-            self._get_tmdb_item(append_artwork=True, cache_only=True, target=item)
+            self._get_tmdb_item(
+                append_artwork=True, cache_only=True, target=item, aside=self.again
+            )
             if extra
             else None
         )
@@ -815,14 +826,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             tmdb_art=(tmdb_item or {}).get("art", {}),
             first="" if first.startswith(("Default", "thumb://")) else first,
         )
-        # None: no extras asked for; "": none missed, so a stale marker clears
+        # None: no extras asked for, or served (no marker: the aside serves again);
+        # "": none missed, so a stale marker clears
         self._tmdb_missed = (
             (
                 f"{self._tmdb_key}|{multiart_type.removeprefix('tvshow.')}"
                 if family and not tmdb_item and self._tmdb_key
                 else ""
             )
-            if extra
+            if extra and not self.again
             else None
         )
         return family
@@ -831,10 +843,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def artwork(self) -> list[DirectoryItem] | None:
         """
         Process/calculate artwork and attach to listitem, sizing any clearlogo_fit_ids
-        to the cropped logo; an aborted serve (focus or visit moved on) holds the last
-        blur and darkens instead.
+        to the cropped logo; an aborted plugin serve (focus or visit moved on) holds the
+        last blur and darkens instead.
 
-        :return: List of directory items for Kodi, or None when there is no art.
+        :return: Directory items for Kodi, none with no art; None for a stopped serve.
         """
         start = time.perf_counter()
         if self._visit_superseded() or self.dialog and not self._info_on_top():
@@ -879,12 +891,22 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if self.player
             else infolabel(f"{self.identity_item}.DBID")
         )
+        # A served settle's cursor is the request's, its visit too; a move's, as a
+        # plugin's, is read now with the live visit
         cursor_key = self.params.get("cursor_key", "")
         cursor_snapshot = (
-            infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
+            self.cursors.get(cursor_key)
+            or infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
             if cursor_key
             else ""
         )
+        visit = self.params.get("visit", "")
+        if self.superseded:
+            visit = (
+                ArtworkIdentity.parse(self.cursors[cursor_key]).visit
+                if cursor_key in self.cursors
+                else infolabel("Window(home).Property(artwork_visit)")
+            )
         # Scope of this serve, needed before seeding: the seeder must know
         # whether the register's previous content is same-container.
         if self.item or self.player:
@@ -951,7 +973,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return (
                 set_items([{"file": plugin_path("artwork"), "properties": cleaned}])
                 if self.item
-                else None
+                else []
             )
 
         guarded = time.perf_counter()
@@ -999,7 +1021,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             multiart_dict=multiart_dict,
             art=art,
             seed_scope=f"{stamp_scope}@{folder}",
-            seed_item=f"{current_position}/{dbid}/{self.params.get('visit', '')}",
+            seed_item=f"{current_position}/{dbid}/{visit}",
             alive=lambda: alive() and not self._visit_superseded(),
             window_id=window_id,
             dialog=self.dialog,
@@ -1042,10 +1064,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         total = to_int(infolabel(f"{self.identity_container}.NumItems"), 0)
 
         identity = ArtworkIdentity(
-            scope=stamp_scope,
-            pos=current_position,
-            dbid=dbid,
-            visit=self.params.get("visit", ""),
+            scope=stamp_scope, pos=current_position, dbid=dbid, visit=visit
         )
         prev_item = identity.neighbour(-1, total)
         next_item = identity.neighbour(1, total)
@@ -1064,6 +1083,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         if stamped and alive() and infolabel(cursor) == cursor_snapshot:
             window_property(f"artwork_cursor_{cursor_key}", stamped)
+        # The serve's identity, for the skin's currency and scope readers: served, its
+        # own (the bind names the arrival in current); a plugin's, its current
+        partial = identity.partial(("scope", "pos", "dbid"))
+        if self.superseded:
+            current = partial if current_position is None else str(identity)
+        else:
+            current = stamped or cursor_snapshot or partial
 
         return set_items(
             [
@@ -1073,9 +1099,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     "properties": (
                         {
                             "previous": prev_item.partial(("scope", "pos")),
-                            "current": stamped
-                            or cursor_snapshot
-                            or identity.partial(("scope", "pos", "dbid")),
+                            "current": current,
+                            "identity": current,
                             "next": next_item.partial(("scope", "pos")),
                             "current_pos": str(current_position),
                             "previous_pos": str(prev_item.pos),
@@ -1097,7 +1122,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                         # The playing song has no position: current tells songs apart,
                         # so a slide serve (9400) is matched to its song's
                         else (
-                            {"current": identity.partial(("scope", "pos", "dbid"))}
+                            {"current": partial, "identity": partial}
                             if self.player
                             else {}
                         )

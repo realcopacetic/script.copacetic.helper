@@ -35,6 +35,8 @@ python tests/api_offline.py
 # own item, not multiart_target's; url_decode_path leaves a bare URL as
 # Kodi keys it; a held serve names its position (the
 # jumpbar's re-serve) only for a move that stamped no visit, by the guard's own read;
+# served, a settle's cursor and visit the request's, a move's visit the live one, no
+# cursor stamp and no held item, every serve naming its identity, no art a blank;
 # the TV guide's time left (epg_time_left) from the programme's start and runtime,
 # across midnight too, only while the URL's channel is on air and before its end
 python tests/artwork_serve_offline.py
@@ -90,7 +92,9 @@ python tests/service_offline.py
 # query, not argv; a favourite with no library item a blank; the guard's superseded
 # test first; a bind's paths and new Window; Font.xml read once per version, clamps
 # keyed by the font's file and size; SQLite's connection per thread, schema once;
-# cache_only per thread
+# cache_only per thread; a settle hands on its cursor, a move none; served artwork's
+# TMDb extras fetched aside with no miss marker; a thumb's digest kept by its file's
+# mtime and size; a serve's opened images closed however it ends
 python tests/serve_offline.py
 
 # Settings editor edges (builders/runtime.py, windows/dynamiceditor.py, controls.py) with

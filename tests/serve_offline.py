@@ -13,7 +13,9 @@ handler; clean_name reads the query it was served with, not argv; a favourite wi
 library item answers the blank item; a guard's superseded test comes first; Font.xml is
 read once per version, and a clamp is keyed by the font's file and size; a bind sets
 each item's path and uses a new Window; SQLite keeps one connection per thread, and
-cache_only holds one thread only.
+cache_only holds one thread only; a settle hands on its cursor; served artwork fetches
+TMDb's extras aside, noting no miss; a thumb's digest is kept by its file's identity;
+a serve's opened images are closed.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -41,9 +43,11 @@ sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.apis import cache  # noqa: E402
+from resources.lib.art import editor  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.service import serve  # noqa: E402
 from resources.lib.shared import helpers, sqlite, text  # noqa: E402
+from resources.lib.shared.hash import HashManager  # noqa: E402
 
 PARAMS = "info=progressbar&label=A, B"
 CURSOR = "54/3/12/09:01:02Next"
@@ -96,7 +100,7 @@ class ServeTest(unittest.TestCase):
         heard = []
         listener = serve._Listener(heard.append)
         sender = "script.copacetic.helper"
-        listener.onNotification(sender, f"Other.settle/primary/9010.9300/{CURSOR}", "")
+        listener.onNotification(sender, f"Other.settle/primary/9010.9999/{CURSOR}", "")
         listener.onNotification(sender, "Other.move//9010/view/m1", "")
         listener.onNotification(sender, "Other.move////m2", "")
         listener.onNotification(
@@ -116,13 +120,18 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(SETTLE.current, "54/3/12/")  # no visit: a kept item matches
         self.assertEqual(serve.Request("move", "primary", (9010,), "m1").current, "m1")
 
+    def test_a_settle_hands_on_its_cursor_a_move_none(self) -> None:
+        self.assertEqual(SETTLE.cursors, {"primary": CURSOR})
+        self.assertEqual(serve.Request("move", "primary", (9010,), "m1").cursors, {})
+
     def test_probe_is_handled_and_bound_with_current(self) -> None:
         server = _server(f"{serve.PLUGIN}{PARAMS}")
         self._run(server, SETTLE)
-        params, superseded, again = server._handle.call_args.args
+        params, superseded, again, cursors = server._handle.call_args.args
         self.assertEqual(params, f"{serve.PLUGIN}{PARAMS}")
         self.assertFalse(superseded())
         self.assertEqual(again, serve.Again(server, 9010, CURSOR))
+        self.assertEqual(cursors, {"primary": CURSOR})  # a settle's, by its region
         server._bind.assert_called_once_with(
             10025, 9010, server._handle.return_value, "54/3/12/", "54/3/12/"
         )
@@ -408,7 +417,7 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(
             ring,
             "NotifyAll(script.copacetic.helper,"
-            f"move/primary/9040.9000.9100.9010//{token})",
+            f"move/primary/9040.9000.9100.9010.9300.9301//{token})",
         )
 
     def test_a_moves_item_is_its_containers_now(self) -> None:
@@ -575,6 +584,80 @@ class ThreadsTest(unittest.TestCase):
             thread.join()
             seen.append(cache._offline.get())
         self.assertEqual(seen, [False, True])
+
+
+class ArtworkTest(unittest.TestCase):
+    def family(self, again: Mock | None) -> tuple[dict, str | None]:
+        """
+        A TMDb-extended family read with TMDb's entry missing: what _get_tmdb_item
+        was asked and the miss noted.
+
+        :param again: The served list's re-serve; None for a plugin call.
+        :return: The ask's keywords, and _tmdb_missed.
+        """
+        asked = {}
+
+        def tmdb(self, **kwargs):
+            asked.update(kwargs)
+            self._tmdb_key = "movie:9"
+
+        params = {"info": "artwork", "target": "50", "get_extra_multiart": "true"}
+        ph = handlers.PluginHandlers(params, again and bool, again)
+        with (
+            patch.object(handlers.PluginHandlers, "_get_tmdb_item", tmdb),
+            patch.object(handlers, "infolabel", return_value=""),
+            patch(
+                "resources.lib.art.multiart.build_multiart_dict",
+                return_value={"multiart": "a.jpg"},
+            ),
+        ):
+            ph._multiart_dict("Container(50).ListItem", "fanart")
+        return asked, ph._tmdb_missed
+
+    def test_served_tmdb_extras_are_fetched_aside_with_no_marker(self):
+        again = Mock()
+        asked, missed = self.family(again)
+        self.assertIs(asked["aside"], again)  # its news serves artwork again
+        self.assertTrue(asked["cache_only"])
+        self.assertIsNone(missed)  # no tmdb_art_missed for the metadata serve
+
+    def test_a_plugin_call_still_notes_the_miss(self):
+        asked, missed = self.family(None)
+        self.assertIsNone(asked["aside"])
+        self.assertEqual(missed, "movie:9|fanart")
+
+
+class HashTest(unittest.TestCase):
+    def test_a_digest_is_kept_by_the_files_identity(self):
+        thumb = STAGE / "thumb.jpg"
+        thumb.write_bytes(b"one")
+        first = HashManager.compute_hash(thumb)
+        with patch("builtins.open", side_effect=AssertionError("read again")):
+            self.assertEqual(HashManager.compute_hash(thumb), first)
+        thumb.write_bytes(b"two")  # Kodi re-caches: a new file
+        os.utime(thumb, ns=(1, thumb.stat().st_mtime_ns + 1))
+        self.assertNotEqual(HashManager.compute_hash(thumb), first)
+        thumb.unlink()  # Refresh removes the copy
+        self.assertIsNone(HashManager.compute_hash(thumb))
+
+
+class ImagesTest(unittest.TestCase):
+    def test_a_serves_opened_sources_are_closed(self):
+        image = Mock()
+
+        def handle(**kwargs):
+            kwargs["shared"]["images"]["u"] = image
+            raise ValueError  # closed however the serve ends
+
+        ed = object.__new__(editor.ImageEditor)
+        with (
+            patch.object(editor.ImageEditor, "_drafts", return_value={}),
+            patch.object(editor.ImageEditor, "_handle_jobs", side_effect=handle),
+        ):
+            self.assertEqual(
+                ed.image_processor({"background": ()}, {"background": 1}), {}
+            )
+        image.close.assert_called_once()
 
 
 if __name__ == "__main__":
