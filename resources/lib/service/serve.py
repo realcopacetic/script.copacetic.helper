@@ -165,6 +165,7 @@ class Server:
         self.heard = 0.0  # when the newest request arrived, for the log
         self.last = {}  # window id → its last arrival, for a move with no lists
         self.finished = None  # the last request served whole: a repeat does nothing
+        self.blanks = set()  # served lists last bound with the blank item
         self.turn, self.handed = None, Event()  # the family 9300 last bound, and news
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
@@ -261,7 +262,13 @@ class Server:
                 region=arrival.region or last.region,
                 lists=arrival.lists or last.lists or tuple(PROBES),
             )
-        if not request.mark or self._repeat(request):
+        if not request.mark:
+            return
+        if self._repeat(request):
+            log.debug(
+                f"{self.__class__.__name__} → repeat, not served: "
+                f"{'.'.join(map(str, request.lists))} {request.mark}"
+            )
             return
         if not request.again:  # an again keeps its arrival's lists for the next move
             with self.lock:
@@ -284,6 +291,10 @@ class Server:
                     return  # its guard stopped it, or a move came: a ring follows
                 if topmost_window_id() == window_id:
                     self._bind(window_id, list_id, items, request.current, item)
+                    if items:
+                        self.blanks.discard(list_id)
+                    else:
+                        self.blanks.add(list_id)
                     if list_id == ARTWORK:
                         self._hand(Turn(request, window_id, *self._family(items)))
                     log.debug(
@@ -333,20 +344,24 @@ class Server:
     def _repeat(self, request: Request) -> bool:
         """
         A settle equal to the last one served whole whose lists, read with the window
-        on top, still hold its answer (one with no probe here holds none): a layout
-        rebuilt on the same item. A move is always an event.
+        on top, still hold its answer (one with no probe here holds none, the blank item
+        only a none its probe still says): a layout rebuilt on the same item.
 
         :param request: The resolved request.
-        :return: Whether to do nothing.
+        :return: Whether to do nothing; a move never is.
         """
         return (
             request.kind == "settle"
             and request == self.finished
             and topmost_window_id() == getCurrentWindowId()  # under one, the dialog's
             and all(
-                infolabel(f"Container({list_id}).ListItem.Property(current)")
-                == request.current
-                or not infolabel(f"Control.GetLabel({PROBES[list_id]})")
+                not (probe := infolabel(f"Control.GetLabel({PROBES[list_id]})"))
+                or (
+                    infolabel(f"Container({list_id}).ListItem.Property(current)")
+                    == request.current
+                    # The blank answered a none: art landing late (a reload) asks again
+                    and (list_id not in self.blanks or probe == NONE)
+                )
                 for list_id in request.lists
             )
         )
