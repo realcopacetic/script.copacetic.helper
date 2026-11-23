@@ -38,6 +38,7 @@ SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
 # shows for the register's dwell it replaces, 4.8 s pause and 0.2 s fade
 ARTWORK, SLIDES, SLIDE_PROBE = 9300, 9400, 6940
 DWELL = 5.0
+LEAD = 1.5  # seconds before its beat a slide is made: its params as late as they can be
 
 
 class Request(NamedTuple):
@@ -423,10 +424,16 @@ class Server:
     def _hand(self, turn: Turn) -> None:
         """
         Give the rotation 9300's new bind: its family turns from slide 1 (slide 0 is
-        9300's own art), or a family of one stops the last.
+        9300's own art), a family of one stops the last, and an again of the same
+        arrival, window, identity and family keeps the running turn and its dwell.
 
         :param turn: The bind's arrival, window, identity and family.
         """
+        if self.turn and (self.turn.request.mark, *self.turn[1:]) == (
+            turn.request.mark,
+            *turn[1:],
+        ):
+            return
         self.turn = turn if len(turn.family) > 1 else None
         self.handed.set()
 
@@ -443,12 +450,15 @@ class Server:
             beat = time.monotonic()
             try:  # one bad slide costs its family's turn
                 for url in islice(cycle(order_multiart(turn.family)), 1, None):
+                    # From the last beat or a late bind, so a slow slide never bunches
+                    # the next ones
+                    beat = max(beat, time.monotonic()) + DWELL
+                    if self._waited(beat - LEAD, turn):
+                        break
                     started = time.perf_counter()
                     items = self._slide(turn, url)
                     made = time.perf_counter() - started
-                    beat += DWELL
-                    wait = max(0.0, beat - time.monotonic())
-                    if self.handed.wait(wait) or not self._turning(turn):
+                    if self._waited(beat, turn):
                         break
                     if items and topmost_window_id() == turn.window_id:
                         self._bind(
@@ -459,17 +469,40 @@ class Server:
                             f"{made * 1000:.0f}ms slide, {turn.request.mark}"
                         )
             except Exception:
+                if self.turn is turn:
+                    self.turn = None  # an again of it turns afresh
                 log.exception(f"{self.__class__.__name__} → turn {turn.request}")
+
+    def _waited(self, until: float, turn: Turn) -> bool:
+        """
+        Wait until a moment of the turn's dwell; True if the turn ended meanwhile.
+
+        :param until: The monotonic time to wait for.
+        :param turn: The family turning.
+        :return: True once a new family or the stop is handed, or the turn is over.
+        """
+        return self.handed.wait(max(0.0, until - time.monotonic())) or not (
+            self._turning(turn)
+        )
 
     def _turning(self, turn: Turn) -> bool:
         """
-        Whether a family still turns: no newer ring (an again keeps the mark) and its
-        arrival's cursor or token is still the skin's.
+        Whether a family still turns: no newer ring (an again keeps the mark), its
+        arrival's cursor or token is still the skin's, and a rail's still has focus.
 
         :param turn: The family turning.
         :return: True while it does.
         """
-        return self.request.mark == turn.request.mark and turn.request.live()
+        region = turn.request.region
+        return (
+            self.request.mark == turn.request.mark
+            and turn.request.live()
+            # Back on the view the rail's cursor stands until the view's ring
+            and (
+                region != "secondary"
+                or Window(10000).getProperty("focus_region") == region
+            )
+        )
 
     @staticmethod
     def _slide(turn: Turn, url: str) -> list[tuple] | None:
@@ -492,6 +525,8 @@ class Server:
             return None
         params = parse_plugin_argv(["", "", query], raw=ART_URLS)
         art = slide_art(params | read_art_urls(params, infolabel, True), url)
+        if "background" not in art:
+            return None  # it wouldn't open: the slide on screen holds
         return set_items(
             [
                 {
