@@ -125,6 +125,9 @@ ACCEPTED = {  # (rule, file, message start): why it stands
         ),
         DISPATCH,
     ),
+    ("window-property", "resources/lib/service/monitor.py", "progress_version:"): "the"
+    " helper's public bump for another skin's plugin bar URL"
+    " (docs/plugins/progressbar.md); C2's bars are served",
     # generated families only another setting reads (skin_reach, skin 5a4b23a), each
     # with the setting that reads it
     **{
