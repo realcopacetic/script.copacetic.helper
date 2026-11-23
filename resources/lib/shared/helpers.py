@@ -746,7 +746,8 @@ class TypewriterAnimation:
         home.setProperty(owner_key, my_token)
 
         def _superseded() -> bool:
-            return home.getProperty(owner_key) != my_token
+            """The lease is another's: read with no graphics lock, at every character."""
+            return infolabel(f"Window(home).Property({owner_key})") != my_token
 
         if start_delay > 0:
             if monitor.waitForAbort(start_delay):
