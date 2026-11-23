@@ -27,6 +27,11 @@ with `identity_labels`, so it stops when you move to another favourite:
 Wait for 9040 to finish before you read it: add `!Container(9040).IsUpdating` to the
 other helper's `<visible>` condition.
 
+**Served.** As a [served list](../service/serve.md) (`9040` with probe `6904`), serve
+it first in the ring's lists: the others' probes then read it bound. `IsUpdating` is
+always false for a served list, so readers compare its `item` or `current` instead
+([the bind](../service/serve.md#the-bind)).
+
 ## Parameters
 
 | Param | Accepted values | Default | What it does |

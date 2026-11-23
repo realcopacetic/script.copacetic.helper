@@ -16,6 +16,10 @@ and a skin matching on it shows nothing.
 <content>plugin://script.copacetic.helper/?info=clean_name&amp;path=$INFO[ListItem.FileNameAndPath]&amp;label=$INFO[ListItem.Label]</content>
 ```
 
+Served, it is a row of `9000`'s probe ([served lists](../service/serve.md)): the same
+params without the `plugin://…?` prefix. The probe is read whole, so a `|` there cuts
+nothing.
+
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `path` | a file's path | required | The file to name |

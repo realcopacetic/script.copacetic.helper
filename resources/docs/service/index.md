@@ -17,9 +17,12 @@ Each feature has its own page:
 - [Games](games.md) — the playing game's emulator and system, and a blurred picture
   of the game for the game OSD.
 - [Slideshow](slideshow.md) — a background slideshow of library fanart.
+- [Served lists](serve.md) — fills the focused item's helper lists (details, artwork,
+  progress bar, typewriter) when the skin rings, in place of a plugin call per list.
 
-The service does not process artwork for the focused item. That is done by the
-[artwork plugin](../plugins/artwork.md), which your skin calls from a container.
+The handlers it runs are the plugin paths' own ([artwork](../plugins/artwork.md),
+[metadata](../plugins/metadata.md) and the rest): a list your skin keeps on
+`<content>` is still a plugin call.
 
 ## Opting in
 
@@ -179,8 +182,9 @@ refills the queue are skipped, and those handled after it still count.
 While a skin that opts in is active, library song updates outside a library scan, and
 each library song closing (stopped, ended, or giving way to the next), set
 `progress_version` to a new number, once for a burst, unless the progress bar on top
-then serves another item's bar (see the table below). A skin puts it in its progress
-bar URL, so an album's bar is served again after one of its songs is heard, also on
+then serves another item's bar (see the table below), and serves a
+[served](serve.md) bar (`9010`) again itself. A skin puts the number in a plugin progress
+bar's URL, so an album's bar is served again after one of its songs is heard, also on
 a return from the OSD: Kodi's own refresh of a plugin container doesn't follow music
 library updates when its item is video-tagged, as the progress bar's item is. Kodi
 counts a heard song however it was queued (it finds the song by its path), but

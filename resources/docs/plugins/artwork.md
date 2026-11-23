@@ -45,6 +45,24 @@ it or reads its size (`clearlogo_crop`, `icon_shape`) decodes it whole.
 </control>
 ```
 
+### Served
+
+The same call can be a [served list](../service/serve.md) (`9300` with probe `6930`,
+`9301` with `6931`): the probe holds these params without the `plugin://…?` prefix,
+and the service binds the items. What changes:
+
+- A settle's cursor and visit come from the ring, so a served row needs no `visit`,
+  held count or modal test, and the helper writes no cursor. A serve that stops binds
+  nothing, so the list keeps what it shows: no held item.
+- Each image is read by its `<prefix>_source`, with the window on top, so the
+  `<prefix>_url` copies can go. For a variable, pass `background_source=Control.GetLabel(<id>)`
+  of a hidden label holding it rather than `background_var` (see
+  [the probe](../service/serve.md#the-probe)).
+- The bind's `current` names the ring it answers; `identity` keeps this call's value.
+- With `multiart`, the service turns the family on `9400` itself
+  ([multiart](../service/serve.md#the-services-own-news)): no `multiart_fadelabel`.
+- TMDb's extras are fetched aside, and `9300` is served again when they land (below).
+
 ## The three images
 
 The helper works on up to three images in one call. Each has its own parameters,
