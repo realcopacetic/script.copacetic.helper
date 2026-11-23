@@ -469,9 +469,9 @@ class Server:
                             f"{made * 1000:.0f}ms slide, {turn.request.mark}"
                         )
             except Exception:
-                if self.turn is turn:
-                    self.turn = None  # an again of it turns afresh
                 log.exception(f"{self.__class__.__name__} → turn {turn.request}")
+            if self.turn is turn:
+                self.turn = None  # ended or failed: the same family handed again turns
 
     def _waited(self, until: float, turn: Turn) -> bool:
         """
