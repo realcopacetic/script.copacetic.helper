@@ -92,6 +92,11 @@ read stands alone. For art a variable picks, put the variable in a hidden label 
 own and pass `background_source=Control.GetLabel(<id>)`: the read then parses no `$VAR`
 on the service's thread.
 
+The `preview` region is the exception: an artwork call there takes the active window
+as its own (it passes no `dialog=true`), with the dialog over it, so its reads are
+never on top. Keep `background_var` and its `background_url` copy on that row: only a
+read the copy vouches for stands.
+
 ## The rings
 
 Each is a `NotifyAll` from an `<onfocus>`, `<onload>` or `<onclick>`. The lists are
