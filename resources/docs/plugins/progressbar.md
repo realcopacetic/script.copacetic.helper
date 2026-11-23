@@ -20,6 +20,11 @@ it counts the watched movies in the set; for an album, the songs heard (see
 </control>
 ```
 
+**Served.** As a [served list](../service/serve.md) (`9010` with probe `6910`; an info
+dialog's own item with `6911`), the probe holds these params without the
+`plugin://…?` prefix, and an album's bar is served again by the service itself
+([Albums](#albums)).
+
 ## Controls the skin provides
 
 `target_id` is the id of a group in the current window (with `dialog=true` or
@@ -89,7 +94,8 @@ heard.
   Listening again a year later counts afresh.
 - **Heard through, or untouched within `album_days`:** 0, no bar.
 - **Kept current:** the bar is served again when one of its songs is heard (from a
-  library window or a helper queue), or it is marked, if the skin puts the service's
+  library window or a helper queue), or it is marked: a [served](../service/serve.md)
+  `9010` by the service itself, a plugin bar if the skin puts the service's
   `progress_version` in its URL (see [the service](../service/index.md#on-song-updates)):
   Kodi doesn't refresh the video-tagged progress item on a music library update.
 - **New:** `new` is `true` for an album none of whose songs has ever played that

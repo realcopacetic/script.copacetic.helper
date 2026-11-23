@@ -633,6 +633,10 @@ no item, so a missing label never reads as a verdict. Its
 for: a container keeps the last item's word until the new answer lands (seconds,
 cold), so show it only while they match `ListItem.DBID` and `ListItem.DBType`.
 
+Served in an info dialog's `item` region (`9030` with probe `6903`, see
+[served lists](../service/serve.md)), it answers from its cache and asks Deezer on a
+thread of its own, and `9030` is served again if the word changes.
+
 With **Rank music with Deezer** on:
 
 | Item | Label | When |

@@ -19,6 +19,12 @@ TMDB, and can cut a long plot to fit a set number of lines.
 Then read it with `Container(9100).ListItem.Genre`, `Container(9100).ListItem.Studio`
 and so on.
 
+**Served.** As a [served list](../service/serve.md) (`9000` with probe `6900`, `9100`
+with `6901`, or an info dialog's `item` region), the probe holds these params without
+the `plugin://…?` prefix. TMDb is then read from the cache only and fetched on a thread
+of its own; the list is served again once the answer lands, if the item is still the
+one served.
+
 ### Parameters
 
 | Param | Accepted values | Default | What it does |

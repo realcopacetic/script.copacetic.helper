@@ -18,6 +18,10 @@ This page explains how the helper's plugin paths work and how to use them well i
 
 This approach enables **highly responsive plugin calls** with minimal overhead.
 
+The same handlers can also fill a list with no plugin call: the service serves it when
+the skin rings ([served lists](../service/serve.md)). This page is the plugin path's;
+the focus guard below protects a served run too.
+
 **Example XML**
 ```xml
 <control type="list" id="9000">
@@ -127,6 +131,9 @@ Containers only refire content while they're visible. Exploit that to create a s
 - Once scrolling stops, the group hides again and the plugin updates exactly once.
 
 Debouncing is **economics, not correctness**: it prevents wasted invocations, but offers no protection against the ones that do fire. That is the guards' job.
+
+A [served list](../service/serve.md) needs no debouncer: its settle ring fires once, a
+settle after the last move.
 
 ---
 
