@@ -213,6 +213,20 @@ class ServeTest(unittest.TestCase):
         self._run(server, SETTLE._replace())
         server._handle.assert_called_once()
 
+    @patch.dict(serve.PROBES, {9040: 6904})
+    def test_a_list_not_mounted_here_doesnt_stop_a_repeat(self) -> None:
+        server = _server("", PARAMS)  # 9040: no probe in this window
+        settle = SETTLE._replace(lists=(9040, 9010))
+        self._run(server, settle)
+        labels = {"Control.GetLabel(6904)": "", "Control.GetLabel(6910)": PARAMS}
+        reads = lambda label: (
+            server.bound if "(9010)" in label else labels.get(label, "")
+        )
+        with patch.object(serve, "infolabel", side_effect=reads):
+            self.assertTrue(server._repeat(settle._replace()))
+            server.bound = ""  # 9010 emptied by a skin reload: serve again
+            self.assertFalse(server._repeat(settle._replace()))
+
     def test_a_move_is_never_a_repeat(self) -> None:
         server = _server()
         move = serve.Request("move", "primary", (9010,), "m1")

@@ -267,8 +267,8 @@ class Server:
     def _repeat(self, request: Request) -> bool:
         """
         A settle equal to the last one served whole, whose lists still hold its
-        answer: a layout rebuilt on the same item. A move is always an event, and a
-        rebuilt window's lists start empty.
+        answer (a list with no probe here holds none): a layout rebuilt on the same
+        item. A move is always an event, and a rebuilt window's lists start empty.
 
         :param request: The resolved request.
         :return: Whether to do nothing.
@@ -279,6 +279,7 @@ class Server:
             and all(
                 infolabel(f"Container({list_id}).ListItem.Property(current)")
                 == request.current
+                or not infolabel(f"Control.GetLabel({PROBES[list_id]})")
                 for list_id in request.lists
             )
         )
