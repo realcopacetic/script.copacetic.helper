@@ -4,7 +4,8 @@
 Served focus calls: the skin rings when an item comes to rest (settle) or a selection
 changes with no focused-layout arrival (move), and the warm service fills each named
 list in turn, each a list with no <content>, in the active window or, for a dialog's
-region, the dialog; 9300's multiart family then turns on 9400, a slide a beat. Notes:
+region, the dialog; 9300's multiart family then turns on 9400, a slide a beat, and the
+typewriter's line types on a thread of its own. Notes:
 coding-notes/copacetic/features/served-focus-calls.md.
 """
 
@@ -32,9 +33,17 @@ from resources.lib.shared.utilities import (
 KINDS = ("settle", "move")
 PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its query
 # Served list → the hidden label holding its params, in serving order: the favourite's
-# library item, which the others' favourite rows read, then details, the bar, artwork
-# and the show logo
-PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910, 9300: 6930, 9301: 6931}
+# library item, which the others' favourite rows read, then details, the bar, artwork,
+# the show logo and last the typewriter, whose label reads them
+PROBES = {
+    9040: 6904,
+    9000: 6900,
+    9100: 6901,
+    9010: 6910,
+    9300: 6930,
+    9301: 6931,
+    9020: 6920,
+}
 
 
 class Dialog(NamedTuple):
@@ -50,8 +59,8 @@ class Dialog(NamedTuple):
 
 # A dialog's regions, by the name its rings give: served in that dialog, not the active
 # window. item: an info dialog's own item (its details, floor, popularity word, Plot
-# tab's text and bar); infoscreen: its rails (their details, bar and floor), whose
-# probes hold the rail rows; preview: the view settings editor's backdrop blur
+# tab's text and bar); infoscreen: its rails (their details, bar, floor and typewriter),
+# whose probes hold the rail rows; preview: the view settings editor's backdrop blur
 DIALOGS = {
     "item": Dialog(
         {9000: 6900, 9300: 6933, 9030: 6903, 9360: 6936, 9010: 6911},
@@ -59,7 +68,7 @@ DIALOGS = {
         "moved_item",
     ),
     "infoscreen": Dialog(
-        {9100: 6901, 9010: 6910, 9300: 6930}, INFO_DIALOGS, "moved_item"
+        {9100: 6901, 9010: 6910, 9300: 6930, 9020: 6920}, INFO_DIALOGS, "moved_item"
     ),
     "preview": Dialog({9370: 6937}),
 }
@@ -78,6 +87,9 @@ SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
 ARTWORK, SLIDES, SLIDE_PROBE = 9300, 9400, 6932
 DWELL = 5.0
 LEAD = 1.5  # seconds before its beat a slide is made: its params as late as they can be
+# The typewriter's handler starts its line on a thread of its own and answers at once,
+# so the bind names the arrival typed; the line runs until its arrival is over
+TYPEWRITER = 9020
 
 
 class Request(NamedTuple):
@@ -118,13 +130,16 @@ class Request(NamedTuple):
         return dialog.probes if (dialog := DIALOGS.get(self.region)) else PROBES
 
     def live(self) -> bool:
-        """Whether its cursor or token is still the skin's: no move has come since."""
+        """
+        Whether its cursor or token is still the skin's: no move has come since (no
+        graphics lock: a typed line asks at every character).
+        """
         prop = (
             f"artwork_cursor_{self.cursor}"
             if self.kind == "settle"
             else f"moved_{self.region}"
         )
-        return Window(10000).getProperty(prop) == self.mark
+        return home_property(prop) == self.mark
 
 
 class Turn(NamedTuple):
@@ -154,6 +169,17 @@ class Again(NamedTuple):
     def current(self) -> bool:
         """Whether its arrival is still the window's last one, so worth fetching for."""
         return self.server.current(self.mark, self.window_id)
+
+
+def home_property(key: str) -> str:
+    """
+    A Home property read through the info manager: the window's own lock, not the
+    graphics lock a Window(10000).getProperty waits for.
+
+    :param key: Property name.
+    :return: Its value, or empty.
+    """
+    return infolabel(f"Window(home).Property({key})")
 
 
 def move_token(*regions: str) -> str:
@@ -223,6 +249,7 @@ class Server:
         self.finished = None  # the last request served whole: a repeat does nothing
         self.blanks = set()  # (window id, list) last bound blank from a none probe
         self.turn, self.handed = None, Event()  # the family 9300 last bound, and news
+        self.typed = None  # the last line started: (mark, window id, params)
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
         Thread(target=self._rotate, daemon=True).start()
@@ -263,7 +290,12 @@ class Server:
             ):
                 return
             if self.finished is last:  # this list, and those of an again in flight
-                wanted = {list_id, *(pending.lists if pending.again else ())}
+                # The line follows: a late answer can change its label (a tagline)
+                wanted = {
+                    list_id,
+                    TYPEWRITER,
+                    *(pending.lists if pending.again else ()),
+                }
                 lists = tuple(i for i in last.lists if i in wanted)
             else:  # the arrival is still being served: all of it again
                 lists = last.lists
@@ -344,6 +376,10 @@ class Server:
             with self.lock:
                 self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
+        # A line types on past its serve until its arrival is over: an again keeps it
+        over = lambda: (
+            self.stopped or self.request.mark != request.mark or not request.live()
+        )
         dialog = DIALOGS.get(request.region)
         opened = dialog and dialog.token and Window(10000).getProperty(dialog.token)
         for list_id in request.lists:
@@ -353,11 +389,15 @@ class Server:
             while (params := self._turn(probe, window_id, stale, answered)) is not None:
                 if not params:
                     break  # not mounted in this window, or bound for this move already
+                typed = (request.mark, window_id, params)
+                if list_id == TYPEWRITER and typed == self.typed:
+                    break  # the same arrival's line, label and all: it stands
                 item = self._item(request)  # beside the probe: the item it was read for
                 again = Again(self, list_id, request.mark, window_id)
+                superseded = over if list_id == TYPEWRITER else stale
                 started = time.perf_counter()
                 items = (
-                    self._handle(params, stale, again, request.cursors)
+                    self._handle(params, superseded, again, request.cursors)
                     if params != NONE
                     else []
                 )
@@ -379,6 +419,8 @@ class Server:
                         self.blanks.discard((window_id, list_id))
                     if list_id == ARTWORK:
                         self._hand(Turn(request, window_id, *self._family(items)))
+                    elif list_id == TYPEWRITER:
+                        self.typed = typed
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "
                         f"{(started - self.heard) * 1000:.0f}ms ring to start, "
