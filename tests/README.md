@@ -31,7 +31,8 @@ python tests/api_offline.py
 # and without a favourite's multiart_target; the icon from icon_source, a cut band
 # label the item's own; a background read whole by a variable's name (a Plex URL's
 # &X-Plex-Token= kept), standing only where it extends the URL's raw value, under a
-# menu only with a value, a family outranking it; multiart_first read from the serve's
+# menu only with a value, a family outranking it, a served row's by its probe label
+# (no URL copy); multiart_first read from the serve's
 # own item, not multiart_target's; url_decode_path leaves a bare URL as
 # Kodi keys it; a held serve names its position (the
 # jumpbar's re-serve) only for a move that stamped no visit, by the guard's own read;
