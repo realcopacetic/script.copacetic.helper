@@ -2503,7 +2503,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             and (dbid := to_int(self.dbid))
         ):
             return []
-        if deezer.enabled():
+        if online := deezer.enabled():
             words = {
                 "album": self._album_word,
                 "artist": self._artist_word,
@@ -2516,7 +2516,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "song": self._played_song,
             }
         word = words[self.dbtype]
-        if self.again:  # served: answered from the cache, the network asked aside
+        if online and self.again:  # served: from the cache, the network asked aside
             with cache_only():
                 label = word(dbid)
             Thread(
