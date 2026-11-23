@@ -191,13 +191,7 @@ an info dialog is open (`movieinformation`, `musicinformation`, `songinformation
 a window's run under a modal dialog aborts; only `artwork` carries on, and it reads
 nothing from the dialog's rails (no multiart family, no window properties, see
 [artwork](artwork.md)). A `target=player` run is outside all of this: its guard is the
-song and its window, and it reads the `Player` infos, which no dialog answers for. A `metadata` or `progressbar` run that aborts there raises
-its own window's `info_aborted` property by one. Put
-`$INFO[Window.Property(info_aborted)]` in the path, which reads the list's own
-window, and Kodi runs the path again after the dialog has closed, only when a run of
-that window was lost. This needs the list hidden while an info dialog is open: a
-hidden list reads no path, so it reads the new count once, when it shows again; a
-list left visible would run the path again under the dialog and lose it once more.
+song and its window, and it reads the `Player` infos, which no dialog answers for.
 
 Either check can be disabled by omission: no `focus_ids` skips the focus check; an empty `focus_guard`, or an absent one without `identity_labels`, skips the identity check. With `identity_labels` and no `focus_guard` at all, the helper reads the identity when the run starts and guards that. A handler with neither check runs unguarded.
 
