@@ -22,7 +22,11 @@ identity on it, none under a dialog, none on a short rest, none that won't open,
 late bind pushes the next beats back; a new family or an error ends a turn, not the
 thread; a newer ring, a moved cursor or a rail losing focus ends it. A dialog's region
 keeps only its own lists, is served in the topmost dialog from its own probes, and is
-dropped once that dialog closes; ring_move rings a dialog region's lists.
+dropped once that dialog closes; ring_move rings a dialog region's lists. An info
+dialog's rails settle on the primary's cursor and are served in the info dialog, under
+a menu too; an again asks its own window's last arrival, the topmost served by
+default; a move equal to the newest is dropped, and one rung again serves only the
+lists not bound for its token.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -141,7 +145,7 @@ class ServeTest(unittest.TestCase):
         params, superseded, again, cursors = server._handle.call_args.args
         self.assertEqual(params, f"{serve.PLUGIN}{PARAMS}")
         self.assertFalse(superseded())
-        self.assertEqual(again, serve.Again(server, 9010, CURSOR))
+        self.assertEqual(again, serve.Again(server, 9010, CURSOR, 10025))
         self.assertEqual(cursors, {"primary": CURSOR})  # a settle's, by its region
         server._bind.assert_called_once_with(
             10025, 9010, server._handle.return_value, "54/3/12/", "54/3/12/"
@@ -244,9 +248,9 @@ class ServeTest(unittest.TestCase):
             server.bound if "(9010)" in label else labels.get(label, "")
         )
         with patch.object(serve, "infolabel", side_effect=reads):
-            self.assertTrue(server._repeat(settle._replace()))
+            self.assertTrue(server._repeat(settle._replace(), 10025))
             server.bound = ""  # 9010 emptied by a skin reload: serve again
-            self.assertFalse(server._repeat(settle._replace()))
+            self.assertFalse(server._repeat(settle._replace(), 10025))
 
     def test_no_repeat_is_read_under_a_dialog(self) -> None:
         server = _server()
@@ -255,7 +259,7 @@ class ServeTest(unittest.TestCase):
             patch.object(serve, "topmost_window_id", return_value=10106),
             patch.object(serve, "infolabel", return_value=""),  # the menu's probes
         ):
-            self.assertFalse(server._repeat(SETTLE._replace()))
+            self.assertFalse(server._repeat(SETTLE._replace(), 10025))
 
     @patch.dict(serve.PROBES, {9000: 6900})
     def test_a_finished_again_leaves_the_next_one_its_own_list(self) -> None:
@@ -270,12 +274,16 @@ class ServeTest(unittest.TestCase):
             arrival._replace(lists=(9000,), again=True)
         )
 
-    def test_a_move_is_never_a_repeat(self) -> None:
+    def test_a_move_rung_again_serves_only_what_has_changed(self) -> None:
         server = _server()
         move = serve.Request("move", "primary", (9010,), "m1")
         self._run(server, move)
+        self._run(server, move._replace())  # 9010 still answers m1
+        self.assertEqual(server._handle.call_count, 1)
+        server.bound = "3200/4/7/"  # a rail's settle bound it since
         self._run(server, move._replace())
-        self.assertEqual(server._handle.call_count, 2)
+        self._run(server, move._replace(again=True))  # an again always serves
+        self.assertEqual(server._handle.call_count, 3)
 
     def test_move_with_no_lists_is_the_last_request(self) -> None:
         server = _server()
@@ -354,14 +362,14 @@ class ServeTest(unittest.TestCase):
 
     def test_an_again_is_one_per_list_and_arrival(self) -> None:
         server = _server()
-        asked = {serve.Again(server, 9000, "m1") for _ in "ab"}
-        asked.add(serve.Again(server, 9100, "m1"))
+        asked = {serve.Again(server, 9000, "m1", 10025) for _ in "ab"}
+        asked.add(serve.Again(server, 9100, "m1", 10025))
         self.assertEqual(len(asked), 2)  # a repeat serve's asks once
 
     def test_an_again_is_current_while_its_arrival_is_the_last(self) -> None:
         server = _server()
         self._run(server, SETTLE)
-        again = serve.Again(server, 9010, CURSOR)
+        again = serve.Again(server, 9010, CURSOR, 10025)
         self.assertTrue(again.current())
         server.request = SETTLE._replace(mark="54/4/13/v")  # a newer ring waits
         self.assertFalse(again.current())
@@ -455,11 +463,95 @@ class ServeTest(unittest.TestCase):
         ):
             server.request = move
             server._serve(move)
-        self.assertEqual(read, ["Control.GetLabel(6937)"])
+        self.assertEqual(
+            read,
+            ["Control.GetLabel(6937)", "Container(9370).ListItem.Property(current)"],
+        )
         server._bind.assert_called_once_with(
             13001, 9370, server._handle.return_value, "m1", ""
         )
         self.assertEqual(server.last, {13001: move})
+
+    def test_an_info_rail_settles_on_the_primarys_cursor(self) -> None:
+        heard = []
+        serve._Listener(heard.append).onNotification(
+            "script.copacetic.helper",
+            f"Other.settle/infoscreen/9100.9010.9300.9040/{CURSOR}",
+            "",
+        )
+        (settle,) = heard
+        self.assertEqual(settle.lists, (9100, 9010, 9300))  # 9040: not a dialog's
+        self.assertEqual(settle.cursors, {"primary": CURSOR})
+        self.assertTrue(settle.live())  # artwork_cursor_primary
+        self.props["artwork_cursor_primary"] = "3207/2/9/v"
+        self.assertFalse(settle.live())
+
+    def test_an_info_dialog_under_a_menu_is_its_window(self) -> None:
+        with (
+            patch.object(serve, "getCurrentWindowDialogId", return_value=10106),
+            patch.object(
+                serve, "condition", side_effect=lambda c: c.endswith("(12001)")
+            ),
+        ):
+            self.assertEqual(serve.Server._window("infoscreen"), 12001)
+            self.assertEqual(serve.Server._window("preview"), 10106)
+        with patch.object(serve, "getCurrentWindowDialogId", return_value=12003):
+            self.assertEqual(serve.Server._window("item"), 12003)
+        self.assertEqual(serve.Server._window("primary"), 10025)
+
+    def test_an_info_dialogs_item_binds_in_it(self) -> None:
+        self.props["moved_item"] = "m1movie:7"
+        server = _server()
+        move = serve.Request("move", "item", (9000, 9360), "m1movie:7")
+        bound = {}  # each list's Property(current)
+        server._bind.side_effect = lambda w, i, items, current, item: bound.update(
+            {i: current}
+        )
+        reads = lambda label: (
+            bound.get(int(label[10:14]), "") if "current" in label else PARAMS
+        )
+        with (
+            patch.object(serve, "getCurrentWindowDialogId", return_value=12003),
+            patch.object(serve, "topmost_window_id", return_value=12003),
+            patch.object(serve, "infolabel", side_effect=reads),
+        ):
+            server.request = move
+            server._serve(move)
+        self.assertEqual(
+            [c.args[:2] for c in server._bind.call_args_list],
+            [(12003, 9000), (12003, 9360)],
+        )
+        self.assertEqual(server.last, {12003: move})
+        again = server._handle.call_args.args[2]
+        self.assertEqual(again, serve.Again(server, 9360, "m1movie:7", 12003))
+
+    def test_again_and_current_ask_their_window(self) -> None:
+        server = _server()
+        server._ring = Mock()
+        item = serve.Request("move", "item", (9000, 9030), "m1")
+        server.last = {10025: SETTLE, 12003: item}
+        server.request = server.finished = item
+        self.assertTrue(server.current("m1", 12003))
+        self.assertFalse(server.current("m1", 10025))
+        with patch.object(serve, "topmost_window_id", return_value=12003):
+            server.again(9030)  # the topmost served: the dialog
+        server.again(9030, "m1", 12003)
+        server.again(9030, "m1", 10025)  # not that window's arrival
+        self.assertEqual(
+            server._ring.call_args_list,
+            [call(item._replace(lists=(9030,), again=True))] * 2,
+        )
+
+    def test_a_move_equal_to_the_newest_is_dropped(self) -> None:
+        server = _server()
+        move = serve.Request("move", "item", (9000,), "m1")
+        server._ring(move)
+        server.rung.clear()
+        server._ring(move._replace())
+        self.assertFalse(server.rung.is_set())
+        server._ring(SETTLE)
+        server._ring(SETTLE._replace())  # a settle: the repeat test decides
+        self.assertTrue(server.rung.is_set())
 
     def test_a_closed_dialog_drops(self) -> None:
         self.props["moved_preview"] = "m1"
