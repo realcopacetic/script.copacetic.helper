@@ -673,6 +673,8 @@ class TypewriterAnimation:
     Height grows per line up to max_lines unless track_h is provided.
     """
 
+    leases = {}  # control id → the token this process's last run took for it
+
     def __init__(
         self,
         control_id: int,
@@ -713,14 +715,26 @@ class TypewriterAnimation:
     @staticmethod
     def retired(target_id: int | str) -> bool:
         """
-        Whether the control's line was retired since its run: the skin's scroll or a
-        reset took the lease (read with no graphics lock).
+        Whether the line this process last typed in the control is gone: its lease is
+        no longer its run's (the skin's scroll, a reset, another run, or its own stop).
 
         :param target_id: Text control id.
         :return: True once retired.
         """
-        lease = infolabel(f"Window(home).Property(typewriter_current_{target_id})")
-        return lease == "scroll"
+        lease = Window(10000).getProperty(f"typewriter_current_{target_id}")
+        return lease != TypewriterAnimation.leases.get(int(target_id))
+
+    def claim(self) -> str:
+        """
+        Take the control's lease for a run: an older run, or the skin's scroll, then
+        stops it.
+
+        :return: The run's token.
+        """
+        token = str(time.time_ns())
+        Window(10000).setProperty(f"typewriter_current_{self.control_id}", token)
+        TypewriterAnimation.leases[self.control_id] = token
+        return token
 
     def update(
         self,
@@ -730,6 +744,7 @@ class TypewriterAnimation:
         max_lines: int | None = None,
         start_delay: float = 0,
         alive: Callable[[], bool] | None = None,
+        token: str = "",
     ) -> None:
         """
         Animate label with a typewriter effect using compute_rect placement.
@@ -740,6 +755,7 @@ class TypewriterAnimation:
         :param max_lines: Optional cap for number of lines (overrides default).
         :param start_delay: Seconds before typing begins; abort checks apply during the wait.
         :param alive: Optional guard callable; return False to abort animation.
+        :param token: The lease claim() already took; empty claims it here.
         """
         monitor = Monitor()
 
@@ -753,18 +769,22 @@ class TypewriterAnimation:
 
         # Ownership lease. Isolated typewriter instances share prop
         owner_key = f"typewriter_current_{control_id}"
-        my_token = str(time.time_ns())
+        my_token = token or self.claim()
         home = Window(10000)
-        home.setProperty(owner_key, my_token)
 
         def _superseded() -> bool:
-            """The lease is another's: read with no graphics lock, at every character."""
-            return infolabel(f"Window(home).Property({owner_key})") != my_token
+            return home.getProperty(owner_key) != my_token
+
+        def _retire() -> None:
+            """A run that stops with the lease still its own hands it back: no line."""
+            if not _superseded():
+                home.setProperty(owner_key, "scroll")
 
         if start_delay > 0:
             if monitor.waitForAbort(start_delay):
                 return
             if not _alive() or _superseded():
+                _retire()
                 log.debug(
                     f"{self.__class__.__name__} → ABORTED → '{label}' during start_delay"
                 )
@@ -774,6 +794,7 @@ class TypewriterAnimation:
             control = self.window.getControl(control_id)
             control.setText("")
         except Exception:
+            _retire()
             log.exception(
                 f"{self.__class__.__name__} → Control {control_id} not found", log.DEBUG
             )
@@ -786,6 +807,7 @@ class TypewriterAnimation:
             """
             if not _superseded() or topmost_window_id() != self.window_id:
                 control.setText("")
+            _retire()
             log.debug(f"{self.__class__.__name__} → ABORTED → '{label}' {reason}")
 
         if not _alive():

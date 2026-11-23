@@ -1724,6 +1724,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             alive=guard.alive,
         )
         if self.superseded:  # served: the pipeline binds 9020 and goes on
+            # The lease is taken now, so the service's next look finds this line's own
+            run = partial(run, token=t.claim())
             Thread(target=self._type, args=(run, label), daemon=True).start()
         else:  # a plugin call's directory ends with the line
             run()
