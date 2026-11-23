@@ -17,7 +17,7 @@ cache_only holds one thread only; a settle hands on its cursor; served artwork f
 TMDb's extras aside, noting no miss; a thumb's digest is kept by its file's identity;
 a serve's opened images are closed; 9300's bind hands the rotation its family (one image
 stops it; an again of the same family keeps the turn), which turns from slide 1, each
-slide made from probe 6940 on top LEAD before its beat and bound to 9400 with 9300's
+slide made from probe 6932 on top LEAD before its beat and bound to 9400 with 9300's
 identity on it, none under a dialog, none on a short rest, none that won't open, and a
 late bind pushes the next beats back; a new family or an error ends a turn, not the
 thread; a newer ring, a moved cursor or a rail losing focus ends it.
@@ -872,7 +872,7 @@ class RotateTest(unittest.TestCase):
             f"background_blur=true&clearlogo_source={source}"
             "&clearlogo_url=https://x/l.png?a=1&b=2&icon_darken_label=A & B"
         )
-        labels = {"Control.GetLabel(6940)": query, source: "https://x/l.png?a=1&b=2"}
+        labels = {"Control.GetLabel(6932)": query, source: "https://x/l.png?a=1&b=2"}
         with (
             patch.object(serve, "infolabel", side_effect=labels.get) as read,
             patch("resources.lib.art.multiart.slide_art") as art,
