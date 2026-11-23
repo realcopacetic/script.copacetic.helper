@@ -8,6 +8,7 @@ coding-notes/copacetic/features/served-focus-calls.md.
 """
 
 import time
+from functools import partial
 from threading import Event, RLock, Thread
 from typing import Callable, NamedTuple
 
@@ -28,6 +29,9 @@ PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its quer
 # and the show logo
 PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910, 9300: 6930, 9301: 6931}
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
+# Lists whose art Kodi can fill after they answered none (music, pictures, files: no
+# flag to wait on), in place, so no hook rings: watched while their arrival is live
+LATE = (9300, 9301)
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
 # Seconds a probe may say wait before it counts as none: only a backstop, as each wait
 # row ends with the state it waits on (a slow Search rail can take several seconds)
@@ -147,6 +151,7 @@ class Server:
         self.heard = 0.0  # when the newest request arrived, for the log
         self.last = {}  # window id → its last arrival, for a move with no lists
         self.finished = None  # the last request served whole: a repeat does nothing
+        self.watching = None  # (request, window id, late lists, until), between rings
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
         # The landing rang before the service ran (Kodi start, a restart): a move now,
@@ -212,17 +217,22 @@ class Server:
         """Serve each newest request; a ring during a serve or a move's wait wins."""
         import resources.lib.plugin.handlers  # noqa: F401 warm before the first ring
 
-        while self.rung.wait():
-            self.rung.clear()
-            if self.stopped:
-                return
-            request = self.request
-            if request.kind == "move" and self.rung.wait(SETTLE):
-                continue  # still moving: the next ring starts the wait again
+        while True:
+            if not self.rung.wait(POLL if self.watching else None):
+                job = self._watch  # no ring: a look at the late lists
+            else:
+                self.rung.clear()
+                if self.stopped:
+                    return
+                request = self.request
+                if request.kind == "move" and self.rung.wait(SETTLE):
+                    continue  # still moving: the next ring starts the wait again
+                job = partial(self._serve, request)
             try:  # one bad item costs one serve (service-caches finding 1)
-                self._serve(request)
+                job()
             except Exception:
-                log.exception(f"{self.__class__.__name__} → serve {request}")
+                self.watching = None
+                log.exception(f"{self.__class__.__name__} → {job}")
 
     def _serve(self, arrival: Request) -> None:
         """
@@ -246,6 +256,7 @@ class Server:
             with self.lock:
                 self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
+        late = []  # bound none, for art Kodi may yet fill
         for list_id in request.lists:
             while (params := self._turn(list_id, window_id, stale)) is not None:
                 if not params:
@@ -263,6 +274,8 @@ class Server:
                     return  # its guard stopped it, or a move came: a ring follows
                 if topmost_window_id() == window_id:
                     self._bind(window_id, list_id, items, request.current, item)
+                    if params == NONE and list_id in LATE:
+                        late.append(list_id)
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "
                         f"{(started - self.heard) * 1000:.0f}ms ring to start, "
@@ -274,6 +287,11 @@ class Server:
             else:
                 return
         with self.lock:
+            if late:
+                until = time.monotonic() + WAIT_MAX
+                self.watching = request, window_id, tuple(late), until
+            elif not request.again:  # an again of other lists keeps the watch
+                self.watching = None
             if not request.again:
                 self.finished = request
                 return
@@ -282,6 +300,39 @@ class Server:
             self.finished = self.last.get(window_id)
             if self.request is arrival:
                 self.request = self.finished
+
+    def _watch(self) -> None:
+        """
+        One look at the lists bound none: a probe that reads params now (Kodi filled
+        the art) is served, while its arrival is live and the last, up to WAIT_MAX.
+        """
+        request, window_id, lists, until = self.watching
+        if (
+            self.stopped
+            or time.monotonic() > until
+            or getCurrentWindowId() != window_id
+            or not request.live()
+            or not self.current(request.mark)
+        ):
+            self.watching = None
+            return
+        if topmost_window_id() != window_id:
+            return  # under a dialog: its controls would answer
+        stale = lambda: self.rung.is_set() or not request.live()
+        for list_id in lists:
+            params = infolabel(f"Control.GetLabel({PROBES[list_id]})")
+            if params in ("", NONE, WAIT):
+                continue
+            item = self._item(request)
+            again = Again(self, list_id, request.mark)
+            items = self._handle(params, stale, again, request.cursors)
+            if items is None or stale():
+                return  # a ring follows; the next look reads the watch again
+            if topmost_window_id() == window_id:
+                self._bind(window_id, list_id, items, request.current, item)
+                lists = tuple(i for i in lists if i != list_id)
+                log.debug(f"{self.__class__.__name__} → {list_id} served late")
+        self.watching = (request, window_id, lists, until) if lists else None
 
     @staticmethod
     def _item(request: Request) -> str:
