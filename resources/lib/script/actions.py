@@ -471,6 +471,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
     myWindow.host_focus = host_focus
     myWindow.focus_item = focus_item
     myWindow.controls_from = controls_from
+    myWindow.ring = kwargs.get("ring")
     rebuilt = written = False
     try:
         myWindow.doModal()
