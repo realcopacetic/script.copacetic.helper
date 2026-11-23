@@ -51,6 +51,7 @@ ICON = "https://x/poster.jpg|User-Agent=k"
 ICON_SOURCE = "Container(50).ListItem(0).Art(poster)"
 FAMILY = {"multiart": "fav0.jpg", "multiart1": "fav1.jpg"}
 VAR = "art_background_primary"
+PROBE = "Control.GetLabel(6934)"  # a served row's background, read by its probe
 PLEX = "https://plex/photo/x.jpg?width=500&X-Plex-Token=a%2Bb"
 
 
@@ -71,7 +72,7 @@ class ArtworkServe(unittest.TestCase):
         read from), seeded, register and seed_item (seed_multiart's), props (the
         window properties written) and items (what it returned).
 
-        :param params: The URL's params past the fixed ones.
+        :param params: The URL's params past the fixed ones; a None drops one.
         :param on_top: Whether the serve's window is topmost (else a menu is).
         :param visit_ends: Where visit v1 gives way to v2: "images" or "seed".
         :param own: The family read from the serve's own item; none by default.
@@ -87,6 +88,7 @@ class ArtworkServe(unittest.TestCase):
             SOURCE: LOGO,
             ICON_SOURCE: ICON,
             f"$VAR[{VAR}]": PLEX,
+            PROBE: PLEX,
             "Container(50).CurrentItem": "3",
             "Container(50).ListItem.Label": "Title",
             "Player.Title": "Song",
@@ -102,6 +104,7 @@ class ArtworkServe(unittest.TestCase):
             | params,
             **served,
         )
+        handler.params = {k: v for k, v in handler.params.items() if v is not None}
         handler.__dict__["window_id"] = WINDOW
 
         def images(jobs, art_opts, source):
@@ -234,6 +237,11 @@ class ArtworkServe(unittest.TestCase):
 
     def test_a_variable_read_whole(self):
         self.assertEqual(self.plex()["background"], PLEX)
+
+    def test_a_served_row_reads_its_background_by_its_probe(self):
+        # no URL copy: the row names the hidden label holding the variable
+        out = self.serve({"background_source": PROBE, "background_url": None})
+        self.assertEqual(out["background"], PLEX)
 
     def test_under_a_menu_a_read_the_url_vouches_for(self):
         self.assertEqual(self.plex(on_top=False)["background"], PLEX)
