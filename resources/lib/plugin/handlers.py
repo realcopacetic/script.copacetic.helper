@@ -843,8 +843,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         from resources.lib.art.editor import ImageEditor
         from resources.lib.art.multiart import seed_multiart
-        from resources.lib.art.policy import ART_PROCESS_MAP
-        from resources.lib.plugin.opts import ART_TYPES, ArtOpts, read_art_urls
+        from resources.lib.plugin.opts import art_jobs, read_art_urls
 
         imported = time.perf_counter()
         guard = self._guard(through_info=True)
@@ -938,14 +937,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     "Player.Title" if self.player else f"{self.target_item}.Label"
                 )
             }
-        art_opts = {
-            art_type: ArtOpts.from_params(params, art_type) for art_type in ART_TYPES
-        }
-        jobs = {
-            art_type: [p for p in processes if opts.enabled(p)]
-            for art_type, processes in ART_PROCESS_MAP.items()
-            if (opts := art_opts.get(art_type)) and opts.url
-        }
+        art_opts, jobs = art_jobs(params)
         if not jobs:
             log.debug(f"{self.__class__.__name__} → artwork: no jobs created")
             # A song with no art (a stream): none of the last one stays
@@ -989,7 +981,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             multiart_dict = self._multiart_dict(
                 self.target_item, None if blind else multiart_type
             )
-        art |= multiart_dict
+        if len(multiart_dict) > 1:  # one image never turns: no family lands
+            art |= multiart_dict
         log.debug(f"{self.__class__.__name__} → artwork returned: {', '.join(art)}")
         if not alive():
             return self._artwork_held(guard.lost_to)
@@ -1130,7 +1123,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         stamp = "Window(home).Property(infoscreen_gallery_visit)"
         alive = lambda: infolabel(stamp) == visit
         families = {
-            to_int(register): order_multiart(art)
+            to_int(register): order_multiart(art.values())
             for register, art_type in (
                 tile.split(":") for tile in self.params["tiles"].split(",")
             )
