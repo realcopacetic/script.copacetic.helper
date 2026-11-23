@@ -13,6 +13,7 @@ from xbmcgui import (
 )
 
 from resources.lib.builders.runtime import RuntimeStateManager
+from resources.lib.service.serve import ring_move
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, infolabel, window_property
 from resources.lib.windows.control_factory import DynamicControlFactory
@@ -299,17 +300,20 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _refresh_list(self) -> None:
         """
-        Rebuild the left-hand list from `self.listitems` and sync dynamic controls.
+        Rebuild the left-hand list from `self.listitems` and sync dynamic controls; the
+        view settings preview's backdrop follows the rows (a ring, served a settle on).
         """
         self._list_container.reset()
         for runtime_id, item in self.listitems.items():
             li = xbmcgui.ListItem()
             self._apply_row_visuals(li, item, runtime_id)
             self._list_container.addItem(li)
+        ring_move("preview")
 
     def _refresh_list_row(self, idx: int) -> None:
         """
-        Redraw the label and icon for row `idx` from runtime_state metadata.
+        Redraw the label and icon for row `idx` from runtime_state metadata, and ring
+        the preview's backdrop as _refresh_list does.
 
         :param idx: Row index in the list control.
         """
@@ -319,6 +323,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         runtime_id = keys[idx]
         li = self._list_container.getListItem(idx)
         self._apply_row_visuals(li, self.listitems[runtime_id], runtime_id)
+        ring_move("preview")
 
     def _refresh_ui(self, update_row: bool = True, focus_id: int | None = None) -> None:
         """
@@ -521,7 +526,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         if content_id and content_id in self.listitems:
             self._set_page_changed(False)
             self.current_listitem = content_id
-            self._refresh_ui()
+            self._refresh_ui()  # its row redrawn, which rings the preview
+        else:
+            ring_move("preview")  # the preview follows a placeholder row too
         self._set_page_changed(True)
 
     def _set_page_changed(self, changed: bool) -> None:
