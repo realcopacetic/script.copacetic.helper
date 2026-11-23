@@ -83,6 +83,7 @@ class RuntimeStateManager:
         self._runtime_state_handler = JSONHandler(state_path)
         self._runtime_state_cache = None
         self._resolved_cache = {}
+        self._substitutions_cache = {}
         self.state_version = 0
 
     @classmethod
@@ -165,6 +166,7 @@ class RuntimeStateManager:
             handler.write_json(state)
         self._runtime_state_cache = held
         self._resolved_cache.clear()
+        self._substitutions_cache.clear()
         self.state_version += 1
         self._sync_skin_mirrors(state)
 
@@ -172,6 +174,7 @@ class RuntimeStateManager:
         """Discard cached state so next access re-reads from disk."""
         self._runtime_state_cache = None
         self._resolved_cache.clear()
+        self._substitutions_cache.clear()
         self.state_version += 1
 
     def reconcile_skin_mirrors(self) -> None:
@@ -586,16 +589,18 @@ class RuntimeStateManager:
         include_metadata: bool = False,
     ) -> dict:
         """
-        Build the substitution dict for a runtime entry: resolved string
-        fields, mapping key placeholder, optional metadata beneath, and
-        sibling entries' fields as non-overriding fallbacks.
+        Substitution dict for a runtime entry: resolved string fields, the key
+        placeholder, optional metadata beneath, sibling entries' fields as fallbacks.
+        Cached as ``resolved_entry`` is; callers only read it.
 
         :param mapping_key: Mapping group key.
         :param index: Position in the state list.
         :param include_metadata: Layer mapping metadata under entry fields.
         :return: Substitution dict; empty on lookup failure.
         """
-
+        key = (mapping_key, index, include_metadata)
+        if key in self._substitutions_cache:
+            return self._substitutions_cache[key]
         resolved = self.resolved_entry(mapping_key, index)
         if not resolved:
             return {}
@@ -617,6 +622,7 @@ class RuntimeStateManager:
             for k, v in (self.resolved_entry(mapping_key, i) or {}).items():
                 if isinstance(v, str):
                     base.setdefault(k, v)
+        self._substitutions_cache[key] = base
         return base
 
     def format_metadata(
