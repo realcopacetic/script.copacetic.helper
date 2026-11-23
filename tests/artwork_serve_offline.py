@@ -52,6 +52,7 @@ ICON_SOURCE = "Container(50).ListItem(0).Art(poster)"
 FAMILY = {"multiart": "fav0.jpg", "multiart1": "fav1.jpg"}
 VAR = "art_background_primary"
 PROBE = "Control.GetLabel(6934)"  # a served row's background, read by its probe
+PREVIEW = "art_preview_background"  # 9370's, read under the editor (a modal dialog)
 PLEX = "https://plex/photo/x.jpg?width=500&X-Plex-Token=a%2Bb"
 
 
@@ -89,6 +90,7 @@ class ArtworkServe(unittest.TestCase):
             ICON_SOURCE: ICON,
             f"$VAR[{VAR}]": PLEX,
             PROBE: PLEX,
+            f"$VAR[{PREVIEW}]": PLEX,
             "Container(50).CurrentItem": "3",
             "Container(50).ListItem.Label": "Title",
             "Player.Title": "Song",
@@ -242,6 +244,16 @@ class ArtworkServe(unittest.TestCase):
         # no URL copy: the row names the hidden label holding the variable
         out = self.serve({"background_source": PROBE, "background_url": None})
         self.assertEqual(out["background"], PLEX)
+
+    def test_the_preview_row_reads_its_backdrop_under_the_editor(self):
+        # served in the view settings editor, a modal dialog over the call's window:
+        # never on top, so the URL copy (cut at Plex's &KEY=) vouches for the read
+        row = {"target": None, "prop_key": "9370", "background_var": PREVIEW}
+        cut = row | {"background_url": PLEX.partition("&")[0]}
+        self.assertEqual(self.serve(cut, False, **self.SERVED)["background"], PLEX)
+        alone = {"target": None, "background_source": f"$VAR[{PREVIEW}]"}
+        alone |= {"background_url": None}  # a probe read with no copy: none there
+        self.assertNotIn("background", self.serve(alone, False, **self.SERVED))
 
     def test_under_a_menu_a_read_the_url_vouches_for(self):
         self.assertEqual(self.plex(on_top=False)["background"], PLEX)
