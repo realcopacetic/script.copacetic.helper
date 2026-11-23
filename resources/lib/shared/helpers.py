@@ -710,6 +710,18 @@ class TypewriterAnimation:
         Window(10000).setProperty(f"typewriter_current_{target_id}", "scroll")
         log.execute(f"Control.SetHidden({target_id})")
 
+    @staticmethod
+    def retired(target_id: int | str) -> bool:
+        """
+        Whether the control's line was retired since its run: the skin's scroll or a
+        reset took the lease (read with no graphics lock).
+
+        :param target_id: Text control id.
+        :return: True once retired.
+        """
+        lease = infolabel(f"Window(home).Property(typewriter_current_{target_id})")
+        return lease == "scroll"
+
     def update(
         self,
         *,
