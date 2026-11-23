@@ -276,12 +276,6 @@ class _FocusGuard:
             if self.through_info or not _info_open():
                 return True
             log.debug(f"{LOG_TAG} → {self.caller_name}: ABORTED → under an info dialog")
-            if self.caller_name in ("metadata", "progressbar"):
-                # A new count on the run's window: its rows carry it, so its list
-                # serves again once the dialog closes
-                count = f"Window({self.window_id}).Property(info_aborted)"
-                aborted = to_int(infolabel(count), 0)
-                window_property("info_aborted", aborted + 1, self.window_id)
             return False
 
         if not (focus_id := focused_control_id(self.window_id)):
