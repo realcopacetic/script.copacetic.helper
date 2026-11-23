@@ -221,6 +221,9 @@ class Server:
         self.heard = 0.0  # when the newest request arrived, for the log
         self.last = {}  # window id → its last arrival, for a move with no lists
         self.finished = None  # the last request served whole: a repeat does nothing
+        # The running serve's lists not yet started (None: none runs), and those a late
+        # answer asked again once started: served after it
+        self.ahead, self.asked = None, set()
         self.blanks = set()  # (window id, list) last bound blank from a none probe
         self.turn, self.handed = None, Event()  # the family 9300 last bound, and news
         Thread(target=self._listen, daemon=True).start()
@@ -240,8 +243,8 @@ class Server:
     def again(self, list_id: int, mark: str = "", window_id: int = 0) -> None:
         """
         Serve one list of a window's last arrival again (the helper's own events: an
-        album's play counts, TMDb's answer), as long as no newer ring waits; never
-        cutting the lists of a serve still running.
+        album's play counts, TMDb's answer), as long as no newer ring waits; while a
+        serve of it runs, after that serve, unless the serve has yet to reach the list.
 
         :param list_id: The list to serve.
         :param mark: The arrival that asked, if only while it is the last one.
@@ -262,10 +265,14 @@ class Server:
                 and self.current(mark or last.mark, window_id)
             ):
                 return
-            if self.finished is last:  # this list, and those of an again in flight
+            if self.ahead is not None:  # never cut a running serve's handler
+                if list_id not in self.ahead:
+                    self.asked.add(list_id)
+                return
+            if self.finished is last:  # this list, and those of an again rung
                 wanted = {list_id, *(pending.lists if pending.again else ())}
                 lists = tuple(i for i in last.lists if i in wanted)
-            else:  # the arrival is still being served: all of it again
+            else:  # its serve stopped short (a guard): all of it again
                 lists = last.lists
             self._ring(last._replace(lists=lists, again=True))
 
@@ -315,6 +322,7 @@ class Server:
                 self._serve(request)
             except Exception:
                 log.exception(f"{self.__class__.__name__} → serve {request}")
+            self.ahead = None  # one stopped short serves nothing it was asked
 
     def _serve(self, arrival: Request) -> None:
         """
@@ -346,7 +354,9 @@ class Server:
         stale = lambda: self.request is not arrival or not request.live()
         dialog = DIALOGS.get(request.region)
         opened = dialog and dialog.token and Window(10000).getProperty(dialog.token)
-        for list_id in request.lists:
+        self.asked = set()
+        for i, list_id in enumerate(request.lists):
+            self.ahead = request.lists[i + 1 :]
             probe = request.probes[list_id]
             answered = lambda: self._answered(request, list_id)
             retried = False
@@ -390,13 +400,16 @@ class Server:
             else:
                 return
         with self.lock:
-            if not request.again:
-                self.finished = request
-                return
+            self.ahead = None
             # An again ends with its arrival served whole: a repeat of that does
             # nothing, and the next again keys off the arrival, not this one's lists
-            self.finished = self.last.get(window_id)
-            if self.request is arrival:
+            self.finished = self.last.get(window_id) if request.again else request
+            if self.request is not arrival:
+                return
+            if self.asked:  # late answers for lists it had started: those again
+                lists = tuple(i for i in request.probes if i in self.asked)
+                self._ring(request._replace(lists=lists, again=True))
+            elif request.again:
                 self.request = self.finished
 
     @staticmethod
@@ -513,8 +526,11 @@ class Server:
                 params = infolabel(f"Control.GetLabel({probe})")
                 if params != WAIT:
                     return params
-                until = until or time.monotonic() + WAIT_MAX
+                if until is None:
+                    log.debug(f"{self.__class__.__name__} → {probe} says wait")
+                    until = time.monotonic() + WAIT_MAX
                 if time.monotonic() > until:
+                    log.debug(f"{self.__class__.__name__} → {probe} waited out: none")
                     return NONE
             elif not self._open(window_id):
                 return None  # left, or the dialog closed

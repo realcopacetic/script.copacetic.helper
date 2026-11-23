@@ -6,12 +6,13 @@ binds one blank item, an empty probe nothing, wait is read again; under a dialog
 request waits, and a newer ring, a window change or a moved cursor drops it unbound; a
 list a dialog covered mid-run is owed again; a repeat does nothing (a list not mounted
 here aside), but a none bind whose probe no longer says none serves; a move with no
-lists serves the window's last request; again() serves one
-list of it (the whole arrival while it is still served, beside an again's own lists,
-only for the arrival that asked, as a handler's late answer asks, once per list and
-arrival) and leaves the last request as it was; a move's item is read before its
-handler; clean_name reads the query it was served with, not argv; a favourite with no
-library item answers the blank item; a guard's superseded test comes first; Font.xml is
+lists serves the window's last request; again() serves one list of it (the whole
+arrival once its serve stopped short, beside an again's own lists, only for the arrival
+that asked, as a handler's late answer asks, once per list and arrival; one asked
+mid-serve cuts nothing and serves its list after, unless the serve has yet to reach it)
+and leaves the last request as it was; a move's item is read before its handler;
+clean_name reads the query it was served with, not argv; a favourite with no library
+item answers the blank item; a guard's superseded test comes first; Font.xml is
 read once per version, and a clamp is keyed by the font's file and size; a bind sets
 each item's path and uses a new Window; SQLite keeps one connection per thread, and
 cache_only holds one thread only; a settle hands on its cursor; served artwork fetches
@@ -76,6 +77,7 @@ def _server(*probes: str) -> serve.Server:
     server.request, server.rung, server.stopped = None, Event(), False
     server.lock = RLock()
     server.heard, server.last, server.finished = 0.0, {}, None
+    server.ahead, server.asked = None, set()
     server.blanks = set()
     server.turn, server.handed = None, Event()
     blank = Mock(**{"getArt.return_value": ""})  # no family
@@ -340,14 +342,50 @@ class ServeTest(unittest.TestCase):
             server._ring.call_args_list, [call(SETTLE._replace(again=True))] * 2
         )
 
-    def test_again_mid_serve_serves_the_arrival_whole(self) -> None:
+    def test_again_after_a_serve_stopped_short_serves_the_arrival_whole(self) -> None:
         server = _server()
         server._ring = Mock()
         server.last[10025] = server.request = SETTLE._replace(lists=(9000, 9010))
-        server.again(9010)  # not finished: its 9010 would be cut
+        server.again(9010)  # not finished (a guard stopped it), and none runs
         server._ring.assert_called_once_with(
             SETTLE._replace(lists=(9000, 9010), again=True)
         )
+
+    def test_an_again_mid_serve_serves_its_list_after_it(self) -> None:
+        server = _server()
+        arrival = SETTLE._replace(lists=(9000, 9010))
+        late = iter([True])
+
+        def handle(params, superseded, again, cursors) -> list:
+            if again.list_id == 9000 and next(late, False):
+                again()  # TMDb's answer lands while 9000 is being served
+            return []
+
+        server._handle.side_effect = handle
+        self._run(server, arrival)
+        bound = [c.args[1] for c in server._bind.call_args_list]
+        self.assertEqual(bound, [9000, 9010])  # not cut
+        self.assertEqual(server.request, arrival._replace(lists=(9000,), again=True))
+        self._run(server, server.request)
+        handled = [c.args[2].list_id for c in server._handle.call_args_list]
+        self.assertEqual(handled, [9000, 9010, 9000])
+        self.assertIs(server.request, arrival)
+
+    def test_an_again_for_a_list_not_yet_reached_adds_nothing(self) -> None:
+        server = _server()
+        arrival = SETTLE._replace(lists=(9000, 9010))
+
+        def handle(params, superseded, again, cursors) -> list:
+            if again.list_id == 9000:
+                again.server.again(9010, again.mark, again.window_id)
+            return []
+
+        server._handle.side_effect = handle
+        self._run(server, arrival)
+        handled = [c.args[2].list_id for c in server._handle.call_args_list]
+        self.assertEqual(handled, [9000, 9010])  # 9010 read the answer itself
+        self.assertIs(server.request, arrival)
+        self.assertIsNone(server.ahead)
 
     def test_again_beside_an_again_keeps_its_lists(self) -> None:
         server = _server()
