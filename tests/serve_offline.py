@@ -1,18 +1,18 @@
 """
-Offline checks for the served focus calls (resources/lib/service/serve.py): a ring
-names its kind, region, known lists and mark, other senders and kinds are ignored; a
-probe's params are handled (a plugin prefix dropped) and bound with the request's
-current, none binds one blank item, an empty probe nothing, wait is read again; under
-a dialog the request waits, and a newer ring, a window change or a moved cursor drops
-it unbound; a list a dialog covered mid-run is owed again; a repeat does nothing; a
-move with no lists serves the window's last request; again() serves one list of it
-(the whole arrival while it is still served, beside an again's own lists, only for
-the arrival that asked, as a handler's late answer asks) and leaves the last request as it was; a move's item is read
-before its handler; clean_name reads the query it was served with, not argv; a favourite with no
-library item answers the blank item; a
-guard's superseded test comes first; Font.xml is read once per version, and a clamp
-is keyed by the font's file and size; a bind sets each item's path and uses a new
-Window; SQLite keeps one connection per thread, and cache_only holds one thread only.
+Offline checks for the served focus calls (resources/lib/service/serve.py): a ring names
+its kind, region, known lists and mark, other senders and kinds are ignored; a probe's
+params are handled (a plugin prefix dropped) and bound with the request's current, none
+binds one blank item, an empty probe nothing, wait is read again; under a dialog the
+request waits, and a newer ring, a window change or a moved cursor drops it unbound; a
+list a dialog covered mid-run is owed again; a repeat does nothing (a list not mounted
+here aside); a move with no lists serves the window's last request; again() serves one
+list of it (the whole arrival while it is still served, beside an again's own lists,
+only for the arrival that asked, as a handler's late answer asks) and leaves the last
+request as it was; a move's item is read before its handler; clean_name reads the query
+it was served with, not argv; a favourite with no library item answers the blank item; a
+guard's superseded test comes first; Font.xml is read once per version, and a clamp is
+keyed by the font's file and size; a bind sets each item's path and uses a new Window;
+SQLite keeps one connection per thread, and cache_only holds one thread only.
 Run from the helper root: python tests/serve_offline.py
 """
 
