@@ -456,6 +456,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
     host_focus = kwargs.get("host_focus")
     focus_item = kwargs.get("focus_item")
     parent_filter = kwargs.get("parent")
+    ring = kwargs.get("ring")
     suffix = f"_{parent_filter}" if parent_filter else ""
     mapping_slot = f"current_mapping{suffix}"
 
@@ -471,7 +472,7 @@ def dynamic_settings_window(**kwargs: str) -> None:
     myWindow.host_focus = host_focus
     myWindow.focus_item = focus_item
     myWindow.controls_from = controls_from
-    myWindow.ring = kwargs.get("ring")
+    myWindow.ring = ring
     rebuilt = written = False
     try:
         myWindow.doModal()

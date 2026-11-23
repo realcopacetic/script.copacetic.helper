@@ -12,7 +12,8 @@ when a row is selected, and Back or Previous Menu on an edit row saves what was
 typed; a slider step isn't put back by the refresh it triggers, a move not stored is;
 a move rings the region the skin opted in to (ring) once, a changed row too, and no
 editor without it rings; a row, a radio's state, a management button, an edit's text
-and the description aren't written again unchanged (a radio press forgets its state),
+and the description aren't written again unchanged (a Select forgets a radio's state,
+whether focus was on it or came with the press), an edit shows what it saved,
 and entry substitutions are cached until the state changes.
 Run from the helper root: python tests/editor_offline.py
 """
@@ -57,7 +58,8 @@ MAPPINGS.mkdir(parents=True)
     )
 )
 xbmcgui = sys.modules["xbmcgui"]
-xbmcgui.WindowXMLDialog = xbmcgui.Action = object
+xbmcgui.WindowXMLDialog = type("WindowXMLDialog", (), {"onAction": lambda *_: None})
+xbmcgui.Action = object
 sys.modules["xbmc"].Monitor = object  # the served transport's, which its rings import
 for name, value in {
     "ACTION_MOVE_LEFT": 1,
@@ -168,6 +170,11 @@ class SeededChildren(unittest.TestCase):
         self.assertEqual(rows(self.manager, "tabs", kept), ["recent", "random"])
 
 
+def drawn(*content_ids: str) -> dict:
+    """``_rows_shown`` for rows drawn with these entries' ids, in order."""
+    return {i: {"properties": {"content_id": c}} for i, c in enumerate(content_ids)}
+
+
 def editor(**attrs) -> DynamicEditor:
     """A DynamicEditor with no window: its property writes recorded in ``props``."""
     ed = DynamicEditor.__new__(DynamicEditor)
@@ -185,6 +192,7 @@ class PageChanged(unittest.TestCase):
         ed = editor(
             container_position=0,
             listitems={"a": {}, "b": {}},
+            _rows_shown=drawn("a", "b"),
             _list_container=Mock(**{"getSelectedPosition.return_value": 1}),
             _update_mgmt_buttons=Mock(),
             _refresh_ui=lambda **_: seen.append(ed.props.get("page_changed")),
@@ -205,6 +213,20 @@ class PageChanged(unittest.TestCase):
         ed._on_list_scroll(100)
         self.assertEqual(seen, [None, ""])
         self.assertEqual(ed.props["page_changed"], "true")
+
+    def test_a_key_queued_past_an_emptied_list_does_nothing(self):
+        ed = editor(
+            container_position=0,
+            listitems={},
+            _rows_shown=drawn("a", "b"),
+            _list_container=Mock(**{"getSelectedPosition.return_value": 1}),
+            _update_mgmt_buttons=Mock(),
+            _refresh_ui=Mock(),
+        )
+        ed._on_list_scroll(100)
+        self.assertEqual(ed.container_position, 0)
+        ed._update_mgmt_buttons.assert_not_called()
+        ed._refresh_ui.assert_not_called()
 
 
 class Ring(unittest.TestCase):
@@ -239,6 +261,7 @@ class Ring(unittest.TestCase):
             ring="preview",
             container_position=0,
             listitems={"a": {}, "b": {}},
+            _rows_shown=drawn("a", "b"),
             _list_container=Mock(**{"getSelectedPosition.return_value": 1}),
             _update_mgmt_buttons=Mock(),
             _refresh_ui=Mock(),
@@ -340,7 +363,6 @@ class Unchanged(unittest.TestCase):
         handler._selected, handler._enabled_by_id = None, {}
         handler._allowed_items = lambda: ["true", "false"]
         handler._coerce_to_allowed = lambda: stored[0]
-        handler._link_ok = lambda: False  # the press itself is not under test
         return handler
 
     def test_a_radio_writes_a_change_and_after_a_press(self):
@@ -351,14 +373,64 @@ class Unchanged(unittest.TestCase):
         stored[0] = "false"
         handler.update_value()
         # Kodi flips the drawn state on the press: a cancelled confirm sets it back
-        handler.handle_interaction(300, xbmcgui.ACTION_SELECT_ITEM)
+        handler.pressed()
         handler.update_value()
-        handler.handle_interaction(300, xbmcgui.ACTION_MOVE_DOWN)  # not a press
         handler.update_value()
         self.assertEqual(
             [c.args for c in handler.instance.setSelected.call_args_list],
             [(True,), (False,), (False,)],
         )
+
+    def pressed(self, a_id: int) -> tuple[Mock, RadioButtonHandler]:
+        """
+        An action from a control at 211 that leaves focus on a radio at 300 (a
+        click): the 211 handler, and the radio.
+        """
+        before = Mock(focus_target_id=None)
+        radio = self.radio(["true"])
+        radio._selected = True
+        radio.update_visibility = Mock()
+        ed = editor(
+            host=None,
+            host_focus=None,
+            _prev_focus_id=211,
+            _mgmt_ids=set(),
+            _mgmt_buttons=[],
+            _handler_by_focus_id={211: before, 300: radio},
+            handlers={"before": before, "radio": radio},
+            current_listitem="a",
+            listitems={"a": {}},
+            _list_container=Mock(**{"getId.return_value": 100}),
+            getFocusId=lambda: 300,
+            _set_description=Mock(),
+        )
+        ed.onAction(Mock(**{"getId.return_value": a_id}))
+        return before, radio
+
+    def test_a_select_forgets_both_controls_drawn_state(self):
+        before, radio = self.pressed(xbmcgui.ACTION_MOUSE_LEFT_CLICK)
+        before.pressed.assert_called_once_with()
+        self.assertIsNone(radio._selected)
+
+    def test_a_move_keeps_it(self):
+        before, radio = self.pressed(xbmcgui.ACTION_MOVE_DOWN)
+        before.pressed.assert_not_called()
+        self.assertTrue(radio._selected)
+
+    def test_an_edit_shows_what_it_saved(self):
+        for typed, cached, shown in (
+            ("typed ", "stored", [("typed",)]),
+            ("same ", "same", [("same",)]),  # unchanged, nothing saved, still trimmed
+            ("same", "same", []),
+        ):
+            handler = EditHandler.__new__(EditHandler)
+            handler.control, handler._cached_text = {}, cached
+            handler.instance = Mock(**{"getText.return_value": typed})
+            handler._set_setting_value, handler.parent = Mock(), Mock()
+            handler._on_interact(300, xbmcgui.ACTION_MOVE_UP)
+            self.assertEqual(
+                [c.args for c in handler.instance.setText.call_args_list], shown
+            )
 
     def test_an_edit_writes_what_it_doesnt_show(self):
         stored = ["films"]
