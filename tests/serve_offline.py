@@ -628,17 +628,26 @@ class ArtworkTest(unittest.TestCase):
 
 
 class HashTest(unittest.TestCase):
-    def test_a_digest_is_kept_by_the_files_identity(self):
+    def test_a_thumbs_digest_is_kept_by_the_files_identity(self) -> None:
         thumb = STAGE / "thumb.jpg"
         thumb.write_bytes(b"one")
-        first = HashManager.compute_hash(thumb)
+        first = HashManager.kept_hash(thumb)
         with patch("builtins.open", side_effect=AssertionError("read again")):
-            self.assertEqual(HashManager.compute_hash(thumb), first)
+            self.assertEqual(HashManager.kept_hash(thumb), first)
         thumb.write_bytes(b"two")  # Kodi re-caches: a new file
         os.utime(thumb, ns=(1, thumb.stat().st_mtime_ns + 1))
-        self.assertNotEqual(HashManager.compute_hash(thumb), first)
+        self.assertNotEqual(HashManager.kept_hash(thumb), first)
         thumb.unlink()  # Refresh removes the copy
-        self.assertIsNone(HashManager.compute_hash(thumb))
+        self.assertIsNone(HashManager.kept_hash(thumb))
+
+    def test_the_builders_digest_reads_the_file_each_time(self) -> None:
+        output = STAGE / "output.xml"
+        output.write_bytes(b"one")
+        first = HashManager.compute_hash(output)
+        mtime = output.stat().st_mtime_ns
+        output.write_bytes(b"two")  # a rewrite of the same size, same mtime
+        os.utime(output, ns=(1, mtime))
+        self.assertNotEqual(HashManager.compute_hash(output), first)
 
 
 class ImagesTest(unittest.TestCase):
