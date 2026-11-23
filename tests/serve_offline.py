@@ -21,14 +21,15 @@ stops it; an again of the same family keeps the turn), which turns from slide 1,
 slide made from probe 6932 on top LEAD before its beat and bound to 9400 with 9300's
 identity on it, none under a dialog, none on a short rest, none that won't open, and a
 late bind pushes the next beats back; a new family or an error ends a turn, not the
-thread; a newer ring, a moved cursor or a rail losing focus ends it, a move during
-the beat's read on top too. A dialog's region
-keeps only its own lists, is served in the topmost dialog from its own probes, and is
-dropped once that dialog closes; ring_move rings a dialog region's lists. An info
-dialog's rails settle on the primary's cursor and are served in the info dialog, under
-a menu too; an again asks its own window's last arrival, the topmost served by
-default; a move equal to the newest is dropped, and one rung again serves only the
-lists not bound for its token.
+thread; a newer ring, a moved cursor or a rail losing focus ends it, a move during the
+beat's read on top too. A dialog's region keeps only its own lists, is served in the
+topmost dialog from its own probes, and is dropped once that dialog closes; ring_move
+rings a dialog region's lists. An info dialog's rails settle on the primary's cursor
+and are served in the info dialog, under a menu too (with two, the one whose open is
+Home's); a dialog's binds name its open; an again asks its own window's last arrival,
+the topmost served by default; a move rung again rings, and serves only the lists not
+bound for its token and those a late answer fills; a dialog list whose guard stopped
+is read again once.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -151,7 +152,7 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(again, serve.Again(server, 9010, CURSOR, 10025))
         self.assertEqual(cursors, {"primary": CURSOR})  # a settle's, by its region
         server._bind.assert_called_once_with(
-            10025, 9010, server._handle.return_value, "54/3/12/", "54/3/12/"
+            10025, 9010, server._handle.return_value, "54/3/12/", "54/3/12/", ""
         )
         self.assertEqual(server.finished, SETTLE)
 
@@ -166,7 +167,9 @@ class ServeTest(unittest.TestCase):
         server = _server(serve.NONE)
         self._run(server, SETTLE)
         server._handle.assert_not_called()
-        server._bind.assert_called_once_with(10025, 9010, [], "54/3/12/", "54/3/12/")
+        server._bind.assert_called_once_with(
+            10025, 9010, [], "54/3/12/", "54/3/12/", ""
+        )
 
     def test_unmounted_probe_binds_nothing(self) -> None:
         server = _server("")
@@ -311,7 +314,7 @@ class ServeTest(unittest.TestCase):
         self._run(server, SETTLE)
         move = serve.Request("move", "", (), "m1")
         self._run(server, move)
-        self.assertEqual(server._bind.call_args.args[3:], ("m1", ""))
+        self.assertEqual(server._bind.call_args.args[3:], ("m1", "", ""))
         self.assertEqual(
             server.finished, serve.Request("move", "primary", (9010,), "m1")
         )
@@ -489,7 +492,7 @@ class ServeTest(unittest.TestCase):
             ["Container(9370).ListItem.Property(current)", "Control.GetLabel(6937)"],
         )
         server._bind.assert_called_once_with(
-            13001, 9370, server._handle.return_value, "m1", ""
+            13001, 9370, server._handle.return_value, "m1", "", ""
         )
         self.assertEqual(server.last, {13001: move})
 
@@ -519,13 +522,22 @@ class ServeTest(unittest.TestCase):
         with patch.object(serve, "getCurrentWindowDialogId", return_value=12003):
             self.assertEqual(serve.Server._window("item"), 12003)
         self.assertEqual(serve.Server._window("primary"), 10025)
+        # Song info over music info, a menu over both: the one whose open is Home's
+        tokens = {10000: "m2", 12001: "m1", 10135: "m2"}
+        windows = lambda w: Mock(getProperty=lambda key: tokens.get(w, ""))
+        with (
+            patch.object(serve, "getCurrentWindowDialogId", return_value=10106),
+            patch.object(serve, "condition", return_value=True),
+            patch.object(serve, "Window", side_effect=windows),
+        ):
+            self.assertEqual(serve.Server._window("item"), 10135)
 
     def test_an_info_dialogs_item_binds_in_it(self) -> None:
         self.props["moved_item"] = "m1movie:7"
         server = _server()
         move = serve.Request("move", "item", (9000, 9360), "m1movie:7")
         bound = {}  # each list's Property(current)
-        server._bind.side_effect = lambda w, i, items, current, item: bound.update(
+        server._bind.side_effect = lambda w, i, items, current, *_: bound.update(
             {i: current}
         )
         reads = lambda label: (
@@ -563,16 +575,50 @@ class ServeTest(unittest.TestCase):
             [call(item._replace(lists=(9030,), again=True))] * 2,
         )
 
-    def test_a_move_equal_to_the_newest_is_dropped(self) -> None:
+    def test_a_move_rung_again_rings(self) -> None:
         server = _server()
         move = serve.Request("move", "item", (9000,), "m1")
         server._ring(move)
         server.rung.clear()
-        server._ring(move._replace())
-        self.assertFalse(server.rung.is_set())
-        server._ring(SETTLE)
-        server._ring(SETTLE._replace())  # a settle: the repeat test decides
+        server._ring(move._replace())  # a recovery: what it bound already is skipped
         self.assertTrue(server.rung.is_set())
+
+    def _dialog(self, server: serve.Server, move: serve.Request) -> None:
+        """Serve an info dialog's move, on top in 12003."""
+        with (
+            patch.object(serve, "getCurrentWindowDialogId", return_value=12003),
+            patch.object(serve, "topmost_window_id", return_value=12003),
+        ):
+            self._run(server, move)
+
+    def test_a_dialog_list_whose_guard_read_a_menu_is_read_again_once(self) -> None:
+        self.props["moved_item"] = "m1"
+        server = _server()
+        server._handle.side_effect = [None, [("plugin://x/1", Mock(), False)]]
+        self._dialog(server, serve.Request("move", "item", (9360,), "m1"))
+        self.assertEqual(server._handle.call_count, 2)
+        server._bind.assert_called_once()
+        server._handle.side_effect = [None, None]  # twice: the serve ends
+        self._dialog(server, serve.Request("move", "item", (9360,), "m1", again=True))
+        self.assertEqual(server._handle.call_count, 4)
+        server._bind.assert_called_once()
+
+    def test_a_dialog_bind_names_its_open(self) -> None:
+        self.props.update(moved_item="m1", artwork_cursor_primary="3207/2/9/v")
+        server = _server()
+        self._dialog(
+            server, serve.Request("settle", "infoscreen", (9100,), "3207/2/9/v")
+        )
+        self.assertEqual(
+            server._bind.call_args.args[3:], ("3207/2/9/", "3207/2/9/", "m1")
+        )
+
+    def test_a_move_rung_again_serves_the_late_answers_lists(self) -> None:
+        self.props["moved_item"] = "m1"
+        server = _server()
+        server.bound = "m1"  # every list still answers m1
+        self._dialog(server, serve.Request("move", "item", (9000, 9300, 9030), "m1"))
+        self.assertEqual([c.args[1] for c in server._bind.call_args_list], [9000, 9030])
 
     def test_a_closed_dialog_drops(self) -> None:
         self.props["moved_preview"] = "m1"
@@ -632,11 +678,13 @@ class ServeTest(unittest.TestCase):
     def test_bind_sets_paths_and_a_new_window(self) -> None:
         items = [("plugin://x/1", Mock(), False), ("plugin://x/2", Mock(), False)]
         with patch.object(serve, "Window") as window, patch.object(serve, "ListItem"):
-            serve.Server._bind(10025, 9010, items, "c", "i")
+            serve.Server._bind(10025, 9010, items, "c", "i", "o")
             serve.Server._bind(10025, 9010, [], "c", "i")
         items[0][1].setPath.assert_called_once_with("plugin://x/1")
         items[1][1].setPath.assert_called_once_with("plugin://x/2")
-        items[0][1].setProperties.assert_called_once_with({"current": "c", "item": "i"})
+        items[0][1].setProperties.assert_called_once_with(
+            {"current": "c", "item": "i", "open": "o"}
+        )
         self.assertEqual(window.call_count, 2)
         bound = window.return_value.getControl.return_value.addItems.call_args_list
         self.assertEqual(bound[0].args[0], [items[0][1], items[1][1]])

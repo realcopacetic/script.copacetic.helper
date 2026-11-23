@@ -38,23 +38,34 @@ PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910, 9300: 6930, 9301: 6931
 
 
 class Dialog(NamedTuple):
-    """A dialog's region: its lists' probes, and the dialogs it can be (none: any)."""
+    """
+    A dialog's region: its lists' probes, the dialogs it can be (none: any), and the
+    Home property naming the dialog's open, stamped on each bind as Property(open).
+    """
 
     probes: dict[int, int]
     windows: tuple[int, ...] = ()
+    token: str = ""
 
 
-# An info dialog's lists: its item's details, the rails' details, the floor, the Plot
-# tab's text, music's popularity word and the bar
-INFO = {9000: 6900, 9100: 6901, 9300: 6930, 9360: 6936, 9030: 6903, 9010: 6910}
 # A dialog's regions, by the name its rings give: served in that dialog, not the active
-# window. item: an info dialog's own item; infoscreen: its rails; preview: the view
-# settings editor's backdrop blur
+# window. item: an info dialog's own item (its details, floor, popularity word, Plot
+# tab's text and bar); infoscreen: its rails (their details, bar and floor), whose
+# probes hold the rail rows; preview: the view settings editor's backdrop blur
 DIALOGS = {
-    "item": Dialog(INFO, INFO_DIALOGS),
-    "infoscreen": Dialog(INFO, INFO_DIALOGS),
+    "item": Dialog(
+        {9000: 6900, 9300: 6933, 9030: 6903, 9360: 6936, 9010: 6911},
+        INFO_DIALOGS,
+        "moved_item",
+    ),
+    "infoscreen": Dialog(
+        {9100: 6901, 9010: 6910, 9300: 6930}, INFO_DIALOGS, "moved_item"
+    ),
     "preview": Dialog({9370: 6937}),
 }
+# Lists a late answer (TMDb's, Deezer's) serves again: a move rung again serves them
+# even when bound for its token, as an answer landing while a rail had focus is lost
+ASIDE = (9000, 9030)
 CURSORS = {"infoscreen": "primary"}  # a region whose settles answer another's cursor
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
@@ -273,14 +284,11 @@ class Server:
 
     def _ring(self, request: Request) -> None:
         """
-        Hand the worker the newest request; a move equal to it changes nothing (an
-        info dialog's tabs taking focus again on an item whose lists stand).
+        Hand the worker the newest request.
 
         :param request: The arrival heard.
         """
         with self.lock:
-            if request.kind == "move" and request == self.request:
-                return
             self.request, self.heard = request, time.perf_counter()
             self.rung.set()
 
@@ -299,8 +307,10 @@ class Server:
             if self.stopped:
                 return
             request = self.request
-            if request.kind == "move" and self.rung.wait(SETTLE):
-                continue  # still moving: the next ring starts the wait again
+            # An info dialog's item moves nothing: its open or the tabs' return
+            if request.kind == "move" and request.region != "item":
+                if self.rung.wait(SETTLE):
+                    continue  # still moving: the next ring starts the wait again
             try:  # one bad item costs one serve (service-caches finding 1)
                 self._serve(request)
             except Exception:
@@ -334,9 +344,12 @@ class Server:
             with self.lock:
                 self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
+        dialog = DIALOGS.get(request.region)
+        opened = dialog and dialog.token and Window(10000).getProperty(dialog.token)
         for list_id in request.lists:
             probe = request.probes[list_id]
             answered = lambda: self._answered(request, list_id)
+            retried = False
             while (params := self._turn(probe, window_id, stale, answered)) is not None:
                 if not params:
                     break  # not mounted in this window, or bound for this move already
@@ -349,10 +362,17 @@ class Server:
                     else []
                 )
                 handled = time.perf_counter()
+                if items is None and dialog and not (retried or stale()):
+                    # A dialog's guard read a menu over it: nothing rings after a
+                    # dialog's serve, so its probe is read again once it is on top
+                    retried = True
+                    continue
                 if items is None or stale():
                     return  # its guard stopped it, or a move came: a ring follows
                 if topmost_window_id() == window_id:
-                    self._bind(window_id, list_id, items, request.current, item)
+                    self._bind(
+                        window_id, list_id, items, request.current, item, opened or ""
+                    )
                     if params == NONE:  # a none Kodi may fill later (late art)
                         self.blanks.add(list_id)
                     else:
@@ -394,6 +414,7 @@ class Server:
             request.kind == "move"
             and request.region in DIALOGS
             and not request.again
+            and list_id not in ASIDE
             and infolabel(f"Container({list_id}).ListItem.Property(current)")
             == request.mark
         )
@@ -402,7 +423,7 @@ class Server:
     def _window(region: str) -> int:
         """
         The window a region's lists are in: the active window, or a dialog region's
-        dialog, the topmost one unless a menu covers it.
+        dialog: the topmost, else under a menu the open one whose token is Home's.
 
         :param region: The request's region.
         :return: The window id.
@@ -412,8 +433,10 @@ class Server:
         top = getCurrentWindowDialogId()
         if not dialog.windows or top in dialog.windows:
             return top
-        active = (w for w in dialog.windows if condition(f"Window.IsActive({w})"))
-        return next(active, top)
+        active = [w for w in dialog.windows if condition(f"Window.IsActive({w})")]
+        token = Window(10000).getProperty(dialog.token)
+        owner = (w for w in active if Window(w).getProperty(dialog.token) == token)
+        return next(owner, next(iter(active), top))
 
     @staticmethod
     def _item(request: Request) -> str:
@@ -680,24 +703,30 @@ class Server:
 
     @staticmethod
     def _bind(
-        window_id: int, list_id: int, items: list[tuple], current: str, item: str
+        window_id: int,
+        list_id: int,
+        items: list[tuple],
+        current: str,
+        item: str,
+        opened: str = "",
     ) -> None:
         """
-        Replace the list's items in one bind; the first names the arrival it answers
-        and the item it served, for the skin's readiness test.
+        Replace the list's items in one bind; the first names the arrival it answers,
+        the item it served and a dialog's open, for the skin's readiness test.
 
         :param window_id: Window holding the list.
         :param list_id: The served list.
         :param items: Handler items; none binds one blank item.
         :param current: The request's current, as Property(current).
         :param item: The item served, list/position/dbid/ (or empty), Property(item).
+        :param opened: The dialog's open token, as Property(open); empty for none.
         """
         listitems = []
         for url, listitem, _ in items:
             listitem.setPath(url)  # a bind keeps no tuple url
             listitems.append(listitem)
         listitems = listitems or [ListItem(offscreen=True)]
-        listitems[0].setProperties({"current": current, "item": item})
+        listitems[0].setProperties({"current": current, "item": item, "open": opened})
         # A new Window each bind: a kept one's ControlList rebinds all it was ever given
         window = Window(window_id)
         window.getControl(list_id).addItems(listitems)
