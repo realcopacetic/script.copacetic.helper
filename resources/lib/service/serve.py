@@ -3,11 +3,12 @@
 """
 Served focus calls: the skin rings when an item comes to rest (settle) or a selection
 changes with no focused-layout arrival (move), and the warm service fills each named
-list in turn, each a list with no <content>. Notes:
-coding-notes/copacetic/features/served-focus-calls.md.
+list in turn, each a list with no <content>; 9300's multiart family then turns on
+9400, a slide a beat. Notes: coding-notes/copacetic/features/served-focus-calls.md.
 """
 
 import time
+from itertools import chain, count, cycle, islice, takewhile
 from threading import Event, RLock, Thread
 from typing import Callable, NamedTuple
 
@@ -16,7 +17,7 @@ from xbmcgui import ListItem, Window, getCurrentWindowId
 
 from resources.lib.shared import logger as log
 from resources.lib.shared.parser import parse_plugin_argv
-from resources.lib.shared.utilities import infolabel, topmost_window_id
+from resources.lib.shared.utilities import infolabel, plugin_path, topmost_window_id
 
 # NotifyAll(script.copacetic.helper,<kind>/<region>/<lists, dot-separated>/<mark>);
 # a move's mark is <container>/<token>: the list that moved (view: the cursor's list),
@@ -33,6 +34,10 @@ POLL = 0.1  # seconds between looks while a dialog covers the window or a probe 
 # row ends with the state it waits on (a slow Search rail can take several seconds)
 WAIT_MAX = 30
 SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
+# 9300's multiart family turns on 9400: each slide's params are in its probe, and each
+# shows for the register's dwell it replaces, 4.8 s pause and 0.2 s fade
+ARTWORK, SLIDES, SLIDE_PROBE = 9300, 9400, 6940
+DWELL = 5.0
 
 
 class Request(NamedTuple):
@@ -66,6 +71,15 @@ class Request(NamedTuple):
         """Whether its cursor or token is still the skin's: no move has come since."""
         prop = "artwork_cursor" if self.kind == "settle" else "moved"
         return Window(10000).getProperty(f"{prop}_{self.region}") == self.mark
+
+
+class Turn(NamedTuple):
+    """A family to turn on 9400: 9300's bind for an arrival, in its window."""
+
+    request: Request
+    window_id: int
+    identity: str
+    family: tuple[str, ...]
 
 
 class Again(NamedTuple):
@@ -139,7 +153,10 @@ class _Listener(xbmc.Monitor):
 
 
 class Server:
-    """A listener thread and a pipeline thread; the newest request wins."""
+    """
+    A listener thread, a pipeline thread (the newest request wins) and a rotation
+    thread (the newest family turns).
+    """
 
     def __init__(self) -> None:
         self.request, self.rung, self.stopped = None, Event(), False
@@ -147,17 +164,20 @@ class Server:
         self.heard = 0.0  # when the newest request arrived, for the log
         self.last = {}  # window id → its last arrival, for a move with no lists
         self.finished = None  # the last request served whole: a repeat does nothing
+        self.turn, self.handed = None, Event()  # the family 9300 last bound, and news
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
+        Thread(target=self._rotate, daemon=True).start()
         # The landing rang before the service ran (Kodi start, a restart): a move now,
         # its token for either region, as the probe serves the one on screen
         token = move_token("primary", "secondary")
         self._ring(Request("move", "primary", tuple(PROBES), token))
 
     def stop(self) -> None:
-        """Release both threads: the listener within a second, the worker at once."""
+        """Release the threads: the listener within a second, the others at once."""
         self.stopped = True
         self.rung.set()
+        self.handed.set()
 
     def again(self, list_id: int, mark: str = "") -> None:
         """
@@ -263,6 +283,8 @@ class Server:
                     return  # its guard stopped it, or a move came: a ring follows
                 if topmost_window_id() == window_id:
                     self._bind(window_id, list_id, items, request.current, item)
+                    if list_id == ARTWORK:
+                        self._hand(Turn(request, window_id, *self._family(items)))
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "
                         f"{(started - self.heard) * 1000:.0f}ms ring to start, "
@@ -382,6 +404,103 @@ class Server:
         except Exception:
             log.exception(f"Server → handler for {query}")
             return []
+
+    @staticmethod
+    def _family(items: list[tuple]) -> tuple[str, tuple[str, ...]]:
+        """
+        9300's bound identity and multiart family, read off its item (no GUI read).
+
+        :param items: The handler's items, as bound.
+        :return: The identity and the family's URLs, main first; empty for none.
+        """
+        if not items:
+            return "", ()
+        listitem = items[0][1]
+        keys = chain(("multiart",), (f"multiart{i}" for i in count(1)))
+        family = tuple(takewhile(bool, map(listitem.getArt, keys)))
+        return listitem.getProperty("identity"), family
+
+    def _hand(self, turn: Turn) -> None:
+        """
+        Give the rotation 9300's new bind: its family turns from slide 1 (slide 0 is
+        9300's own art), or a family of one stops the last.
+
+        :param turn: The bind's arrival, window, identity and family.
+        """
+        self.turn = turn if len(turn.family) > 1 else None
+        self.handed.set()
+
+    def _rotate(self) -> None:
+        """Turn the family last handed; a new one, or the service's stop, ends it."""
+        from resources.lib.art.multiart import order_multiart
+
+        while self.handed.wait():
+            self.handed.clear()
+            if self.stopped:
+                return
+            if not (turn := self.turn):
+                continue
+            beat = time.monotonic()
+            try:  # one bad slide costs its family's turn
+                for url in islice(cycle(order_multiart(turn.family)), 1, None):
+                    started = time.perf_counter()
+                    items = self._slide(turn, url)
+                    made = time.perf_counter() - started
+                    beat += DWELL
+                    wait = max(0.0, beat - time.monotonic())
+                    if self.handed.wait(wait) or not self._turning(turn):
+                        break
+                    if items and topmost_window_id() == turn.window_id:
+                        self._bind(
+                            turn.window_id, SLIDES, items, turn.request.current, ""
+                        )
+                        log.debug(
+                            f"{self.__class__.__name__} → {SLIDES} turned: "
+                            f"{made * 1000:.0f}ms slide, {turn.request.mark}"
+                        )
+            except Exception:
+                log.exception(f"{self.__class__.__name__} → turn {turn.request}")
+
+    def _turning(self, turn: Turn) -> bool:
+        """
+        Whether a family still turns: no newer ring (an again keeps the mark) and its
+        arrival's cursor or token is still the skin's.
+
+        :param turn: The family turning.
+        :return: True while it does.
+        """
+        return self.request.mark == turn.request.mark and turn.request.live()
+
+    @staticmethod
+    def _slide(turn: Turn, url: str) -> list[tuple] | None:
+        """
+        A slide's item for 9400, made with the slide probe's params, the logo read whole
+        by its source, while the window is on top (under a dialog Python reads the
+        dialog's controls).
+
+        :param turn: The family turning.
+        :param url: The slide.
+        :return: The item, its art the slide's and its identity 9300's; None for none.
+        """
+        from resources.lib.art.multiart import slide_art
+        from resources.lib.plugin.opts import ART_URLS, read_art_urls
+        from resources.lib.plugin.setter import set_items
+
+        if topmost_window_id() != turn.window_id:
+            return None
+        if (query := infolabel(f"Control.GetLabel({SLIDE_PROBE})")) in ("", NONE):
+            return None
+        params = parse_plugin_argv(["", "", query], raw=ART_URLS)
+        art = slide_art(params | read_art_urls(params, infolabel, True), url)
+        return set_items(
+            [
+                {
+                    "file": plugin_path("artwork"),
+                    "art": art,
+                    "properties": {"identity": turn.identity},
+                }
+            ]
+        )
 
     @staticmethod
     def _bind(
