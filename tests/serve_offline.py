@@ -1404,8 +1404,7 @@ class RotateTest(unittest.TestCase):
     def test_slide_reads_its_probe_on_top_and_names_9300s_identity(self) -> None:
         source = "ListItem.Art(clearlogo)"
         query = (
-            f"background_blur=true&clearlogo_source={source}"
-            "&clearlogo_url=https://x/l.png?a=1&b=2&icon_darken_label=A & B"
+            f"background_blur=true&clearlogo_source={source}&icon_darken_label=A & B"
         )
         labels = {"Control.GetLabel(6932)": query, source: "https://x/l.png?a=1&b=2"}
         with (
@@ -1418,7 +1417,9 @@ class RotateTest(unittest.TestCase):
         self.assertEqual(read.call_args_list, list(map(call, labels)))
         params, url = art.call_args.args
         self.assertEqual(url, "b.jpg")
-        self.assertEqual(params["clearlogo_url"], "https://x/l.png?a=1&b=2")  # whole
+        self.assertEqual(
+            params["clearlogo_url"], "https://x/l.png?a=1&b=2"
+        )  # by source
         self.assertEqual(params["icon_darken_label"], "A & B")
         self.assertEqual(items[0]["properties"], {"identity": "54/3/12/v"})
         self.assertEqual(items[0]["art"], {"background": "b.png", "slide": "b.jpg"})
