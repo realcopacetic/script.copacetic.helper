@@ -5,7 +5,7 @@ params are handled (a plugin prefix dropped) and bound with the request's curren
 binds one blank item, an empty probe nothing, wait is read again; under a dialog the
 request waits, and a newer ring, a window change or a moved cursor drops it unbound; a
 list a dialog covered mid-run is owed again; a repeat does nothing (a list not mounted
-here aside); a move with no lists serves the window's last request; again() serves one
+here aside), but a blank its probe no longer says none to serves; a move with no lists serves the window's last request; again() serves one
 list of it (the whole arrival while it is still served, beside an again's own lists,
 only for the arrival that asked, as a handler's late answer asks, once per list and
 arrival) and leaves the last request as it was; a move's item is read before its
@@ -67,6 +67,7 @@ def _server(*probes: str) -> serve.Server:
     server.request, server.rung, server.stopped = None, Event(), False
     server.lock = RLock()
     server.heard, server.last, server.finished = 0.0, {}, None
+    server.blanks = set()
     server.turn, server.handed = None, Event()
     blank = Mock(**{"getArt.return_value": ""})  # no family
     server._handle = Mock(return_value=[("plugin://x/1", blank, False)])
@@ -245,6 +246,19 @@ class ServeTest(unittest.TestCase):
             self.assertTrue(server._repeat(settle._replace()))
             server.bound = ""  # 9010 emptied by a skin reload: serve again
             self.assertFalse(server._repeat(settle._replace()))
+
+    def test_a_blank_holds_only_a_none_its_probe_still_says(self) -> None:
+        server = _server(serve.NONE)  # art not yet loaded (a skin reload): none
+        self._run(server, SETTLE)
+        self.assertEqual(server.blanks, {9010})
+        self._run(server, SETTLE._replace())  # still none: a repeat
+        server._handle.assert_not_called()
+        server.probes = [PARAMS]  # the art landed: the same cursor rings again
+        self._run(server, SETTLE._replace())
+        server._handle.assert_called_once()
+        self.assertEqual(server.blanks, set())
+        self._run(server, SETTLE._replace())  # answered now: a repeat
+        server._handle.assert_called_once()
 
     def test_no_repeat_is_read_under_a_dialog(self) -> None:
         server = _server()
