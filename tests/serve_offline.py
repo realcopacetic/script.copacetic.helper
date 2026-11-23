@@ -22,7 +22,9 @@ slide made from probe 6932 on top LEAD before its beat and bound to 9400 with 93
 identity on it, none under a dialog, none on a short rest, none that won't open, and a
 late bind pushes the next beats back; a new family or an error ends a turn, not the
 thread; a newer ring, a moved cursor or a rail losing focus ends it, a move during
-the beat's read on top too.
+the beat's read on top too. A dialog's region
+keeps only its own lists, is served in the topmost dialog from its own probes, and is
+dropped once that dialog closes; ring_move rings a dialog region's lists.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -443,6 +445,62 @@ class ServeTest(unittest.TestCase):
             ring,
             "NotifyAll(script.copacetic.helper,"
             f"move/primary/9040.9000.9100.9010.9300.9301//{token})",
+        )
+
+    def test_a_dialog_region_keeps_its_own_lists(self) -> None:
+        heard = []
+        listener = serve._Listener(heard.append)
+        listener.onNotification(
+            "script.copacetic.helper", "Other.move/preview/9370.9010//m1", ""
+        )
+        self.assertEqual(heard, [serve.Request("move", "preview", (9370,), "m1")])
+
+    def test_a_dialog_region_is_served_in_the_topmost_dialog(self) -> None:
+        self.props["moved_preview"] = "m1"
+        server = _server()
+        read = []
+        move = serve.Request("move", "preview", (9370,), "m1")
+        with (
+            patch.object(serve, "getCurrentWindowDialogId", return_value=13001),
+            patch.object(serve, "topmost_window_id", return_value=13001),
+            patch.object(
+                serve,
+                "infolabel",
+                side_effect=lambda label: read.append(label) or PARAMS,
+            ),
+        ):
+            server.request = move
+            server._serve(move)
+        self.assertEqual(read, ["Control.GetLabel(6937)"])
+        server._bind.assert_called_once_with(
+            13001, 9370, server._handle.return_value, "m1", ""
+        )
+        self.assertEqual(server.last, {13001: move})
+
+    def test_a_closed_dialog_drops(self) -> None:
+        self.props["moved_preview"] = "m1"
+        server = _server()
+        move = serve.Request("move", "preview", (9370,), "m1")
+        with (
+            patch.object(serve, "getCurrentWindowDialogId", return_value=13001),
+            patch.object(serve, "condition", return_value=False) as visible,
+        ):
+            self._run(server, move)
+        visible.assert_called_once_with("Window.IsVisible(13001)")
+        server._bind.assert_not_called()
+
+    def test_ring_move_rings_a_dialog_regions_lists(self) -> None:
+        calls = []
+        home = Mock(setProperty=lambda key, value: calls.append((key, value)))
+        with (
+            patch.object(serve, "Window", return_value=home),
+            patch.object(serve.xbmc, "executebuiltin", calls.append, create=True),
+        ):
+            serve.ring_move("preview")
+        (key, token), ring = calls
+        self.assertEqual(key, "moved_preview")
+        self.assertEqual(
+            ring, f"NotifyAll(script.copacetic.helper,move/preview/9370//{token})"
         )
 
     def test_a_moves_item_is_its_containers_now(self) -> None:
