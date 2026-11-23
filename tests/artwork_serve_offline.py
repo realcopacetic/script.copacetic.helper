@@ -7,7 +7,9 @@ the URL's raw value is it or it cut at "&" or "|" (a cut-off URL only on top, an
 one never), a family outranking it; multiart_first read from the serve's own item,
 not multiart_target's; the parser keeps art URLs raw and url_decode_path
 leaves a bare URL; a held serve names its position only for a move that stamped no
-visit; under Kodi's slideshow a run stops once its picture has moved on;
+visit; served, the cursor and visit come from the request, nothing is stamped or held
+and every serve names its identity; under Kodi's slideshow a run stops once its picture
+has moved on;
 the TV guide's time left (epg_time_left) from the programme's start and runtime,
 across midnight too, only while the URL's channel is on air and before its end.
 Run from the helper root:
@@ -55,22 +57,27 @@ PLEX = "https://plex/photo/x.jpg?width=500&X-Plex-Token=a%2Bb"
 class ArtworkServe(unittest.TestCase):
     """A serve of the focused item in view 50, its window on top unless a menu is."""
 
-    def serve(self, params: dict, on_top: bool = True, visit_ends: str = "") -> dict:
+    def serve(
+        self, params: dict, on_top: bool = True, visit_ends: str = "", **served
+    ) -> dict:
         """
         Run artwork() and report what it saw: logo, icon and label (the clearlogo and
         icon URLs and band label the image work got), family (the item the family was
-        read from), seeded and register (seed_multiart's family and fadelabel_id) and
-        items (what it returned).
+        read from), seeded, register and seed_item (seed_multiart's), props (the
+        window properties written) and items (what it returned).
 
         :param params: The URL's params past the fixed ones.
         :param on_top: Whether the serve's window is topmost (else a menu is).
         :param visit_ends: Where visit v1 gives way to v2: "images" or "seed".
+        :param served: A served run's superseded, again and cursors.
         :return: What it saw, by logo, icon, label, family, seeded, register and items.
         """
-        seen = {}
+        seen = {"props": {}}
         visit = "Window(home).Property(artwork_visit)"
         labels = {
             visit: "v1",
+            "Window(home).Property(artwork_cursor_primary)": "50/2/6/v0",
+            "Container(50).ListItem.DBID": "7",
             SOURCE: LOGO,
             ICON_SOURCE: ICON,
             f"$VAR[{VAR}]": PLEX,
@@ -86,7 +93,8 @@ class ArtworkServe(unittest.TestCase):
                 "prop_key": "9300",
                 "background_url": "fanart.jpg",
             }
-            | params
+            | params,
+            **served,
         )
         handler.__dict__["window_id"] = WINDOW
 
@@ -107,6 +115,7 @@ class ArtworkServe(unittest.TestCase):
         def seed(**kwargs):  # seed_multiart: None when its guard dies mid-seed
             seen["seeded"] = kwargs["multiart_dict"]
             seen["register"] = kwargs["fadelabel_id"]
+            seen["seed_item"] = kwargs["seed_item"]
             if visit_ends == "seed":
                 labels[visit] = "v2"
             return kwargs["art"] if kwargs["alive"]() else None
@@ -117,7 +126,9 @@ class ArtworkServe(unittest.TestCase):
                 infolabel=lambda label: labels.get(label, ""),
                 topmost_window_id=lambda: WINDOW if on_top else MENU,
                 focused_control_id=lambda window_id: 50,
-                window_property=lambda *a, **k: None,
+                window_property=lambda key, value="": seen["props"].update(
+                    {key: value}
+                ),
                 set_items=lambda items: items,
                 plugin_path=lambda name: name,
                 _info_open=lambda: False,
@@ -231,6 +242,49 @@ class ArtworkServe(unittest.TestCase):
         self.assertEqual(self.plex(**fav)["background"], "fav0.jpg")
 
     VISIT = {"visit": "v1", "multiart_fadelabel": "3400"}
+
+    SERVED = {"superseded": lambda: False, "again": mock.Mock()}
+
+    def identity(self, out: dict) -> str:
+        """The identity the serve named (current, for a plugin's)."""
+        return out["items"][0]["properties"]["identity"]
+
+    def test_a_served_settle_keeps_the_requests_cursor_and_visit(self):
+        cursor = {"cursors": {"primary": "50/2/6/v0"}}  # the live cursor, as rung
+        params = {"cursor_key": "primary"} | self.VISIT_REGISTER
+        out = self.serve(params, **self.SERVED, **cursor)
+        self.assertEqual(self.identity(out), "50/3/7/v0")
+        self.assertEqual(out["seed_item"], "3/7/v0")
+        self.assertNotIn("artwork_cursor_primary", out["props"])  # it stamps nothing
+        self.assertIn("background_blur_9300", out["props"])
+
+    def test_a_served_settle_whose_cursor_moved_writes_no_bridge(self):
+        cursor = {"cursors": {"primary": "50/3/7/v9"}}  # the live one is newer
+        out = self.serve({"cursor_key": "primary"}, **self.SERVED, **cursor)
+        self.assertEqual(self.identity(out), "50/3/7/v9")
+        self.assertNotIn("background_blur_9300", out["props"])
+
+    def test_a_served_move_reads_the_live_visit_and_stamps_nothing(self):
+        out = self.serve({"cursor_key": "primary"}, **self.SERVED)
+        self.assertEqual(self.identity(out), "50/3/7/v1")
+        self.assertNotIn("artwork_cursor_primary", out["props"])
+
+    def test_a_plugin_serve_still_stamps_its_cursor(self):
+        out = self.serve({"cursor_key": "primary", "visit": "v1"})
+        self.assertEqual(out["props"]["artwork_cursor_primary"], "50/3/7/v1")
+        props = out["items"][0]["properties"]
+        self.assertEqual(props["current"], props["identity"])
+
+    def test_a_stopped_served_serve_binds_nothing(self):
+        out = self.serve({"cursor_key": "primary"}, superseded=lambda: True)
+        self.assertIsNone(out["items"])  # no held item: the list keeps its own
+        self.assertNotIn("artwork_holds", out["props"])
+
+    def test_no_art_answers_none_either_way(self):
+        self.assertEqual(self.serve({"background_url": ""})["items"], [])
+        self.assertEqual(self.serve({"background_url": ""}, **self.SERVED)["items"], [])
+
+    VISIT_REGISTER = {"multiart_fadelabel": "3400"}
 
     def held(self, out: dict) -> bool:
         """Whether the serve returned a hold."""

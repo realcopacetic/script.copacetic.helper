@@ -43,6 +43,7 @@ def info_handler(
     superseded: Callable[[], bool] | None = None,
     again: Asker | None = None,
     query: str = "",
+    cursors: dict[str, str] | None = None,
 ) -> Callable | None:
     """
     The handler a request's `info` names, bound to a new PluginHandlers: the one
@@ -52,10 +53,11 @@ def info_handler(
     :param superseded: A served list's test for a newer arrival; None for a plugin.
     :param again: A served list's re-serve, for an answer that lands later.
     :param query: The raw query params were parsed from, for a handler that rereads it.
+    :param cursors: A served settle's cursor by region; None for a plugin.
     :return: Bound handler, or None for an unknown info.
     """
     from resources.lib.plugin.handlers import PluginHandlers  # imports this module
 
     info = (params.get("info") or "").strip().lower()
-    handlers = PluginHandlers(params, superseded, again, query)
+    handlers = PluginHandlers(params, superseded, again, query, cursors)
     return collect_info_handlers(handlers).get(info)

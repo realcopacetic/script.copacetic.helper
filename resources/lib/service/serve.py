@@ -24,8 +24,9 @@ from resources.lib.shared.utilities import infolabel, topmost_window_id
 KINDS = ("settle", "move")
 PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its query
 # Served list → the hidden label holding its params, in serving order: the favourite's
-# library item, which the others' favourite rows read, then details and the bar
-PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910}
+# library item, which the others' favourite rows read, then details, the bar, artwork
+# and the show logo
+PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910, 9300: 6930, 9301: 6931}
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
 # Seconds a probe may say wait before it counts as none: only a backstop, as each wait
@@ -55,6 +56,11 @@ class Request(NamedTuple):
         if self.kind == "settle":
             return "/".join(self.mark.split("/")[:3]) + "/"
         return self.mark
+
+    @property
+    def cursors(self) -> dict[str, str]:
+        """A settle's cursor by its region, for a handler that keeps it; a move's none."""
+        return {self.region: self.mark} if self.kind == "settle" else {}
 
     def live(self) -> bool:
         """Whether its cursor or token is still the skin's: no move has come since."""
@@ -247,7 +253,11 @@ class Server:
                 item = self._item(request)  # beside the probe: the item it was read for
                 again = Again(self, list_id, request.mark)
                 started = time.perf_counter()
-                items = self._handle(params, stale, again) if params != NONE else []
+                items = (
+                    self._handle(params, stale, again, request.cursors)
+                    if params != NONE
+                    else []
+                )
                 handled = time.perf_counter()
                 if items is None or stale():
                     return  # its guard stopped it, or a move came: a ring follows
@@ -345,7 +355,10 @@ class Server:
 
     @staticmethod
     def _handle(
-        params: str, superseded: Callable[[], bool], again: Again
+        params: str,
+        superseded: Callable[[], bool],
+        again: Again,
+        cursors: dict[str, str] | None = None,
     ) -> list[tuple] | None:
         """
         Run the handler a probe names, through plugin/main.py's dispatch; an error
@@ -354,6 +367,7 @@ class Server:
         :param params: The probe's text: info=…&… (a plugin URL's prefix is dropped).
         :param superseded: Whether a newer arrival has come, the guard's first test.
         :param again: Serves the list again for this arrival (TMDb's late answer).
+        :param cursors: The settle's cursor by region (Request.cursors).
         :return: Its items, none for an unknown info; None if its guard stopped it.
         """
         # Here, not at the top: the service loads without the plugin stack
@@ -363,7 +377,7 @@ class Server:
         query = params.removeprefix(PLUGIN)
         try:
             parsed = parse_plugin_argv(["", "", query], raw=ART_URLS)
-            handler = info_handler(parsed, superseded, again, query)
+            handler = info_handler(parsed, superseded, again, query, cursors)
             return handler() if handler else []
         except Exception:
             log.exception(f"Server → handler for {query}")
