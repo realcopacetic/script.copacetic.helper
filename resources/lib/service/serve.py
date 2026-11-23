@@ -36,7 +36,7 @@ WAIT_MAX = 30
 SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
 # 9300's multiart family turns on 9400: each slide's params are in its probe, and each
 # shows for the register's dwell it replaces, 4.8 s pause and 0.2 s fade
-ARTWORK, SLIDES, SLIDE_PROBE = 9300, 9400, 6940
+ARTWORK, SLIDES, SLIDE_PROBE = 9300, 9400, 6932
 DWELL = 5.0
 LEAD = 1.5  # seconds before its beat a slide is made: its params as late as they can be
 
