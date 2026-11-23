@@ -191,7 +191,10 @@ def _drain_asides() -> None:
                 _aside_workers[0] -= 1
                 return
             args = _aside_queue.popleft()
-        _aside(args)
+        try:
+            _aside(args)
+        except Exception:  # an asker's error: the worker goes on to the next item
+            log.exception(f"tmdb_to_canonical → aside {args}")
 
 
 def _aside(args: tuple) -> None:
@@ -201,15 +204,18 @@ def _aside(args: tuple) -> None:
 
     :param args: tmdb_to_canonical's positional args for the item.
     """
-    with _aside_lock:
-        askers = set(_asides[args][0])
-    wanted = not Monitor().abortRequested() and any(a.current() for a in askers)
     try:
-        item = tmdb_to_canonical(*args) if wanted else None
+        with _aside_lock:  # the skip and its drop in one hold: no asker joins between
+            if Monitor().abortRequested() or not any(
+                asker.current() for asker in _asides[args][0]
+            ):
+                del _asides[args]
+                return
+        item = tmdb_to_canonical(*args)
     except Exception:  # its own thread: nothing above it would log
         log.exception(f"tmdb_to_canonical → aside {args}")
         item = None
-    with _aside_lock:
+    with _aside_lock:  # freed however the fetch ended
         askers, stale = _asides.pop(args)
     if item is not None and item != stale:
         for asker in askers:
