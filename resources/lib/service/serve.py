@@ -221,7 +221,7 @@ class Server:
         self.heard = 0.0  # when the newest request arrived, for the log
         self.last = {}  # window id → its last arrival, for a move with no lists
         self.finished = None  # the last request served whole: a repeat does nothing
-        self.blanks = set()  # served lists last bound with the blank item
+        self.blanks = set()  # (window id, list) last bound blank from a none probe
         self.turn, self.handed = None, Event()  # the family 9300 last bound, and news
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
@@ -374,9 +374,9 @@ class Server:
                         window_id, list_id, items, request.current, item, opened or ""
                     )
                     if params == NONE:  # a none Kodi may fill later (late art)
-                        self.blanks.add(list_id)
+                        self.blanks.add((window_id, list_id))
                     else:
-                        self.blanks.discard(list_id)
+                        self.blanks.discard((window_id, list_id))
                     if list_id == ARTWORK:
                         self._hand(Turn(request, window_id, *self._family(items)))
                     log.debug(
@@ -482,7 +482,7 @@ class Server:
                     infolabel(f"Container({list_id}).ListItem.Property(current)")
                     == request.current
                     # The blank answered a none: art landing late (a reload) asks again
-                    and (list_id not in self.blanks or probe == NONE)
+                    and ((window_id, list_id) not in self.blanks or probe == NONE)
                 )
                 for list_id in request.lists
             )
