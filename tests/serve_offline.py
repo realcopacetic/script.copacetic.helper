@@ -31,10 +31,11 @@ Home's); a dialog's binds name its open; an again asks its own window's last arr
 the topmost served by default; a move rung again rings, and serves only the lists not
 bound for its token and those a late answer fills; a dialog list whose guard stopped
 is read again once. The typewriter (9020) comes last: its handler starts the line on a
-thread of its own and answers at once (a plugin call types it inline); the line types
-on through an again and ends with its arrival; the same arrival's line, label and all,
-stands until the skin retires it (scroll), for a repeat too; an again asks the line
-too; a request's liveness takes no graphics lock.
+thread of its own and answers at once (a plugin call types it inline); only the
+service's stop ends a line from here (its lease and guard do the rest); the same line,
+item and label, stands through a new mark until its lease is no longer its run's (a
+stopped line hands it back), and a repeat serves only a retired line; an again asks
+the line too, after a serve that has passed it; live() reads the kept Home.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -951,56 +952,119 @@ TYPED = "info=typewriter&target_id=4020&label=Heat • 1995"
 LINE = SETTLE._replace(lists=(9010, 9020))
 
 
+class _Home(dict):
+    """Home's properties, as a Window(10000) reads and writes them."""
+
+    def getProperty(self, key: str) -> str:
+        return self.get(key, "")
+
+    def setProperty(self, key: str, value: str) -> None:
+        self[key] = value
+
+
 class TypewriterTest(unittest.TestCase):
-    """9020 last: its line starts on its own thread and types until its arrival ends."""
+    """9020 last: its line starts on its own thread and stands while its params do."""
 
     setUp, tearDown, _run = ServeTest.setUp, ServeTest.tearDown, ServeTest._run
 
-    def test_its_line_ends_with_its_arrival_not_an_again(self) -> None:
+    def _standing(self, retired: bool = False):
+        return patch.object(
+            helpers.TypewriterAnimation, "retired", return_value=retired
+        )
+
+    def test_only_the_services_stop_ends_a_line_here(self) -> None:
         server = _server(PARAMS, TYPED)
         self._run(server, LINE)
         bar, line = (c.args[1] for c in server._handle.call_args_list)
-        server.request = LINE._replace(lists=(9000,), again=True)  # a late answer
-        self.assertTrue(bar())  # a list's serve is over
-        self.assertFalse(line())  # the line types on
         server.request = SETTLE._replace(mark="54/4/13/v")  # the next arrival
-        self.assertTrue(line())
-        server.request = LINE
-        self.props["artwork_cursor_primary"] = "54/4/13/v"  # a move, before its ring
+        self.props["artwork_cursor_primary"] = "54/4/13/v"
+        self.assertTrue(bar())  # a list's serve is over
+        self.assertFalse(line())  # the line's lease and guard stop it, not this
+        server.stopped = True
         self.assertTrue(line())
 
-    def test_the_same_arrivals_line_stands(self) -> None:
+    def test_the_same_line_stands_a_new_mark_too(self) -> None:
         server = _server(TYPED)
         self._run(server, LINE._replace(lists=(9020,)))
-        self.assertEqual(server.typed, (CURSOR, 10025, TYPED))
+        self.assertEqual(server.typed, (10025, TYPED))
         server._handle.reset_mock(), server._bind.reset_mock()
-        self._run(server, LINE._replace(lists=(9020,), again=True))
+        self.props["artwork_cursor_primary"] = "54/3/12/v2"
+        with self._standing():  # Search's next key: a new mark, the same item
+            self._run(server, LINE._replace(lists=(9020,), mark="54/3/12/v2"))
         server._handle.assert_not_called(), server._bind.assert_not_called()
         server.probes = [TYPED.replace("Heat", "Heat (1995)")]  # its label changed
-        self._run(server, LINE._replace(lists=(9020,), again=True))
+        with self._standing():
+            self._run(server, LINE._replace(lists=(9020,), mark="54/3/12/v2"))
         server._handle.assert_called_once()
+
+    def test_a_started_line_stands_unbound(self) -> None:
+        server = _server(TYPED)
+        server._handle.side_effect = (
+            lambda *a: self.props.update(
+                artwork_cursor_primary="54/4/13/v"  # a move lands as it starts
+            )
+            or []
+        )
+        self._run(server, LINE._replace(lists=(9020,)))
+        server._bind.assert_not_called()
+        self.assertEqual(server.typed, (10025, TYPED))
 
     def test_a_retired_line_types_again(self) -> None:
         server = _server(TYPED)
         request = LINE._replace(lists=(9020,))
         self._run(server, request)
-        reads = lambda label: server.bound if "Property(current)" in label else TYPED
-        retired = patch.object(
-            helpers.TypewriterAnimation, "retired", return_value=True
-        )
-        with patch.object(serve, "infolabel", side_effect=reads):
-            self.assertTrue(server._repeat(request, 10025))  # its line stands
-            with retired:
-                self.assertFalse(server._repeat(request, 10025))  # scroll: it's out
-        with retired:
-            self._run(server, request._replace(again=True))
-        self.assertEqual(server._handle.call_count, 2)  # the same arrival types again
+        self.props["artwork_cursor_primary"] = "54/3/12/v2"
+        with self._standing(retired=True):
+            self._run(server, request._replace(mark="54/3/12/v2"))
+        self.assertEqual(server._handle.call_count, 2)
 
-    def test_retired_reads_its_probes_control(self) -> None:
-        with patch.object(helpers, "infolabel", return_value="scroll") as read:
-            self.assertTrue(serve.Server._retired(f"{serve.PLUGIN}{TYPED}"))
-        read.assert_called_once_with("Window(home).Property(typewriter_current_4020)")
-        self.assertFalse(serve.Server._retired("none"))
+    def test_a_repeat_serves_only_its_retired_line(self) -> None:
+        server = _server(PARAMS, TYPED)
+        self._run(server, LINE)
+        reads = lambda label: server.bound if "Property(current)" in label else TYPED
+        with patch.object(serve, "infolabel", side_effect=reads):
+            self.assertTrue(server._repeat(LINE, 10025))  # the line isn't asked
+        server._handle.reset_mock()
+        with self._standing():
+            self._run(server, LINE)  # a repeat: nothing
+        server._handle.assert_not_called()
+        server.probes = [TYPED]
+        with self._standing(retired=True):
+            self._run(server, LINE)
+        server._handle.assert_called_once()  # 9020 alone, as an again
+        self.assertEqual(server._bind.call_args.args[1], 9020)
+        self.assertEqual(server.last[10025], LINE)
+        self.assertEqual(server.finished, LINE)
+
+    def test_retired_is_any_lease_but_its_runs(self) -> None:
+        home = _Home()
+        with patch.object(helpers, "Window", return_value=home):
+            line = helpers.TypewriterAnimation(control_id=4020, window_id=10025)
+            token = line.claim()
+            self.assertFalse(serve.Server._retired(f"{serve.PLUGIN}{TYPED}"))
+            for lease in ("scroll", "t2"):  # the skin's retire, another run's
+                home["typewriter_current_4020"] = lease
+                self.assertTrue(serve.Server._retired(TYPED))
+            home["typewriter_current_4020"] = token
+            self.assertFalse(serve.Server._retired("none"))  # it names no line
+
+    def test_a_stopped_line_hands_its_lease_back(self) -> None:
+        home = _Home()
+        monitor = Mock(**{"abortRequested.return_value": False})
+        monitor.waitForAbort.return_value = False
+        windows = {10000: home, 10025: Mock()}
+        took = lambda: home.setProperty("typewriter_current_4020", "t2") or False
+        with (
+            patch.object(helpers, "Window", side_effect=lambda i: windows[i]),
+            patch.object(helpers, "Monitor", return_value=monitor),
+            patch.object(helpers, "topmost_window_id", return_value=10025),
+        ):
+            line = helpers.TypewriterAnimation(control_id=4020, window_id=10025)
+            line.update(label="A", opts=Mock(), alive=lambda: False)  # lost focus
+            self.assertEqual(home["typewriter_current_4020"], "scroll")
+            windows[10025].getControl.return_value.setText.assert_called_with("")
+            line.update(label="A", opts=Mock(), alive=took)  # another run took it
+            self.assertEqual(home["typewriter_current_4020"], "t2")
 
     def test_an_again_asks_the_line_too(self) -> None:
         server = _server()
@@ -1013,7 +1077,31 @@ class TypewriterTest(unittest.TestCase):
             LINE._replace(lists=(9000, 9020), again=True)
         )
 
-    def test_live_reads_no_graphics_lock(self) -> None:
+    def test_an_again_while_the_line_waits_serves_once_after(self) -> None:
+        server = _server()
+        server._ring = Mock()
+        request = LINE._replace(lists=(9000, 9020))
+        server.request = request
+        probes = [PARAMS, serve.WAIT, TYPED]
+
+        def reads(label: str) -> str:
+            if "Property(current)" in label:
+                return server.bound
+            value = probes.pop(0) if len(probes) > 1 else probes[0]
+            if value == serve.WAIT:
+                server.again(9000)  # TMDb answers 9000 while 9020 waits
+            return value
+
+        with patch.object(serve, "infolabel", side_effect=reads):
+            server._serve(request)
+        server._ring.assert_called_once_with(request._replace(again=True))
+        server._handle.reset_mock()
+        server.request = again = request._replace(again=True)
+        with patch.object(serve, "infolabel", return_value=TYPED), self._standing():
+            server._serve(again)
+        self.assertEqual(server._handle.call_count, 1)  # 9000; the line stands
+
+    def test_live_reads_the_kept_home(self) -> None:
         with patch.object(serve, "home_property", return_value=CURSOR) as read:
             self.assertTrue(SETTLE.live())
         read.assert_called_once_with("artwork_cursor_primary")
