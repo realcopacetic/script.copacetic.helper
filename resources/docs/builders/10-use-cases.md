@@ -270,16 +270,16 @@ The skin has several places that show "the current item": the media view (**prim
 }
 ```
 
-Static: nothing stored, no editor. `tokens` are the mapping-wide defaults; `metadata` is what differs per place. The widgets and search mappings declare the *same token names* (`guard`, `listitem`, `updating`, …) with their own grammar — `Container({index}).ListItem`, `Control.HasFocus({index}) | $EXP[search_preview_{index}]` — so a template written against those names works for all of them.
+Static: nothing stored, no editor. `tokens` are the mapping-wide defaults; `metadata` is what differs per place. The widgets and search mappings declare the *same token names* (`guard`, `listitem`, `hasfocus`, …) with their own grammar — `Container({index}).ListItem`, `Control.HasFocus({index}) | $EXP[search_preview_{index}]` — so a template written against those names works for all of them.
 
-### One template, four families
+### One template, five families
 
 ```json
-"container_updating_{region}": {
-  "templates_from": [ "regions", "widgets", "search", "views" ],
+"container_hasfocus_{region}": {
+  "templates_from": [ "regions", "widgets", "search", "infoscreen", "views" ],
   "index": { "start": 3200 },
   "filter": "{id_filter}",
-  "rules": [ { "type": "append", "value": "{updating}" } ]
+  "rules": [ { "type": "append", "value": "{hasfocus}" } ]
 }
 ```
 
@@ -287,10 +287,11 @@ What comes out:
 
 | Borrowed from | `{region}` is | Output |
 |---|---|---|
-| regions (primary and secondary, via `id_filter`) | the item name | `container_updating_secondary` = `Container(3100).IsUpdating`; `container_updating_primary` = `$EXP[container_updating_views]` |
-| widgets | the token `"widgets"` | `container_updating_widgets` = one `[…]` per configured widget, ORed |
-| search | the token `"search"` | `container_updating_search` = one per rail, ORed |
-| views | the token `"views"` | `container_updating_views` = `Container(50).IsUpdating | … | Container(57).IsUpdating` |
+| regions (primary and secondary, via `id_filter`) | the item name | `container_hasfocus_secondary` = `Control.HasFocus(3100) | Control.HasFocus(4100) | Control.HasFocus(4605)`; `container_hasfocus_primary` = `$EXP[container_hasfocus_views] | $EXP[jumpbar_hasfocus]` |
+| widgets | the token `"widgets"` | `container_hasfocus_widgets` = one `[…]` per configured widget, ORed |
+| search | the token `"search"` | `container_hasfocus_search` = one per rail, ORed |
+| infoscreen | the token `"infoscreen"` | `container_hasfocus_infoscreen` = one per info dialog rail, ORed |
+| views | the token `"views"` | `container_hasfocus_views` = `Control.HasFocus(50) | … | Control.HasFocus(57) | …` |
 
 The last row is the trick worth learning: the views mapping's key is `layout`, so its passes have no `{region}` — it sets `"region": "views"` as a *token*, so all eight view containers land under one name and `append` rolls them up. The rollup falls out of the same rule as everyone else's — no separate template — and primary's metadata simply points at it.
 
