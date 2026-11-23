@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from functools import cache, cached_property, partial
 from itertools import islice
 from operator import itemgetter
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from xbmc import Monitor, getLocalizedString
 from xbmcgui import Window, getCurrentWindowDialogId, getCurrentWindowId
@@ -110,6 +110,9 @@ from resources.lib.shared.utilities import (
     topmost_window_id,
     window_property,
 )
+
+if TYPE_CHECKING:
+    from resources.lib.apis.tmdb.transform import Asker
 
 # The playing song's identity for target=player, by labels a plugin URL carries
 # intact (a path or title can hold "&key=" or a "|", which cut it): its id, and its
@@ -330,7 +333,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self,
         params: dict[str, str],
         superseded: Callable[[], bool] | None = None,
-        again: Callable[[], None] | None = None,
+        again: Asker | None = None,
         query: str = "",
     ) -> None:
         self.params = params
@@ -533,7 +536,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         append_artwork: bool,
         cache_only: bool = False,
         target: str | None = None,
-        aside: Callable[[], None] | None = None,
+        aside: Asker | None = None,
     ) -> dict[str, Any] | None:
         """Resolve TMDb canonical item for the current listitem; sets _tmdb_key to its
         kind:tmdb_id once resolved.

@@ -8,7 +8,6 @@ coding-notes/copacetic/features/served-focus-calls.md.
 """
 
 import time
-from functools import partial
 from threading import Event, RLock, Thread
 from typing import Callable, NamedTuple
 
@@ -61,6 +60,25 @@ class Request(NamedTuple):
         """Whether its cursor or token is still the skin's: no move has come since."""
         prop = "artwork_cursor" if self.kind == "settle" else "moved"
         return Window(10000).getProperty(f"{prop}_{self.region}") == self.mark
+
+
+class Again(NamedTuple):
+    """
+    A served list's re-serve for its arrival, once a late answer lands (TMDb's);
+    equal for one list and arrival, so a repeat serve asks once.
+    """
+
+    server: "Server"
+    list_id: int
+    mark: str
+
+    def __call__(self) -> None:
+        """Serve the list again, if its arrival is still the window's last one."""
+        self.server.again(self.list_id, self.mark)
+
+    def current(self) -> bool:
+        """Whether its arrival is still the window's last one, so worth fetching for."""
+        return self.server.current(self.mark)
 
 
 def move_token(*regions: str) -> str:
@@ -147,12 +165,7 @@ class Server:
         with self.lock:
             last = self.last.get(getCurrentWindowId())
             pending = self.request
-            if (
-                not last
-                or list_id not in last.lists
-                or mark not in ("", last.mark)
-                or pending.mark != last.mark  # a newer ring: it serves the list anyway
-            ):
+            if not (last and list_id in last.lists and self.current(mark or last.mark)):
                 return
             if self.finished is last:  # this list, and those of an again in flight
                 wanted = {list_id, *(pending.lists if pending.again else ())}
@@ -160,6 +173,18 @@ class Server:
             else:  # the arrival is still being served: all of it again
                 lists = last.lists
             self._ring(last._replace(lists=lists, again=True))
+
+    def current(self, mark: str) -> bool:
+        """
+        Whether an arrival is the active window's last one, with no newer ring
+        waiting (which serves its lists anyway).
+
+        :param mark: The arrival's mark.
+        :return: True while it is.
+        """
+        with self.lock:
+            last = self.last.get(getCurrentWindowId())
+            return bool(last) and last.mark == mark == self.request.mark
 
     def _ring(self, request: Request) -> None:
         """
@@ -220,7 +245,7 @@ class Server:
                 if not params:
                     break  # not mounted in this window
                 item = self._item(request)  # beside the probe: the item it was read for
-                again = partial(self.again, list_id, request.mark)
+                again = Again(self, list_id, request.mark)
                 started = time.perf_counter()
                 items = self._handle(params, stale, again) if params != NONE else []
                 handled = time.perf_counter()
@@ -320,7 +345,7 @@ class Server:
 
     @staticmethod
     def _handle(
-        params: str, superseded: Callable[[], bool], again: Callable[[], None]
+        params: str, superseded: Callable[[], bool], again: Again
     ) -> list[tuple] | None:
         """
         Run the handler a probe names, through plugin/main.py's dispatch; an error
