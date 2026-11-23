@@ -29,9 +29,9 @@ PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its quer
 PROBES = {9040: 6904, 9000: 6900, 9100: 6901, 9010: 6910}
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
-# Seconds a probe may say wait before it counts as none: a backstop, as each wait
-# row ends with the state it waits on
-WAIT_MAX = 5
+# Seconds a probe may say wait before it counts as none: only a backstop, as each wait
+# row ends with the state it waits on (a slow Search rail can take several seconds)
+WAIT_MAX = 30
 SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
 
 
