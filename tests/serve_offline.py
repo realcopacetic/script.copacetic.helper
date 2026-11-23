@@ -227,6 +227,19 @@ class ServeTest(unittest.TestCase):
             server.bound = ""  # 9010 emptied by a skin reload: serve again
             self.assertFalse(server._repeat(settle._replace()))
 
+    @patch.dict(serve.PROBES, {9000: 6900})
+    def test_a_finished_again_leaves_the_next_one_its_own_list(self) -> None:
+        server = _server()
+        arrival = SETTLE._replace(lists=(9000, 9010))
+        self._run(server, arrival)
+        self._run(server, arrival._replace(lists=(9010,), again=True))
+        self.assertIs(server.request, arrival)  # done: the window's last arrival
+        server._ring = Mock()
+        server.again(9000)  # not 9010 again: that again has ended
+        server._ring.assert_called_once_with(
+            arrival._replace(lists=(9000,), again=True)
+        )
+
     def test_a_move_is_never_a_repeat(self) -> None:
         server = _server()
         move = serve.Request("move", "primary", (9010,), "m1")
