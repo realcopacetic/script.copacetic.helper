@@ -291,10 +291,10 @@ class Server:
                     return  # its guard stopped it, or a move came: a ring follows
                 if topmost_window_id() == window_id:
                     self._bind(window_id, list_id, items, request.current, item)
-                    if items:
-                        self.blanks.discard(list_id)
-                    else:
+                    if params == NONE:  # a none Kodi may fill later (late art)
                         self.blanks.add(list_id)
+                    else:
+                        self.blanks.discard(list_id)
                     if list_id == ARTWORK:
                         self._hand(Turn(request, window_id, *self._family(items)))
                     log.debug(
