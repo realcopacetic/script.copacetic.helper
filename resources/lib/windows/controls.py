@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from xbmcgui import (
     ACTION_MOVE_DOWN,
@@ -27,7 +28,8 @@ if TYPE_CHECKING:
 class LockedCalls:
     """
     GUI writes that take Kodi's GUI lock, each waiting for the main thread's
-    once-a-frame window for Python (Application.cpp:1849-1860): counted for the log.
+    once-a-frame window for Python (Application.cpp:1849-1860), and the editor's
+    ring_move (its Home property): counted for the editor's timing log.
     """
 
     count = 0
@@ -377,6 +379,9 @@ class BaseControlHandler:
 
     def update_value(self) -> None:
         """Hook: sync the control instance to the selected entry's value."""
+
+    def pressed(self) -> None:
+        """Hook: a Select reached this control, which Kodi may have redrawn itself."""
 
     def update_visibility(self, focused_control_id: int) -> None:
         """
@@ -800,17 +805,17 @@ class EditHandler(BaseControlHandler):
         :param a_id: Kodi action ID.
         """
         # Compare before filtering: leaving an unchanged field must not rewrite it
-        value = self.instance.getText().strip()
-        if value == self._cached_text:
-            return
-        if self.control.get("plain_text"):
-            value = "".join(c for c in value if c.isalnum() or c == " ").strip()
+        text = self.instance.getText()
+        value = text.strip()
+        if value != self._cached_text:
+            if self.control.get("plain_text"):
+                value = "".join(c for c in value if c.isalnum() or c == " ").strip()
+            self._cached_text = value
+            self._set_setting_value(value)
+            self.parent._build_dicts()
+            self.parent._refresh_list_row(self.parent.container_position)
+        if value != text:  # shown as saved: stripped, filtered for plain text
             self.instance.setText(value)
-
-        self._cached_text = value
-        self._set_setting_value(value)
-        self.parent._build_dicts()
-        self.parent._refresh_list_row(self.parent.container_position)
 
     def update_value(self) -> None:
         """Reflect the effective value: stored, else the metadata fallback."""
@@ -857,17 +862,12 @@ class RadioButtonHandler(BaseControlHandler):
         super().__init__(control, instance, runtime_manager)
         self._selected = None
 
-    def handle_interaction(self, focused_control_id: int, a_id: int) -> None:
+    def pressed(self) -> None:
         """
-        Forget the drawn state on a press, which Kodi flips before Python runs, so
-        the refresh after it sets it again from what is stored (a cancelled confirm).
-
-        :param focused_control_id: ID of the control the action applied to.
-        :param a_id: Kodi action ID.
+        Forget the drawn state: Kodi flips it on the press before Python runs, so the
+        refresh after sets it again from what is stored (a cancelled confirm).
         """
-        if a_id == ACTION_SELECT_ITEM:
-            self._selected = None
-        super().handle_interaction(focused_control_id, a_id)
+        self._selected = None
 
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:
         """
