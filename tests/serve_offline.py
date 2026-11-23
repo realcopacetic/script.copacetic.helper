@@ -261,7 +261,7 @@ class ServeTest(unittest.TestCase):
     def test_a_blank_holds_only_a_none_its_probe_still_says(self) -> None:
         server = _server(serve.NONE)  # art not yet loaded (a skin reload): none
         self._run(server, SETTLE)
-        self.assertEqual(server.blanks, {9010})
+        self.assertEqual(server.blanks, {(10025, 9010)})
         self._run(server, SETTLE._replace())  # still none: a repeat
         server._handle.assert_not_called()
         server.probes = [PARAMS]  # the art landed: the same cursor rings again
