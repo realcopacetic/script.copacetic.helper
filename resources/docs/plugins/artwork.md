@@ -413,18 +413,11 @@ library artwork:
   cached earlier keeps its lists until it is next fetched from TMDB; *Clear add-on
   cache* applies the rule at once.
 - From the TMDB cache only, which [`metadata`](metadata.md#metadata) with
-  `tmdb_art=true` fills for the same item and language. An item not cached yet gets its library
-  artwork only, and this serve notes the miss in the Home window property
-  `tmdb_art_missed`. When `metadata` then caches TMDB art of that type for the same
-  item, with the item still focused and no dialog open, it sets the Home window property
-  `tmdb_art_ready` (`<kind>:<tmdb_id>`). Put that in the URL,
-  `$INFO[Window(home).Property(tmdb_art_ready),&tmdb_ready=]`, and Kodi reruns the serve
-  once, which then adds the extras. That rerun keeps the art on screen, except with
-  `multiart_target` when the family had one image: the extras make it two or more, and
-  its first slide becomes the backdrop. The result's `tmdb_swap` property names the
-  miss (`<kind>:<tmdb_id>`) whenever the family had fewer than two images (a family of
-  none gets no extras, so its rerun changes nothing), so equal to `tmdb_art_ready` it
-  marks the running job as a rerun that can change the backdrop.
+  `tmdb_art=true` fills for the same item and language. An item not cached yet gets its
+  library artwork only, and its next serve adds the extras. A serve the helper's
+  service runs (a served list, not a plugin call) also fetches a missing or stale item
+  from TMDB on a thread of its own, and serves the list again once it lands, if that
+  item is still the one focused.
 - For movies and TV shows with a TMDB id. Episodes use their show's artwork.
 - A `tvshow.` type adds TMDB artwork of the plain type: `tvshow.fanart` adds TMDB
   `fanart`.
@@ -529,16 +522,16 @@ When the container position is known, the list item carries:
 | Property | Value |
 |---|---|
 | `current` | Which item this result is for (see below). |
+| `identity` | The same value as `current`. A served list's bind replaces `current` with the arrival it answers, so readers that compare the item and its visit read `identity`. |
 | `current_pos` | The container position (`CurrentItem`) this result is for. |
 | `previous`, `next` | `<container>/<position>` of the items either side. Positions wrap around when the container has more than one item. |
 | `previous_pos`, `next_pos` | The positions either side, on their own. |
-| `tmdb_swap` | The TMDB miss whose rerun changes this item's backdrop (see [Multiart](#multiart-1)), else empty. |
 
 The container is `target` when passed. Without `target`, it is the first `/`
 segment of `Window(home).Property(artwork_cursor_<cursor_key>)`, or the id of the
 focused control when that property is empty. With `target=item` there is no position,
 so none of these properties are set. With `target=player` there is none either, but
-`current` is set, to `player//<file><id>` (the playing file and `MusicPlayer.DBID`): two
+`current` (and `identity`) is set, to `player//<file><id>` (the playing file and `MusicPlayer.DBID`): two
 calls for the same song carry the same value, so a slide's serve can be matched to the
 song's. When a modal dialog is over the window as a container call starts, the
 position is not read (Python's reads would answer for the dialog): `current` is then
