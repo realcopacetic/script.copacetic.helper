@@ -84,7 +84,7 @@ class ArtworkCacheManager:
             suffix=suffix,
             cached_thumb=cached_thumb,
             cached_image_path=cached_image_path,
-            cached_file_hash=self.hash_manager.compute_hash(cached_image_path),
+            cached_file_hash=self.hash_manager.kept_hash(cached_image_path),
             cache_key=url,
             dest_thumb=cached_thumb,
         )
