@@ -1,6 +1,8 @@
 # author: realcopacetic
 
 import copy
+import time
+from functools import partial
 
 import xbmcgui
 from xbmcgui import (
@@ -17,7 +19,7 @@ from resources.lib.service.serve import ring_move
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, infolabel, window_property
 from resources.lib.windows.control_factory import DynamicControlFactory
-from resources.lib.windows.controls import ButtonHandler
+from resources.lib.windows.controls import ButtonHandler, LockedCalls
 
 
 class DynamicEditor(xbmcgui.WindowXMLDialog):
@@ -43,6 +45,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.host_focus = None
         self.focus_item = None
         self.controls_from = []
+        self.ring = None
 
         self.runtime_manager = RuntimeStateManager.from_templates()
         # Snapshot here, not in onInit — the post-doModal rebuild comparison
@@ -54,6 +57,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self.dynamic_controls = {}
         self.container_position = -1
         self.current_listitem = None
+        # What each row and the description show: a write waits for a frame (controls)
+        self._rows_shown = {}
+        self._description = None
         self._prev_focus_id = -1
         self._page_changed = False
         self._page_locked = False
@@ -269,68 +275,91 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         }
 
     def _apply_row_visuals(
-        self, li: xbmcgui.ListItem, item: dict, runtime_id: str
-    ) -> None:
+        self, li: xbmcgui.ListItem, item: dict, runtime_id: str, shown: dict
+    ) -> bool:
         """
-        Resolve and apply a row's label and icon via ``format_metadata``,
-        so each supports a metadata, config, or override value identically.
+        Resolve a row's label and icon via ``format_metadata``, so each supports a
+        metadata, config, or override value identically, and its properties; write
+        only what differs from what the row shows.
 
         :param li: List item to populate.
         :param item: Merged listitem definition (template + entry).
         :param runtime_id: Stable id stored as the row's content_id.
+        :param shown: What the row shows, updated in place.
+        :return: Whether anything was written.
         """
-        li.setProperty("content_id", runtime_id)
         mk, idx = item["mapping"], item["runtime_index"]
-        li.setLabel(
-            self.runtime_manager.format_metadata(
-                mk, idx, item.get("label", ""), localize=True
-            )
-            or ""
-        )
-        if raw_icon := item.get("icon"):
-            icon = self.runtime_manager.format_metadata(
-                mk, idx, raw_icon, localize=True
-            )
-            li.setArt({"icon": icon})
-
+        fmt = partial(self.runtime_manager.format_metadata, mk, idx, localize=True)
+        label = fmt(item.get("label", "")) or ""
+        # A row with no icon template keeps the art it has
+        icon = fmt(raw_icon) if (raw_icon := item.get("icon")) else shown.get("icon")
         # Expose resolved entry (metadata + stored + config defaults) as properties
-        for key, value in self.runtime_manager.resolved_entry(mk, idx).items():
-            if isinstance(value, str):
-                li.setProperty(key, value)
+        properties = {"content_id": runtime_id} | {
+            key: value
+            for key, value in self.runtime_manager.resolved_entry(mk, idx).items()
+            if isinstance(value, str)
+        }
+        shown_properties = shown.setdefault("properties", {})
+        writes = [
+            (li.setProperty, key, value)
+            for key, value in properties.items()
+            if shown_properties.get(key) != value
+        ]
+        if label != shown.get("label"):
+            writes.append((li.setLabel, label))
+        if icon != shown.get("icon"):
+            writes.append((li.setArt, {"icon": icon}))
+        for setter, *args in writes:
+            LockedCalls.write(setter, *args)
+        shown.update(label=label, icon=icon)
+        shown_properties.update(properties)
+        return bool(writes)
 
     def _refresh_list(self) -> None:
         """
-        Rebuild the left-hand list from `self.listitems` and sync dynamic controls; the
-        view settings preview's backdrop follows the rows (a ring, served a settle on).
+        Rebuild the left-hand list from `self.listitems`, then ring the region the
+        skin opted in to (``ring``), which follows the selected row.
         """
         self._list_container.reset()
-        for runtime_id, item in self.listitems.items():
+        self._rows_shown = {}
+        for idx, (runtime_id, item) in enumerate(self.listitems.items()):
             li = xbmcgui.ListItem()
-            self._apply_row_visuals(li, item, runtime_id)
+            shown = self._rows_shown[idx] = {}
+            self._apply_row_visuals(li, item, runtime_id, shown)
             self._list_container.addItem(li)
-        ring_move("preview")
+        self._ring()
 
-    def _refresh_list_row(self, idx: int) -> None:
+    def _refresh_list_row(self, idx: int, moved: bool = False) -> None:
         """
-        Redraw the label and icon for row `idx` from runtime_state metadata, and ring
-        the preview's backdrop as _refresh_list does.
+        Redraw row `idx` where its label, icon or properties changed, then ring
+        (``ring``) once if the selection moved to it or it changed.
 
         :param idx: Row index in the list control.
+        :param moved: True when the selection has just moved to this row.
         """
         keys = list(self.listitems.keys())
         if idx < 0 or idx >= len(keys):
             return
         runtime_id = keys[idx]
         li = self._list_container.getListItem(idx)
-        self._apply_row_visuals(li, self.listitems[runtime_id], runtime_id)
-        ring_move("preview")
+        shown = self._rows_shown.setdefault(idx, {})
+        changed = self._apply_row_visuals(
+            li, self.listitems[runtime_id], runtime_id, shown
+        )
+        if moved or changed:
+            self._ring()
+
+    def _ring(self) -> None:
+        """Ring the served region the skin named (``ring``), if any, for a move."""
+        if self.ring:
+            LockedCalls.write(ring_move, self.ring)  # its token, a Home property
 
     def _refresh_ui(self, update_row: bool = True, focus_id: int | None = None) -> None:
         """
         Update all dynamic handlers and bottom description for current slot.
 
         :param update_row: Flag determining whether the current row's label should be updated.
-        :param focus_id: Control taking focus, when a queued SetFocus hasn't landed yet.
+        :param focus_id: Control with focus when known (onAction's, a queued SetFocus).
         """
         if self.current_listitem is None or self.current_listitem not in self.listitems:
             return
@@ -343,7 +372,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         locked = not any(h.focusable for h in self.handlers.values())
         if locked != self._page_locked:
             self._page_locked = locked
-            self.setProperty("page_locked", "true" if locked else "")
+            LockedCalls.write(self.setProperty, "page_locked", "true" if locked else "")
         if update_row:
             self._refresh_list_row(self.container_position)
 
@@ -386,7 +415,10 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 item.get("description", ""),
                 localize=True,
             )
-        self._description_label.setText(desc or "")
+        desc = desc or ""
+        if desc != self._description:
+            self._description = desc
+            self._description_label.setText(desc)
 
     def _update_mgmt_buttons(self) -> None:
         """Enable/disable mutation buttons based on list position and size."""
@@ -396,23 +428,44 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         has_items = bool(self.listitems)
         n = len(self.listitems)
-        m["btn_delete"]["btn"].setEnabled(n > 1)
-        m["btn_up"]["btn"].setEnabled(has_items and self.container_position > 0)
-        m["btn_down"]["btn"].setEnabled(has_items and self.container_position < n - 1)
+        for key, enabled in (
+            ("btn_delete", n > 1),
+            ("btn_up", has_items and self.container_position > 0),
+            ("btn_down", has_items and self.container_position < n - 1),
+        ):
+            # As BaseControlHandler.set_enabled: an unchanged state isn't written
+            if m[key].get("enabled") != enabled:
+                m[key]["enabled"] = enabled
+                LockedCalls.write(m[key]["btn"].setEnabled, enabled)
 
     def _refresh_handlers_after_mapping_change(self) -> None:
         """
         Re-evaluate all handler values and visibility after a preset change,
         resetting any field values that are no longer valid.
         """
+        focus_id = self.getFocusId()
         for h in self.handlers.values():
-            h.refresh_after_mapping_item_change(self.getFocusId())
+            h.refresh_after_mapping_item_change(focus_id)
         self._refresh_list_row(self.container_position)
 
     def onAction(self, action: xbmcgui.Action) -> None:
         """
-        Called by Kodi when the user performs an action.
-        Routes interactions to list or control handlers and management buttons.
+        Called by Kodi when the user performs an action; logs at debug how long the
+        action took and how many locked writes it made, each up to a frame's wait.
+
+        :param action: xbmcgui.Action object.
+        """
+        start, LockedCalls.count = time.perf_counter(), 0
+        self._on_action(action)
+        log.debug(
+            f"{self.__class__.__name__} → action {action.getId()}: "
+            f"{(time.perf_counter() - start) * 1000:.1f} ms, "
+            f"{LockedCalls.count} locked writes"
+        )
+
+    def _on_action(self, action: xbmcgui.Action) -> None:
+        """
+        Route an action to the list, a control handler or a management button.
 
         :param action: xbmcgui.Action object.
         """
@@ -446,14 +499,14 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
                 else min(self._list_container.size() - 1, old + 1)
             )
             self._list_container.selectItem(new)
-            self._on_list_scroll()
+            self._on_list_scroll(current_focus)
             return
 
         # List or handler interactions
         if current_focus == self._list_container.getId():
             if prev_focus != current_focus:
-                self._refresh_ui(update_row=False)
-            self._on_list_scroll()
+                self._refresh_ui(update_row=False, focus_id=current_focus)
+            self._on_list_scroll(current_focus)
         else:
             has_valid_selection = (
                 self.current_listitem is not None
@@ -512,23 +565,25 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         self._prev_focus_id = current_focus
         super().onAction(action)
 
-    def _on_list_scroll(self) -> None:
-        """Handle user scrolling in the left list."""
+    def _on_list_scroll(self, focus_id: int) -> None:
+        """
+        Handle user scrolling in the left list. Every row is an entry's, as only
+        _refresh_list adds rows.
+
+        :param focus_id: Control that has focus, so the refresh needn't ask Kodi.
+        """
         idx = self._list_container.getSelectedPosition()
         if idx < 0 or idx == self.container_position:
             return
 
         self.container_position = idx
         self._update_mgmt_buttons()
-        content_id = self._list_container.getListItem(idx).getProperty("content_id")
-        # Placeholder rows don't update handlers. Rows hide and show one at a time:
-        # no flag meanwhile, or a Right finding no row sends FirstPage to the rail.
-        if content_id and content_id in self.listitems:
-            self._set_page_changed(False)
-            self.current_listitem = content_id
-            self._refresh_ui()  # its row redrawn, which rings the preview
-        else:
-            ring_move("preview")  # the preview follows a placeholder row too
+        # Rows hide and show one at a time: no flag meanwhile, or a Right finding no
+        # row sends FirstPage to the rail.
+        self._set_page_changed(False)
+        self.current_listitem = list(self.listitems)[idx]
+        self._refresh_ui(update_row=False, focus_id=focus_id)
+        self._refresh_list_row(idx, moved=True)  # rings once for the move
         self._set_page_changed(True)
 
     def _set_page_changed(self, changed: bool) -> None:
@@ -540,7 +595,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         """
         if changed != self._page_changed:
             self._page_changed = changed
-            self.setProperty("page_changed", "true" if changed else "")
+            LockedCalls.write(
+                self.setProperty, "page_changed", "true" if changed else ""
+            )
 
     def _begin_mutation(self) -> None:
         """

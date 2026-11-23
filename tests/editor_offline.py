@@ -10,8 +10,10 @@ before focus flips to the button; Back from a row
 refreshes its controls for the list (a sliderex's button loses its focused colours)
 when a row is selected, and Back or Previous Menu on an edit row saves what was
 typed; a slider step isn't put back by the refresh it triggers, a move not stored is;
-a row redrawn or a placeholder row reached rings the preview's backdrop (9370);
-entry substitutions are cached until the state changes.
+a move rings the region the skin opted in to (ring) once, a changed row too, and no
+editor without it rings; a row, a radio's state, a management button, an edit's text
+and the description aren't written again unchanged (a radio press forgets its state),
+and entry substitutions are cached until the state changes.
 Run from the helper root: python tests/editor_offline.py
 """
 
@@ -76,6 +78,7 @@ from resources.lib.builders.runtime import RuntimeStateManager  # noqa: E402
 from resources.lib.windows.controls import (  # noqa: E402
     BaseControlHandler,
     EditHandler,
+    RadioButtonHandler,
     SliderExHandler,
     SliderHandler,
 )
@@ -176,60 +179,206 @@ def editor(**attrs) -> DynamicEditor:
 
 
 class PageChanged(unittest.TestCase):
-    def scrolled(self, content_id: str) -> tuple[DynamicEditor, list]:
-        """Scroll the rail to a row of ``content_id``; the flag each refresh saw."""
+    def scrolled(self) -> tuple[DynamicEditor, list]:
+        """Scroll the rail to its second row; the flag each refresh saw."""
         seen = []
-        container = Mock(**{"getSelectedPosition.return_value": 1})
-        container.getListItem.return_value.getProperty.return_value = content_id
         ed = editor(
             container_position=0,
-            listitems={"b": {}},
-            _list_container=container,
+            listitems={"a": {}, "b": {}},
+            _list_container=Mock(**{"getSelectedPosition.return_value": 1}),
             _update_mgmt_buttons=Mock(),
-            _refresh_ui=lambda: seen.append(ed.props.get("page_changed")),
+            _refresh_ui=lambda **_: seen.append(ed.props.get("page_changed")),
+            _refresh_list_row=Mock(),
         )
-        ed._on_list_scroll()
+        ed._on_list_scroll(100)
         return ed, seen
 
     def test_flagged_after_the_rows_are_up(self):
-        ed, seen = self.scrolled("b")
+        ed, seen = self.scrolled()
+        self.assertEqual(ed.current_listitem, "b")
         self.assertEqual(seen, [None])
         self.assertEqual(ed.props["page_changed"], "true")
 
     def test_cleared_while_the_rows_change(self):
-        ed, seen = self.scrolled("b")
+        ed, seen = self.scrolled()
         ed.container_position = 0
-        ed._on_list_scroll()
+        ed._on_list_scroll(100)
         self.assertEqual(seen, [None, ""])
         self.assertEqual(ed.props["page_changed"], "true")
 
-    def test_a_placeholder_row_is_flagged(self):
-        ed, seen = self.scrolled("")
-        self.assertEqual(seen, [])
-        self.assertEqual(ed.props["page_changed"], "true")
 
-
-class PreviewRing(unittest.TestCase):
-    def test_a_redrawn_row_rings(self):
+class Ring(unittest.TestCase):
+    def rings(self, ring: str | None, changed: bool, moved: bool) -> list:
+        """The regions a redraw of a row rings."""
         ed = editor(
-            listitems={"a": {}}, _list_container=Mock(), _apply_row_visuals=Mock()
+            ring=ring,
+            listitems={"a": {}},
+            _rows_shown={},
+            _list_container=Mock(),
+            _apply_row_visuals=Mock(return_value=changed),
         )
-        with patch.object(dynamiceditor, "ring_move") as ring:
-            ed._refresh_list_row(0)
-        ring.assert_called_once_with("preview")
+        with patch.object(dynamiceditor, "ring_move") as ring_move:
+            ed._refresh_list_row(0, moved=moved)
+        return [c.args[0] for c in ring_move.call_args_list]
 
-    def test_a_placeholder_row_rings(self):
-        container = Mock(**{"getSelectedPosition.return_value": 1})
-        container.getListItem.return_value.getProperty.return_value = ""
+    def test_a_move_rings_once(self):
+        self.assertEqual(self.rings("preview", changed=True, moved=True), ["preview"])
+        self.assertEqual(self.rings("preview", changed=False, moved=True), ["preview"])
+
+    def test_a_changed_row_rings(self):
+        self.assertEqual(self.rings("preview", changed=True, moved=False), ["preview"])
+
+    def test_an_unchanged_row_stays_quiet(self):
+        self.assertEqual(self.rings("preview", changed=False, moved=False), [])
+
+    def test_an_editor_without_the_param_never_rings(self):
+        self.assertEqual(self.rings(None, changed=True, moved=True), [])
+
+    def test_a_move_rings_through_the_row(self):
         ed = editor(
+            ring="preview",
             container_position=0,
-            listitems={},
-            _list_container=container,
+            listitems={"a": {}, "b": {}},
+            _list_container=Mock(**{"getSelectedPosition.return_value": 1}),
             _update_mgmt_buttons=Mock(),
+            _refresh_ui=Mock(),
+            _refresh_list_row=Mock(),
         )
-        with patch.object(dynamiceditor, "ring_move") as ring:
-            ed._on_list_scroll()
-        ring.assert_called_once_with("preview")
+        ed._on_list_scroll(100)
+        ed._refresh_ui.assert_called_once_with(update_row=False, focus_id=100)
+        ed._refresh_list_row.assert_called_once_with(1, moved=True)
+
+
+class Unchanged(unittest.TestCase):
+    """A write waits for Kodi's frame slot: one that changes nothing isn't made."""
+
+    def row(self, **entry) -> tuple[DynamicEditor, Mock]:
+        """An editor whose row resolves ``entry``, and a list item to draw it on."""
+        manager = Mock(
+            format_metadata=lambda mk, idx, text, localize: text.upper(),
+            resolved_entry=lambda mk, idx: entry,
+        )
+        return editor(runtime_manager=manager), Mock()
+
+    def test_a_row_writes_only_what_changed(self):
+        ed, li = self.row(layout="list", art="poster", count=3)
+        item, shown = {"mapping": "m", "runtime_index": 0, "label": "a"}, {}
+        self.assertTrue(ed._apply_row_visuals(li, item, "id", shown))
+        li.setLabel.assert_called_once_with("A")
+        li.setArt.assert_not_called()  # no icon template: the art is left alone
+        self.assertEqual(
+            [c.args for c in li.setProperty.call_args_list],
+            [("content_id", "id"), ("layout", "list"), ("art", "poster")],
+        )
+        li.reset_mock()
+        self.assertFalse(ed._apply_row_visuals(li, item, "id", shown))
+        self.assertEqual(li.method_calls, [])
+        ed.runtime_manager.resolved_entry = lambda mk, idx: {
+            "layout": "reel",
+            "art": "poster",
+        }
+        self.assertTrue(ed._apply_row_visuals(li, {**item, "icon": "i"}, "id", shown))
+        li.setProperty.assert_called_once_with("layout", "reel")
+        li.setArt.assert_called_once_with({"icon": "I"})
+        li.setLabel.assert_not_called()
+
+    def test_a_new_list_draws_every_row_afresh(self):
+        container = Mock()
+        ed = editor(
+            ring=None,
+            listitems={"a": {}, "b": {}},
+            _rows_shown={0: {"label": "stale"}},
+            _list_container=container,
+            _apply_row_visuals=Mock(),
+        )
+        ed._refresh_list()
+        self.assertEqual(
+            [c.args[3] for c in ed._apply_row_visuals.call_args_list], [{}, {}]
+        )
+        self.assertEqual(container.addItem.call_count, 2)
+
+    def test_management_buttons(self):
+        buttons = {k: Mock() for k in ("btn_delete", "btn_up", "btn_down")}
+        ed = editor(
+            _has_governor=True,
+            listitems={"a": {}, "b": {}, "c": {}},
+            container_position=0,
+            _mgmt_map={k: {"btn": b} for k, b in buttons.items()},
+        )
+        ed._update_mgmt_buttons()
+        ed._update_mgmt_buttons()
+        ed.container_position = 1
+        ed._update_mgmt_buttons()
+        self.assertEqual(
+            {
+                k: [c.args[0] for c in b.setEnabled.call_args_list]
+                for k, b in buttons.items()
+            },
+            {"btn_delete": [True], "btn_up": [False, True], "btn_down": [True]},
+        )
+
+    def test_description(self):
+        label = Mock()
+        ed = editor(
+            _description=None,
+            _description_label=label,
+            _handler_by_focus_id={},
+            _mgmt_map={"btn_close": {"id": 415, "description": "Close"}},
+            current_listitem=None,
+            listitems={},
+        )
+        for focus in (415, 415, 100, 100):
+            ed._set_description(focus)
+        self.assertEqual(
+            [c.args for c in label.setText.call_args_list], [("Close",), ("",)]
+        )
+
+    def radio(self, stored: list) -> RadioButtonHandler:
+        """A radio over ``stored``'s one value, its first item on."""
+        handler = RadioButtonHandler.__new__(RadioButtonHandler)
+        handler.instance = Mock(**{"getId.return_value": 300})
+        handler._selected, handler._enabled_by_id = None, {}
+        handler._allowed_items = lambda: ["true", "false"]
+        handler._coerce_to_allowed = lambda: stored[0]
+        handler._link_ok = lambda: False  # the press itself is not under test
+        return handler
+
+    def test_a_radio_writes_a_change_and_after_a_press(self):
+        stored = ["true"]
+        handler = self.radio(stored)
+        handler.update_value()
+        handler.update_value()
+        stored[0] = "false"
+        handler.update_value()
+        # Kodi flips the drawn state on the press: a cancelled confirm sets it back
+        handler.handle_interaction(300, xbmcgui.ACTION_SELECT_ITEM)
+        handler.update_value()
+        handler.handle_interaction(300, xbmcgui.ACTION_MOVE_DOWN)  # not a press
+        handler.update_value()
+        self.assertEqual(
+            [c.args for c in handler.instance.setSelected.call_args_list],
+            [(True,), (False,), (False,)],
+        )
+
+    def test_an_edit_writes_what_it_doesnt_show(self):
+        stored = ["films"]
+        handler = EditHandler.__new__(EditHandler)
+        handler.field, handler._cached_text = "label", ""
+        handler.instance = Mock()
+        handler._get_setting_value = lambda: stored[0]
+        handler.runtime_manager = Mock(
+            literal=lambda text: text,
+            format_metadata=lambda mk, idx, text, localize: text,
+        )
+        handler.mapping_key, handler.parent = "m", Mock(_source_index=0)
+        handler.update_value()
+        handler.update_value()
+        handler._cached_text = ""  # cleared and saved, so its fallback shows next
+        handler.update_value()
+        self.assertEqual(
+            [c.args for c in handler.instance.setText.call_args_list],
+            [("films",), ("films",)],
+        )
 
 
 class PageLocked(unittest.TestCase):
