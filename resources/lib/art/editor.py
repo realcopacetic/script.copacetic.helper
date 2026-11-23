@@ -119,9 +119,10 @@ class ImageEditor:
         :return: Flattened dict of ListItem.Art keys and metadata values.
         """
         art_types = tuple(jobs)
+        images = {}  # opened sources by URL: one open per source per serve
         try:
             shared = {
-                "images": {},  # opened sources by URL: one open per source per serve
+                "images": images,
                 "drafts": self._drafts(jobs, art_opts),  # a bad frame param raises
                 "results": {k: {} for k in art_types},
                 "contexts": {},
@@ -145,6 +146,9 @@ class ImageEditor:
         except Exception:
             log.exception(f"{self.__class__.__name__} → Error during image processing")
             return {}
+        finally:  # freed now, not at a plugin's exit: the service lives on (finding 13)
+            for image in images.values():
+                image.close()
 
     def _drafts(
         self, jobs: Mapping[str, Iterable[str]], art_opts: Mapping[str, ArtOpts]
