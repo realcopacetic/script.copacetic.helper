@@ -93,9 +93,9 @@ python tests/service_offline.py
 # test first; a bind's paths and new Window; Font.xml read once per version, clamps
 # keyed by the font's file and size; SQLite's connection per thread, schema once;
 # cache_only per thread; a settle hands on its cursor, a move none; served artwork's
-# TMDb extras fetched aside; a late list (9300, 9301) bound none watched without
+# TMDb extras fetched aside; a list bound late (none, art yet to fill) watched without
 # holding the next, served once its probe reads params, until its arrival ends or
-# WAIT_MAX; a thumb's digest kept by its file's mtime and size; a serve's opened
+# WAIT_MAX, and none never watched; a thumb's digest kept by its file's mtime and size; a serve's opened
 # images closed however it ends
 python tests/serve_offline.py
 
