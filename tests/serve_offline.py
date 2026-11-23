@@ -32,7 +32,8 @@ bound for its token and those a late answer fills; a dialog list whose guard sto
 is read again once. The typewriter (9020) comes last: its handler starts the line on a
 thread of its own and answers at once (a plugin call types it inline); the line types
 on through an again and ends with its arrival; the same arrival's line, label and all,
-stands; an again asks the line too; a request's liveness takes no graphics lock.
+stands until the skin retires it (scroll), for a repeat too; an again asks the line
+too; a request's liveness takes no graphics lock.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -940,6 +941,28 @@ class TypewriterTest(unittest.TestCase):
         server.probes = [TYPED.replace("Heat", "Heat (1995)")]  # its label changed
         self._run(server, LINE._replace(lists=(9020,), again=True))
         server._handle.assert_called_once()
+
+    def test_a_retired_line_types_again(self) -> None:
+        server = _server(TYPED)
+        request = LINE._replace(lists=(9020,))
+        self._run(server, request)
+        reads = lambda label: server.bound if "Property(current)" in label else TYPED
+        retired = patch.object(
+            helpers.TypewriterAnimation, "retired", return_value=True
+        )
+        with patch.object(serve, "infolabel", side_effect=reads):
+            self.assertTrue(server._repeat(request, 10025))  # its line stands
+            with retired:
+                self.assertFalse(server._repeat(request, 10025))  # scroll: it's out
+        with retired:
+            self._run(server, request._replace(again=True))
+        self.assertEqual(server._handle.call_count, 2)  # the same arrival types again
+
+    def test_retired_reads_its_probes_control(self) -> None:
+        with patch.object(helpers, "infolabel", return_value="scroll") as read:
+            self.assertTrue(serve.Server._retired(f"{serve.PLUGIN}{TYPED}"))
+        read.assert_called_once_with("Window(home).Property(typewriter_current_4020)")
+        self.assertFalse(serve.Server._retired("none"))
 
     def test_an_again_asks_the_line_too(self) -> None:
         server = _server()

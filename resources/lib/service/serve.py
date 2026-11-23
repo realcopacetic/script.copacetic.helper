@@ -390,7 +390,11 @@ class Server:
                 if not params:
                     break  # not mounted in this window, or bound for this move already
                 typed = (request.mark, window_id, params)
-                if list_id == TYPEWRITER and typed == self.typed:
+                if (
+                    list_id == TYPEWRITER
+                    and typed == self.typed
+                    and not self._retired(params)
+                ):
                     break  # the same arrival's line, label and all: it stands
                 item = self._item(request)  # beside the probe: the item it was read for
                 again = Again(self, list_id, request.mark, window_id)
@@ -507,8 +511,8 @@ class Server:
     def _repeat(self, request: Request, window_id: int) -> bool:
         """
         A settle equal to the last one served whole whose lists, read with the window
-        on top, still hold its answer (one with no probe here holds none, the blank item
-        only a none its probe still says): a layout rebuilt on the same item.
+        on top, still hold its answer (no probe here: none; the blank: a none its probe
+        still says; a line: until retired): a layout rebuilt on the same item.
 
         :param request: The resolved request.
         :param window_id: Window the request is for.
@@ -525,10 +529,26 @@ class Server:
                     == request.current
                     # The blank answered a none: art landing late (a reload) asks again
                     and ((window_id, list_id) not in self.blanks or probe == NONE)
+                    and (list_id != TYPEWRITER or not self._retired(probe))
                 )
                 for list_id in request.lists
             )
         )
+
+    @staticmethod
+    def _retired(params: str) -> bool:
+        """
+        Whether the line a typewriter probe names was retired since it typed (the skin's
+        scroll on a region change): the same arrival then types it again.
+
+        :param params: The probe's text.
+        :return: True once its control's lease says so.
+        """
+        from resources.lib.shared.helpers import TypewriterAnimation
+
+        query = params.removeprefix(PLUGIN)
+        target_id = parse_plugin_argv(["", "", query]).get("target_id")
+        return bool(target_id) and TypewriterAnimation.retired(target_id)
 
     def _turn(
         self,
