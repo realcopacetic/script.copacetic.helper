@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from xbmcgui import (
     ACTION_MOVE_DOWN,
@@ -22,6 +22,27 @@ from resources.lib.windows import onclick_actions
 
 if TYPE_CHECKING:
     from resources.lib.builders.runtime import RuntimeStateManager
+
+
+class LockedCalls:
+    """
+    GUI writes that take Kodi's GUI lock, each waiting for the main thread's
+    once-a-frame window for Python (Application.cpp:1849-1860): counted for the log.
+    """
+
+    count = 0
+
+    @classmethod
+    def write(cls, setter: Callable, *args: object, **kwargs: object) -> None:
+        """
+        Make one locked write and count it.
+
+        :param setter: Bound xbmcgui setter.
+        :param args: Its positional arguments.
+        :param kwargs: Its keyword arguments.
+        """
+        cls.count += 1
+        setter(*args, **kwargs)
 
 
 class BaseControlHandler:
@@ -339,7 +360,7 @@ class BaseControlHandler:
         labels = (label or " ", label2 or " ")
         if self._labels_by_id.get(instance.getId()) != labels:
             self._labels_by_id[instance.getId()] = labels
-            instance.setLabel(label=labels[0], label2=labels[1])
+            LockedCalls.write(instance.setLabel, label=labels[0], label2=labels[1])
 
     def set_enabled(self, enabled: bool, instance: object | None = None) -> None:
         """
@@ -352,7 +373,7 @@ class BaseControlHandler:
             instance = self.instance
         if self._enabled_by_id.get(instance.getId()) != enabled:
             self._enabled_by_id[instance.getId()] = enabled
-            instance.setEnabled(enabled)
+            LockedCalls.write(instance.setEnabled, enabled)
 
     def update_value(self) -> None:
         """Hook: sync the control instance to the selected entry's value."""
@@ -376,7 +397,7 @@ class BaseControlHandler:
 
         if is_visible != self._shown:
             self._shown = is_visible
-            self.instance.setVisible(is_visible)
+            LockedCalls.write(self.instance.setVisible, is_visible)
         if self._updates_labels:
             self.set_instance_labels()
 
@@ -809,8 +830,10 @@ class EditHandler(BaseControlHandler):
         # An unresolved fallback comes back as its own token: show nothing
         if not current and display == raw:
             display = ""
-        self._cached_text = display
-        self.instance.setText(display)
+        # The text shown: as last set, or as typed and saved since
+        if display != self._cached_text:
+            self._cached_text = display
+            self.instance.setText(display)
 
 
 class RadioButtonHandler(BaseControlHandler):
@@ -820,6 +843,31 @@ class RadioButtonHandler(BaseControlHandler):
 
     _onclick_capable = True
     _needs_link = True
+
+    def __init__(
+        self, control: dict, instance: object, runtime_manager: RuntimeStateManager
+    ) -> None:
+        """
+        Initialise the radio handler with no drawn state known yet.
+
+        :param control: Control definition.
+        :param instance: Kodi radiobutton control instance.
+        :param runtime_manager: Runtime state manager.
+        """
+        super().__init__(control, instance, runtime_manager)
+        self._selected = None
+
+    def handle_interaction(self, focused_control_id: int, a_id: int) -> None:
+        """
+        Forget the drawn state on a press, which Kodi flips before Python runs, so
+        the refresh after it sets it again from what is stored (a cancelled confirm).
+
+        :param focused_control_id: ID of the control the action applied to.
+        :param a_id: Kodi action ID.
+        """
+        if a_id == ACTION_SELECT_ITEM:
+            self._selected = None
+        super().handle_interaction(focused_control_id, a_id)
 
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:
         """
@@ -844,7 +892,9 @@ class RadioButtonHandler(BaseControlHandler):
         # The first item is "on", as in _on_interact (vertical, not only true);
         # a config filtered to one item can't toggle, so its own value decides.
         on_value = allowed[0] if len(allowed) > 1 else "true"
-        self.instance.setSelected(current == on_value)
+        if (selected := current == on_value) != self._selected:
+            self._selected = selected
+            LockedCalls.write(self.instance.setSelected, selected)
         self.set_enabled(len(allowed) > 1)
 
 
