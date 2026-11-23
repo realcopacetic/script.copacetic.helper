@@ -30,7 +30,10 @@ and are served in the info dialog, under a menu too (with two, the one whose ope
 Home's); a dialog's binds name its open; an again asks its own window's last arrival,
 the topmost served by default; a move rung again rings, and serves only the lists not
 bound for its token and those a late answer fills; a dialog list whose guard stopped
-is read again once.
+is read again once. The typewriter (9020) comes last: its handler starts the line on a
+thread of its own and answers at once (a plugin call types it inline); the line types
+on through an again and ends with its arrival; the same arrival's line, label and all,
+stands; an again asks the line too; a request's liveness takes no graphics lock.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -80,6 +83,7 @@ def _server(*probes: str) -> serve.Server:
     server.ahead, server.asked = None, set()
     server.blanks = set()
     server.turn, server.handed = None, Event()
+    server.typed = None
     blank = Mock(**{"getArt.return_value": ""})  # no family
     server._handle = Mock(return_value=[("plugin://x/1", blank, False)])
     server._bind = Mock()
@@ -97,6 +101,7 @@ class ServeTest(unittest.TestCase):
             patch.object(serve, "getCurrentWindowId", return_value=10025),
             patch.object(serve, "topmost_window_id", return_value=10025),
             patch.object(serve, "Window", return_value=home),
+            patch.object(serve, "home_property", lambda k: self.props.get(k, "")),
             patch.object(serve, "POLL", 0),
         ]
         for p in self.patches:
@@ -498,7 +503,7 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(
             ring,
             "NotifyAll(script.copacetic.helper,"
-            f"move/primary/9040.9000.9100.9010.9300.9301//{token})",
+            f"move/primary/9040.9000.9100.9010.9300.9301.9020//{token})",
         )
 
     def test_a_dialog_region_keeps_its_own_lists(self) -> None:
@@ -941,6 +946,100 @@ def _bound(family: tuple[str, ...], identity: str = "54/3/12/v") -> list[tuple]:
     return [("plugin://x/artwork", listitem, False)]
 
 
+TYPED = "info=typewriter&target_id=4020&label=Heat • 1995"
+LINE = SETTLE._replace(lists=(9010, 9020))
+
+
+class TypewriterTest(unittest.TestCase):
+    """9020 last: its line starts on its own thread and types until its arrival ends."""
+
+    setUp, tearDown, _run = ServeTest.setUp, ServeTest.tearDown, ServeTest._run
+
+    def test_its_line_ends_with_its_arrival_not_an_again(self) -> None:
+        server = _server(PARAMS, TYPED)
+        self._run(server, LINE)
+        bar, line = (c.args[1] for c in server._handle.call_args_list)
+        server.request = LINE._replace(lists=(9000,), again=True)  # a late answer
+        self.assertTrue(bar())  # a list's serve is over
+        self.assertFalse(line())  # the line types on
+        server.request = SETTLE._replace(mark="54/4/13/v")  # the next arrival
+        self.assertTrue(line())
+        server.request = LINE
+        self.props["artwork_cursor_primary"] = "54/4/13/v"  # a move, before its ring
+        self.assertTrue(line())
+
+    def test_the_same_arrivals_line_stands(self) -> None:
+        server = _server(TYPED)
+        self._run(server, LINE._replace(lists=(9020,)))
+        self.assertEqual(server.typed, (CURSOR, 10025, TYPED))
+        server._handle.reset_mock(), server._bind.reset_mock()
+        self._run(server, LINE._replace(lists=(9020,), again=True))
+        server._handle.assert_not_called(), server._bind.assert_not_called()
+        server.probes = [TYPED.replace("Heat", "Heat (1995)")]  # its label changed
+        self._run(server, LINE._replace(lists=(9020,), again=True))
+        server._handle.assert_called_once()
+
+    def test_an_again_asks_the_line_too(self) -> None:
+        server = _server()
+        server._ring = Mock()
+        server.last[10025] = server.finished = server.request = LINE._replace(
+            lists=(9000, 9010, 9020)
+        )
+        server.again(9000)
+        server._ring.assert_called_once_with(
+            LINE._replace(lists=(9000, 9020), again=True)
+        )
+
+    def test_live_reads_no_graphics_lock(self) -> None:
+        with patch.object(serve, "home_property", return_value=CURSOR) as read:
+            self.assertTrue(SETTLE.live())
+        read.assert_called_once_with("artwork_cursor_primary")
+
+
+class TypewriterHandlerTest(unittest.TestCase):
+    """The handler: served, its line starts on a thread; a plugin call types it inline."""
+
+    def _typewriter(self, superseded: Callable[[], bool] | None, **params: str):
+        params = {"info": "typewriter", "target_id": "4020", **params}
+        ph = handlers.PluginHandlers(params, superseded)
+        guard = Mock(**{"alive.return_value": True})
+        with (
+            patch.object(handlers, "getCurrentWindowId", return_value=10025),
+            patch.object(handlers, "window_property"),
+            patch.object(ph, "_guard", return_value=guard),
+            patch.object(handlers, "TypewriterAnimation") as animation,
+            patch.object(handlers, "Thread") as thread,
+        ):
+            return ph.typewriter(), animation, thread
+
+    def test_served_it_types_on_its_own_thread(self) -> None:
+        items, animation, thread = self._typewriter(Mock(return_value=False), label="A")
+        self.assertEqual(items, [])  # 9020 is bound: the arrival is answered
+        animation.return_value.update.assert_not_called()
+        run, label = thread.call_args.kwargs["args"]
+        self.assertEqual(label, "A")
+        thread.return_value.start.assert_called_once()
+        run()
+        animation.return_value.update.assert_called_once()
+
+    def test_a_plugin_call_types_inline(self) -> None:
+        items, animation, thread = self._typewriter(None, label="A")
+        self.assertEqual(items, [])
+        animation.return_value.update.assert_called_once()
+        thread.assert_not_called()
+
+    def test_a_reset_or_no_label_answers_a_stop_doesnt(self) -> None:
+        self.assertEqual(self._typewriter(Mock(return_value=False))[0], [])
+        self.assertEqual(self._typewriter(None, reset="true")[0], [])
+        self.assertIsNone(self._typewriter(Mock(return_value=True), label="A")[0])
+
+    def test_a_lines_error_is_logged_on_its_thread(self) -> None:
+        ph = handlers.PluginHandlers({"info": "typewriter"}, Mock())
+        with patch.object(handlers.log, "exception") as logged:
+            ph._type(Mock(side_effect=RuntimeError), "A")
+        logged.assert_called_once()
+
+
 class RotateTest(unittest.TestCase):
     """9300's family turns on 9400: one slide a beat, made late in the dwell before."""
 
@@ -951,6 +1050,7 @@ class RotateTest(unittest.TestCase):
             patch.object(serve, "getCurrentWindowId", return_value=10025),
             patch.object(serve, "topmost_window_id", return_value=10025),
             patch.object(serve, "Window", return_value=home),
+            patch.object(serve, "home_property", lambda k: self.props.get(k, "")),
             patch.object(serve, "DWELL", 0),
         ]
         for p in self.patches:
