@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from functools import cache, cached_property, partial
 from itertools import islice
 from operator import itemgetter
+from threading import Thread
 from typing import TYPE_CHECKING, Any, Callable
 
 from xbmc import Monitor, getLocalizedString
@@ -1638,7 +1639,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         target_id, first set that control's height to the text's, in the serve's
         window as it started (a modal on top since doesn't take the resize).
 
-        :return: Single ListItem carrying Art(text), or None if aborted/empty.
+        :return: Single ListItem carrying Art(text), none if empty, None if aborted.
         """
         from resources.lib.art.text import TextRenderer
 
@@ -1658,8 +1659,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             line_height=to_float(self.params.get("text_line_height"), 1.3),
             letter_spacing=to_float(self.params.get("text_letter_spacing"), 0.0),
         )
-        if not guard.alive() or not result:
+        if not guard.alive():
             return
+        if not result:  # nothing to draw: the blank item, which a served list binds
+            return []
 
         path, height = result
         if target_id := to_int(self.params.get("target_id"), None):
@@ -2484,13 +2487,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return [album for album in albums if artistid in album["artistid"]]
 
     @log.duration
-    def popularity_label(self) -> list[DirectoryItem] | None:
+    def popularity_label(self) -> list[DirectoryItem]:
         """
         One item labelled with how popular library artist, album or song ``self.dbid``
         is, never a number: with Deezer on "Charting" or "Popular", "#2 song" or "Most
         popular album"; with it off, by your plays ("Your #3 artist", "Your #2 song").
 
-        :return: List of one directory item, or None with no label.
+        :return: List of one directory item, or none with no label.
         """
         from resources.lib.apis import deezer
 
@@ -2499,7 +2502,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             and self._require("id")
             and (dbid := to_int(self.dbid))
         ):
-            return
+            return []
         if deezer.enabled():
             words = {
                 "album": self._album_word,
@@ -2512,11 +2515,36 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "artist": self._played_artist,
                 "song": self._played_song,
             }
-        label = words[self.dbtype](dbid)
-        if label:  # whose word: a skin shows it only on that item, not the last one's
-            whose = {"dbid": self.dbid, "dbtype": self.dbtype}
-            item = {"file": plugin_path(_LABEL), "label": label, "properties": whose}
-            return set_items([item])
+        word = words[self.dbtype]
+        if self.again:  # served: answered from the cache, the network asked aside
+            with cache_only():
+                label = word(dbid)
+            Thread(
+                target=self._word_aside, args=(word, dbid, label), daemon=True
+            ).start()
+        else:
+            label = word(dbid)
+        if not label:
+            return []
+        # Whose word: a skin shows it only on that item, not the last one's
+        whose = {"dbid": self.dbid, "dbtype": self.dbtype}
+        item = {"file": plugin_path(_LABEL), "label": label, "properties": whose}
+        return set_items([item])
+
+    def _word_aside(self, word: Callable[[int], str], dbid: int, served: str) -> None:
+        """
+        A served popularity word, asked again online on its own thread (Deezer and
+        ListenBrainz never hold the pipeline): a new one serves the list again.
+
+        :param word: The item type's word function.
+        :param dbid: Library id.
+        :param served: The word the cache answered.
+        """
+        try:
+            if self.again.current() and word(dbid) != served:
+                self.again()
+        except Exception:  # its own thread: nothing above it would log
+            log.exception(f"{self.__class__.__name__} → popularity_label aside {dbid}")
 
     @staticmethod
     def _played_artist(artistid: int) -> str:

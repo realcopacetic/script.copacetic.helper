@@ -1911,17 +1911,34 @@ class PopularityLabelTest(Base):
     def label(self, type, dbid):
         """The label popularity_label gives library type dbid; None for no item."""
         self.handler.params = {"info": "popularity_label", "id": f"{dbid}"}
+        self.handler.again = None  # a plugin call: the network asked inline
         self.handler.dbtype, self.handler.dbid = type, f"{dbid}"
         items = self.handler.popularity_label()
         if items:  # it says whose word it is, for the skin to match
             whose = {"dbid": f"{dbid}", "dbtype": type}
             self.assertEqual(items[0]["properties"], whose)
-        return items and items[0]["label"]
+        return items[0]["label"] if items else None
 
     def urls(self):
         return [
             request.full_url.removeprefix(deezer.API) for request in self.net.requests
         ]
+
+    def test_served_answers_from_the_cache_and_asks_aside(self):
+        # A served call reads the cache only; its aside fetches, and a new word serves
+        # the list again, which then reads it from the cache
+        self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, deezer_chart(27, 1177)]
+        asker = mock.Mock(**{"current.return_value": True})
+        inline = lambda target, args, daemon: mock.Mock(start=lambda: target(*args))
+        with mock.patch.object(handlers, "Thread", inline):
+            self.handler.again = asker
+            self.handler.params = {"info": "popularity_label", "id": "4"}
+            self.handler.dbtype, self.handler.dbid = "artist", "4"
+            self.assertEqual(self.handler.popularity_label(), [])
+            asker.assert_called_once_with()
+            self.assertEqual(self.handler.popularity_label()[0]["label"], "Charting")
+        asker.assert_called_once_with()  # the same word: no second ask
+        self.assertEqual(len(self.net.requests), 3)
 
     def test_artist_charting_first(self):
         self.net.answers = [DEEZER_SEARCH, DEEZER_TOP, deezer_chart(27, 1177)]
