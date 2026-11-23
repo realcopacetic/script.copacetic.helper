@@ -212,7 +212,8 @@ class Server:
         if not request.mark or self._repeat(request):
             return
         if not request.again:  # an again keeps its arrival's lists for the next move
-            self.last[window_id] = request
+            with self.lock:
+                self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
         for list_id in request.lists:
             while (params := self._turn(list_id, window_id, stale)) is not None:
@@ -237,8 +238,15 @@ class Server:
                     break
             else:
                 return
-        # An again ends with its arrival served whole: a repeat of that does nothing
-        self.finished = self.last.get(window_id) if request.again else request
+        with self.lock:
+            if not request.again:
+                self.finished = request
+                return
+            # An again ends with its arrival served whole: a repeat of that does
+            # nothing, and the next again keys off the arrival, not this one's lists
+            self.finished = self.last.get(window_id)
+            if self.request is arrival:
+                self.request = self.finished
 
     @staticmethod
     def _item(request: Request) -> str:
