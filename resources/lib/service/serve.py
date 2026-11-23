@@ -10,6 +10,7 @@ coding-notes/copacetic/features/served-focus-calls.md.
 """
 
 import time
+from functools import cache
 from itertools import chain, count, cycle, islice, takewhile
 from threading import Event, RLock, Thread
 from typing import Callable, NamedTuple
@@ -87,8 +88,8 @@ SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
 ARTWORK, SLIDES, SLIDE_PROBE = 9300, 9400, 6932
 DWELL = 5.0
 LEAD = 1.5  # seconds before its beat a slide is made: its params as late as they can be
-# The typewriter's handler starts its line on a thread of its own and answers at once,
-# so the bind names the arrival typed; the line runs until its arrival is over
+# The typewriter's handler starts its line on a thread of its own and answers at once;
+# the line runs until its lease or guard stops it, and stands while its params do
 TYPEWRITER = 9020
 
 
@@ -130,10 +131,7 @@ class Request(NamedTuple):
         return dialog.probes if (dialog := DIALOGS.get(self.region)) else PROBES
 
     def live(self) -> bool:
-        """
-        Whether its cursor or token is still the skin's: no move has come since (no
-        graphics lock: a typed line asks at every character).
-        """
+        """Whether its cursor or token is still the skin's: no move has come since."""
         prop = (
             f"artwork_cursor_{self.cursor}"
             if self.kind == "settle"
@@ -171,15 +169,21 @@ class Again(NamedTuple):
         return self.server.current(self.mark, self.window_id)
 
 
+@cache
+def _home() -> Window:
+    """Home, kept: Kodi destroys it only at shutdown; each Window(10000) made waits."""
+    return Window(10000)
+
+
 def home_property(key: str) -> str:
     """
-    A Home property read through the info manager: the window's own lock, not the
-    graphics lock a Window(10000).getProperty waits for.
+    A Home property, through the kept Home: one graphics-lock wait, the GIL released
+    (an infolabel read waits on the same lock holding it).
 
     :param key: Property name.
     :return: Its value, or empty.
     """
-    return infolabel(f"Window(home).Property({key})")
+    return _home().getProperty(key)
 
 
 def move_token(*regions: str) -> str:
@@ -252,7 +256,7 @@ class Server:
         self.ahead, self.asked = None, set()
         self.blanks = set()  # (window id, list) last bound blank from a none probe
         self.turn, self.handed = None, Event()  # the family 9300 last bound, and news
-        self.typed = None  # the last line started: (mark, window id, params)
+        self.typed = None  # the last line started: (window id, params)
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
         Thread(target=self._rotate, daemon=True).start()
@@ -371,19 +375,18 @@ class Server:
         if not request.mark:
             return
         if self._repeat(request, window_id):
-            log.debug(
-                f"{self.__class__.__name__} → repeat, not served: "
-                f"{'.'.join(map(str, request.lists))} {request.mark}"
-            )
-            return
+            if not self._line_owed(request, window_id):
+                log.debug(
+                    f"{self.__class__.__name__} → repeat, not served: "
+                    f"{'.'.join(map(str, request.lists))} {request.mark}"
+                )
+                return
+            # Only its line is owed (gone, or a new label): that alone, as an again
+            request = request._replace(lists=(TYPEWRITER,), again=True)
         if not request.again:  # an again keeps its arrival's lists for the next move
             with self.lock:
                 self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
-        # A line types on past its serve until its arrival is over: an again keeps it
-        over = lambda: (
-            self.stopped or self.request.mark != request.mark or not request.live()
-        )
         dialog = DIALOGS.get(request.region)
         opened = dialog and dialog.token and Window(10000).getProperty(dialog.token)
         self.asked = set()
@@ -395,16 +398,13 @@ class Server:
             while (params := self._turn(probe, window_id, stale, answered)) is not None:
                 if not params:
                     break  # not mounted in this window, or bound for this move already
-                typed = (request.mark, window_id, params)
-                if (
-                    list_id == TYPEWRITER
-                    and typed == self.typed
-                    and not self._retired(params)
-                ):
-                    break  # the same arrival's line, label and all: it stands
+                if list_id == TYPEWRITER and self._stands(window_id, params):
+                    break  # the same line (its item and label) stands: a new mark too
                 item = self._item(request)  # beside the probe: the item it was read for
                 again = Again(self, list_id, request.mark, window_id)
-                superseded = over if list_id == TYPEWRITER else stale
+                # A line types on past its serve: only the service's stop ends it here,
+                # its lease (the skin's scroll at a move) and guard do the rest
+                superseded = self._stopped if list_id == TYPEWRITER else stale
                 started = time.perf_counter()
                 items = (
                     self._handle(params, superseded, again, request.cursors)
@@ -412,6 +412,8 @@ class Server:
                     else []
                 )
                 handled = time.perf_counter()
+                if list_id == TYPEWRITER and items is not None:
+                    self.typed = window_id, params  # started: bound or not, it stands
                 if items is None and dialog and not (retried or stale()):
                     # A dialog's guard read a menu over it: nothing rings after a
                     # dialog's serve, so its probe is read again once it is on top
@@ -429,8 +431,6 @@ class Server:
                         self.blanks.discard((window_id, list_id))
                     if list_id == ARTWORK:
                         self._hand(Turn(request, window_id, *self._family(items)))
-                    elif list_id == TYPEWRITER:
-                        self.typed = typed
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "
                         f"{(started - self.heard) * 1000:.0f}ms ring to start, "
@@ -520,8 +520,8 @@ class Server:
     def _repeat(self, request: Request, window_id: int) -> bool:
         """
         A settle equal to the last one served whole whose lists, read with the window
-        on top, still hold its answer (no probe here: none; the blank: a none its probe
-        still says; a line: until retired): a layout rebuilt on the same item.
+        on top, still hold its answer (one with no probe here holds none, the blank item
+        only a none its probe still says; the line is _line_owed's): a layout rebuilt.
 
         :param request: The resolved request.
         :param window_id: Window the request is for.
@@ -538,17 +538,50 @@ class Server:
                     == request.current
                     # The blank answered a none: art landing late (a reload) asks again
                     and ((window_id, list_id) not in self.blanks or probe == NONE)
-                    and (list_id != TYPEWRITER or not self._retired(probe))
                 )
                 for list_id in request.lists
+                if list_id != TYPEWRITER
             )
         )
+
+    def _line_owed(self, request: Request, window_id: int) -> bool:
+        """
+        Whether a repeat still owes its line, so only it is served: its probe names a
+        line (not none or wait) other than the one standing.
+
+        :param request: The resolved request.
+        :param window_id: Window the request is for.
+        :return: True when 9020 alone wants serving.
+        """
+        if TYPEWRITER not in request.lists:
+            return False
+        params = infolabel(f"Control.GetLabel({request.probes[TYPEWRITER]})")
+        return params not in ("", NONE, WAIT) and not self._stands(window_id, params)
+
+    def _stands(self, window_id: int, params: str) -> bool:
+        """
+        Whether a typewriter probe names the line standing: the last one started here,
+        item and label alike, whose lease is still its run's.
+
+        :param window_id: Window the probe is read in.
+        :param params: The probe's text.
+        :return: True while it stands.
+        """
+        return (window_id, params) == self.typed and not self._retired(params)
+
+    def _stopped(self) -> bool:
+        """
+        Whether the service has stopped: a served line's only stop test here.
+
+        :return: True once stopped.
+        """
+        return self.stopped
 
     @staticmethod
     def _retired(params: str) -> bool:
         """
-        Whether the line a typewriter probe names was retired since it typed (the skin's
-        scroll on a region change): the same arrival then types it again.
+        Whether the line a typewriter probe names is gone since it typed (the skin's
+        scroll, a reset, its own stop): the same line then types again.
 
         :param params: The probe's text.
         :return: True once its control's lease says so.
