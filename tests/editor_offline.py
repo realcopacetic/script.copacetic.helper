@@ -9,7 +9,8 @@ acts as Select, and a click on a sliderex's slider keeps the value it moved to
 before focus flips to the button; Back from a row
 refreshes its controls for the list (a sliderex's button loses its focused colours)
 when a row is selected, and Back or Previous Menu on an edit row saves what was
-typed; a slider step isn't put back by the refresh it triggers, a move not stored is.
+typed; a slider step isn't put back by the refresh it triggers, a move not stored is;
+a row redrawn or a placeholder row reached rings the preview's backdrop (9370).
 Run from the helper root: python tests/editor_offline.py
 """
 
@@ -18,7 +19,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from build_offline import HELPER, install_stubs
 
@@ -54,6 +55,7 @@ MAPPINGS.mkdir(parents=True)
 )
 xbmcgui = sys.modules["xbmcgui"]
 xbmcgui.WindowXMLDialog = xbmcgui.Action = object
+sys.modules["xbmc"].Monitor = object  # the served transport's, which its rings import
 for name, value in {
     "ACTION_MOVE_LEFT": 1,
     "ACTION_MOVE_RIGHT": 2,
@@ -76,6 +78,7 @@ from resources.lib.windows.controls import (  # noqa: E402
     SliderExHandler,
     SliderHandler,
 )
+from resources.lib.windows import dynamiceditor  # noqa: E402
 from resources.lib.windows.dynamiceditor import DynamicEditor  # noqa: E402
 
 
@@ -190,6 +193,29 @@ class PageChanged(unittest.TestCase):
         ed, seen = self.scrolled("")
         self.assertEqual(seen, [])
         self.assertEqual(ed.props["page_changed"], "true")
+
+
+class PreviewRing(unittest.TestCase):
+    def test_a_redrawn_row_rings(self):
+        ed = editor(
+            listitems={"a": {}}, _list_container=Mock(), _apply_row_visuals=Mock()
+        )
+        with patch.object(dynamiceditor, "ring_move") as ring:
+            ed._refresh_list_row(0)
+        ring.assert_called_once_with("preview")
+
+    def test_a_placeholder_row_rings(self):
+        container = Mock(**{"getSelectedPosition.return_value": 1})
+        container.getListItem.return_value.getProperty.return_value = ""
+        ed = editor(
+            container_position=0,
+            listitems={},
+            _list_container=container,
+            _update_mgmt_buttons=Mock(),
+        )
+        with patch.object(dynamiceditor, "ring_move") as ring:
+            ed._on_list_scroll()
+        ring.assert_called_once_with("preview")
 
 
 class PageLocked(unittest.TestCase):
