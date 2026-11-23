@@ -398,8 +398,14 @@ class Server:
             while (params := self._turn(probe, window_id, stale, answered)) is not None:
                 if not params:
                     break  # not mounted in this window, or bound for this move already
-                if list_id == TYPEWRITER and self._stands(window_id, params):
-                    break  # the same line (its item and label) stands: a new mark too
+                if list_id == TYPEWRITER:
+                    with self.lock:
+                        # A late answer came while the line waited (a tagline): those
+                        # lists first, at the serve's end, then the line once
+                        if late := bool(self.asked - {TYPEWRITER}):
+                            self.asked.add(TYPEWRITER)
+                    if late or self._stands(window_id, params):
+                        break  # or the same line (its item and label) stands
                 item = self._item(request)  # beside the probe: the item it was read for
                 again = Again(self, list_id, request.mark, window_id)
                 # A line types on past its serve: only the service's stop ends it here,
@@ -546,8 +552,8 @@ class Server:
 
     def _line_owed(self, request: Request, window_id: int) -> bool:
         """
-        Whether a repeat still owes its line, so only it is served: its probe names a
-        line (not none or wait) other than the one standing.
+        Whether a repeat still owes its line, so only it is served: its probe waits
+        (the region's switch: read again in _turn), or names a line not standing.
 
         :param request: The resolved request.
         :param window_id: Window the request is for.
@@ -556,7 +562,9 @@ class Server:
         if TYPEWRITER not in request.lists:
             return False
         params = infolabel(f"Control.GetLabel({request.probes[TYPEWRITER]})")
-        return params not in ("", NONE, WAIT) and not self._stands(window_id, params)
+        return params not in ("", NONE) and (
+            params == WAIT or not self._stands(window_id, params)
+        )
 
     def _stands(self, window_id: int, params: str) -> bool:
         """
