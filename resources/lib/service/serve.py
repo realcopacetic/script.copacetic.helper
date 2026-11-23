@@ -274,9 +274,9 @@ class Server:
 
     def _repeat(self, request: Request) -> bool:
         """
-        A settle equal to the last one served whole, whose lists still hold its
-        answer (a list with no probe here holds none): a layout rebuilt on the same
-        item. A move is always an event, and a rebuilt window's lists start empty.
+        A settle equal to the last one served whole whose lists, read with the window
+        on top, still hold its answer (one with no probe here holds none): a layout
+        rebuilt on the same item. A move is always an event.
 
         :param request: The resolved request.
         :return: Whether to do nothing.
@@ -284,6 +284,7 @@ class Server:
         return (
             request.kind == "settle"
             and request == self.finished
+            and topmost_window_id() == getCurrentWindowId()  # under one, the dialog's
             and all(
                 infolabel(f"Container({list_id}).ListItem.Property(current)")
                 == request.current

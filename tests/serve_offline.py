@@ -227,6 +227,15 @@ class ServeTest(unittest.TestCase):
             server.bound = ""  # 9010 emptied by a skin reload: serve again
             self.assertFalse(server._repeat(settle._replace()))
 
+    def test_no_repeat_is_read_under_a_dialog(self) -> None:
+        server = _server()
+        self._run(server, SETTLE)
+        with (
+            patch.object(serve, "topmost_window_id", return_value=10106),
+            patch.object(serve, "infolabel", return_value=""),  # the menu's probes
+        ):
+            self.assertFalse(server._repeat(SETTLE._replace()))
+
     @patch.dict(serve.PROBES, {9000: 6900})
     def test_a_finished_again_leaves_the_next_one_its_own_list(self) -> None:
         server = _server()
