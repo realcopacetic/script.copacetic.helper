@@ -587,44 +587,38 @@ class ThreadsTest(unittest.TestCase):
 
 
 class ArtworkTest(unittest.TestCase):
-    def family(self, again: Mock | None) -> tuple[dict, str | None]:
+    def tmdb_ask(self, again: Mock | None) -> dict:
         """
-        A TMDb-extended family read with TMDb's entry missing: what _get_tmdb_item
-        was asked and the miss noted.
+        What a TMDb-extended family read asks _get_tmdb_item.
 
         :param again: The served list's re-serve; None for a plugin call.
-        :return: The ask's keywords, and _tmdb_missed.
+        :return: The ask's keywords.
         """
         asked = {}
-
-        def tmdb(self, **kwargs):
-            asked.update(kwargs)
-            self._tmdb_key = "movie:9"
-
         params = {"info": "artwork", "target": "50", "get_extra_multiart": "true"}
-        ph = handlers.PluginHandlers(params, again and bool, again)
+        ph = handlers.PluginHandlers(params, (lambda: False) if again else None, again)
         with (
-            patch.object(handlers.PluginHandlers, "_get_tmdb_item", tmdb),
-            patch.object(handlers, "infolabel", return_value=""),
-            patch(
-                "resources.lib.art.multiart.build_multiart_dict",
-                return_value={"multiart": "a.jpg"},
+            patch.object(
+                handlers.PluginHandlers,
+                "_get_tmdb_item",
+                lambda self, **kwargs: asked.update(kwargs),
             ),
+            patch.object(handlers, "infolabel", return_value=""),
+            patch("resources.lib.art.multiart.build_multiart_dict", return_value={}),
         ):
             ph._multiart_dict("Container(50).ListItem", "fanart")
-        return asked, ph._tmdb_missed
+        return asked
 
-    def test_served_tmdb_extras_are_fetched_aside_with_no_marker(self):
+    def test_served_tmdb_extras_are_fetched_aside(self) -> None:
         again = Mock()
-        asked, missed = self.family(again)
+        asked = self.tmdb_ask(again)
         self.assertIs(asked["aside"], again)  # its news serves artwork again
         self.assertTrue(asked["cache_only"])
-        self.assertIsNone(missed)  # no tmdb_art_missed for the metadata serve
 
-    def test_a_plugin_call_still_notes_the_miss(self):
-        asked, missed = self.family(None)
+    def test_a_plugin_call_reads_the_cache_only(self) -> None:
+        asked = self.tmdb_ask(None)
         self.assertIsNone(asked["aside"])
-        self.assertEqual(missed, "movie:9|fanart")
+        self.assertTrue(asked["cache_only"])
 
 
 class HashTest(unittest.TestCase):
