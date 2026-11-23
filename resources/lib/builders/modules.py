@@ -34,6 +34,9 @@ def elide_true(condition: str) -> str:
     """
     Strip identity ``true`` conjuncts from a rendered Kodi condition, until none is
     left: one pass leaves the last of a run that closes it (``a + true + true``).
+
+    :param condition: The rendered condition.
+    :return: It without them; empty if it was all true.
     """
     while (stripped := _TRUE_TERM.sub("", condition)) != condition:
         condition = stripped
