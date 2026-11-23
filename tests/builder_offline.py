@@ -6,6 +6,7 @@ expressions (append, assign, the inverted fallback) and variables; an item witho
 it keeps its one pass. And for a skin mirror (builders/runtime.py): a new mirrored
 field's config default reaches its skin setting when the runtime state is checked,
 on a fresh state and on a saved row that never held the field; a saved value wins.
+A rendered condition loses every identity true, a run of them closing it too.
 Run from the helper root: python tests/builder_offline.py
 """
 
@@ -27,6 +28,7 @@ from resources.lib.builders import runtime  # noqa: E402
 from resources.lib.builders.modules import (  # noqa: E402
     ExpressionsBuilder,
     VariablesBuilder,
+    elide_true,
 )
 
 AKL = "String.StartsWith(Container.FolderPath,plugin://plugin.program.akl)"
@@ -204,6 +206,15 @@ class MirrorDefault(unittest.TestCase):
         self.assertEqual(
             self.check([row], skin_has=True), [f"Skin.Reset({self.FIELD})"]
         )
+
+
+class ElideTrue(unittest.TestCase):
+    def test_every_identity_true_goes(self):
+        self.assertEqual(elide_true("a + true + true"), "a")
+        self.assertEqual(elide_true("true + true + a + true"), "a")
+        self.assertEqual(elide_true("[true + b] | a + true + c"), "[b] | a + c")
+        self.assertEqual(elide_true("true + true"), "")
+        self.assertEqual(elide_true("!true + a"), "!true + a")  # not an identity
 
 
 if __name__ == "__main__":

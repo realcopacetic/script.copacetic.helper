@@ -31,9 +31,13 @@ _TRUE_TERM = re.compile(
 
 
 def elide_true(condition: str) -> str:
-    """Strip identity ``true`` conjuncts from a rendered Kodi condition."""
-    stripped = _TRUE_TERM.sub("", condition)
-    return "" if stripped == "true" else stripped
+    """
+    Strip identity ``true`` conjuncts from a rendered Kodi condition, until none is
+    left: one pass leaves the last of a run that closes it (``a + true + true``).
+    """
+    while (stripped := _TRUE_TERM.sub("", condition)) != condition:
+        condition = stripped
+    return "" if condition == "true" else condition
 
 
 class BaseBuilder:
