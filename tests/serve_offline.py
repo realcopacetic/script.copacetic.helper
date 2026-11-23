@@ -291,8 +291,13 @@ class ServeTest(unittest.TestCase):
         )
 
     def test_a_move_rung_again_serves_only_what_has_changed(self) -> None:
+        self.props["moved_item"] = "m1"
+        for name in ("getCurrentWindowDialogId", "topmost_window_id"):
+            patcher = patch.object(serve, name, return_value=12003)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         server = _server()
-        move = serve.Request("move", "primary", (9010,), "m1")
+        move = serve.Request("move", "item", (9010,), "m1")
         self._run(server, move)
         self._run(server, move._replace())  # 9010 still answers m1
         self.assertEqual(server._handle.call_count, 1)
@@ -481,7 +486,7 @@ class ServeTest(unittest.TestCase):
             server._serve(move)
         self.assertEqual(
             read,
-            ["Control.GetLabel(6937)", "Container(9370).ListItem.Property(current)"],
+            ["Container(9370).ListItem.Property(current)", "Control.GetLabel(6937)"],
         )
         server._bind.assert_called_once_with(
             13001, 9370, server._handle.return_value, "m1", ""

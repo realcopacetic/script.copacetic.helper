@@ -336,8 +336,9 @@ class Server:
         stale = lambda: self.request is not arrival or not request.live()
         for list_id in request.lists:
             probe = request.probes[list_id]
-            while (params := self._turn(probe, window_id, stale)) is not None:
-                if not params or self._answered(request, list_id):
+            answered = lambda: self._answered(request, list_id)
+            while (params := self._turn(probe, window_id, stale, answered)) is not None:
+                if not params:
                     break  # not mounted in this window, or bound for this move already
                 item = self._item(request)  # beside the probe: the item it was read for
                 again = Again(self, list_id, request.mark, window_id)
@@ -381,8 +382,9 @@ class Server:
     @staticmethod
     def _answered(request: Request, list_id: int) -> bool:
         """
-        A list a move rung again has already bound (an info dialog's tabs taking focus
-        back: only what its rails changed is served), read with its window on top.
+        A list a dialog's move rung again has already bound (an info dialog's tabs
+        taking focus back: only what its rails changed is served); a window's token is
+        new each ring. Read with the window on top.
 
         :param request: The resolved request; an again always serves.
         :param list_id: The served list.
@@ -390,6 +392,7 @@ class Server:
         """
         return (
             request.kind == "move"
+            and request.region in DIALOGS
             and not request.again
             and infolabel(f"Container({list_id}).ListItem.Property(current)")
             == request.mark
@@ -463,7 +466,11 @@ class Server:
         )
 
     def _turn(
-        self, probe: int, window_id: int, stale: Callable[[], bool]
+        self,
+        probe: int,
+        window_id: int,
+        stale: Callable[[], bool],
+        answered: Callable[[], bool],
     ) -> str | None:
         """
         A list's probe once its window is on top (under a dialog Python reads the
@@ -472,11 +479,14 @@ class Server:
         :param probe: The served list's probe.
         :param window_id: Window the request is for.
         :param stale: Whether the request is over.
-        :return: The probe's text (empty: not mounted); None once the request is over.
+        :param answered: Whether the list already answers it, asked before the probe.
+        :return: The probe's text (empty: skip it); None once the request is over.
         """
         until = None  # from the first wait read: time under a dialog doesn't count
         while not (self.stopped or stale()):
             if topmost_window_id() == window_id:
+                if until is None and answered():
+                    return ""
                 params = infolabel(f"Control.GetLabel({probe})")
                 if params != WAIT:
                     return params
