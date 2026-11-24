@@ -499,7 +499,7 @@ class Server:
                 return
             if self.asked:  # late answers for lists it had started: those again
                 # from the arrival's lists: an again's own are a part of them
-                arrival_lists = self.last.get(window_id, request).lists
+                arrival_lists = self.last[window_id].lists
                 lists = tuple(pair for pair in arrival_lists if pair[0] in self.asked)
                 self._ring(request._replace(lists=lists, again=True))
             elif request.again:
