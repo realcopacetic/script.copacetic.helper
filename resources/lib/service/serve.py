@@ -550,6 +550,7 @@ class Server:
                 for list_id in request.lists
                 if list_id != TYPEWRITER
             )
+            and topmost_window_id() == window_id  # and no dialog answered the reads
         )
 
     def _line_owed(self, request: Request, window_id: int) -> bool:
@@ -564,6 +565,8 @@ class Server:
         if TYPEWRITER not in request.lists:
             return False
         params = infolabel(f"Control.GetLabel({request.probes[TYPEWRITER]})")
+        if topmost_window_id() != window_id:
+            return True  # read under a dialog: _turn waits it out and reads again
         return params not in ("", NONE) and (
             params == WAIT or not self._stands(window_id, params)
         )
@@ -625,6 +628,8 @@ class Server:
                 if until is None and answered():
                     return ""
                 params = infolabel(f"Control.GetLabel({probe})")
+                if topmost_window_id() != window_id:
+                    continue  # read under a dialog that opened meanwhile: wait it out
                 if params != WAIT:
                     return params
                 if until is None:
