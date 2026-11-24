@@ -374,24 +374,24 @@ class AlbumProgress(NamedTuple):
 
 def album_resume(songs: list[dict], heard: list[dict]) -> dict[str, str]:
     """
-    Where to pick an album up, in disc and track order: the track after the one
-    heard last, or after the album's last track the first not heard; else none.
+    Where to pick a part-heard album up, in disc and track order: the track after
+    the one heard last, or after the album's last track the first not heard. None
+    for a track numbered 0 (untagged).
 
     :param songs: The album's songs from AudioLibrary.GetSongs.
-    :param heard: The songs heard lately, as ProgressBarManager.album counts them.
-    :return: album_next_track and album_next_title, with album_next_disc past one disc.
+    :param heard: The songs heard lately, some but not all, as album counts them.
+    :return: album_next_track and album_next_title, past one disc album_next_disc.
     """
-    if not heard:
-        return {}
     order = sorted(songs, key=itemgetter("disc", "track"))
-    # Mark as played gives every song the same last played: the latest track wins
+    # Songs marked played together share a last played: the latest track wins
     after = order.index(max(heard, key=itemgetter("lastplayed", "disc", "track"))) + 1
-    if after < len(order):
-        song = order[after]
-    elif not (song := next((s for s in order if s not in heard), None)):
+    song = (
+        order[after] if after < len(order) else next(s for s in order if s not in heard)
+    )
+    if not song["track"]:
         return {}
     resume = {"album_next_track": str(song["track"]), "album_next_title": song["title"]}
-    if len({s["disc"] for s in songs}) > 1:
+    if len({s["disc"] for s in songs} - {0}) > 1:  # disc 0: untagged, the same disc
         resume["album_next_disc"] = str(song["disc"])
     return resume
 
@@ -538,13 +538,12 @@ class ProgressBarManager:
         recent = [s for s in played if s["lastplayed"] >= self.album_since]
         heard = sum(s["duration"] for s in recent)
         total = sum(s["duration"] for s in songs)
-        resume = album_resume(songs, recent)
         if 0 < heard < total:
-            return AlbumProgress(heard, total, "", resume)
+            return AlbumProgress(heard, total, "", album_resume(songs, recent))
         if not played:
-            return AlbumProgress(0, total, "unplayed", resume)
+            return AlbumProgress(0, total, "unplayed", {})
         state = "played" if len(played) == len(songs) else ""
-        return AlbumProgress(0, total, state, resume)
+        return AlbumProgress(0, total, state, {})
 
     def update(
         self,

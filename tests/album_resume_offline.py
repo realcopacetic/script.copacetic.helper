@@ -1,7 +1,8 @@
 """
 Offline checks for an album's resume point on info=progressbar (shared/helpers.py
-album_resume, ProgressBarManager.album): the track after the one heard last, in disc
-and track order; after the last track, the first not heard; nothing heard, nothing.
+album_resume, ProgressBarManager.album), part-heard albums only: the track after the
+one heard last, in disc and track order; after the last track, the first not heard;
+disc 0 no disc of its own, a track 0 no point.
 Song rows are hand-written in AudioLibrary.GetSongs's shape (Omega). Run from the
 helper root:
 python tests/album_resume_offline.py
@@ -129,12 +130,26 @@ class AlbumResumeTest(unittest.TestCase):
         self.assertEqual(self.album(song(1, days=1, playcount=0), song(2)).resume, {})
 
     def test_heard_through_no_point(self):
-        # in order, or marked played: one last played for all, the last track wins
+        # part-heard only: in order, out of order, or marked played
         self.assertEqual(self.album(song(1, days=3), song(2, days=1)).resume, {})
+        self.assertEqual(self.album(song(1, days=1), song(2, days=3)).resume, {})
         marked = [song(1, days=1), song(2), song(3)]
         for row in marked:
             row["playcount"], row["lastplayed"] = 1, marked[0]["lastplayed"]
         self.assertEqual(self.album(*marked).resume, {})
+        # a song added since it was marked: the latest of the ties counts as last
+        album = self.album(*marked, song(4))
+        self.assertEqual(album.resume["album_next_track"], "4")
+
+    def test_disc_0_is_no_disc_of_its_own(self):
+        album = self.album(song(1, disc=0, days=1), song(1, disc=1), song(2, disc=1))
+        self.assertEqual(album.resume["album_next_track"], "1")
+        self.assertNotIn("album_next_disc", album.resume)
+
+    def test_track_0_no_point(self):
+        # untagged: no number to show, so no title alone either
+        self.assertEqual(self.album(song(0, days=1), song(0)).resume, {})
+        self.assertEqual(self.album(song(1, days=1), song(0, disc=1)).resume, {})
 
     def test_on_the_progress_item(self):
         self.songs = [song(1, days=2), song(2), song(3)]
