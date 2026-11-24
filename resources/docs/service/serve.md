@@ -75,7 +75,7 @@ of four things:
 | empty | skips the list (not mounted here, or not this region's) |
 | `info=<handler>&…` | runs that handler with those params, as a plugin path would (a `plugin://script.copacetic.helper/?` prefix is dropped) |
 | `none` | binds one blank item: nothing for this item, but the list answered |
-| `wait` | looks again every 100 ms while the ring is the newest, and holds the lists after it; after 30 s it counts as `none` |
+| `wait` | looks again every 100 ms while the ring is the newest, and holds the lists after it; after 5 s it counts as `none` (a net serves it once the probe says more, see [`serve`](#serve)) |
 
 Use `wait` for a state that has no event of its own: art Kodi hasn't filled in yet
 (`ListItem.Property(libraryartfilled)`), a rail still loading, a dwell your layout
