@@ -1483,7 +1483,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _show_news(self, show_id: int) -> dict[str, str]:
         """
         A fully watched show's news from the TMDb cache, never fetched here: its last
-        aired episode if the library lacks it, its next air date in date_format
+        aired episode if new and not in the library, its next air date in date_format
         (strftime, default "%d %b"; %b is Kodi's short month) and whether it ended.
 
         :param show_id: Library id of the show, for the episodes the library has.
@@ -1500,12 +1500,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "next_air_episode": "",
             "show_status": _SHOW_STATUS.get(props.get("tmdb_status"), ""),
         }
-        # Only past the library's newest: an episode missing mid-run, or numbered
-        # another way (TVDB's order), is no news. Specials left out, as next_episode
-        # does. An entry cached before these were kept (7-day TTL) has none; show_id
-        # 0 (a plugin's item) would ask every show
+        # Only aired within new_days, as new counts (an ended show's last is old
+        # news), and past the library's newest: an episode missing mid-run, or
+        # numbered another way (TVDB's order), is no news. Specials left out, as
+        # next_episode does. An entry cached before these were kept (7-day TTL) has
+        # none; show_id 0 (a plugin's item) would ask every show
         season = to_int(props.get("tmdb_last_air_season"))
-        if show_id and season > 0:
+        aired = props.get("tmdb_last_air_date", "")
+        if show_id and season > 0 and aired >= self._new_since("firstaired"):
             episode = int(props["tmdb_last_air_episode"])
             newest = fetch_raw(  # "episode" sorts by season, then episode
                 "VideoLibrary.GetEpisodes",

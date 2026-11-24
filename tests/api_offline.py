@@ -833,6 +833,7 @@ class TmdbTest(Base):
             self.net.answers = [json.dumps(tv).encode()]  # the metadata serve's fetch
             item = transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
             last = {"tmdb_last_air_season": "2", "tmdb_last_air_episode": "8"}
+            last["tmdb_last_air_date"] = "2024-01-01"
             self.assertLessEqual(last.items(), item["properties"].items())
             self.tick(8 * DAY)  # stale, still served
             when = f"{day:%d} #{50 + day.month}"  # Kodi's short month: 51 is Jan
@@ -2839,7 +2840,7 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.calls, [])  # no last aired episode: no lookup
         # The library's newest outside the specials is 3x01
         last = {"tmdb_last_air_season": "3", "tmdb_last_air_episode": "1"}
-        props |= last
+        props |= last | {"tmdb_last_air_date": date.today().isoformat()}
         self.assertEqual(self.prop("new_episode", **show), "")
         asked = self.calls[-1]
         self.assertEqual(
@@ -2853,6 +2854,11 @@ class ProgressbarTest(unittest.TestCase):
         props["tmdb_last_air_season"] = "4"  # a season the library lacks
         self.assertEqual(self.prop("new_episode", **show), "4x12")
         calls = len(self.calls)
+        old = date.today() - timedelta(days=31)  # aired before new_days: an ended show
+        props["tmdb_last_air_date"] = old.isoformat()
+        self.assertEqual(self.prop("new_episode", **show), "")
+        del props["tmdb_last_air_date"]  # cached before the date was kept
+        self.assertEqual(self.prop("new_episode", **show), "")
         props["tmdb_last_air_season"] = "0"  # a special, as next_episode leaves out
         self.assertEqual(self.prop("new_episode", **show), "")
         self.assertEqual(self.prop("new_episode", **show | {"DBID": ""}), "")
