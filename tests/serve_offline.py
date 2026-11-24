@@ -478,6 +478,21 @@ class ServeTest(unittest.TestCase):
         self._drive(server, labels, [settle, stop, net, net])
         self.assertIn((9000, "info=metadata&art=late"), server.binds_seen)
 
+    def test_a_net_serve_goes_on_past_a_list_whose_handler_stopped(self) -> None:
+        server = _server()
+        settle = SETTLE._replace(lists=_lists(9300, 9301))
+        handle = lambda params, superseded, again, cursors: (
+            None if params.endswith("stop") else []
+        )
+        labels = self._net_world(server, handle)
+        labels |= {"Control.GetLabel(6930)": "a", "Control.GetLabel(6931)": "logo"}
+        late = lambda: labels.update(  # 9300 now stops; 9301's art landed late
+            {"Control.GetLabel(6930)": "a&stop", "Control.GetLabel(6931)": "logo&late"}
+        )
+        self._drive(server, labels, [settle, late, serve.Request()])
+        self.assertIn((9301, "logo&late"), server.binds_seen)
+        self.assertEqual(server.failed, {(10025, 9300): "a&stop"})
+
     def test_a_net_ring_as_the_worker_wakes_never_replaces_the_arrival(self) -> None:
         server = _server()
         served = []
