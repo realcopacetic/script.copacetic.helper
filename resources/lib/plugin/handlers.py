@@ -938,6 +938,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     "Player.Title" if self.player else f"{self.target_item}.Label"
                 )
             }
+        # Served, a dialog that opened during the reads answered them: stop as covered,
+        # and the service reads the probe again once the window is back on top
+        if self.superseded and on_top and topmost_window_id() != window_id:
+            return None
         art_opts, jobs = art_jobs(params)
         if not jobs:
             log.debug(f"{self.__class__.__name__} → artwork: no jobs created")

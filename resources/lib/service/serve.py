@@ -422,9 +422,9 @@ class Server:
                     # Started: bound or not, it stands. A none is no line: its blank
                     # binds again each time, and the line before no longer stands
                     self.typed = (window_id, params) if params != NONE else None
-                if items is None and dialog and not (retried or stale()):
-                    # A dialog's guard read a menu over it: nothing rings after a
-                    # dialog's serve, so its probe is read again once it is on top
+                if items is None and not (retried or stale()):
+                    # Its guard or reads met a dialog (a menu, or one that flashed
+                    # by): nothing rings after it, so the probe is read again on top
                     retried = True
                     continue
                 if items is None or stale():
@@ -811,6 +811,8 @@ class Server:
             return None
         params = parse_plugin_argv(["", "", query], raw=ART_URLS)
         art = slide_art(params | read_art_urls(params, infolabel, True), url)
+        if topmost_window_id() != turn.window_id:
+            return None  # a dialog that opened during the reads answered them
         if "background" not in art:
             return None  # it wouldn't open: the slide on screen holds
         return set_items(

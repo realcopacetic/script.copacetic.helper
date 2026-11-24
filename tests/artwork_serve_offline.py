@@ -8,7 +8,7 @@ one never), a family outranking it; multiart_first read from the serve's own ite
 not multiart_target's; the parser keeps art URLs raw and url_decode_path
 leaves a bare URL; a held serve names its position only for a move that stamped no
 visit; served, the cursor and visit come from the request, nothing is stamped or held
-and every serve names its identity; a family lands only with two images or more;
+and every serve names its identity, and a menu opening during the reads stops it; a family lands only with two images or more;
 under Kodi's slideshow a run stops once its picture has moved on;
 the TV guide's time left (epg_time_left) from the programme's start and runtime,
 across midnight too, only while the URL's channel is on air and before its end.
@@ -65,6 +65,7 @@ class ArtworkServe(unittest.TestCase):
         on_top: bool = True,
         visit_ends: str = "",
         own: dict | None = None,
+        tops: tuple[int, ...] = (),
         **served,
     ) -> dict:
         """
@@ -77,6 +78,7 @@ class ArtworkServe(unittest.TestCase):
         :param on_top: Whether the serve's window is topmost (else a menu is).
         :param visit_ends: Where visit v1 gives way to v2: "images" or "seed".
         :param own: The family read from the serve's own item; none by default.
+        :param tops: The topmost window the first on-top tests see, then on_top's.
         :param served: A served run's superseded, again and cursors.
         :return: What it saw, by logo, icon, label, family, seeded, register and items.
         """
@@ -130,11 +132,12 @@ class ArtworkServe(unittest.TestCase):
                 labels[visit] = "v2"
             return kwargs["art"] if kwargs["alive"]() else None
 
+        tops = iter(tops)
         with (
             mock.patch.multiple(
                 handlers,
                 infolabel=lambda label: labels.get(label, ""),
-                topmost_window_id=lambda: WINDOW if on_top else MENU,
+                topmost_window_id=lambda: next(tops, WINDOW if on_top else MENU),
                 focused_control_id=lambda window_id: 50,
                 window_property=lambda key, value="": seen["props"].update(
                     {key: value}
@@ -305,6 +308,14 @@ class ArtworkServe(unittest.TestCase):
         self.assertEqual(out["props"]["artwork_cursor_primary"], "50/3/7/v1")
         props = out["items"][0]["properties"]
         self.assertEqual(props["current"], props["identity"])
+
+    def test_a_menu_opening_during_the_reads_stops_a_served_serve(self):
+        tops = (WINDOW, WINDOW)  # its position and the reads on top, then a menu
+        out = self.serve({}, False, tops=tops, **self.SERVED)
+        self.assertIsNone(out["items"])  # covered: the probe is read again
+        self.assertNotIn("logo", out)  # no image work on half the art
+        out = self.serve({}, False, tops=tops)  # a plugin call goes on as it was
+        self.assertIn("logo", out)
 
     def test_a_stopped_served_serve_binds_nothing(self):
         out = self.serve({"cursor_key": "primary"}, superseded=lambda: True)
