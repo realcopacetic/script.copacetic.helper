@@ -3,7 +3,8 @@ Offline checks for the served focus calls (resources/lib/service/serve.py): a ri
 its kind, region, known lists and mark, other senders and kinds are ignored; a probe's
 params are handled (a plugin prefix dropped) and bound with the request's current, none
 binds one blank item, an empty probe nothing, wait is read again; under a dialog the
-request waits (a probe, repeat or line read a new dialog answered too), and a newer ring, a window change or a moved cursor drops it unbound; a
+request waits (a probe, repeat, line or slide read a new dialog answered too; a handler
+that stopped is read again once), and a newer ring, a window change or a moved cursor drops it unbound; a
 list a dialog covered mid-run is owed again; a repeat does nothing (a list not mounted
 here aside), but a none bind whose probe no longer says none serves; a move with no
 lists serves the window's last request; again() serves one list of it (the whole
@@ -238,6 +239,13 @@ class ServeTest(unittest.TestCase):
         server._handle.return_value = None
         self._run(server, SETTLE)
         server._bind.assert_not_called()
+
+    def test_a_window_list_whose_handler_stopped_is_read_again_once(self) -> None:
+        server = _server()
+        server._handle.side_effect = [None, [("plugin://x/1", Mock(), False)]]
+        self._run(server, SETTLE)  # a dialog flashed by inside its run
+        self.assertEqual(server._handle.call_count, 2)
+        server._bind.assert_called_once()
 
     def test_covered_mid_run_is_owed_again(self) -> None:
         server = _server()
@@ -1487,6 +1495,16 @@ class RotateTest(unittest.TestCase):
             for probe in ("", serve.NONE):
                 read.return_value = probe
                 self.assertIsNone(serve.Server._slide(TURN, "b.jpg"))
+
+    def test_a_slide_whose_reads_a_new_dialog_answered_makes_none(self) -> None:
+        tops = iter([10025, 10106])  # on top before the reads, a menu after
+        with (
+            patch.object(serve, "topmost_window_id", side_effect=lambda: next(tops)),
+            patch.object(serve, "infolabel", return_value=PARAMS),
+            patch("resources.lib.art.multiart.slide_art") as art,
+        ):
+            art.return_value = {"background": "b.png", "slide": "b.jpg"}
+            self.assertIsNone(serve.Server._slide(TURN, "b.jpg"))
 
 
 if __name__ == "__main__":

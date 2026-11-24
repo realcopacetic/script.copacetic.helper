@@ -37,7 +37,8 @@ python tests/api_offline.py
 # Kodi keys it; a held serve names its position (the
 # jumpbar's re-serve) only for a move that stamped no visit, by the guard's own read;
 # served, a settle's cursor and visit the request's, a move's visit the live one, no
-# cursor stamp and no held item, every serve naming its identity, no art a blank;
+# cursor stamp and no held item, every serve naming its identity, no art a blank, a
+# menu opening during its art reads a stop;
 # the TV guide's time left (epg_time_left) from the programme's start and runtime,
 # across midnight too, only while the URL's channel is on air and before its end
 python tests/artwork_serve_offline.py
@@ -86,8 +87,9 @@ python tests/service_offline.py
 # Served focus calls (service/serve.py): a ring's kind, region, known lists and mark;
 # a probe's params handled and bound with the request's current, none one blank item,
 # an empty probe nothing, wait read again; under a dialog the request waits, and a
-# newer ring, a window change or a moved cursor drops it; a list covered mid-run owed
-# again; a repeat does nothing; a move with no lists the window's last request;
+# newer ring, a window change or a moved cursor drops it (a probe read a new dialog
+# answered is read again); a list covered mid-run, or whose handler stopped, owed
+# again once; a repeat does nothing; a move with no lists the window's last request;
 # again() one list of it, the whole arrival mid-serve, only for the arrival that
 # asked (TMDb's late answer); a move's item read before its handler; clean_name's
 # query, not argv; a favourite with no library item a blank; the guard's superseded
