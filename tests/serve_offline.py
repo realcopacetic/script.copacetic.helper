@@ -521,6 +521,26 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(handled, [9000, 9010, 9000])
         self.assertIs(server.request, arrival)
 
+    def test_a_late_answer_during_an_again_serves_its_list_from_the_arrival(
+        self,
+    ) -> None:
+        server = _server()
+        arrival = SETTLE._replace(lists=_lists(9000, 9010, 9020))
+        server.last[10025] = server.finished = arrival
+        server.lines = {10025: 9020}
+        again = arrival._replace(lists=BAR, again=True)  # 9010's again, in flight
+
+        def handle(params, superseded, again_, cursors) -> list:
+            server.again(9000, CURSOR, 10025)  # 9000's answer lands meanwhile
+            return []
+
+        server._handle.side_effect = handle
+        server._ring = Mock()
+        self._run(server, again)
+        server._ring.assert_called_once_with(
+            arrival._replace(lists=_lists(9000, 9020), again=True)
+        )
+
     def test_an_again_for_a_list_not_yet_reached_adds_nothing(self) -> None:
         server = _server()
         arrival = SETTLE._replace(lists=_lists(9000, 9010))
