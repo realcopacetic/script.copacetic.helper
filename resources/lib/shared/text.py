@@ -32,6 +32,10 @@ _KODI_STYLES = re.compile(
 _MD_HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$", re.MULTILINE)
 _MD_BULLET = re.compile(r"^([ \t]*)-[ \t]+", re.MULTILINE)
 
+# A straight double quote that opens: at the start, or after a space, bracket or dash
+_OPENING_QUOTE = re.compile(r'(?<![^\s(\[{—–])"')
+_SINGLE_QUOTES = str.maketrans({'"': "’", "“": "‘", "”": "’"})
+
 # Rendered pixels Kodi's last-glyph ink extent can add past its advance.
 _INK_OVERHANG = 2
 
@@ -241,6 +245,18 @@ def markdown_label(text: str, heading_color: str | None = None) -> str:
     text = "\n".join(text.replace("[CR]", "\n").splitlines())
     text = _MD_BULLET.sub(r"\1• ", _MD_HEADING.sub(heading, text))
     return text.strip().replace("\n", "[CR]")
+
+
+def single_quotes(text: str) -> str:
+    """Text's double quotes as curly single ones, to sit inside a skin's own double
+    quotes; a pair that wraps the whole text is dropped, as the skin adds its own.
+
+    :param text: A tagline, say.
+    :return: The text with no double quotes.
+    """
+    if text[:1] in '"“' and text[-1:] in '"”' and sum(map(text.count, '"“”')) == 2:
+        text = text[1:-1]
+    return _OPENING_QUOTE.sub("‘", text).translate(_SINGLE_QUOTES)
 
 
 def sentence_cap(text: str, abbrev: set[str] | None = None) -> str | None:
