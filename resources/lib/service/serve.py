@@ -226,11 +226,6 @@ class Server:
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
         Thread(target=self._rotate, daemon=True).start()
-        # The window's load rang before the service ran (Kodi start, a restart): that
-        # ring now, under a new token
-        if message := home_property(LOAD):
-            request = Request.parse(message.partition("?")[2])
-            self._ring(request._replace(value=_token(request.mark)))
 
     def stop(self) -> None:
         """Release the threads: the listener within a second, the others at once."""
@@ -325,8 +320,18 @@ class Server:
     def _listen(self) -> None:
         """Made here: Kodi calls a Monitor back on the thread that created it."""
         listener = _Listener(self._ring)
+        self._load()  # once it hears: a load after this rings it
         while not self.stopped and not listener.waitForAbort(1):
             pass
+
+    def _load(self) -> None:
+        """
+        The window's load rang before the service could hear it (Kodi start, a
+        restart): that ring now, under a new token.
+        """
+        if message := home_property(LOAD):
+            request = Request.parse(message.partition("?")[2])
+            self._ring(request._replace(value=_token(request.mark)))
 
     def _work(self) -> None:
         """Serve each newest request; a ring during a serve or a move's wait wins."""

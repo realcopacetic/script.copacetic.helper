@@ -646,20 +646,28 @@ class ServeTest(unittest.TestCase):
         ):
             self.assertEqual(serve.Server._handle(PARAMS, bool, bool), [])
 
-    def test_start_serves_the_windows_load_ring(self) -> None:
+    def test_start_serves_the_windows_load_ring_once_it_hears(self) -> None:
         self.props[serve.LOAD] = "serve?lists=9010:6910&mark=moved_primary&wait=225"
+        order = []
+        listener = Mock(waitForAbort=Mock(return_value=True))
         with (
             patch.object(serve, "Thread"),
             patch.object(serve, "_token", return_value="m9") as token,
+            patch.object(
+                serve, "_Listener", side_effect=lambda ring: order.append("hears")
+            ),
         ):
             server = serve.Server()
+            self.assertEqual(server.request, serve.Request())  # not before it hears
+            serve._Listener.side_effect = lambda ring: order.append("hears") or listener
+            server._ring = Mock(side_effect=lambda r: order.append(r))
+            server._listen()
             token.assert_called_once_with("moved_primary")
-            self.assertEqual(server.request, MOVE._replace(value="m9"))
-            self.assertTrue(server.rung.is_set())
+            self.assertEqual(order, ["hears", MOVE._replace(value="m9")])
             del self.props[serve.LOAD]  # no window has loaded: nothing to serve
-            server = serve.Server()
-        self.assertEqual(server.request, serve.Request())
-        self.assertFalse(server.rung.is_set())
+            server._ring.reset_mock()
+            server._listen()
+        server._ring.assert_not_called()
 
     def test_a_ring_from_python_writes_its_token_first(self) -> None:
         calls = []
