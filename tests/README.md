@@ -89,7 +89,9 @@ python tests/service_offline.py
 # an empty probe nothing, wait read again; under a dialog the request waits, and a
 # newer ring, a window change or a moved cursor drops it (a probe read a new dialog
 # answered is read again); a list covered mid-run, or whose handler stopped, owed
-# again once; a repeat does nothing; a move with no lists the window's last request;
+# again once; a list bound for the arrival from the same probe text not served again;
+# the net's bare serve (the window on top's last request, let be while one waits or runs,
+# and for a list its handler stopped on with that text); a move with no lists the window's last request;
 # again() one list of it, the whole arrival mid-serve, only for the arrival that
 # asked (TMDb's late answer); a move's item read before its handler; clean_name's
 # query, not argv; a favourite with no library item a blank; the guard's superseded

@@ -5,8 +5,10 @@ params are handled (a plugin prefix dropped) and bound with the request's curren
 binds one blank item, an empty probe nothing, wait is read again; under a dialog the
 request waits (a probe, repeat, line or slide read a new dialog answered too; a handler
 that stopped is read again once), and a newer ring, a window change or a moved cursor drops it unbound; a
-list a dialog covered mid-run is owed again; a repeat does nothing (a list not mounted
-here aside), but a none bind whose probe no longer says none serves; a move with no
+list a dialog covered mid-run is owed again; a list bound for the arrival from the
+same probe text (Property(params)) is not served again, any other list is; the net's
+bare serve serves the window on top's last request, is let be while a request waits or
+runs, and lets be a list whose handler stopped twice on the same text; a move with no
 lists serves the window's last request; again() serves one list of it (the whole
 arrival once its serve stopped short, beside an again's own lists, only for the arrival
 that asked, as a handler's late answer asks, once per list and arrival; one asked
@@ -86,16 +88,38 @@ def _server(*probes: str) -> serve.Server:
     server.lock = RLock()
     server.heard, server.last, server.finished = 0.0, {}, None
     server.ahead, server.asked = None, set()
-    server.blanks = set()
+    server.busy, server.failed = False, {}
     server.turn, server.handed = None, Event()
-    server.typed = None
     blank = Mock(**{"getArt.return_value": ""})  # no family
     server._handle = Mock(return_value=[("plugin://x/1", blank, False)])
     server._bind = Mock()
     server.probes = list(probes or (PARAMS,))
-    server.bound = ""  # what 9010's Property(current) reads back
-    server._bind.side_effect = lambda *args: setattr(server, "bound", args[3])
+    server.bound = {}  # list → the properties its bind reads back
+    server._bind.side_effect = (
+        lambda w, i, items, current, item, opened="", params="": (
+            server.bound.update(
+                {i: {"current": current, "item": item, "params": params}}
+            )
+        )
+    )
     return server
+
+
+def _reads(server: serve.Server) -> Callable[[str], str]:
+    """
+    Kodi's reads: a list's bound properties, else the probes' texts in turn (the last
+    stays), by probe id when server.probes maps each to its own.
+    """
+
+    def read(label: str) -> str:
+        if label.startswith("Container("):  # Container(9010).ListItem.Property(x)
+            return server.bound.get(int(label[10:14]), {}).get(label[34:-1], "")
+        probes = server.probes
+        if isinstance(probes, dict):  # Control.GetLabel(6910)
+            probes = probes[int(label[17:-1])]
+        return probes.pop(0) if len(probes) > 1 else probes[0]
+
+    return read
 
 
 class ServeTest(unittest.TestCase):
@@ -116,16 +140,12 @@ class ServeTest(unittest.TestCase):
         for p in self.patches:
             p.stop()
 
-    def _run(self, server: serve.Server, request: serve.Request) -> None:
+    def _run(
+        self, server: serve.Server, request: serve.Request, net: bool = False
+    ) -> None:
         server.request = request
-
-        def reads(label: str) -> str:
-            if "Property(current)" in label:  # the repeat test's read-back
-                return server.bound
-            return server.probes.pop(0) if len(server.probes) > 1 else server.probes[0]
-
-        with patch.object(serve, "infolabel", side_effect=reads):
-            server._serve(request)
+        with patch.object(serve, "infolabel", side_effect=_reads(server)):
+            server._serve(request, net)
 
     def test_ring_parses_kind_region_lists_mark(self) -> None:
         heard = []
@@ -138,18 +158,21 @@ class ServeTest(unittest.TestCase):
             "other.addon", f"Other.settle/primary/9010/{CURSOR}", ""
         )
         listener.onNotification(sender, "Other.clashes/answers", "")
+        listener.onNotification(sender, "Other.serve", "")  # the skin's net
         self.assertEqual(
             heard,
             [
                 serve.Request("settle", "primary", (9010,), CURSOR),
                 serve.Request("move", "", (9010,), "m1", "view"),
                 serve.Request("move", "", (), "m2"),
+                serve.Request("serve", "", (), ""),
             ],
         )
 
     def test_current_names_the_arrival(self) -> None:
-        self.assertEqual(SETTLE.current, "54/3/12/")  # no visit: a kept item matches
+        self.assertEqual(SETTLE.current, CURSOR)  # visit and all: one arrival's
         self.assertEqual(serve.Request("move", "primary", (9010,), "m1").current, "m1")
+        self.assertEqual(serve.Server._item(SETTLE), "54/3/12/")  # a kept item's
 
     def test_a_settle_hands_on_its_cursor_a_move_none(self) -> None:
         self.assertEqual(SETTLE.cursors, {"primary": CURSOR})
@@ -164,7 +187,13 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(again, serve.Again(server, 9010, CURSOR, 10025))
         self.assertEqual(cursors, {"primary": CURSOR})  # a settle's, by its region
         server._bind.assert_called_once_with(
-            10025, 9010, server._handle.return_value, "54/3/12/", "54/3/12/", ""
+            10025,
+            9010,
+            server._handle.return_value,
+            CURSOR,
+            "54/3/12/",
+            "",
+            f"{serve.PLUGIN}{PARAMS}",
         )
         self.assertEqual(server.finished, SETTLE)
 
@@ -180,7 +209,7 @@ class ServeTest(unittest.TestCase):
         self._run(server, SETTLE)
         server._handle.assert_not_called()
         server._bind.assert_called_once_with(
-            10025, 9010, [], "54/3/12/", "54/3/12/", ""
+            10025, 9010, [], CURSOR, "54/3/12/", "", serve.NONE
         )
 
     def test_unmounted_probe_binds_nothing(self) -> None:
@@ -264,66 +293,83 @@ class ServeTest(unittest.TestCase):
         server._handle.assert_called_once()
         server._bind.assert_called_once()
 
-    def test_a_repeat_read_under_a_new_dialog_is_none(self) -> None:
-        server = _server()
-        self._run(server, SETTLE)
-        tops = iter([10025, 10106])  # on top before the reads, a menu after
-        with (
-            patch.object(serve, "topmost_window_id", side_effect=lambda: next(tops)),
-            patch.object(serve, "infolabel", return_value=""),  # the menu's probes
-        ):
-            self.assertFalse(server._repeat(SETTLE._replace(), 10025))
-
-    def test_a_line_read_under_a_new_dialog_is_owed(self) -> None:
-        server = _server()
-        line = SETTLE._replace(lists=(9020,))
-        with (
-            patch.object(serve, "topmost_window_id", return_value=10106),
-            patch.object(serve, "infolabel", return_value=""),  # the menu's probe
-        ):
-            self.assertTrue(server._line_owed(line, 10025))
-
     def test_a_repeat_does_nothing(self) -> None:
         server = _server()
         self._run(server, SETTLE)
         self._run(server, SETTLE._replace())
         server._handle.assert_called_once()
 
-    @patch.dict(serve.PROBES, {9040: 6904})
-    def test_a_list_not_mounted_here_doesnt_stop_a_repeat(self) -> None:
-        server = _server("", PARAMS)  # 9040: no probe in this window
-        settle = SETTLE._replace(lists=(9040, 9010))
-        self._run(server, settle)
-        labels = {"Control.GetLabel(6904)": "", "Control.GetLabel(6910)": PARAMS}
-        reads = lambda label: (
-            server.bound if "(9010)" in label else labels.get(label, "")
-        )
-        with patch.object(serve, "infolabel", side_effect=reads):
-            self.assertTrue(server._repeat(settle._replace(), 10025))
-            server.bound = ""  # 9010 emptied by a skin reload: serve again
-            self.assertFalse(server._repeat(settle._replace(), 10025))
-
-    def test_a_blank_holds_only_a_none_its_probe_still_says(self) -> None:
+    def test_a_list_holds_its_answer_only_from_its_probes_text(self) -> None:
         server = _server(serve.NONE)  # art not yet loaded (a skin reload): none
         self._run(server, SETTLE)
-        self.assertEqual(server.blanks, {(10025, 9010)})
+        self.assertEqual(server.bound[9010]["params"], serve.NONE)
         self._run(server, SETTLE._replace())  # still none: a repeat
-        server._handle.assert_not_called()
+        server._bind.assert_called_once()
         server.probes = [PARAMS]  # the art landed: the same cursor rings again
         self._run(server, SETTLE._replace())
         server._handle.assert_called_once()
-        self.assertEqual(server.blanks, set())
         self._run(server, SETTLE._replace())  # answered now: a repeat
         server._handle.assert_called_once()
 
-    def test_no_repeat_is_read_under_a_dialog(self) -> None:
+    @patch.dict(serve.PROBES, {9000: 6900})
+    def test_a_repeat_serves_only_the_lists_that_dont_hold_it(self) -> None:
         server = _server()
+        settle = SETTLE._replace(lists=(9000, 9010))
+        self._run(server, settle)
+        del server.bound[9010]  # emptied by a skin reload
+        self._run(server, settle._replace())
+        handled = [c.args[2].list_id for c in server._handle.call_args_list]
+        self.assertEqual(handled, [9000, 9010, 9010])
+        server.bound[9000]["current"] = "54/3/12/v0"  # another visit's bind
+        self._run(server, settle._replace())
+        self.assertEqual(server._handle.call_count, 4)
+
+    def test_the_net_serves_the_last_request_on_top(self) -> None:
+        server = _server()
+        served = []
+
+        def serve_(request: serve.Request, net: bool) -> None:
+            served.append((request, net, server.request))
+            server.stopped = True
+            server.rung.set()
+
+        server._serve = serve_
+        server.last = {10025: SETTLE}
+        server._ring(serve.Request("serve", "", (), ""))
+        worker = Thread(target=server._work)
+        with patch.dict(sys.modules, {"resources.lib.plugin.handlers": Mock()}):
+            worker.start()
+            worker.join(2)
+        self.assertEqual(served, [(SETTLE, True, SETTLE)])  # its request, as it was
+
+    def test_the_net_is_let_be_while_a_request_waits_or_runs(self) -> None:
+        server = _server()
+        net = serve.Request("serve", "", (), "")
+        server._ring(net)
+        self.assertIs(server.request, net)
+        server.busy = True  # a serve in hand answers the net itself
+        server._ring(SETTLE._replace(mark="x"))
+        server._ring(net)
+        self.assertEqual(server.request.mark, "x")
+        server.busy = False
+        server.rung.set()  # a request waits: so does the net
+        server._ring(net)
+        self.assertEqual(server.request.mark, "x")
+
+    def test_a_list_whose_handler_stopped_twice_is_let_be_by_the_net(self) -> None:
+        server = _server()
+        server._handle.return_value = None
         self._run(server, SETTLE)
-        with (
-            patch.object(serve, "topmost_window_id", return_value=10106),
-            patch.object(serve, "infolabel", return_value=""),  # the menu's probes
-        ):
-            self.assertFalse(server._repeat(SETTLE._replace(), 10025))
+        self.assertEqual(server.failed, {(10025, 9010): PARAMS})
+        self._run(server, SETTLE._replace(), net=True)  # the same text: let be
+        self.assertEqual(server._handle.call_count, 2)
+        self._run(server, SETTLE._replace())  # a ring tries it again
+        self.assertEqual(server._handle.call_count, 4)
+        server._handle.return_value = [("plugin://x/1", Mock(), False)]
+        server.probes = ["info=progressbar&id=2"]  # its text changed
+        self._run(server, SETTLE._replace(), net=True)
+        self.assertEqual(server.failed, {})
+        server._bind.assert_called_once()
 
     @patch.dict(serve.PROBES, {9000: 6900})
     def test_a_finished_again_leaves_the_next_one_its_own_list(self) -> None:
@@ -349,7 +395,7 @@ class ServeTest(unittest.TestCase):
         self._run(server, move)
         self._run(server, move._replace())  # 9010 still answers m1
         self.assertEqual(server._handle.call_count, 1)
-        server.bound = "3200/4/7/"  # a rail's settle bound it since
+        server.bound[9010]["current"] = "3200/4/7/v"  # a rail's settle bound it since
         self._run(server, move._replace())
         self._run(server, move._replace(again=True))  # an again always serves
         self.assertEqual(server._handle.call_count, 3)
@@ -359,7 +405,7 @@ class ServeTest(unittest.TestCase):
         self._run(server, SETTLE)
         move = serve.Request("move", "", (), "m1")
         self._run(server, move)
-        self.assertEqual(server._bind.call_args.args[3:], ("m1", "", ""))
+        self.assertEqual(server._bind.call_args.args[3:], ("m1", "", "", PARAMS))
         self.assertEqual(
             server.finished, serve.Request("move", "primary", (9010,), "m1")
         )
@@ -488,7 +534,7 @@ class ServeTest(unittest.TestCase):
     def test_a_repeat_whose_list_was_emptied_serves(self) -> None:
         server = _server()
         self._run(server, SETTLE)
-        server.bound = ""  # a skin reload rebuilt the window
+        server.bound.clear()  # a skin reload rebuilt the window
         self._run(server, SETTLE._replace())
         self.assertEqual(server._handle.call_count, 2)
 
@@ -570,10 +616,14 @@ class ServeTest(unittest.TestCase):
             server._serve(move)
         self.assertEqual(
             read,
-            ["Container(9370).ListItem.Property(current)", "Control.GetLabel(6937)"],
+            [
+                "Control.GetLabel(6937)",
+                "Container(9370).ListItem.Property(params)",
+                "Container(9370).ListItem.Property(current)",  # not this move's
+            ],
         )
         server._bind.assert_called_once_with(
-            13001, 9370, server._handle.return_value, "m1", "", ""
+            13001, 9370, server._handle.return_value, "m1", "", "", PARAMS
         )
         self.assertEqual(server.last, {13001: move})
 
@@ -691,13 +741,15 @@ class ServeTest(unittest.TestCase):
             server, serve.Request("settle", "infoscreen", (9100,), "3207/2/9/v")
         )
         self.assertEqual(
-            server._bind.call_args.args[3:], ("3207/2/9/", "3207/2/9/", "m1")
+            server._bind.call_args.args[3:],
+            ("3207/2/9/v", "3207/2/9/", "m1", PARAMS),
         )
 
     def test_a_move_rung_again_serves_the_late_answers_lists(self) -> None:
         self.props["moved_item"] = "m1"
         server = _server()
-        server.bound = "m1"  # every list still answers m1
+        held = {"current": "m1", "params": PARAMS}  # every list still answers m1
+        server.bound = {i: dict(held) for i in (9000, 9300, 9030)}
         self._dialog(server, serve.Request("move", "item", (9000, 9300, 9030), "m1"))
         self.assertEqual([c.args[1] for c in server._bind.call_args_list], [9000, 9030])
 
@@ -759,12 +811,12 @@ class ServeTest(unittest.TestCase):
     def test_bind_sets_paths_and_a_new_window(self) -> None:
         items = [("plugin://x/1", Mock(), False), ("plugin://x/2", Mock(), False)]
         with patch.object(serve, "Window") as window, patch.object(serve, "ListItem"):
-            serve.Server._bind(10025, 9010, items, "c", "i", "o")
+            serve.Server._bind(10025, 9010, items, "c", "i", "o", "p")
             serve.Server._bind(10025, 9010, [], "c", "i")
         items[0][1].setPath.assert_called_once_with("plugin://x/1")
         items[1][1].setPath.assert_called_once_with("plugin://x/2")
         items[0][1].setProperties.assert_called_once_with(
-            {"current": "c", "item": "i", "open": "o"}
+            {"current": "c", "item": "i", "open": "o", "params": "p"}
         )
         self.assertEqual(window.call_count, 2)
         bound = window.return_value.getControl.return_value.addItems.call_args_list
@@ -1022,7 +1074,7 @@ class TypewriterTest(unittest.TestCase):
     def test_the_same_line_stands_a_new_mark_too(self) -> None:
         server = _server(TYPED)
         self._run(server, LINE._replace(lists=(9020,)))
-        self.assertEqual(server.typed, (10025, TYPED))
+        self.assertEqual(server.bound[9020]["params"], TYPED)
         server._handle.reset_mock(), server._bind.reset_mock()
         self.props["artwork_cursor_primary"] = "54/3/12/v2"
         with self._standing():  # Search's next key: a new mark, the same item
@@ -1033,7 +1085,17 @@ class TypewriterTest(unittest.TestCase):
             self._run(server, LINE._replace(lists=(9020,), mark="54/3/12/v2"))
         server._handle.assert_called_once()
 
-    def test_a_started_line_stands_unbound(self) -> None:
+    def test_a_started_line_binds_under_a_dialog(self) -> None:
+        server = _server(TYPED)
+        tops = iter([10025, 10025])  # its probe read on top, a menu at the bind
+        with patch.object(
+            serve, "topmost_window_id", side_effect=lambda: next(tops, 10106)
+        ):
+            self._run(server, LINE._replace(lists=(9020,)))
+        server._bind.assert_called_once()  # its item holds no reads
+        self.assertEqual(server.bound[9020]["params"], TYPED)
+
+    def test_a_started_line_a_move_cuts_binds_nothing(self) -> None:
         server = _server(TYPED)
         server._handle.side_effect = (
             lambda *a: self.props.update(
@@ -1042,16 +1104,16 @@ class TypewriterTest(unittest.TestCase):
             or []
         )
         self._run(server, LINE._replace(lists=(9020,)))
-        server._bind.assert_not_called()
-        self.assertEqual(server.typed, (10025, TYPED))
+        server._bind.assert_not_called()  # the move's scroll retires it anyway
+        self.assertEqual(server.failed, {})
 
-    def test_a_none_binds_the_blank_each_time(self) -> None:
+    def test_a_none_binds_the_blank_once(self) -> None:
         server = _server(serve.NONE)  # a rail with no line, as Home's daily mixes
         request = LINE._replace(lists=(9020,))
         for mark in ("54/3/12/v", "54/4/13/v"):
             self.props["artwork_cursor_primary"] = mark
             self._run(server, request._replace(mark=mark))
-        self.assertEqual(server._bind.call_count, 2)
+        self.assertEqual(server._bind.call_count, 1)  # the blank it holds stands
         server._handle.assert_not_called()  # a none binds the blank, no handler
         # A real line after it still stands; after a none it types again
         for probe, mark in (
@@ -1065,7 +1127,7 @@ class TypewriterTest(unittest.TestCase):
             with self._standing():
                 self._run(server, request._replace(mark=mark))
         self.assertEqual(server._handle.call_count, 2)
-        self.assertEqual(server.typed, (10025, TYPED))
+        self.assertEqual(server.bound[9020]["params"], TYPED)
 
     def test_a_retired_line_types_again(self) -> None:
         server = _server(TYPED)
@@ -1077,19 +1139,17 @@ class TypewriterTest(unittest.TestCase):
         self.assertEqual(server._handle.call_count, 2)
 
     def test_a_repeat_serves_only_its_retired_line(self) -> None:
-        server = _server(PARAMS, TYPED)
-        self._run(server, LINE)
-        reads = lambda label: server.bound if "Property(current)" in label else TYPED
-        with patch.object(serve, "infolabel", side_effect=reads):
-            self.assertTrue(server._repeat(LINE, 10025))  # the line isn't asked
+        server = _server()
+        server.probes = {6910: [PARAMS], 6920: [TYPED]}
+        with self._standing():
+            self._run(server, LINE)
         server._handle.reset_mock()
         with self._standing():
             self._run(server, LINE)  # a repeat: nothing
         server._handle.assert_not_called()
-        server.probes = [TYPED]
         with self._standing(retired=True):
             self._run(server, LINE)
-        server._handle.assert_called_once()  # 9020 alone, as an again
+        server._handle.assert_called_once()  # 9020 alone
         self.assertEqual(server._bind.call_args.args[1], 9020)
         self.assertEqual(server.last[10025], LINE)
         self.assertEqual(server.finished, LINE)
@@ -1140,12 +1200,11 @@ class TypewriterTest(unittest.TestCase):
         server._ring = Mock()
         request = LINE._replace(lists=(9000, 9020))
         server.request = request
-        probes = [PARAMS, serve.WAIT, TYPED]
+        server.probes = {6900: [PARAMS], 6920: [serve.WAIT, TYPED]}
+        kodi = _reads(server)
 
         def reads(label: str) -> str:
-            if "Property(current)" in label:
-                return server.bound
-            value = probes.pop(0) if len(probes) > 1 else probes[0]
+            value = kodi(label)
             if value == serve.WAIT:
                 server.again(9000)  # TMDb answers 9000 while 9020 waits
             return value
@@ -1156,7 +1215,7 @@ class TypewriterTest(unittest.TestCase):
         server._ring.assert_called_once_with(request._replace(again=True))
         server._handle.reset_mock()
         server.request = again = request._replace(again=True)
-        with patch.object(serve, "infolabel", return_value=TYPED), self._standing():
+        with patch.object(serve, "infolabel", side_effect=kodi), self._standing():
             server._serve(again)
         self.assertEqual(server._handle.call_count, 2)  # 9000, then the line once
 
@@ -1170,16 +1229,17 @@ class TypewriterTest(unittest.TestCase):
         server._ring.assert_not_called()
 
     def test_a_repeat_whose_line_waits_serves_it_alone(self) -> None:
-        server = _server(PARAMS, TYPED)
+        server = _server()
+        server.probes = {6910: [PARAMS], 6920: [TYPED]}
         self._run(server, LINE)
         server._handle.reset_mock()
-        server.probes = [serve.WAIT, serve.WAIT, TYPED]  # the region's switch latch
+        server.probes[6920] = [serve.WAIT, serve.WAIT, TYPED]  # the region's switch
         with self._standing(retired=True):  # the line was cleared meanwhile
             self._run(server, LINE)
         server._handle.assert_called_once()  # 9020 alone, once the wait is out
         self.assertEqual(server._bind.call_args.args[1], 9020)
         server._handle.reset_mock()
-        server.probes = [serve.WAIT, TYPED]
+        server.probes[6920] = [serve.WAIT, TYPED]
         with self._standing():  # a line that still stands is left be
             self._run(server, LINE)
         server._handle.assert_not_called()
@@ -1323,7 +1383,7 @@ class RotateTest(unittest.TestCase):
         self.assertEqual(made, ["b.jpg", "a.jpg", "b.jpg"])
         self.assertEqual(
             [c.args for c in server._bind.call_args_list],
-            [(10025, 9400, [("s", url, False)], "54/3/12/", "") for url in made],
+            [(10025, 9400, [("s", url, False)], CURSOR, "") for url in made],
         )
 
     def test_a_short_rest_makes_nothing(self) -> None:

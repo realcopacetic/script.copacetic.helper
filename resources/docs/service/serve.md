@@ -121,8 +121,29 @@ which the skin writes at each arrival as `<list>/<position>/<dbid>/<visit>` (see
 [artwork](../plugins/artwork.md#the-value-of-current)). The `infoscreen` region's
 settles carry the `primary` cursor. A serve stops once the cursor changes.
 
-A settle equal to the last one served whole does nothing while its lists still hold
-its answer (a layout rebuilt on the same item).
+A list already bound for this cursor from the same probe text is not served again (a
+layout rebuilt on the same item).
+
+### `serve`
+
+The net: ring it bare when a probe on top no longer reads as its list's
+`Property(params)` (see [the bind](#the-bind)), from a skin timer, and the service
+serves those lists of the window's last request again: art that landed late, a rail
+that loaded, a setting changed at rest. It is let be while a serve is in hand, and for
+a list whose handler stopped on that same text.
+
+```xml
+<timer>
+  <name>serve_net</name>
+  <start>Control.IsVisible(6939)</start>
+  <stop>true</stop>
+  <onstart>NotifyAll(script.copacetic.helper,serve)</onstart>
+</timer>
+```
+
+with a hidden group `6939` in each window whose `<visible>` is, per served list,
+`!String.IsEmpty(Control.GetLabel(<probe>)) + !String.IsEqual(Control.GetLabel(<probe>),wait) + !String.IsEqual(Control.GetLabel(<probe>),Container(<list>).ListItem.Property(params))`,
+OR-ed. A timer reads the topmost dialog first, so a menu over the window reads false.
 
 ### `move/<region>/<lists>/<container>/<token>`
 
@@ -154,6 +175,7 @@ list answers what is on screen:
 | `current` | What the ring answered: a settle's `<list>/<position>/<dbid>/`, or a move's token |
 | `item` | The item served, `<list>/<position>/<dbid>/`; empty for a move with no container |
 | `open` | For a dialog region, the dialog's open token (`Window(home).Property(moved_item)`), so a kept dialog's last item never matches |
+| `params` | The probe's text the list was served from (`none` for the blank item) |
 
 `Container(id).IsUpdating` is always false for a served list. A readiness expression
 in its place, for a window's list:
