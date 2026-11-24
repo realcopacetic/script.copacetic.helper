@@ -30,6 +30,7 @@ TMDB_PROPERTIES = {
             "tagline",
             "created_by",
             "status",
+            ("last_episode_air_date", ("last_episode_to_air", "air_date")),
             ("last_episode_number", ("last_episode_to_air", "episode_number")),
             ("last_episode_season", ("last_episode_to_air", "season_number")),
             ("next_episode_air_date", ("next_episode_to_air", "air_date")),
@@ -81,6 +82,10 @@ TMDB_FIELD_MAP = {
         "label": "keyart",
         "kind": "image_list",
         "limit": 10,
+    },
+    "last_episode_air_date": {
+        "target": "property",
+        "label": "tmdb_last_air_date",
     },
     "last_episode_number": {
         "target": "property",

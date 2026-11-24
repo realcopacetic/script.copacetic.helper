@@ -138,6 +138,7 @@ With `enrich_with_tmdb=true`, these come from TMDB:
 | `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path: trailers, then teasers, then other video types; official over unofficial; then the newest | same | — |
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |
 | `ListItem.Property(tmdb_next_air_season)`, `ListItem.Property(tmdb_next_air_episode)` | — | next episode's season and episode number | — |
+| `ListItem.Property(tmdb_last_air_date)` | — | last aired episode air date | — |
 | `ListItem.Property(tmdb_last_air_season)`, `ListItem.Property(tmdb_last_air_episode)` | — | last aired episode's season and episode number | — |
 | `ListItem.Property(tmdb_status)` | — | status as TMDB writes it, e.g. `Returning Series`, `Ended`, `Canceled` | — |
 
