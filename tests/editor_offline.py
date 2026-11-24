@@ -12,12 +12,12 @@ when a row is selected, and Back or Previous Menu on an edit row saves what was
 typed; a slider step isn't put back by the refresh it triggers, a move not stored is;
 a move rings the region the skin opted in to (ring) once, a changed row too, and no
 editor without it rings; the rows a refresh shows or hides are written in one burst
-inside page_turning with the labels, and a refresh that changes no row's
-visibility writes no flag, as evaluating one writes nothing; a row, a radio's state,
-a management button, an edit's text and the description aren't written again
-unchanged (a Select forgets a radio's state, whether focus was on it or came with
-the press), an edit shows what it saved, and entry substitutions are cached until
-the state changes.
+inside page_turning with the labels, cleared even if a label fails, and a refresh
+that changes no row's visibility writes no flag, as evaluating one writes nothing;
+a row, a radio's state, a management button, an edit's text and the description
+aren't written again unchanged (a Select forgets a radio's state, whether focus was
+on it or came with the press), an edit shows what it saved, and entry substitutions
+are cached until the state changes.
 Run from the helper root: python tests/editor_offline.py
 """
 
@@ -496,12 +496,12 @@ class PageLocked(unittest.TestCase):
 class PageTurning(unittest.TestCase):
     """The rows that show or hide are written in one burst, flagged for the skin."""
 
-    def page(self, *categories: str) -> tuple[DynamicEditor, Mock, list]:
+    def page(self, opened: str) -> tuple[DynamicEditor, Mock, list]:
         """
-        A page of rows each shown in one category, refreshed for each category in
-        turn: the editor, the writes in order, and the category it reads.
+        A page of rows each shown in one category, opened at ``opened``: the editor,
+        the writes in order, and the category it reads.
         """
-        writes, category = Mock(), [categories[0]]
+        writes, category = Mock(), [opened]
         manager = Mock(
             mappings={},
             format_metadata=lambda mk, idx, text: text.replace("{cat}", category[0]),
@@ -524,16 +524,18 @@ class PageTurning(unittest.TestCase):
             handler.parent, handler.update_labels = ed, getattr(writes, f"{name}_label")
             handler.instance.getId.return_value = 300
             ed.handlers[name] = handler
-        for category[0] in categories:
-            ed._refresh_ui(update_row=False)
+        ed._refresh_ui(update_row=False)
         return ed, writes, category
 
     def test_a_page_change_is_one_burst(self):
-        ed, writes, _ = self.page("home", "views")
+        ed, writes, category = self.page("home")
+        writes.reset_mock()
+        category[0] = "views"
+        ed._refresh_ui(update_row=False)
         made = [c for c in writes.mock_calls if not c[0].endswith("getId")]
         # Every label and row write lands between the property writes
         self.assertEqual(
-            made[-8:],
+            made,
             [
                 call.setProperty("page_turning", "true"),
                 call.home_label(100),
@@ -542,6 +544,21 @@ class PageTurning(unittest.TestCase):
                 call.home.setVisible(False),
                 call.views.setVisible(True),
                 call.home_too.setVisible(False),
+                call.setProperty("page_turning", ""),
+            ],
+        )
+
+    def test_a_failed_label_still_clears_the_flag(self):
+        ed, writes, category = self.page("home")
+        writes.reset_mock()
+        ed.handlers["views"].update_labels = Mock(side_effect=KeyError("m"))
+        category[0] = "views"
+        with self.assertRaises(KeyError):
+            ed._refresh_ui(update_row=False)
+        self.assertEqual(
+            [c for c in writes.mock_calls if c[0] == "setProperty"],
+            [
+                call.setProperty("page_turning", "true"),
                 call.setProperty("page_turning", ""),
             ],
         )

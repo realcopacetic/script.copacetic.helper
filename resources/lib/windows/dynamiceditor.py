@@ -391,18 +391,22 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             for h in self.handlers.values()
             if (visible := h.evaluate_visibility()) != h.shown
         ]
-        # Python's writes land in a once-a-frame slot (Application.cpp:1849-1862): the
-        # time shows whether the burst outlasted it and straddled a frame
-        start = time.perf_counter()
-        if flips:  # a row about to hide mustn't show the new entry's label unmasked
-            LockedCalls.write(self.setProperty, "page_turning", "true")
-        for h in self.handlers.values():
-            h.update_labels(focus_id)
         if not flips:
+            for h in self.handlers.values():
+                h.update_labels(focus_id)
             return
-        for h, visible in flips:
-            h.write_visibility(visible)
-        LockedCalls.write(self.setProperty, "page_turning", "")
+        # Labels and visibility each wait for Python's once-a-frame slot
+        # (Application.cpp:1849-1862): the time shows whether the burst straddled a
+        # frame. The labels go inside, or a row about to hide shows the new one's
+        start = time.perf_counter()
+        LockedCalls.write(self.setProperty, "page_turning", "true")
+        try:  # a failed label mustn't leave the skin's column hidden
+            for h in self.handlers.values():
+                h.update_labels(focus_id)
+            for h, visible in flips:
+                h.write_visibility(visible)
+        finally:
+            LockedCalls.write(self.setProperty, "page_turning", "")
         log.debug(
             f"{self.__class__.__name__} → page turn: {len(flips)} rows in "
             f"{(time.perf_counter() - start) * 1000:.1f} ms"
