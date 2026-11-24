@@ -423,6 +423,61 @@ class ServeTest(unittest.TestCase):
         # The cut net serve quiets nothing: the moved arrival's net still serves
         self.assertEqual(served, [CURSOR, moved.value, moved.value])
 
+    def _net_world(self, server: serve.Server, handle: Callable) -> dict:
+        """
+        Wire a Server's serve to labels (probes and bound properties) and the
+        handler given; returns the labels, which binds write back to.
+        """
+        labels = {}
+
+        def bind(window_id, list_id, items, current, item, echo="", params=""):
+            server.binds_seen.append((list_id, params))
+            prop = f"Container({list_id}).ListItem.Property"
+            labels.update({f"{prop}(params)": params, f"{prop}(current)": current})
+
+        server.binds_seen = []
+        server._bind, server._handle = bind, handle
+        return labels
+
+    def _drive(self, server: serve.Server, labels: dict, steps: list) -> None:
+        """Run the worker through steps: a ring, or a callable run between them."""
+        worker = Thread(target=server._work)
+        with (
+            patch.dict(sys.modules, {"resources.lib.plugin.handlers": Mock()}),
+            patch.object(serve, "infolabel", side_effect=lambda t: labels.get(t, "")),
+        ):
+            worker.start()
+            for step in steps:
+                if callable(step):
+                    step()
+                    continue
+                server._ring(step)
+                while server.rung.is_set() or server.busy:
+                    time.sleep(0.005)
+            server.stopped = True
+            server.rung.set()
+            worker.join(2)
+
+    def test_a_probe_that_moves_during_a_net_serve_still_heals(self) -> None:
+        server = _server()
+        settle = SETTLE._replace(lists=_lists(9000, 9300))
+
+        def handle(params, superseded, again, cursors):
+            if params.endswith("stop"):  # 9300's guard stops; 9000's late art lands
+                labels["Control.GetLabel(6900)"] = "info=metadata&art=late"
+                return None
+            return []
+
+        labels = self._net_world(server, handle)
+        labels |= {
+            "Control.GetLabel(6900)": "info=metadata",
+            "Control.GetLabel(6930)": "a",
+        }
+        stop = lambda: labels.update({"Control.GetLabel(6930)": "a&stop"})
+        net = serve.Request()
+        self._drive(server, labels, [settle, stop, net, net])
+        self.assertIn((9000, "info=metadata&art=late"), server.binds_seen)
+
     def test_a_net_ring_as_the_worker_wakes_never_replaces_the_arrival(self) -> None:
         server = _server()
         served = []
