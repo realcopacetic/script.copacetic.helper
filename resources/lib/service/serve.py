@@ -1,12 +1,12 @@
 # author: realcopacetic
 
 """
-Served focus calls: the skin rings when an item comes to rest (settle) or a selection
-changes with no focused-layout arrival (move), and the warm service fills each named
-list in turn, each a list with no <content>, in the active window or, for a dialog's
-region, the dialog; 9300's multiart family then turns on 9400, a slide a beat, and the
-typewriter's line types on a thread of its own. Notes:
-coding-notes/copacetic/features/served-focus-calls.md.
+Served focus calls: the skin rings when an item comes to rest or a selection changes,
+naming the lists to fill and the hidden label (probe) holding each one's params, and
+the warm service fills them in turn, each a list with no <content>, in the active
+window or a dialog the ring names; a family an artwork row names slides for turns on
+that list, a slide a beat, and an ongoing handler's line types on a thread of its own.
+The skin's ring: resources/docs/service/serve.md.
 """
 
 import time
@@ -18,6 +18,7 @@ from typing import Callable, NamedTuple
 import xbmc
 from xbmcgui import ListItem, Window, getCurrentWindowDialogId, getCurrentWindowId
 
+from resources.lib.plugin.registry import runs_on
 from resources.lib.shared import logger as log
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.utilities import (
@@ -28,6 +29,11 @@ from resources.lib.shared.utilities import (
     topmost_window_id,
 )
 
+# NotifyAll(script.copacetic.helper,serve?lists=<list>:<probe>.…&mark=<Home property>
+# &is=<its value>[&wait=<ms>][&window=<dialog>.…][&item=<container>][&echo=<text>]);
+# bare, the skin's net: a probe on top no longer reads as its list's Property(params)
+VERB = "serve"
+LOAD = "serve_load"  # the window's load ring, without its is: the service's start
 # NotifyAll(script.copacetic.helper,<kind>/<region>/<lists, dot-separated>/<mark>);
 # a move's mark is <container>/<token>: the list that moved (view: the cursor's list),
 # or none, then the token in moved_<region>. A bare serve is the skin's net: a probe no
@@ -80,8 +86,8 @@ ASIDE = (9000, 9030)
 CURSORS = {"infoscreen": "primary"}  # a region whose settles answer another's cursor
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
-# Seconds a probe may say wait before it counts as none: a backstop, so a rail that never
-# lands isn't looked at for ever; one that lands later leaves none, and the net serves it
+# Seconds a probe may say wait before it counts as none: a backstop, so a rail that
+# never lands isn't looked at for ever; one landing later leaves none, the net serves it
 WAIT_MAX = 5
 SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
 # 9300's multiart family turns on 9400: each slide's params are in its probe, and each
@@ -94,56 +100,78 @@ LEAD = 1.5  # seconds before its beat a slide is made: its params as late as the
 TYPEWRITER = 9020
 
 
+def _ids(text: str) -> tuple[int, ...]:
+    """
+    A ring's dot-separated ids.
+
+    :param text: The field's text.
+    :return: The ids, in order.
+    """
+    return tuple(map(int, filter(None, text.split("."))))
+
+
 class Request(NamedTuple):
     """
-    One arrival. A settle answers the cursor its hook wrote (artwork_cursor_<region>),
-    a move the token its ring wrote (moved_<region>); the mark is that value. again
-    marks the helper's own re-serve, never a repeat; container is the list a move
-    moved, whose item it binds.
+    One arrival, as the skin rang it: its lists and their probes in serving order, the
+    Home property naming the arrival (mark) and its value at the ring (is), and how to
+    serve it. again marks the helper's own re-serve.
     """
 
-    kind: str
-    region: str
-    lists: tuple[int, ...]
-    mark: str
-    container: str = ""
+    lists: tuple[tuple[int, int], ...] = ()
+    mark: str = ""
+    value: str = ""
+    wait: float = 0.0  # seconds a newer ring may come first: a move's settle
+    windows: tuple[
+        int, ...
+    ] = ()  # the dialogs its lists are in; none: the active window
+    item: str = ""  # the container whose item a bind names, read at the serve
+    echo: str = ""  # bound back as Property(echo)
     again: bool = False
 
-    @property
-    def current(self) -> str:
-        """What the bound item names: the cursor, visit and all, or the token."""
-        return self.mark
+    @classmethod
+    def parse(cls, query: str, **fields: str) -> "Request":
+        """
+        A ring's fields: lists as <list>:<probe> pairs, ids dot-separated; no mark is
+        the net's ring.
+
+        :param query: The ring's query, past serve?.
+        :param fields: Fields to add (a ring from Python adds its is).
+        :return: The request.
+        """
+        params = parse_plugin_argv(["", "", query]) | fields
+        pairs = filter(None, params.get("lists", "").split("."))
+        return cls(
+            tuple(tuple(map(int, pair.split(":"))) for pair in pairs),
+            params.get("mark", ""),
+            params.get("is", ""),
+            int(params.get("wait") or 0) / 1000,
+            _ids(params.get("window", "")),
+            params.get("item", ""),
+            params.get("echo", ""),
+        )
 
     @property
-    def cursor(self) -> str:
-        """Whose cursor a settle answers (artwork_cursor_<cursor>): its region's own."""
-        return CURSORS.get(self.region, self.region)
+    def ids(self) -> tuple[int, ...]:
+        """Its lists, in serving order."""
+        return tuple(list_id for list_id, _ in self.lists)
 
     @property
     def cursors(self) -> dict[str, str]:
-        """A settle's cursor by its name, for a handler that keeps it; a move's none."""
-        return {self.cursor: self.mark} if self.kind == "settle" else {}
-
-    @property
-    def probes(self) -> dict[int, int]:
-        """Its region's lists' probes: a dialog's own, else the windows'."""
-        return dialog.probes if (dialog := DIALOGS.get(self.region)) else PROBES
+        """Its mark by name, for a handler that keeps a settle's cursor."""
+        return {self.mark: self.value}
 
     def live(self) -> bool:
-        """Whether its cursor or token is still the skin's: no move has come since."""
-        prop = (
-            f"artwork_cursor_{self.cursor}"
-            if self.kind == "settle"
-            else f"moved_{self.region}"
-        )
-        return home_property(prop) == self.mark
+        """Whether its mark is still the skin's: no arrival has come since."""
+        return home_property(self.mark) == self.value
 
 
 class Turn(NamedTuple):
-    """A family to turn on 9400: 9300's bind for an arrival, in its window."""
+    """A family to turn on the slides list its artwork row names, for that arrival."""
 
     request: Request
     window_id: int
+    list_id: int  # the artwork list whose bind handed it
+    slides: tuple[int, ...]  # the slides list and its probe; empty for none
     identity: str
     family: tuple[str, ...]
 
@@ -156,16 +184,16 @@ class Again(NamedTuple):
 
     server: "Server"
     list_id: int
-    mark: str
+    value: str
     window_id: int
 
     def __call__(self) -> None:
         """Serve the list again, if its arrival is still the window's last one."""
-        self.server.again(self.list_id, self.mark, self.window_id)
+        self.server.again(self.list_id, self.value, self.window_id)
 
     def current(self) -> bool:
         """Whether its arrival is still the window's last one, so worth fetching for."""
-        return self.server.current(self.mark, self.window_id)
+        return self.server.current(self.value, self.window_id)
 
 
 @cache
@@ -199,16 +227,29 @@ def move_token(*regions: str) -> str:
     return token
 
 
-def ring_move(region: str = "primary") -> None:
+def _token(mark: str) -> str:
     """
-    A move from Python (a published search query, a view settings editor change): the
-    token, then the ring for the region's lists.
+    A new arrival's token, written to its mark first, as the skin writes a move's.
 
-    :param region: Whose token, moved_<region>; a dialog's region names its lists.
+    :param mark: The Home property the ring names.
+    :return: The token, the ring's is.
     """
-    lists = ".".join(map(str, Request("move", region, (), "").probes))
-    mark = move_token(region)
-    xbmc.executebuiltin(f"NotifyAll({log.ADDON_ID},move/{region}/{lists}//{mark})")
+    token = f"m{time.monotonic_ns()}"
+    _home().setProperty(mark, token)
+    return token
+
+
+def ring(message: str, **fields: str) -> None:
+    """
+    A ring from Python (a published search query, the view settings editor's row): the
+    skin's message, with a new token in its mark as its is.
+
+    :param message: The ring the skin passed: serve?…, with no is.
+    :param fields: Fields to add (the editor's own window).
+    """
+    mark = Request.parse(message.partition("?")[2]).mark
+    query = "".join(f"&{k}={v}" for k, v in (fields | {"is": _token(mark)}).items())
+    xbmc.executebuiltin(f"NotifyAll({log.ADDON_ID},{message}{query})")
 
 
 class _Listener(xbmc.Monitor):
@@ -220,22 +261,15 @@ class _Listener(xbmc.Monitor):
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
-        Kodi event hook: a settle or move ring from the skin.
+        Kodi event hook: a ring from the skin.
 
         :param sender: Announcement sender.
-        :param method: Other.<kind>/<region>/<lists>/<mark>.
+        :param method: Other.serve?<fields>, or Other.serve bare.
         :param data: Unused.
         """
-        kind, _, rest = method.removeprefix("Other.").partition("/")
-        if sender != log.ADDON_ID or kind not in KINDS:
-            return
-        region, lists, mark = (rest.split("/", 2) + ["", ""])[:3]
-        probes = Request(kind, region, (), "").probes
-        ids = tuple(i for i in map(int, filter(None, lists.split("."))) if i in probes)
-        container = ""
-        if kind == "move":
-            container, _, mark = mark.partition("/")
-        self.ring(Request(kind, region, ids, mark, container))
+        verb, _, query = method.removeprefix("Other.").partition("?")
+        if sender == log.ADDON_ID and verb == VERB:
+            self.ring(Request.parse(query))
 
 
 class Server:
@@ -245,24 +279,29 @@ class Server:
     """
 
     def __init__(self) -> None:
-        self.request, self.rung, self.stopped = None, Event(), False
+        self.request, self.rung, self.stopped = Request(), Event(), False
         self.lock = RLock()  # again's test and ring, against the listener's ring
         self.heard = 0.0  # when the newest request arrived, for the log
-        self.last = {}  # window id → its last arrival, for a move with no lists
-        self.finished = None  # the last request served whole: a repeat does nothing
+        self.last = {}  # window id → its last arrival, for a ring with no lists
+        self.finished = None  # the last request served whole, for again's lists
         # The running serve's lists not yet started (None: none runs), and those a late
         # answer asked again once started: served after it
         self.ahead, self.asked = None, set()
         self.busy = False  # a request is waiting, or being served: the net is let be
+        self.net = False  # the net rang: the window on top's last request again
         self.failed = {}  # (window id, list) → the probe text its handler stopped on
-        self.turn, self.handed = None, Event()  # the family 9300 last bound, and news
+        self.owed = {}  # (window id, list) → the arrival a late answer was refused for
+        self.lines = {}  # window id → the list its ongoing handler serves (the line)
+        self.infos = {}  # (window id, handler) → the list it last served
+        self.turn, self.handed = None, Event()  # the family last handed, and news
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
         Thread(target=self._rotate, daemon=True).start()
-        # The landing rang before the service ran (Kodi start, a restart): a move now,
-        # its token for either region, as the probe serves the one on screen
-        token = move_token("primary", "secondary")
-        self._ring(Request("move", "primary", tuple(PROBES), token))
+        # The window's load rang before the service ran (Kodi start, a restart): that
+        # ring now, under a new token
+        if message := home_property(LOAD):
+            request = Request.parse(message.partition("?")[2])
+            self._ring(request._replace(value=_token(request.mark)))
 
     def stop(self) -> None:
         """Release the threads: the listener within a second, the others at once."""
@@ -270,66 +309,88 @@ class Server:
         self.rung.set()
         self.handed.set()
 
-    def again(self, list_id: int, mark: str = "", window_id: int = 0) -> None:
+    def again(self, list_id: int, value: str = "", window_id: int = 0) -> None:
         """
         Serve one list of a window's last arrival again (the helper's own events: an
-        album's play counts, TMDb's answer), as long as no newer ring waits; while a
-        serve of it runs, after that serve, unless the serve has yet to reach the list.
+        album's play counts, TMDb's answer), as long as no newer ring waits (else it is
+        owed to the arrival's next ring); while a serve of it runs, after that serve.
 
         :param list_id: The list to serve.
-        :param mark: The arrival that asked, if only while it is the last one.
-        :param window_id: Its window; with none, the topmost one served, else the active.
+        :param value: The arrival that asked, if only while it is the last one.
+        :param window_id: Its window; none: the topmost one served, else the active.
         """
         with self.lock:
-            ids = (
-                (window_id,)
-                if window_id
-                else (topmost_window_id(), getCurrentWindowId())
-            )
-            window_id = next((i for i in ids if i in self.last), 0)
+            window_id = self._served(window_id)
             last = self.last.get(window_id)
-            pending = self.request
-            if not (
-                last
-                and list_id in last.lists
-                and self.current(mark or last.mark, window_id)
-            ):
+            if not (last and self.current(value or last.value, window_id)):
+                # A newer ring has the window: its arrival's next ring serves it
+                if value:
+                    self.owed[(window_id, list_id)] = value
                 return
+            if list_id not in last.ids:
+                return
+            pending = self.request
             # The line follows: a late answer can change its label (a tagline)
-            asked = {list_id, *({TYPEWRITER} & {*last.lists})}
+            asked = {list_id, *({self.lines.get(window_id)} & {*last.ids})}
             if self.ahead is not None:  # never cut a running serve's handler
                 self.asked |= asked - {*self.ahead}
                 return
             if self.finished is last:  # these lists, and those of an again rung
-                wanted = {*asked, *(pending.lists if pending.again else ())}
-                lists = tuple(i for i in last.lists if i in wanted)
+                wanted = {*asked, *(pending.ids if pending.again else ())}
+                lists = tuple(pair for pair in last.lists if pair[0] in wanted)
             else:  # its serve stopped short (a guard): all of it again
                 lists = last.lists
             self._ring(last._replace(lists=lists, again=True))
 
-    def current(self, mark: str, window_id: int) -> bool:
+    def current(self, value: str, window_id: int) -> bool:
         """
         Whether an arrival is its window's last one, with no newer ring waiting (which
         serves its lists anyway).
 
-        :param mark: The arrival's mark.
+        :param value: The arrival's value (is).
         :param window_id: Its window.
         :return: True while it is.
         """
         with self.lock:
             last = self.last.get(window_id)
-            return bool(last) and last.mark == mark == self.request.mark
+            return bool(last) and last.value == value == self.request.value
+
+    def served(self, info: str) -> int:
+        """
+        The list the topmost window served last with a handler (an album's bar), for
+        again.
+
+        :param info: The handler's name.
+        :return: The list's id; 0 for none.
+        """
+        with self.lock:
+            return self.infos.get((self._served(), info), 0)
+
+    def _served(self, window_id: int = 0) -> int:
+        """
+        A window the service has served: the one asked, else the topmost served, else
+        the active one.
+
+        :param window_id: The window asked; 0 for none.
+        :return: Its id; 0 for none served.
+        """
+        ids = (window_id,) if window_id else (topmost_window_id(), getCurrentWindowId())
+        return next((i for i in ids if i in self.last), 0)
 
     def _ring(self, request: Request) -> None:
         """
-        Hand the worker the newest request.
+        Hand the worker the newest request; the net's ring is let be while one waits
+        or is served, which answers it.
 
-        :param request: The arrival heard.
+        :param request: The arrival heard; no mark: the net's.
         """
         with self.lock:
-            if request.kind == "serve" and (self.busy or self.rung.is_set()):
-                return  # the net's ring: the serve in hand answers it
-            self.request, self.heard = request, time.perf_counter()
+            if not request.mark:
+                if not (self.busy or self.rung.is_set()):
+                    self.heard, self.net = time.perf_counter(), True
+                    self.rung.set()
+                return
+            self.request, self.heard, self.net = request, time.perf_counter(), False
             self.rung.set()
 
     def _listen(self) -> None:
@@ -349,18 +410,14 @@ class Server:
             self.busy = True
             if self.stopped:
                 return
-            request = self.request
-            # An info dialog's item moves nothing: its open or the tabs' return
-            if request.kind == "move" and request.region != "item":
-                if self.rung.wait(SETTLE):
-                    continue  # still moving: the next ring starts the wait again
-            net = request.kind == "serve"
-            if net:  # the window on top's last request, as it was
-                with self.lock:
-                    last = self.last.get(topmost_window_id())
-                    if not last or self.request is not request:
+            with self.lock:
+                request, net, self.net = self.request, self.net, False
+                if net:  # the window on top's last request, as it was
+                    if not (request := self.last.get(topmost_window_id())):
                         continue
-                    self.request = request = last
+                    self.request = request
+            if not net and request.wait and self.rung.wait(request.wait):
+                continue  # still moving: the next ring starts the wait again
             try:  # one bad item costs one serve (service-caches finding 1)
                 self._serve(request, net)
             except Exception:
@@ -369,59 +426,56 @@ class Server:
 
     def _serve(self, arrival: Request, net: bool = False) -> None:
         """
-        Each list in turn while the arrival is the newest and live, in the active window
-        (a dialog region's: the topmost dialog); one covered before its bind is owed. A
-        move with no lists or region: the window's last request (else every list) again.
+        Each list in turn while the arrival is the newest and live, in its window; one
+        covered before its bind is owed. With no lists: the window's last request again,
+        under this arrival's mark.
 
         :param arrival: The request heard.
         :param net: The net's ring: a list whose handler stopped on this text is let be.
         """
-        window_id = self._window(arrival.region)
+        window_id = self._window(arrival)
         request = arrival
-        if arrival.kind == "move":
-            last = self.last.get(window_id) or Request("move", "primary", (), "")
-            request = arrival._replace(
-                region=arrival.region or last.region,
-                lists=arrival.lists or last.lists or tuple(PROBES),
-            )
-        if not request.mark:
-            return
-        if not request.again:  # an again keeps its arrival's lists for the next move
+        if not arrival.lists:
+            if not (last := self.last.get(window_id)):
+                return
+            request = arrival._replace(lists=last.lists)
+        if not request.again:  # an again keeps its arrival's lists for the next ring
             with self.lock:
                 self.last[window_id] = request
         stale = lambda: self.request is not arrival or not request.live()
-        dialog = DIALOGS.get(request.region)
-        opened = dialog and dialog.token and Window(10000).getProperty(dialog.token)
         self.asked = set()
         held = []  # lists that already held their answer
-        for i, list_id in enumerate(request.lists):
-            self.ahead = request.lists[i + 1 :]
-            probe = request.probes[list_id]
+        for i, (list_id, probe) in enumerate(request.lists):
+            self.ahead = request.ids[i + 1 :]
             retried = False
             while (params := self._turn(probe, window_id, stale)) is not None:
                 if not params:
                     break  # not mounted in this window
+                fields = parse_plugin_argv(["", "", params.removeprefix(PLUGIN)])
+                info = fields.get("info", "")
+                line = runs_on(info)  # a line types on past its answer
                 # An again always serves, a line only once it no longer stands
-                if (list_id == TYPEWRITER or not request.again) and self._answers(
-                    request, list_id, params
+                if (line or not request.again) and self._answers(
+                    request, window_id, list_id, params, line
                 ):
                     held.append(list_id)
                     break
                 if net and self.failed.get((window_id, list_id)) == params:
                     break  # its handler stopped on this text: the net lets it be
-                if list_id == TYPEWRITER:
+                if line:
                     with self.lock:
+                        self.lines[window_id] = list_id
                         # A late answer came while the line waited (a tagline): those
                         # lists first, at the serve's end, then the line once
-                        if late := bool(self.asked - {TYPEWRITER}):
-                            self.asked.add(TYPEWRITER)
+                        if late := bool(self.asked - {list_id}):
+                            self.asked.add(list_id)
                     if late:
                         break
                 item = self._item(request)  # beside the probe: the item it was read for
-                again = Again(self, list_id, request.mark, window_id)
+                again = Again(self, list_id, request.value, window_id)
                 # A line types on past its serve: only the service's stop ends it here,
                 # its lease (the skin's scroll at a move) and guard do the rest
-                superseded = self._stopped if list_id == TYPEWRITER else stale
+                superseded = self._stopped if line else stale
                 started = time.perf_counter()
                 items = (
                     self._handle(params, superseded, again, request.cursors)
@@ -439,25 +493,32 @@ class Server:
                         self.failed[(window_id, list_id)] = params
                     return  # its guard stopped it, or a move came: a ring follows
                 # A started line binds under a dialog too: its item holds no reads
-                if list_id == TYPEWRITER or topmost_window_id() == window_id:
+                if line or topmost_window_id() == window_id:
                     self._bind(
                         window_id,
                         list_id,
                         items,
-                        request.current,
+                        request.value,
                         item,
-                        opened or "",
+                        request.echo,
                         params,
                     )
-                    self.failed.pop((window_id, list_id), None)
-                    if list_id == ARTWORK:
-                        self._hand(Turn(request, window_id, *self._family(items)))
+                    with self.lock:
+                        self.failed.pop((window_id, list_id), None)
+                        self.owed.pop((window_id, list_id), None)
+                        if info:
+                            self.infos[(window_id, info)] = list_id
+                    slides = fields.get("slides", "")  # <list>:<probe>
+                    if slides or (self.turn and self.turn[1:3] == (window_id, list_id)):
+                        pair = tuple(map(int, slides.split(":"))) if slides else ()
+                        family = self._family(items) if slides else ("", ())
+                        self._hand(Turn(request, window_id, list_id, pair, *family))
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "
                         f"{(started - self.heard) * 1000:.0f}ms ring to start, "
                         f"{(handled - started) * 1000:.0f}ms handler, "
                         f"{(time.perf_counter() - handled) * 1000:.0f}ms bind, "
-                        f"{request.kind} {request.mark}"
+                        f"{request.mark} {request.value}"
                     )
                     break
             else:
@@ -465,81 +526,80 @@ class Server:
         if held:
             log.debug(
                 f"{self.__class__.__name__} → repeat, not served: "
-                f"{'.'.join(map(str, held))} {request.mark}"
+                f"{'.'.join(map(str, held))} {request.value}"
             )
         with self.lock:
             self.ahead = None
-            # An again ends with its arrival served whole: a repeat of that does
-            # nothing, and the next again keys off the arrival, not this one's lists
+            # An again ends with its arrival served whole: the next again keys off the
+            # arrival, not this one's lists
             self.finished = self.last.get(window_id) if request.again else request
             if self.request is not arrival:
                 return
             if self.asked:  # late answers for lists it had started: those again
-                lists = tuple(i for i in request.probes if i in self.asked)
+                lists = tuple(pair for pair in request.lists if pair[0] in self.asked)
                 self._ring(request._replace(lists=lists, again=True))
             elif request.again:
                 self.request = self.finished
 
-    def _answers(self, request: Request, list_id: int, params: str) -> bool:
+    def _answers(
+        self, request: Request, window_id: int, list_id: int, params: str, line: bool
+    ) -> bool:
         """
         Whether a list already holds its answer: bound for this arrival from the same
-        probe text (a layout rebuilt, the info tabs' return); a line, the same text while
-        it stands. Read with the window on top.
+        probe text (a layout rebuilt, the info tabs' return) and owed no late answer; a
+        line, the same text while it stands. Read with the window on top.
 
         :param request: The resolved request.
+        :param window_id: Window the request is for.
         :param list_id: The served list.
         :param params: Its probe's text now.
+        :param line: Whether its handler is ongoing.
         :return: True when serving it again would bind what it holds.
         """
         bound = f"Container({list_id}).ListItem.Property"
         if infolabel(f"{bound}(params)") != params:
             return False
-        if list_id == TYPEWRITER:
+        if line:
             return not self._retired(params)
-        # A dialog's move serves a late answer's lists, which a rail may have cut
-        aside = request.kind == "move" and request.region in DIALOGS
-        return not (aside and list_id in ASIDE) and (
-            infolabel(f"{bound}(current)") == request.current
+        return self.owed.get((window_id, list_id)) != request.value and (
+            infolabel(f"{bound}(current)") == request.value
         )
 
     @staticmethod
-    def _window(region: str) -> int:
+    def _window(request: Request) -> int:
         """
-        The window a region's lists are in: the active window, or a dialog region's
-        dialog: the topmost, else under a menu the open one whose token is Home's.
+        The window a request's lists are in: the active window, or of the dialogs it
+        names the topmost, else under a menu the open one holding its mark's value as a
+        property of its own (one of two stacked), else the first open.
 
-        :param region: The request's region.
+        :param request: The request heard.
         :return: The window id.
         """
-        if not (dialog := DIALOGS.get(region)):
+        if not request.windows:
             return getCurrentWindowId()
         top = getCurrentWindowDialogId()
-        if not dialog.windows or top in dialog.windows:
+        if top in request.windows:
             return top
-        active = [w for w in dialog.windows if condition(f"Window.IsActive({w})")]
-        token = Window(10000).getProperty(dialog.token)
-        owner = (w for w in active if Window(w).getProperty(dialog.token) == token)
-        return next(owner, next(iter(active), top))
+        active = [w for w in request.windows if condition(f"Window.IsActive({w})")]
+        own = (
+            w for w in active if Window(w).getProperty(request.mark) == request.value
+        )
+        return next(own, next(iter(active), top))
 
     @staticmethod
     def _item(request: Request) -> str:
         """
-        The item served, as list/position/dbid/: a settle's cursor names it; a move's
-        container is read now (view: the cursor's list), so a return to it reads as
-        served; a move with none names nothing.
+        The item served, as list/position/dbid/: the container the ring names, read
+        now (a cursor names its list), so a return to it reads as served; else the
+        part of is before its visit, empty for a token.
 
         :param request: The resolved request.
         :return: The item, or empty.
         """
-        if request.kind == "settle":
-            return (
-                request.mark.rpartition("/")[0] + "/"
-            )  # no visit: a kept item matches
-        list_id = request.container
-        if list_id == "view":
-            cursor = Window(10000).getProperty(f"artwork_cursor_{request.cursor}")
-            list_id = cursor.partition("/")[0]
-        if not list_id:
+        if not request.item:
+            head, slash, _ = request.value.rpartition("/")
+            return head + slash  # no visit: a kept item matches
+        if not (list_id := request.item.partition("/")[0]):
             return ""
         position, dbid = (
             infolabel(f"Container({list_id}).{label}")
@@ -629,7 +689,7 @@ class Server:
         :param params: The probe's text: info=…&… (a plugin URL's prefix is dropped).
         :param superseded: Whether a newer arrival has come, the guard's first test.
         :param again: Serves the list again for this arrival (TMDb's late answer).
-        :param cursors: The settle's cursor by region (Request.cursors).
+        :param cursors: The arrival's mark by name (Request.cursors).
         :return: Its items, none for an unknown info; None if its guard stopped it.
         """
         # Here, not at the top: the service loads without the plugin stack
@@ -648,7 +708,7 @@ class Server:
     @staticmethod
     def _family(items: list[tuple]) -> tuple[str, tuple[str, ...]]:
         """
-        9300's bound identity and multiart family, read off its item (no GUI read).
+        An artwork bind's identity and multiart family, read off its item (no GUI read).
 
         :param items: The handler's items, as bound.
         :return: The identity and the family's URLs, main first; empty for none.
@@ -662,18 +722,18 @@ class Server:
 
     def _hand(self, turn: Turn) -> None:
         """
-        Give the rotation 9300's new bind: its family turns from slide 1 (slide 0 is
-        9300's own art), a family of one stops the last, and an again of the same
-        arrival, window, identity and family keeps the running turn and its dwell.
+        Give the rotation an artwork list's new bind: its family turns from slide 1
+        (slide 0 is the list's own art), a family of one stops the last, and an again
+        of the same arrival, lists, identity and family keeps the turn and its dwell.
 
-        :param turn: The bind's arrival, window, identity and family.
+        :param turn: The bind's arrival, window, lists, identity and family.
         """
-        if self.turn and (self.turn.request.mark, *self.turn[1:]) == (
-            turn.request.mark,
+        if self.turn and (self.turn.request.value, *self.turn[1:]) == (
+            turn.request.value,
             *turn[1:],
         ):
             return
-        self.turn = turn if len(turn.family) > 1 else None
+        self.turn = turn if turn.slides and len(turn.family) > 1 else None
         self.handed.set()
 
     def _rotate(self) -> None:
@@ -686,6 +746,7 @@ class Server:
                 return
             if not (turn := self.turn):
                 continue
+            slides, probe = turn.slides
             beat = time.monotonic()
             try:  # one bad slide costs its family's turn
                 for url in islice(cycle(order_multiart(turn.family)), 1, None):
@@ -695,22 +756,27 @@ class Server:
                     if self._waited(beat - LEAD, turn):
                         break
                     started = time.perf_counter()
-                    items = self._slide(turn, url)
+                    slide = self._slide(turn, url)
                     made = time.perf_counter() - started
                     if self.handed.wait(max(0.0, beat - time.monotonic())):
                         break
                     # Asked after the read on top, which can wait out a frame (the GUI
                     # lock) in which a move lands
-                    on_top = items and topmost_window_id() == turn.window_id
+                    on_top = slide and topmost_window_id() == turn.window_id
                     if not self._turning(turn):
                         break
                     if on_top:
+                        params = infolabel(f"Control.GetLabel({probe})")
+                        if topmost_window_id() != turn.window_id:
+                            continue  # a dialog answered the read: no slide this beat
+                        if params != slide[1]:
+                            break  # its params moved on (the rail no longer focused)
                         self._bind(
-                            turn.window_id, SLIDES, items, turn.request.current, ""
+                            turn.window_id, slides, slide[0], turn.request.value, ""
                         )
                         log.debug(
-                            f"{self.__class__.__name__} → {SLIDES} turned: "
-                            f"{made * 1000:.0f}ms slide, {turn.request.mark}"
+                            f"{self.__class__.__name__} → {slides} turned: "
+                            f"{made * 1000:.0f}ms slide, {turn.request.value}"
                         )
             except Exception:
                 log.exception(f"{self.__class__.__name__} → turn {turn.request}")
@@ -731,33 +797,25 @@ class Server:
 
     def _turning(self, turn: Turn) -> bool:
         """
-        Whether a family still turns: no newer ring (an again keeps the mark), its
-        arrival's cursor or token is still the skin's, and a rail's still has focus.
+        Whether a family still turns: no newer ring (an again keeps the value), and its
+        arrival's mark is still the skin's.
 
         :param turn: The family turning.
         :return: True while it does.
         """
-        region = turn.request.region
-        return (
-            self.request.mark == turn.request.mark
-            and turn.request.live()
-            # Back on the view the rail's cursor stands until the view's ring
-            and (
-                region != "secondary"
-                or Window(10000).getProperty("focus_region") == region
-            )
-        )
+        return self.request.value == turn.request.value and turn.request.live()
 
     @staticmethod
-    def _slide(turn: Turn, url: str) -> list[tuple] | None:
+    def _slide(turn: Turn, url: str) -> tuple[list[tuple], str] | None:
         """
-        A slide's item for 9400, made with the slide probe's params, the logo read whole
-        by its source, while the window is on top (under a dialog Python reads the
-        dialog's controls).
+        A slide's item, made with the slide probe's params, the logo read whole by its
+        source, while the window is on top (under a dialog Python reads the dialog's
+        controls).
 
         :param turn: The family turning.
         :param url: The slide.
-        :return: The item, its art the slide's and its identity 9300's; None for none.
+        :return: The item (its art the slide's, its identity the artwork list's) and the
+            params it was made with; None for none.
         """
         from resources.lib.art.multiart import slide_art
         from resources.lib.plugin.opts import ART_URLS, read_art_urls
@@ -765,7 +823,7 @@ class Server:
 
         if topmost_window_id() != turn.window_id:
             return None
-        if (query := infolabel(f"Control.GetLabel({SLIDE_PROBE})")) in ("", NONE):
+        if (query := infolabel(f"Control.GetLabel({turn.slides[1]})")) in ("", NONE):
             return None
         params = parse_plugin_argv(["", "", query], raw=ART_URLS)
         art = slide_art(params | read_art_urls(params, infolabel, True), url)
@@ -773,15 +831,12 @@ class Server:
             return None  # a dialog that opened during the reads answered them
         if "background" not in art:
             return None  # it wouldn't open: the slide on screen holds
-        return set_items(
-            [
-                {
-                    "file": plugin_path("artwork"),
-                    "art": art,
-                    "properties": {"identity": turn.identity},
-                }
-            ]
-        )
+        item = {
+            "file": plugin_path("artwork"),
+            "art": art,
+            "properties": {"identity": turn.identity},
+        }
+        return set_items([item]), query
 
     @staticmethod
     def _bind(
@@ -790,19 +845,19 @@ class Server:
         items: list[tuple],
         current: str,
         item: str,
-        opened: str = "",
+        echo: str = "",
         params: str = "",
     ) -> None:
         """
         Replace the list's items in one bind; the first names the arrival it answers,
-        the item it served, a dialog's open and the probe text it was served from.
+        the item it served, the ring's echo and the probe text it was served from.
 
         :param window_id: Window holding the list.
         :param list_id: The served list.
         :param items: Handler items; none binds one blank item.
-        :param current: The request's current, as Property(current).
+        :param current: The ring's is, as Property(current).
         :param item: The item served, list/position/dbid/ (or empty), Property(item).
-        :param opened: The dialog's open token, as Property(open); empty for none.
+        :param echo: The ring's echo, as Property(echo); empty for none.
         :param params: The probe's text, as Property(params), for the skin's net.
         """
         listitems = []
@@ -811,7 +866,7 @@ class Server:
             listitems.append(listitem)
         listitems = listitems or [ListItem(offscreen=True)]
         listitems[0].setProperties(
-            {"current": current, "item": item, "open": opened, "params": params}
+            {"current": current, "item": item, "echo": echo, "params": params}
         )
         # A new Window each bind: a kept one's ControlList rebinds all it was ever given
         window = Window(window_id)

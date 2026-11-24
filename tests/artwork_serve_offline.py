@@ -279,7 +279,9 @@ class ArtworkServe(unittest.TestCase):
         return out["items"][0]["properties"]["identity"]
 
     def test_a_served_settle_keeps_the_requests_cursor_and_visit(self):
-        cursor = {"cursors": {"primary": "50/2/6/v0"}}  # the live cursor, as rung
+        cursor = {
+            "cursors": {"artwork_cursor_primary": "50/2/6/v0"}
+        }  # the live cursor, as rung
         params = {"cursor_key": "primary"} | self.VISIT_REGISTER
         out = self.serve(params, **self.SERVED, **cursor)
         self.assertEqual(self.identity(out), "50/3/7/v0")
@@ -288,13 +290,15 @@ class ArtworkServe(unittest.TestCase):
         self.assertIn("background_blur_9300", out["props"])
 
     def test_a_served_settle_whose_cursor_moved_writes_no_bridge(self):
-        cursor = {"cursors": {"primary": "50/3/7/v9"}}  # the live one is newer
+        cursor = {
+            "cursors": {"artwork_cursor_primary": "50/3/7/v9"}
+        }  # the live one is newer
         out = self.serve({"cursor_key": "primary"}, **self.SERVED, **cursor)
         self.assertEqual(self.identity(out), "50/3/7/v9")
         self.assertNotIn("background_blur_9300", out["props"])
 
     def test_a_served_settle_under_a_modal_names_its_cursor(self):
-        cursor = {"cursors": {"primary": "50/3/7/v9"}}
+        cursor = {"cursors": {"artwork_cursor_primary": "50/3/7/v9"}}
         out = self.serve({"cursor_key": "primary"}, False, **self.SERVED, **cursor)
         self.assertEqual(self.identity(out), "50/3/7/v9")  # no position read: 50//7
 

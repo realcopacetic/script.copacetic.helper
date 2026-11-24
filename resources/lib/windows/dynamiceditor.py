@@ -15,7 +15,7 @@ from xbmcgui import (
 )
 
 from resources.lib.builders.runtime import RuntimeStateManager
-from resources.lib.service.serve import ring_move
+from resources.lib.service.serve import ring
 from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, infolabel, window_property
 from resources.lib.windows.control_factory import DynamicControlFactory
@@ -350,9 +350,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self._ring()
 
     def _ring(self) -> None:
-        """Ring the served region the skin named (``ring``), if any, for a move."""
-        if self.ring:
-            LockedCalls.write(ring_move, self.ring)  # its token, a Home property
+        """Send the served ring the skin passed (``ring``), if any, in this window."""
+        if self.ring:  # its token, a Home property
+            LockedCalls.write(ring, self.ring, window=str(self.getId()))
 
     def _refresh_ui(self, update_row: bool = True, focus_id: int | None = None) -> None:
         """

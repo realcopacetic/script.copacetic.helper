@@ -183,7 +183,7 @@ While a skin that opts in is active, library song updates outside a library scan
 each library song closing (stopped, ended, or giving way to the next), set
 `progress_version` to a new number, once for a burst, unless the progress bar on top
 then serves another item's bar (see the table below), and serves a
-[served](serve.md) bar (`9010`) again itself. A skin puts the number in a plugin progress
+[served](serve.md) bar again itself. A skin puts the number in a plugin progress
 bar's URL, so an album's bar is served again after one of its songs is heard, also on
 a return from the OSD: Kodi's own refresh of a plugin container doesn't follow music
 library updates when its item is video-tagged, as the progress bar's item is. Kodi

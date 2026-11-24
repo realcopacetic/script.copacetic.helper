@@ -9,6 +9,29 @@ if TYPE_CHECKING:
 
 LOG_TAG = "plugin"
 _INFO_TAG = "__plugin_info__"
+_ONGOING_TAG = "__plugin_ongoing__"
+
+
+def ongoing(fn: Callable) -> Callable:
+    """
+    Mark a handler that answers at once and runs on past its answer (the typewriter's
+    line), so a served list's serve never waits for it.
+    """
+    setattr(fn, _ONGOING_TAG, True)
+    return fn
+
+
+def runs_on(info: str) -> bool:
+    """
+    Whether the handler an info names is ongoing.
+
+    :param info: The handler's name, as a probe's info names it.
+    :return: True for an ongoing handler.
+    """
+    from resources.lib.plugin.handlers import PluginHandlers  # imports this module
+
+    handler = getattr(PluginHandlers, info.strip().lower(), None)
+    return getattr(handler, _ONGOING_TAG, False)
 
 
 class PluginInfoRegistry(type):
@@ -53,7 +76,7 @@ def info_handler(
     :param superseded: A served list's test for a newer arrival; None for a plugin.
     :param again: A served list's re-serve, for an answer that lands later.
     :param query: The raw query params were parsed from, for a handler that rereads it.
-    :param cursors: A served settle's cursor by region; None for a plugin.
+    :param cursors: A served arrival's mark, its value by name; None for a plugin.
     :return: Bound handler, or None for an unknown info.
     """
     from resources.lib.plugin.handlers import PluginHandlers  # imports this module

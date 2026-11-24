@@ -20,8 +20,8 @@ it counts the watched movies in the set; for an album, the songs heard (see
 </control>
 ```
 
-**Served.** As a [served list](../service/serve.md) (`9010` with probe `6910`; an info
-dialog's own item with `6911`), the probe holds these params without the
+**Served.** As a [served list](../service/serve.md) (Copacetic's `9010` with probe
+`6910`; an info dialog's own item with `6911`), the probe holds these params without the
 `plugin://…?` prefix, and an album's bar is served again by the service itself
 ([Albums](#albums)).
 
@@ -104,7 +104,7 @@ heard.
   `title`).
 - **Kept current:** the bar and its resume point are served again when one of its
   songs is heard (from a library window or a helper queue), or it is marked: a
-  [served](../service/serve.md) `9010` by the service itself, a plugin bar if the
+  [served](../service/serve.md) bar by the service itself, a plugin bar if the
   skin puts the service's `progress_version` in its URL (see
   [the service](../service/index.md#on-song-updates)): Kodi doesn't refresh the
   video-tagged progress item on a music library update.
@@ -113,8 +113,9 @@ heard.
 
 An album's item also carries `ListItem.Property(album)` `true`: the service skips its
 re-serve only while the bar on top is another item's. The service reads the bar's
-item from container `9010` in the topmost dialog, else the active window, so give
-the progress bar's helper container that id for the skip to work. The serve also writes the focused album's id to
+item in the topmost dialog, else the active window: from the list it last served the
+bar in, or for a plugin bar container `9010`, so give that helper container this id
+for the skip to work. The serve also writes the focused album's id to
 `Window(home).Property(album_played)`
 when every song has played and none is part-heard, or to `album_unplayed` when none
 has, and clears the other. The context menu's

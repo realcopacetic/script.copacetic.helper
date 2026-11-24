@@ -74,7 +74,7 @@ from resources.lib.plugin.music import (
     song_play_place,
 )
 from resources.lib.plugin.pvr import BROADCAST_FIELDS, broadcast_items
-from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry
+from resources.lib.plugin.registry import LOG_TAG, PluginInfoRegistry, ongoing
 from resources.lib.plugin.setter import apply_videoinfotag, set_items
 from resources.lib.plugin.soundtracks import (
     SOUNDTRACK,
@@ -342,7 +342,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         self.superseded = superseded  # a served list's: its guards test it first
         self.again = again  # a served list's re-serve, for an answer that lands later
         self.query = query  # the raw query params came from: a service has no argv
-        self.cursors = cursors or {}  # a served settle's cursor by region
+        self.cursors = cursors or {}  # a served arrival's mark: its property's value
 
         self.label = params.get("label", "")
         self.dbtype = params.get("type", "").lower()
@@ -879,17 +879,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # A served settle's cursor is the request's, its visit too; a move's, as a
         # plugin's, is read now with the live visit
         cursor_key = self.params.get("cursor_key", "")
+        cursor_prop = f"artwork_cursor_{cursor_key}"
+        served_cursor = self.cursors.get(cursor_prop)  # the settle's mark is the cursor
         cursor_snapshot = (
-            self.cursors.get(cursor_key)
-            or infolabel(f"Window(home).Property(artwork_cursor_{cursor_key})")
+            served_cursor or infolabel(f"Window(home).Property({cursor_prop})")
             if cursor_key
             else ""
         )
         visit = self.params.get("visit", "")
         if self.superseded:
             visit = (
-                ArtworkIdentity.parse(self.cursors[cursor_key]).visit
-                if cursor_key in self.cursors
+                ArtworkIdentity.parse(served_cursor).visit
+                if served_cursor is not None
                 else infolabel("Window(home).Property(artwork_visit)")
             )
         # Scope of this serve, needed before seeding: the seeder must know
@@ -1068,9 +1069,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         partial = identity.partial(("scope", "pos", "dbid"))
         if self.superseded:
             current = (
-                self.cursors.get(cursor_key) or partial
-                if current_position is None
-                else str(identity)
+                served_cursor or partial if current_position is None else str(identity)
             )
         else:
             current = stamped or cursor_snapshot or partial
@@ -1690,6 +1689,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             ]
         )
 
+    @ongoing
     @log.duration
     def typewriter(self) -> list[DirectoryItem] | None:
         """
