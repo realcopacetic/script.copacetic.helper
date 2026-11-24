@@ -335,8 +335,8 @@ class Server:
         while True:
             self.busy = False  # idle: the net may ring
             self.rung.wait()
+            self.busy = True  # before the clear: a net ring in between is let be
             self.rung.clear()
-            self.busy = True
             if self.stopped:
                 return
             with self.lock:
