@@ -11,10 +11,13 @@ refreshes its controls for the list (a sliderex's button loses its focused colou
 when a row is selected, and Back or Previous Menu on an edit row saves what was
 typed; a slider step isn't put back by the refresh it triggers, a move not stored is;
 a move rings the region the skin opted in to (ring) once, a changed row too, and no
-editor without it rings; a row, a radio's state, a management button, an edit's text
-and the description aren't written again unchanged (a Select forgets a radio's state,
-whether focus was on it or came with the press), an edit shows what it saved,
-and entry substitutions are cached until the state changes.
+editor without it rings; the rows a refresh shows or hides are written in one burst
+inside page_turning, after the labels, and a refresh that changes no row's
+visibility writes no flag, as evaluating one writes nothing; a row, a radio's state,
+a management button, an edit's text and the description aren't written again
+unchanged (a Select forgets a radio's state, whether focus was on it or came with
+the press), an edit shows what it saved, and entry substitutions are cached until
+the state changes.
 Run from the helper root: python tests/editor_offline.py
 """
 
@@ -23,7 +26,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from build_offline import HELPER, install_stubs
 
@@ -80,6 +83,7 @@ from resources.lib.builders.runtime import RuntimeStateManager  # noqa: E402
 from resources.lib.windows.controls import (  # noqa: E402
     BaseControlHandler,
     EditHandler,
+    LockedCalls,
     RadioButtonHandler,
     SliderExHandler,
     SliderHandler,
@@ -388,8 +392,8 @@ class Unchanged(unittest.TestCase):
         """
         before = Mock(focus_target_id=None)
         radio = self.radio(["true"])
-        radio._selected = True
-        radio.update_visibility = Mock()
+        radio._selected = radio.shown = True
+        radio.update_labels, radio.evaluate_visibility = Mock(), lambda: True
         ed = editor(
             host=None,
             host_focus=None,
@@ -455,12 +459,13 @@ class Unchanged(unittest.TestCase):
 
 class PageLocked(unittest.TestCase):
     def row(self, control_type: str, shown: bool, enabled: bool) -> BaseControlHandler:
-        """A row as update_visibility and set_enabled leave it."""
+        """A row as write_visibility and set_enabled leave it."""
         handler = BaseControlHandler.__new__(BaseControlHandler)
         handler.control = {"control_type": control_type}
         handler.instance = Mock(**{"getId.return_value": 300})
-        handler._shown, handler._enabled_by_id = shown, {300: enabled}
-        handler.update_value = handler.update_visibility = Mock()
+        handler.shown, handler._enabled_by_id = shown, {300: enabled}
+        handler.update_value = handler.update_labels = Mock()
+        handler.evaluate_visibility = lambda: shown
         return handler
 
     def refreshed(self, *handlers: BaseControlHandler) -> dict:
@@ -486,6 +491,80 @@ class PageLocked(unittest.TestCase):
     def test_one_focusable_row_leaves_it_open(self):
         rows = self.row("label", True, True), self.row("cycle", True, True)
         self.assertEqual(self.refreshed(*rows), {})
+
+
+class PageTurning(unittest.TestCase):
+    """The rows that show or hide are written in one burst, flagged for the skin."""
+
+    def page(self, *categories: str) -> tuple[DynamicEditor, Mock, list]:
+        """
+        A page of rows each shown in one category, refreshed for each category in
+        turn: the editor, the writes in order, and the category it reads.
+        """
+        writes, category = Mock(), [categories[0]]
+        manager = Mock(
+            mappings={},
+            format_metadata=lambda mk, idx, text: text.replace("{cat}", category[0]),
+        )
+        ed = editor(
+            current_listitem="a",
+            listitems={"a": {"runtime_index": 0}},
+            getFocusId=lambda: 100,
+            _set_description=Mock(),
+        )
+        ed.setProperty = writes.setProperty
+        ed.handlers = {}
+        for name in ("home", "views", "home_too"):
+            control = {
+                "control_type": "button",
+                "mapping": "m",
+                "visible": f"equals({{cat}}, {name.split('_')[0]})",
+            }
+            handler = BaseControlHandler(control, getattr(writes, name), manager)
+            handler.parent, handler.update_labels = ed, getattr(writes, f"{name}_label")
+            handler.instance.getId.return_value = 300
+            ed.handlers[name] = handler
+        for category[0] in categories:
+            ed._refresh_ui(update_row=False)
+        return ed, writes, category
+
+    def test_a_page_change_is_one_burst(self):
+        ed, writes, _ = self.page("home", "views")
+        made = [c for c in writes.mock_calls if not c[0].endswith("getId")]
+        self.assertEqual(
+            made[-5:],
+            [
+                call.setProperty("page_turning", "true"),
+                call.home.setVisible(False),
+                call.views.setVisible(True),
+                call.home_too.setVisible(False),
+                call.setProperty("page_turning", ""),
+            ],
+        )
+        # Labels are written before the burst, never inside it
+        self.assertEqual(
+            made[-8:-5],
+            [call.home_label(100), call.views_label(100), call.home_too_label(100)],
+        )
+
+    def test_a_page_with_no_row_changing_writes_no_flag(self):
+        ed, writes, _ = self.page("views")
+        writes.reset_mock()
+        ed._refresh_ui(update_row=False)  # as view settings: only values and labels
+        self.assertEqual(
+            [c[0] for c in writes.mock_calls if not c[0].endswith("getId")],
+            ["home_label", "views_label", "home_too_label"],
+        )
+
+    def test_evaluating_writes_nothing(self):
+        ed, writes, category = self.page("home")
+        writes.reset_mock()
+        category[0] = "views"
+        handler, count = ed.handlers["home"], LockedCalls.count
+        self.assertFalse(handler.evaluate_visibility())
+        self.assertTrue(handler.shown)
+        self.assertEqual(LockedCalls.count, count)
+        self.assertEqual(writes.mock_calls, [])
 
 
 class Clicks(unittest.TestCase):
@@ -546,7 +625,7 @@ class Back(unittest.TestCase):
         )
         ed.onAction(Mock(**{"getId.return_value": xbmcgui.ACTION_NAV_BACK}))
         handler.update_value.assert_called_once_with()
-        handler.update_visibility.assert_called_once_with(100)
+        handler.update_labels.assert_called_once_with(100)
         ed._set_description.assert_called_with(100)
         self.assertEqual(ed._prev_focus_id, 100)
 
@@ -568,20 +647,21 @@ class Back(unittest.TestCase):
         )
         ed.onAction(Mock(**{"getId.return_value": xbmcgui.ACTION_NAV_BACK}))
         handler.update_value.assert_not_called()
-        handler.update_visibility.assert_not_called()
+        handler.update_labels.assert_not_called()
         self.assertEqual(ed._prev_focus_id, 100)
 
     def test_back_or_previous_menu_saves_typed_text(self):
         for a_id in (xbmcgui.ACTION_NAV_BACK, xbmcgui.ACTION_PREVIOUS_MENU):
             handler = EditHandler.__new__(EditHandler)
             handler.control, handler.is_dynamic_linked = {"control_type": "edit"}, False
-            handler._shown, handler._enabled_by_id = True, {}
+            handler.shown, handler._enabled_by_id = True, {}
             handler.focus_target_id = None
             handler.instance = Mock(**{"getId.return_value": 300})
             handler.instance.getText.return_value = "typed "
             handler._cached_text = "stored"
             handler._set_setting_value = Mock()
-            handler.update_value, handler.update_visibility = Mock(), Mock()
+            handler.update_value, handler.update_labels = Mock(), Mock()
+            handler.evaluate_visibility = lambda: True
             ed = editor(
                 host=None,
                 host_focus=None,

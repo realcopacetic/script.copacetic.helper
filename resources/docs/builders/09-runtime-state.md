@@ -256,12 +256,13 @@ On close each goes back to what it was before the window opened (empty for a top
 String.IsEqual(Window(home).Property(current_mapping_{runtime_id}),tabs)
 ```
 
-The settings window itself carries two properties, read with `Window.Property(...)` in its own XML:
+The settings window itself carries three properties, read with `Window.Property(...)` in its own XML:
 
 | Property | Value |
 |---|---|
 | `page_changed` | `true` once the list's selection has moved to another entry and that entry's controls are shown; empty again as soon as focus reaches one of the controls, and while the controls are being changed |
 | `page_locked` | `true` while the entry's page has no control focus can land on: every one is hidden, disabled (a choice with one option) or a label |
+| `page_turning` | `true` while the controls that show or hide for a refresh are being written. They are written back to back, but each Python write waits for Kodi's once-a-frame slot, so a long burst can straddle a frame and show a page half changed. Usually it is set and cleared within one frame and the skin never sees it |
 
 A grouplist keeps its scroll position when its rows change, so after a long page the next one can open with its first rows out of view. Use `page_changed` in the list's `<onright>` to enter the controls at the first row after a change, and normally otherwise. `SetFocus` on a grouplist with nothing to focus takes focus off the list and gives it to nothing, so leave a locked page alone. From Copacetic, where 101 is the grouplist of controls:
 
@@ -269,6 +270,13 @@ A grouplist keeps its scroll position when its rows change, so after a long page
 <onright condition="String.IsEmpty(Window.Property(page_changed)) + String.IsEmpty(Window.Property(page_locked))">101</onright>
 <onright condition="!String.IsEmpty(Window.Property(page_changed)) + String.IsEmpty(Window.Property(page_locked))">SetFocus(101)</onright>
 <onright condition="!String.IsEmpty(Window.Property(page_changed)) + String.IsEmpty(Window.Property(page_locked))">Action(FirstPage)</onright>
+```
+
+To hide a half-changed page, fade the controls out at once while `page_turning` is set and back in after, for example on the group holding the grouplist:
+
+```xml
+<animation effect="fade" start="100" end="0" time="0" condition="!String.IsEmpty(Window.Property(page_turning))">Conditional</animation>
+<animation effect="fade" start="0" end="100" time="300" condition="String.IsEmpty(Window.Property(page_turning))">Conditional</animation>
 ```
 
 Each row also carries its resolved entry — metadata, stored values, and config defaults — as listitem properties, raw keys not display labels: `String.IsEqual(Container(100).ListItem.Property(layout),strip)`. Properties re-stamp on every edit, so conditions track the session live.
