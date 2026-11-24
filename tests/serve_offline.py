@@ -765,34 +765,34 @@ class ServeTest(unittest.TestCase):
         self.props["artwork_cursor_primary"] = "3207/2/9/v"
         self.assertFalse(rail.live())
 
-    def test_a_dialog_under_a_menu_is_the_open_one_holding_its_mark(self) -> None:
-        item = serve.Request((), "moved_item", "m2", windows=INFO)
+    def test_a_dialogs_window_is_the_one_on_top_waited_for_under_a_menu(self) -> None:
+        server = _server()
+        rail = serve.Request(
+            _lists(9100), "artwork_cursor_primary", CURSOR, windows=INFO
+        )
+        server.request = rail
+        self.assertEqual(server._window(SETTLE), 10025)  # no dialogs: the active window
+        # Add-on info over video info, a menu over both: the one on top once it closes
+        tops = iter([10106, 10106, 10146])
+        with (
+            patch.object(
+                serve, "getCurrentWindowDialogId", side_effect=lambda: next(tops)
+            ),
+            patch.object(serve, "condition", return_value=True),
+        ):
+            self.assertEqual(server._window(rail), 10146)
         with (
             patch.object(serve, "getCurrentWindowDialogId", return_value=10106),
-            patch.object(
-                serve, "condition", side_effect=lambda c: c.endswith("(12001)")
-            ),
+            patch.object(serve, "condition", return_value=False),  # all closed
         ):
-            self.assertEqual(serve.Server._window(item), 12001)
-            self.assertEqual(
-                serve.Server._window(serve.Request(windows=(13001,))), 10106
-            )
-        with patch.object(serve, "getCurrentWindowDialogId", return_value=12003):
-            self.assertEqual(serve.Server._window(item), 12003)
-        self.assertEqual(serve.Server._window(SETTLE), 10025)
-        # Song info over music info, a menu over both: the one holding its mark's value
-        tokens = {12003: "", 10135: "m2", 12001: "m1"}  # each dialog's own moved_item
-        windows = lambda w: Mock(
-            getProperty=lambda key: tokens.get(w, "") if key == "moved_item" else ""
-        )
+            self.assertEqual(server._window(rail), 0)
+        server.rung.set()  # a newer ring while the menu is up
         with (
             patch.object(serve, "getCurrentWindowDialogId", return_value=10106),
             patch.object(serve, "condition", return_value=True),
-            patch.object(serve, "Window", side_effect=windows),
         ):
-            self.assertEqual(serve.Server._window(item), 10135)
-            rail = item._replace(mark="artwork_cursor_primary")  # none holds it
-            self.assertEqual(serve.Server._window(rail), 12003)
+            self.assertEqual(server._window(rail), 0)
+        self.assertTrue(server.rung.is_set())
 
     def test_an_info_dialogs_item_binds_in_it(self) -> None:
         self.props["moved_item"] = "m1movie:7"

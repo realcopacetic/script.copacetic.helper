@@ -96,7 +96,7 @@ quote, which Kodi's builtin parser acts on:
 | `mark` | the Home property naming this arrival: a cursor the skin writes at each arrival, or a token it writes for a move |
 | `is` | the mark's value at the ring. The serve goes on only while `Window(home).Property(<mark>)` still is it, and each bind names it |
 | `wait` | milliseconds a newer ring may come before the service serves (a move's own settle); absent, at once |
-| `window` | the ids of the dialogs the lists are in, dot-separated: served in the one on top, else (a menu over it) the open one holding `<mark>` with that value as a property of its own, else the first open; absent, the active window |
+| `window` | the ids of the dialogs the lists are in, dot-separated: served in the one on top; under a menu the serve waits until one is (or none is open); absent, the active window |
 | `item` | a container whose item each bind names, read at the serve (a cursor's value names its list); absent, the part of `is` before its last `/` |
 | `echo` | text bound back as `Property(echo)` (an info dialog's open token on its rails' rings) |
 

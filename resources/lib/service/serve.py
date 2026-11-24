@@ -377,7 +377,8 @@ class Server:
         :param arrival: The request heard.
         :param net: The net's ring: a list whose handler stopped on this text is let be.
         """
-        window_id = self._window(arrival)
+        if not (window_id := self._window(arrival)):
+            return
         request = arrival
         if not arrival.lists:
             if not (last := self.last.get(window_id)):
@@ -512,26 +513,25 @@ class Server:
             infolabel(f"{bound}(current)") == request.value
         )
 
-    @staticmethod
-    def _window(request: Request) -> int:
+    def _window(self, arrival: Request) -> int:
         """
-        The window a request's lists are in: the active window, or of the dialogs it
-        names the topmost, else under a menu the open one holding its mark's value as a
-        property of its own (one of two stacked), else the first open.
+        The window a request's lists are in: the active window, or the one of the
+        dialogs it names on top, waited for under a menu (which of two stacked is meant
+        shows only once it closes); 0 once none is open or the request is over.
 
-        :param request: The request heard.
-        :return: The window id.
+        :param arrival: The request heard.
+        :return: The window id, or 0.
         """
-        if not request.windows:
+        if not arrival.windows:
             return getCurrentWindowId()
-        top = getCurrentWindowDialogId()
-        if top in request.windows:
-            return top
-        active = [w for w in request.windows if condition(f"Window.IsActive({w})")]
-        own = (
-            w for w in active if Window(w).getProperty(request.mark) == request.value
-        )
-        return next(own, next(iter(active), top))
+        while self.request is arrival and not self.stopped:
+            if (top := getCurrentWindowDialogId()) in arrival.windows:
+                return top
+            if not any(condition(f"Window.IsActive({w})") for w in arrival.windows):
+                return 0  # closed
+            if self.rung.wait(POLL):
+                return 0  # a newer ring: rung stays set for the worker
+        return 0
 
     @staticmethod
     def _item(request: Request) -> str:
