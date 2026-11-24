@@ -80,9 +80,9 @@ ASIDE = (9000, 9030)
 CURSORS = {"infoscreen": "primary"}  # a region whose settles answer another's cursor
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
-# Seconds a probe may say wait before it counts as none: only a backstop, as each wait
-# row ends with the state it waits on (a slow Search rail can take several seconds)
-WAIT_MAX = 30
+# Seconds a probe may say wait before it counts as none: a backstop, so a rail that never
+# lands isn't looked at for ever; one that lands later leaves none, and the net serves it
+WAIT_MAX = 5
 SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
 # 9300's multiart family turns on 9400: each slide's params are in its probe, and each
 # shows for the register's dwell it replaces, 4.8 s pause and 0.2 s fade
