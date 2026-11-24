@@ -496,8 +496,10 @@ Cancel it and the window closes. An empty fixed list closes at once, unless
 
 The settings window itself also carries `Window.Property(page_changed)`: `true` once
 the list's selection has moved to another entry, until focus reaches one of the
-controls, and `Window.Property(page_locked)`: `true` while the entry has no control
-focus can land on. See [Asking about the editor from skin
+controls, `Window.Property(page_locked)`: `true` while the entry has no control
+focus can land on, and `Window.Property(page_turning)`: `true` while the controls that
+show or hide are being written, which can straddle a frame, so the skin can fade the
+controls out at once and back in after. See [Asking about the editor from skin
 XML](../builders/09-runtime-state.md#asking-about-the-editor-from-skin-xml).
 
 Each list item also carries the entry's values as list item properties, for example

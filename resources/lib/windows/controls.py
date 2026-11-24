@@ -93,7 +93,8 @@ class BaseControlHandler:
         self.parent = None  # set by DynamicEditor.onInit
         # Last values written to the GUI, keyed by control id: each write
         # waits for the main thread's once-a-frame window, so repeat none.
-        self._shown = None
+        # shown, the visibility, is read by the editor to find the rows that change.
+        self.shown = None
         self._enabled_by_id = {}
         self._labels_by_id = {}
 
@@ -134,7 +135,7 @@ class BaseControlHandler:
         """Whether focus can land here: shown, not a label, with an enabled id."""
         return (
             self.control["control_type"] != "label"
-            and bool(self._shown)
+            and bool(self.shown)
             and any(self._enabled_by_id.get(i, True) for i in self.focus_ids)
         )
 
@@ -383,28 +384,41 @@ class BaseControlHandler:
     def pressed(self) -> None:
         """Hook: a Select reached this control, which Kodi may have redrawn itself."""
 
-    def update_visibility(self, focused_control_id: int) -> None:
+    def update_labels(self, focused_control_id: int) -> None:
         """
-        Evaluates and sets visibility based on the control's visible condition.
+        Write the control's labels for the selected entry where they changed.
 
         :param focused_control_id: GUI control ID that has current focus.
+        """
+        if self._updates_labels:
+            self.set_instance_labels()
+
+    def evaluate_visibility(self) -> bool:
+        """
+        Whether the control's visible condition holds for the selected entry; writes
+        nothing, so the editor can make every row's change in one burst.
+
+        :return: True when the control should show.
         """
         link = self._active_link()
         raw_condition = link.get("visible") or self.control.get("visible", "")
         visible_condition = self.runtime_manager.format_metadata(
             self.mapping_key, self.source_index, raw_condition
         )
-        is_visible = (
+        return (
             self.rule_engine.evaluate(visible_condition, runtime=True)
             if visible_condition
             else True
         )
 
-        if is_visible != self._shown:
-            self._shown = is_visible
-            LockedCalls.write(self.instance.setVisible, is_visible)
-        if self._updates_labels:
-            self.set_instance_labels()
+    def write_visibility(self, visible: bool) -> None:
+        """
+        Show or hide the control: the editor calls it only for a change.
+
+        :param visible: Visibility from ``evaluate_visibility``.
+        """
+        self.shown = visible
+        LockedCalls.write(self.instance.setVisible, visible)
 
     def handle_interaction(self, focused_control_id: int, a_id: int) -> None:
         """
@@ -513,17 +527,14 @@ class BaseControlHandler:
     def _on_interact(self, focused_control_id: int, a_id: int) -> None:
         """Hook: perform the control's action. Overridden per control type."""
 
-    def refresh_after_mapping_item_change(self, focus_id: int) -> None:
+    def refresh_after_mapping_item_change(self) -> None:
         """
-        Refresh UI and snap the field to a valid value if filtering
-        invalidated the current one.
-
-        :param focus_id: GUI control ID that currently has focus.
+        Snap the field to a valid value if filtering invalidated the current one,
+        then sync the control to it; the editor writes labels and visibility after.
         """
         if self.field:
             self._coerce_to_allowed()
         self.update_value()
-        self.update_visibility(focus_id)
 
     def request_focus_change(self, target_id: int) -> None:
         """
@@ -1016,13 +1027,13 @@ class SliderExHandler(SliderHandler):
         super().update_value()
         self.set_enabled(self._enabled, self.button_instance)
 
-    def update_visibility(self, focused_control_id: int) -> None:
+    def update_labels(self, focused_control_id: int) -> None:
         """
-        Updates slider visibility and updates the button's label/label2.
+        Update the button's label/label2, in the focused colours while the slider
+        has focus.
 
         :param focused_control_id: GUI control ID that has current focus.
         """
-        super().update_visibility(focused_control_id)
         slider_focused = focused_control_id == self.instance.getId()
         colors = self.parent._colors
         self.set_instance_labels(

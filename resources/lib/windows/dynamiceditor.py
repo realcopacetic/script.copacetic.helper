@@ -367,7 +367,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         focus_id = focus_id or self.getFocusId()
         for h in self.handlers.values():
             h.update_value()
-            h.update_visibility(focus_id)
+        self._draw_handlers(focus_id)
         # A page with nothing to focus: the rail's Right stays put (editor.xml)
         locked = not any(h.focusable for h in self.handlers.values())
         if locked != self._page_locked:
@@ -377,6 +377,34 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
             self._refresh_list_row(self.container_position)
 
         self._set_description(focus_id)
+
+    def _draw_handlers(self, focus_id: int) -> None:
+        """
+        Write every handler's labels, then the rows that show or hide back to back
+        inside ``page_turning``, so a skin can hide a page caught half changed.
+
+        :param focus_id: Control with focus, for the labels' focused colours.
+        """
+        for h in self.handlers.values():
+            h.update_labels(focus_id)
+        flips = [
+            (h, visible)
+            for h in self.handlers.values()
+            if (visible := h.evaluate_visibility()) != h.shown
+        ]
+        if not flips:
+            return
+        # Python's writes land in a once-a-frame slot (Application.cpp:1849-1863): the
+        # time shows whether the burst outlasted it and straddled a frame
+        start = time.perf_counter()
+        LockedCalls.write(self.setProperty, "page_turning", "true")
+        for h, visible in flips:
+            h.write_visibility(visible)
+        LockedCalls.write(self.setProperty, "page_turning", "")
+        log.debug(
+            f"{self.__class__.__name__} → page turn: {len(flips)} rows in "
+            f"{(time.perf_counter() - start) * 1000:.1f} ms"
+        )
 
     def _set_description(self, focus_id: int) -> None:
         """
@@ -443,9 +471,9 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         Re-evaluate all handler values and visibility after a preset change,
         resetting any field values that are no longer valid.
         """
-        focus_id = self.getFocusId()
         for h in self.handlers.values():
-            h.refresh_after_mapping_item_change(focus_id)
+            h.refresh_after_mapping_item_change()
+        self._draw_handlers(self.getFocusId())
         self._refresh_list_row(self.container_position)
 
     def onAction(self, action: xbmcgui.Action) -> None:
@@ -537,8 +565,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
                 # Back leaves the row for the list, refreshed for the list below
                 if a_id not in (ACTION_NAV_BACK, ACTION_PREVIOUS_MENU):
-                    for h in self.handlers.values():
-                        h.update_visibility(current_focus)
+                    self._draw_handlers(current_focus)
 
             # Description — always update (mgmt buttons have descriptions too)
             self._set_description(current_focus)
