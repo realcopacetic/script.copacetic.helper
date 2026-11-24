@@ -166,7 +166,8 @@ arrival (art Kodi fills late, a rail landing after the backstop, a setting chang
 rest), ring `serve` bare: the service serves the window on top's last request again,
 for the lists whose probe no longer reads as their `Property(params)`. It is let be
 while a serve is waiting or in hand, and for a list whose handler stopped on that same
-text. Let a skin timer watch for it:
+text; a net ring that binds nothing lets that window's net be until its next ring. Let
+a skin timer watch for it:
 
 ```xml
 <timer>
@@ -179,9 +180,18 @@ text. Let a skin timer watch for it:
 
 with a hidden group (here `6939`) in each served window whose `<visible>` is, per served
 list,
-`!String.IsEmpty(Control.GetLabel(<probe>)) + !String.IsEqual(Control.GetLabel(<probe>),wait) + !String.IsEqual(Control.GetLabel(<probe>),Container(<list>).ListItem.Property(params))`,
-OR-ed. A timer reads the topmost dialog first, so a menu over the window reads false.
-Kodi tests it twice a second; no Python runs until a probe has changed.
+`!String.IsEmpty(Control.GetLabel(<probe>)) + !String.IsEqual(Control.GetLabel(<probe>),wait) + !String.IsEqual(Control.GetLabel(<probe>),none) + !String.IsEqual(Control.GetLabel(<probe>),Container(<list>).ListItem.Property(params))`,
+OR-ed: a probe that names a handler and no longer reads as what its list holds. A
+`none` never rings (a `none` that becomes params still does). A timer reads the topmost
+dialog first, so a menu over the window reads false. Kodi tests it twice a second; no
+Python runs until a probe has changed.
+
+**The rule.** A list that is in no ring of a window (another region's, say, while its
+rail has no focus) must have its probe read empty or `none` there, or guard its term
+with the same condition: the net only serves lists of the window's last ring, so any
+other probe that names a handler would ring for ever. Put the group outside anything
+that hides while the window rests: a hidden group stops updating its children's
+visibility.
 
 ## The bind
 
