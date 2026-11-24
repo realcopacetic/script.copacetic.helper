@@ -369,6 +369,29 @@ class ServeTest(unittest.TestCase):
             worker.join(2)
         self.assertEqual(served, [(SETTLE, True, SETTLE)])  # its request, as it was
 
+    def test_a_net_ring_as_the_worker_wakes_never_replaces_the_arrival(self) -> None:
+        server = _server()
+        served = []
+
+        class Rung(Event):
+            def clear(self) -> None:  # the net rings as the worker takes the request
+                super().clear()
+                server._ring(serve.Request())
+
+        def serve_(request: serve.Request, net: bool) -> None:
+            served.append((request, net))
+            server.stopped = True
+            server.rung.set()
+
+        server.rung, server._serve = Rung(), serve_
+        server.last = {10025: SETTLE._replace(value="54/1/1/v")}  # an older arrival
+        server._ring(SETTLE)
+        worker = Thread(target=server._work)
+        with patch.dict(sys.modules, {"resources.lib.plugin.handlers": Mock()}):
+            worker.start()
+            worker.join(2)
+        self.assertEqual(served, [(SETTLE, False)])
+
     def test_the_net_is_let_be_while_a_request_waits_or_runs(self) -> None:
         server = _server()
         server.busy = True  # a serve in hand answers the net itself
