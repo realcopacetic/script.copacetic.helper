@@ -113,7 +113,7 @@ def _server(*probes: str) -> serve.Server:
     server.ahead, server.asked = None, set()
     server.busy, server.net, server.failed = False, False, {}
     server.owed, server.lines, server.infos = {}, {}, {}
-    server.binds, server.quiet = 0, set()
+    server.binds, server.quiet = 0, {}
     server.turn, server.handed = None, Event()
     blank = Mock(**{"getArt.return_value": ""})  # no family
     server._handle = Mock(return_value=[("plugin://x/1", blank, False)])
@@ -398,9 +398,10 @@ class ServeTest(unittest.TestCase):
         server._serve = lambda request, net: served.append(net)  # binds nothing
         server.last = {10025: SETTLE}
         net = serve.Request()
-        self._worker(server, [net, net, SETTLE, net], [PARAMS])
-        # The net; one let be; a ring; the net once the ring has cleared it
-        self.assertEqual(served, [True, False, True])
+        self._worker(server, [net, net, "T2", net, SETTLE, net], [PARAMS])
+        # The net; one let be (no probe moved); one after the probe moved; a ring;
+        # the net once the ring has cleared it
+        self.assertEqual(served, [True, True, False, True])
 
     def test_a_ring_during_a_net_serve_keeps_its_window_netted(self) -> None:
         server = _server()

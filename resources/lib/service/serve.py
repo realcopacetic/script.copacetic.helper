@@ -223,7 +223,8 @@ class Server:
         self.lines = {}  # window id → the list its ongoing handler serves (the line)
         self.infos = {}  # (window id, handler) → the list it last served
         self.binds = 0  # binds so far: a net serve that adds none quiets its window
-        self.quiet = set()  # windows whose net is let be until the next ring
+        # Window id → its probes' texts when a net bound nothing: let be till one moves
+        self.quiet = {}
         self.turn, self.handed = None, Event()  # the family last handed, and news
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
@@ -327,6 +328,18 @@ class Server:
         while not self.stopped and not listener.waitForAbort(1):
             pass
 
+    @staticmethod
+    def _texts(request: Request) -> tuple[str, ...]:
+        """
+        A request's probes' texts now, for the net's quiet test.
+
+        :param request: The window's last request.
+        :return: Each probe's text, in serving order.
+        """
+        return tuple(
+            infolabel(f"Control.GetLabel({probe})") for _, probe in request.lists
+        )
+
     def _load(self) -> None:
         """
         The window's load rang before the service could hear it (Kodi start, a
@@ -354,8 +367,8 @@ class Server:
                     if not (request := self.last.get(window_id)):
                         continue
                     self.request = request
-            if net and window_id in self.quiet:
-                continue
+            if net and self.quiet.get(window_id) == self._texts(request):
+                continue  # no probe has changed since a net found nothing to bind
             if not net and request.wait and self.rung.wait(request.wait):
                 continue  # still moving: the next ring starts the wait again
             binds = self.binds
@@ -364,13 +377,12 @@ class Server:
             except Exception:
                 log.exception(f"{self.__class__.__name__} → serve {request}")
             self.ahead = None  # one stopped short serves nothing it was asked
-            if net and self.binds == binds:  # nothing it can bind: till the next ring
+            if net and self.binds == binds:  # nothing it can bind: till a probe moves
+                texts = self._texts(request)
                 with self.lock:
                     if self.request is request:  # a ring since has the window
-                        log.debug(
-                            f"{self.__class__.__name__} → net let be: {window_id}"
-                        )
-                        self.quiet.add(window_id)
+                        log.debug(f"{self.__class__.__name__} → net let be: {texts}")
+                        self.quiet[window_id] = texts
 
     def _serve(self, arrival: Request, net: bool = False) -> None:
         """
