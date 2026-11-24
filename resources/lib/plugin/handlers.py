@@ -1344,11 +1344,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 **self._show_context(pb.infolabels),
                 **self._unwatched_new(pb, resume),
             }
-            # For the service, which re-serves an album's bar on song updates
-            # (service/monitor.py), and the context menu's Mark items (addon.xml)
+            # An album's resume point; album, for the service's re-serve on song
+            # updates (service/monitor.py) and the context menu's Mark items (addon.xml)
             if pb.infolabels["DBType"] == "album":
-                state, dbid = pb.album[2], pb.infolabels["DBID"]
-                item["properties"]["album"] = "true"
+                state, dbid = pb.album.state, pb.infolabels["DBID"]
+                item["properties"] |= {"album": "true", **pb.album.resume}
                 window_property("album_played", value=dbid if state == "played" else "")
                 window_property(
                     "album_unplayed", value=dbid if state == "unplayed" else ""
@@ -1454,7 +1454,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         field = "firstaired" if dbtype == "episode" else "dateadded"
         if dbtype != "album":
             item = _video_details(dbtype, dbid, [field], "progressbar")
-        elif pb.album[2] == "unplayed":
+        elif pb.album.state == "unplayed":
             response = json_call(
                 method="AudioLibrary.GetAlbumDetails",
                 params={"albumid": dbid, "properties": [field]},
