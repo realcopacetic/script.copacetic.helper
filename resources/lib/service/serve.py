@@ -351,11 +351,11 @@ class Server:
                 request, net, self.net = self.request, self.net, False
                 if net:  # the window on top's last request, as it was
                     window_id = topmost_window_id()
-                    if window_id in self.quiet:
-                        continue
                     if not (request := self.last.get(window_id)):
                         continue
                     self.request = request
+            if net and window_id in self.quiet:
+                continue
             if not net and request.wait and self.rung.wait(request.wait):
                 continue  # still moving: the next ring starts the wait again
             binds = self.binds
@@ -365,8 +365,12 @@ class Server:
                 log.exception(f"{self.__class__.__name__} → serve {request}")
             self.ahead = None  # one stopped short serves nothing it was asked
             if net and self.binds == binds:  # nothing it can bind: till the next ring
-                log.debug(f"{self.__class__.__name__} → net let be in {window_id}")
-                self.quiet.add(window_id)
+                with self.lock:
+                    if self.request is request:  # a ring since has the window
+                        log.debug(
+                            f"{self.__class__.__name__} → net let be: {window_id}"
+                        )
+                        self.quiet.add(window_id)
 
     def _serve(self, arrival: Request, net: bool = False) -> None:
         """
