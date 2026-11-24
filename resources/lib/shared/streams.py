@@ -3,6 +3,8 @@
 import re
 from collections.abc import Sequence
 
+import xbmc
+
 from resources.lib.shared.utilities import json_call
 
 # Player.GetProperties names per stream type: the list, the one in use, its switch
@@ -60,22 +62,36 @@ def subtitle_kind(stream: dict) -> str:
     return "full"
 
 
+def iso639_2(lang: str) -> str:
+    """
+    A language code or English name (on Kodi 22 also a BCP 47 tag, "en-AU") as
+    its ISO 639-2/B code, via 639-1 as Kodi does, so 639-2/T "deu" gives "ger";
+    unknown ones stay as given. Streams carry the code on Omega, a tag on Kodi 22.
+
+    :param lang: A language (e.g. "en", "en-AU", "deu", "English").
+    :return: Its ISO 639-2/B code (e.g. "eng", "ger").
+    """
+    two = xbmc.convertLanguage(lang, xbmc.ISO_639_1) or lang
+    return xbmc.convertLanguage(two, xbmc.ISO_639_2) or lang
+
+
 def preferred_subtitle(streams: list[dict], lang: str, kind: str) -> dict | None:
     """
     The first lang stream of kind, else of its fallback: full and impaired
     stand in for each other, forced has none.
 
     :param streams: The JSON-RPC subtitle streams.
-    :param lang: ISO 639-2/B language code, as streams carry it.
+    :param lang: ISO 639-2/B language code, as iso639_2 gives it.
     :param kind: forced, full or impaired; empty counts as full.
     :return: The preferred stream, or None without one.
     """
+    in_lang = [stream for stream in streams if iso639_2(stream["language"]) == lang]
     return next(
         (
             stream
             for wanted in _FALLBACKS[kind or "full"]
-            for stream in streams
-            if stream["language"] == lang and subtitle_kind(stream) == wanted
+            for stream in in_lang
+            if subtitle_kind(stream) == wanted
         ),
         None,
     )

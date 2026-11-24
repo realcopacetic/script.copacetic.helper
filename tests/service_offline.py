@@ -727,6 +727,81 @@ class LyricsUnderTheScreensaver(unittest.TestCase):
         service.poller.assert_not_called()
 
 
+@contextmanager
+def languages_of(kodi22: bool):
+    """
+    xbmc.convertLanguage for four languages: codes and English names, and on
+    Kodi 22 also BCP 47 tags, narrowed to their language ("en-AU" is English).
+    """
+    rows = [
+        ("en", "eng", "english"),
+        ("fr", "fre", "fra", "french"),
+        ("ja", "jpn", "japanese"),
+        ("de", "ger", "deu", "german"),
+    ]
+
+    def convert(language: str, format: int) -> str:
+        text = language.lower().split("-")[0] if kodi22 else language.lower()
+        return next((row[format] for row in rows if text in row), "")
+
+    with (
+        patch.object(actions.xbmc, "ISO_639_1", 0, create=True),
+        patch.object(actions.xbmc, "ISO_639_2", 1, create=True),
+        patch.object(actions.xbmc, "convertLanguage", convert, create=True),
+    ):
+        yield
+
+
+def subtitle(index: int, language: str) -> dict:
+    """A full JSON-RPC subtitle stream in ``language``."""
+    return {
+        "index": index,
+        "language": language,
+        "name": "",
+        "isforced": False,
+        "isimpaired": False,
+    }
+
+
+class StreamLanguages(unittest.TestCase):
+    """Streams match the preferred language as codes: Omega's eng, Kodi 22's en-AU."""
+
+    KODIS = ((False, ["fre", "eng"]), (True, ["fr", "en-AU"]))
+
+    def test_a_preferred_language_finds_its_stream_on_both_kodis(self):
+        for kodi22, languages in self.KODIS:
+            streams = [subtitle(i, language) for i, language in enumerate(languages)]
+            with self.subTest(kodi22=kodi22), languages_of(kodi22):
+                for lang in ("eng", "en", "English"):
+                    found = actions.preferred_subtitle(
+                        streams, actions.iso639_2(lang), ""
+                    )
+                    self.assertEqual(found["index"], 1)
+                status = actions.subtitle_status(streams, None, ["ger"])
+                self.assertEqual(status, "missing")
+
+    def test_subtitle_limiter_matches_on_both_kodis(self):
+        on = {"VideoPlayer.HasSubtitles", "VideoPlayer.SubtitlesEnabled"}
+        for kodi22, languages in self.KODIS:
+            for showing in languages:
+                player = Mock(
+                    getSubtitles=lambda: showing,
+                    getAvailableSubtitleStreams=lambda: languages,
+                )
+                with (
+                    self.subTest(kodi22=kodi22, showing=showing),
+                    languages_of(kodi22),
+                    patch.object(actions.xbmc, "Player", lambda: player, create=True),
+                    patch.object(actions, "condition", lambda c: c in on),
+                    patch.object(actions.log, "execute") as execute,
+                ):
+                    actions.subtitle_limiter("en")
+                if showing == languages[0]:  # French showing: English turned on
+                    player.setSubtitleStream.assert_called_once_with(1)
+                else:  # English showing: pressed again, hidden
+                    execute.assert_called_once_with("Action(ShowSubtitles)")
+
+
 class MultiLanguageSubtitles(unittest.TestCase):
     """Several preferred subtitle languages: stored joined, stepped in turn."""
 
@@ -740,16 +815,7 @@ class MultiLanguageSubtitles(unittest.TestCase):
         self.assertFalse(allowed_value("eng|jpn", {"items": ["eng", "jpn"]}))
 
     def test_subtitles_step_through_the_languages_then_off(self):
-        def stream(index, language):
-            return {
-                "index": index,
-                "language": language,
-                "name": "",
-                "isforced": False,
-                "isimpaired": False,
-            }
-
-        streams = [stream(0, "fre"), stream(1, "jpn"), stream(2, "eng")]
+        streams = [subtitle(0, "fre"), subtitle(1, "jpn"), subtitle(2, "eng")]
         shown, item = [], {"inputstream": "", "path": "/films/Heat.mkv"}
         player = Mock(
             setSubtitleStream=lambda i: shown.append(i),
@@ -767,7 +833,7 @@ class MultiLanguageSubtitles(unittest.TestCase):
 
         with (
             patch.object(actions.xbmc, "Player", lambda: player, create=True),
-            patch.object(actions, "_iso639_2", lambda lang: lang),
+            languages_of(kodi22=False),
             patch.object(actions, "window_property", lambda *a, **k: None),
         ):
             press(None, streams[0])  # off, French held: English selected

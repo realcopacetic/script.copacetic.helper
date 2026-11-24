@@ -44,6 +44,7 @@ from resources.lib.shared.speed_dial import SpeedDial
 from resources.lib.shared.speed_dial import entry as dial_entry
 from resources.lib.shared.speed_dial import mark_source, take_source
 from resources.lib.shared.streams import (
+    iso639_2,
     player_streams,
     preferred_subtitle,
     subtitle_status,
@@ -1560,18 +1561,6 @@ def start_mix(id: str = "", type: str = "song", **kwargs: str) -> None:
 REGISTRY["play_radio"] = start_mix  # former name, kept for skins that call it
 
 
-def _iso639_2(lang: str) -> str:
-    """
-    A language code or English name as the ISO 639-2/B code streams carry, via
-    639-1 as Kodi does, so 639-2/T "deu" gives "ger"; unknown ones stay as given.
-
-    :param lang: Language as the skin passes it (e.g. "en", "deu", "English").
-    :return: Its ISO 639-2/B code (e.g. "eng", "ger").
-    """
-    two = xbmc.convertLanguage(lang, xbmc.ISO_639_1) or lang
-    return xbmc.convertLanguage(two, xbmc.ISO_639_2) or lang
-
-
 def _languages(lang: str) -> list[str]:
     """
     The skin's preferred subtitle languages, in order, as ISO 639-2/B codes.
@@ -1579,7 +1568,7 @@ def _languages(lang: str) -> list[str]:
     :param lang: One language, or several with | between them (e.g. "eng|jpn").
     :return: Their codes; empty for none.
     """
-    return [_iso639_2(one) for one in lang.split("|") if one]
+    return [iso639_2(one) for one in lang.split("|") if one]
 
 
 def _publish_subtitle(langs: list[str], kind: str) -> None:
@@ -1696,15 +1685,15 @@ def subtitle_limiter(lang: str, user_trigger: bool | str = True, **kwargs: str) 
     """
     Switches to preferred subtitle stream or toggles through them.
 
-    :param lang: Preferred language as Kodi reports it (e.g., "eng").
+    :param lang: Preferred language, read as for player_stream (e.g. "eng", "en").
     :param user_trigger: True (or "true") also toggles subtitles on/off; see parse_bool.
     """
     user_trigger = parse_bool(user_trigger)
     if condition("VideoPlayer.HasSubtitles"):
         player = xbmc.Player()
-        current_subtitle = player.getSubtitles()
-        subtitles = player.getAvailableSubtitleStreams()
-        if lang not in current_subtitle or (
+        lang = iso639_2(lang)
+        subtitles = [iso639_2(one) for one in player.getAvailableSubtitleStreams()]
+        if iso639_2(player.getSubtitles()) != lang or (
             user_trigger and condition("!VideoPlayer.SubtitlesEnabled")
         ):
             try:
