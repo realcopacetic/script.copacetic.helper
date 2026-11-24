@@ -644,7 +644,7 @@ class PlayedVersion(unittest.TestCase):
 
     def bumped(self, closed: dict, counts: dict) -> list:
         service = object.__new__(monitor.Monitor)
-        service.closed = closed
+        service.closed, service.server = closed, None
         details = lambda method, params, parent: {  # noqa: E731
             "result": {"songdetails": {"playcount": counts[params["songid"]]}}
         }
@@ -665,6 +665,22 @@ class PlayedVersion(unittest.TestCase):
 
     def test_one_counted_of_a_burst_bumps_once(self):
         self.assertEqual(self.bumped({7: 3, 8: 0}, {7: 3, 8: 1}), ["played_version"])
+
+    def test_the_bar_is_the_list_the_server_served_it_in(self):
+        service = object.__new__(monitor.Monitor)
+        service.closed, service.server = {}, Mock(**{"served.return_value": 9123})
+        read = []
+        with (
+            patch.object(monitor, "condition", lambda c: read.append(c) or True),
+            patch.object(monitor, "window_property"),
+        ):
+            service._album_bump()
+            service.server.served.return_value = 0  # none served: a plugin bar's
+            service._album_bump()
+        service.server.served.assert_called_with("progressbar")
+        service.server.again.assert_called_once_with(9123)
+        self.assertIn("Container(9123)", read[0])
+        self.assertIn(f"Container({monitor.PLUGIN_BAR})", read[1])
 
     def test_an_update_keeps_a_pending_close_waiting(self):
         service = object.__new__(monitor.Monitor)
@@ -693,7 +709,7 @@ class PlayedVersion(unittest.TestCase):
             seen.append(params["songid"])
             return {"result": {"songdetails": {"playcount": 4}}}
 
-        service.closed = Racing({7: 3})
+        service.closed, service.server = Racing({7: 3}), None
         with (
             patch.object(monitor, "condition", lambda expression: False),
             patch.object(monitor, "json_call", details),

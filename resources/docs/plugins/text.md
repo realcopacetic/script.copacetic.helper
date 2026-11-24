@@ -26,7 +26,7 @@ straight away.
 </control>
 ```
 
-**Served.** In an info dialog's `item` region (`9360` with probe `6936`, see
+**Served.** In an info dialog (Copacetic's `9360` with probe `6936`, see
 [served lists](../service/serve.md)), the probe holds these params without the
 `plugin://…?` prefix.
 

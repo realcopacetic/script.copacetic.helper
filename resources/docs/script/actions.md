@@ -465,7 +465,7 @@ editable lists and hosting — is in
 | `controls_from` | mapping names, comma separated | none | Also load these mappings' controls. They edit the `mapping` above. |
 | `parent` | an entry's `runtime_id` | none | Show only the children of this entry; new entries get it as their parent |
 | `focus_item` | a mapping item name | first entry | Select the first entry of this mapping item when the window opens |
-| `ring` | a [served region](../service/serve.md)'s name | none | Rings that region's move when the window opens and at each row change, or a change to the selected row, so its served lists follow the row. Copacetic's view settings pass `preview`. |
+| `ring` | a [served ring](../service/serve.md#the-ring), `serve?…` with no `is` | none | Sent when the window opens and at each row change, or a change to the selected row, with a new token in its `mark` and the window's own id as `window`, so its served lists follow the row. Copacetic's view settings pass `serve?lists=9370:6937&mark=moved_preview&wait=225`. |
 | `host` | window name | none | The real window this editor stands in for. See [Hosting](../builders/09-runtime-state.md#hosting--binding-an-editor-to-a-real-window). |
 | `host_focus` | control id | the list (100) | Control that gets focus when the window opens, with or without `host`. Back on it closes the window. It must be visible and able to take focus when the window opens, as the first action is handled as pressed on it. |
 
@@ -1368,9 +1368,11 @@ library path's options.
 Clear `search_log` whenever you clear `search_query` by other means, and clear a
 `search_query` that has no log, so the two always agree.
 
-No params.
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `ring` | a [served ring](../service/serve.md#the-ring), `serve?…` with no `is` | none | Sent once the query is written, as [`set_search_query`](#set_search_query)'s |
 
-**Sets:** `Window(home).Property(search_query)`.
+**Sets:** `Window(home).Property(search_query)`, then sends `ring` if given.
 
 Examples from Copacetic:
 
@@ -1450,9 +1452,9 @@ xsp value and `&`, `+` and `%` survive. It isn't meant for a label (a space show
 |---|---|---|---|
 | `id` | edit control id | required | The edit control to read |
 | `min_length` | whole number | `3` | Fewest characters before the text is copied |
+| `ring` | a [served ring](../service/serve.md#the-ring), `serve?…` with no `is` | none | Sent once the query is published, with a new token in its `mark`, so the served lists follow the results |
 
-**Sets:** `Window(home).Property(search_query)`, then rings the `primary` region's move,
-so its [served lists](../service/serve.md#the-rings) follow the results.
+**Sets:** `Window(home).Property(search_query)`, then sends `ring` if given.
 
 Example from Copacetic:
 

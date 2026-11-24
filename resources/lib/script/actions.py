@@ -1325,6 +1325,8 @@ def search_backspace(**kwargs: str) -> None:
     Rewrite search_query from search_log, the on-screen keys' record (← a delete),
     on Kodi's main thread between clicks, until the log is unchanged after the
     write: keys pressed meanwhile and runs in any order end on the log's text.
+
+    :param ring: A served ring to send once it is written (serve.md), with no is.
     """
     home = xbmcgui.Window(10000)
     keys = None
@@ -1332,7 +1334,7 @@ def search_backspace(**kwargs: str) -> None:
         keys = logged
         query = reduce(_key, keys, "")
         log.execute(f'SetProperty(search_query,"{query}",home)', wait=True)
-    _ring_search()
+    _ring_search(kwargs.get("ring"))
 
 
 def _key(text: str, key: str) -> str:
@@ -1354,9 +1356,11 @@ def set_search_query(id: str, **kwargs: str) -> None:
 
     :param id: Edit control id to read.
     :param min_length: Minimum characters before the query is published.
+    :param ring: A served ring to send once it is published (serve.md), with no is.
     """
     text = infolabel(f"Control.GetLabel({id}).index(1)")
     _publish_query(text, to_int(kwargs.get("min_length"), 3))
+    _ring_search(kwargs.get("ring"))
 
 
 def _publish_query(text: str, min_length: int) -> None:
@@ -1371,17 +1375,19 @@ def _publish_query(text: str, min_length: int) -> None:
         "search_query",
         value=quote(json.dumps(text)[1:-1]) if len(text) >= min_length else False,
     )
-    _ring_search()
 
 
-def _ring_search() -> None:
+def _ring_search(message: str | None) -> None:
     """
-    The results change under the keys or the edit: a move for the served lists, once
-    the rails' paths have the new query (their probes wait while a rail updates).
-    """
-    from resources.lib.service.serve import ring_move  # this action's only
+    The results change under the keys or the edit: the skin's served ring, if it
+    passed one, once the rails' paths have the new query (their probes wait meanwhile).
 
-    ring_move()
+    :param message: The ring, serve?…, with no is; None for none.
+    """
+    if message:
+        from resources.lib.service.serve import ring  # these actions' only
+
+        ring(message)
 
 
 def _year_rule(year: str) -> dict:

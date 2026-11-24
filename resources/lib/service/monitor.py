@@ -45,6 +45,8 @@ SPEED_DIAL_PROPERTY = "helper_speed_dial"
 SETTLE_PROPERTY = "helper_settle"
 # Time for the skin to draw helper_reloading's dots before ReloadSkin freezes the frame.
 RELOAD_COVER_SECS = 0.2
+# A plugin progress bar's container, the id its page asks a skin to give it for the skip
+PLUGIN_BAR = 9010
 # Edits to a queue: Kodi's list providers refresh on play, resume and stop, not on these
 # (nor on a shuffle, a Player.OnPropertyChanged; a move announces nothing).
 PLAYLIST_EDITS = {"Playlist.OnAdd", "Playlist.OnRemove", "Playlist.OnClear"}
@@ -375,17 +377,20 @@ class Monitor(xbmc.Monitor):
 
     def _album_bump(self) -> None:
         """
-        Timer: the served bar (9010) again, in the topmost window served, and a new
-        progress_version for a plugin bar (another skin's) whose URL carries it; unless
-        9010 on top serves a film's or show's bar (no blink), read now. Then a new
-        played_version if a closed song's play counted (unannounced by real path).
+        Timer: the served bar (the list the topmost window last served with progressbar)
+        again, and a new progress_version for a plugin bar; unless the bar on top serves
+        a film's or show's (no blink), read now. Then a new played_version if a closed
+        song's play counted (unannounced by real path).
         """
+        server = self.server  # None once the skin has left
+        served = server.served("progressbar") if server else 0
+        bar = served or PLUGIN_BAR
         if condition(
-            "!String.StartsWith(Container(9010).ListItem.FileNameAndPath,plugin://)"
-            " | String.IsEqual(Container(9010).ListItem.Property(album),true)"
+            f"!String.StartsWith(Container({bar}).ListItem.FileNameAndPath,plugin://)"
+            f" | String.IsEqual(Container({bar}).ListItem.Property(album),true)"
         ):
-            if server := self.server:  # None once the skin has left
-                server.again(9010)
+            if served:
+                server.again(served)
             window_property("progress_version", value=str(time.monotonic_ns()))
         closed, self.closed = self.closed, {}  # a started Timer can't be cancelled
         if any(_play_count(songid) != count for songid, count in closed.items()):

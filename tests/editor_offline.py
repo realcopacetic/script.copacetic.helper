@@ -10,7 +10,8 @@ before focus flips to the button; Back from a row
 refreshes its controls for the list (a sliderex's button loses its focused colours)
 when a row is selected, and Back or Previous Menu on an edit row saves what was
 typed; a slider step isn't put back by the refresh it triggers, a move not stored is;
-a move rings the region the skin opted in to (ring) once, a changed row too, and no
+a move sends the ring the skin passed (ring) once, in the editor's own window, a
+changed row too, and no
 editor without it rings; the rows a refresh shows or hides are written in one burst
 inside page_turning with the labels, cleared even if a label fails, and a refresh
 that changes no row's visibility writes no flag, as evaluating one writes nothing;
@@ -233,36 +234,42 @@ class PageChanged(unittest.TestCase):
         ed._refresh_ui.assert_not_called()
 
 
+RING = "serve?lists=9370:6937&mark=moved_preview&wait=225"
+
+
 class Ring(unittest.TestCase):
     def rings(self, ring: str | None, changed: bool, moved: bool) -> list:
-        """The regions a redraw of a row rings."""
+        """The rings a redraw of a row sends, each with the editor's own window."""
         ed = editor(
             ring=ring,
             listitems={"a": {}},
             _rows_shown={},
             _list_container=Mock(),
             _apply_row_visuals=Mock(return_value=changed),
+            getId=Mock(return_value=13001),
         )
-        with patch.object(dynamiceditor, "ring_move") as ring_move:
+        with patch.object(dynamiceditor, "ring") as rang:
             ed._refresh_list_row(0, moved=moved)
-        return [c.args[0] for c in ring_move.call_args_list]
+        return [(c.args[0], c.kwargs) for c in rang.call_args_list]
 
     def test_a_move_rings_once(self):
-        self.assertEqual(self.rings("preview", changed=True, moved=True), ["preview"])
-        self.assertEqual(self.rings("preview", changed=False, moved=True), ["preview"])
+        sent = [(RING, {"window": "13001"})]
+        self.assertEqual(self.rings(RING, changed=True, moved=True), sent)
+        self.assertEqual(self.rings(RING, changed=False, moved=True), sent)
 
     def test_a_changed_row_rings(self):
-        self.assertEqual(self.rings("preview", changed=True, moved=False), ["preview"])
+        sent = [(RING, {"window": "13001"})]
+        self.assertEqual(self.rings(RING, changed=True, moved=False), sent)
 
     def test_an_unchanged_row_stays_quiet(self):
-        self.assertEqual(self.rings("preview", changed=False, moved=False), [])
+        self.assertEqual(self.rings(RING, changed=False, moved=False), [])
 
     def test_an_editor_without_the_param_never_rings(self):
         self.assertEqual(self.rings(None, changed=True, moved=True), [])
 
     def test_a_move_rings_through_the_row(self):
         ed = editor(
-            ring="preview",
+            ring=RING,
             container_position=0,
             listitems={"a": {}, "b": {}},
             _rows_shown=drawn("a", "b"),

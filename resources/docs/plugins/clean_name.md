@@ -16,7 +16,7 @@ and a skin matching on it shows nothing.
 <content>plugin://script.copacetic.helper/?info=clean_name&amp;path=$INFO[ListItem.FileNameAndPath]&amp;label=$INFO[ListItem.Label]</content>
 ```
 
-Served, it is a row of `9000`'s probe ([served lists](../service/serve.md)): the same
+Served, it is a row of a details list's probe ([served lists](../service/serve.md)): the same
 params without the `plugin://…?` prefix. The probe is read whole, so a `|` there cuts
 nothing.
 

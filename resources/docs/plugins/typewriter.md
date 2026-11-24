@@ -21,8 +21,8 @@ time as the text wraps, up to a line limit. The run stops at once if focus moves
 
 The path returns no list items. It drives the textbox directly.
 
-**Served.** As a [served list](../service/serve.md) (`9020` with probe `6920`, served
-last), the probe holds these params without the `plugin://…?` prefix. The line types
+**Served.** As a [served list](../service/serve.md) (Copacetic's `9020` with probe
+`6920`, rung last), the probe holds these params without the `plugin://…?` prefix. The line types
 on a thread of its own, so the serve goes on; the bind of `9020` (one blank item)
 names the arrival typed, and the lease stops the line at the next move as it does a
 plugin run's. A repeat ring leaves a line that still stands.

@@ -47,8 +47,8 @@ it or reads its size (`clearlogo_crop`, `icon_shape`) decodes it whole.
 
 ### Served
 
-The same call can be a [served list](../service/serve.md) (`9300` with probe `6930`,
-`9301` with `6931`): the probe holds these params without the `plugin://…?` prefix,
+The same call can be a [served list](../service/serve.md) (Copacetic's `9300` with
+probe `6930`, `9301` with `6931`): the probe holds these params without the `plugin://…?` prefix,
 and the service binds the items. What changes:
 
 - A settle's cursor and visit come from the ring, so a served row needs no `visit`,
@@ -59,9 +59,10 @@ and the service binds the items. What changes:
   of a hidden label holding it rather than `background_var` (see
   [the probe](../service/serve.md#the-probe)).
 - The bind's `current` names the ring it answers; `identity` keeps this call's value.
-- With `multiart`, the service turns the family on `9400` itself
+- With `multiart` and `slides=<list>:<probe>`, the service turns the family on that
+  list itself, each slide made from that probe's params
   ([multiart](../service/serve.md#the-services-own-news)): no `multiart_fadelabel`.
-- TMDb's extras are fetched aside, and `9300` is served again when they land (below).
+- TMDb's extras are fetched aside, and the list is served again when they land (below).
 
 ## The three images
 
