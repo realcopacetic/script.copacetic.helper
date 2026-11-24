@@ -166,8 +166,8 @@ arrival (art Kodi fills late, a rail landing after the backstop, a setting chang
 rest), ring `serve` bare: the service serves the window on top's last request again,
 for the lists whose probe no longer reads as their `Property(params)`. It is let be
 while a serve is waiting or in hand, and for a list whose handler stopped on that same
-text; a net ring that binds nothing lets that window's net be until its next ring. Let
-a skin timer watch for it:
+text; a net ring that binds nothing lets that window's net be until its next ring, or
+until one of its probes reads differently. Let a skin timer watch for it:
 
 ```xml
 <timer>
