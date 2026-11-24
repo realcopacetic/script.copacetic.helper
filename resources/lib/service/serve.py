@@ -222,6 +222,8 @@ class Server:
         self.owed = {}  # (window id, list) → the arrival a late answer was refused for
         self.lines = {}  # window id → the list its ongoing handler serves (the line)
         self.infos = {}  # (window id, handler) → the list it last served
+        self.binds = 0  # binds so far: a net serve that adds none quiets its window
+        self.quiet = set()  # windows whose net is let be until the next ring
         self.turn, self.handed = None, Event()  # the family last handed, and news
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
@@ -315,6 +317,7 @@ class Server:
                     self.rung.set()
                 return
             self.request, self.heard, self.net = request, time.perf_counter(), False
+            self.quiet.clear()  # a ring: the net may heal what it binds
             self.rung.set()
 
     def _listen(self) -> None:
@@ -347,16 +350,23 @@ class Server:
             with self.lock:
                 request, net, self.net = self.request, self.net, False
                 if net:  # the window on top's last request, as it was
-                    if not (request := self.last.get(topmost_window_id())):
+                    window_id = topmost_window_id()
+                    if window_id in self.quiet:
+                        continue
+                    if not (request := self.last.get(window_id)):
                         continue
                     self.request = request
             if not net and request.wait and self.rung.wait(request.wait):
                 continue  # still moving: the next ring starts the wait again
+            binds = self.binds
             try:  # one bad item costs one serve (service-caches finding 1)
                 self._serve(request, net)
             except Exception:
                 log.exception(f"{self.__class__.__name__} → serve {request}")
             self.ahead = None  # one stopped short serves nothing it was asked
+            if net and self.binds == binds:  # nothing it can bind: till the next ring
+                log.debug(f"{self.__class__.__name__} → net let be in {window_id}")
+                self.quiet.add(window_id)
 
     def _serve(self, arrival: Request, net: bool = False) -> None:
         """
@@ -438,6 +448,7 @@ class Server:
                         params,
                     )
                     with self.lock:
+                        self.binds += 1
                         self.failed.pop((window_id, list_id), None)
                         self.owed.pop((window_id, list_id), None)
                         if info:
