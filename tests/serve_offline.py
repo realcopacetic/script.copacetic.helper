@@ -412,9 +412,7 @@ class ServeTest(unittest.TestCase):
             served.append(request.value)
             if net and len(served) == 1:
                 server.last[10025] = moved  # a move lands as the net serve runs
-                server.busy = False
                 server._ring(moved)
-                server.busy = True
 
         server._serve = serve_
         server.last = {10025: SETTLE}
