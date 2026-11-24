@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 class LockedCalls:
     """
     GUI writes that take Kodi's GUI lock, each waiting for the main thread's
-    once-a-frame window for Python (Application.cpp:1849-1860), and the editor's
+    once-a-frame window for Python (Application.cpp:1849-1862), and the editor's
     ring_move (its Home property): counted for the editor's timing log.
     """
 

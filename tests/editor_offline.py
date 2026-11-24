@@ -12,7 +12,7 @@ when a row is selected, and Back or Previous Menu on an edit row saves what was
 typed; a slider step isn't put back by the refresh it triggers, a move not stored is;
 a move rings the region the skin opted in to (ring) once, a changed row too, and no
 editor without it rings; the rows a refresh shows or hides are written in one burst
-inside page_turning, after the labels, and a refresh that changes no row's
+inside page_turning with the labels, and a refresh that changes no row's
 visibility writes no flag, as evaluating one writes nothing; a row, a radio's state,
 a management button, an edit's text and the description aren't written again
 unchanged (a Select forgets a radio's state, whether focus was on it or came with
@@ -531,20 +531,19 @@ class PageTurning(unittest.TestCase):
     def test_a_page_change_is_one_burst(self):
         ed, writes, _ = self.page("home", "views")
         made = [c for c in writes.mock_calls if not c[0].endswith("getId")]
+        # Every label and row write lands between the property writes
         self.assertEqual(
-            made[-5:],
+            made[-8:],
             [
                 call.setProperty("page_turning", "true"),
+                call.home_label(100),
+                call.views_label(100),
+                call.home_too_label(100),
                 call.home.setVisible(False),
                 call.views.setVisible(True),
                 call.home_too.setVisible(False),
                 call.setProperty("page_turning", ""),
             ],
-        )
-        # Labels are written before the burst, never inside it
-        self.assertEqual(
-            made[-8:-5],
-            [call.home_label(100), call.views_label(100), call.home_too_label(100)],
         )
 
     def test_a_page_with_no_row_changing_writes_no_flag(self):
