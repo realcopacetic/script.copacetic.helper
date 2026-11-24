@@ -970,7 +970,7 @@ Hindi subtitle. `hi` works only before the language (`Film.hi.en.srt`).
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `type` | `subtitle`, `audio`, `video` | required | The stream to change |
-| `lang` | a language code or English name: `eng`, `en`, `deu`, `English`; several with `\|` between them: `eng\|jpn` | none | The preferred subtitle languages, each read as the ISO 639-2/B code streams carry: `xbmc.convertLanguage` to ISO 639-1, then to 639-2, as Kodi compares languages, so `deu`, `fra` and `zho` read as `ger`, `fre` and `chi`. A language Kodi doesn't know is kept as given, so it finds nothing. Empty cycles every stream. With `type=audio`, used for the update after the step. |
+| `lang` | a language code or English name: `eng`, `en`, `deu`, `English`; several with `\|` between them: `eng\|jpn` | none | The preferred subtitle languages, each read as its ISO 639-2/B code: `xbmc.convertLanguage` to ISO 639-1, then to 639-2, as Kodi compares languages, so `deu`, `fra` and `zho` read as `ger`, `fre` and `chi`. Each stream's language is read the same way, so the three-letter codes Omega gives and the BCP 47 tags Kodi 22 gives (`en`, `en-AU`) both match `eng`. A language Kodi doesn't know is kept as given, so it finds nothing. Empty cycles every stream. With `type=audio`, used for the update after the step. |
 | `kind` | `forced`, `full`, `impaired` | `full` | The preferred subtitle type, with `lang`. Empty counts as `full`. |
 
 **Sets** (for `type=subtitle`, and about a second after a `type=audio` step):
@@ -1596,7 +1596,7 @@ Does nothing if the playing video has no subtitles.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `lang` | a subtitle language as Kodi reports it, for example `eng` | required | The preferred language |
+| `lang` | a language code or English name, as for [`player_stream`](#player_stream): `eng`, `en`, `English` | required | The preferred language |
 | `user_trigger` | `false` | on | When on, a stream already in the preferred language is turned on if hidden, and off if showing. `false` leaves a stream already in that language as it is, shown or hidden. `true`, `1`, `yes` and `on` count as on; any other value, empty included, as off. |
 
 What `false` does not change: when the current stream is in another language, the
@@ -1605,9 +1605,9 @@ visible. When no stream is in that language, `Action(NextSubtitle)` still runs: 
 shows its subtitle notification, turns hidden subtitles on, and after the last stream
 turns them off.
 
-The current stream counts as the preferred language when its language contains `lang`;
-a stream to switch to must match it exactly, so pass the language as Kodi reports it
-(`eng`, not `en`).
+`lang` and each stream's language are compared as ISO 639-2/B codes, read as for
+`player_stream`, so `eng` and `en` find a stream Omega reports as `eng` and one Kodi 22
+reports as `en` or `en-AU`.
 
 Example from Copacetic, in the video OSD:
 
