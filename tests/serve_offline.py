@@ -113,6 +113,7 @@ def _server(*probes: str) -> serve.Server:
     server.ahead, server.asked = None, set()
     server.busy, server.net, server.failed = False, False, {}
     server.owed, server.lines, server.infos = {}, {}, {}
+    server.binds, server.quiet = 0, set()
     server.turn, server.handed = None, Event()
     blank = Mock(**{"getArt.return_value": ""})  # no family
     server._handle = Mock(return_value=[("plugin://x/1", blank, False)])
@@ -368,6 +369,28 @@ class ServeTest(unittest.TestCase):
             worker.start()
             worker.join(2)
         self.assertEqual(served, [(SETTLE, True, SETTLE)])  # its request, as it was
+
+    def test_a_net_serve_that_binds_nothing_lets_the_window_be(self) -> None:
+        server = _server()
+        served = []
+        server._serve = lambda request, net: served.append(net)  # binds nothing
+        server.last = {10025: SETTLE}
+        worker = Thread(target=server._work)
+
+        def ring(request: serve.Request) -> None:
+            server._ring(request)
+            while server.rung.is_set() or server.busy:  # served, or let be
+                time.sleep(0.005)
+
+        with patch.dict(sys.modules, {"resources.lib.plugin.handlers": Mock()}):
+            worker.start()
+            for request in (serve.Request(), serve.Request(), SETTLE, serve.Request()):
+                ring(request)
+            server.stopped = True
+            server.rung.set()
+            worker.join(2)
+        # the net, a net let be (no serve), then a ring clears it: the net serves again
+        self.assertEqual(served, [True, False, True])
 
     def test_a_net_ring_as_the_worker_wakes_never_replaces_the_arrival(self) -> None:
         server = _server()
