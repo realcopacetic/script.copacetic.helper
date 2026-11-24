@@ -22,7 +22,6 @@ from resources.lib.plugin.registry import runs_on
 from resources.lib.shared import logger as log
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.utilities import (
-    INFO_DIALOGS,
     condition,
     infolabel,
     plugin_path,
@@ -34,70 +33,16 @@ from resources.lib.shared.utilities import (
 # bare, the skin's net: a probe on top no longer reads as its list's Property(params)
 VERB = "serve"
 LOAD = "serve_load"  # the window's load ring, without its is: the service's start
-# NotifyAll(script.copacetic.helper,<kind>/<region>/<lists, dot-separated>/<mark>);
-# a move's mark is <container>/<token>: the list that moved (view: the cursor's list),
-# or none, then the token in moved_<region>. A bare serve is the skin's net: a probe no
-# longer reads as its list's Property(params)
-KINDS = ("settle", "move", "serve")
 PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its query
-# Served list → the hidden label holding its params, in serving order: the favourite's
-# library item, which the others' favourite rows read, then details, the bar, artwork,
-# the show logo and last the typewriter, whose label reads them
-PROBES = {
-    9040: 6904,
-    9000: 6900,
-    9100: 6901,
-    9010: 6910,
-    9300: 6930,
-    9301: 6931,
-    9020: 6920,
-}
-
-
-class Dialog(NamedTuple):
-    """
-    A dialog's region: its lists' probes, the dialogs it can be (none: any), and the
-    Home property naming the dialog's open, stamped on each bind as Property(open).
-    """
-
-    probes: dict[int, int]
-    windows: tuple[int, ...] = ()
-    token: str = ""
-
-
-# A dialog's regions, by the name its rings give: served in that dialog, not the active
-# window. item: an info dialog's own item (its details, floor, popularity word, Plot
-# tab's text and bar); infoscreen: its rails (their details, bar, floor and typewriter),
-# whose probes hold the rail rows; preview: the view settings editor's backdrop blur
-DIALOGS = {
-    "item": Dialog(
-        {9000: 6900, 9300: 6933, 9030: 6903, 9360: 6936, 9010: 6911},
-        INFO_DIALOGS,
-        "moved_item",
-    ),
-    "infoscreen": Dialog(
-        {9100: 6901, 9010: 6910, 9300: 6930, 9020: 6920}, INFO_DIALOGS, "moved_item"
-    ),
-    "preview": Dialog({9370: 6937}),
-}
-# Lists a late answer (TMDb's, Deezer's) serves again: a move rung again serves them
-# even when bound for its token, as an answer landing while a rail had focus is lost
-ASIDE = (9000, 9030)
-CURSORS = {"infoscreen": "primary"}  # a region whose settles answer another's cursor
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
 # Seconds a probe may say wait before it counts as none: a backstop, so a rail that
 # never lands isn't looked at for ever; one landing later leaves none, the net serves it
 WAIT_MAX = 5
-SETTLE = 0.225  # a move's own settle, the skin's transition_0.75x
-# 9300's multiart family turns on 9400: each slide's params are in its probe, and each
-# shows for the register's dwell it replaces, 4.8 s pause and 0.2 s fade
-ARTWORK, SLIDES, SLIDE_PROBE = 9300, 9400, 6932
+# A family's slide shows for the register's dwell it replaces, 4.8 s pause and 0.2 s
+# fade, made LEAD seconds before its beat: its params as late as they can be
 DWELL = 5.0
-LEAD = 1.5  # seconds before its beat a slide is made: its params as late as they can be
-# The typewriter's handler starts its line on a thread of its own and answers at once;
-# the line runs until its lease or guard stops it, and stands while its params do
-TYPEWRITER = 9020
+LEAD = 1.5
 
 
 def _ids(text: str) -> tuple[int, ...]:
@@ -211,20 +156,6 @@ def home_property(key: str) -> str:
     :return: Its value, or empty.
     """
     return _home().getProperty(key)
-
-
-def move_token(*regions: str) -> str:
-    """
-    A new move token in moved_<region> for each region, as the skin's atr_serve_move
-    writes one.
-
-    :param regions: Whose token.
-    :return: The token, the move's mark.
-    """
-    token = f"m{time.monotonic_ns()}"
-    for region in regions:
-        Window(10000).setProperty(f"moved_{region}", token)
-    return token
 
 
 def _token(mark: str) -> str:
