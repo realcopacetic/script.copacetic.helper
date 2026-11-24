@@ -450,9 +450,14 @@ class Server:
                     retried = True
                     continue
                 if items is None or stale():
-                    if not stale():  # stopped twice on this text: the net lets it be
-                        self.failed[(window_id, list_id)] = params
-                    return  # its guard stopped it, or a move came: a ring follows
+                    if stale():
+                        return  # a move came: a ring follows
+                    # Stopped twice on this text: the net lets it be, and goes on to
+                    # the lists after it, for which no ring follows
+                    self.failed[(window_id, list_id)] = params
+                    if not net:
+                        return
+                    break
                 # A started line binds under a dialog too: its item holds no reads
                 if line or topmost_window_id() == window_id:
                     self._bind(
