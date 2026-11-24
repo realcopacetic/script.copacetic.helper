@@ -1011,6 +1011,28 @@ class TypewriterTest(unittest.TestCase):
         server._bind.assert_not_called()
         self.assertEqual(server.typed, (10025, TYPED))
 
+    def test_a_none_binds_the_blank_each_time(self) -> None:
+        server = _server(serve.NONE)  # a rail with no line, as Home's daily mixes
+        request = LINE._replace(lists=(9020,))
+        for mark in ("54/3/12/v", "54/4/13/v"):
+            self.props["artwork_cursor_primary"] = mark
+            self._run(server, request._replace(mark=mark))
+        self.assertEqual(server._bind.call_count, 2)
+        server._handle.assert_not_called()  # a none binds the blank, no handler
+        # A real line after it still stands; after a none it types again
+        for probe, mark in (
+            (TYPED, "54/5/14/v"),
+            (TYPED, "54/5/14/v2"),
+            (serve.NONE, "54/6/15/v"),
+            (TYPED, "54/5/14/v3"),
+        ):
+            server.probes = [probe]
+            self.props["artwork_cursor_primary"] = mark
+            with self._standing():
+                self._run(server, request._replace(mark=mark))
+        self.assertEqual(server._handle.call_count, 2)
+        self.assertEqual(server.typed, (10025, TYPED))
+
     def test_a_retired_line_types_again(self) -> None:
         server = _server(TYPED)
         request = LINE._replace(lists=(9020,))

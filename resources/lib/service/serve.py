@@ -419,7 +419,9 @@ class Server:
                 )
                 handled = time.perf_counter()
                 if list_id == TYPEWRITER and items is not None:
-                    self.typed = window_id, params  # started: bound or not, it stands
+                    # Started: bound or not, it stands. A none is no line: its blank
+                    # binds again each time, and the line before no longer stands
+                    self.typed = (window_id, params) if params != NONE else None
                 if items is None and dialog and not (retried or stale()):
                     # A dialog's guard read a menu over it: nothing rings after a
                     # dialog's serve, so its probe is read again once it is on top
