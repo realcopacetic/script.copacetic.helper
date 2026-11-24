@@ -3,7 +3,7 @@ Offline checks for the served focus calls (resources/lib/service/serve.py): a ri
 its kind, region, known lists and mark, other senders and kinds are ignored; a probe's
 params are handled (a plugin prefix dropped) and bound with the request's current, none
 binds one blank item, an empty probe nothing, wait is read again; under a dialog the
-request waits, and a newer ring, a window change or a moved cursor drops it unbound; a
+request waits (a probe, repeat or line read a new dialog answered too), and a newer ring, a window change or a moved cursor drops it unbound; a
 list a dialog covered mid-run is owed again; a repeat does nothing (a list not mounted
 here aside), but a none bind whose probe no longer says none serves; a move with no
 lists serves the window's last request; again() serves one list of it (the whole
@@ -241,13 +241,39 @@ class ServeTest(unittest.TestCase):
 
     def test_covered_mid_run_is_owed_again(self) -> None:
         server = _server()
-        tops = iter(
-            [10025, 10106, 10106, 10025, 10025]
-        )  # turn, bind test, owed, turn, bind
+        # turn and its read, bind test, owed, turn and its read, bind
+        tops = iter([10025, 10025, 10106, 10106, 10025, 10025, 10025])
         with patch.object(serve, "topmost_window_id", side_effect=lambda: next(tops)):
             self._run(server, SETTLE)
         self.assertEqual(server._handle.call_count, 2)
         server._bind.assert_called_once()
+
+    def test_a_probe_read_under_a_new_dialog_is_read_again(self) -> None:
+        server = _server("", PARAMS)  # the menu's empty answer, then the probe's
+        tops = iter([10025, 10106, 10106, 10025, 10025, 10025])  # opened mid-read
+        with patch.object(serve, "topmost_window_id", side_effect=lambda: next(tops)):
+            self._run(server, SETTLE)
+        server._handle.assert_called_once()
+        server._bind.assert_called_once()
+
+    def test_a_repeat_read_under_a_new_dialog_is_none(self) -> None:
+        server = _server()
+        self._run(server, SETTLE)
+        tops = iter([10025, 10106])  # on top before the reads, a menu after
+        with (
+            patch.object(serve, "topmost_window_id", side_effect=lambda: next(tops)),
+            patch.object(serve, "infolabel", return_value=""),  # the menu's probes
+        ):
+            self.assertFalse(server._repeat(SETTLE._replace(), 10025))
+
+    def test_a_line_read_under_a_new_dialog_is_owed(self) -> None:
+        server = _server()
+        line = SETTLE._replace(lists=(9020,))
+        with (
+            patch.object(serve, "topmost_window_id", return_value=10106),
+            patch.object(serve, "infolabel", return_value=""),  # the menu's probe
+        ):
+            self.assertTrue(server._line_owed(line, 10025))
 
     def test_a_repeat_does_nothing(self) -> None:
         server = _server()
