@@ -380,24 +380,26 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
     def _draw_handlers(self, focus_id: int) -> None:
         """
-        Write every handler's labels, then the rows that show or hide back to back
-        inside ``page_turning``, so a skin can hide a page caught half changed.
+        Write every handler's labels; when rows show or hide, the labels and then those
+        rows back to back inside ``page_turning``, so a skin can hide a page caught
+        half changed.
 
         :param focus_id: Control with focus, for the labels' focused colours.
         """
-        for h in self.handlers.values():
-            h.update_labels(focus_id)
         flips = [
             (h, visible)
             for h in self.handlers.values()
             if (visible := h.evaluate_visibility()) != h.shown
         ]
-        if not flips:
-            return
-        # Python's writes land in a once-a-frame slot (Application.cpp:1849-1863): the
+        # Python's writes land in a once-a-frame slot (Application.cpp:1849-1862): the
         # time shows whether the burst outlasted it and straddled a frame
         start = time.perf_counter()
-        LockedCalls.write(self.setProperty, "page_turning", "true")
+        if flips:  # a row about to hide mustn't show the new entry's label unmasked
+            LockedCalls.write(self.setProperty, "page_turning", "true")
+        for h in self.handlers.values():
+            h.update_labels(focus_id)
+        if not flips:
+            return
         for h, visible in flips:
             h.write_visibility(visible)
         LockedCalls.write(self.setProperty, "page_turning", "")

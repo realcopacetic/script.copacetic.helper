@@ -262,7 +262,7 @@ The settings window itself carries three properties, read with `Window.Property(
 |---|---|
 | `page_changed` | `true` once the list's selection has moved to another entry and that entry's controls are shown; empty again as soon as focus reaches one of the controls, and while the controls are being changed |
 | `page_locked` | `true` while the entry's page has no control focus can land on: every one is hidden, disabled (a choice with one option) or a label |
-| `page_turning` | `true` while the controls that show or hide for a refresh are being written. They are written back to back, but each Python write waits for Kodi's once-a-frame slot, so a long burst can straddle a frame and show a page half changed. Usually it is set and cleared within one frame and the skin never sees it |
+| `page_turning` | `true` while a refresh that shows or hides controls writes the labels and those controls. They are written back to back, but each Python write waits for Kodi's once-a-frame slot, so a long burst can straddle a frame and show a page half changed. Usually it is set and cleared within one frame and the skin never sees it |
 
 A grouplist keeps its scroll position when its rows change, so after a long page the next one can open with its first rows out of view. Use `page_changed` in the list's `<onright>` to enter the controls at the first row after a change, and normally otherwise. `SetFocus` on a grouplist with nothing to focus takes focus off the list and gives it to nothing, so leave a locked page alone. From Copacetic, where 101 is the grouplist of controls:
 
