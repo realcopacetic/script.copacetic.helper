@@ -66,24 +66,22 @@ class Request(NamedTuple):
     mark: str = ""
     value: str = ""
     wait: float = 0.0  # seconds a newer ring may come first: a move's settle
-    windows: tuple[
-        int, ...
-    ] = ()  # the dialogs its lists are in; none: the active window
+    # The dialogs its lists are in; none: the active window
+    windows: tuple[int, ...] = ()
     item: str = ""  # the container whose item a bind names, read at the serve
     echo: str = ""  # bound back as Property(echo)
     again: bool = False
 
     @classmethod
-    def parse(cls, query: str, **fields: str) -> "Request":
+    def parse(cls, query: str) -> "Request":
         """
         A ring's fields: lists as <list>:<probe> pairs, ids dot-separated; no mark is
         the net's ring.
 
         :param query: The ring's query, past serve?.
-        :param fields: Fields to add (a ring from Python adds its is).
         :return: The request.
         """
-        params = parse_plugin_argv(["", "", query]) | fields
+        params = parse_plugin_argv(["", "", query])
         pairs = filter(None, params.get("lists", "").split("."))
         return cls(
             tuple(tuple(map(int, pair.split(":"))) for pair in pairs),
