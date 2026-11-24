@@ -367,7 +367,8 @@ class Server:
                     if not (request := self.last.get(window_id)):
                         continue
                     self.request = request
-            if net and self.quiet.get(window_id) == self._texts(request):
+            texts = net and self._texts(request)  # before the serve: what it answers
+            if net and self.quiet.get(window_id) == texts:
                 continue  # no probe has changed since a net found nothing to bind
             if not net and request.wait and self.rung.wait(request.wait):
                 continue  # still moving: the next ring starts the wait again
@@ -378,7 +379,6 @@ class Server:
                 log.exception(f"{self.__class__.__name__} → serve {request}")
             self.ahead = None  # one stopped short serves nothing it was asked
             if net and self.binds == binds:  # nothing it can bind: till a probe moves
-                texts = self._texts(request)
                 with self.lock:
                     if self.request is request:  # a ring since has the window
                         log.debug(f"{self.__class__.__name__} → net let be: {texts}")
