@@ -19,7 +19,7 @@ it; one refused while a newer ring has the window is owed to its arrival's next 
 a window names the list it served with a handler (an album's bar); a ring's item is
 its container's, read before its handler; the start serves the window's load ring
 under a new token, and a ring from Python writes its token first; a dialog's ring is
-served in the dialog on top it names (under a menu, the open one holding its mark), is
+served in the dialog it names, waited for under a menu until one it names is on top, is
 dropped once that dialog closes, and binds its echo; clean_name reads the query it was
 served with, not argv; a favourite with no library item answers the blank item; a
 guard's superseded test comes first; Font.xml is read once per version, and a clamp is
