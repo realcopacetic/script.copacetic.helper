@@ -34,6 +34,7 @@ one served.
 | `id` | number | — | The item's `DBID`. Used for TMDB lookups, for album artists and set studios and years (see below), and to keep the `random_pick` choice. |
 | `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. The same item gets the same pick until Kodi restarts. |
 | `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
+| `tagline_quotes` | `single` | — | Also return the tagline ready to sit inside your own double quote marks, in `ListItem.Property(clean_tagline)`: its double quotes become curly single ones (`"criminal"` and `“criminal”` both read `‘criminal’`), and a pair that wraps the whole tagline (its only double quotes) is dropped. Off by default, and `ListItem.TagLine` is never changed. |
 | `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDB. TMDB values replace the library values, except the plot, title, tagline and trailer, which TMDB only fills when the item has none (a season takes TMDB's plot where it has one: Kodi gives seasons their show's). See [TMDB lookups](#tmdb-lookups). |
 | `prefer_tmdb_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: TMDB's trailer replaces a library trailer that is a link (`plugin://`, `http://`, `https://`), such as the one Kodi's TMDB scraper saves. A library trailer that is a file always stays. |
 | `random_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: when TMDB's trailer is used, pick one at random from its best-ranked trailers instead of the newest. The same item gets the same pick until Kodi restarts. |
@@ -61,6 +62,7 @@ one served.
 | `ListItem.Trailer` | The library trailer. With TMDB, the TMDB trailer is used when the library has none, or with `prefer_tmdb_trailer=true` when the library's is a link. |
 | `ListItem.Property(truncated_label)` | The cut-down text, when `truncate_width` is passed. |
 | `ListItem.Property(truncated_title)` | The cut-down title, when `truncate_title_width` is passed and the title overflows; empty when it fits. |
+| `ListItem.Property(clean_tagline)` | With `tagline_quotes=single`: the tagline (the returned `ListItem.TagLine`) with its double quotes single, for a skin that adds its own: `Putting the "criminal" in "criminal lawyer."` becomes `Putting the ‘criminal’ in ‘criminal lawyer.’`, and `"Winter is coming."` becomes `Winter is coming.`. A straight quote opens at the start or after a space, bracket or dash, and closes anywhere else. Empty when there is no tagline. |
 | `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits). Empty for other types. |
 
 The random pick is fixed per item (`type`, `id` and label) for the Kodi session, so a

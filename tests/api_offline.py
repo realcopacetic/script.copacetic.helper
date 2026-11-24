@@ -5,8 +5,9 @@ apis/deezer.py (artist match, TTLs, Deezer's error answers, its chart),
 apis/theintrodb.py (the ids tried in turn, best segment, TTLs, clearing),
 apis/lrclib.py (the search fallback's nearest hit, payload shapes, TTLs, clearing),
 the blended ranking of top_songs and discography, music info's popularity words
-(popularity_label), the TMDb client and cache (apis/tmdb), and the plugin URL parser
-(shared/parser.py) with a focus guard cut at a "|".
+(popularity_label), the TMDb client and cache (apis/tmdb), metadata's tagline_quotes
+(shared/text.py single_quotes), and the plugin URL parser (shared/parser.py) with a
+focus guard cut at a "|".
 
 Network calls are replaced by recorded ListenBrainz answers
 (tests/fixtures/listenbrainz_*.json, Gorillaz, fetched Oct 2026), recorded Deezer
@@ -83,7 +84,7 @@ from resources.lib.plugin.setter import apply_musicinfotag  # noqa: E402
 from resources.lib.script import actions, library  # noqa: E402
 from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
-from resources.lib.shared.text import fit_lines  # noqa: E402
+from resources.lib.shared.text import fit_lines, single_quotes  # noqa: E402
 
 FIXTURES = HELPER / "tests" / "fixtures"
 FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
@@ -918,6 +919,42 @@ class TmdbTest(Base):
             handler.params["truncate_probe"], handler.dbtype = "false", "album"
             handler.metadata()  # music keeps the probe (an album caption: description)
         self.assertEqual(probes, [True, False, True, False, True, False, False, True])
+
+    def test_metadata_tagline_quotes(self):
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {}
+        handler.item, handler.dbtype, handler.dbid = False, "movie", "7"
+        handler.dialog, handler.again = False, None
+        handler.target_item = "Container(50).ListItem"
+        handler._guard = lambda: mock.Mock(alive=lambda: True)
+        fetched = mock.Mock()
+        tagline = 'Putting the "criminal" in "criminal lawyer."'
+        fetched.return_value.fetch_data = lambda **kwargs: {
+            "Plot": "",
+            "TagLine": tagline,
+            "properties": {},
+        }
+        with mock.patch.object(handlers, "DataHandler", fetched), mock.patch.object(
+            handlers, "set_items", lambda items, **kwargs: items
+        ):
+            (item,) = handler.metadata()
+            self.assertNotIn("clean_tagline", item["properties"])  # off by default
+            handler.params["tagline_quotes"] = "single"
+            (item,) = handler.metadata()
+            tagline = ""  # no tagline: no property
+            (empty,) = handler.metadata()
+        clean = "Putting the ‘criminal’ in ‘criminal lawyer.’"
+        self.assertEqual(item["properties"]["clean_tagline"], clean)
+        self.assertNotIn("clean_tagline", empty["properties"])
+        for text, expected in (
+            ('"Winter is coming."', "Winter is coming."),  # a wrapping pair goes
+            ("“Winter is coming.”", "Winter is coming."),
+            ('"Yes" or "No"', "‘Yes’ or ‘No’"),  # two pairs: both stay, single
+            ('The (“true”) story—"or not"', "The (‘true’) story—‘or not’"),
+            ('It\'s a "trap"', "It's a ‘trap’"),
+            ("No quotes.", "No quotes."),
+        ):
+            self.assertEqual(single_quotes(text), expected)
 
     def test_truncated_label_probe(self):
         handler = object.__new__(handlers.PluginHandlers)

@@ -89,7 +89,7 @@ from resources.lib.shared.lrc import LINES, LONG, NEIGHBOURS
 from resources.lib.shared.mix import genre_ids, kept_mix, leading_cards, played_songs
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
-from resources.lib.shared.text import markdown_label
+from resources.lib.shared.text import markdown_label, single_quotes
 from resources.lib.shared.utilities import (
     ADDON,
     DETAILS,
@@ -1277,6 +1277,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             probed=caption,
         )
         self._apply_truncated_title(data, title)
+        if self.params.get("tagline_quotes") == "single" and data["TagLine"]:
+            data["properties"]["clean_tagline"] = single_quotes(data["TagLine"])
 
         return set_items([data], tag_applier=apply_videoinfotag)
 
