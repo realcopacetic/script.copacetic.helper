@@ -370,27 +370,57 @@ class ServeTest(unittest.TestCase):
             worker.join(2)
         self.assertEqual(served, [(SETTLE, True, SETTLE)])  # its request, as it was
 
+    def _worker(self, server: serve.Server, rings: list, probe: list) -> None:
+        """
+        Ring each in turn into a running worker, waiting until it is served or let
+        be; a str sets probe 6910's text first. Patches stay for the worker's thread.
+        """
+        worker = Thread(target=server._work)
+        with (
+            patch.dict(sys.modules, {"resources.lib.plugin.handlers": Mock()}),
+            patch.object(serve, "infolabel", side_effect=lambda label: probe[0]),
+        ):
+            worker.start()
+            for ring in rings:
+                if isinstance(ring, str):
+                    probe[0] = ring
+                    continue
+                server._ring(ring)
+                while server.rung.is_set() or server.busy:  # served, or let be
+                    time.sleep(0.005)
+            server.stopped = True
+            server.rung.set()
+            worker.join(2)
+
     def test_a_net_serve_that_binds_nothing_lets_the_window_be(self) -> None:
         server = _server()
         served = []
         server._serve = lambda request, net: served.append(net)  # binds nothing
         server.last = {10025: SETTLE}
-        worker = Thread(target=server._work)
-
-        def ring(request: serve.Request) -> None:
-            server._ring(request)
-            while server.rung.is_set() or server.busy:  # served, or let be
-                time.sleep(0.005)
-
-        with patch.dict(sys.modules, {"resources.lib.plugin.handlers": Mock()}):
-            worker.start()
-            for request in (serve.Request(), serve.Request(), SETTLE, serve.Request()):
-                ring(request)
-            server.stopped = True
-            server.rung.set()
-            worker.join(2)
-        # the net, a net let be (no serve), then a ring clears it: the net serves again
+        net = serve.Request()
+        self._worker(server, [net, net, SETTLE, net], [PARAMS])
+        # The net; one let be; a ring; the net once the ring has cleared it
         self.assertEqual(served, [True, False, True])
+
+    def test_a_ring_during_a_net_serve_keeps_its_window_netted(self) -> None:
+        server = _server()
+        served = []
+        moved = SETTLE._replace(value="54/4/13/v")
+
+        def serve_(request: serve.Request, net: bool) -> None:
+            served.append(request.value)
+            if net and len(served) == 1:
+                server.last[10025] = moved  # a move lands as the net serve runs
+                server.busy = False
+                server._ring(moved)
+                server.busy = True
+
+        server._serve = serve_
+        server.last = {10025: SETTLE}
+        net = serve.Request()
+        self._worker(server, [net, net], [PARAMS])
+        # The cut net serve quiets nothing: the moved arrival's net still serves
+        self.assertEqual(served, [CURSOR, moved.value, moved.value])
 
     def test_a_net_ring_as_the_worker_wakes_never_replaces_the_arrival(self) -> None:
         server = _server()
