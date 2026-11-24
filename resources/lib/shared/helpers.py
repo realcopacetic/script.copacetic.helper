@@ -5,8 +5,9 @@ from __future__ import annotations
 import random
 import time
 from functools import cached_property
+from operator import itemgetter
 from threading import Lock
-from typing import Any, Callable, Collection, Iterable, Mapping
+from typing import Any, Callable, Collection, Iterable, Mapping, NamedTuple
 
 from xbmc import Monitor
 from xbmcgui import Window
@@ -362,6 +363,39 @@ def hours_minutes(minutes: int) -> str:
     return f"{hours}{h} {mins}{m}" if mins else f"{hours}{h}"
 
 
+class AlbumProgress(NamedTuple):
+    """An album's seconds heard lately, its length, its state and its resume point."""
+
+    heard: int
+    total: int
+    state: str
+    resume: dict[str, str]
+
+
+def album_resume(songs: list[dict], heard: list[dict]) -> dict[str, str]:
+    """
+    Where to pick an album up, in disc and track order: the track after the one
+    heard last, or after the album's last track the first not heard; else none.
+
+    :param songs: The album's songs from AudioLibrary.GetSongs.
+    :param heard: The songs heard lately, as ProgressBarManager.album counts them.
+    :return: album_next_track and album_next_title, with album_next_disc past one disc.
+    """
+    if not heard:
+        return {}
+    order = sorted(songs, key=itemgetter("disc", "track"))
+    # Mark as played gives every song the same last played: the latest track wins
+    after = order.index(max(heard, key=itemgetter("lastplayed", "disc", "track"))) + 1
+    if after < len(order):
+        song = order[after]
+    elif not (song := next((s for s in order if s not in heard), None)):
+        return {}
+    resume = {"album_next_track": str(song["track"]), "album_next_title": song["title"]}
+    if len({s["disc"] for s in songs}) > 1:
+        resume["album_next_disc"] = str(song["disc"])
+    return resume
+
+
 class ProgressBarManager:
     """
     Calculates playback or set progress for a focused item and
@@ -412,7 +446,7 @@ class ProgressBarManager:
         """
 
         if self.infolabels["DBType"] == "album":
-            heard, total, _ = self.album
+            heard, total, *_ = self.album
             return (heard / total * 100 if heard else 0), ""
 
         unwatched = self.infolabels["Property(UnwatchedEpisodes)"]
@@ -465,43 +499,52 @@ class ProgressBarManager:
         if not 0 < percent < 100:
             return 0
         if (dbtype := self.infolabels["DBType"]) == "album":
-            return self.album[1]
+            return self.album.total
         if dbtype in ("movie", "episode"):
             return to_int(infolabel(f"{self.target}.Duration(secs)"))
         return 0
 
     @cached_property
-    def album(self) -> tuple[int, int, str]:
+    def album(self) -> AlbumProgress:
         """
-        The focused album's seconds heard since album_since, its length, and "played"
-        or "unplayed" (every song or none ever played) when it isn't part-heard.
+        The focused album's seconds heard since album_since, its length, "played" or
+        "unplayed" (every song or none ever played) unless part-heard, its resume point.
 
-        :return: (heard, total, state); heard 0 unless some but not all is recent.
+        :return: The album's progress; heard 0 unless some but not all is recent.
         """
         if not (album_id := to_int(self.infolabels["DBID"])):
-            return 0, 0, ""
+            return AlbumProgress(0, 0, "", {})
         response = json_call(
             method="AudioLibrary.GetSongs",
             params={
                 "filter": {"albumid": album_id},
-                "properties": ["duration", "lastplayed", "playcount"],
+                "properties": [
+                    "disc",
+                    "duration",
+                    "lastplayed",
+                    "playcount",
+                    "title",
+                    "track",
+                ],
             },
             parent=self.__class__.__name__,
         )
         if not (songs := response.get("result", {}).get("songs")):
-            return 0, 0, ""  # an error answer: no state, so both menu items show
+            # An error answer: no state, so both menu items show
+            return AlbumProgress(0, 0, "", {})
         # Unplayed songs keep their last played (CMusicDatabase::UpdateSong), so the
         # play count gates it; JSON-RPC's date strings sort as times
         played = [s for s in songs if s["playcount"]]
-        heard = sum(
-            s["duration"] for s in played if s["lastplayed"] >= self.album_since
-        )
+        recent = [s for s in played if s["lastplayed"] >= self.album_since]
+        heard = sum(s["duration"] for s in recent)
         total = sum(s["duration"] for s in songs)
+        resume = album_resume(songs, recent)
         if 0 < heard < total:
-            return heard, total, ""
+            return AlbumProgress(heard, total, "", resume)
         if not played:
-            return 0, total, "unplayed"
-        return 0, total, "played" if len(played) == len(songs) else ""
+            return AlbumProgress(0, total, "unplayed", resume)
+        state = "played" if len(played) == len(songs) else ""
+        return AlbumProgress(0, total, state, resume)
 
     def update(
         self,

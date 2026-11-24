@@ -3,8 +3,8 @@
 Works out how much of the focused item has been watched, returns it on a list item,
 and moves and sizes a progress bar group to fit your layout. The same item carries
 short context values for labels beside the bar: time left and the end time, the next
-episode and its runtime, a "new" flag, the next air date, a newly aired episode and
-whether a show has ended.
+episode and its runtime, a "new" flag, the next air date, a newly aired episode,
+whether a show has ended, and the track to play next on an album.
 
 It handles movies, episodes, TV shows, seasons, movie sets and music albums. For a set
 it counts the watched movies in the set; for an album, the songs heard (see
@@ -93,9 +93,17 @@ heard.
   is the length still to hear and `ListItem.EndTimeResume` the time it would end.
   Listening again a year later counts afresh.
 - **Heard through, or untouched within `album_days`:** 0, no bar.
-- **Kept current:** the bar is served again when one of its songs is heard (from a
-  library window or a helper queue), or it is marked: a [served](../service/serve.md)
-  `9010` by the service itself, a plugin bar if the skin puts the service's
+- **Resume point:** with a song heard within `album_days`, `album_next_track`,
+  `album_next_title` and, on an album of more than one disc, `album_next_disc` name
+  the track to play next, in disc and track order: the one after the song heard last,
+  or, when that was the album's last track, the first not heard within `album_days`.
+  None when nothing is heard within `album_days`, or the last track was heard last
+  and every song since. Mark as played gives every song the same last play, so the
+  album's last track counts as heard last and there is none. From the same
+  `GetSongs` call (`disc`, `track`, `title`).
+- **Kept current:** the bar and its resume point are served again when one of its
+  songs is heard (from a library window or a helper queue), or it is marked: a
+  [served](../service/serve.md) `9010` by the service itself, a plugin bar if the skin puts the service's
   `progress_version` in its URL (see [the service](../service/index.md#on-song-updates)):
   Kodi doesn't refresh the video-tagged progress item on a music library update.
 - **New:** `new` is `true` for an album none of whose songs has ever played that
@@ -128,6 +136,9 @@ One list item in the helper container:
 | `ListItem.Property(new_episode)` | A fully watched TV show: TMDB's last aired episode when it is later than the library's newest, e.g. `3x05`. A notice only: nothing to play. |
 | `ListItem.Property(show_status)` | A fully watched TV show: `ended` (TMDB's *Ended* or *Canceled*) or `returning` (*Returning Series*); empty for TMDB's other states. |
 | `ListItem.Property(album)` | `true` for a library album; empty otherwise. |
+| `ListItem.Property(album_next_track)` | An album's [resume point](#albums): the next track's number, e.g. `8`. |
+| `ListItem.Property(album_next_title)` | With `album_next_track`: that song's title. |
+| `ListItem.Property(album_next_disc)` | With `album_next_track`, on an album of more than one disc: that song's disc number, e.g. `2`. |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
 with `String.IsEmpty`. They are worked out after the bar has moved, so the bar is
