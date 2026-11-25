@@ -40,7 +40,10 @@ mark until its lease is no longer its run's (a stopped line hands it back), bind
 a dialog too, and a repeat serves only a retired line; an again asks the line too,
 after a serve that has passed it, and a late answer while the line waits serves its
 lists before the line; a repeat whose line probe waits is served alone; a claim and a
-hand-back share one lock; live() reads the kept Home.
+hand-back share one lock; live() reads the kept Home. A music OSD rail's settle is
+served in the OSD over the visualisation, its echo bound; the OSD closing (its unload
+clears the cursor) binds nothing more, in it or in the window under it, drops a ring
+and ends a slide's turn; a dialog serve reads its dialog, never the window under it.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -1789,6 +1792,100 @@ class RotateTest(unittest.TestCase):
         ):
             art.return_value = {"background": "b.png", "slide": "b.jpg"}
             self.assertIsNone(serve.Server._slide(TURN, "b.jpg"))
+
+
+class MusicOsdTest(unittest.TestCase):
+    """The music OSD's rails: a dialog over the visualisation, which stays a plugin."""
+
+    RAIL = "3220/4/77/09:01:02Next"
+    SETTLE = serve.Request(
+        _lists(9100, 9300, 9020), "artwork_cursor_primary", RAIL, windows=(10120,)
+    )
+
+    def setUp(self) -> None:
+        self.props = {"artwork_cursor_primary": self.RAIL}
+        self.osd = {"top": 10120, "dialog": 10120, "open": True}
+        home = Mock(getProperty=lambda key: self.props.get(key, ""))
+        self.patches = [
+            patch.object(serve, "getCurrentWindowId", return_value=12006),
+            patch.object(serve, "getCurrentWindowDialogId", lambda: self.osd["dialog"]),
+            patch.object(serve, "topmost_window_id", lambda: self.osd["top"]),
+            patch.object(serve, "condition", lambda _: self.osd["open"]),
+            patch.object(serve, "Window", return_value=home),
+            patch.object(serve, "home_property", lambda k: self.props.get(k, "")),
+            patch.object(serve, "POLL", 0),
+        ]
+        for p in self.patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def close(self, *args) -> list:
+        """The OSD closes: its unload clears the cursor; the visualisation is on top."""
+        self.osd.update(top=12006, dialog=9999, open=False)
+        self.props["artwork_cursor_primary"] = ""
+        return []
+
+    def _run(self, server: serve.Server, request: serve.Request) -> None:
+        server.request = request
+        with patch.object(serve, "infolabel", side_effect=_reads(server)):
+            server._serve(request)
+
+    def test_a_rails_settle_binds_in_the_osd_with_its_echo(self) -> None:
+        server = _server()
+        rail = self.SETTLE._replace(echo="o1")
+        self._run(server, rail)
+        self.assertEqual(
+            [c.args[:2] + c.args[3:6] for c in server._bind.call_args_list],
+            [(10120, i, self.RAIL, "3220/4/77/", "o1") for i in (9100, 9300, 9020)],
+        )
+        self.assertEqual(server.last, {10120: rail})
+
+    def test_the_osd_closing_after_a_bind_binds_nothing_more(self) -> None:
+        server = _server()
+        bind = server._bind.side_effect
+        server._bind.side_effect = lambda *a: bind(*a) or self.close()
+        self._run(server, self.SETTLE)
+        self.assertEqual(
+            [c.args[:2] for c in server._bind.call_args_list], [(10120, 9100)]
+        )
+
+    def test_the_osd_closing_during_a_handler_binds_nothing(self) -> None:
+        server = _server()
+        server._handle.side_effect = self.close
+        self._run(server, self.SETTLE)
+        server._bind.assert_not_called()
+        self.assertIsNone(server.finished)
+
+    def test_a_ring_as_the_osd_closes_is_dropped(self) -> None:
+        server = _server()
+        self.close()
+        self.assertEqual(server._window(self.SETTLE), 0)
+        self._run(server, self.SETTLE)
+        server._handle.assert_not_called()
+
+    def test_its_slides_turn_in_the_osd_and_end_as_it_closes(self) -> None:
+        server = _server()
+        server.request = self.SETTLE
+        turn = serve.Turn(self.SETTLE, 10120, 9300, (9400, 6932), self.RAIL, FAMILY)
+        self.assertTrue(server._turning(turn))
+        self.close()
+        self.assertFalse(server._turning(turn))
+        with patch.object(serve, "infolabel", return_value=PARAMS) as read:
+            self.assertIsNone(serve.Server._slide(turn, "b.jpg"))
+        read.assert_not_called()
+
+    def test_a_dialog_serve_reads_the_osd_never_the_window_under_it(self) -> None:
+        params = {"info": "artwork", "dialog": "true", "target": "3220"}
+        with (
+            patch.object(handlers, "topmost_window_id", return_value=10120),
+            patch.object(handlers, "condition", return_value=False),
+        ):
+            self.assertEqual(handlers.PluginHandlers(params).window_id, 10120)
+        with (
+            patch.object(handlers, "topmost_window_id", return_value=12006),
+            patch.object(handlers, "condition", return_value=False),  # closed
+        ):
+            self.assertEqual(handlers.PluginHandlers(params).window_id, 9999)
 
 
 if __name__ == "__main__":
