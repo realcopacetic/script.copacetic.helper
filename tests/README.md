@@ -157,6 +157,11 @@ python tests/listing_offline.py
 # underscore and title-less forms
 python tests/clean_name_offline.py
 
+# The info screen's chips on info=metadata (shared/helpers.py DataHandler): genre_chips
+# two genres while they fit, else one, with the rest's count (an episode's its show's);
+# album_format an album's most common codec, lossless by sample rate, lossy by bitrate
+python tests/infoscreen_chips_offline.py
+
 # Builder passes (builders/modules.py): an item's `also` metadata gives a pass more per
 # row, so one settings entry feeds a second window's expressions (append, assign, the
 # inverted fallback) and variables, in static and dynamic mappings. Skin mirrors
