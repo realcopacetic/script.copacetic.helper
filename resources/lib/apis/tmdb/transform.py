@@ -8,7 +8,7 @@ from typing import Any, Mapping, Protocol
 from xbmc import Monitor
 from xbmcgui import Window
 
-from resources.lib.apis.cache import DAY, failure_ttl
+from resources.lib.apis.cache import DAY, cached, failure_ttl
 from resources.lib.apis.http import HttpError
 from resources.lib.apis.tmdb.client import (
     fetch_tmdb_fields,
@@ -160,6 +160,24 @@ def tmdb_to_canonical(
     )
     cache.put(key, item, TTL_HIT)
     return item
+
+
+def creator_shows(person_id: str) -> list[int]:
+    """
+    TMDb ids of the TV shows a TMDb person created (their tv_credits crew credited
+    "Creator"), cached as an item is; empty with TMDb off.
+
+    :param person_id: TMDb person id.
+    :return: TMDb TV show ids.
+    """
+    if not (client := get_tmdb_client()):
+        return []
+
+    def fetch() -> list[int]:
+        crew = client.get_json(f"/person/{person_id}/tv_credits")["crew"]
+        return sorted({show["id"] for show in crew if show["job"] == "Creator"})
+
+    return cached(f"tmdb:creator:{person_id}", fetch, (TTL_HIT, TTL_MISSING)) or []
 
 
 def _fetch_aside(args: tuple, asker: Asker, stale: dict) -> None:

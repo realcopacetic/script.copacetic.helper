@@ -29,6 +29,7 @@ TMDB_PROPERTIES = {
             "overview",
             "tagline",
             "created_by",
+            ("creator_ids", ("created_by",)),
             "status",
             ("last_episode_air_date", ("last_episode_to_air", "air_date")),
             ("last_episode_number", ("last_episode_to_air", "episode_number")),
@@ -64,6 +65,11 @@ TMDB_FIELD_MAP = {
         "target": "info",
         "label": "Writers",
         "transform": "extract_creator_names",
+    },
+    "creator_ids": {
+        "target": "property",
+        "label": "tmdb_creator_ids",
+        "transform": "extract_creator_ids",
     },
     "images_backdrops": {
         "target": "art",
@@ -154,6 +160,7 @@ TMDB_TRANSFORMS = (
     "pick_best_trailer",
     "list_top_trailers",
     "extract_creator_names",
+    "extract_creator_ids",
 )
 
 
@@ -204,6 +211,16 @@ def extract_creator_names(value: Any) -> list[str]:
         if isinstance(name, str) and name:
             names.append(name)
     return names
+
+
+def extract_creator_ids(value: Any) -> str:
+    """
+    The TMDb person ids of a TMDb created_by array, for their other shows.
+
+    :param value: Raw created_by field value from TMDb JSON.
+    :return: Ids joined by ",", or empty string if none.
+    """
+    return ",".join(str(item["id"]) for item in _iter_mappings(value))
 
 
 def _top_trailers(value: Any) -> list[str]:

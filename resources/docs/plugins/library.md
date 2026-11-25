@@ -22,6 +22,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `genre_credits` | Movies and TV shows in a given genre. |
 | `studio_credits` | Movies and TV shows from a given studio or network. |
 | `artist_credits` | Music videos by a given artist. |
+| `creator_credits` | The other TV shows by a TV show's creators, from TMDB. |
 | `genre_music` | Library artists, albums or songs in any of the given genres. |
 | `similar_music` | Library artists, albums or songs by an artist's similar artists (Deezer, ListenBrainz), then in its genres. |
 | `top_songs` | A library artist's most popular songs (ListenBrainz all-time, Deezer now, blended), then its most played. |
@@ -352,6 +353,33 @@ Adventure`): the helper splits its parameters only where `&name=` follows, where
 `videodb://` filter in the path would cut the value at the `&`. Pass the container's
 own `limit` and order as `limit` and `sort`, so Kodi never fetches a whole genre or
 studio for the container to cut.
+
+## `creator_credits`
+
+The library TV shows a TV show's creators also created: on *Pluribus*, Vince Gilligan's
+*Breaking Bad* and *Better Call Saul*. Kodi keeps no creators, so they come from TMDB:
+the show's *Created by* people, then each one's TV credits as *Creator*. A season or
+episode stands for its show. The show itself is left out. Items are TV shows, as in
+[The items](#the-items), newest first by default; the container's content is `tvshows`.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `type`, `id`, `tmdb_id`, `tvshowid`, `language` | | | The show, found as [`metadata`](metadata.md#tmdb-lookups) finds it: `tmdb_id` when passed, else looked up from the library with `type` and `id`. |
+| `sort` | a JSON-RPC sort method (`year`, `votes` …) | `year` | The order Kodi fetches in, descending. |
+| `limit` | whole number | all | Most shows. |
+
+```xml
+<content>plugin://script.copacetic.helper/?info=creator_credits&amp;type=tvshow&amp;id=$INFO[ListItem.DBID]&amp;tmdb_id=$INFO[ListItem.UniqueID(tmdb)]&amp;limit=50</content>
+```
+
+A library show is matched by its TMDB id (`ListItem.UniqueID(tmdb)`), so shows scraped
+without one never appear. Needs the TMDB token (see
+[TMDB lookups](metadata.md#tmdb-lookups)); without it the list is empty and nothing is
+asked. The show comes from the same cache as `metadata`'s TMDB details (a show cached
+before this path existed has no creator ids until it is fetched again, within 7 days,
+or *Clear add-on cache*). Each creator's credits are cached for 7 days (none as
+*Creator* for a day), a failed request for 5 minutes. Once cached, a refetch costs two
+JSON-RPC calls and no request.
 
 ## `similar_music`
 

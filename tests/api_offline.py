@@ -5,16 +5,18 @@ apis/deezer.py (artist match, TTLs, Deezer's error answers, its chart),
 apis/theintrodb.py (the ids tried in turn, best segment, TTLs, clearing),
 apis/lrclib.py (the search fallback's nearest hit, payload shapes, TTLs, clearing),
 the blended ranking of top_songs and discography, music info's popularity words
-(popularity_label), the TMDb client and cache (apis/tmdb), metadata's tagline_quotes
-(shared/text.py single_quotes), and the plugin URL parser (shared/parser.py) with a
-focus guard cut at a "|".
+(popularity_label), the TMDb client and cache (apis/tmdb) and creator_credits,
+metadata's tagline_quotes (shared/text.py single_quotes), and the plugin URL parser
+(shared/parser.py) with a focus guard cut at a "|".
 
 Network calls are replaced by recorded ListenBrainz answers
 (tests/fixtures/listenbrainz_*.json, Gorillaz, fetched Oct 2026), recorded Deezer
 answers (tests/fixtures/deezer_*.json, Queens of the Stone Age, fetched from a
 browser on 10 Nov 2026 and trimmed to the fields the helper reads), Deezer's chart
 shape (hand-written from its live answer, 14 Nov 2026), a TMDb /tv/{id} answer in TMDb's shape
-(tests/fixtures/tmdb_tv_1399.json, hand-written: no token here), Deezer's error
+(tests/fixtures/tmdb_tv_1399.json, hand-written: no token here), a TMDb
+/person/{id}/tv_credits answer (tests/fixtures/tmdb_person_tv_credits_9813.json,
+hand-written: jobs and departments as TMDb's person page groups them), Deezer's error
 shape (hand-written), TheIntroDB's v4 /media shape (hand-written from its npm
 client's docs), recorded LRCLIB answers (tests/fixtures/lrclib_*.json, Feel Good
 Inc., fetched 16 Nov 2026, trimmed to the fields the helper reads and four lines
@@ -89,6 +91,7 @@ from resources.lib.shared.text import fit_lines, single_quotes  # noqa: E402
 FIXTURES = HELPER / "tests" / "fixtures"
 FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
 TMDB_TV = (FIXTURES / "tmdb_tv_1399.json").read_bytes()
+TMDB_CREATOR = (FIXTURES / "tmdb_person_tv_credits_9813.json").read_bytes()
 NEWS = ("new_episode", "next_air", "next_air_episode", "show_status")  # _show_news
 DEEZER_SEARCH = (FIXTURES / "deezer_search_qotsa.json").read_bytes()
 DEEZER_TOP = (FIXTURES / "deezer_top_1177.json").read_bytes()
@@ -530,6 +533,7 @@ class TmdbTest(Base):
         item = transform.tmdb_to_canonical("tvshow", 1399)
         self.assertEqual(item["Title"], "Game of Thrones")
         self.assertEqual(item["Writers"], ["David Benioff", "D. B. Weiss"])
+        self.assertEqual(item["properties"]["tmdb_creator_ids"], "9813,228068")
         self.assertNotIn("Year", item)  # nothing reads it: not mapped
         self.assertTrue(item["Trailer"].endswith("video_id=trailer-key"))
         self.assertEqual(self.tmdb_row(), (item, 7 * DAY))
@@ -1089,6 +1093,81 @@ ALBUM_SONGS = [
     song(5, "On Melancholy Hill", 2010, album="Plastic Beach", albumid=4),
     song(6, "Rhinestone Eyes", 2010, album="Plastic Beach", albumid=4),
 ]
+
+
+class CreatorCreditsTest(Base):
+    """creator_credits: the library shows TMDb credits to a show's creators."""
+
+    def setUp(self):
+        super().setUp()
+        self.settings = {"tmdb_access_token": "v3key"}
+        self.calls = []
+        library = [  # GetTVShows with uniqueid only: the pool
+            {"tvshowid": 1, "label": "Game of Thrones", "uniqueid": {"tmdb": "1399"}},
+            {"tvshowid": 2, "label": "3 Body Problem", "uniqueid": {"tmdb": "108545"}},
+            {
+                "tvshowid": 3,
+                "label": "House of the Dragon",
+                "uniqueid": {"tmdb": "94997"},
+            },
+            {"tvshowid": 4, "label": "Westworld", "uniqueid": {"tvdb": "296762"}},
+            {"tvshowid": 5, "label": "3 Body Problem", "uniqueid": {"tmdb": "204541"}},
+        ]
+
+        def rpc(request):
+            request = json.loads(request)
+            self.calls.append(request["params"])
+            if request["params"]["properties"] == ["uniqueid"]:
+                return json.dumps({"result": {"tvshows": library}})
+            titles = request["params"]["filter"]["and"][0]["value"]
+            rows = [
+                {"tvshowid": row["tvshowid"], "title": row["label"]}
+                for row in library
+                if row["label"] in titles
+            ]
+            return json.dumps({"result": {"tvshows": rows}})
+
+        patch(
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (handlers, "set_plugincontent", lambda **kwargs: None),
+            (handlers, "build_items", lambda rows, *a: [r["tvshowid"] for r in rows]),
+        )
+        self.handler = object.__new__(handlers.PluginHandlers)
+        self.handler.params = {"type": "tvshow", "id": "1", "tmdb_id": "1399"}
+        self.handler.target_item, self.handler.limit = "ListItem", None
+
+    def test_the_creators_other_shows(self):
+        weiss = json.loads(TMDB_CREATOR) | {"id": 228068}
+        self.net.answers = [TMDB_TV, TMDB_CREATOR, json.dumps(weiss).encode()]
+        # 3 Body Problem only: not the show itself, not one they only produced, not
+        # a same-titled show (by its id) nor one with no TMDb id
+        self.assertEqual(self.handler.creator_credits(), [2])
+        urls = [request.full_url for request in self.net.requests]
+        self.assertTrue(
+            urls[1].startswith("https://api.themoviedb.org/3/person/9813/tv_credits?")
+        )
+        self.assertTrue(
+            urls[2].startswith("https://api.themoviedb.org/3/person/228068/tv_credits?")
+        )
+        self.assertEqual(self.row("9813", "tmdb:creator:"), ([1399, 108545], 7 * DAY))
+        self.assertEqual(
+            self.calls[1]["sort"], {"method": "year", "order": "descending"}
+        )
+        self.tick(6 * DAY)  # cached: no request, the same list
+        self.assertEqual(self.handler.creator_credits(), [2])
+        self.assertEqual(len(self.net.requests), 3)
+
+    def test_no_creators_asks_no_person(self):
+        tv = json.loads(TMDB_TV) | {"created_by": []}
+        self.net.answers = [json.dumps(tv).encode()]
+        self.assertIsNone(self.handler.creator_credits())
+        self.assertEqual((len(self.net.requests), self.calls), (1, []))
+
+    def test_off_sends_nothing(self):
+        self.settings = {}
+        self.assertIsNone(self.handler.creator_credits())
+        self.assertEqual((self.net.requests, self.calls), ([], []))
 
 
 class DiscographyTest(Base):
