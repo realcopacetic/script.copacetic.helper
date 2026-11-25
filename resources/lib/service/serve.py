@@ -776,14 +776,13 @@ class Server:
     @staticmethod
     def _slide(turn: Turn, url: str) -> tuple[list[tuple], str] | None:
         """
-        A slide's item, made with the slide probe's params, the logo read whole by its
-        source, while the window is on top (under a dialog Python reads the dialog's
-        controls).
+        A slide's item (its art the slide's, its identity the artwork list's), made
+        with the slide probe's params, the logo read whole by its source, while the
+        window is on top (under a dialog Python reads the dialog's controls).
 
         :param turn: The family turning.
         :param url: The slide.
-        :return: The item (its art the slide's, its identity the artwork list's) and the
-            params it was made with; None for none.
+        :return: The item and the params it was made with; None for none.
         """
         from resources.lib.art.multiart import slide_art
         from resources.lib.plugin.opts import ART_URLS, read_art_urls
