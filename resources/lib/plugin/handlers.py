@@ -1205,9 +1205,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def metadata(self) -> list[DirectoryItem] | None:
         """
-        Cleaned metadata on a helper list item; aborts if focus changes. random_pick
-        picks one director and genre (=genre, =director: that alone); genre_chips=N and
-        album_format add chip genres and an album's format; tmdb_art caches TMDb's art.
+        Cleaned metadata on a helper list item; aborts if focus changes. random_pick:
+        one director and genre (=genre, =director: that alone); genre_chips=N,
+        album_format, most_played: genre chips, format, top song; tmdb_art caches art.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -1234,6 +1234,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             genre_aliases=[p.split(":", 1) for p in aliases.split(",") if p],
             genre_chips=to_int(self.params.get("genre_chips")),
             album_format=parse_bool(self.params.get("album_format")),
+            most_played=parse_bool(self.params.get("most_played")),
         )
 
         if not guard.alive():
