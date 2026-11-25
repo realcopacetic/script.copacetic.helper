@@ -55,6 +55,7 @@ MUSIC = {
 # cards only the skin's rail click plays
 EXCLUDED = {
     "actor_credits",
+    "art_details",
     "artist_credits",
     "artwork",
     "broadcasts",

@@ -293,6 +293,23 @@ msgctxt "#32046"
 msgid "Ask again about add-ons that clash"
 msgstr "Volver a preguntar por los add-ons en conflicto"
 
+#. A web service's name: do not translate.
+#: /resources/settings.xml
+msgctxt "#32047"
+msgid "Wikidata"
+msgstr "Wikidata"
+
+#: /resources/settings.xml
+msgctxt "#32048"
+msgid "Look up paintings on Wikidata"
+msgstr "Buscar pinturas en Wikidata"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32049"
+msgid "Clear Wikidata data"
+msgstr "Borrar datos de Wikidata"
+
 
 
 
@@ -433,6 +450,17 @@ msgstr "Olvida todas las respuestas guardadas de LRCLIB (letras de canciones), p
 msgctxt "#32146"
 msgid "Switches back on each add-on the helper switched off for doing a job the skin already does (lyrics, next episode prompts, skip buttons), and asks about each again once Home is shown."
 msgstr "Vuelve a activar cada add-on que el helper desactivó por hacer una tarea que el skin ya hace (letras, avisos de siguiente episodio, botones de saltar), y vuelve a preguntar por cada uno al mostrarse Inicio."
+
+#. "Look up art details" is string #32847: use the same words. Keep Wikidata and Wikipedia as they are.
+#: /resources/settings.xml
+msgctxt "#32148"
+msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia. Only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. No account needed. Off: nothing sent."
+msgstr "Artista, año, técnica, colección, tamaño y un resumen de las pinturas de tus carpetas de imágenes, desde Wikidata y Wikipedia. Solo en las carpetas que elijas: Buscar detalles de arte en el menú contextual de una carpeta. Cada archivo se identifica por su nombre, como Artista - Título (Año), la primera vez que te detienes en él; el nombre se envía a Wikidata. No requiere cuenta. Apagado: no se envía nada."
+
+#: /resources/settings.xml
+msgctxt "#32149"
+msgid "Forget every saved Wikidata answer (paintings matched or not), so each picture is looked up again when next shown."
+msgstr "Olvida todas las respuestas guardadas de Wikidata (pinturas encontradas o no), para que cada imagen se vuelva a buscar la próxima vez que se muestre."
 
 
 
@@ -1086,6 +1114,24 @@ msgstr "Reanudar desde la pista %s"
 msgctxt "#32846"
 msgid "Resume from disc %s, track %s"
 msgstr "Reanudar desde el disco %s, pista %s"
+
+#. A context menu item: keep it short. For a folder of pictures: its paintings are looked up on Wikidata.
+#: /addon.xml
+msgctxt "#32847"
+msgid "Look up art details"
+msgstr "Buscar detalles de arte"
+
+#. A context menu item: keep it short. Turns "Look up art details" (#32847) off for the folder.
+#: /addon.xml
+msgctxt "#32848"
+msgid "Stop looking up art details"
+msgstr "Dejar de buscar detalles de arte"
+
+#. Where a painting is, when Wikidata knows only that its owner is private.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32849"
+msgid "Private collection"
+msgstr "Colección privada"
 
 
 

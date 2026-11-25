@@ -180,6 +180,15 @@ python tests/infoscreen_chips_offline.py
 # item's picture_resolution and picture_size, the size alone without a resolution
 python tests/picture_bar_offline.py
 
+# Art details (shared/art_details.py, apis/wikidata.py, info=art_details, the
+# art_details_folder and _refresh actions): the file name's parse; the 25 Nov filename
+# test's 16 files matched or left empty (similarity, a label's words in the title, the
+# year, ties to sitelinks, the threshold); a match's fields; the verdict kept by path
+# and mtime, a miss kept, none kept unanswered, a 429 holding the queue; marked
+# folders and their Home properties; chips fitted to a row; the summary cut at a
+# sentence (Wikidata's and Wikipedia's answers stubbed from tests/fixtures)
+python tests/art_details_offline.py
+
 # Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI
 # height; a 1x image drawn 2x and shrunk, a 2x one drawn 1:1, both giving the same
 # height in skin pixels, cached apart (needs Pillow and the skin's fonts)

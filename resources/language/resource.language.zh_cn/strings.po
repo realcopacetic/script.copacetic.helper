@@ -293,6 +293,23 @@ msgctxt "#32046"
 msgid "Ask again about add-ons that clash"
 msgstr "重新询问冲突的插件"
 
+#. A web service's name: do not translate.
+#: /resources/settings.xml
+msgctxt "#32047"
+msgid "Wikidata"
+msgstr "Wikidata"
+
+#: /resources/settings.xml
+msgctxt "#32048"
+msgid "Look up paintings on Wikidata"
+msgstr "在 Wikidata 上查找画作"
+
+#: /resources/settings.xml
+#: /resources/lib/script/actions.py
+msgctxt "#32049"
+msgid "Clear Wikidata data"
+msgstr "清除 Wikidata 数据"
+
 
 
 
@@ -433,6 +450,17 @@ msgstr "忘记所有已保存的 LRCLIB 响应（歌曲歌词），每项将在�
 msgctxt "#32146"
 msgid "Switches back on each add-on the helper switched off for doing a job the skin already does (lyrics, next episode prompts, skip buttons), and asks about each again once Home is shown."
 msgstr "重新开启助手因皮肤已具备相同功能（歌词、下一集提示、跳过按钮）而关闭的每个插件，并在主界面显示后再次逐一询问。"
+
+#. "Look up art details" is string #32847: use the same words. Keep Wikidata and Wikipedia as they are.
+#: /resources/settings.xml
+msgctxt "#32148"
+msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia. Only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. No account needed. Off: nothing sent."
+msgstr "从 Wikidata 和 Wikipedia 为图片文件夹中的画作获取画家、年份、材质、收藏地、尺寸和简介。仅限你选择的文件夹：在文件夹的上下文菜单中选择“查找艺术详情”。文件按名称匹配，格式为 画家 - 标题 (年份)，在你首次停留时进行；名称会发送到 Wikidata。无需账户。关闭：不发送任何内容。"
+
+#: /resources/settings.xml
+msgctxt "#32149"
+msgid "Forget every saved Wikidata answer (paintings matched or not), so each picture is looked up again when next shown."
+msgstr "忘记所有已保存的 Wikidata 响应（已匹配或未匹配的画作），每张图片将在下次显示时重新查找。"
 
 
 
@@ -1086,6 +1114,24 @@ msgstr "从第 %s 首继续"
 msgctxt "#32846"
 msgid "Resume from disc %s, track %s"
 msgstr "从第 %s 张碟第 %s 首继续"
+
+#. A context menu item: keep it short. For a folder of pictures: its paintings are looked up on Wikidata.
+#: /addon.xml
+msgctxt "#32847"
+msgid "Look up art details"
+msgstr "查找艺术详情"
+
+#. A context menu item: keep it short. Turns "Look up art details" (#32847) off for the folder.
+#: /addon.xml
+msgctxt "#32848"
+msgid "Stop looking up art details"
+msgstr "停止查找艺术详情"
+
+#. Where a painting is, when Wikidata knows only that its owner is private.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32849"
+msgid "Private collection"
+msgstr "私人收藏"
 
 
 

@@ -57,11 +57,13 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 
 | Action | What it does |
 |---|---|
+| [`art_details_folder`](#art_details_folder) | Marks a folder for art details look-ups on Wikidata, or unmarks it |
+| [`art_details_refresh`](#art_details_refresh) | Looks one picture up on Wikidata again |
 | [`bake_profiles`](#bake_profiles) | Blurs each profile's picture again for a login screen and the splash after it |
 | [`chapter_focus`](#chapter_focus) | Sets `player_chapter_focus` to one chapter's tick, for a `ranges` control |
 | [`check_clashes`](#check_clashes) | Switches off the add-ons the user chose to for clashing with the skin's features, and asks about new ones |
 | [`clean_image_cache`](#clean_image_cache) | Removes this device's cached images no library item uses and nothing showed for 30 days |
-| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDB, ListenBrainz, Deezer, TheIntroDB or LRCLIB |
+| [`clear_api_cache`](#clear_api_cache) | Forgets every saved answer from TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB or Wikidata |
 | [`clear_art`](#clear_art) | Removes the current artwork of every artist or album in Kodi's list, ready for a refresh |
 | [`clear_cache`](#clear_cache) | Deletes the helper's processed artwork and its saved web service answers |
 | [`clear_label`](#clear_label) | Empties one or more fadelabel controls |
@@ -122,7 +124,7 @@ action lets you choose another window.
 
 ## Items the helper adds to the context menu
 
-The helper adds items to Kodi's context menu, all but the last for music. They show only while a skin that
+The helper adds items to Kodi's context menu, most of them for music. They show only while a skin that
 [opts in](../service/index.md#opting-in) is active (the service sets
 `Window(home).Property(helper_active)` for it), on the items below, and each one runs
 the action named. In any other skin they are hidden.
@@ -139,6 +141,8 @@ the action named. In any other skin they are hidden.
 | Mark as played | Library albums (not disc or music video album nodes) that aren't played through (`album_played`, below) | [`mark_album`](#mark_album) with `played=true` |
 | Mark as unplayed | Library albums (not disc or music video album nodes) that aren't unplayed (`album_unplayed`, below) | [`mark_album`](#mark_album) |
 | Refresh cached data | Library films, sets, TV shows, seasons, episodes, music videos, artists, albums and songs | [`refresh_cached`](#refresh_cached) |
+| Look up art details | Folders in Pictures that aren't marked, nor inside a marked one (`art_details_unmarked`, below), while the `wikidata` setting is on | [`art_details_folder`](#art_details_folder) with `mark=true` |
+| Stop looking up art details | Folders in Pictures that are marked (`art_details_marked`), while the `wikidata` setting is on | [`art_details_folder`](#art_details_folder) |
 
 On [speed dial](../plugins/speed_dial.md) items, Shuffle, Start mix and Unpin come
 from the item's own context rows instead, at the top of the menu.
@@ -163,6 +167,45 @@ so they show the right way round in any list, not only in speed dial.
 
 Each item passes the clicked item's database id (the year itself for a year), its
 type and its path to the action.
+
+**Look up art details** and **Stop looking up art details** need your skin to serve
+[`art_details`](../plugins/art_details.md) for the focused folder, which publishes its
+state (`art_details_marked`, `art_details_unmarked`); until it has, neither shows.
+
+---
+
+## art_details_folder
+
+Marks a folder for [art details](../plugins/art_details.md) look-ups on Wikidata, or
+unmarks it. Subfolders follow a marked folder; unmarking one leaves its subfolders' own
+marks. The context menu's **Look up art details** and **Stop looking up art details**
+run this action.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `path` | a folder's path | required | The folder; a user name and password in it are left out, as Kodi shows the path |
+| `mark` | `true`, anything else | — | `true` marks it; anything else unmarks it |
+
+**Sets:** `Window(home).Property(art_details_marked)`, `art_details_covered`,
+`art_details_unmarked` and `art_details_folder`, as the
+[serve](../plugins/art_details.md#mark-state) does.
+
+---
+
+## art_details_refresh
+
+Looks one picture up on Wikidata again: its kept verdict is dropped and the answers it
+came from (the artist's works, the painting, its summary) are asked afresh. Then, if
+you pass one, your served ring, so the focused item is served again.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `path` | a picture's path | required | The picture, as you pass it to `art_details` |
+| `ring` | a [served ring](../service/serve.md#from-python), `serve?…` with no `is` | none | Sent once the look-up ends |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=art_details_refresh,path=$INFO[ListItem.FileNameAndPath])</onclick>
+```
 
 ---
 
@@ -281,7 +324,7 @@ again the next time it is needed. For one item instead, use
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `source` | `tmdb`, `listenbrainz`, `deezer`, `theintrodb`, `lrclib` | required | Which service's answers |
+| `source` | `tmdb`, `listenbrainz`, `deezer`, `theintrodb`, `lrclib`, `wikidata` | required | Which service's answers |
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=clear_api_cache,source=listenbrainz)</onclick>

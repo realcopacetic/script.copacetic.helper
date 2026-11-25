@@ -63,6 +63,17 @@
         <label>32835</label>
         <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Integer.IsGreater(ListItem.DBID,0) + [String.IsEqual(ListItem.DBType,movie) | String.IsEqual(ListItem.DBType,set) | String.IsEqual(ListItem.DBType,tvshow) | String.IsEqual(ListItem.DBType,season) | String.IsEqual(ListItem.DBType,episode) | String.IsEqual(ListItem.DBType,musicvideo) | String.IsEqual(ListItem.DBType,artist) | String.IsEqual(ListItem.DBType,album) | String.IsEqual(ListItem.DBType,song)]</visible>
       </item>
+      <!-- Folder state: art_details_unmarked / art_details_marked hold the focused Pictures
+           folder's path, published by the art_details serve (plugin/handlers.py), so a
+           folder shows one item or the other; one inside a marked folder shows neither -->
+      <item library="context.py" args="action=art_details_folder,mark=true">
+        <label>32847</label>
+        <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Addon.SettingBool(script.copacetic.helper,wikidata) + Window.IsActive(pictures) + ListItem.IsFolder + String.IsEqual(Window(home).Property(art_details_unmarked),ListItem.FolderPath)</visible>
+      </item>
+      <item library="context.py" args="action=art_details_folder">
+        <label>32848</label>
+        <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Addon.SettingBool(script.copacetic.helper,wikidata) + Window.IsActive(pictures) + ListItem.IsFolder + String.IsEqual(Window(home).Property(art_details_marked),ListItem.FolderPath)</visible>
+      </item>
     </menu>
   </extension>
   <extension point="xbmc.addon.metadata">
