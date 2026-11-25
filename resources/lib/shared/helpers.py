@@ -577,6 +577,7 @@ class ProgressBarManager:
                 "DBID",
                 "DBType",
                 "PercentPlayed",
+                "PlayCount",
                 "Property(WatchedEpisodePercent)",
                 "Property(WatchedProgress)",
                 "Property(UnwatchedEpisodes)",
