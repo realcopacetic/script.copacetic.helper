@@ -162,20 +162,25 @@ def tmdb_to_canonical(
     return item
 
 
-def creator_shows(person_id: str) -> list[int]:
+def creator_shows(person_id: str) -> list[dict[str, Any]]:
     """
-    TMDb ids of the TV shows a TMDb person created (their tv_credits crew credited
-    "Creator"), cached as an item is; empty with TMDb off.
+    The TV shows a TMDb person created (their tv_credits crew credited "Creator"),
+    by TMDb id with their names; cached as an item is, empty with TMDb off.
 
     :param person_id: TMDb person id.
-    :return: TMDb TV show ids.
+    :return: {"id": TMDb TV show id, "names": [name, original name]} per show.
     """
     if not (client := get_tmdb_client()):
         return []
 
-    def fetch() -> list[int]:
+    def fetch() -> list[dict[str, Any]]:
         crew = client.get_json(f"/person/{person_id}/tv_credits")["crew"]
-        return sorted({show["id"] for show in crew if show["job"] == "Creator"})
+        shows = {
+            show["id"]: sorted({show["name"], show["original_name"]})
+            for show in crew
+            if show["job"] == "Creator"
+        }
+        return [{"id": tv, "names": names} for tv, names in sorted(shows.items())]
 
     return cached(f"tmdb:creator:{person_id}", fetch, (TTL_HIT, TTL_MISSING)) or []
 

@@ -1102,28 +1102,22 @@ class CreatorCreditsTest(Base):
         super().setUp()
         self.settings = {"tmdb_access_token": "v3key"}
         self.calls = []
-        library = [  # GetTVShows with uniqueid only: the pool
-            {"tvshowid": 1, "label": "Game of Thrones", "uniqueid": {"tmdb": "1399"}},
-            {"tvshowid": 2, "label": "3 Body Problem", "uniqueid": {"tmdb": "108545"}},
-            {
-                "tvshowid": 3,
-                "label": "House of the Dragon",
-                "uniqueid": {"tmdb": "94997"},
-            },
-            {"tvshowid": 4, "label": "Westworld", "uniqueid": {"tvdb": "296762"}},
-            {"tvshowid": 5, "label": "3 Body Problem", "uniqueid": {"tmdb": "204541"}},
+        library = [  # title, original title, TMDb id
+            (1, "Game of Thrones", "Game of Thrones", {"tmdb": "1399"}),
+            (2, "Le Problème à trois corps", "3 Body Problem", {"tmdb": "108545"}),
+            (3, "House of the Dragon", "House of the Dragon", {"tmdb": "94997"}),
+            (4, "Westworld", "Westworld", {"tvdb": "296762"}),
+            (5, "3 Body Problem", "3 Body Problem", {"tmdb": "204541"}),
         ]
 
         def rpc(request):
             request = json.loads(request)
             self.calls.append(request["params"])
-            if request["params"]["properties"] == ["uniqueid"]:
-                return json.dumps({"result": {"tvshows": library}})
-            titles = request["params"]["filter"]["and"][0]["value"]
+            by_title, by_original = request["params"]["filter"]["and"][0]["or"]
             rows = [
-                {"tvshowid": row["tvshowid"], "title": row["label"]}
-                for row in library
-                if row["label"] in titles
+                {"tvshowid": dbid, "title": title, "uniqueid": ids}
+                for dbid, title, original, ids in library
+                if title in by_title["value"] or original in by_original["value"]
             ]
             return json.dumps({"result": {"tvshows": rows}})
 
@@ -1140,9 +1134,11 @@ class CreatorCreditsTest(Base):
     def test_the_creators_other_shows(self):
         weiss = json.loads(TMDB_CREATOR) | {"id": 228068}
         self.net.answers = [TMDB_TV, TMDB_CREATOR, json.dumps(weiss).encode()]
-        # 3 Body Problem only: not the show itself, not one they only produced, not
-        # a same-titled show (by its id) nor one with no TMDb id
+        # 3 Body Problem only, found by its original title: not the show itself, not
+        # one they only produced, not a same-titled show (by its id)
         self.assertEqual(self.handler.creator_credits(), [2])
+        self.assertEqual(len(self.calls), 1)  # one library query, by name
+        self.assertIn("uniqueid", self.calls[0]["properties"])
         urls = [request.full_url for request in self.net.requests]
         self.assertTrue(
             urls[1].startswith("https://api.themoviedb.org/3/person/9813/tv_credits?")
@@ -1150,9 +1146,13 @@ class CreatorCreditsTest(Base):
         self.assertTrue(
             urls[2].startswith("https://api.themoviedb.org/3/person/228068/tv_credits?")
         )
-        self.assertEqual(self.row("9813", "tmdb:creator:"), ([1399, 108545], 7 * DAY))
+        shows = [
+            {"id": 1399, "names": ["Game of Thrones"]},
+            {"id": 108545, "names": ["3 Body Problem"]},
+        ]
+        self.assertEqual(self.row("9813", "tmdb:creator:"), (shows, 7 * DAY))
         self.assertEqual(
-            self.calls[1]["sort"], {"method": "year", "order": "descending"}
+            self.calls[0]["sort"], {"method": "year", "order": "descending"}
         )
         self.tick(6 * DAY)  # cached: no request, the same list
         self.assertEqual(self.handler.creator_credits(), [2])
