@@ -14,8 +14,8 @@ import xbmcvfs
 
 from resources.lib.apis import lrclib
 from resources.lib.shared import logger as log
-from resources.lib.shared.lrc import LINES, LONG, NEIGHBOURS, parse, plain
-from resources.lib.shared.text import KodiMetric, load_font, skin_font, wrap_text
+from resources.lib.shared.lrc import LINES, LONG, NEIGHBOURS, PLAIN, parse, plain
+from resources.lib.shared.text import skin_metric, wrap_text
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
@@ -46,7 +46,7 @@ PROPS = (
     LONG,
     "lyrics_revision",
     "lyrics_source",
-    "lyrics_plain",
+    PLAIN,
     "lyrics_instrumental",
     "lyrics_index",
     *(f"lyrics_{key}" for key in NEIGHBOURS),
@@ -219,14 +219,8 @@ def long_lines(synced: list) -> list[int]:
     :param synced: [[ms, text], ...].
     :return: Their indexes, in order.
     """
-    if (spec := skin_font(CURRENT_FONT)) is None or not (face := load_font(spec[0])):
+    if not (metric := skin_metric(CURRENT_FONT)):
         return []
-    metric = KodiMetric(
-        face,
-        spec[1],
-        to_int(infolabel("System.ScreenWidth")) / 1920,
-        to_int(infolabel("System.ScreenHeight")) / 1080,
-    )
     return [
         index
         for index, (_, text) in enumerate(synced)
@@ -256,7 +250,7 @@ def publish(
         LONG: json.dumps(long) if long else "",
         "lyrics_revision": f"{time.monotonic_ns()}",
         "lyrics_source": source,
-        "lyrics_plain": text,
+        PLAIN: text,
         "lyrics_instrumental": "true" if instrumental else "",
         "lyrics_state": "synced" if synced else "plain" if text else "none",
     }

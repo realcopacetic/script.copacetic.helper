@@ -303,11 +303,19 @@ the selected line while the list is browsed: compare a row's
 `ListItem.Property(index)` with `Container(<id>).ListItem.Property(m1)` and so on.
 Kodi reads `Container(<id>).ListItem(<offset>)` from the selected item whatever the
 offset when it is compared inside a list's layout, so it can't do this. Plain lyrics
-list nothing: show
-`lyrics_plain` in a textbox. The path reads no parameter: `revision` only changes the
+list nothing here. The path reads no parameter: `revision` only changes the
 path, so Kodi fetches it again. The lines come from
 `Window(home).Property(lyrics_lines)`, which the service sets; don't set or clear it
 from the skin.
+
+**Plain lyrics** come one line an item from
+`plugin://script.copacetic.helper/?info=lyrics_plain&wrap_width=660&wrap_font=<font>&revision=$INFO[Window(home).Property(lyrics_revision)]`,
+for a list that scrolls a whole line at a time. The label is the line's text, empty for
+the blank line between verses. With `wrap_width` (skin pixels) and `wrap_font` (a font
+name in the skin's `Font.xml`, its first fontset), a line wider than that is split
+where Kodi would wrap it, one item each part; without them, or for a font that isn't
+there, each line is one item. Every item has the same path, so when the list fetches a
+new song's lines Kodi selects the first. The text is also `lyrics_plain`, for a textbox.
 
 **Following the song.** On each line's time, and every 0.2 seconds while the
 visualisation shows, the service puts one list on the current line when it isn't,
