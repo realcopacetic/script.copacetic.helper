@@ -8,6 +8,10 @@ line height.
 Images are cached by their content. The same text and settings return the same file
 straight away.
 
+Sizes are in skin pixels (1920×1080), but the image is drawn at the GUI's resolution:
+twice the box on a 4K GUI, so it shows 1:1 there, as Kodi's own labels do. Give the
+image control the box's width (or `aspectratio keep`), not the image's own size.
+
 ## Plugin path
 
 ```xml
@@ -37,7 +41,7 @@ straight away.
 | `text` | any text | — | The text to draw. Kodi's formatting tags (`[B]`, `[COLOR …]` and the rest) are dropped. A `[CR]` or a newline starts a new line, as Kodi draws it, so `[CR][CR]` leaves a blank line between paragraphs; `[TABS]` is a space. When the text doesn't fit, the paragraph that overflows ends at its last full sentence. With no full sentence, the text ends with the paragraph before it, or an ellipsis if it is the first paragraph. Nothing is returned when empty. |
 | `text_font` | font file path (`special://` or absolute) | — | The `.ttf` or `.otf` font to draw with. |
 | `text_size` | whole number (pixels) | `42` | Font size. |
-| `text_width` | whole number (pixels) | `1280` | Wrap width, and the width of the image. Lines break where Kodi breaks them: at plain spaces (a no-break space holds), with a word wider than this cut after the last letter that fits. |
+| `text_width` | whole number (pixels) | `1280` | Wrap width, and the width of the image in skin pixels. Lines break where Kodi breaks them: at plain spaces (a no-break space holds), with a word wider than this cut after the last letter that fits. |
 | `text_height` | whole number (pixels) | `720` | Most height allowed. Text that does not fit is cut at a whole line, as `text` describes. |
 | `text_line_height` | decimal | `1.3` | Line spacing, as a multiple of the font size. |
 | `text_letter_spacing` | decimal | `0.0` | Extra space between letters, as a percentage of the font size. Negative values pull letters closer. |
@@ -50,7 +54,7 @@ straight away.
 | Infolabel | Value |
 |---|---|
 | `ListItem.Art(text)` | Path to the PNG image. |
-| `ListItem.Property(text_height)` | Height of the image in pixels (only as tall as the lines drawn). |
+| `ListItem.Property(text_height)` | Height of the image in skin pixels (only as tall as the lines drawn). |
 
 To size a control to the text, pass its id as `target_id`: the height is set before
 the item lands, so a condition on `ListItem.Art(text)` never sees the old size. To

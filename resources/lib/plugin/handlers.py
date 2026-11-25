@@ -29,6 +29,7 @@ from resources.lib.shared.helpers import (
     clamp_text,
     fit_height,
     get_infolabels,
+    gui_scale,
     hours_minutes,
     merge_metadata,
     reposition_control,
@@ -1666,6 +1667,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             max_height=to_int(self.params.get("text_height"), 720),
             line_height=to_float(self.params.get("text_line_height"), 1.3),
             letter_spacing=to_float(self.params.get("text_letter_spacing"), 0.0),
+            scale=gui_scale(),
         )
         if not guard.alive():
             return
