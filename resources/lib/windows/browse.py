@@ -430,10 +430,12 @@ _PATH_TYPE_PREFIXES = [
     ("addons://sources/game", "games"),
 ]
 
-_MUSIC_TYPES = {"music", "albums", "artists", "songs"}
-_PROGRAM_TYPES = {"programs"}
-_PICTURE_TYPES = {"pictures"}
-_GAME_TYPES = {"games"}
+# Content type → the Kodi window that lists it; any other type is Videos'
+_TYPE_WINDOW = dict.fromkeys(("music", "albums", "artists", "songs"), "Music") | {
+    "programs": "Programs",
+    "pictures": "Pictures",
+    "games": "Games",
+}
 
 # Items _item_type reads, so a few untyped rows at the top don't hide the type.
 _TYPE_PROBE_LIMIT = 10
@@ -636,19 +638,6 @@ def _item_type(path: str, depth: int = 0) -> str:
     )
 
 
-def _derive_window(content_type: str) -> str:
-    """Return the Kodi window name for a given content type."""
-    if content_type in _MUSIC_TYPES:
-        return "Music"
-    if content_type in _PROGRAM_TYPES:
-        return "Programs"
-    if content_type in _PICTURE_TYPES:
-        return "Pictures"
-    if content_type in _GAME_TYPES:
-        return "Games"
-    return "Videos"
-
-
 def _build_result(
     path: str, label: str, mode: str, addon_type: str | None = None
 ) -> dict[str, str]:
@@ -690,7 +679,7 @@ def _build_result(
     if content_type == "unknown" and addon_type:
         content_type, icons = addon_type, _ADDON_ICON
     icon = _PLAYLIST_ICON.get(path) or icons.get(content_type, "DefaultFolder.png")
-    window = _derive_window(content_type)
+    window = _TYPE_WINDOW.get(content_type, "Videos")
     result = {
         "path": path,
         "label": label,
@@ -730,10 +719,8 @@ def _browse_static_list(
     labels = [s["back"]] + [label for label, _, _ in shortcuts]
     idx = Dialog().select(heading, labels)
 
-    if idx == -1:
-        return None
-    if idx == 0:
-        return None  # back to top level
+    if idx < 1:
+        return None  # cancel or ".." — back to top level
 
     label, action, icon = shortcuts[idx - 1]
     return action, label, icon
@@ -760,10 +747,8 @@ def _browse_favourites(heading: str) -> tuple[str, str, str] | None:
     labels = [s["back"]] + [fav.get("title", "") for fav in favourites]
     idx = Dialog().select(heading, labels)
 
-    if idx == -1:
-        return None
-    if idx == 0:
-        return None
+    if idx < 1:
+        return None  # cancel or ".." — back to top level
 
     fav = favourites[idx - 1]
     fav_type = fav.get("type", "")
@@ -919,11 +904,8 @@ def _browse_playlists(media: str, heading: str) -> tuple[str, str] | None:
         ]
         idx = Dialog().select(heading, labels)
 
-        if idx == -1:
-            return None
-
-        if idx == 0:
-            return None  # ".." — back to top-level picker
+        if idx < 1:
+            return None  # cancel or ".." — back to top-level picker
 
         paths = sources["my"] if idx == 1 else sources["skin"]
 

@@ -404,7 +404,7 @@ class ImageEditor:
                     policy.ART_FIELD_SOURCE_URL: base_ctx.decoded_url,
                     policy.ART_FIELD_PROCESS: "band",
                     policy.ART_FIELD_HASH: base_ctx.cached_file_hash,
-                    **(expected or {}),
+                    **expected,
                     policy.ART_FIELD_PROCESSED: path,
                     policy.ART_FIELD_ELEMENT_COLOR: color,
                 }
@@ -588,7 +588,7 @@ class ImageEditor:
                     turn = UPRIGHT.get(image.getexif().get(ORIENTATION))
             return image if turn is None else image.transpose(turn)
 
-        except (FileNotFoundError, OSError) as error:
+        except OSError as error:
             log.error(
                 f"{self.__class__.__name__} → Unable to open image {url} → {error}",
             )
