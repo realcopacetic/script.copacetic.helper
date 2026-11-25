@@ -10,35 +10,26 @@ from typing import Callable, Iterable, Iterator
 from xbmc import getLocalizedString
 from xbmcgui import ListItem
 
-from resources.lib.plugin.library import DirectoryItem
+from resources.lib.plugin.library import DirectoryItem, library_details
 from resources.lib.plugin.setter import apply_musicinfotag, joined
 from resources.lib.shared.genres import genre_bucket
 from resources.lib.shared.mix import credits
 from resources.lib.shared.utilities import ADDON, VERSION, fold, json_call
 
 _DETAILS = {
-    "album": (
-        "AudioLibrary.GetAlbumDetails",
-        ["displayartist", "genre", "title", "userrating", "year"],
-    ),
-    "artist": (
-        "AudioLibrary.GetArtistDetails",
-        ["born", "died", "disbanded", "formed", "genre", "type", "yearsactive"],
-    ),
-    "song": (
-        "AudioLibrary.GetSongDetails",
-        [
-            "album",
-            "artist",
-            "duration",
-            "file",
-            "genre",
-            "title",
-            "track",
-            "userrating",
-            "year",
-        ],
-    ),
+    "album": ["displayartist", "genre", "title", "userrating", "year"],
+    "artist": ["born", "died", "disbanded", "formed", "genre", "type", "yearsactive"],
+    "song": [
+        "album",
+        "artist",
+        "duration",
+        "file",
+        "genre",
+        "title",
+        "track",
+        "userrating",
+        "year",
+    ],
 }
 _ICONS = {
     "album": "DefaultAlbumCover.png",
@@ -56,9 +47,9 @@ _PROPERTIES = {
     "type",
     "yearsactive",
 }
-ALBUM_RANK_PROPERTIES = [*_DETAILS["album"][1], "art", "artistid"]
+ALBUM_RANK_PROPERTIES = [*_DETAILS["album"], "art", "artistid"]
 SONG_RANK_PROPERTIES = [
-    *_DETAILS["song"][1],
+    *_DETAILS["song"],
     "albumid",
     "art",
     "musicbrainztrackid",
@@ -119,17 +110,8 @@ def details_item(
     :param extra: Properties to fetch beyond _DETAILS (an album's description).
     :return: (path, ListItem, is_folder), or None if the library lost the item.
     """
-    method, properties = _DETAILS[type]
-    details = (
-        json_call(
-            method,
-            properties=[*properties, *extra, "art"],
-            params={f"{type}id": dbid},
-            parent=parent,
-        )
-        .get("result", {})
-        .get(f"{type}details")
-    )
+    properties = [*_DETAILS[type], *extra, "art"]
+    details = library_details(type, dbid, properties, parent)
     return library_item(details, type) if details else None
 
 
@@ -231,16 +213,7 @@ def artist_identity(dbid: int, parent: str) -> tuple[str, str] | None:
     :param parent: Caller name for logging.
     :return: (name, MBID), the MBID empty when untagged; None for an id Kodi lacks.
     """
-    details = (
-        json_call(
-            "AudioLibrary.GetArtistDetails",
-            properties=["musicbrainzartistid"],
-            params={"artistid": dbid},
-            parent=parent,
-        )
-        .get("result", {})
-        .get("artistdetails")
-    )
+    details = library_details("artist", dbid, ["musicbrainzartistid"], parent)
     return details and (details["artist"], details["musicbrainzartistid"][0])
 
 
@@ -460,7 +433,7 @@ def library_rows(
     :return: Rows, possibly empty.
     """
     if properties is None:
-        properties = [*_DETAILS[type][1], "art"]
+        properties = [*_DETAILS[type], "art"]
     rows = json_call(
         f"AudioLibrary.Get{type.title()}s",
         properties=properties,

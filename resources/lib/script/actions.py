@@ -554,13 +554,12 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
 
     :param id: Song ID.
     """
+    from resources.lib.plugin.library import library_details
+
     songid = to_int(id)
-    details = json_call(
-        "AudioLibrary.GetSongDetails",
-        params={"properties": ["albumid"], "songid": songid},
-        parent="play_album_from_track",
-    )
-    if not (song := details.get("result", {}).get("songdetails")):
+    if not (
+        song := library_details("song", songid, ["albumid"], "play_album_from_track")
+    ):
         return
 
     # Sort by track is disc-aware: Kodi stores the track as (disc << 16) | track.
@@ -851,13 +850,10 @@ def _info_item(key: str) -> xbmcgui.ListItem | None:
         return item
     if dbtype == "season" or dbtype not in DETAILS:
         return None
-    details = json_call(
-        DETAILS[dbtype],
-        properties=["title", "plot" if dbtype == "set" else "file"],
-        params={f"{dbtype}id": dbid},
-        parent="info",
-    )
-    if not (found := details.get("result", {}).get(f"{dbtype}details")):
+    from resources.lib.plugin.library import library_details
+
+    properties = ["title", "plot" if dbtype == "set" else "file"]
+    if not (found := library_details(dbtype, dbid, properties, "info")):
         return None
     if dbtype == "song":
         item = xbmcgui.ListItem(found["title"], path=found["file"])
@@ -1461,16 +1457,9 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
     """
     properties = ["file", "artist", "artistid", "albumartist", "genre"]
     if type == "song":
-        return (
-            json_call(
-                "AudioLibrary.GetSongDetails",
-                properties=properties,
-                params={"songid": dbid},
-                parent="start_mix",
-            )
-            .get("result", {})
-            .get("songdetails")
-        )
+        from resources.lib.plugin.library import library_details
+
+        return library_details("song", dbid, properties, "start_mix")
     if type == "artist":  # not a guest spot on another's album, while they have one
         from resources.lib.plugin.music import artist_identity
 
