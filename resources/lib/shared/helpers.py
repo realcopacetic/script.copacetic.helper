@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import posixpath
 import random
 import time
+from collections import Counter
 from datetime import datetime, timedelta
 from functools import cached_property
 from operator import itemgetter
@@ -37,6 +39,11 @@ from resources.lib.shared.utilities import (
 
 # Music genres are single names ("Drum & Bass"); " & " joins TMDb's video ones
 _WHOLE_GENRES = frozenset({"album", "artist", "song", "musicvideo"})
+# Lossless audio by file extension; an .m4a (ALAC or AAC) by its bitrate, kbps
+LOSSLESS_EXTENSIONS = frozenset(
+    {"aif", "aiff", "alac", "ape", "dff", "dsf", "flac", "tta", "wav", "wv"}
+)
+M4A_LOSSLESS_KBPS = 320
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
 _CLAMP_VERSION = "5"
@@ -238,12 +245,16 @@ class DataHandler:
         *,
         random_pick: Collection[str] = (),
         genre_aliases: Iterable[tuple[str, str]] = (),
+        genre_chips: int = 0,
+        album_format: bool = False,
     ) -> dict[str, object]:
         """
         Build a normalized metadata dictionary.
 
         :param random_pick: Fields ("director", "genre") to publish one random pick of.
         :param genre_aliases: (substring, name) pairs renaming the picked genre.
+        :param genre_chips: Characters two genre chips may hold (genre_chip_names).
+        :param album_format: An album's most common audio format (audio_format).
         :return: Dictionary with art, resume, contributors, etc.
         """
         label = self.infolabels["Label"]
@@ -251,6 +262,10 @@ class DataHandler:
         pick_genre, pick_director = "genre" in random_pick, "director" in random_pick
         # dbid: whose metadata
         properties = self._albumartist() | self._set_years() | {"dbid": self.dbid}
+        if genre_chips:
+            properties |= genre_chip_names(self._genres(genres), genre_chips)
+        if album_format and self.dbtype == "album":
+            properties |= self._album_format()
         if pick_genre or pick_director:
             # One pick per item and Kodi session, so a refire (closing info, back
             # from a rail) keeps the rails it fed. The genre is drawn first, so a
@@ -306,6 +321,42 @@ class DataHandler:
             return {}
         return {"albumartist_id": str(found[ids][0]), "albumartist": found[names][0]}
 
+    def _genres(self, genres: str) -> list[str]:
+        """
+        The item's genres; an episode, which Kodi gives none, takes its show's.
+
+        :param genres: The item's Genre infolabel.
+        :return: Genre names, in the library's order.
+        """
+        if self.dbtype == "episode" and not genres:
+            details = json_call(
+                "VideoLibrary.GetTVShowDetails",
+                properties=["genre"],
+                params={"tvshowid": to_int(infolabel(f"{self.target}.TVShowDBID"))},
+                parent=self.__class__.__name__,
+            )
+            return details.get("result", {}).get("tvshowdetails", {}).get("genre", [])
+        return genres.split(" / ") if genres else []
+
+    def _album_format(self) -> dict[str, str]:
+        """
+        The album's most common audio format across its songs (audio_format).
+
+        :return: format_codec with format_samplerate or format_bitrate; {} for none.
+        """
+        songs = json_call(
+            "AudioLibrary.GetSongs",
+            properties=["file", "samplerate", "bitrate"],
+            params={"filter": {"albumid": to_int(self.dbid)}},
+            parent=self.__class__.__name__,
+        )
+        formats = Counter(
+            audio_format(s["file"], s["samplerate"], s["bitrate"])
+            for s in songs.get("result", {}).get("songs", [])
+        )
+        formats.pop(None, None)
+        return dict(formats.most_common(1)[0][0]) if formats else {}
+
     def _studio(self) -> str:
         """
         Returns first studio name, as the library has it, so studio queries match.
@@ -351,6 +402,48 @@ class DataHandler:
             parent=self.__class__.__name__,
         )
         return details.get("result", {}).get("setdetails", {}).get("movies", [])
+
+
+def genre_chip_names(genres: list[str], budget: int) -> dict[str, str]:
+    """
+    Two genre chips while both names and the second's " +N" fit budget characters,
+    else one; genre_more counts the rest, for a chip's "+N" (empty for none).
+
+    :param genres: Genre names, in order.
+    :param budget: Characters the two chips' labels may hold together.
+    :return: genre_first, genre_second (two chips only) and genre_more; {} for none.
+    """
+    if not genres:
+        return {}
+    first, *rest = genres
+    if rest:
+        more = len(rest) - 1
+        if len(first) + len(rest[0]) + (more and len(f" +{more}")) <= budget:
+            return {
+                "genre_first": first,
+                "genre_second": rest[0],
+                "genre_more": str(more or ""),
+            }
+    return {"genre_first": first, "genre_more": str(len(rest) or "")}
+
+
+def audio_format(path: str, samplerate: int, bitrate: int) -> tuple | None:
+    """
+    A file's format as the info screen names it: lossless by its sample rate (kHz,
+    as ListItem.SampleRate), lossy by its bitrate (kbps).
+
+    :param path: The file, whose extension is the codec.
+    :param samplerate: Sample rate in Hz.
+    :param bitrate: Bitrate in kbps.
+    :return: Hashable (property, value) pairs; None without an extension or rate.
+    """
+    if not (codec := posixpath.splitext(path)[1][1:].lower()):
+        return None
+    if codec in LOSSLESS_EXTENSIONS or (codec == "m4a" and bitrate > M4A_LOSSLESS_KBPS):
+        detail = samplerate and ("format_samplerate", f"{samplerate / 1000:.5g}")
+    else:
+        detail = bitrate and ("format_bitrate", str(bitrate))
+    return (("format_codec", codec), detail) if detail else None
 
 
 def hours_minutes(minutes: int) -> str:
