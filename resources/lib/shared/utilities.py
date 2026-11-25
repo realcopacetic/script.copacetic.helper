@@ -45,8 +45,9 @@ DEV_RESET = Path(ADDONDATA, "dev_reset.txt")
 VERSION = re.compile(r"(?<=\S)\s*[(\[].*|\s+-\s.*")
 # A song title's last (…), […] or " - …" naming a version, for song_version
 _VERSION_WORD = (
-    r"\b(?:mix|remix|edit|remaster(?:ed)?|version|live|acoustic|demo|take|session"
-    r"|mono|stereo|instrumental|radio|extended|single|dub|unplugged|feat\.|ft\.)(?!\w)"
+    r"\b(?:mix|remix|edit|remaster(?:ed)?|version|live|acoustic|demo|take\s*\d+"
+    r"|session|mono|stereo|instrumental|radio|extended|single|dub|unplugged"
+    r"|feat\.|ft\.)(?!\w)"
 )
 _SONG_VERSION = re.compile(
     rf"""(.*\S) \s* (?:
