@@ -1862,6 +1862,17 @@ def toggle_setting(id: str, **kwargs: str) -> None:
 
 
 @action
+def toggle_skin_bool(id: str, **kwargs: str) -> None:
+    """
+    Turn a skin bool over and wait until Kodi has, so a settings window row reading
+    Skin.HasSetting(<id>) redraws with the new value.
+
+    :param id: The skin bool's name, e.g. lyrics.
+    """
+    log.execute(f"Skin.ToggleSetting({id})", wait=True)
+
+
+@action
 def unpin(id: str = "", type: str = "", path: str = "", **kwargs: str) -> None:
     """
     Unpins a speed dial entry.

@@ -3,8 +3,8 @@ Offline checks for lyrics: the LRC parser (shared/lrc.py); the service's sources
 order (a .lrc beside the song, its tags, LRCLIB), what it publishes, how it steps
 the visualisation's follow list (3510) and the music OSD's browse list (3511) by
 their selected item, and the player monitor's poller hook (service/lyrics.py,
-service/player.py); the info=lyrics plugin path, the lyrics_seek action and the
-LRCLIB row's toggle_setting.
+service/player.py); the info=lyrics plugin path, the lyrics_seek action, the
+LRCLIB row's toggle_setting and the Lyrics row's toggle_skin_bool.
 Infolabels and conditions are dicts; nothing reaches the network.
 Run from the helper root: python tests/lyrics_offline.py
 """
@@ -738,6 +738,14 @@ class PluginAndActionTest(unittest.TestCase):
             self.assertEqual(settings, {"lrclib": False})
             actions.toggle_setting(id="lrclib")
         self.assertEqual(settings, {"lrclib": True})
+
+    def test_the_lyrics_row_turns_the_skin_bool_over_and_waits(self):
+        sent = []  # (action, wait), as the log's execute passes them
+        with patch.object(
+            sys.modules["xbmc"], "executebuiltin", lambda *a: sent.append(a)
+        ):
+            actions.REGISTRY["toggle_skin_bool"](id="lyrics")
+        self.assertEqual(sent, [("Skin.ToggleSetting(lyrics)", True)])
 
 
 if __name__ == "__main__":
