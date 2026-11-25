@@ -332,17 +332,16 @@ class Monitor(xbmc.Monitor):
             ):
                 self._song_update()
             return
-        if not self.player_monitor or infolabel(
-            "Window(home).Property(playlist_replacing)"
-        ):
+        shuffle = method == "Player.OnPropertyChanged"
+        if not (shuffle or method in PLAYLIST_EDITS) or not self.player_monitor:
+            return
+        if infolabel("Window(home).Property(playlist_replacing)"):
             return  # play_files is filling the queue: its play refetches the lists
-        if method in PLAYLIST_EDITS:
-            edited = json.loads(data).get("playlistid") == 0
-        elif method == "Player.OnPropertyChanged":
-            data = json.loads(data)
+        data = json.loads(data)
+        if shuffle:
             edited = "shuffled" in data["property"] and data["player"]["playerid"] == 0
         else:
-            return
+            edited = data.get("playlistid") == 0
         if edited:
             window_property("playlist_revision", value=str(time.monotonic_ns()))
 
