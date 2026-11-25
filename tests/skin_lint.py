@@ -15,6 +15,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from fnmatch import fnmatch, fnmatchcase
 from itertools import chain
 from pathlib import Path
@@ -223,6 +224,13 @@ class Finding(NamedTuple):
     rule: str
     src: str
     message: str
+
+
+@dataclass(eq=False)  # one per call site, hashed by identity
+class Call:
+    owner: str | None  # the include whose definition holds the call
+    name: str  # as written, or a template's glob
+    params: dict[str, str]
 
 
 def parse(path: Path) -> Node:
@@ -1014,6 +1022,105 @@ class Skin:
                 src = node.src if declared is None else declared.src
                 self.report("constant-param", src, message)
 
+    def call_graph(self, outside: Sequence[tuple[str, dict[str, str]]]) -> list[Call]:
+        """
+        Every include call in a window or a registered definition, generated files
+        too, and the template calls whose name holds more than a placeholder.
+
+        :param outside: ``(include glob, params)`` of the template calls.
+        :return: One ``Call`` per call site.
+        """
+        calls = [  # a template's row field takes any value
+            Call(None, glob, {k: FIELD.sub("*", v) for k, v in params.items()})
+            for glob, params in outside
+            if glob.strip("*")
+        ]
+        for root in self.roots.values():
+            tops = elements(root) if root.tag == "includes" else [root]
+            for top in tops:
+                name = top.get("name") if top.tag == "include" else None
+                if name and self.defs["include"].get(name) is not top:
+                    continue  # a later definition of the name: never loaded
+                calls += (
+                    Call(name, include_name(call), params_of(call, "value"))
+                    for call in top.iter("include")
+                    if call is not top and "file" not in call.attrib
+                )
+        return calls
+
+    def check_unreached_defaults(
+        self, outside: Sequence[tuple[str, dict[str, str]]]
+    ) -> None:
+        """
+        Report a param default no mount falls back to: every call that can reach the
+        include passes the param, none by forwarding a ``$PARAM`` its caller can lack
+        (Kodi drops that one, ``ResolveParametersForNode``). Bare params are the aim.
+
+        :param outside: ``(include glob, params)`` of the template calls.
+        """
+        calls = self.call_graph(outside)
+        literal, globs, dispatch = defaultdict(set), set(), {}
+
+        def aim(call: Call, glob: str) -> None:
+            if "*" not in glob:
+                literal[glob].add(call)
+            elif glob.strip("*"):  # a value that is all placeholder names no include
+                globs.add((glob, call))
+
+        for call in calls:
+            whole = PARAM.fullmatch(call.name)
+            if whole and call.owner:  # targets: the values its owner's param takes
+                dispatch[call] = whole[1], set()
+            else:
+                aim(call, PARAM.sub("*", call.name))
+
+        def callers(name: str) -> set[Call]:
+            return literal[name] | {c for glob, c in globs if fnmatchcase(name, glob)}
+
+        def taken(name: str, param: str, seen: frozenset) -> set[str]:
+            defaults = self.defaults[name]
+            found = {defaults[param]} if param in defaults else set()
+            if (name, param) in seen:
+                return found
+            for call in callers(name):
+                value = call.params.get(param)
+                whole = PARAM.fullmatch(value or "")
+                if whole and call.owner:
+                    found |= taken(call.owner, whole[1], seen | {(name, param)})
+                elif value is not None:
+                    found.add(PARAM.sub("*", value))
+            return found
+
+        while grown := [
+            (call, glob)
+            for call, (param, known) in dispatch.items()
+            for glob in taken(call.owner, param, frozenset()) - known
+        ]:
+            for call, glob in grown:
+                dispatch[call][1].add(glob)
+                aim(call, glob)
+
+        def unset(name: str, param: str, seen: frozenset = frozenset()) -> bool:
+            if param in self.defaults[name] or (name, param) in seen:
+                return False
+            return any(lacks(c, param, seen | {(name, param)}) for c in callers(name))
+
+        def lacks(call: Call, param: str, seen: frozenset = frozenset()) -> bool:
+            if param not in call.params:
+                return True
+            whole = PARAM.fullmatch(call.params[param])
+            return bool(whole and call.owner and unset(call.owner, whole[1], seen))
+
+        for name, node in self.defs["include"].items():
+            if not (mounts := callers(name)):
+                continue
+            for param in node.iterfind("param"):
+                key = param.get("name")
+                default = self.defaults[name].get(key)
+                if default and not any(lacks(call, key) for call in mounts):
+                    message = f"{name}: every call passes {key!r}, default {default!r}"
+                    self.report("unreached-default", param.src, message)
+
     def check_empty_controls(self) -> None:
         """Report controls with no children and no attribute but ``type``."""
         for file, root in self.roots.items():
@@ -1062,6 +1169,7 @@ class Skin:
                 self.check_unreached(reach)
             self.check_declared_params()
             self.check_constant_params(outside)
+            self.check_unreached_defaults(outside)
             self.check_empty_controls()
         for (src, info), contexts in self.media_info.items():
             message = MEDIA_MESSAGE.format(info=info, where=", ".join(sorted(contexts)))
