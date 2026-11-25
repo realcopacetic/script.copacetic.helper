@@ -7,11 +7,15 @@ build. The Dynamic Editor reads it on open instead of walking source
 folders. Falls back to source on cache miss.
 """
 
+from pathlib import Path
+
 from resources.lib.shared import logger as log
 from resources.lib.shared.genres import genre_mapping
+from resources.lib.shared.hash import HashManager
 from resources.lib.shared.json import JSONHandler, JSONMerger
 from resources.lib.shared.utilities import (
     ADDON,
+    TEMPLATES,
     resolver_cache_path,
     skin_id,
     skin_path,
@@ -37,13 +41,22 @@ def effective_mappings(default_mapping: str, template: dict) -> list[str]:
 def cache_stamp() -> str:
     """
     Identity of the cache: schema version, the loaded skin's id and version (from
-    its folder: lookandfeel.skin changes first on a switch), and the running helper's.
+    its folder: lookandfeel.skin changes first on a switch), the running helper's,
+    and its template files' sizes and times: an edit needs no version bump.
 
-    :return: Stamp string, e.g. ``2/skin.copacetic2/2.0.1/1.1.13``.
+    :return: Stamp string, e.g. ``2/skin.copacetic2/2.0.1/1.1.13/<digest>``.
     """
     skin = skin_path()
     helper = ADDON.getAddonInfo("version")
-    return "/".join((_CACHE_VERSION, skin_id(skin), skin_version(skin), helper))
+    files = sorted(
+        (str(path), stat.st_size, stat.st_mtime_ns)
+        for path in Path(skin, TEMPLATES).rglob("*")
+        if path.is_file() and (stat := path.stat())
+    )
+    templates = HashManager.compute_hash_str(repr(files))[:12]
+    return "/".join(
+        (_CACHE_VERSION, skin_id(skin), skin_version(skin), helper, templates)
+    )
 
 
 def cache_is_current(stamp: str, outputs: dict[str, str]) -> bool:

@@ -8,6 +8,7 @@ open once the session has closed), else clear it. Under the screensaver only lyr
 follow, while audio plays. played_version moves only for a counted play. A trailer
 request that lands under a modal is dropped. A clashing add-on's feature turned on or
 off queues the clashes check. A skin switch, update or reload drops the loaded fonts.
+A template edited without a version bump rebuilds on the next start.
 Run from the helper root: python tests/service_offline.py
 """
 
@@ -283,6 +284,15 @@ class BuildBoundary(unittest.TestCase):
             self.assertEqual(self.builds_on_start(), 1)
             self.assertEqual(output.read_bytes(), ours)
             self.assertEqual(self.builds_on_start(), 0)
+
+    def test_an_edited_template_is_rebuilt(self):
+        self.current_cache()
+        controls = STAGE / "extras" / "templates" / "controls" / "controls_test.json"
+        controls.parent.mkdir(exist_ok=True)
+        self.addCleanup(controls.unlink)
+        controls.write_text('{"mapping": "test", "controls": {}}')  # same versions
+        self.assertEqual(self.builds_on_start(), 1)
+        self.assertEqual(self.builds_on_start(), 0)
 
     def test_a_deleted_output_is_built_alone(self):
         self.current_cache()

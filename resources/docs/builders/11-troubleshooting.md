@@ -6,7 +6,7 @@ Symptom → likely cause → fix. Grab the log first: enable debug logging in Ko
 
 ## "I changed a template and nothing happened"
 
-In production mode the service only builds files that are **missing** (or everything, when the settings file gains a new mapping, the resolver cache is stale, or another profile rewrote an output) — it doesn't notice edits. Turn on dev mode, or run:
+In production mode the service builds everything when a template file changed (its size or time), the settings file gains a new mapping, the resolver cache is stale, or another profile rewrote an output; otherwise only files that are **missing**. It checks when Kodi starts or your skin becomes active, so an edit made while the skin runs waits for that. Turn on dev mode, or run:
 
 ```
 RunScript(script.copacetic.helper,action=rebuild)
@@ -22,7 +22,7 @@ The editor looks up each control by its `id` in your window XML. If the XML cont
 
 Check, in order: the template names a known `control_type` (missing or unknown → the control is skipped); the `id` matches between template and XML; the `control_type` matches the XML control type; for a `sliderex`, the companion button exists at the slider id + a trailing `0` (202 → 2020).
 
-Edited a controls file and the window still shows the old shape? The editor reads templates from the resolver cache, refreshed by every successful build — run `action=rebuild` (dev mode does this on every start).
+Edited a controls file and the window still shows the old shape? The editor reads templates from the resolver cache, refreshed by every successful build, and from the template files whenever one changed since (its size or time) — check the edit reached the skin's folder, then run `action=rebuild`.
 
 If the control exists but is *hidden*, its `visible` condition is false for the highlighted row — check its tokens against that entry's actual settings.
 
