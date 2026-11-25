@@ -87,7 +87,7 @@ PROBE_EVERY = 50  # a silenced host still gets one link in 50, so it can come ba
 UNREACHABLE = {errno.EHOSTUNREACH, errno.ENETUNREACH}
 # failures and skips per host this run; from SILENT_AFTER its links are skipped,
 # bar a probe every PROBE_EVERY
-_silence: Counter[str] = Counter()
+_silence = Counter()
 
 
 def library_art(

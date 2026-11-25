@@ -35,8 +35,8 @@ TOKEN_REFUSED = "tmdb_token_refused"  # Home property: the warning logs once a s
 # the answer they were served meanwhile). At most two daemon workers drain the queue
 # and end with it: a dead network queues fetches, and nothing holds Kodi's exit
 ASIDE_WORKERS = 2
-_asides: dict[tuple, tuple[set["Asker"], dict]] = {}
-_aside_queue: deque[tuple] = deque()
+_asides = {}
+_aside_queue = deque()
 _aside_lock = Lock()
 _aside_workers = [0]  # running, under _aside_lock
 
