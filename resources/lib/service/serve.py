@@ -257,7 +257,7 @@ class Server:
             last = self.last.get(window_id)
             if not (last and self.current(value or last.value, window_id)):
                 # A newer ring has the window: its arrival's next ring serves it
-                if value:
+                if value and last:
                     self.owed[(window_id, list_id)] = value
                 return
             if list_id not in last.ids:
