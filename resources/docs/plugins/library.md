@@ -22,7 +22,7 @@ library infolabels and artwork, so your existing layouts work with them.
 | `genre_credits` | Movies and TV shows in a given genre. |
 | `studio_credits` | Movies and TV shows from a given studio or network. |
 | `artist_credits` | Music videos by a given artist. |
-| `creator_credits` | The other TV shows and the films by a TV show's creators (TMDB), or that they wrote. |
+| `creator_credits` | The other TV shows a TV show's creators created (TMDB) or wrote for, and the films they wrote. |
 | `genre_music` | Library artists, albums or songs in any of the given genres. |
 | `similar_music` | Library artists, albums or songs by an artist's similar artists (Deezer, ListenBrainz), then in its genres. |
 | `top_songs` | A library artist's most popular songs (ListenBrainz all-time, Deezer now, blended), then its most played. |
