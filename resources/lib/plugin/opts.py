@@ -105,7 +105,7 @@ class DarkenOpts:
         :return: Parsed DarkenOpts instance.
         """
         return cls(
-            enabled=parse_bool(params.get(f"{prefix}_darken", "false")),
+            enabled=parse_bool(params.get(f"{prefix}_darken")),
             rects=params.get(f"{prefix}_darken_rects"),
             frame=params.get(f"{prefix}_darken_frame"),
             label=params.get(f"{prefix}_darken_label", "").strip() or None,
@@ -197,8 +197,8 @@ class ArtOpts:
         """
         return cls(
             url=params.get(f"{art_type}_url") or None,
-            crop=parse_bool(params.get(f"{art_type}_crop", "false")),
-            blur=parse_bool(params.get(f"{art_type}_blur", "false")),
+            crop=parse_bool(params.get(f"{art_type}_crop")),
+            blur=parse_bool(params.get(f"{art_type}_blur")),
             blur_radius=to_int(params.get(f"{art_type}_blur_radius"), None),
             darken=(
                 DarkenOpts.from_params(params, art_type)
@@ -216,9 +216,9 @@ class ArtOpts:
             band_inset=to_int(
                 params.get(f"{art_type}_band_inset"), policy.ColorConfig.band_inset
             ),
-            palette=parse_bool(params.get(f"{art_type}_palette", "false")),
+            palette=parse_bool(params.get(f"{art_type}_palette")),
             palette_ratio=to_float(params.get(f"{art_type}_palette_ratio"), None),
-            shape=parse_bool(params.get(f"{art_type}_shape", "false")),
+            shape=parse_bool(params.get(f"{art_type}_shape")),
         )
 
 

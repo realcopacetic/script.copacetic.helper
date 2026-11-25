@@ -89,7 +89,7 @@ def fetch_raw(
         properties=properties,
         sort=sort,
         query_filter={"and": filters} if filters else None,  # "and" needs 1+ rules
-        params=params or {},
+        params=params,
         limit=limit,
         parent=parent,
     )
