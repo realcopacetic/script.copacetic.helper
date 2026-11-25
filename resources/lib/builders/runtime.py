@@ -7,12 +7,12 @@ holds references to ConfigsResolver and ControlsResolver. The resolvers
 themselves live in resolver.py; loading lives in templates.py.
 """
 
-import xbmcvfs
-from xbmc import executebuiltin
-
 import uuid
 from collections import Counter, defaultdict
 from itertools import count
+
+import xbmcvfs
+from xbmc import executebuiltin
 
 from resources.lib.builders.resolver import ConfigsResolver, ControlsResolver
 from resources.lib.builders.substitution import TokenError, render

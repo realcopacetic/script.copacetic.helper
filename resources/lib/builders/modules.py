@@ -718,9 +718,7 @@ class IncludesBuilder(BaseBuilder):
                 key: self.recursive_expand(value, substitutions)
                 for key, value in data.items()
             }
-            if ("@value" in expanded_dict and expanded_dict["@value"] == "") or (
-                "#text" in expanded_dict and expanded_dict["#text"] == ""
-            ):
+            if expanded_dict.get("@value") == "" or expanded_dict.get("#text") == "":
                 return {}
             return {
                 k: v
@@ -754,7 +752,7 @@ class IncludesBuilder(BaseBuilder):
 
         :param include_element: Include element dict from the template.
         :param name: The include's expanded name.
-        :return: Dict with only the element's ``@``-prefixed attribute keys.
+        :return: Its ``@`` attributes and a placeholder description, so it isn't empty.
         """
         shell = {k: v for k, v in include_element.items() if k.startswith("@")}
         shell["@name"] = name
