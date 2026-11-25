@@ -264,10 +264,11 @@ def role_credits(
     seed: str = "",
 ) -> list[DirectoryItem] | None:
     """
-    Generic role-based credits fetcher for actors/directors/writers.
-    A random sort is ranked in Python by seed, so a refetch keeps the order.
+    The library items one name is credited on: an actor, director, writer, artist,
+    genre or studio. A random sort is ranked in Python by seed, so a refetch keeps
+    the order.
 
-    :param field: VideoLibrary filter field ("actor", "director", "writer").
+    :param field: VideoLibrary filter field ("actor", "director", "writers" …).
     :param label: Name to filter by; " / " joined names (Kodi's) match any.
     :param filter_exclude: Optional exclusion filter dict appended to the filter list.
     :param sources: List of (method, media_type) pairs to query.
@@ -313,7 +314,7 @@ def role_endpoint(
     dispatches into ``role_credits()`` with the path's sort= (a JSON-RPC sort
     method, descending; default year; random is seeded by randomise=) and limit=.
 
-    :param field: Kodi JSON filter field (``"actor"``, ``"director"``, ``"writer"``).
+    :param field: Kodi JSON filter field (``"actor"``, ``"writers"``, ``"genre"`` …).
     :param category_id: Localized string ID for the plugin category label.
     :param sources: List of ``(method, media_type)`` JSON-RPC pairs.
     :param parent: Parent name for logging.

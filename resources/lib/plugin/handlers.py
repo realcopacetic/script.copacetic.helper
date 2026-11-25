@@ -1759,7 +1759,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Build a container of in-progress movies and episodes.
 
-        :return: List of directory items for Kodi, or None if aborted/failed.
+        :return: List of directory items for Kodi, or None if none.
         """
         from concurrent.futures import ThreadPoolExecutor
 
@@ -1813,7 +1813,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         Build a container of "next up" TV episodes — the lowest unwatched
         non-special episode for each in-progress show.
 
-        :return: List of directory items for Kodi, or None if aborted/failed.
+        :return: List of directory items for Kodi, or None if none.
         """
         set_plugincontent(
             content="episodes",
@@ -1892,7 +1892,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             if sid in pending_ids and sid not in first_per_show:
                 first_per_show[sid] = ep
 
-        # Assemble in pending_shows order to preserve lastplayed desc.
+        # Assemble in the shows' order, to preserve lastplayed desc.
         # Attach show-level studio/mpaa to each episode.
         cards = []
         for s in shows:
