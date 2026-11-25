@@ -90,8 +90,8 @@ class ImageProcessor:
                     policy.ART_FIELD_HEIGHT: cropped.height,
                 },
             }
-        except Exception as exc:
-            log.error(f"{self.__class__.__name__} → Unable to crop image → {exc}")
+        except Exception:
+            log.exception(f"{self.__class__.__name__} → Unable to crop image")
             return None
 
     @log.duration
@@ -116,8 +116,8 @@ class ImageProcessor:
                     ),
                 }
             }
-        except Exception as exc:
-            log.error(f"{self.__class__.__name__} → Unable to measure image → {exc}")
+        except Exception:
+            log.exception(f"{self.__class__.__name__} → Unable to measure image")
             return None
 
     @log.duration
@@ -156,8 +156,8 @@ class ImageProcessor:
                 "format": "JPEG",
                 "metadata": {"blur_radius": radius},
             }
-        except Exception as exc:
-            log.error(f"{self.__class__.__name__} → Unable to blur image → {exc}")
+        except Exception:
+            log.exception(f"{self.__class__.__name__} → Unable to blur image")
             return None
 
     @log.duration
@@ -203,6 +203,6 @@ class ImageProcessor:
                     ),
                 }
             }
-        except Exception as exc:
-            log.error(f"{self.__class__.__name__} → Unable to darken image → {exc}")
+        except Exception:
+            log.exception(f"{self.__class__.__name__} → Unable to darken image")
             return None
