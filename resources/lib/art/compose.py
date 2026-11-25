@@ -131,6 +131,19 @@ def at_luminance(rgb: RGB, target: float, saturation: float = 1.0) -> str:
     return to_hex(hls_to_rgb((h, (lo + hi) / 2, s * saturation)))
 
 
+def tones(rgb: RGB, cfg: policy.ColorConfig) -> tuple[str, str]:
+    """
+    The colour's hue at the palette's luminance, and its lighter, softer secondary.
+
+    :param rgb: (r, g, b) in 0-255.
+    :param cfg: Colour configuration (palette luminance and secondary).
+    :return: (primary, secondary), hex.
+    """
+    return at_luminance(rgb, cfg.palette_luminance), at_luminance(
+        rgb, cfg.palette_secondary_luminance, cfg.palette_secondary_saturation
+    )
+
+
 def palette(
     measure: dict[str, Any],
     logo: str | None,
@@ -160,20 +173,17 @@ def palette(
             policy.ART_FIELD_PALETTE_DARKEN: general,
         }
     else:
-        primary = at_luminance(base, cfg.palette_luminance)
+        primary, secondary = tones(base, cfg)
         out = {
             policy.ART_FIELD_PALETTE_PRIMARY: primary,
-            policy.ART_FIELD_PALETTE_SECONDARY: at_luminance(
-                base,
-                cfg.palette_secondary_luminance,
-                cfg.palette_secondary_saturation,
-            ),
+            policy.ART_FIELD_PALETTE_SECONDARY: secondary,
             policy.ART_FIELD_PALETTE_DARKEN: darken(zones, [(primary, ratio)], surface),
         }
-    if logo and chroma(from_hex(logo)) >= cfg.palette_chroma:
-        color = at_luminance(from_hex(logo), cfg.palette_luminance)
-        out[policy.ART_FIELD_PALETTE_LOGO] = color
+    if logo and chroma(rgb := from_hex(logo)) >= cfg.palette_chroma:
+        primary, secondary = tones(rgb, cfg)
+        out[policy.ART_FIELD_PALETTE_LOGO] = primary
+        out[policy.ART_FIELD_PALETTE_LOGO_SECONDARY] = secondary
         out[policy.ART_FIELD_PALETTE_LOGO_DARKEN] = darken(
-            zones, [(color, ratio)], surface
+            zones, [(primary, ratio)], surface
         )
     return out

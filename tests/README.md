@@ -43,6 +43,11 @@ python tests/api_offline.py
 # across midnight too, only while the URL's channel is on air and before its end
 python tests/artwork_serve_offline.py
 
+# The palette and its darken (art/compose.py, ImageEditor._compose) on synthetic
+# measurements: the logo's own secondary; with palette_ratio one darken carrying the
+# page's elements and the accent (the logo's when it has colour, else the art's)
+python tests/palette_offline.py
+
 # Soundtrack title matching (plugin/soundtracks.py) against real album titles
 python tests/soundtracks_offline.py
 
