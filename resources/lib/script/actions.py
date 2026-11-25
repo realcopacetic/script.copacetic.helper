@@ -1304,9 +1304,9 @@ def roll_seed(prop: str, window_id: int | str = 10000, **kwargs: str) -> None:
 @action
 def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
     """
-    Reseed the keyboard mapping from a Kodi keyboardlayout, chosen via
-    dialog when not passed. The editor's close-time snapshot comparison
-    handles rebuild and reload.
+    Reseed the keyboard mapping from a Kodi keyboardlayout, chosen via dialog
+    when not passed; the dialog marks every layout giving the keys seeded now.
+    The editor's close-time snapshot comparison handles rebuild and reload.
 
     :param layout: Kodi layout identifier; prompts with a picker when absent.
     """
@@ -1318,18 +1318,25 @@ def seed_keyboard_layout(layout: str | None = None, **kwargs: str) -> None:
     )
 
     trees = keyboard_layout_trees()
+    manager = RuntimeStateManager.from_templates()
     if layout is None:
         choices = [
             f"{element.get('language')} {element.get('layout')}"
             for _, tree in sorted(trees.items())
             for element in usable_layouts(tree)
         ]
-        picked = xbmcgui.Dialog().select(ADDON.getLocalizedString(32400), choices)
+        seeded = [
+            manager.resolved_entry("keyboard", i).get("value")
+            for i, _ in manager.live_rows("keyboard")
+        ]
+        items = [xbmcgui.ListItem(choice) for choice in choices]
+        for item, choice in zip(items, choices):
+            item.select(layout_characters(choice, trees) == seeded)
+        picked = xbmcgui.Dialog().select(ADDON.getLocalizedString(32400), items)
         if picked < 0:
             return
         layout = choices[picked]
 
-    manager = RuntimeStateManager.from_templates()
     manager.reseed_entries("keyboard", layout_characters(layout, trees))
 
 
