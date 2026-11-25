@@ -1,0 +1,185 @@
+"""
+Offline checks for the info screen's chips on info=metadata (shared/helpers.py
+DataHandler): genre_chips=N gives two genre chips while both names and the second's
+" +N" fit N characters, else one; an episode takes its show's genres; album_format
+gives an album's most common format, lossless by sample rate, lossy by bitrate, an
+.m4a by its bitrate. JSON-RPC rows are hand-written in Omega's shape. Run from the
+helper root:
+python tests/infoscreen_chips_offline.py
+"""
+
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from build_offline import HELPER, install_stubs
+
+STAGE = Path(tempfile.mkdtemp())
+install_stubs(HELPER, STAGE, STAGE, verbose=False)
+vars(sys.modules["xbmc"]).update(  # imported names; a test that calls one patches it
+    Monitor=None,
+    getCacheThumbName=None,
+    getLocalizedString=None,
+    AudioStreamDetail=None,
+    SubtitleStreamDetail=None,
+    VideoStreamDetail=None,
+)
+sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
+sys.path.insert(0, str(HELPER))
+
+from resources.lib.plugin import handlers  # noqa: E402,F401
+from resources.lib.shared import helpers  # noqa: E402
+
+
+class GenreChipsTest(unittest.TestCase):
+    """genre_chip_names: the chips' names and the count of the rest."""
+
+    def chips(self, *genres):
+        return helpers.genre_chip_names(list(genres), 22)
+
+    def test_none_or_one(self):
+        self.assertEqual(self.chips(), {})
+        self.assertEqual(
+            self.chips("Drama"), {"genre_first": "Drama", "genre_more": ""}
+        )
+
+    def test_two_that_fit(self):
+        self.assertEqual(
+            self.chips("Sci-Fi & Fantasy", "Drama"),  # 21 characters
+            {
+                "genre_first": "Sci-Fi & Fantasy",
+                "genre_second": "Drama",
+                "genre_more": "",
+            },
+        )
+        # the second chip's +N counts towards the fit
+        self.assertEqual(
+            self.chips("Animation", "Comedy", "Family", "Kids", "Adventure"),
+            {"genre_first": "Animation", "genre_second": "Comedy", "genre_more": "3"},
+        )
+
+    def test_fold_to_one(self):
+        self.assertEqual(
+            self.chips("Action & Adventure", "Animation"),  # 27 characters
+            {"genre_first": "Action & Adventure", "genre_more": "1"},
+        )
+        # 20 names fit, the +3 doesn't: one chip for all
+        self.assertEqual(
+            self.chips("Science Fiction", "Drama", "War", "History", "Crime"),
+            {"genre_first": "Science Fiction", "genre_more": "4"},
+        )
+
+
+class AudioFormatTest(unittest.TestCase):
+    """audio_format: the codec, then the sample rate or the bitrate."""
+
+    def test_lossless_by_sample_rate(self):
+        self.assertEqual(
+            helpers.audio_format("/music/a/01.FLAC", 44100, 900),
+            (("format_codec", "flac"), ("format_samplerate", "44.1")),
+        )
+        self.assertEqual(
+            helpers.audio_format("/music/a/01.wav", 96000, 4608)[1],
+            ("format_samplerate", "96"),  # as ListItem.SampleRate, {:.5}
+        )
+
+    def test_lossy_by_bitrate(self):
+        self.assertEqual(
+            helpers.audio_format("smb://nas/a/01.mp3", 44100, 320),
+            (("format_codec", "mp3"), ("format_bitrate", "320")),
+        )
+
+    def test_m4a_by_bitrate(self):
+        self.assertEqual(
+            helpers.audio_format("/a/01.m4a", 44100, 256)[1], ("format_bitrate", "256")
+        )
+        self.assertEqual(
+            helpers.audio_format("/a/01.m4a", 44100, 870)[1],
+            ("format_samplerate", "44.1"),
+        )
+
+    def test_nothing_to_name(self):
+        self.assertIsNone(helpers.audio_format("/a/01", 44100, 320))
+        self.assertIsNone(helpers.audio_format("/a/01.flac", 0, 900))
+        self.assertIsNone(helpers.audio_format("/a/01.mp3", 44100, 0))
+
+
+class DataHandlerChipsTest(unittest.TestCase):
+    """fetch_data with genre_chips and album_format, Kodi's reads stubbed."""
+
+    def setUp(self):
+        self.calls, self.answers, self.labels = [], {}, {}
+
+        def rpc(request):
+            request = json.loads(request)
+            self.calls.append(request)
+            return json.dumps({"result": self.answers.get(request["method"], {})})
+
+        for target, name, value in (
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (helpers, "get_infolabels", lambda target, keys: dict.fromkeys(keys, "")),
+            (helpers, "infolabel", lambda label: self.labels.get(label, "")),
+        ):
+            patcher = mock.patch.object(target, name, value, create=True)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def songs_calls(self):
+        return [c for c in self.calls if c["method"] == "AudioLibrary.GetSongs"]
+
+    def fetch(self, dbtype, genre="", **opts):
+        handler = helpers.DataHandler("ListItem", dbtype, "7")
+        handler.infolabels["Genre"] = genre
+        return handler.fetch_data(**opts)["properties"]
+
+    def test_opt_in(self):
+        properties = self.fetch("movie", "Animation / Comedy")
+        self.assertNotIn("genre_first", properties)
+        properties = self.fetch("movie", "Animation / Comedy", genre_chips=22)
+        self.assertEqual(properties["genre_second"], "Comedy")
+        self.assertEqual(self.calls, [])  # a movie's genres are its own label
+
+    def test_episode_takes_its_shows(self):
+        self.labels["ListItem.TVShowDBID"] = "12"
+        self.answers["VideoLibrary.GetTVShowDetails"] = {
+            "tvshowdetails": {"genre": ["Drama", "Fantasy", "Action"]}
+        }
+        properties = self.fetch("episode", genre_chips=22)
+        self.assertEqual(
+            {k: v for k, v in properties.items() if k.startswith("genre_")},
+            {"genre_first": "Drama", "genre_second": "Fantasy", "genre_more": "1"},
+        )
+        (call,) = self.calls
+        self.assertEqual(call["params"]["tvshowid"], 12)
+
+    def test_album_format_most_common(self):
+        self.answers["AudioLibrary.GetSongs"] = {
+            "songs": [
+                {"file": "/a/01.flac", "samplerate": 44100, "bitrate": 900},
+                {"file": "/a/02.flac", "samplerate": 96000, "bitrate": 2800},
+                {"file": "/a/03.flac", "samplerate": 44100, "bitrate": 1010},
+                {"file": "/a/04.mp3", "samplerate": 44100, "bitrate": 320},
+            ]
+        }
+        properties = self.fetch("album", album_format=True)
+        self.assertEqual(properties["format_codec"], "flac")
+        self.assertEqual(properties["format_samplerate"], "44.1")
+        self.assertNotIn("format_bitrate", properties)
+        (call,) = self.songs_calls()
+        self.assertEqual(call["params"]["filter"], {"albumid": 7})
+        # opt-in, and albums only
+        self.calls.clear()
+        self.assertNotIn("format_codec", self.fetch("album"))
+        self.assertNotIn("format_codec", self.fetch("song", album_format=True))
+        self.assertEqual(self.songs_calls(), [])
+
+    def test_album_format_none(self):
+        self.answers["AudioLibrary.GetSongs"] = {"songs": []}
+        self.assertNotIn("format_codec", self.fetch("album", album_format=True))
+
+
+if __name__ == "__main__":
+    unittest.main()
