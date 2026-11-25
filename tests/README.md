@@ -170,8 +170,8 @@ python tests/song_version_offline.py
 # The info screen's chips on info=metadata (shared/helpers.py DataHandler): genre_chips
 # two genres while they fit, else one, with the rest's count (an episode's its show's);
 # album_format an album's most common codec, lossless by sample rate, lossy by bitrate;
-# most_played an album's or artist's most played song (two plays or more, the last
-# played of a tie; a compilation's names its artist)
+# most_played an album's or artist's most played song (two plays or more and no tie;
+# a compilation's names its artist)
 python tests/infoscreen_chips_offline.py
 
 # Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI
