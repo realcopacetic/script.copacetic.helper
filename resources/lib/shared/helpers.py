@@ -236,38 +236,41 @@ class DataHandler:
     def fetch_data(
         self,
         *,
-        random_pick: bool = False,
+        random_pick: Collection[str] = (),
         genre_aliases: Iterable[tuple[str, str]] = (),
     ) -> dict[str, object]:
         """
         Build a normalized metadata dictionary.
 
-        :param random_pick: Publish one random director and genre instead of all.
+        :param random_pick: Fields ("director", "genre") to publish one random pick of.
         :param genre_aliases: (substring, name) pairs renaming the picked genre.
         :return: Dictionary with art, resume, contributors, etc.
         """
         label = self.infolabels["Label"]
         directors, genres = self.infolabels["Director"], self.infolabels["Genre"]
+        pick_genre, pick_director = "genre" in random_pick, "director" in random_pick
         # dbid: whose metadata
         properties = self._albumartist() | self._set_years() | {"dbid": self.dbid}
-        if random_pick:
+        if pick_genre or pick_director:
             # One pick per item and Kodi session, so a refire (closing info, back
-            # from a rail) keeps the rails it fed. The director pick stays whole for
-            # credits queries; the genre is cleaned, the whole pick is genre_query.
+            # from a rail) keeps the rails it fed. The genre is drawn first, so a
+            # genre-only pick matches a full one's; genre_query is the whole pick.
             rng = random.Random(f"{session_salt()}:{self.dbtype}:{self.dbid}:{label}")
-            directors, _ = split_random(directors, rng=rng)
-            properties["genre_query"], genres = split_random(
-                genres,
-                rng=rng,
-                aliases=genre_aliases,
-                parts=self.dbtype not in _WHOLE_GENRES,
-            )
+            if pick_genre:
+                properties["genre_query"], genres = split_random(
+                    genres,
+                    rng=rng,
+                    aliases=genre_aliases,
+                    parts=self.dbtype not in _WHOLE_GENRES,
+                )
+            if pick_director:  # whole, for credits queries
+                directors, _ = split_random(directors, rng=rng)
         return {
             "file": plugin_path("metadata"),
             "label": label,
             "label2": label,
-            "Directors": [directors] if random_pick else directors.split(" / "),
-            "Genres": [genres] if random_pick else genres.split(" / "),
+            "Directors": [directors] if pick_director else directors.split(" / "),
+            "Genres": [genres] if pick_genre else genres.split(" / "),
             "Studios": self._studio(),
             "Writers": split(self.infolabels["Writer"]),
             "Plot": self.infolabels["Plot"],

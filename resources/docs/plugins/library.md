@@ -332,7 +332,7 @@ follow each other in the order below.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `label` | a name | — | The person, genre, studio or artist to search for, as the library names it. |
+| `label` | a name, or names joined by ` / ` | — | The person, genre, studio or artist to search for, as the library names it; joined names match any of them. |
 | `type` | `movie`, `tvshow`, `episode`, `musicvideo` | — | Search that kind only, e.g. `movie` for movies only. A kind the path does not search (see the table) gives an empty list. |
 | `exclude_value` | any text | — | Leave out items whose `exclude_key` field equals this. Use it to hide the item you came from. |
 | `exclude_key` | a Kodi library filter field | `title` | The field `exclude_value` is compared with. |
@@ -344,11 +344,13 @@ follow each other in the order below.
 <content>plugin://script.copacetic.helper/?info=director_credits&amp;label=$INFO[ListItem.Director]&amp;exclude_value=$INFO[ListItem.Title]&amp;limit=25</content>
 ```
 
-Pass one name in `label`. `ListItem.Director` holds several names, separated by
-` / `, when an item has more than one director; that string matches nobody. The
+Pass one name in `label`, or several joined by ` / ` as Kodi joins them
+(`ListItem.Director` of a film with two directors, `Chris Renaud / Patrick Delage`):
+the list matches items with any of them. The
 [`metadata`](metadata.md#metadata) path with `random_pick=true` gives one director
 (`ListItem.Director`), one genre (`ListItem.Property(genre_query)`) and always one
-studio (`ListItem.Studio`), each as the library names it. Names and titles may hold `&` (`Action &
+studio (`ListItem.Studio`), each as the library names it; `random_pick=genre` keeps
+every director, for a rail that follows them all. Names and titles may hold `&` (`Action &
 Adventure`): the helper splits its parameters only where `&name=` follows, where a
 `videodb://` filter in the path would cut the value at the `&`. Pass the container's
 own `limit` and order as `limit` and `sort`, so Kodi never fetches a whole genre or
