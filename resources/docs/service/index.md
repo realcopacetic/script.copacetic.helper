@@ -62,8 +62,9 @@ interrupted. In order:
    runtime state of its own):
    - **Dev mode off (default):** the service seeds the runtime state if needed. It
      rebuilds every output if the runtime state was just seeded, or the resolver
-     cache is missing or was built for another skin or another version of the skin
-     or helper, or an output on disk isn't the one its build wrote: Kodi profiles
+     cache is missing or was built for another skin, another version of the skin
+     or helper, or template files since changed (a file's size or time), or an
+     output on disk isn't the one its build wrote: Kodi profiles
      share the skin's folder, but each keeps its own runtime state and cache, so a
      switch to a profile whose choices differ rebuilds. Otherwise it only builds
      outputs that are missing. A file is written
