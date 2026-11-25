@@ -642,7 +642,7 @@ class ProgressBarManager:
         """
 
         if resolution_span:  # Kodi's "1920 x 1520"; empty for a file it can't read
-            edges = re.findall(r"\d+", infolabel(f"{self.target}.PictureResolution"))
+            edges = re.findall(r"\d+", self.picture["PictureResolution"])
             return min(max(map(int, edges), default=0) / resolution_span * 100, 100), ""
 
         if self.infolabels["DBType"] == "album":
@@ -714,6 +714,15 @@ class ProgressBarManager:
         if not (album_id := to_int(self.infolabels["DBID"])):
             return AlbumProgress(0, 0, "", {}, 0, [])
         return album_progress(album_id, self.album_days)
+
+    @cached_property
+    def picture(self) -> dict[str, str]:
+        """
+        The focused picture's PictureResolution and Size, read once.
+
+        :return: Kodi's labels, e.g. "1920 x 1520" and "1.4 MB"; empty when unread.
+        """
+        return get_infolabels(self.target, ["PictureResolution", "Size"])
 
     def update(
         self,

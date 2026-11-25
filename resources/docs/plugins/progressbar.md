@@ -89,7 +89,10 @@ the value is the focused picture's long edge as a share of that many pixels, cap
 picture's tags (`pictures.usetags`, on by default); a picture it couldn't read (Kodi
 reads JPEG headers itself, other formats only through an image decoder add-on) is 0,
 no bar. A picture has no library id or play count, so its item carries no context
-values and costs no library call.
+values and costs no library call. It carries the picture's own labels instead,
+`picture_resolution` and `picture_size` (see [What you get back](#what-you-get-back)):
+a label beside the bar that reads them changes with the bar, never ahead of it, and a
+picture with no resolution still has its size.
 
 ## Albums
 
@@ -156,6 +159,8 @@ One list item in the helper container:
 | `ListItem.Property(new_episode)` | A fully watched TV show: TMDB's last aired episode when it is later than the library's newest and first aired within `new_days`, e.g. `3x05`. A notice only: nothing to play. |
 | `ListItem.Property(show_status)` | A fully watched TV show: `ended` (TMDB's *Ended* or *Canceled*) or `returning` (*Returning Series*); empty for TMDB's other states. |
 | `ListItem.Property(album)` | `true` for a library album; empty otherwise. |
+| `ListItem.Property(picture_resolution)` | With `resolution_span` only: the focused item's `ListItem.PictureResolution`, e.g. `1920 x 1520`; empty when Kodi couldn't read it. |
+| `ListItem.Property(picture_size)` | With `resolution_span` only: the focused item's `ListItem.Size`, e.g. `1.4 MB`. |
 | `ListItem.Property(album_next_track)` | A part-heard album's [resume point](#albums): the next track's number, e.g. `8`. |
 | `ListItem.Property(album_next_title)` | With `album_next_track`: that song's title. |
 | `ListItem.Property(album_next_disc)` | With `album_next_track`, on an album of more than one disc: that song's disc number, e.g. `2`. |

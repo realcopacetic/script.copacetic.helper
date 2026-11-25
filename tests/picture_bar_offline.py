@@ -1,8 +1,8 @@
 """
 Offline checks for a picture's bar on info=progressbar (shared/helpers.py
 ProgressBarManager.calculate with resolution_span): the long edge against the span,
-capped at 100; no resolution, no bar; without the param, the usual rules. Run from the
-helper root:
+capped at 100; no resolution, no bar; without the param, the usual rules; the served
+item carries the picture's resolution and size. Run from the helper root:
 python tests/picture_bar_offline.py
 """
 
@@ -30,31 +30,20 @@ sys.path.insert(0, str(HELPER))
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.shared import helpers  # noqa: E402
 
-LABELS = {
-    "DBID": "",
-    "DBType": "",
-    "PercentPlayed": "",
-    "PlayCount": "",
-    "Property(WatchedEpisodePercent)": "",
-    "Property(WatchedProgress)": "",
-    "Property(UnwatchedEpisodes)": "",
-}
-
 
 class PictureBarTest(unittest.TestCase):
-    """Kodi's reads stubbed: the picture's PictureResolution is self.resolution."""
+    """Kodi's reads stubbed: the focused item's labels are self.labels."""
 
     def setUp(self):
-        self.resolution, self.reads = "", []
+        self.labels, self.reads = {}, []
 
-        def read(label):
-            self.reads.append(label)
-            return self.resolution
+        def read(target, keys):
+            self.reads.extend(f"{target}.{key}" for key in keys)
+            return {key: self.labels.get(key, "") for key in keys}
 
         for target, name, value in (
             (helpers, "Window", mock.Mock()),
-            (helpers, "get_infolabels", lambda target, keys: dict(LABELS)),
-            (helpers, "infolabel", read),
+            (helpers, "get_infolabels", read),
             (helpers, "condition", lambda expression: False),
             (helpers.ProgressBarManager, "update", lambda self, percent, **kw: None),
             (handlers, "set_items", lambda items, **kwargs: items),
@@ -64,7 +53,7 @@ class PictureBarTest(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def fill(self, resolution, span=3840):
-        self.resolution = resolution
+        self.labels["PictureResolution"] = resolution
         pb = helpers.ProgressBarManager("Container(58).ListItem", 4010, 10002, 14)
         return pb.calculate(span)
 
@@ -72,7 +61,7 @@ class PictureBarTest(unittest.TestCase):
         self.assertEqual(self.fill("1920 x 1520"), (50, ""))
         self.assertEqual(self.fill("1520 x 1920"), (50, ""))  # portrait: its height
         self.assertEqual(self.fill("960 x 540"), (25, ""))
-        self.assertEqual(self.reads, ["Container(58).ListItem.PictureResolution"] * 3)
+        self.assertIn("Container(58).ListItem.PictureResolution", self.reads)
 
     def test_capped_at_the_span(self):
         self.assertEqual(self.fill("6000 x 4000"), (100, ""))
@@ -83,21 +72,42 @@ class PictureBarTest(unittest.TestCase):
 
     def test_without_the_param_the_usual_rules(self):
         self.assertEqual(self.fill("1920 x 1520", span=0), (0, ""))
-        self.assertEqual(self.reads, [])
+        self.assertNotIn("Container(58).ListItem.PictureResolution", self.reads)
 
-    def test_on_the_progress_item(self):
-        self.resolution = "1920 x 1520"
+    def serve(self, **params):
         handler = object.__new__(handlers.PluginHandlers)
-        handler.params = {"target_id": "4010", "resolution_span": "3840"}
+        handler.params = {"target_id": "4010", **params}
         handler.target_item = "Container(58).ListItem"
         handler.dialog, handler.window_id = False, 10002
         handler._guard = lambda: mock.Mock(alive=lambda: True)
         (item,) = handler.progressbar()
+        return item
+
+    def test_on_the_progress_item(self):
+        self.labels |= {"PictureResolution": "1920 x 1520", "Size": "1.4 MB"}
+        item = self.serve(resolution_span="3840")
         self.assertEqual(item["resume"], {"position": 50, "total": 100})
         self.assertEqual(
             item["properties"],
-            {"unwatchedepisodes": "", "plays": "", "time_left": ""},
+            {
+                "unwatchedepisodes": "",
+                "plays": "",
+                "picture_resolution": "1920 x 1520",
+                "picture_size": "1.4 MB",
+                "time_left": "",
+            },
         )
+
+    def test_size_alone_without_a_resolution(self):
+        self.labels["Size"] = "357 KB"
+        props = self.serve(resolution_span="3840")["properties"]
+        self.assertEqual(
+            (props["picture_resolution"], props["picture_size"]), ("", "357 KB")
+        )
+
+    def test_no_picture_labels_without_the_param(self):
+        self.labels["Size"] = "357 KB"
+        self.assertNotIn("picture_size", self.serve()["properties"])
 
 
 if __name__ == "__main__":
