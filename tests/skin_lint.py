@@ -50,6 +50,7 @@ C2_SHELLS = (
     "blk_musicosd",  # MusicOSD
     "blk_game",  # DialogGameControllers (its three dialogs) and GameOSD's pill
 )
+C2_SCREENS = {"DialogFullScreenInfo.xml"}  # C2 windows that call no shell include
 MEDIA_WINDOWS = {  # CGUIMediaWindow subclasses: the only windows GetMediaWindow returns
     *("AddonBrowser.xml", "EventLog.xml", "MyFavourites.xml", "MyGames.xml"),
     *("MyMusicNav.xml", "MyMusicPlaylistEditor.xml", "MyPics.xml", "MyPlaylist.xml"),
@@ -795,13 +796,14 @@ class Skin:
         )
 
     def migrated(self) -> list[str]:
-        """Window files that call a C2 shell include (``C2_SHELLS``)."""
-        return [
+        """Window files calling a C2 shell include (``C2_SHELLS``), then C2_SCREENS."""
+        shells = [
             name
             for name, root in self.roots.items()
             if root.tag == "window"
             and any(include_name(c).startswith(C2_SHELLS) for c in root.iter("include"))
         ]
+        return shells and [*shells, *C2_SCREENS.intersection(self.roots)]  # C1: none
 
     def check_window(self, name: str) -> None:
         """Check window ``name`` as ``resolve_window`` does, then its times and ids."""
