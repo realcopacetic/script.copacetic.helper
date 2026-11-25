@@ -1096,27 +1096,61 @@ ALBUM_SONGS = [
 
 
 class CreatorCreditsTest(Base):
-    """creator_credits: the library shows TMDb credits to a show's creators."""
+    """creator_credits: the library films and shows by a show's creators."""
 
     def setUp(self):
         super().setUp()
         self.settings = {"tmdb_access_token": "v3key"}
         self.calls = []
-        library = [  # title, original title, TMDb id
-            (1, "Game of Thrones", "Game of Thrones", {"tmdb": "1399"}),
-            (2, "Le Problème à trois corps", "3 Body Problem", {"tmdb": "108545"}),
-            (3, "House of the Dragon", "House of the Dragon", {"tmdb": "94997"}),
-            (4, "Westworld", "Westworld", {"tvdb": "296762"}),
-            (5, "3 Body Problem", "3 Body Problem", {"tmdb": "204541"}),
+        shows = [  # title, original title, ids, year
+            (
+                2,
+                "Le Problème à trois corps",
+                "3 Body Problem",
+                {"tmdb": "108545"},
+                2024,
+            ),
+            (5, "3 Body Problem", "3 Body Problem", {"tmdb": "204541"}, 2023),
+            (4, "Westworld", "Westworld", {"tvdb": "296762"}, 2016),
+            (6, "Westworld", "Westworld", {"tmdb": "1"}, 1980),  # not theirs
+            (3, "House of the Dragon", "House of the Dragon", {"tmdb": "94997"}, 2022),
+            (1, "Game of Thrones", "Game of Thrones", {"tmdb": "1399"}, 2011),
+        ]
+        episodes = [  # show, title, writers
+            (1, "Game of Thrones", ["David Benioff", "D. B. Weiss"]),
+            (4, "Westworld", ["D. B. Weiss"]),
+            (3, "House of the Dragon", ["Ryan Condal"]),
+        ]
+        movies = [  # title, year, writers
+            (12, "Gone", 2020, ["Someone Else"]),
+            (11, "X-Men Origins: Wolverine", 2009, ["David Benioff", "Skip Woods"]),
+            (10, "Troy", 2004, ["David Benioff"]),
         ]
 
         def rpc(request):
             request = json.loads(request)
-            self.calls.append(request["params"])
-            by_title, by_original = request["params"]["filter"]["and"][0]["or"]
+            method, params = request["method"], request["params"]
+            self.calls.append((method, params))
+            rule = params["filter"]["and"][0]
+            if method == "VideoLibrary.GetMovies":
+                rows = [
+                    {"movieid": dbid, "title": title, "year": year, "votes": "10000"}
+                    for dbid, title, year, writers in movies
+                    if set(writers) & set(rule["value"])
+                ]
+                end = params.get("limits", {}).get("end")
+                return json.dumps({"result": {"movies": rows[:end]}})
+            if method == "VideoLibrary.GetEpisodes":
+                rows = [
+                    {"tvshowid": dbid, "showtitle": title}
+                    for dbid, title, writers in episodes
+                    if set(writers) & set(rule["value"])
+                ]
+                return json.dumps({"result": {"episodes": rows}})
+            by_title, by_original = rule["or"]
             rows = [
-                {"tvshowid": dbid, "title": title, "uniqueid": ids}
-                for dbid, title, original, ids in library
+                {"tvshowid": dbid, "uniqueid": ids, "year": year, "votes": "900"}
+                for dbid, title, original, ids, year in shows
                 if title in by_title["value"] or original in by_original["value"]
             ]
             return json.dumps({"result": {"tvshows": rows}})
@@ -1125,20 +1159,48 @@ class CreatorCreditsTest(Base):
             self,
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
             (handlers, "set_plugincontent", lambda **kwargs: None),
-            (handlers, "build_items", lambda rows, *a: [r["tvshowid"] for r in rows]),
+            (
+                handlers,
+                "build_items",
+                lambda rows, kind, *a: [(kind, r[f"{kind}id"]) for r in rows],
+            ),
         )
         self.handler = object.__new__(handlers.PluginHandlers)
         self.handler.params = {"type": "tvshow", "id": "1", "tmdb_id": "1399"}
         self.handler.target_item, self.handler.limit = "ListItem", None
 
-    def test_the_creators_other_shows(self):
+    def answer(self):
         weiss = json.loads(TMDB_CREATOR) | {"id": 228068}
         self.net.answers = [TMDB_TV, TMDB_CREATOR, json.dumps(weiss).encode()]
-        # 3 Body Problem only, found by its original title: not the show itself, not
-        # one they only produced, not a same-titled show (by its id)
-        self.assertEqual(self.handler.creator_credits(), [2])
-        self.assertEqual(len(self.calls), 1)  # one library query, by name
-        self.assertIn("uniqueid", self.calls[0]["properties"])
+
+    def test_the_creators_other_shows_and_films(self):
+        self.answer()
+        # 3 Body Problem by TMDb's Creator credit, found by its original title (not
+        # the same-titled show, by its id); Westworld for an episode Weiss wrote (with
+        # no TMDb id, not the same-titled show); Benioff's films; not the show itself,
+        # a show they only produced, nor a film someone else wrote. Newest first
+        self.assertEqual(
+            self.handler.creator_credits(),
+            [("tvshow", 2), ("tvshow", 4), ("movie", 11), ("movie", 10)],
+        )
+        methods = [method for method, params in self.calls]
+        self.assertEqual(  # one query a type, the names batched
+            methods,
+            [
+                "VideoLibrary.GetMovies",
+                "VideoLibrary.GetEpisodes",
+                "VideoLibrary.GetTVShows",
+            ],
+        )
+        names = ["D. B. Weiss", "David Benioff"]
+        writers = {"field": "writers", "operator": "is", "value": names}
+        self.assertEqual(self.calls[0][1]["filter"], {"and": [writers]})
+        self.assertEqual(self.calls[1][1]["filter"], {"and": [writers]})
+        self.assertEqual(self.calls[1][1]["properties"], ["tvshowid", "showtitle"])
+        self.assertIn("uniqueid", self.calls[2][1]["properties"])
+        newest = {"method": "year", "order": "descending"}
+        self.assertEqual(self.calls[0][1]["sort"], newest)
+        self.assertEqual(self.calls[2][1]["sort"], newest)
         urls = [request.full_url for request in self.net.requests]
         self.assertTrue(
             urls[1].startswith("https://api.themoviedb.org/3/person/9813/tv_credits?")
@@ -1151,12 +1213,19 @@ class CreatorCreditsTest(Base):
             {"id": 108545, "names": ["3 Body Problem"]},
         ]
         self.assertEqual(self.row("9813", "tmdb:creator:"), (shows, 7 * DAY))
-        self.assertEqual(
-            self.calls[0]["sort"], {"method": "year", "order": "descending"}
-        )
         self.tick(6 * DAY)  # cached: no request, the same list
-        self.assertEqual(self.handler.creator_credits(), [2])
+        self.assertEqual(len(self.handler.creator_credits()), 4)
         self.assertEqual(len(self.net.requests), 3)
+
+    def test_limit_and_sort_cut_the_merged_list(self):
+        self.answer()
+        self.handler.params["sort"] = "votes"  # strings: the films' "10000" leads "900"
+        self.handler.limit = 3
+        self.assertEqual(
+            self.handler.creator_credits(),
+            [("movie", 11), ("movie", 10), ("tvshow", 2)],
+        )
+        self.assertEqual(self.calls[0][1]["limits"], {"start": 0, "end": 3})
 
     def test_no_creators_asks_no_person(self):
         tv = json.loads(TMDB_TV) | {"created_by": []}
