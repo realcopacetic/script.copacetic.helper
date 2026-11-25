@@ -154,6 +154,4 @@ class JSONMerger:
         :yields: (mapping_key, content) tuples.
         """
         for subfolder in self.subfolders:
-            folder_path = Path(self.base_folder) / subfolder
-            for mapping, content in self._merge_json_files(folder_path):
-                yield mapping, content
+            yield from self._merge_json_files(Path(self.base_folder) / subfolder)
