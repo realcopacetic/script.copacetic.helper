@@ -188,7 +188,7 @@ values mean.
 | `<prefix>_band_feather` | whole number | `120` | How far the band fades out around its rectangles, in frame pixels. |
 | `<prefix>_band_inset` | whole number | `0` | How far inside the label's end the tinted band's change starts to fade, in frame pixels. The fade still ends where the feather does, so it is gentler, not longer; the last characters read a little under the ratio. |
 | `<prefix>_palette` | `true`, `false` | `false` | Return the image's [palette](#palette). |
-| `<prefix>_palette_ratio` | decimal | none | The palette's own contrast target, e.g. `3` for an accent in large text or graphics. With it, `<prefix>_darken` also carries the accent: see [Palette](#palette). |
+| `<prefix>_palette_ratio` | decimal | none | The palette's own contrast target, e.g. `3` for an accent in large text or graphics. With it, `_palette_darken` is the accent's floor: see [Palette](#palette). |
 
 The rectangles, frame and label in the darken table set where these are measured;
 `<prefix>_darken` itself need not be on. The palette's colours come from the smallest
@@ -240,7 +240,7 @@ All values are on the helper container's list item, as `ListItem.Art(...)`.
 | `<prefix>_band` | `<prefix>_element_colors` is passed, the image is blurred and a band is needed | PNG to draw behind the element, the blur's size, with its own alpha: the blur, or a copy of it with the clashing pixels tinted. Empty when no band is needed. |
 | `<prefix>_palette_primary` | `<prefix>_palette=true` | The palette's main colour. |
 | `<prefix>_palette_secondary` | `<prefix>_palette=true`, and the image has a colour | A lighter, softer colour of the same hue. Empty for a neutral image. |
-| `<prefix>_palette_darken` | `<prefix>_palette=true` | The % black the darken surface needs for `_palette_primary` to read at the ratio. |
+| `<prefix>_palette_darken` | `<prefix>_palette=true` | The % black the darken surface needs for `_palette_primary` to read at the ratio; with `<prefix>_palette_ratio`, the accent's floor (see [Palette](#palette)). |
 | `<prefix>_palette_logo` | `<prefix>_palette=true`, and the clearlogo has a colour | The clearlogo's hue at the palette's light level. |
 | `<prefix>_palette_logo_secondary` | as `_palette_logo` | A lighter, softer colour of the clearlogo's hue, as `_palette_secondary` is of the image's. |
 | `<prefix>_palette_logo_darken` | as `_palette_logo` | The % black the darken surface needs for `_palette_logo` to read at the ratio. |
@@ -384,11 +384,11 @@ at the ratio or at `<prefix>_palette_ratio` when you pass it. Compare them in th
 the darken you apply, for example to colour an element in the logo's hue only when
 `Integer.IsLessOrEqual(…palette_logo_darken,…background_darken)`.
 
-With `<prefix>_palette_ratio`, `<prefix>_darken` is instead the larger of the image's
-darken and the accent's: `_palette_logo_darken` when the logo has a colour, else
-`_palette_darken`. One darken then carries both your elements at the ratio and the
-accent (the logo's hue, else the image's) at the palette's ratio, so the accent can be
-used without a comparison. `<prefix>_darken_max` caps it too.
+With `<prefix>_palette_ratio`, `_palette_darken` is instead the accent's floor: the
+larger of `<prefix>_darken` and the accent's darken at the palette's ratio, the accent
+being the logo's hue when it has a colour (`_palette_logo_darken`), else
+`_palette_primary`. A surface darkened to it carries both your elements at the ratio and
+the accent, with no comparison. `<prefix>_darken` itself is unchanged.
 
 ---
 

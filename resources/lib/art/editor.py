@@ -311,6 +311,8 @@ class ImageEditor:
                 sources.append((color, to_float(ratio, opts.ratio)))
             pct = compose.darken(zones, sources, surface)
             pct = pct if cap is None else min(pct, cap)
+            if opts.darken.enabled:
+                attrs[policy.ART_FIELD_DARKEN] = pct
             if opts.palette:
                 out = compose.palette(
                     measure,
@@ -320,15 +322,15 @@ class ImageEditor:
                     pct,
                     self.cfg,
                 )
-                attrs |= out
-                if opts.palette_ratio:  # one darken carries the accent too
-                    accent = out.get(  # the logo's when it has colour, else the art's
-                        policy.ART_FIELD_PALETTE_LOGO_DARKEN,
-                        out[policy.ART_FIELD_PALETTE_DARKEN],
+                if opts.palette_ratio:  # the accent's floor: logo hue, else art's
+                    out[policy.ART_FIELD_PALETTE_DARKEN] = max(
+                        pct,
+                        out.get(
+                            policy.ART_FIELD_PALETTE_LOGO_DARKEN,
+                            out[policy.ART_FIELD_PALETTE_DARKEN],
+                        ),
                     )
-                    pct = max(pct, accent if cap is None else min(accent, cap))
-            if opts.darken.enabled:
-                attrs[policy.ART_FIELD_DARKEN] = pct
+                attrs |= out
             if opts.element_colors:
                 step, color = compose.element(zones, opts.element_colors, opts.ratio)
                 if step > 1:  # step 3 changes the blur toward each candidate's tint

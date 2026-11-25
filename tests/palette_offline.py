@@ -1,11 +1,11 @@
 """
 Offline checks for the palette and the darken that carries it (art/compose.py,
 ImageEditor._compose), on synthetic measurements: a logo with colour gets a lighter,
-softer secondary of its own hue, a white one none; without palette_ratio the darken
-is the art's alone and the palette darkens at the ratio, as before; with it the
-palette darkens at its own ratio and the darken is the larger of the art's and the
-accent's (the logo's when it has colour, else the art's primary; neutral art with a
-white logo leaves it the art's), under darken_max too.
+softer secondary of its own hue, a white one none; the darken is the art's alone
+either way; without palette_ratio the palette darkens at the ratio, as before; with it
+palette_darken is the accent's floor, the larger of the darken and the accent's need at
+its own ratio (the logo's when it has colour, else the art's primary; neutral art with
+a white logo leaves it the darken), uncapped by darken_max as before.
 Run from the helper root: python tests/palette_offline.py
 """
 
@@ -67,7 +67,7 @@ def need(color: str, ratio: float) -> int:
 
 
 class Palette(unittest.TestCase):
-    """The logo's secondary, and one darken for the page and its accent."""
+    """The logo's secondary, and the accent's floor beside the page's darken."""
 
     def test_logo_secondary(self) -> None:
         got = serve(BLUE, RED)
@@ -89,24 +89,33 @@ class Palette(unittest.TestCase):
         logo = need(got[policy.ART_FIELD_PALETTE_LOGO], 3)
         self.assertEqual(got[policy.ART_FIELD_PALETTE_LOGO_DARKEN], logo)
         self.assertGreater(logo, need(GHOSTED, 5))  # the accent at 3:1 needs more here
-        self.assertEqual(got[policy.ART_FIELD_DARKEN], logo)
+        self.assertEqual(got[policy.ART_FIELD_DARKEN], need(GHOSTED, 5))
+        self.assertEqual(got[policy.ART_FIELD_PALETTE_DARKEN], logo)
 
     def test_art_leads(self) -> None:
         got = serve(BLUE, GHOSTED, palette_ratio="3")
         art = need(got[policy.ART_FIELD_PALETTE_PRIMARY], 3)
         self.assertGreater(art, need(GHOSTED, 5))
-        self.assertEqual(got[policy.ART_FIELD_DARKEN], art)
+        self.assertEqual(got[policy.ART_FIELD_DARKEN], need(GHOSTED, 5))
+        self.assertEqual(got[policy.ART_FIELD_PALETTE_DARKEN], art)
 
     def test_neutral(self) -> None:
         got = serve(GREY, None, palette_ratio="3")
         self.assertEqual(got[policy.ART_FIELD_PALETTE_PRIMARY], GHOSTED)
-        self.assertEqual(got[policy.ART_FIELD_DARKEN], need(GHOSTED, 5))
+        self.assertEqual(got[policy.ART_FIELD_PALETTE_DARKEN], need(GHOSTED, 5))
         logo = serve(GREY, RED, palette_ratio="3")  # neutral art: the logo still leads
-        self.assertEqual(logo[policy.ART_FIELD_DARKEN], logo["palette_logo_darken"])
+        self.assertEqual(
+            logo[policy.ART_FIELD_PALETTE_DARKEN], logo["palette_logo_darken"]
+        )
 
-    def test_cap(self) -> None:
+    def test_floor(self) -> None:
         got = serve(BLUE, RED, palette_ratio="3", darken_max="10")
         self.assertEqual(got[policy.ART_FIELD_DARKEN], 10)
+        self.assertGreater(got[policy.ART_FIELD_PALETTE_DARKEN], 10)  # never below it
+        low = serve(
+            BLUE, RED, palette_ratio="1"
+        )  # an accent needing less than the page
+        self.assertEqual(low[policy.ART_FIELD_PALETTE_DARKEN], need(GHOSTED, 5))
 
     def test_opt_in(self) -> None:
         self.assertIsNone(ArtOpts.from_params(PARAMS, "background").palette_ratio)

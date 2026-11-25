@@ -138,7 +138,7 @@ class ArtOpts:
     :param band_feather: The band's fade outside its rects, frame px.
     :param band_inset: The change's fade starts this far inside the label, frame px.
     :param palette: Return the palette for this art.
-    :param palette_ratio: The accent's contrast target; set, the darken carries it too.
+    :param palette_ratio: The accent's contrast target; set, palette_darken carries it.
     :param shape: Return the art's size and whether its corners are opaque.
     """
 
