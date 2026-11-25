@@ -138,6 +138,7 @@ class ArtOpts:
     :param band_feather: The band's fade outside its rects, frame px.
     :param band_inset: The change's fade starts this far inside the label, frame px.
     :param palette: Return the palette for this art.
+    :param palette_ratio: The accent's contrast target; set, palette_darken carries it.
     :param shape: Return the art's size and whether its corners are opaque.
     """
 
@@ -152,6 +153,7 @@ class ArtOpts:
     band_feather: int
     band_inset: int
     palette: bool
+    palette_ratio: float | None
     shape: bool
 
     def enabled(self, process: str) -> bool:
@@ -215,6 +217,7 @@ class ArtOpts:
                 params.get(f"{art_type}_band_inset"), policy.ColorConfig.band_inset
             ),
             palette=parse_bool(params.get(f"{art_type}_palette", "false")),
+            palette_ratio=to_float(params.get(f"{art_type}_palette_ratio"), None),
             shape=parse_bool(params.get(f"{art_type}_shape", "false")),
         )
 

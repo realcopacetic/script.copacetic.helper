@@ -43,6 +43,11 @@ python tests/api_offline.py
 # across midnight too, only while the URL's channel is on air and before its end
 python tests/artwork_serve_offline.py
 
+# The palette and its darken (art/compose.py, ImageEditor._compose) on synthetic
+# measurements: the logo's own secondary; with palette_ratio palette_darken as the
+# accent's floor (the logo's when it has colour, else the art's), the darken unchanged
+python tests/palette_offline.py
+
 # Soundtrack title matching (plugin/soundtracks.py) against real album titles
 python tests/soundtracks_offline.py
 
@@ -161,6 +166,11 @@ python tests/clean_name_offline.py
 # two genres while they fit, else one, with the rest's count (an episode's its show's);
 # album_format an album's most common codec, lossless by sample rate, lossy by bitrate
 python tests/infoscreen_chips_offline.py
+
+# Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI
+# height; a 1x image drawn 2x and shrunk, a 2x one drawn 1:1, both giving the same
+# height in skin pixels, cached apart (needs Pillow and the skin's fonts)
+python tests/text_offline.py [../skin.copacetic2]
 
 # Builder passes (builders/modules.py): an item's `also` metadata gives a pass more per
 # row, so one settings entry feeds a second window's expressions (append, assign, the

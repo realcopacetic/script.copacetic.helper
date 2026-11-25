@@ -314,9 +314,23 @@ class ImageEditor:
             if opts.darken.enabled:
                 attrs[policy.ART_FIELD_DARKEN] = pct
             if opts.palette:
-                attrs |= compose.palette(
-                    measure, logo, surface, opts.ratio, pct, self.cfg
+                out = compose.palette(
+                    measure,
+                    logo,
+                    surface,
+                    opts.palette_ratio or opts.ratio,
+                    pct,
+                    self.cfg,
                 )
+                if opts.palette_ratio:  # the accent's floor: logo hue, else art's
+                    out[policy.ART_FIELD_PALETTE_DARKEN] = max(
+                        pct,
+                        out.get(
+                            policy.ART_FIELD_PALETTE_LOGO_DARKEN,
+                            out[policy.ART_FIELD_PALETTE_DARKEN],
+                        ),
+                    )
+                attrs |= out
             if opts.element_colors:
                 step, color = compose.element(zones, opts.element_colors, opts.ratio)
                 if step > 1:  # step 3 changes the blur toward each candidate's tint

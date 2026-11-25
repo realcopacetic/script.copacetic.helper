@@ -10,6 +10,7 @@ import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from functools import cache, cached_property, partial
+from heapq import merge
 from itertools import islice
 from operator import itemgetter
 from threading import Thread
@@ -28,6 +29,7 @@ from resources.lib.shared.helpers import (
     clamp_text,
     fit_height,
     get_infolabels,
+    gui_scale,
     hours_minutes,
     merge_metadata,
     reposition_control,
@@ -1676,6 +1678,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             max_height=to_int(self.params.get("text_height"), 720),
             line_height=to_float(self.params.get("text_line_height"), 1.3),
             letter_spacing=to_float(self.params.get("text_letter_spacing"), 0.0),
+            scale=gui_scale(),
         )
         if not guard.alive():
             return
@@ -2281,8 +2284,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def creator_credits(self) -> list[DirectoryItem] | None:
         """
-        Build a container of the library TV shows TMDb credits to the creators of TV
-        show ``self.dbid`` (or tmdb_id=; a season's or episode's show), less itself.
+        Build a container of the library films and TV shows by the creators of TV show
+        ``self.dbid`` (or tmdb_id=; a season's or episode's show), less itself: the
+        shows TMDb credits them as Creator, and the films and shows they wrote.
 
         :return: List of directory items for Kodi, or None if empty.
         """
@@ -2301,6 +2305,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             language=self.params.get("language"),
             append_artwork=False,
         )
+        if not (writers := show.get("Writers")):  # the creators' names
+            return
         # An entry cached before the ids were kept (7-day TTL) has none
         people = show.get("properties", {}).get("tmdb_creator_ids", "")
         created = {
@@ -2309,20 +2315,57 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             for show in creator_shows(person)
         }
         created.pop(show_id, None)
-        if not created:
-            return
-        names = [name for names in created.values() for name in names]
-        rows = fetch_raw(  # Kodi has no uniqueid filter: by name, then by TMDb id
+        wrote = title_filter(writers, "writers")
+        sort = {"method": self.params.get("sort", "year"), "order": "descending"}
+        movies = fetch_raw(
+            "VideoLibrary.GetMovies",
+            "movie",
+            [wrote],
+            sort,
+            "creator_credits",
+            limit=self.limit,
+        )
+        episodes = fetch_raw(  # Kodi's shows keep no writers: their episodes do
+            "VideoLibrary.GetEpisodes",
+            "episode",
+            [wrote],
+            None,
+            "creator_credits",
+            properties=["tvshowid", "showtitle"],
+        )
+        written = {episode["tvshowid"] for episode in episodes}
+        names = [
+            *(name for names in created.values() for name in names),
+            *(episode["showtitle"] for episode in episodes),
+        ]
+        shows = names and fetch_raw(  # no uniqueid filter: by name, then by id
             "VideoLibrary.GetTVShows",
             "tvshow",
             [{"or": [title_filter(names), title_filter(names, "originaltitle")]}],
-            {"method": self.params.get("sort", "year"), "order": "descending"},
+            sort,
             "creator_credits",
             properties=[*JSON_PROPERTIES["tvshow"], "uniqueid"],
         )
-        set_plugincontent(content="tvshows", category=ADDON.getLocalizedString(32617))
-        rows = [r for r in rows if to_int(r["uniqueid"].get("tmdb"), 0) in created]
-        return build_items(rows[: self.limit], "tvshow", apply_videoinfotag) or None
+        shows = [
+            row
+            for row in shows
+            if (tmdb := to_int(row["uniqueid"].get("tmdb"), 0)) in created
+            or (row["tvshowid"] in written and tmdb != show_id)
+        ]
+        method = sort["method"]
+        rank = float if method == "votes" else (lambda value: value)  # votes: strings
+        ranked = merge(  # each newest (or sort=) first: one list in that order
+            ((row, "movie") for row in movies),
+            ((row, "tvshow") for row in shows),
+            key=lambda pair: rank(pair[0].get(method, 0)),
+            reverse=True,
+        )
+        set_plugincontent(content="videos", category=ADDON.getLocalizedString(32617))
+        return [
+            item
+            for row, kind in islice(ranked, self.limit)
+            for item in build_items([row], kind, apply_videoinfotag)
+        ] or None
 
     @role_endpoint(
         field="genre",
@@ -2619,14 +2662,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _word_aside(self, word: Callable[[int], str], dbid: int, served: str) -> None:
         """
         A served popularity word, asked again online on its own thread (Deezer and
-        ListenBrainz never hold the pipeline): a new one serves the list again.
+        ListenBrainz never hold the pipeline): it renews the cache for the next visit,
+        and serves the list again only when the cache had no word (never a swap).
 
         :param word: The item type's word function.
         :param dbid: Library id.
         :param served: The word the cache answered.
         """
         try:
-            if self.again.current() and word(dbid) != served:
+            if word(dbid) and not served and self.again.current():
                 self.again()
         except Exception:  # its own thread: nothing above it would log
             log.exception(f"{self.__class__.__name__} → popularity_label aside {dbid}")

@@ -65,6 +65,16 @@ _SKIN_WIDTH = 1920
 _SKIN_HEIGHT = 1080
 
 
+def gui_scale() -> int:
+    """
+    Image pixels per skin pixel for art the helper draws, rounded up so it is never
+    stretched.
+
+    :return: 2 on a 4K GUI, 1 at 1080p or below.
+    """
+    return -(-to_int(infolabel("System.ScreenHeight"), _SKIN_HEIGHT) // _SKIN_HEIGHT)
+
+
 def reposition_control(
     control_id: int,
     *,
