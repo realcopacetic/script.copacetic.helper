@@ -1317,6 +1317,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # is unchanged
         secs = pb.runtime(resume)
         position = secs * resume / 100
+        # A film's or episode's own play count (an album's is its songs' average)
+        plays = (
+            to_int(pb.infolabels["PlayCount"])
+            if pb.infolabels["DBType"] in ("movie", "episode")
+            else 0
+        )
         item = {
             "file": plugin_path("progress"),
             "Duration": secs,
@@ -1325,7 +1331,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 if secs
                 else {"position": resume, "total": 100}
             ),
-            "properties": {"unwatchedepisodes": str(unwatched)},
+            "properties": {
+                "unwatchedepisodes": str(unwatched),
+                "plays": str(plays) if plays > 1 else "",
+            },
         }
 
         if not guard.alive():
