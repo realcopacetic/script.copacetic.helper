@@ -139,11 +139,14 @@ def art_details_folder(path: str, mark: str = "", **kwargs: str) -> None:
     Mark a folder for art details look-ups (subfolders follow), or unmark it, and
     publish its new state, as the serve does, for the context menu's next open.
 
-    :param path: The folder's path.
+    :param path: The folder's path; one inside an archive (zip://, rar://) is refused.
     :param mark: "true" marks it; anything else unmarks it.
     """
     from resources.lib.shared import art_details as art
 
+    # An archive's inner URL keeps its user details, so its mark could never match
+    if path.startswith(art.ARCHIVES):
+        return
     path = art.without_user(path)  # a context item's path is Kodi's own, unredacted
     folders = art.mark(path, mark == "true")
     art.publish(folders, path)
@@ -153,16 +156,22 @@ def art_details_folder(path: str, mark: str = "", **kwargs: str) -> None:
 
 
 @action
-def art_details_refresh(path: str, ring: str = "", **kwargs: str) -> None:
+def art_details_refresh(
+    path: str = "", prop: str = "", ring: str = "", **kwargs: str
+) -> None:
     """
     Look one picture up on Wikidata again, its kept verdict and the answers it came
     from asked afresh; then the skin's ring, if it passes one, serves it again.
 
     :param path: The picture's path, as the art_details serve was passed it.
+    :param prop: A Home property holding the path, read as written (no decode).
     :param ring: A served ring to send once it is found (serve.md), with no is.
     """
     from resources.lib.shared import art_details as art
 
+    path = path or xbmcgui.Window(10000).getProperty(prop)
+    if not art.wanted(path):  # the setting off or the folder unmarked: nothing sent
+        return
     art.forget(path)
     art.look_up(path)
     if ring:

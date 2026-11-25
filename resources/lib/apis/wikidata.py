@@ -19,7 +19,7 @@ SPARQL = "https://query.wikidata.org/sparql"
 SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary/"
 NEXT_CALL = "copacetic.wikidata_next"  # home property: epoch of the next free slot
 TTL_HIT, TTL_EMPTY = 30 * DAY, 7 * DAY
-TIMEOUT = 60  # seconds: the query service's own limit for one query
+TIMEOUT = 15  # seconds: a longer request would hold Kodi's exit, which waits for it
 ENTITY = "http://www.wikidata.org/entity/"
 PAINTER = "Q1028181"  # occupation (P106) the artist search asks for
 SURFACE = f"{ENTITY}Q861259"  # painting surface, a material's applies-to-part (P518)
@@ -29,6 +29,7 @@ LANGUAGES = ", ".join(
     f'"{code}"' for code in ("en", "de", "fr", "es", "it", "ru", "ja", "nl", "no", "nb")
 )
 SEPARATOR = "\t"  # between a work's labels in one answer row: never in a label
+_ITEMS = ("material", "genre", "collection", "depicts")  # kinds whose values are items
 
 # The first painter a search finds and its works, one row each: sitelinks, every
 # label and alias, and each inception year
@@ -100,45 +101,54 @@ def _qid(uri: str) -> str:
 def works(artist: str) -> dict[str, Any] | None:
     """
     A painter's works, by the name a file gives: the search's best painter, else
-    one found fuzzily, word by word ("Kandinksy~"). Each work is [qid, sitelinks,
-    inception years, labels and aliases].
+    one found fuzzily, word by word ("Kandinksy~"), in a request of its own. Each
+    work is [qid, sitelinks, inception years, labels and aliases].
 
     :param artist: Artist name.
     :return: The painter's qid and label, and works; {} for none; None if not asked.
     """
+    found = _works(f"wikidata:works:{fold(artist)}", artist)
+    if found != {}:  # found, or not asked
+        return found
+    fuzzy = " ".join(f"{word}~" for word in artist.split())
+    return _works(f"wikidata:fuzzy:{fold(artist)}", fuzzy)
+
+
+def _works(key: str, search: str) -> dict[str, Any] | None:
+    """
+    The first painter one search finds, and its works; cached and queued.
+
+    :param key: api_cache key.
+    :param search: CirrusSearch text.
+    :return: As works; {} for no painter; None if not asked.
+    """
 
     def fetch() -> dict[str, Any]:
-        for search in (artist, " ".join(f"{word}~" for word in artist.split())):
-            query = _WORKS % (_literal(search), PAINTER, LANGUAGES)
-            if rows := sparql(query):
-                return {
-                    "qid": _qid(rows[0]["artist"]["value"]),
-                    "label": rows[0].get("artistLabel", {}).get("value", ""),
-                    "works": [
-                        [
-                            _qid(row["work"]["value"]),
-                            int(row["links"]["value"]),
-                            # A work with no inception has no years binding
-                            [
-                                int(y)
-                                for y in row.get("years", {}).get("value", "").split()
-                            ],
-                            row["labels"]["value"].split(SEPARATOR),
-                        ]
-                        for row in rows
-                    ],
-                }
-        return {}
+        if not (rows := sparql(_WORKS % (_literal(search), PAINTER, LANGUAGES))):
+            return {}
+        return {
+            "qid": _qid(rows[0]["artist"]["value"]),
+            "label": rows[0].get("artistLabel", {}).get("value", ""),
+            "works": [
+                [
+                    _qid(row["work"]["value"]),
+                    int(row["links"]["value"]),
+                    # A work with no inception has no years binding
+                    [int(y) for y in row.get("years", {}).get("value", "").split()],
+                    row["labels"]["value"].split(SEPARATOR),
+                ]
+                for row in rows
+            ],
+        }
 
-    return cached(
-        f"wikidata:works:{fold(artist)}", fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL
-    )
+    return cached(key, fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
 
 
 def painting(qid: str) -> dict[str, Any] | None:
     """
     One painting's standard fields: title, inception years, materials, genres,
-    current collections ("" for an unknown one), height and width, depicts, article.
+    current collections (None for an unknown one), height and width, depicts, article.
+    An item with no English label, and an unknown value elsewhere, is left out.
 
     :param qid: The painting's Q-id.
     :return: Lists of values by kind (sizes in metres); None if not asked.
@@ -147,16 +157,27 @@ def painting(qid: str) -> dict[str, Any] | None:
     def fetch() -> dict[str, Any]:
         fields = {}
         for row in sparql(_PAINTING % qid):
-            kind, value = row["kind"]["value"], row["value"]["value"]
+            kind, value = row["kind"]["value"], row["value"]
             label = row.get("valueLabel", {}).get("value", "")
-            if kind == "inception":
-                value = int(re.match(r"-?\d+", value)[0])
+            if kind in _ITEMS:
+                if _qid(value["value"]):
+                    value = label
+                elif kind == "collection":  # unknown: privately owned
+                    value = None
+                else:
+                    continue
+                if value == "":  # a known item with no English label
+                    continue
+                if kind == "material":
+                    value = [value, row.get("part", {}).get("value") == SURFACE]
+            elif value["type"] != "literal":  # an unknown date or size: a node
+                continue
+            elif kind == "inception":
+                value = int(re.match(r"-?\d+", value["value"])[0])
             elif kind in ("height", "width"):
-                value = float(value)
-            elif kind == "material":
-                value = [label, row.get("part", {}).get("value") == SURFACE]
-            elif kind in ("genre", "depicts", "collection"):
-                value = label if _qid(value) else ""  # an unknown collection: ""
+                value = float(value["value"])
+            else:
+                value = value["value"]
             fields.setdefault(kind, []).append(value)
         return fields
 

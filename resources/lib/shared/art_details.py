@@ -6,37 +6,49 @@ on Wikidata, on demand, in folders the user marks (subfolders follow). Each file
 verdict, a match or a miss, is kept by path and mtime until it is refreshed.
 """
 
-from __future__ import annotations
-
 import json
+import posixpath
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from functools import cache
 from pathlib import Path
-from threading import Lock, Thread
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple
+from typing import Any, Callable, NamedTuple
 
 import xbmcvfs
-from xbmc import Monitor
+from xbmc import getSupportedMedia
 
 from resources.lib.apis import wikidata
-from resources.lib.apis.cache import DAY
+from resources.lib.apis.cache import DAY, Asides
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
+    ADDON,
     ADDONDATA,
     fold,
     replace_file,
     window_property,
 )
 
-if TYPE_CHECKING:
-    from resources.lib.apis.tmdb.transform import Asker
-
 FOLDERS = Path(ADDONDATA, "art_details_folders.json")  # the marked folders' paths
-TTL_FILE = 100 * 365 * DAY  # a verdict stands until refreshed or the file changes
+# A verdict stands until refreshed or the file changes; a year, so a moved or deleted
+# file's row is pruned in time
+TTL_FILE = 365 * DAY
 THRESHOLD = 0.8  # the least score a match needs; below it the file shows nothing
-CONTAIN = 0.75  # a title holding every word of a label of two or more: at least this
+# A title holding every word of a label of CONTAIN_WORDS or more, the label at least
+# half of the title: at least CONTAIN. Shorter labels ("Green Forest") only by likeness
+CONTAIN, CONTAIN_WORDS = 0.75, 3
+# Kodi browses these as folders, so a mark inside one never matches its own path again
+ARCHIVES = ("zip://", "rar://", "archive://")
+# Kodi's picture extensions it lists as folders or feeds, not pictures
+NOT_PICTURES = frozenset((".cbz", ".cbr", ".zip", ".rar", ".rss"))
+# Supports a painting is made on, as Wikidata names them: the surface when no
+# applies-to-part qualifier says so
+SURFACES = frozenset(
+    "canvas, panel, wood, paper, board, cardboard, paperboard, copper, linen, "
+    "oak panel, poplar panel, wood panel, hardboard, plywood, vellum, parchment, "
+    "silk".split(", ")
+)
 YEAR_SAME, YEAR_NEAR, YEAR_FAR = 0.15, 0.05, -0.1  # in the file's years, one off, more
 DEPICTS = 3  # values kept
 # Words a title is matched without: articles and the small words around them
@@ -127,8 +139,9 @@ def year_score(years: tuple[int, int] | None, inception: list[int]) -> float:
 
 def title_score(title: list[str], labels: list[str], floor: float = 0) -> float:
     """
-    The best of a work's labels against a title: their similarity, or for a label of
-    two words or more all in the title, CONTAIN up to 1 as it covers it (Hokusai's).
+    The best of a work's labels against a title: their similarity; a label whose
+    words are some of the title's, by how much of it they cover (CONTAIN up to 1 for
+    CONTAIN_WORDS or more and half of it: Hokusai's; else only that share).
 
     :param title: The file's title words.
     :param labels: The work's labels and aliases, as Wikidata has them.
@@ -140,12 +153,16 @@ def title_score(title: list[str], labels: list[str], floor: float = 0) -> float:
     for label in labels:
         if not (own := words(label)):
             continue
+        if (part := set(own)) < have:  # "Green Forest" in "Yellow and Green Forest"
+            share = len(part) / len(have)
+            if len(part) >= max(CONTAIN_WORDS, len(have) / 2):
+                share = CONTAIN + (1 - CONTAIN) * share
+            best = max(best, share)
+            continue
         matcher.set_seq1(" ".join(own))
         bar = max(best, floor)  # the quick ratios are upper bounds: cheap rejects
         if matcher.real_quick_ratio() > bar and matcher.quick_ratio() > bar:
             best = max(best, matcher.ratio())
-        if len(own) > 1 and have.issuperset(own):
-            best = max(best, CONTAIN + (1 - CONTAIN) * len(set(own)) / len(have))
     return best
 
 
@@ -181,15 +198,15 @@ def _cm(metres: float) -> str:
 def _medium(materials: list[list]) -> str:
     """
     Materials as a caption: paint on its surface ("Oil on canvas" from oil paint
-    and canvas, the painting surface), else the materials in turn.
+    and canvas, the painting surface, or a support SURFACES names), else in turn.
 
     :param materials: [label, is the painting surface] pairs.
     :return: The medium, or "".
     """
     paints, surfaces = {}, {}  # dicts: each label once, in Wikidata's order
     for label, surface in materials:
-        if label:  # a material with no English label
-            (surfaces if surface else paints)[label.removesuffix(" paint")] = None
+        on = surface or label.casefold() in SURFACES
+        (surfaces if on else paints)[label.removesuffix(" paint")] = None
     text = " on ".join(filter(None, (" and ".join(paints), " and ".join(surfaces))))
     return text[:1].upper() + text[1:]
 
@@ -299,14 +316,15 @@ def forget(path: str) -> None:
     """
     cache, stale = ApiCacheHandler(), []
     if name := parse(path):
-        stale.append(f"wikidata:works:{fold(name.artist)}")
-    if (row := cache.get(_key(path))) and (found := row[0]["fields"]):
+        artist = fold(name.artist)
+        stale += f"wikidata:works:{artist}", f"wikidata:fuzzy:{artist}"
+    if (row := cache.get(_key(path))) and row[0] and (found := row[0]["fields"]):
         stale += (
             f"wikidata:painting:{found['qid']}",
             f"wikidata:summary:{fold(found['enwiki'])}",
         )
-    cache.expire(*stale)
-    cache.clear(_key(path))
+    cache.expire(*stale)  # patterns, but folded names and Q-ids hold no % or _
+    cache.drop(_key(path))  # exactly: a path's % or _ would match other files
 
 
 """Marked folders"""
@@ -339,18 +357,38 @@ def without_user(path: str) -> str:
     return _USER.sub(r"\1", path)
 
 
+def wanted(path: str) -> bool:
+    """
+    Whether a picture may be looked up now: the setting on and its folder marked,
+    tested again before any request, so none goes out once either is undone.
+
+    :param path: The picture's path.
+    """
+    return ADDON.getSettingBool("wikidata") and covers(marked(), path)
+
+
+def is_picture(path: str) -> bool:
+    """Whether Kodi shows a file as a picture: its extension, not an archive's."""
+    extension = posixpath.splitext(path)[1].lower()
+    return extension in _picture_extensions() and extension not in NOT_PICTURES
+
+
+@cache
+def _picture_extensions() -> frozenset[str]:
+    """Kodi's picture extensions, image decoder add-ons' included."""
+    return frozenset(getSupportedMedia("picture").lower().split("|"))
+
+
 def publish(folders: list[str], path: str) -> None:
     """
     A folder's state, for the context menu's items to compare with its path:
-    art_details_marked (itself), _covered (it or a folder above), _unmarked (neither).
+    art_details_marked (itself marked), _unmarked (neither it nor a folder above).
 
     :param folders: The marked folders.
     :param path: The folder's path, as ListItem.FolderPath shows it.
     """
-    covered = covers(folders, path)
     window_property("art_details_marked", value=folder(path) in folders and path)
-    window_property("art_details_covered", value=covered and path)
-    window_property("art_details_unmarked", value=not covered and path)
+    window_property("art_details_unmarked", value=not covers(folders, path) and path)
 
 
 def mark(path: str, on: bool) -> list[str]:
@@ -367,50 +405,9 @@ def mark(path: str, on: bool) -> list[str]:
     return folders
 
 
-"""Look-ups aside: one at a time, as the query service asks"""
-
-_pending = {}  # a file's path → the askers waiting on its look-up, oldest first
-_lock = Lock()
-_worker = [False]  # running, under _lock
-
-
-def look_up_aside(path: str, asker: Asker) -> None:
-    """
-    Look a file up on the worker thread, once while it is queued or running; each
-    asker meanwhile is served again once it is found or missed.
-
-    :param path: The picture's path.
-    :param asker: The served call's re-serve; an equal one asks once.
-    """
-    with _lock:
-        _pending.setdefault(path, set()).add(asker)
-        if _worker[0]:
-            return
-        _worker[0] = True
-    Thread(target=_drain, daemon=True).start()
-
-
-def _drain() -> None:
-    """The worker: look up queued files in turn, skipping any no asker still wants."""
-    while True:
-        with _lock:
-            if not _pending:
-                _worker[0] = False
-                return
-            path, askers = next(iter(_pending.items()))
-            if Monitor().abortRequested() or not any(a.current() for a in askers):
-                del _pending[path]
-                continue
-        try:
-            found = look_up(path)
-        except Exception:  # its own thread: nothing above it would log
-            log.exception(f"art_details → look-up of {path}")
-            found = None
-        with _lock:
-            askers = _pending.pop(path)
-        if found is not None:
-            for asker in askers:
-                asker()
+# Files looked up for served calls, one at a time as the query service asks, each
+# still wanted when its turn comes; a verdict, a match or a miss, is news
+ASIDES = Asides(lambda path: look_up(path) if wanted(path) else None)
 
 
 def fit_chips(

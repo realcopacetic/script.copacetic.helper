@@ -616,15 +616,15 @@ class TmdbTest(Base):
         self.assertEqual(self.tmdb_row(), (item, 7 * DAY))
         self.assertEqual(len(self.net.requests), 3)
 
-    def aside_queue(self, aborting=False):
-        """Workers not started, the queue drained by hand; Kodi exiting if aborting."""
+    def aside_queue(self):
+        """Workers not started, the queue drained by hand (cache.Asides)."""
         started = []
         thread = lambda target, daemon: mock.Mock(start=lambda: started.append(target))
-        monitor = lambda: mock.Mock(abortRequested=lambda: aborting)
-        patch(self, (transform, "Thread", thread), (transform, "Monitor", monitor))
-        self.addCleanup(transform._asides.clear)
-        self.addCleanup(transform._aside_queue.clear)
-        self.addCleanup(transform._aside_workers.__setitem__, 0, 0)
+        patch(self, (cache, "Thread", thread))
+        asides = transform.ASIDES
+        self.addCleanup(asides.asked.clear)
+        self.addCleanup(asides.queue.clear)
+        self.addCleanup(setattr, asides, "running", 0)
         return started
 
     @staticmethod
@@ -641,11 +641,11 @@ class TmdbTest(Base):
         transform.tmdb_to_canonical("tvshow", 1399, aside=later)  # 9000's show
         transform.tmdb_to_canonical("tvshow", 1399, aside=later)  # a repeat serve
         self.assertEqual(len(started), 1)  # one fetch for the key, one worker
-        transform._drain_asides()
+        transform.ASIDES._drain()
         landed.assert_called_once()
         later.assert_called_once()  # asked twice, told once
         self.assertEqual(self.tmdb_row()[0]["Title"], "Game of Thrones")
-        self.assertEqual((transform._asides, transform._aside_workers), ({}, [0]))
+        self.assertEqual((transform.ASIDES.asked, transform.ASIDES.running), ({}, 0))
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)  # fresh: none
         self.assertEqual(len(started), 1)
 
@@ -654,26 +654,27 @@ class TmdbTest(Base):
         for tmdb_id in (1, 2, 3):
             transform.tmdb_to_canonical("tvshow", tmdb_id, aside=self.asker())
         self.assertEqual(len(started), transform.ASIDE_WORKERS)
-        self.assertEqual(len(transform._aside_queue), 3)
+        self.assertEqual(len(transform.ASIDES.queue), 3)
 
     def test_aside_skips_items_no_asker_still_wants(self):
         self.aside_queue()
         landed = self.asker(current=False)  # moved on before the fetch began
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
-        transform._drain_asides()
+        transform.ASIDES._drain()
         self.assertEqual(self.net.requests, [])
         landed.assert_not_called()
-        self.assertEqual(transform._asides, {})
+        self.assertEqual(transform.ASIDES.asked, {})
 
     def test_aside_decides_a_skip_and_drops_it_in_one_hold(self):
         started = self.aside_queue()
         held = []
-        landed = mock.Mock(current=lambda: held.append(transform._aside_lock.locked()))
+        lock = transform.ASIDES.lock
+        landed = mock.Mock(current=lambda: held.append(lock.locked()))
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
-        transform._drain_asides()  # a joiner waits for the hold, then queues anew
-        self.assertEqual((held, transform._asides), ([True], {}))
+        transform.ASIDES._drain()  # a joiner waits for the hold, then queues anew
+        self.assertEqual((held, transform.ASIDES.asked), ([True], {}))
         transform.tmdb_to_canonical("tvshow", 1399, aside=self.asker())
-        self.assertEqual(len(transform._aside_queue), 1)  # its own fetch
+        self.assertEqual(len(transform.ASIDES.queue), 1)  # its own fetch
         self.assertEqual(len(started), 2)
 
     def test_an_asker_that_joins_before_the_fetch_starts_is_fetched_for(self):
@@ -682,16 +683,15 @@ class TmdbTest(Base):
         self.net.answers = [TMDB_TV]
         transform.tmdb_to_canonical("tvshow", 1399, aside=gone)
         transform.tmdb_to_canonical("tvshow", 1399, aside=joined)
-        transform._drain_asides()
+        transform.ASIDES._drain()
         joined.assert_called_once()
 
     def test_an_error_before_the_fetch_frees_the_item_and_the_worker(self):
         started = self.aside_queue()
-        broken = mock.Mock(side_effect=RuntimeError("no monitor"))
-        patch(self, (transform, "Monitor", broken))
-        transform.tmdb_to_canonical("tvshow", 1399, aside=self.asker())
-        transform._drain_asides()
-        self.assertEqual((transform._asides, transform._aside_workers), ({}, [0]))
+        broken = mock.Mock(current=mock.Mock(side_effect=RuntimeError("gone")))
+        transform.tmdb_to_canonical("tvshow", 1399, aside=broken)
+        transform.ASIDES._drain()
+        self.assertEqual((transform.ASIDES.asked, transform.ASIDES.running), ({}, 0))
         transform.tmdb_to_canonical("tvshow", 1399, aside=self.asker())
         self.assertEqual(len(started), 2)  # asked again: queued again
 
@@ -705,32 +705,21 @@ class TmdbTest(Base):
         self.assertEqual(stale, item)
         stale["properties"].pop("tmdb_trailers", None)  # as metadata does
         stale["Trailer"] = "picked"
-        transform._drain_asides()
+        transform.ASIDES._drain()
         self.assertEqual(len(self.net.requests), 2)  # asked, offline
         landed.assert_not_called()
 
-    def test_aside_fetches_nothing_once_kodi_exits(self):
-        self.aside_queue(aborting=True)
-        landed = self.asker()
-        transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
-        transform._drain_asides()
-        self.assertEqual(self.net.requests, [])
-        landed.assert_not_called()
-        self.assertEqual(transform._asides, {})
-
     def test_aside_workers_end_with_the_queue_and_hold_no_exit(self):
-        monitor = lambda: mock.Mock(abortRequested=lambda: False)
-        patch(self, (transform, "Monitor", monitor))
         landed = threading.Event()
         asker = mock.Mock(current=lambda: True, side_effect=landed.set)
         self.net.answers = [TMDB_TV]
         transform.tmdb_to_canonical("tvshow", 1399, aside=asker)
         self.assertTrue(landed.wait(5))
         for _ in range(500):  # the worker ends just after its callbacks
-            if not transform._aside_workers[0]:
+            if not transform.ASIDES.running:
                 break
             time.sleep(0.01)
-        self.assertEqual(transform._aside_workers, [0])
+        self.assertEqual(transform.ASIDES.running, 0)
         waited = [t for t in threading.enumerate() if not t.daemon]
         self.assertEqual(waited, [threading.main_thread()])  # Kodi joins these
 

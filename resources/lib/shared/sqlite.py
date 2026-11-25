@@ -402,6 +402,15 @@ class ApiCacheHandler(SQLiteHandler):
         if patterns:
             self._delete_where(" OR ".join(["key LIKE ?"] * len(patterns)), patterns)
 
+    def drop(self, key: str) -> None:
+        """
+        Delete the row of exactly this key: a LIKE pattern (clear) would also take
+        keys its % or _ match, or that differ only in case.
+
+        :param key: Cache key.
+        """
+        self._delete_where("key = ?", (key,))
+
     def expire(self, *patterns: str) -> int:
         """
         Mark rows whose key matches any LIKE pattern stale: refetched when next read,

@@ -121,7 +121,7 @@ from resources.lib.shared.utilities import (
 )
 
 if TYPE_CHECKING:
-    from resources.lib.apis.tmdb.transform import Asker
+    from resources.lib.apis.cache import Asker
 
 # The playing song's identity for target=player, by labels a plugin URL carries
 # intact (a path or title can hold "&key=" or a "|", which cut it): its id, and its
@@ -1607,6 +1607,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         A picture's painting from Wikidata as art_* properties, in folders marked for
         it while the wikidata setting is on; a folder's mark state as Home properties.
+        A plugin call reads kept verdicts only: the look-ups are the service's.
 
         :return: One item, its properties empty for no match (yet).
         """
@@ -1620,15 +1621,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         listing, path = raw.get("folder", ""), raw.get("path", "")
         folders = art.marked()
         covered = art.covers(folders, art.folder(listing))
+        window_property("art_details_checked", value=listing)
         window_property("art_details_folder", value=covered and listing)
         if path.endswith(("/", "\\")):  # a folder: its state, for the context menu
             art.publish(folders, path)
-        elif art.covers(folders, path):
-            if (found := art.verdict(path)) is None:
-                if self.again:  # served: the network never holds the pipeline
-                    art.look_up_aside(path, self.again)
-                else:
-                    found = art.look_up(path)
+        elif art.is_picture(path) and art.covers(folders, path):
+            if (found := art.verdict(path)) is None and self.again:
+                art.ASIDES.ask(path, self.again)  # the network never holds a serve
             item["properties"] = self._art_properties(found or {})
         return set_items([item])
 

@@ -1,10 +1,12 @@
 # author: realcopacetic
 
 import time
-from collections.abc import Iterator
+from collections import deque
+from collections.abc import Hashable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Callable
+from threading import Lock, Thread
+from typing import Any, Callable, Protocol
 
 from xbmc import Monitor
 from xbmcgui import Window
@@ -107,3 +109,84 @@ def cached(
         return payload
     cache.put(key, payload, ttl[0] if payload else ttl[1])
     return payload
+
+
+class Asker(Protocol):
+    """A served call's re-serve once its late answer lands (serve.py's Again)."""
+
+    def __call__(self) -> None: ...
+
+    def current(self) -> bool: ...
+
+
+class Asides:
+    """
+    Fetches for served calls, on threads of their own: one per key while it is queued
+    or running, its askers told when it brings news. At most `workers` daemon
+    threads, which end with the queue: a dead network queues, and holds no exit.
+    """
+
+    def __init__(self, fetch: Callable[[Hashable], Any], workers: int = 1) -> None:
+        """
+        A queue with no worker yet.
+
+        :param fetch: Fetches a key's answer; None for no answer.
+        :param workers: Threads at most.
+        """
+        self.fetch, self.workers, self.running = fetch, workers, 0
+        self.asked = {}  # key → (its askers, the answer they were served meanwhile)
+        self.queue = deque()
+        self.lock = Lock()
+
+    def ask(self, key: Hashable, asker: Asker, stale: Any = None) -> None:
+        """
+        Queue a key's fetch, once while it is queued or running, starting a worker if
+        fewer than `workers` run; an asker meanwhile joins it.
+
+        :param key: What to fetch.
+        :param asker: The served call's re-serve; an equal one asks once.
+        :param stale: The answer the asker served meanwhile: one equal to it is no news.
+        """
+        with self.lock:
+            if key in self.asked:
+                self.asked[key][0].add(asker)
+                return
+            self.asked[key] = {asker}, stale
+            self.queue.append(key)
+            if self.running == self.workers:
+                return
+            self.running += 1
+        Thread(target=self._drain, daemon=True).start()
+
+    def _drain(self) -> None:
+        """A worker: fetch queued keys in turn; it ends, in one hold, with the queue."""
+        while True:
+            with self.lock:
+                if not self.queue:
+                    self.running -= 1
+                    return
+                key = self.queue.popleft()
+            try:
+                self._turn(key)
+            except Exception:  # its own thread: nothing above it would log
+                log.exception(f"Asides → {key!r}")
+                with self.lock:
+                    self.asked.pop(key, None)
+
+    def _turn(self, key: Hashable) -> None:
+        """
+        One key's fetch, skipped once no asker's arrival is still current (the service
+        stopping ends them all); then each asker on news.
+
+        :param key: What to fetch.
+        """
+        with self.lock:  # the skip and its drop in one hold: no asker joins between
+            if not any(asker.current() for asker in self.asked[key][0]):
+                del self.asked[key]
+                return
+        answer = self.fetch(key)
+        with self.lock:
+            askers, stale = self.asked.pop(key)
+        if answer is not None and answer != stale:
+            for asker in askers:
+                asker()
