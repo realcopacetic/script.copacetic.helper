@@ -1197,9 +1197,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def metadata(self) -> list[DirectoryItem] | None:
         """
-        Fetch/attach cleaned metadata to a helper list item; aborts if focus changes.
-        random_pick=true picks one director and genre, =genre the genre alone;
-        tmdb_art=true also caches TMDb's images for artwork's get_extra_multiart.
+        Cleaned metadata on a helper list item; aborts if focus changes. random_pick
+        picks one director and genre (=genre, =director: that alone); genre_chips=N and
+        album_format add chip genres and an album's format; tmdb_art caches TMDb's art.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -1224,6 +1224,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         ).fetch_data(
             random_pick=("director", "genre") if parse_bool(pick) else pick.split(","),
             genre_aliases=[p.split(":", 1) for p in aliases.split(",") if p],
+            genre_chips=to_int(self.params.get("genre_chips")),
+            album_format=parse_bool(self.params.get("album_format")),
         )
 
         if not guard.alive():
@@ -1317,6 +1319,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # is unchanged
         secs = pb.runtime(resume)
         position = secs * resume / 100
+        # A film's or episode's own play count (an album's is its songs' average)
+        plays = (
+            to_int(pb.infolabels["PlayCount"])
+            if pb.infolabels["DBType"] in ("movie", "episode")
+            else 0
+        )
         item = {
             "file": plugin_path("progress"),
             "Duration": secs,
@@ -1325,7 +1333,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 if secs
                 else {"position": resume, "total": 100}
             ),
-            "properties": {"unwatchedepisodes": str(unwatched)},
+            "properties": {
+                "unwatchedepisodes": str(unwatched),
+                "plays": str(plays) if plays > 1 else "",
+            },
         }
 
         if not guard.alive():

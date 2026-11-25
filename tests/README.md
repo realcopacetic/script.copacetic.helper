@@ -162,6 +162,11 @@ python tests/listing_offline.py
 # underscore and title-less forms
 python tests/clean_name_offline.py
 
+# The info screen's chips on info=metadata (shared/helpers.py DataHandler): genre_chips
+# two genres while they fit, else one, with the rest's count (an episode's its show's);
+# album_format an album's most common codec, lossless by sample rate, lossy by bitrate
+python tests/infoscreen_chips_offline.py
+
 # Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI
 # height; a 1x image drawn 2x and shrunk, a 2x one drawn 1:1, both giving the same
 # height in skin pixels, cached apart (needs Pillow and the skin's fonts)
