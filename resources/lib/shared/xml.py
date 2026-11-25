@@ -391,9 +391,11 @@ class XMLDictConverter:
 
                 output_dict[self.container_tag][template_key] = template_dict
 
-            except Exception as e:
-                log.debug(
-                    f"{self.__class__.__name__} → Error processing element '{template_key}' → {e}"
+            except Exception:
+                log.exception(
+                    f"{self.__class__.__name__} → Error processing element "
+                    f"'{template_key}'",
+                    log.DEBUG,
                 )
                 continue
 
@@ -460,8 +462,10 @@ class XMLDictConverter:
                     child_elem = self.dict_to_element({key: value})
                     root_elem.append(child_elem)
 
-            except Exception as e:
-                log.debug(f"{self.__class__.__name__} → Error converting '{key}' → {e}")
+            except Exception:
+                log.exception(
+                    f"{self.__class__.__name__} → Error converting '{key}'", log.DEBUG
+                )
 
         return root_elem
 

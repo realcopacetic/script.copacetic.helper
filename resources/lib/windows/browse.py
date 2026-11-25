@@ -7,6 +7,7 @@ import xbmc
 import xbmcvfs
 from xbmcgui import Dialog, DialogProgress
 
+from resources.lib.shared import logger as log
 from resources.lib.shared.utilities import ADDON, json_call
 
 # ---------------------------------------------------------------------------
@@ -600,7 +601,9 @@ def _read_xsp_type(path: str) -> str:
         if root.tag == "smartplaylist":
             return root.attrib.get("type", "unknown")
     except Exception:
-        pass
+        log.exception(
+            f"browse → could not read smart playlist type of {path}", log.DEBUG
+        )
     return "unknown"
 
 
