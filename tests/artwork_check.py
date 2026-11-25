@@ -35,11 +35,11 @@ STRIP = {
     "icon_blur": "true",
     "icon_blur_radius": "4",
     "icon_darken": "true",
-    "icon_darken_rects": "20,589,440,111",  # the typewriter's text box, 3 lines
+    "icon_darken_rects": "20,577,440,123",  # the typewriter's text box, 3 lines
     "icon_darken_frame": "480,720",
     "icon_darken_label": "Mission Impossible Dead",
     "icon_darken_label_font": "description_l",
-    "icon_darken_label_pitch": "-37",
+    "icon_darken_label_pitch": "-41",
     "icon_element_colors": f"{GHOSTED},{GUNMETAL}",
 }
 
@@ -59,19 +59,19 @@ def noise(img: Image.Image, _: ImageDraw.ImageDraw) -> None:
 
 
 LABELS = {  # label: its rect in the strip poster's text box, one to three lines
-    "Up •\xa02009": (20, 663, 146, 37),
-    "Radiohead • OK Computer •\xa01997": (20, 626, 372, 74),  # "• 1997" holds
-    "Mission: Impossible – Dead Reckoning Part One •\xa02023": (20, 626, 384, 74),
+    "Up •\xa02009": (20, 659, 146, 41),
+    "Radiohead • OK Computer •\xa01997": (20, 618, 372, 82),  # "• 1997" holds
+    "Mission: Impossible – Dead Reckoning Part One •\xa02023": (20, 618, 384, 82),
     "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb "
-    "•\xa01964": (20, 589, 437, 111),
+    "•\xa01964": (20, 577, 437, 123),
     "Borat: Cultural Learnings of America for Make Benefit Glorious Nation of "
     "Kazakhstan •\xa02006": (
         20,
-        589,
+        577,
         429,
-        111,
+        123,
     ),  # four lines, capped at the box's three
-    "Supercalifragilisticexpialidociousness •\xa02000": (20, 626, 434, 74),  # cut
+    "Supercalifragilisticexpialidociousness •\xa02000": (20, 618, 434, 82),  # cut
 }
 
 POSTERS = {  # name: (draw, step, winner, darken)
