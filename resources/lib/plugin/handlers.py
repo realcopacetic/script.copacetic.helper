@@ -1197,7 +1197,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def metadata(self) -> list[DirectoryItem] | None:
         """
         Fetch/attach cleaned metadata to a helper list item; aborts if focus changes.
-        random_pick=true picks one director and genre (genre_aliases renames it);
+        random_pick=true picks one director and genre, =genre the genre alone;
         tmdb_art=true also caches TMDb's images for artwork's get_extra_multiart.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
@@ -1215,12 +1215,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         title = self._probe_text("truncate_title_id")
         target = self.target_item
         aliases = self.params.get("genre_aliases", "")
+        pick = self.params.get("random_pick", "")
         data = DataHandler(
             target=target,
             dbtype=self.dbtype,
             dbid=self.dbid,
         ).fetch_data(
-            random_pick=parse_bool(self.params.get("random_pick")),
+            random_pick=("director", "genre") if parse_bool(pick) else pick.split(","),
             genre_aliases=[p.split(":", 1) for p in aliases.split(",") if p],
         )
 

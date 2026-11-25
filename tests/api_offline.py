@@ -6,7 +6,8 @@ apis/theintrodb.py (the ids tried in turn, best segment, TTLs, clearing),
 apis/lrclib.py (the search fallback's nearest hit, payload shapes, TTLs, clearing),
 the blended ranking of top_songs and discography, music info's popularity words
 (popularity_label), the TMDb client and cache (apis/tmdb) and creator_credits,
-metadata's tagline_quotes (shared/text.py single_quotes), and the plugin URL parser
+metadata's tagline_quotes (shared/text.py single_quotes), its random_pick=genre with
+every director kept and director_credits matching any of them, the plugin URL parser
 (shared/parser.py) with a focus guard cut at a "|".
 
 Network calls are replaced by recorded ListenBrainz answers
@@ -2334,6 +2335,87 @@ class StaleIdTest(unittest.TestCase):
                 handler = self.handler(info="soundtracks", type=type)
                 self.assertIsNone(handler.soundtracks())
                 self.assertEqual(len(self.calls), 1)  # its details only
+
+
+class DirectorPickTest(unittest.TestCase):
+    """metadata's random_pick=genre keeps every director; director_credits any."""
+
+    DIRECTORS = "Chris Renaud / Patrick Delage"
+
+    def fetch(self, **kwargs):
+        data = object.__new__(helpers.DataHandler)
+        data.target, data.dbtype, data.dbid = "item", "movie", "7"
+        data.infolabels = dict.fromkeys(("Plot", "PlotOutline", "Tagline"), "") | {
+            "Label": "Migration",
+            "Title": "Migration",
+            "Director": self.DIRECTORS,
+            "Genre": "Animation / Comedy / Family / Adventure",
+            "Writer": "",
+            "Studio": "Illumination",
+            "Trailer": "",
+            "TVShowTitle": "",
+        }
+        with mock.patch.object(helpers, "session_salt", lambda: "salt"):
+            return data.fetch_data(**kwargs)
+
+    def test_genre_alone_keeps_every_director(self):
+        full = self.fetch(random_pick=("director", "genre"))
+        genre = self.fetch(random_pick=["genre"])
+        self.assertEqual(genre["Directors"], self.DIRECTORS.split(" / "))
+        self.assertEqual(len(full["Directors"]), 1)
+        # the genre is drawn first: the same pick, with or without the director
+        self.assertEqual(genre["Genres"], full["Genres"])
+        self.assertEqual(
+            genre["properties"]["genre_query"], full["properties"]["genre_query"]
+        )
+        none = self.fetch(random_pick=["false"])  # random_pick=false, as parsed
+        self.assertEqual(len(none["Genres"]), 4)
+        self.assertNotIn("genre_query", none["properties"])
+
+    def test_the_handler_reads_true_and_a_field_list(self):
+        picks = []
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.item, handler.dbtype, handler.dbid = False, "movie", "7"
+        handler.dialog, handler.again = False, None
+        handler.target_item = "item"
+        fetched = mock.Mock()
+        fetched.return_value.fetch_data = lambda **kwargs: picks.append(
+            {*kwargs["random_pick"]} & {"director", "genre"}
+        )
+        with mock.patch.object(handlers, "DataHandler", fetched):
+            for value in ("true", "genre", "false", None):
+                handler.params = {"random_pick": value} if value else {}
+                # alive to fetch, then gone: metadata stops once fetched
+                guard = mock.Mock(alive=mock.Mock(side_effect=[True, False]))
+                handler._guard = lambda: guard
+                self.assertIsNone(handler.metadata())
+        self.assertEqual(picks, [{"director", "genre"}, {"genre"}, set(), set()])
+
+    def test_director_credits_match_any_joined_name(self):
+        from resources.lib.plugin import library as plugin_library
+
+        calls = []
+
+        def fetch(method, media_type, filters, *args, **kwargs):
+            calls.append(filters)
+            return [{"movieid": 2, "title": "Despicable Me"}]
+
+        with mock.patch.object(plugin_library, "fetch_raw", fetch), mock.patch.object(
+            plugin_library, "build_items", lambda rows, *args: rows
+        ):
+            rows = plugin_library.role_credits(
+                field="director",
+                label=self.DIRECTORS,
+                filter_exclude={"field": "title", "operator": "isnot", "value": "x"},
+                sources=[("VideoLibrary.GetMovies", "movie")],
+                sort={"method": "votes", "order": "descending"},
+                parent="director_credits",
+                tag_applier=None,
+            )
+        self.assertEqual(rows, [{"movieid": 2, "title": "Despicable Me"}])
+        ((names, exclude),) = calls  # a list value: Kodi ORs its names
+        self.assertEqual(names["value"], ["Chris Renaud", "Patrick Delage"])
+        self.assertEqual(exclude["operator"], "isnot")  # the film itself stays out
 
 
 class ParserTest(unittest.TestCase):

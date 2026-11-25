@@ -32,8 +32,8 @@ one served.
 | `target` | container id, or `item` | — | Container whose focused item is read. Omit to use `Container` (the current container); `item` reads the window's own item (an info dialog's). |
 | `type` | `movie`, `tvshow`, `season`, `episode`, `set`, … | — | The item's `DBType`. Used for TMDB lookups and for sets (see Studio below). |
 | `id` | number | — | The item's `DBID`. Used for TMDB lookups, for album artists and set studios and years (see below), and to keep the `random_pick` choice. |
-| `random_pick` | `true`, `false` | `false` | Return one director and one genre picked at random, instead of all of them. The same item gets the same pick until Kodi restarts. |
-| `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
+| `random_pick` | `true`, `false`, `genre`, `director` | `false` | Return one director and one genre picked at random, instead of all of them. `genre` picks the genre alone and keeps every director (for a rail that follows them all, as [`director_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits) can); `director` the director alone. The same item gets the same pick until Kodi restarts, and `genre` picks the same genre as `true`. |
+| `genre_aliases` | `text:name,text:name,…` | — | With `random_pick=true` or `genre`: if the picked genre contains `text`, it becomes `name`. URL-encode spaces (`Hip-Hop:Hip%20Hop`). |
 | `tagline_quotes` | `single` | — | Also return the tagline ready to sit inside your own double quote marks, in `ListItem.Property(clean_tagline)`: its double quotes become curly single ones (`"criminal"` and `“criminal”` both read `‘criminal’`), and a pair that wraps the whole tagline (its only double quotes) is dropped. Off by default, and `ListItem.TagLine` is never changed. |
 | `enrich_with_tmdb` | `true`, `false` | `false` | Add details from TMDB. TMDB values replace the library values, except the plot, title, tagline and trailer, which TMDB only fills when the item has none (a season takes TMDB's plot where it has one: Kodi gives seasons their show's). See [TMDB lookups](#tmdb-lookups). |
 | `prefer_tmdb_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: TMDB's trailer replaces a library trailer that is a link (`plugin://`, `http://`, `https://`), such as the one Kodi's TMDB scraper saves. A library trailer that is a file always stays. |
@@ -52,9 +52,9 @@ one served.
 | `ListItem.Title` | The focused item's `Title`, which a list's label may not be (a search node, Files with library titles off): use it where a library title is compared, such as the `exclude_value` of [`genre_credits`](library.md). With TMDB, the TMDB title is used only when the item has none. |
 | `ListItem.TVShowTitle` | The focused item's show title (a show, season or episode), to leave its show out of a TV rail, such as `genre_credits` with `type=tvshow`. |
 | `ListItem.Property(dbid)` | The `id` it was read for. With `Label`, it tells a skin whose metadata the container holds while the next item's is still loading. |
-| `ListItem.Director` | All directors, or one at random with `random_pick=true`, whole, as the library names them. |
-| `ListItem.Genre` | All genres, or one at random with `random_pick=true`, cleaned for display (below). |
-| `ListItem.Property(genre_query)` | With `random_pick=true`: the same pick, whole, as the library names it (`Action & Adventure`, `R&B`). Pass this, not `ListItem.Genre`, to [`genre_credits`](library.md). |
+| `ListItem.Director` | All directors, or one at random with `random_pick=true` or `director`, whole, as the library names them. |
+| `ListItem.Genre` | All genres, or one at random with `random_pick=true` or `genre`, cleaned for display (below). |
+| `ListItem.Property(genre_query)` | With `random_pick=true` or `genre`: the same pick, whole, as the library names it (`Action & Adventure`, `R&B`). Pass this, not `ListItem.Genre`, to [`genre_credits`](library.md). |
 | `ListItem.Studio` | The first studio, as the library names it (`Disney+`). Kodi sets have no studio: with `type=set` it is the first studio of the set's earliest movie, in a list and in the set's own info dialog alike. |
 | `ListItem.Property(set_first_year)`, `ListItem.Property(set_last_year)` | With `type=set` and `id`: the years of the set's earliest and latest movies (those with a year), for a year span; `set_last_year` is empty when both are the same year. Empty for other types. Reading `Container(id).ListItem(0)` and `ListItem(-1)` of a set's movies instead gives the years around the list's cursor, not the span. |
 | `ListItem.Writer` | The first writer. |
@@ -70,7 +70,7 @@ refire, for example after closing an info dialog, gives the same director and ge
 The helper keeps a random seed for the session in the Home window property
 `session_salt`. Don't set or clear it from the skin.
 
-With `random_pick=true`, a compound genre such as `Action & Adventure` is split on
+With a genre pick, a compound genre such as `Action & Adventure` is split on
 ` & ` (spaced, so `R&B` stays whole) and one part is kept for `ListItem.Genre`. Music
 types (`album`, `artist`, `song`, `musicvideo`) are not split: their genres are single
 names (`Drum & Bass`). `genre_aliases` and full stops (which become spaces) apply to
