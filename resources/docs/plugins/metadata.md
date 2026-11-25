@@ -42,6 +42,7 @@ one served.
 | `random_trailer` | `true`, `false` | `false` | With `enrich_with_tmdb`: when TMDB's trailer is used, pick one at random from its best-ranked trailers instead of the newest. The same item gets the same pick until Kodi restarts. |
 | `tmdb_trailer_only` | `true`, `false` | `false` | With `enrich_with_tmdb`: take only the trailer from TMDB, by the rules above; every other field stays the library's. For a view that wants TMDB's trailer without TMDB's plot, title or details. |
 | `tmdb_art` | `true`, `false` | `false` | With `enrich_with_tmdb`: fetch TMDB's image lists too, so the artwork helper's `get_extra_multiart` can read them from the cache. The returned item still carries no TMDB artwork. |
+| `show_creators` | `true`, `false` | `false` | With `type=season`: `ListItem.Writer` is its show's TMDB creators, as a TV show's is with `enrich_with_tmdb` (Kodi keeps no writer for a show or season). Read from the show's cached TMDB entry, so a season opened from its show asks TMDB nothing; else fetched as `enrich_with_tmdb` is. It changes nothing else of the season. |
 | `tmdb_id`, `tvshowid`, `season`, `language` | | | TMDB lookup inputs. See [TMDB lookups](#tmdb-lookups). |
 | `truncate_*` | | | See [Cutting the plot to fit](#cutting-the-plot-to-fit). |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -122,7 +123,7 @@ passed, else from the focused item.
 | `id` | `ListItem.DBID` | |
 | `tmdb_id` | `ListItem.UniqueID(tmdb)` | Used directly when set. Otherwise looked up from the library with `id`. |
 | `tvshowid` | `ListItem.TvShowDBID`, then `ListItem.Property(tvshowid)` | For seasons and episodes: the show to look up. |
-| `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped. |
+| `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped, `show_creators` too. |
 | `language` | add-on setting **TMDB language**, else `en-US` | TMDB language, for example `de-DE`. |
 
 Episodes look up their show, as TMDB has no episode lookup here, and take only what
@@ -138,7 +139,7 @@ With `enrich_with_tmdb=true`, these come from TMDB:
 | `ListItem.Title` | title | name | — |
 | `ListItem.Plot` | overview | overview | season overview |
 | `ListItem.TagLine` | tagline | tagline | — |
-| `ListItem.Writer` | — | creators | — |
+| `ListItem.Writer` | — | creators | — (its show's creators with `show_creators`) |
 | `ListItem.Property(tmdb_creator_ids)` | — | the creators' TMDB person ids, joined by `,`, for [`creator_credits`](library.md#creator_credits) | — |
 | `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path: trailers, then teasers, then other video types; official over unofficial; then the newest | same | — |
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |

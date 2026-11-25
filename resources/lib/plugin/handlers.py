@@ -544,6 +544,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         cache_only: bool = False,
         target: str | None = None,
         aside: Asker | None = None,
+        show: bool = False,
     ) -> dict[str, Any] | None:
         """Resolve TMDb canonical item for the current listitem.
 
@@ -551,6 +552,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param cache_only: Read the TMDb cache only; never fetch.
         :param target: Infolabel prefix of the item; the serve's target item if None.
         :param aside: Read the cache, fetching on a thread that calls this on news.
+        :param show: A season's or episode's show entry, in place of its own.
         :return: canonical item dict or None.
         """
         from resources.lib.apis.tmdb.client import tmdb_token
@@ -562,11 +564,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         ctx = resolve_tmdb_context(self.params, target=target or self.target_item)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
+        kind = "tvshow" if show else ctx.get("kind") or self.dbtype
 
         item = tmdb_to_canonical(
-            kind=ctx.get("kind") or self.dbtype,
+            kind=kind,
             tmdb_id=tmdb_id,
-            season_number=ctx.get("season_number"),
+            season_number=None if show else ctx.get("season_number"),
             language=self.params.get("language"),
             append_artwork=append_artwork,
             cache_only=cache_only,
@@ -575,7 +578,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not item:
             log.debug(
                 f"{self.__class__.__name__} → tmdb: no data for "
-                f"type={(ctx.get('kind') or self.dbtype)!r}, tmdb_id={tmdb_id}"
+                f"type={kind!r}, tmdb_id={tmdb_id}"
             )
             return
 
@@ -1265,6 +1268,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     fill_only=fill_only,
                     ignore_keys=("art", "file"),
                 )
+        if self.dbtype == "season" and parse_bool(self.params.get("show_creators")):
+            # Kodi keeps no writers for a season: its show's TMDb creators, alone
+            show = self._get_tmdb_item(
+                append_artwork=False, aside=self.again, show=True
+            )
+            data["Writers"] = data["Writers"] or (show or {}).get("Writers", [])
 
         if not guard.alive():
             return
