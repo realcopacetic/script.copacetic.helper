@@ -1329,7 +1329,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_id=self.window_id,
             album_days=to_int(self.params.get("album_days"), 14),
         )
-        resume, unwatched = pb.calculate(to_int(self.params.get("resolution_span")))
+        span = to_int(self.params.get("resolution_span"))
+        resume, unwatched = pb.calculate(span)
         # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)
         # is unchanged
         secs = pb.runtime(resume)
@@ -1353,6 +1354,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "plays": str(plays) if plays > 1 else "",
             },
         }
+        if span:  # a picture's labels ride its bar, so a label never leads the fill
+            item["properties"] |= {
+                "picture_resolution": pb.picture["PictureResolution"],
+                "picture_size": pb.picture["Size"],
+            }
 
         if not guard.alive():
             return set_items([item], tag_applier=apply_videoinfotag)
