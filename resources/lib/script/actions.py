@@ -425,15 +425,12 @@ def dialog_yesno(heading: str, message: str, **kwargs: str) -> None:
     :param yes_actions: Pipe-separated string of built-in actions if "Yes" selected.
     :param no_actions: Pipe-separated string of actions if "No" selected.
     """
-    yes_actions = kwargs.get("yes_actions", "").split("|")
-    no_actions = kwargs.get("no_actions", "Null").split("|")
-
     if xbmcgui.Dialog().yesno(heading, message):
-        for action in yes_actions:
-            log.execute(action)
+        builtins = kwargs.get("yes_actions", "")
     else:
-        for action in no_actions:
-            log.execute(action)
+        builtins = kwargs.get("no_actions", "Null")
+    for builtin in builtins.split("|"):
+        log.execute(builtin)
 
 
 @action
@@ -1872,20 +1869,15 @@ def toggle_addon(id: str, **kwargs: str) -> None:
 
     :param id: Addon ID.
     """
-    if condition(f"System.AddonIsEnabled({id})"):
-        json_call(
-            "Addons.SetAddonEnabled",
-            params={"addonid": id, "enabled": False},
-            parent="toggle_addon",
-        )
-        xbmcgui.Dialog().notification(id, ADDON.getLocalizedString(32205))
-    else:
-        json_call(
-            "Addons.SetAddonEnabled",
-            params={"addonid": id, "enabled": True},
-            parent="toggle_addon",
-        )
-        xbmcgui.Dialog().notification(id, ADDON.getLocalizedString(32206))
+    enabled = condition(f"System.AddonIsEnabled({id})")
+    json_call(
+        "Addons.SetAddonEnabled",
+        params={"addonid": id, "enabled": not enabled},
+        parent="toggle_addon",
+    )
+    xbmcgui.Dialog().notification(
+        id, ADDON.getLocalizedString(32205 if enabled else 32206)
+    )
 
 
 @action
