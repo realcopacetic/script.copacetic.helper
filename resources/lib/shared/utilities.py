@@ -138,7 +138,7 @@ def reset_dev_state() -> None:
             xbmcvfs.delete(skin_path(write_path))
     xbmcvfs.delete(runtime_state_path())
     xbmcvfs.delete(resolver_cache_path())
-    log.info(f"reset_dev_state → outputs and runtime_state cleared")
+    log.info("reset_dev_state → outputs and runtime_state cleared")
 
 
 def runtime_state_path() -> str:
