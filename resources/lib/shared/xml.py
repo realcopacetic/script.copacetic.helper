@@ -310,7 +310,6 @@ class XMLDictConverter:
         self.container_tag = kwargs.get("container_tag", self.root_tag)
         self.element_tag = kwargs.get("element_tag")
         self.mapping_tag = kwargs.get("mapping_tag")
-        self.template_tag = kwargs.get("template_tag")
         self.sub_element_tag = kwargs.get("sub_element_tag")
 
     def xml_to_dict(self):
