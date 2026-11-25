@@ -244,7 +244,7 @@ def role_credits(
     A random sort is ranked in Python by seed, so a refetch keeps the order.
 
     :param field: VideoLibrary filter field ("actor", "director", "writer").
-    :param label: Actor/director/writer name to filter by.
+    :param label: Name to filter by; " / " joined names (Kodi's) match any.
     :param filter_exclude: Optional exclusion filter dict appended to the filter list.
     :param sources: List of (method, media_type) pairs to query.
     :param sort: Sort specification for JSON-RPC.
@@ -257,7 +257,7 @@ def role_credits(
     """
     results = []
     filters = [
-        {"field": field, "operator": "is", "value": label},
+        {"field": field, "operator": "is", "value": label.split(" / ")},
     ]
     if filter_exclude:
         filters.append(filter_exclude)
