@@ -231,6 +231,7 @@ class Server:
         # Window id → its probes' texts when a net bound nothing: let be till one moves
         self.quiet = {}
         self.turn, self.handed = None, Event()  # the family last handed, and news
+        self.kept = {}  # (window id, artwork list) → its last bind's turn, for a repeat
         Thread(target=self._listen, daemon=True).start()
         Thread(target=self._work, daemon=True).start()
         Thread(target=self._rotate, daemon=True).start()
@@ -425,6 +426,12 @@ class Server:
                     request, window_id, list_id, params, line
                 ):
                     held.append(list_id)
+                    # It holds its family too: turned again if its turn ended meanwhile
+                    # (a ring of a dialog over it), kept if it still turns
+                    if fields.get("slides") and (
+                        kept := self.kept.get((window_id, list_id))
+                    ):
+                        self._hand(kept._replace(request=request))
                     break
                 if net and self.failed.get((window_id, list_id)) == params:
                     break  # its handler stopped on this text: the net lets it be
@@ -484,7 +491,9 @@ class Server:
                     if slides or (self.turn and self.turn[1:3] == (window_id, list_id)):
                         pair = tuple(map(int, slides.split(":"))) if slides else ()
                         family = self._family(items) if slides else ("", ())
-                        self._hand(Turn(request, window_id, list_id, pair, *family))
+                        turn = Turn(request, window_id, list_id, pair, *family)
+                        self._hand(turn)
+                        self.kept[(window_id, list_id)] = turn
                     log.debug(
                         f"{self.__class__.__name__} → {list_id} served: "
                         f"{(started - self.heard) * 1000:.0f}ms ring to start, "
