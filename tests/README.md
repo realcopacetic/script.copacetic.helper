@@ -183,10 +183,13 @@ python tests/picture_bar_offline.py
 # Art details (shared/art_details.py, apis/wikidata.py, info=art_details, the
 # art_details_folder and _refresh actions): the file name's parse; the 25 Nov filename
 # test's 16 files matched or left empty (similarity, a label's words in the title, the
-# year, ties to sitelinks, the threshold); a match's fields; the verdict kept by path
-# and mtime, a miss kept, none kept unanswered, a 429 holding the queue; marked
-# folders and their Home properties; chips fitted to a row; the summary cut at a
-# sentence (Wikidata's and Wikipedia's answers stubbed from tests/fixtures)
+# year, ties to sitelinks, the threshold), and the review's short labels in long titles
+# left empty; a match's fields (unknown and unlabelled values, a bare canvas); the
+# verdict kept by path and mtime, a miss kept, none kept unanswered, a 429 holding the
+# queue, a refresh's exact delete; nothing sent with the setting off or the folder
+# unmarked; plugin calls cache-only; pictures only; marked folders, archives refused,
+# their Home properties; chips fitted to a row; the summary cut at a sentence
+# (Wikidata's and Wikipedia's answers stubbed from tests/fixtures)
 python tests/art_details_offline.py
 
 # Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI

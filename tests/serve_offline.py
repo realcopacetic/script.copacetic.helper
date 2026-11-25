@@ -747,6 +747,13 @@ class ServeTest(unittest.TestCase):
         server.request = SETTLE._replace(value="54/4/13/v")  # a newer ring waits
         self.assertFalse(again.current())
 
+    def test_an_again_is_never_current_once_the_service_stops(self) -> None:
+        server = _server()
+        self._run(server, SETTLE)
+        again = serve.Again(server, 9010, CURSOR, 10025)
+        server.stop()  # Kodi exiting: an aside fetch for it is skipped
+        self.assertFalse(again.current())
+
     def test_again_is_never_a_repeat(self) -> None:
         server = _server()
         self._run(server, SETTLE)

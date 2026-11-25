@@ -1,14 +1,11 @@
 # author: realcopacetic
 
-from collections import deque
 from copy import deepcopy
-from threading import Lock, Thread
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping
 
-from xbmc import Monitor
 from xbmcgui import Window
 
-from resources.lib.apis.cache import DAY, cached, failure_ttl
+from resources.lib.apis.cache import DAY, Asides, Asker, cached, failure_ttl
 from resources.lib.apis.http import HttpError
 from resources.lib.apis.tmdb.client import (
     fetch_tmdb_fields,
@@ -31,22 +28,7 @@ from resources.lib.shared.utilities import plugin_path, window_property
 EPISODE_KEYS = ("file", "art", "properties", "Trailer")  # show-level, fit an episode
 TTL_HIT, TTL_MISSING = 7 * DAY, DAY
 TOKEN_REFUSED = "tmdb_token_refused"  # Home property: the warning logs once a session
-# Items fetched aside, queued or running: tmdb_to_canonical's args → (their askers,
-# the answer they were served meanwhile). At most two daemon workers drain the queue
-# and end with it: a dead network queues fetches, and nothing holds Kodi's exit
-ASIDE_WORKERS = 2
-_asides = {}
-_aside_queue = deque()
-_aside_lock = Lock()
-_aside_workers = [0]  # running, under _aside_lock
-
-
-class Asker(Protocol):
-    """A served call's re-serve once its late answer lands (serve.py's Again)."""
-
-    def __call__(self) -> None: ...
-
-    def current(self) -> bool: ...
+ASIDE_WORKERS = 2  # items fetched aside at once, keyed by tmdb_to_canonical's args
 
 
 IMAGE_LIST_ROLES = {
@@ -127,7 +109,7 @@ def tmdb_to_canonical(
         if aside:  # a served call: the network never holds the pipeline
             args = kind, tmdb_id, season_number, language, append_artwork
             # A copy: the caller changes the answer it is handed (metadata's trailers)
-            _fetch_aside(args, aside, deepcopy(full or payload or {}))
+            ASIDES.ask(args, aside, deepcopy(full or payload or {}))
         return full or payload or {}
 
     try:
@@ -180,64 +162,9 @@ def creator_shows(person_id: str) -> list[dict[str, Any]]:
     return cached(f"tmdb:creator:{person_id}", fetch, (TTL_HIT, TTL_MISSING)) or []
 
 
-def _fetch_aside(args: tuple, asker: Asker, stale: dict) -> None:
-    """
-    Queue an item's fetch once while it is queued or running, starting a worker if
-    fewer than ASIDE_WORKERS run; every asker meanwhile is called on news.
-
-    :param args: tmdb_to_canonical's positional args for the item.
-    :param asker: The served call's re-serve; an equal one asks once.
-    :param stale: The answer the asker served meanwhile.
-    """
-    with _aside_lock:
-        if args in _asides:
-            _asides[args][0].add(asker)
-            return
-        _asides[args] = {asker}, stale
-        _aside_queue.append(args)
-        if _aside_workers[0] == ASIDE_WORKERS:
-            return
-        _aside_workers[0] += 1
-    Thread(target=_drain_asides, daemon=True).start()
-
-
-def _drain_asides() -> None:
-    """An aside worker: fetch queued items in turn, and end once the queue is empty."""
-    while True:
-        with _aside_lock:
-            if not _aside_queue:
-                _aside_workers[0] -= 1
-                return
-            args = _aside_queue.popleft()
-        try:
-            _aside(args)
-        except Exception:  # an asker's error: the worker goes on to the next item
-            log.exception(f"tmdb_to_canonical → aside {args}")
-
-
-def _aside(args: tuple) -> None:
-    """
-    One queued fetch, skipped once Kodi is exiting or no asker's arrival is still
-    current; then each asker on news (a dead network keeps the stale answer).
-
-    :param args: tmdb_to_canonical's positional args for the item.
-    """
-    try:
-        with _aside_lock:  # the skip and its drop in one hold: no asker joins between
-            if Monitor().abortRequested() or not any(
-                asker.current() for asker in _asides[args][0]
-            ):
-                del _asides[args]
-                return
-        item = tmdb_to_canonical(*args)
-    except Exception:  # its own thread: nothing above it would log
-        log.exception(f"tmdb_to_canonical → aside {args}")
-        item = None
-    with _aside_lock:  # freed however the fetch ended
-        askers, stale = _asides.pop(args)
-    if item is not None and item != stale:
-        for asker in askers:
-            asker()
+# Items fetched for served calls: tmdb_to_canonical's positional args are the key; a
+# dead network keeps the stale answer, which is no news
+ASIDES = Asides(lambda args: tmdb_to_canonical(*args), ASIDE_WORKERS)
 
 
 def _build_tmdb_canonical_item(

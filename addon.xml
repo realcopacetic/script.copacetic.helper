@@ -65,14 +65,15 @@
       </item>
       <!-- Folder state: art_details_unmarked / art_details_marked hold the focused Pictures
            folder's path, published by the art_details serve (plugin/handlers.py), so a
-           folder shows one item or the other; one inside a marked folder shows neither -->
+           folder shows one item or the other; one inside a marked folder shows neither.
+           Not inside an archive: Kodi keeps the inner URL's user details there -->
       <item library="context.py" args="action=art_details_folder,mark=true">
         <label>32847</label>
-        <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Addon.SettingBool(script.copacetic.helper,wikidata) + Window.IsActive(pictures) + ListItem.IsFolder + String.IsEqual(Window(home).Property(art_details_unmarked),ListItem.FolderPath)</visible>
+        <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Addon.SettingBool(script.copacetic.helper,wikidata) + Window.IsActive(pictures) + ListItem.IsFolder + !String.StartsWith(ListItem.FolderPath,zip://) + !String.StartsWith(ListItem.FolderPath,rar://) + !String.StartsWith(ListItem.FolderPath,archive://) + String.IsEqual(Window(home).Property(art_details_unmarked),ListItem.FolderPath)</visible>
       </item>
       <item library="context.py" args="action=art_details_folder">
         <label>32848</label>
-        <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Addon.SettingBool(script.copacetic.helper,wikidata) + Window.IsActive(pictures) + ListItem.IsFolder + String.IsEqual(Window(home).Property(art_details_marked),ListItem.FolderPath)</visible>
+        <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Addon.SettingBool(script.copacetic.helper,wikidata) + Window.IsActive(pictures) + ListItem.IsFolder + !String.StartsWith(ListItem.FolderPath,zip://) + !String.StartsWith(ListItem.FolderPath,rar://) + !String.StartsWith(ListItem.FolderPath,archive://) + String.IsEqual(Window(home).Property(art_details_marked),ListItem.FolderPath)</visible>
       </item>
     </menu>
   </extension>

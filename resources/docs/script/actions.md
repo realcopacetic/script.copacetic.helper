@@ -141,7 +141,7 @@ the action named. In any other skin they are hidden.
 | Mark as played | Library albums (not disc or music video album nodes) that aren't played through (`album_played`, below) | [`mark_album`](#mark_album) with `played=true` |
 | Mark as unplayed | Library albums (not disc or music video album nodes) that aren't unplayed (`album_unplayed`, below) | [`mark_album`](#mark_album) |
 | Refresh cached data | Library films, sets, TV shows, seasons, episodes, music videos, artists, albums and songs | [`refresh_cached`](#refresh_cached) |
-| Look up art details | Folders in Pictures that aren't marked, nor inside a marked one (`art_details_unmarked`, below), while the `wikidata` setting is on | [`art_details_folder`](#art_details_folder) with `mark=true` |
+| Look up art details | Folders in Pictures, not inside an archive, that aren't marked, nor inside a marked one (`art_details_unmarked`, below), while the `wikidata` setting is on | [`art_details_folder`](#art_details_folder) with `mark=true` |
 | Stop looking up art details | Folders in Pictures that are marked (`art_details_marked`), while the `wikidata` setting is on | [`art_details_folder`](#art_details_folder) |
 
 On [speed dial](../plugins/speed_dial.md) items, Shuffle, Start mix and Unpin come
@@ -183,12 +183,11 @@ run this action.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `path` | a folder's path | required | The folder; a user name and password in it are left out, as Kodi shows the path |
+| `path` | a folder's path | required | The folder; a user name and password in it are left out, as Kodi shows the path. A folder inside an archive (`zip://`, `rar://`, `archive://`) is refused: Kodi keeps the inner URL's user details, so its mark would hold a password and never match the path shown |
 | `mark` | `true`, anything else | — | `true` marks it; anything else unmarks it |
 
-**Sets:** `Window(home).Property(art_details_marked)`, `art_details_covered`,
-`art_details_unmarked` and `art_details_folder`, as the
-[serve](../plugins/art_details.md#mark-state) does.
+**Sets:** `Window(home).Property(art_details_marked)`, `art_details_unmarked` and
+`art_details_folder`, as the [serve](../plugins/art_details.md#mark-state) does.
 
 ---
 
@@ -196,15 +195,24 @@ run this action.
 
 Looks one picture up on Wikidata again: its kept verdict is dropped and the answers it
 came from (the artist's works, the painting, its summary) are asked afresh. Then, if
-you pass one, your served ring, so the focused item is served again.
+you pass one, your served ring, so the focused item is served again. Nothing is sent
+while the `wikidata` setting is off or the picture's folder isn't marked.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `path` | a picture's path | required | The picture, as you pass it to `art_details` |
+| `prop` | a Home window property's name | none | The property holding the picture's path, as you pass it to `art_details`; read as written |
+| `path` | a picture's path | none | The picture, when you pass it directly (see below) |
 | `ring` | a [served ring](../service/serve.md#from-python), `serve?…` with no `is` | none | Sent once the look-up ends |
 
+Pass the path in a property. A `path` param goes through two parsers that change some
+names: Kodi's builtin parser takes quotes and commas as its own (`'Madonna'` arrives
+without its quotes, so the file isn't found), and the helper URL-decodes script params
+(a `%20` in a name becomes a space). Set the property with `$ESCINFO`, which Kodi's
+parser hands over whole:
+
 ```xml
-<onclick>RunScript(script.copacetic.helper,action=art_details_refresh,path=$INFO[ListItem.FileNameAndPath])</onclick>
+<onclick>SetProperty(art_details_refresh,$ESCINFO[ListItem.FileNameAndPath],home)</onclick>
+<onclick>RunScript(script.copacetic.helper,action=art_details_refresh,prop=art_details_refresh)</onclick>
 ```
 
 ---

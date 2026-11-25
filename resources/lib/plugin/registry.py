@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from resources.lib.apis.tmdb.transform import Asker
+    from resources.lib.apis.cache import Asker
 
 LOG_TAG = "plugin"
 _INFO_TAG = "__plugin_info__"

@@ -135,8 +135,13 @@ class Again(NamedTuple):
         self.server.again(self.list_id, self.value, self.window_id)
 
     def current(self) -> bool:
-        """Whether its arrival is still the window's last one, so worth fetching for."""
-        return self.server.current(self.value, self.window_id)
+        """
+        Whether its arrival is still the window's last one, so worth fetching for; never
+        once the service stops (Kodi exiting), so nothing aside holds its exit.
+        """
+        return not self.server.stopped and self.server.current(
+            self.value, self.window_id
+        )
 
 
 @cache

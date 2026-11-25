@@ -17,6 +17,7 @@ python tests/art_details_offline.py
 import json
 import re
 import sys
+from collections import deque
 import tempfile
 import unittest
 from pathlib import Path
@@ -43,6 +44,7 @@ class Monitor:
 
 vars(sys.modules["xbmc"]).update(  # imported names; a test that calls one patches it
     Monitor=Monitor,
+    getSupportedMedia=lambda media: ".png|.jpg|.jpeg|.gif|.tif|.cbz|.zip|.rss|.webp",
     getCacheThumbName=None,
     getLocalizedString=None,
     AudioStreamDetail=None,
@@ -56,7 +58,7 @@ sys.modules["xbmcvfs"].Stat = lambda path: SimpleNamespace(
 )
 sys.path.insert(0, str(HELPER))
 
-from resources.lib.apis import wikidata  # noqa: E402
+from resources.lib.apis import cache, wikidata  # noqa: E402
 from resources.lib.apis.http import HttpError  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.script import actions  # noqa: E402
@@ -88,8 +90,9 @@ NAMES = {  # the filename test's 16 files: the work each matches, or None
 
 
 def literal(value, lang=None):
-    """A query service binding."""
-    return {"type": "literal", "value": value} | ({"xml:lang": lang} if lang else {})
+    """A query service binding: an entity or an unknown value's node is a uri."""
+    kind = "uri" if value.startswith("http://") else "literal"
+    return {"type": kind, "value": value} | ({"xml:lang": lang} if lang else {})
 
 
 def works_rows(search):
@@ -191,13 +194,30 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(
             self.asked, ["works Wassily Kandinksy", "works Wassily~ Kandinksy~"]
         )
+        # each search is a request of its own, kept under its own key
+        self.assertEqual(
+            ApiCacheHandler().get("wikidata:works:wassilykandinksy")[0], {}
+        )
+        self.assertTrue(ApiCacheHandler().get("wikidata:fuzzy:wassilykandinksy")[0])
 
     def test_label_words_in_the_title(self):
         hokusai = art.parse([n for n in NAMES if "Hokusai" in n][0])
         labels = ["The Great Wave off Kanagawa"]
         title = art.words(hokusai.title)
         self.assertGreaterEqual(art.title_score(title, labels), art.CONTAIN)
-        self.assertLess(art.title_score(title, ["Wave"]), art.CONTAIN)  # one word: no
+        self.assertLess(art.title_score(title, ["Great Wave"]), art.CONTAIN)  # two
+
+    def test_a_short_label_in_a_long_title_is_no_match(self):
+        for name in (  # the 25 Nov review's cases
+            "Vincent Van Gogh - 'Self-Portrait with Bandaged Ear and Pipe' (1889).jpg",
+            "Natalia Goncharova - 'Yellow and Green Forest' (1912).jpg",
+            "Franz Marc - 'Blue Horse with Rainbow' (1913).jpg",
+            "Edvard Munch - 'Girls on the Bridge in Moonlight'.jpg",
+        ):
+            with self.subTest(name=name):
+                parsed = art.parse(name)
+                works = wikidata.works(parsed.artist)["works"]
+                self.assertIsNone(art.match(parsed, works))
 
     def test_ties_go_to_sitelinks(self):
         name = art.Name("Vincent Van Gogh", "The Starry Night", (1889, 1889))
@@ -241,8 +261,27 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertIsNone(found["collection"])  # Wikidata's unknown value
         self.assertEqual((found["summary"], found["genre"]), ("", ""))
         self.assertEqual(found["dimensions"], "72 × 90 cm")
+        self.assertEqual(found["year"], "1888")  # an unknown inception: the file's
+        self.assertEqual(found["medium"], "Oil on canvas")  # canvas, no qualifier
+        self.assertEqual(art.verdict(path), found)  # kept, not asked for ever
         props = handlers.PluginHandlers({})._art_properties(found)
         self.assertEqual(props["art_collection"], "Private collection")
+
+    def test_an_unlabelled_collection_is_not_private(self):
+        # The Starry Night's first collection has no English label: left out
+        found = art.look_up(f"{FOLDER}Vincent Van Gogh - 'Starry Night' (1890).jpg")
+        self.assertEqual(found["collection"], "Museum of Modern Art")
+        name = art.Name("Vincent Van Gogh", "The Bedroom", (1888, 1888))
+        artist = {"qid": "Q5582", "label": "Vincent van Gogh"}
+
+        def collection(work):
+            return art.fields(name, artist, "Q1", work, "")["collection"]
+
+        self.assertEqual(
+            collection({"collection": [None, "Musée d'Orsay"]}), "Musée d'Orsay"
+        )
+        self.assertIsNone(collection({"collection": [None, None]}))  # every one unknown
+        self.assertEqual(collection({}), "")  # none at all
 
     def test_verdict_kept_by_path_and_mtime(self):
         path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
@@ -289,9 +328,24 @@ class ArtDetailsTest(unittest.TestCase):
         path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
         art.look_up(path)
         self.asked = []
-        actions.art_details_refresh(path)
+        actions.art_details_refresh(path)  # the folder isn't marked: nothing sent
+        self.assertEqual(self.asked, [])
+        art.mark(FOLDER, True)
+        with mock.patch.object(handlers.ADDON, "getSettingBool", lambda key: False):
+            actions.art_details_refresh(path)  # the setting off: nothing sent
+        self.assertEqual(self.asked, [])
+        HOME.setProperty("art_details_refresh", path)  # read as written, no decode
+        actions.art_details_refresh(prop="art_details_refresh")
         self.assertEqual(self.asked, ["works Franz Marc", "painting Q2358487"])
         self.assertEqual(art.verdict(path)["qid"], "Q2358487")
+
+    def test_forget_drops_its_own_file_only(self):
+        mine, other = f"{FOLDER}Tiger_%.jpg", f"{FOLDER}TigerX12.jpg"  # LIKE would
+        for path in (mine, other):
+            art.look_up(path)  # no " - ": a miss, kept
+        art.forget(mine)
+        self.assertIsNone(art.verdict(mine))
+        self.assertEqual(art.verdict(other), {})
 
     def test_folders(self):
         self.assertEqual(art.mark("/pictures/Art", True), ["/pictures/Art/"])
@@ -308,6 +362,8 @@ class ArtDetailsTest(unittest.TestCase):
             self.assertEqual(HOME.getProperty("art_details_marked"), "smb://nas/Art/")
             self.assertEqual(HOME.getProperty("art_details_unmarked"), "")
             actions.art_details_folder("smb://nas/Art/")
+            # inside an archive the inner URL keeps its password: refused
+            actions.art_details_folder("zip://smb%3a%2f%2fash%3apw%40nas/", mark="true")
         self.assertEqual(HOME.getProperty("art_details_unmarked"), "smb://nas/Art/")
         self.assertEqual(art.marked(), [])
 
@@ -323,8 +379,12 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(self.serve(path), {})  # an unmarked folder: nothing sent
         self.assertEqual(self.asked, [])
         art.mark(FOLDER, True)
+        self.assertEqual(self.serve(path), {})  # a plugin call: kept verdicts only
+        self.assertEqual(self.asked, [])
+        art.look_up(path)
         props = self.serve(path)
         self.assertEqual(HOME.getProperty("art_details_folder"), FOLDER)
+        self.assertEqual(HOME.getProperty("art_details_checked"), FOLDER)
         self.assertEqual(
             [props[f"art_chip{n}"] for n in range(1, 5)],
             [
@@ -338,33 +398,57 @@ class ArtDetailsTest(unittest.TestCase):
         with mock.patch.object(handlers.ADDON, "getSettingBool", lambda key: False):
             self.assertEqual(self.serve(path), {})  # off: nothing
 
+    def asides(self):
+        """The aside worker not started; the test drains it by hand."""
+        started = []
+        thread = lambda target, daemon: mock.Mock(start=lambda: started.append(target))
+        patcher = mock.patch.object(cache, "Thread", thread)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(art.ASIDES.asked.clear)
+        self.addCleanup(art.ASIDES.queue.clear)
+        self.addCleanup(setattr, art.ASIDES, "running", 0)
+        return started
+
     def test_served_looks_up_aside(self):
+        started = self.asides()
         art.mark(FOLDER, True)
         path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
         asker = mock.Mock(current=lambda: True)
-        with mock.patch.object(art, "Thread") as thread:
-            self.assertEqual(self.serve(path, again=asker), {})  # none yet: blank
+        self.assertEqual(self.serve(path, again=asker), {})  # none yet: blank
         self.assertEqual(self.asked, [])  # the serve itself sends nothing
-        thread.assert_called_once()
-        art._drain()  # the worker, here
+        self.assertEqual(len(started), 1)
+        art.ASIDES._drain()  # the worker, here
         asker.assert_called_once()
         self.assertEqual(self.serve(path, again=asker)["art_title"], "Tiger")
 
     def test_aside_skips_what_no_one_wants(self):
-        asker = mock.Mock(current=lambda: False)
-        with mock.patch.object(art, "Thread"):
-            art.look_up_aside(f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg", asker)
-        art._drain()
-        self.assertEqual((self.asked, asker.call_count), ([], 0))
+        self.asides()
+        art.mark(FOLDER, True)
+        path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
+        gone = mock.Mock(current=lambda: False)
+        art.ASIDES.ask(path, gone)
+        art.ASIDES._drain()
+        self.assertEqual((self.asked, gone.call_count), ([], 0))
+        art.mark(FOLDER, False)  # unmarked while it waited: still nothing sent
+        waiting = mock.Mock(current=lambda: True)
+        art.ASIDES.ask(path, waiting)
+        art.ASIDES._drain()
+        self.assertEqual((self.asked, waiting.call_count), ([], 0))
+
+    def test_only_pictures_are_looked_up(self):
+        self.asides()
+        art.mark(FOLDER, True)
+        asker = mock.Mock(current=lambda: True)
+        for name in ("Franz Marc - Tiger (1912).mkv", "Franz Marc - Tiger (1912).cbz"):
+            self.assertEqual(self.serve(f"{FOLDER}{name}", again=asker), {})
+        self.assertEqual(art.ASIDES.queue, deque())
 
     def test_folder_state(self):
         art.mark(f"{FOLDER}Munch/", True)
         self.serve(f"{FOLDER}Munch/")
         self.assertEqual(HOME.getProperty("art_details_marked"), f"{FOLDER}Munch/")
-        self.serve(f"{FOLDER}Munch/Prints/")  # under a marked folder: covered
-        self.assertEqual(
-            HOME.getProperty("art_details_covered"), f"{FOLDER}Munch/Prints/"
-        )
+        self.serve(f"{FOLDER}Munch/Prints/")  # under a marked folder: neither item
         self.assertEqual(HOME.getProperty("art_details_marked"), "")
         self.assertEqual(HOME.getProperty("art_details_unmarked"), "")
         self.serve(f"{FOLDER}Marc/")
@@ -387,6 +471,7 @@ class ArtDetailsTest(unittest.TestCase):
             "&summary_lines=2"
         )
         path = f"{FOLDER}Vincent Van Gogh - 'Starry Night' (1890).jpg"
+        art.look_up(path)
         with mock.patch.object(handlers, "skin_metric", lambda name: metric):
             props = self.serve(path, params)
         # 130 + 24 twice and a gap: 320; the collection's 224 would end at 556
