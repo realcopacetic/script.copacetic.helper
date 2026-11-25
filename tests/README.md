@@ -174,6 +174,11 @@ python tests/song_version_offline.py
 # a compilation's names its artist)
 python tests/infoscreen_chips_offline.py
 
+# A picture's bar on info=progressbar (shared/helpers.py ProgressBarManager.calculate,
+# resolution_span): its long edge against the span, capped at 100, a portrait's height;
+# no resolution no bar; without the param, the usual rules and no read
+python tests/picture_bar_offline.py
+
 # Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI
 # height; a 1x image drawn 2x and shrunk, a 2x one drawn 1:1, both giving the same
 # height in skin pixels, cached apart (needs Pillow and the skin's fonts)
