@@ -64,8 +64,8 @@ Song = tuple[str, str, str, int]  # (artist, title, album, seconds)
 Found = tuple[
     str, list | None, str | None, bool
 ]  # (source, synced, plain, instrumental)
-NONE: Found = ("", None, None, False)
-_fetches: dict[Song, "Fetch"] = {}  # LRCLIB lookups in flight, by song
+NONE = ("", None, None, False)
+_fetches = {}  # LRCLIB lookups in flight, by song
 
 
 def clear() -> None:

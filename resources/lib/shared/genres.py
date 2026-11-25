@@ -10,7 +10,7 @@ from string import ascii_lowercase, ascii_uppercase
 
 # Genres a later, shorter keyword would mis-file (dancehall and dance, rave hardcore
 # and punk hardcore, wassoulou and soul): their bucket, or None for the fallback
-EXCEPTIONS: tuple[tuple[str | None, tuple[str, ...]], ...] = (
+EXCEPTIONS = (
     ("Reggae", ("dancehall", "dance hall")),
     ("Country", ("country dance",)),
     ("Blues", ("piedmont",)),
@@ -48,7 +48,7 @@ EXCEPTIONS: tuple[tuple[str | None, tuple[str, ...]], ...] = (
 )
 # Each bucket's keywords; narrow buckets before the broad one they split from (Blues
 # before Rock, Techno before Electronic), Rock and Pop near the end as the broadest
-KEYWORDS: dict[str, tuple[str, ...]] = {
+KEYWORDS = {
     "Christmas": ("christmas", "xmas", "holiday"),
     "Kids": ("children", "kids", "lullab", "nursery"),
     "SpokenWord": (
@@ -228,7 +228,7 @@ def genre_mapping() -> dict:
 # only ("oi" is not in "Choir"). Written by tests/genre_snapshot.py.
 # --- generated: tests/genre_snapshot.py ---
 # MusicBrainz, 2026-11-15
-SUBGENRES: dict[str, str] = {
+SUBGENRES = {
     "2 tone": "Ska",
     "3-step": "Electronic",
     "aak": "Classical",

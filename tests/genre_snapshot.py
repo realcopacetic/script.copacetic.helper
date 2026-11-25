@@ -139,7 +139,7 @@ def write(subgenres: dict[str, str]) -> None:
         f"    {json.dumps(name, ensure_ascii=False)}: {json.dumps(bucket)},\n"
         for name, bucket in sorted(subgenres.items())
     )
-    body = f"# MusicBrainz, {date.today()}\nSUBGENRES: dict[str, str] = {{\n{lines}}}\n"
+    body = f"# MusicBrainz, {date.today()}\nSUBGENRES = {{\n{lines}}}\n"
     MODULE.write_text(head + BEGIN + body + END + tail)
 
 
