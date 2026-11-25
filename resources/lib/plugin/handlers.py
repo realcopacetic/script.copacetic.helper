@@ -92,6 +92,7 @@ from resources.lib.shared.mix import genre_ids, kept_mix, leading_cards, played_
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import (
+    fit_lines,
     markdown_label,
     single_quotes,
     skin_metric,
@@ -1601,6 +1602,82 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 }
             ]
         )
+
+    def art_details(self) -> list[DirectoryItem]:
+        """
+        A picture's painting from Wikidata as art_* properties, in folders marked for
+        it while the wikidata setting is on; a folder's mark state as Home properties.
+
+        :return: One item, its properties empty for no match (yet).
+        """
+        from resources.lib.shared import art_details as art
+
+        item = {"file": plugin_path("art_details"), "properties": {}}
+        if not ADDON.getSettingBool("wikidata"):
+            return set_items([item])
+        # Raw, as clean_name's: a decode would split a name at its own encoded "?"
+        raw = parse_plugin_argv(["", "", self.query], raw={"folder", "path"})
+        listing, path = raw.get("folder", ""), raw.get("path", "")
+        folders = art.marked()
+        covered = art.covers(folders, art.folder(listing))
+        window_property("art_details_folder", value=covered and listing)
+        if path.endswith(("/", "\\")):  # a folder: its state, for the context menu
+            art.publish(folders, path)
+        elif art.covers(folders, path):
+            if (found := art.verdict(path)) is None:
+                if self.again:  # served: the network never holds the pipeline
+                    art.look_up_aside(path, self.again)
+                else:
+                    found = art.look_up(path)
+            item["properties"] = self._art_properties(found or {})
+        return set_items([item])
+
+    def _art_properties(self, found: dict[str, Any]) -> dict[str, str]:
+        """
+        A match's fields as art_* properties, and its chips as art_chip1… (medium,
+        genre, collection, dimensions); chip_row and summary_lines fit them.
+
+        :param found: The file's fields; {} for none.
+        :return: The item's properties.
+        """
+        from resources.lib.shared.art_details import fit_chips
+
+        if not found:
+            return {}
+        fields = found | {
+            "collection": (
+                ADDON.getLocalizedString(32849)  # Wikidata's "unknown value"
+                if found["collection"] is None
+                else found["collection"]
+            ),
+            "depicts": ", ".join(found["depicts"]),
+        }
+        if (lines := to_int(self.params.get("summary_lines"))) and (
+            metric := skin_metric(self.params.get("summary_font", ""))
+        ):
+            width = to_int(self.params.get("summary_width"))
+            fields["summary"] = " ".join(
+                fit_lines(metric, fields["summary"], width, lines)
+            )
+        chips = [fields[k] for k in ("medium", "genre", "collection", "dimensions")]
+        chips = [*filter(None, chips)]
+        if (row := to_int(self.params.get("chip_row"))) and (
+            metric := skin_metric(self.params.get("chip_font", ""))
+        ):
+            upper = parse_bool(self.params.get("chip_upper"))
+            padding = 2 * to_float(self.params.get("chip_padding"))
+            widest = to_float(self.params.get("chip_max"), math.inf)
+            chips = fit_chips(
+                chips,
+                lambda chip: min(
+                    metric.getlength(chip.upper() if upper else chip) + padding, widest
+                ),
+                row,
+                to_float(self.params.get("chip_gap")),
+            )
+        return {f"art_{key}": value for key, value in fields.items()} | {
+            f"art_chip{n}": chip for n, chip in enumerate(chips, 1)
+        }
 
     @log.duration
     def epg_time_left(self) -> list[DirectoryItem] | None:

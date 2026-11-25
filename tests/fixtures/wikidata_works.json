@@ -1,0 +1,104 @@
+{
+  "note": "Hand-written from the 25 Nov 2026 filename test (Ash's 16 files, coding-notes briefs/2026-11-25-pictures-api.md): per artist search, the painter and some works as [qid, sitelinks, inception years, labels and aliases]. Q-ids the test reported are real; Q90000x are placeholders for its unnamed runners-up; sitelink counts are approximate. tests/art_details_offline.py turns each into the query service's answer shape.",
+  "artists": {
+    "Edvard Munch": {
+      "qid": "Q41406",
+      "label": "Edvard Munch",
+      "works": [
+        ["Q1989780", 45, [1894], ["Madonna", "Madonna (Munch)", "Madonna"]],
+        ["Q900001", 3, [1894], ["Madonna", "Madonna (lithograph)"]],
+        ["Q471379", 120, [1893], ["The Scream", "Skrik", "Der Schrei", "Le Cri", "Scream"]],
+        ["Q900002", 4, [1895], ["The Scream", "Skrik (litografi)"]],
+        ["Q900003", 12, [1895], ["Vampire", "Love and Pain"]]
+      ]
+    },
+    "Franz Marc": {
+      "qid": "Q44054",
+      "label": "Franz Marc",
+      "works": [
+        ["Q111799262", 6, [1911], ["Blue Horse II", "Blaues Pferd II"]],
+        ["Q900010", 9, [1911], ["Blue Horse I", "Blaues Pferd I"]],
+        ["Q28839414", 8, [1913], ["The Foxes", "Die Füchse"]],
+        ["Q900011", 2, [1913], ["Foxes"]],
+        ["Q52086838", 5, [1910], ["horse in a landscape", "Pferd in Landschaft"]],
+        ["Q900012", 1, [1911], ["Horses in landscape"]],
+        ["Q46159302", 4, [1912], ["In the rain", "Im Regen"]],
+        ["Q900013", 6, [1913], ["Cattle I"]],
+        ["Q2358487", 20, [1912], ["Tiger", "Der Tiger"]],
+        ["Q900014", 1, [1912], ["Tiger"]]
+      ]
+    },
+    "Katsushika Hokusai": {
+      "qid": "Q5586",
+      "label": "Katsushika Hokusai",
+      "works": [
+        ["Q252485", 80, [1831], ["The Great Wave off Kanagawa", "Under the Wave off Kanagawa", "神奈川沖浪裏"]],
+        ["Q900020", 15, [1830], ["South Wind, Clear Sky, from the series Thirty-six Views of Mount Fuji", "Fine Wind, Clear Morning"]]
+      ]
+    },
+    "Natalia Goncharova": {
+      "qid": "Q232391",
+      "label": "Natalia Goncharova",
+      "works": [
+        ["Q19883648", 3, [1911], ["Rayonism Blue-Green Forest"]],
+        ["Q27973526", 2, [1913], ["La Forêt [The Forest]", "La Forêt"]],
+        ["Q900030", 2, [1913], ["Rayonist Lilies"]]
+      ]
+    },
+    "Vincent Van Gogh": {
+      "qid": "Q5582",
+      "label": "Vincent van Gogh",
+      "works": [
+        ["Q1464531", 50, [1888], ["Starry Night Over the Rhône", "Sternennacht über der Rhone", "La Nuit étoilée"]],
+        ["Q26221341", 3, [1889], ["The Starry Night"]],
+        ["Q45585", 120, [1889], ["The Starry Night", "De sterrennacht", "Starry Night"]],
+        ["Q7087213", 4, [1889], ["Olive Trees"]],
+        ["Q900040", 25, [1889], ["The Olive Trees", "Olive Trees with the Alpilles in the Background"]],
+        ["Q900041", 30, [1888], ["The Bedroom", "Bedroom in Arles"]]
+      ]
+    },
+    "Wassily~ Kandinksy~": {
+      "qid": "Q61064",
+      "label": "Wassily Kandinsky",
+      "works": [
+        ["Q2990634", 25, [1913], ["Composition VII", "Komposition VII"]],
+        ["Q900050", 15, [1913], ["Composition VI", "Komposition VI"]],
+        ["Q3865997", 10, [1916], ["Moscow I", "Moskau I"]],
+        ["Q900051", 2, [1916], ["Composition (1916)"]],
+        ["Q18705520", 8, [1923], ["On White II", "Auf Weiss II"]],
+        ["Q900052", 1, [1919], ["Composition 248 White point"]]
+      ]
+    },
+    "Wassily Kandinsky": "Wassily~ Kandinksy~"
+  },
+  "paintings": {
+    "Q45585": [
+      ["title", "The Starry Night"],
+      ["inception", "1889-06-01T00:00:00Z"],
+      ["material", "http://www.wikidata.org/entity/Q296955", "oil paint"],
+      ["material", "http://www.wikidata.org/entity/Q12321255", "canvas", "http://www.wikidata.org/entity/Q861259"],
+      ["genre", "http://www.wikidata.org/entity/Q191163", "landscape art"],
+      ["collection", "http://www.wikidata.org/entity/Q188740", "Museum of Modern Art"],
+      ["height", "0.737"],
+      ["width", "0.921"],
+      ["depicts", "http://www.wikidata.org/entity/Q523", "star"],
+      ["depicts", "http://www.wikidata.org/entity/Q405", "Moon"],
+      ["depicts", "http://www.wikidata.org/entity/Q3196", "cypress"],
+      ["depicts", "http://www.wikidata.org/entity/Q16970", "church building"],
+      ["depicts", "http://www.wikidata.org/entity/Q16970", "church building"],
+      ["enwiki", "The Starry Night"]
+    ],
+    "Q900041": [
+      ["title", "The Bedroom"],
+      ["inception", "1888-10-01T00:00:00Z"],
+      ["material", "http://www.wikidata.org/entity/Q296955", "oil paint"],
+      ["material", "http://www.wikidata.org/entity/Q12321255", "canvas", "http://www.wikidata.org/entity/Q861259"],
+      ["collection", "http://www.wikidata.org/.well-known/genid/4f2a9c"],
+      ["height", "0.72"],
+      ["width", "0.9"]
+    ]
+  },
+  "summaries": {
+    "The Starry Night": "The Starry Night is an oil-on-canvas painting by the Dutch Post-Impressionist painter Vincent van Gogh. Painted in June 1889, it depicts the view from the east-facing window of his asylum room at Saint-Rémy-de-Provence, just before sunrise, with the addition of an imaginary village."
+  }
+}

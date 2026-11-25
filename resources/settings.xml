@@ -90,6 +90,13 @@
 					<control type="toggle" />
 				</setting>
 			</group>
+			<group id="6" label="32047">
+				<setting id="wikidata" type="boolean" label="32048" help="32148">
+					<level>0</level>
+					<default>false</default>
+					<control type="toggle" />
+				</setting>
+			</group>
 		</category>
 		<category id="debug" label="32001" help="">
 			<group id="1" label="32002">
@@ -255,6 +262,16 @@
 					</constraints>
 					<control type="button" format="action">
 						<data>RunScript(script.copacetic.helper,action=clear_api_cache,source=lrclib)</data>
+					</control>
+				</setting>
+				<setting id="cache_clear_wikidata" type="string" label="32049" help="32149">
+					<level>0</level>
+					<default />
+					<constraints>
+						<allowempty>true</allowempty>
+					</constraints>
+					<control type="button" format="action">
+						<data>RunScript(script.copacetic.helper,action=clear_api_cache,source=wikidata)</data>
 					</control>
 				</setting>
 			</group>

@@ -84,6 +84,7 @@ API_SOURCES = {
     "deezer": ("Deezer", 32036),
     "theintrodb": ("TheIntroDB", 32041),
     "lrclib": ("LRCLIB", 32044),
+    "wikidata": ("Wikidata", 32049),
 }
 WAVEFORM = "visualization.waveform"
 # 250 points a line (the fewest: calmer than 0, no resampling), lines in the skin's
@@ -130,6 +131,44 @@ def _reload_skin() -> None:
     """ReloadSkin, with helper_reloading moved on to reload."""
     window_property("helper_reloading", value="reload")
     log.execute("ReloadSkin()")
+
+
+@action
+def art_details_folder(path: str, mark: str = "", **kwargs: str) -> None:
+    """
+    Mark a folder for art details look-ups (subfolders follow), or unmark it, and
+    publish its new state, as the serve does, for the context menu's next open.
+
+    :param path: The folder's path.
+    :param mark: "true" marks it; anything else unmarks it.
+    """
+    from resources.lib.shared import art_details as art
+
+    path = art.without_user(path)  # a context item's path is Kodi's own, unredacted
+    folders = art.mark(path, mark == "true")
+    art.publish(folders, path)
+    listing = infolabel("Container.FolderPath")
+    covered = art.covers(folders, art.folder(listing))
+    window_property("art_details_folder", value=covered and listing)
+
+
+@action
+def art_details_refresh(path: str, ring: str = "", **kwargs: str) -> None:
+    """
+    Look one picture up on Wikidata again, its kept verdict and the answers it came
+    from asked afresh; then the skin's ring, if it passes one, serves it again.
+
+    :param path: The picture's path, as the art_details serve was passed it.
+    :param ring: A served ring to send once it is found (serve.md), with no is.
+    """
+    from resources.lib.shared import art_details as art
+
+    art.forget(path)
+    art.look_up(path)
+    if ring:
+        from resources.lib.service.serve import ring as send
+
+        send(ring)
 
 
 @action
@@ -200,7 +239,7 @@ def clear_api_cache(source: str, **kwargs: str) -> None:
     After a yes/no, forget every saved answer from one web API, so each is fetched
     again when next needed.
 
-    :param source: tmdb, listenbrainz, deezer, theintrodb or lrclib.
+    :param source: tmdb, listenbrainz, deezer, theintrodb, lrclib or wikidata.
     """
     from resources.lib.shared.sqlite import ApiCacheHandler
 
