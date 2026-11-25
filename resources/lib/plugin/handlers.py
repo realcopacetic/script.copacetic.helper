@@ -2608,14 +2608,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _word_aside(self, word: Callable[[int], str], dbid: int, served: str) -> None:
         """
         A served popularity word, asked again online on its own thread (Deezer and
-        ListenBrainz never hold the pipeline): a new one serves the list again.
+        ListenBrainz never hold the pipeline): it renews the cache for the next visit,
+        and serves the list again only when the cache had no word (never a swap).
 
         :param word: The item type's word function.
         :param dbid: Library id.
         :param served: The word the cache answered.
         """
         try:
-            if self.again.current() and word(dbid) != served:
+            if word(dbid) and not served and self.again.current():
                 self.again()
         except Exception:  # its own thread: nothing above it would log
             log.exception(f"{self.__class__.__name__} → popularity_label aside {dbid}")

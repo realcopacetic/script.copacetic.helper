@@ -665,7 +665,8 @@ cold), so show it only while they match `ListItem.DBID` and `ListItem.DBType`.
 
 Served in an info dialog (Copacetic's `9030` with probe `6903`, see
 [served lists](../service/serve.md)), it answers from its cache and asks Deezer on a
-thread of its own, and the list is served again if the word changes.
+thread of its own. A fresh word renews the cache for the next visit; the list is served
+again only when the cache had no word, so a shown word never changes in place.
 
 With **Rank music with Deezer** on:
 
