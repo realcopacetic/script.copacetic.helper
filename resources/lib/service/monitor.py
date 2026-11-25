@@ -191,10 +191,9 @@ class Monitor(xbmc.Monitor):
 
     def _check_outputs(self) -> None:
         """
-        Build, then reload if an output changed. Production: missing outputs, or all
-        when ids are fresh or the resolver cache is missing or stale (other skin, new
-        skin or helper version, an edited template, an output another profile wrote).
-        Dev: clear state if requested, rebuild, reload.
+        Build, then reload if an output changed. Dev: clear state if asked, rebuild.
+        Else the missing outputs, or all when ids are fresh or the resolver cache is
+        missing or stale (other skin or version, an edited template, a profile's write).
         """
         adopt_shared_state()  # first, so a dev reset clears what it adopts
 
@@ -376,10 +375,9 @@ class Monitor(xbmc.Monitor):
 
     def _album_bump(self) -> None:
         """
-        Timer: the served bar (the list the topmost window last served with progressbar)
-        again, and a new progress_version for a plugin bar; unless the bar on top serves
-        a film's or show's (no blink), read now. Then a new played_version if a closed
-        song's play counted (unannounced by real path).
+        Timer: the topmost window's served bar again, a plugin bar's progress_version,
+        unless the bar on top shows a film's or show's (no blink); then a new
+        played_version if a closed song's play counted (unannounced by real path).
         """
         server = self.server  # None once the skin has left
         served = server.served("progressbar") if server else 0

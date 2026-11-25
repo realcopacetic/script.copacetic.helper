@@ -155,7 +155,8 @@ class TrailerZoomController:
             content_ar = episode_ar
 
         log.debug(
-            f"PlayerMonitor → AR select → {trailer_ar=}, {source_ar=}, {episode_ar=}, {content_ar=}"
+            f"PlayerMonitor → AR select → {trailer_ar=}, {source_ar=}, "
+            f"{episode_ar=}, {content_ar=}"
         )
         return content_ar
 

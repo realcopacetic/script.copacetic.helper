@@ -14,6 +14,7 @@ def ensure_successor(dbid: int, tvshowid: int) -> str:
     """
     Append the next episode of the show to the video playlist if the feature is
     enabled and no successor is queued. Once per episode from onAVStarted.
+
     :param dbid: Library episodeid of the episode now playing.
     :param tvshowid: Library tvshowid of its show.
     :return: The queued episode's file; empty when nothing was queued.
@@ -30,8 +31,8 @@ def withdraw(file: str) -> None:
     """
     Remove the successor ensure_successor queued while it is still the next item:
     Play next was switched off during its episode.
+
     :param file: The queued episode's file.
-    :return: None.
     """
     playlist = PlayList(PLAYLIST_VIDEO)
     position = playlist.getposition() + 1
@@ -49,7 +50,8 @@ def _successor_present() -> bool:
     Report whether the current playlist item already has a successor.
     A negative position means playback did not come from the playlist
     player, so nothing is queued (fail-safe: treat as present).
-    :return: Boolean.
+
+    :return: True when an item follows it, or it isn't the playlist's.
     """
     playlist = PlayList(PLAYLIST_VIDEO)
     position = playlist.getposition()
@@ -62,6 +64,7 @@ def _next_episode(dbid: int, tvshowid: int) -> dict | None:
     """
     Walk the show's episodes in season/episode order to the one after the one
     playing, skipping other parts of the same file (multi-part episodes).
+
     :param dbid: Library episodeid of the episode now playing.
     :param tvshowid: Library tvshowid of its show.
     :return: The successor's episodeid and file, or None at the end of the show.
@@ -85,8 +88,8 @@ def _next_episode(dbid: int, tvshowid: int) -> dict | None:
 def _append(episodeid: int) -> None:
     """
     Append the episode to the video playlist via JSON-RPC.
+
     :param episodeid: Library episodeid to queue.
-    :return: None.
     """
     json_call(
         "Playlist.Add",

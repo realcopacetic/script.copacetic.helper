@@ -61,9 +61,8 @@ SEARCHING = {
 }
 ASKING_WAIT = 0.2  # seconds between passes while LRCLIB is asked: its answer shows soon
 Song = tuple[str, str, str, int]  # (artist, title, album, seconds)
-Found = tuple[
-    str, list | None, str | None, bool
-]  # (source, synced, plain, instrumental)
+# (source, synced, plain, instrumental)
+Found = tuple[str, list | None, str | None, bool]
 NONE = ("", None, None, False)
 _fetches = {}  # LRCLIB lookups in flight, by song
 
@@ -86,7 +85,7 @@ def around(index: int) -> dict[str, str]:
     }
 
 
-def song(prefix: str = "MusicPlayer.") -> tuple[str, str, str, int]:
+def song(prefix: str = "MusicPlayer.") -> Song:
     """
     The playing song's tags and length, or a queued one's.
 
