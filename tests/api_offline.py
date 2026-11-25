@@ -1119,6 +1119,7 @@ class CreatorCreditsTest(Base):
         episodes = [  # show, title, writers
             (1, "Game of Thrones", ["David Benioff", "D. B. Weiss"]),
             (4, "Westworld", ["D. B. Weiss"]),
+            (2, "Le Problème à trois corps", ["David Benioff"]),  # and created: once
             (3, "House of the Dragon", ["Ryan Condal"]),
         ]
         movies = [  # title, year, writers
