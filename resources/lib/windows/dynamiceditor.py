@@ -137,6 +137,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         initial list.
         """
         window_property("editor_label", value=infolabel("System.CurrentWindow"))
+        # Its own id, read while it is the top dialog: a picker it opens later is not
+        self._window_id = str(xbmcgui.getCurrentWindowDialogId())
         self._description_label = self.getControl(6)
         self._list_container = self.getControl(100)
 
@@ -352,7 +354,7 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
     def _ring(self) -> None:
         """Send the served ring the skin passed (``ring``), if any, in this window."""
         if self.ring:  # its token, a Home property
-            LockedCalls.write(ring, self.ring, window=str(self.getId()))
+            LockedCalls.write(ring, self.ring, window=self._window_id)
 
     def _refresh_ui(self, update_row: bool = True, focus_id: int | None = None) -> None:
         """

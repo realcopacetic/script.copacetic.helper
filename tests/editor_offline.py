@@ -246,7 +246,7 @@ class Ring(unittest.TestCase):
             _rows_shown={},
             _list_container=Mock(),
             _apply_row_visuals=Mock(return_value=changed),
-            getId=Mock(return_value=13001),
+            _window_id="13001",
         )
         with patch.object(dynamiceditor, "ring") as rang:
             ed._refresh_list_row(0, moved=moved)
