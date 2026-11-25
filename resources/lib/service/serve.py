@@ -448,7 +448,7 @@ class Server:
                 again = Again(self, list_id, request.value, window_id)
                 # A line types on past its serve: only the service's stop ends it here,
                 # its lease (the skin's scroll at a move) and guard do the rest
-                superseded = self._stopped if line else stale
+                superseded = (lambda: self.stopped) if line else stale
                 started = time.perf_counter()
                 items = (
                     self._handle(params, superseded, again, request.cursors)
@@ -588,14 +588,6 @@ class Server:
             for label in ("CurrentItem", "ListItem.DBID")
         )
         return f"{list_id}/{position}/{dbid}/"
-
-    def _stopped(self) -> bool:
-        """
-        Whether the service has stopped: a served line's only stop test here.
-
-        :return: True once stopped.
-        """
-        return self.stopped
 
     @staticmethod
     def _retired(params: str) -> bool:
