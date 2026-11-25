@@ -118,6 +118,9 @@ ACCEPTED = {  # (rule, file, message start): why it stands
         " jumpbars, one shown per orientation"
         for cid in range(60, 64)
     },
+    ("duplicate-id", "visualisation.xml", "id 2:"): "the full-screen visualiser and"
+    " the Waveform floor, one shown by visualisation_waveform; CONTROL_VIS lookups"
+    " take the visible one (CGUIControlLookup::GetControl)",
     **dict.fromkeys(
         (
             ("unknown-param", "grid.xml", "ctn_grid_primary/ctn_grid_widget/"),
