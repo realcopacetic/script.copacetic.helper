@@ -31,7 +31,8 @@ the rotation its family (one image stops it; an again of the same family keeps t
 turn), which turns from slide 1, each slide made from the slides probe on top LEAD
 before its beat and bound with the artwork list's identity on it, none under a dialog,
 none on a short rest, none that won't open, and a late bind pushes the next beats back;
-a new family or an error ends a turn, not the thread; a newer ring, a moved mark or a
+a new family or an error ends a turn, not the thread; a repeat keeps a turn, or turns
+the family again once its turn ended; a newer ring, a moved mark or a
 slide probe that moved on ends it, a move during the beat's read on top too. The line
 (an ongoing handler's, the typewriter) starts on a thread of its own and answers at
 once (a plugin call types it inline); only the service's stop ends a line from here
@@ -43,7 +44,8 @@ lists before the line; a repeat whose line probe waits is served alone; a claim 
 hand-back share one lock; live() reads the kept Home. A music OSD rail's settle is
 served in the OSD over the visualisation, its echo bound; the OSD closing (its unload
 clears the cursor) binds nothing more, in it or in the window under it, drops a ring
-and ends a slide's turn; a dialog serve reads its dialog, never the window under it.
+and ends a slide's turn; back from Info over a rail, the OSD's repeat turns its slides
+again; a dialog serve reads its dialog, never the window under it.
 Run from the helper root: python tests/serve_offline.py
 """
 
@@ -117,7 +119,7 @@ def _server(*probes: str) -> serve.Server:
     server.busy, server.net, server.failed = False, False, {}
     server.owed, server.lines, server.infos = {}, {}, {}
     server.binds, server.quiet = 0, {}
-    server.turn, server.handed = None, Event()
+    server.turn, server.handed, server.kept = None, Event(), {}
     blank = Mock(**{"getArt.return_value": ""})  # no family
     server._handle = Mock(return_value=[("plugin://x/1", blank, False)])
     server._bind = Mock()
@@ -1552,6 +1554,20 @@ class RotateTest(unittest.TestCase):
         self.assertIsNone(server.turn)
         self.assertTrue(server.handed.is_set())
 
+    def test_a_repeat_turns_its_family_again_once_its_turn_ended(self) -> None:
+        server = _server(ARTWORK)
+        server._handle.return_value = _bound(FAMILY)
+        request = SETTLE._replace(lists=ART)
+        self._serve(server, request)
+        server.handed.clear()
+        self._serve(server, request._replace())  # a repeat while it turns: kept
+        self.assertFalse(server.handed.is_set())
+        server.turn = None  # a dialog's ring over it ended the turn
+        self._serve(server, request._replace())
+        server._handle.assert_called_once()  # held: no new serve
+        self.assertEqual(server.turn, TURN._replace(request=request))
+        self.assertTrue(server.handed.is_set())
+
     def test_a_family_of_one_or_none_stops_the_turn(self) -> None:
         server = _server()
         for items in (_bound(("a.jpg",)), []):
@@ -1873,6 +1889,16 @@ class MusicOsdTest(unittest.TestCase):
         with patch.object(serve, "infolabel", return_value=PARAMS) as read:
             self.assertIsNone(serve.Server._slide(turn, "b.jpg"))
         read.assert_not_called()
+
+    def test_back_from_info_over_a_rail_the_repeat_turns_its_slides(self) -> None:
+        server = _server(ARTWORK)
+        server._handle.return_value = _bound(FAMILY, self.RAIL)
+        rail = self.SETTLE._replace(lists=ART, echo="o1")
+        self._run(server, rail)
+        server.turn = None  # the info dialog's ring ended the turn
+        self._run(server, rail._replace())  # its close rings the OSD's cursor again
+        server._handle.assert_called_once()
+        self.assertEqual((server.turn.window_id, server.turn.request), (10120, rail))
 
     def test_a_dialog_serve_reads_the_osd_never_the_window_under_it(self) -> None:
         params = {"info": "artwork", "dialog": "true", "target": "3220"}
